@@ -13,3 +13,6 @@
 
 // RUN: %{run-aux} %{build} %device_tsan_aot_flags -O3 -g %S/Inputs/usm_data_race.cpp -o %t.out
 // RUN: %{run} %t.out 2>&1 | FileCheck %S/Inputs/usm_data_race.cpp
+
+// XFAIL: spirv-backend && arch-intel_gpu_pvc
+// XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/160602

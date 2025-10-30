@@ -1,53 +1,19 @@
-name: Run Benchmarks
+# A combined workflow for all benchmarks-related jobs for SYCL and UR.
+# Supports both manual triggering (dispatch) and nightly runs.
+# It also tests changes to benchmark scripts/framework in PR, if modified.
+name: SYCL Run Benchmarks
 
 on:
-  workflow_call:
-    inputs:
-      preset:
-        type: string
-        description: |
-          Benchmark presets to run: See /devops/scripts/benchmarks/presets.py
-        required: false
-        default: 'Minimal'  # Only compute-benchmarks
-      pr_no:
-        type: string
-        description: |
-          PR no. to build SYCL from if specified: SYCL will be built from HEAD
-          of incoming branch used by the specified PR no.
-
-          If both pr_no and commit_hash are empty, the latest commit in
-          deployment branch will be used.
-        required: false
-        default: ''
-      commit_hash:
-        type: string
-        description: |
-          Commit hash (within intel/llvm) to build SYCL from if specified.
-
-          If both pr_no and commit_hash are empty, the latest commit in
-          deployment branch will be used.
-        required: false
-        default: ''
-      save_name:
-        type: string
-        description: |
-          Specify a custom name to use for the benchmark result: If uploading
-          results, this will be the name used to refer results from the current
-          run.
-        required: false
-        default: ''
-      upload_results:
-        type: string # true/false: workflow_dispatch does not support booleans
-        description: |
-          Upload results to https://intel.github.io/llvm/benchmarks/.
-        required: true
-      runner:
-        type: string
-        required: true
-      backend:
-        type: string
-        required: true
-
+  schedule:
+    # 3 hours ahead of SYCL nightly
+    - cron: '0 0 * * *'
+  # Run on pull requests only when a benchmark-related files were changed.
+  pull_request:
+    # These paths are exactly the same as in sycl-linux/windows-precommit.yml (to ignore over there)
+    paths:
+      - 'devops/scripts/benchmarks/**'
+      - 'devops/actions/run-tests/benchmark/**'
+      - '.github/workflows/sycl-ur-perf-benchmarking.yml'
   workflow_dispatch:
     inputs:
       preset:
@@ -60,6 +26,8 @@ on:
           - Minimal
           - Normal
           - Test
+          - Gromacs
+          - OneDNN
         default: 'Minimal'  # Only compute-benchmarks
       pr_no:
         type: string
@@ -90,6 +58,13 @@ on:
           - false
           - true
         default: true
+      exit_on_failure:
+        description: Fail benchmark script on any error. Limit number of iterations to just test correctness.
+        type: choice
+        options:
+          - false
+          - true
+        default: false
       runner:
         description: Self-hosted runner to use for the benchmarks
         type: choice
@@ -102,13 +77,14 @@ on:
         options:
           - 'level_zero:gpu'
           - 'level_zero_v2:gpu'
-            # As of #17407, sycl-linux-build now builds v2 by default
 
 permissions: read-all
 
 jobs:
-  sanitize_inputs:
-    name: Sanitize inputs
+  # Manual trigger (dispatch) path:
+  sanitize_inputs_dispatch:
+    name: '[Dispatch] Sanitize inputs'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     env:
       COMMIT_HASH: ${{ inputs.commit_hash }}
@@ -156,12 +132,12 @@ jobs:
           echo "Final sanitized values:"
           cat $GITHUB_OUTPUT
 
-  build_sycl:
-    name: Build SYCL
-    needs: [ sanitize_inputs ]
+  build_sycl_dispatch:
+    name: '[Dispatch] Build SYCL'
+    needs: [ sanitize_inputs_dispatch ]
     uses: ./.github/workflows/sycl-linux-build.yml
     with:
-      build_ref: ${{ needs.sanitize_inputs.outputs.build_ref }}
+      build_ref: ${{ needs.sanitize_inputs_dispatch.outputs.build_ref }}
       build_cache_root: "/__w/"
       build_cache_suffix: "prod_noassert"
       build_configure_extra_args: "--no-assertions"
@@ -169,12 +145,12 @@ jobs:
       cc: clang
       cxx: clang++
       changes: '[]'
-
       toolchain_artifact: sycl_linux_prod_noassert
 
-  run_benchmarks_build:
-    name: Run Benchmarks on Build
-    needs: [ build_sycl, sanitize_inputs ]
+  benchmark_dispatch:
+    name: '[Dispatch] Benchmarks'
+    needs: [ build_sycl_dispatch, sanitize_inputs_dispatch ]
+    if: always() && !cancelled() && needs.build_sycl_dispatch.outputs.build_conclusion == 'success'
     strategy:
       matrix:
         include:
@@ -184,16 +160,102 @@ jobs:
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     secrets: inherit
     with:
-      name: Run compute-benchmarks (${{ matrix.save_name }}, ${{ matrix.runner }}, ${{ matrix.backend }})
+      name: "Benchmarks (${{ matrix.runner }}, ${{ matrix.backend }}, preset: ${{ inputs.preset }})"
       runner: ${{ matrix.runner }}
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
       target_devices: ${{ matrix.backend }}
       tests_selector: benchmarks
       benchmark_upload_results: ${{ inputs.upload_results }}
-      benchmark_save_name: ${{ needs.sanitize_inputs.outputs.benchmark_save_name }}
+      benchmark_save_name: ${{ needs.sanitize_inputs_dispatch.outputs.benchmark_save_name }}
       benchmark_preset: ${{ inputs.preset }}
-      repo_ref: ${{ needs.sanitize_inputs.outputs.build_ref }}
-      toolchain_artifact: ${{ needs.build_sycl.outputs.toolchain_artifact }}
-      toolchain_artifact_filename: ${{ needs.build_sycl.outputs.toolchain_artifact_filename }}
-      toolchain_decompress_command: ${{ needs.build_sycl.outputs.toolchain_decompress_command }}
+      benchmark_exit_on_failure: ${{ inputs.exit_on_failure }}
+      repo_ref: ${{ needs.sanitize_inputs_dispatch.outputs.build_ref }}
+      toolchain_artifact: ${{ needs.build_sycl_dispatch.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.build_sycl_dispatch.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.build_sycl_dispatch.outputs.toolchain_decompress_command }}
+  # END manual trigger (dispatch) path
+
+  # Nightly benchmarking path:
+  build_nightly:
+    name: '[Nightly] Build SYCL'
+    if: github.repository == 'intel/llvm' && github.event_name == 'schedule'
+    uses: ./.github/workflows/sycl-linux-build.yml
+    secrets: inherit
+    with:
+      build_cache_root: "/__w/"
+      build_configure_extra_args: '--no-assertions'
+      build_image: ghcr.io/intel/llvm/ubuntu2404_build:latest
+
+      toolchain_artifact: sycl_linux_default
+      toolchain_artifact_filename: sycl_linux.tar.gz
+
+  benchmark_nightly:
+    name: '[Nightly] Benchmarks'
+    needs: [build_nightly]
+    if: always() && !cancelled() && needs.build_nightly.outputs.build_conclusion == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: ['["PVC_PERF"]', '["BMG_PERF"]']
+        backend: ['level_zero:gpu', 'level_zero_v2:gpu']
+        include:
+          - ref: ${{ github.sha }}
+            save_name: 'Baseline'
+            preset: 'Full'
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    secrets: inherit
+    with:
+      name: "Benchmarks (${{ matrix.runner }}, ${{ matrix.backend }}, preset: ${{ matrix.preset }})"
+      runner: ${{ matrix.runner }}
+      image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
+      image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+      target_devices: ${{ matrix.backend }}
+      tests_selector: benchmarks
+      benchmark_upload_results: true
+      benchmark_save_name: ${{ matrix.save_name }}
+      benchmark_preset: ${{ matrix.preset }}
+      repo_ref: ${{ matrix.ref }}
+      toolchain_artifact: ${{ needs.build_nightly.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.build_nightly.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.build_nightly.outputs.toolchain_decompress_command }}
+  # END nightly benchmarking path
+
+  # Benchmark framework builds and runs on PRs path:
+  build_pr:
+    name: '[PR] Build SYCL'
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/sycl-linux-build.yml
+    with:
+      build_ref: ${{ github.sha }}
+      build_cache_root: "/__w/"
+      build_cache_suffix: "default"
+      # Docker image has last nightly pre-installed and added to the PATH
+      build_image: "ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest"
+      cc: clang
+      cxx: clang++
+      changes: '[]'
+      toolchain_artifact: sycl_linux_default
+
+  # TODO: When we have stable BMG runner(s), consider moving this job to that runner.
+  test_benchmark_framework:
+    name: '[PR] Benchmark suite testing'
+    needs: [build_pr]
+    if: always() && !cancelled() && needs.build_pr.outputs.build_conclusion == 'success'
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    with:
+      name: 'Framework test: PVC_PERF, L0, Minimal preset'
+      runner: '["PVC_PERF"]'
+      image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
+      image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+      target_devices: 'level_zero:gpu'
+      tests_selector: benchmarks
+      benchmark_upload_results: false
+      benchmark_preset: 'Minimal'
+      benchmark_dry_run: true
+      benchmark_exit_on_failure: true
+      repo_ref: ${{ github.sha }}
+      toolchain_artifact: ${{ needs.build_pr.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.build_pr.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.build_pr.outputs.toolchain_decompress_command }}
+  # END benchmark framework builds and runs on PRs path

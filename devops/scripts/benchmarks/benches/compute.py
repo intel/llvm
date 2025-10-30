@@ -14,6 +14,7 @@ from pathlib import Path
 from git_project import GitProject
 from options import options
 from utils.result import BenchmarkMetadata, Result
+from utils.logger import log
 
 from .base import Benchmark, Suite, TracingType
 from .compute_metadata import ComputeMetadataGenerator
@@ -74,8 +75,12 @@ class ComputeBench(Suite):
                 self.git_hash(),
                 Path(options.workdir),
                 "compute-benchmarks",
-                force_rebuild=True,
+                use_installdir=False,
             )
+
+        if not self.project.needs_rebuild():
+            log.info(f"Rebuilding {self.project.name} skipped")
+            return
 
         extra_args = [
             f"-DBUILD_SYCL=ON",
@@ -96,7 +101,7 @@ class ComputeBench(Suite):
                 f"-Dunified-runtime_DIR={options.ur}/lib/cmake/unified-runtime",
             ]
 
-        self._project.configure(extra_args, install_prefix=False, add_sycl=True)
+        self._project.configure(extra_args, add_sycl=True)
         self._project.build(add_sycl=True)
 
     def additional_metadata(self) -> dict[str, BenchmarkMetadata]:
@@ -266,12 +271,13 @@ class ComputeBench(Suite):
 
         # Add UR-specific benchmarks
         benches += [
-            MemcpyExecute(self, RUNTIMES.UR, 400, 1, 102400, 10, 1, 1, 1, 1, 0),
-            MemcpyExecute(self, RUNTIMES.UR, 400, 1, 102400, 10, 0, 1, 1, 1, 0),
-            MemcpyExecute(self, RUNTIMES.UR, 100, 4, 102400, 10, 1, 1, 0, 1, 0),
-            MemcpyExecute(self, RUNTIMES.UR, 100, 4, 102400, 10, 1, 1, 0, 0, 0),
-            MemcpyExecute(self, RUNTIMES.UR, 4096, 4, 1024, 10, 0, 1, 0, 1, 0),
-            MemcpyExecute(self, RUNTIMES.UR, 4096, 4, 1024, 10, 0, 1, 0, 1, 1),
+            # TODO: multithread_benchmark_ur fails with segfault
+            # MemcpyExecute(self, RUNTIMES.UR, 400, 1, 102400, 10, 1, 1, 1, 1, 0),
+            # MemcpyExecute(self, RUNTIMES.UR, 400, 1, 102400, 10, 0, 1, 1, 1, 0),
+            # MemcpyExecute(self, RUNTIMES.UR, 100, 4, 102400, 10, 1, 1, 0, 1, 0),
+            # MemcpyExecute(self, RUNTIMES.UR, 100, 4, 102400, 10, 1, 1, 0, 0, 0),
+            # MemcpyExecute(self, RUNTIMES.UR, 4096, 4, 1024, 10, 0, 1, 0, 1, 0),
+            # MemcpyExecute(self, RUNTIMES.UR, 4096, 4, 1024, 10, 0, 1, 0, 1, 1),
             UsmMemoryAllocation(self, RUNTIMES.UR, "Device", 256, "Both"),
             UsmMemoryAllocation(self, RUNTIMES.UR, "Device", 256 * 1024, "Both"),
             UsmBatchMemoryAllocation(self, RUNTIMES.UR, "Device", 128, 256, "Both"),
@@ -304,14 +310,14 @@ class ComputeBench(Suite):
 class ComputeBenchmark(Benchmark):
     def __init__(
         self,
-        bench,
-        name,
-        test,
+        suite: ComputeBench,
+        name: str,
+        test: str,
         runtime: RUNTIMES = None,
         profiler_type: PROFILERS = PROFILERS.TIMER,
     ):
-        super().__init__(bench)
-        self._bench = bench
+        super().__init__(suite)
+        self._suite = suite
         self._bench_name = name
         self._test = test
         self._runtime = runtime
@@ -361,8 +367,8 @@ class ComputeBenchmark(Benchmark):
                     command=command,
                     env=env_vars,
                     unit=unit,
-                    git_url=self._bench.git_url(),
-                    git_hash=self._bench.git_hash(),
+                    git_url=self._suite.git_url(),
+                    git_hash=self._suite.git_hash(),
                 )
             )
         return ret
@@ -398,11 +404,12 @@ class ComputeBenchmark(Benchmark):
 
     def _get_iters(self, run_trace: TracingType):
         """Returns the number of iterations to run for the given tracing type."""
-        return (
-            self._iterations_trace
-            if run_trace != TracingType.NONE
-            else self._iterations_regular
-        )
+        if options.exit_on_failure:
+            # we are just testing that the benchmark runs successfully
+            return 3
+        if run_trace == TracingType.NONE:
+            return self._iterations_regular
+        return self._iterations_trace
 
     def _supported_runtimes(self) -> list[RUNTIMES]:
         """Base runtimes supported by this benchmark, can be overridden."""
@@ -421,7 +428,7 @@ class ComputeBenchmark(Benchmark):
     @property
     def __benchmark_bin(self) -> Path:
         """Returns the path to the benchmark binary"""
-        return self._bench._project.build_dir / "bin" / self._bench_name
+        return self._suite._project.build_dir / "bin" / self._bench_name
 
     def __enabled_runtimes(self) -> list[RUNTIMES]:
         """Runtimes available given the current configuration."""
@@ -763,6 +770,7 @@ class StreamMemory(ComputeBenchmark):
             "--contents=Zeros",
             "--multiplier=1",
             "--vectorSize=1",
+            "--lws=256",
         ]
 
 

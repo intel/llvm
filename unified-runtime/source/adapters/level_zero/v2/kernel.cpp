@@ -270,7 +270,8 @@ ur_result_t ur_kernel_handle_t_::prepareForSubmission(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const size_t *pGlobalWorkOffset, uint32_t workDim, uint32_t groupSizeX,
     uint32_t groupSizeY, uint32_t groupSizeZ,
-    ze_command_list_handle_t commandList, wait_list_view &waitListView) {
+    ze_command_list_handle_t commandList, wait_list_view &waitListView,
+    std::vector<void *> *kMemObj) {
   auto &deviceKernelOpt = deviceKernels[deviceIndex(hDevice)];
   if (!deviceKernelOpt.has_value())
     return UR_RESULT_ERROR_INVALID_KERNEL;
@@ -298,8 +299,23 @@ ur_result_t ur_kernel_handle_t_::prepareForSubmission(
         zePtr = reinterpret_cast<void *>(hImage->getZeImage());
       }
     }
-    // Set the argument only on this device's kernel.
-    UR_CALL(deviceKernel.setArgPointer(pending.argIndex, zePtr));
+
+    // kMemObj must be non-null in the path of
+    // zeCommandListAppendLaunchKernelWithArguments()
+    if (kMemObj) {
+      // zeCommandListAppendLaunchKernelWithArguments()
+      // (==CommandListCoreFamily<gfxCoreFamily>::appendLaunchKernelWithArguments())
+      // calls setArgumentValue(i, argSize, argValue) for all arguments on its
+      // own so do not call it here, but save the zePtr pointer in kMemObj
+      // for this future call.
+      if (pending.argIndex > kMemObj->size() - 1) {
+        return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
+      }
+      (*kMemObj)[pending.argIndex] = zePtr;
+    } else {
+      // Set the argument only on this device's kernel.
+      UR_CALL(deviceKernel.setArgPointer(pending.argIndex, zePtr));
+    }
   }
   pending_allocations.clear();
 
@@ -435,19 +451,17 @@ ur_result_t urKernelSetArgPointer(
   return exceptionToResult(std::current_exception());
 }
 
-static ur_mem_buffer_t::device_access_mode_t memAccessFromKernelProperties(
-    const ur_kernel_arg_mem_obj_properties_t *pProperties) {
-  if (pProperties) {
-    switch (pProperties->memoryAccess) {
-    case UR_MEM_FLAG_READ_WRITE:
-      return ur_mem_buffer_t::device_access_mode_t::read_write;
-    case UR_MEM_FLAG_WRITE_ONLY:
-      return ur_mem_buffer_t::device_access_mode_t::write_only;
-    case UR_MEM_FLAG_READ_ONLY:
-      return ur_mem_buffer_t::device_access_mode_t::read_only;
-    default:
-      return ur_mem_buffer_t::device_access_mode_t::read_write;
-    }
+static ur_mem_buffer_t::device_access_mode_t
+memAccessFromMemFlags(const ur_mem_flags_t &Flags) {
+  switch (Flags) {
+  case UR_MEM_FLAG_READ_WRITE:
+    return ur_mem_buffer_t::device_access_mode_t::read_write;
+  case UR_MEM_FLAG_WRITE_ONLY:
+    return ur_mem_buffer_t::device_access_mode_t::write_only;
+  case UR_MEM_FLAG_READ_ONLY:
+    return ur_mem_buffer_t::device_access_mode_t::read_only;
+  default:
+    break;
   }
   return ur_mem_buffer_t::device_access_mode_t::read_write;
 }
@@ -461,7 +475,9 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
   std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
 
   UR_CALL(hKernel->addPendingMemoryAllocation(
-      {hArgValue, memAccessFromKernelProperties(pProperties), argIndex}));
+      {hArgValue,
+       memAccessFromMemFlags(pProperties ? pProperties->memoryAccess : 0),
+       argIndex}));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
