@@ -246,13 +246,8 @@ jobs:
     container:
       image: 'ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest'
     env:
-      CMPLR_ROOT: ./toolchain
+      CMPLR_ROOT: '/opt/sycl/'
     steps:
-      - name: get some info
-        run: |
-          which clang++ || true
-          which sycl-ls || true
-          sycl-ls || true
       - name: Checkout code
         uses: actions/checkout@v3
       - name: Install python libraries and dependencies
@@ -266,7 +261,9 @@ jobs:
           path: compute-benchmarks
       - name: Configure Compute Benchmarks
         run: |
-          cmake -B compute-benchmarks/build -S compute-benchmarks -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DNULL_L0=ON
+          cmake -B compute-benchmarks/build -S compute-benchmarks -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+          -DNULL_L0=ON -DBUILD_SYCL=ON -DBUILD_UR=OFF -DBUILD_OMP=OFF -DBUILD_HELLO_WORLD=OFF
       - name: Build Compute Benchmarks
         run: |
           cmake --build compute-benchmarks/build -- -j$(nproc)

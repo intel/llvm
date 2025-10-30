@@ -75,7 +75,7 @@ class App:
         )
 
     def get_output(self):
-        with open(output_file) as f:
+        with open(os.path.join(self.OUTPUT_DIR, "data.json")) as f:
             out = json.load(f)
             return DataJson(
                 runs=[
