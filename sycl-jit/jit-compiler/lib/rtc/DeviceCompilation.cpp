@@ -262,6 +262,26 @@ class SYCLToolchain {
       DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_offload_arch_EQ), CPU);
     }
 
+    if (UserArgList.hasArg(OPT_sycl_rtc_exp_redist_mode)) {
+      DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_nostdlibinc));
+      auto AddInc = [&](auto RelPath) {
+        DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_isystem),
+                         (getPrefix() + RelPath).str());
+      };
+      AddInc("include/sycl/stl_wrappers");
+      AddInc("include/x86_64-unknown-linux-gnu/c++/v1");
+      AddInc("include/c++/v1");
+      AddInc("include/libc");
+      AddInc("include/");
+      AddInc("include/sycl-rtc-standalone/");
+      AddInc("include/lib/clang/22/include/");
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_D),
+                       "_LIBCPP_REMOVE_TRANSITIVE_INCLUDES");
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_include), "stdio.h");
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_include), "wchar.h");
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_include), "time.h");
+    }
+
     ArgStringList ASL;
     for (Arg *A : DAL)
       A->render(DAL, ASL);
@@ -543,9 +563,15 @@ public:
     std::vector<std::string> CommandLine =
         createCommandLine(UserArgList, Format, SourceFilePath);
 
-    auto FS = llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(
-        llvm::vfs::getRealFileSystem());
-    FS->pushOverlay(getToolchainFS());
+    llvm::IntrusiveRefCntPtr<llvm::vfs::OverlayFileSystem> FS;
+    if (UserArgList.hasArg(OPT_sycl_rtc_in_memory_fs_only)) {
+      FS = llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(
+          getToolchainFS());
+    } else {
+      FS = llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(
+          llvm::vfs::getRealFileSystem());
+      FS->pushOverlay(getToolchainFS());
+    }
     if (FSOverlay)
       FS->pushOverlay(std::move(FSOverlay));
 
