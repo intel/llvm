@@ -20801,9 +20801,9 @@ inline std::ostream &operator<<(
   os << *(params->ppMem);
 
   os << ", ";
-  os << ".pIPCMemHandleData = ";
+  os << ".ppIPCMemHandleData = ";
 
-  ur::details::printPtr(os, *(params->ppIPCMemHandleData));
+  ur::details::printPtr(os, *(params->pppIPCMemHandleData));
 
   os << ", ";
   os << ".pIPCMemHandleDataSizeRet = ";

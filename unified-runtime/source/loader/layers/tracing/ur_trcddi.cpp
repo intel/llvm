@@ -9659,7 +9659,7 @@ __urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleExp(
     /// [in] pointer to device USM memory
     void *pMem,
     /// [out][optional] a pointer to the IPC memory handle data
-    void *pIPCMemHandleData,
+    void **ppIPCMemHandleData,
     /// [out][optional] size of the resulting IPC memory handle data
     size_t *pIPCMemHandleDataSizeRet) {
   auto pfnGetMemHandleExp = getContext()->urDdiTable.IPCExp.pfnGetMemHandleExp;
@@ -9668,14 +9668,14 @@ __urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleExp(
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
   ur_ipc_get_mem_handle_exp_params_t params = {
-      &hContext, &pMem, &pIPCMemHandleData, &pIPCMemHandleDataSizeRet};
+      &hContext, &pMem, &ppIPCMemHandleData, &pIPCMemHandleDataSizeRet};
   uint64_t instance = getContext()->notify_begin(
       UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP, "urIPCGetMemHandleExp", &params);
 
   auto &logger = getContext()->logger;
   UR_LOG_L(logger, INFO, "   ---> urIPCGetMemHandleExp\n");
 
-  ur_result_t result = pfnGetMemHandleExp(hContext, pMem, pIPCMemHandleData,
+  ur_result_t result = pfnGetMemHandleExp(hContext, pMem, ppIPCMemHandleData,
                                           pIPCMemHandleDataSizeRet);
 
   getContext()->notify_end(UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP,
