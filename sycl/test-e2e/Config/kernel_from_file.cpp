@@ -7,8 +7,8 @@
 // add the device lib instrumentation (itt_compiler_wrapper)
 // RUN: %clangxx -Wno-error=ignored-attributes -DSYCL_DISABLE_FALLBACK_ASSERT %cxx_std_optionc++17 -fsycl-device-only -fno-sycl-dead-args-optimization -Xclang -fsycl-int-header=%t.h %s -o %t.bc -Xclang -verify-ignore-unexpected=note,warning -Wno-sycl-strict
 
-// >> ---- unbundle compiler wrapper and asan device objects
-// RUN:/localdisk3/yixingzh/offload_fp64_conv_fail/llvm/build/bin/llvm-link -o ./kernel_from_file.cpp.tmp_app.bc /localdisk3/yixingzh/offload_fp64_conv_fail/llvm/build/tools/sycl/test-e2e/Config/Output/kernel_from_file.cpp.tmp.bc /localdisk3/yixingzh/offload_fp64_conv_fail/llvm/build/lib/libsycl-itt-user-wrappers.bc /localdisk3/yixingzh/offload_fp64_conv_fail/llvm/build/lib/libsycl-asan.bc
+// >> ---- link device code
+// RUN: %if linux %{ llvm-link -o=%t_app.bc %t.bc %sycl_static_libs_dir/libsycl-itt-compiler-wrappers.bc %sycl_static_libs_dir/libsycl-asan.bc %} %else %{ llvm-link -o=%t_app.bc %t.bc %sycl_static_libs_dir/libsycl-itt-compiler-wrappers.bc %}
 
 // >> ---- translate to SPIR-V
 // RUN: llvm-spirv -o %t.spv %t_app.bc
