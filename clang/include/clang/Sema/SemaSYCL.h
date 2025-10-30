@@ -673,8 +673,11 @@ public:
   // Used to check whether the function represented by FD is a SYCL
   // free function kernel or not.
   bool isFreeFunction(const FunctionDecl *FD);
-  
-  StmtResult BuildSYCLKernelCallStmt(FunctionDecl *FD, CompoundStmt *Body);
+
+  StmtResult BuildSYCLKernelCallStmt(FunctionDecl *FD, CompoundStmt *Body,
+                                     Expr *LaunchIdExpr);
+  ExprResult BuildSYCLKernelLaunchIdExpr(FunctionDecl *FD, QualType KNT);
+  StmtResult BuildUnresolvedSYCLKernelCallStmt(CompoundStmt *CS, Expr *IdExpr);
 };
 
 } // namespace clang

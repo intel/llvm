@@ -96,8 +96,9 @@ public:
 #endif
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  DeviceKernelInfo() = default;
+  //DeviceKernelInfo() = default;
 #endif
+  DeviceKernelInfo() = default;
   DeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
 
   void init(KernelNameStrRefT KernelName);
