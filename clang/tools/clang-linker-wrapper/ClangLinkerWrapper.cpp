@@ -1432,7 +1432,7 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
           << "Compatible SYCL device library binary not found\n";
   }
 
-  for (StringRef Library : Args.getAllArgValues(OPT_sycl_bc_device_lib_EQ)) {
+  for (StringRef Library : Args.getAllArgValues(OPT_bitcode_library_EQ)) {
     auto [LibraryTriple, LibraryPath] = Library.split('=');
     if (llvm::Triple(LibraryTriple) != Triple)
       continue;
@@ -2506,13 +2506,6 @@ getDeviceInput(const ArgList &Args) {
       else
         InputFiles[ID].emplace_back(Binary.copy());
     }
-  }
-
-  for (StringRef Library : Args.getAllArgValues(OPT_bitcode_library_EQ)) {
-    auto FileOrErr = getInputBitcodeLibrary(Library);
-    if (!FileOrErr)
-      return FileOrErr.takeError();
-    InputFiles[*FileOrErr].push_back(std::move(*FileOrErr));
   }
 
   SmallVector<SmallVector<OffloadFile>> InputsForTarget;

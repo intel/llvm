@@ -11293,7 +11293,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     // Create a comma separated list to pass along to the linker wrapper.
     SmallString<256> LibList;
-    SmallString<256> BCLibList;
+    SmallVector<std::string, 4> BCLibList;
 
     auto appendToList = [](SmallString<256> &List, const Twine &Arg) {
       if (List.size() > 0)
@@ -11320,8 +11320,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         if (llvm::sys::path::extension(AddLib) == ".bc") {
           SmallString<256> LibPath(DeviceLibDir);
           llvm::sys::path::append(LibPath, AddLib);
-          appendToList(BCLibList,
-                       StringRef(TC->getTriple().str()) + "=" + LibPath);
+          BCLibList.push_back((Twine(TC->getTriple().str()) + "=" + LibPath).str());
           continue;
         }
 
@@ -11331,8 +11330,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       if (TC->getTriple().isNVPTX())
         if (const char *LibSpirvFile = SYCLInstallation.findLibspirvPath(
                 TC->getTriple(), Args, *TC->getAuxTriple()))
-          appendToList(BCLibList,
-                       StringRef(TC->getTriple().str()) + "=" + LibSpirvFile);
+          BCLibList.push_back((Twine(TC->getTriple().str()) + "=" + LibSpirvFile).str());
     }
     // -sycl-device-libraries=<libs> provides a comma separate list of
     // libraries to add to the device linking step.
@@ -11340,9 +11338,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(
           Args.MakeArgString(Twine("-sycl-device-libraries=") + LibList));
 
-    if (BCLibList.size())
-      CmdArgs.push_back(
-          Args.MakeArgString(Twine("-sycl-bc-device-libraries=") + BCLibList));
+    if (BCLibList.size()) {
+      for (const std::string &Lib : BCLibList)
+        CmdArgs.push_back(Args.MakeArgString(Twine("--bitcode-library=") + Lib));
+    }
 
     CmdArgs.push_back(Args.MakeArgString(
         Twine("-sycl-device-library-location=") + DeviceLibDir));
