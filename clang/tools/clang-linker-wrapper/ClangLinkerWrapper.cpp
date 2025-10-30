@@ -878,7 +878,8 @@ getTripleBasedSPIRVTransOpts(const ArgList &Args,
       ",+SPV_INTEL_fpga_latency_control"
       ",+SPV_KHR_shader_clock"
       ",+SPV_INTEL_bindless_images"
-      ",+SPV_INTEL_task_sequence";
+      ",+SPV_INTEL_task_sequence"
+      ",+SPV_INTEL_global_variable_host_access";
   ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
   ExtArg += ",+SPV_INTEL_bfloat16_conversion"
             ",+SPV_INTEL_joint_matrix"
