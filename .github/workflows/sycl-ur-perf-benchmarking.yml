@@ -259,16 +259,16 @@ jobs:
         with:
           repository: intel/compute-benchmarks
           ref: master
-          path: ../compute-benchmarks
+          path: compute-benchmarks
       - name: Configure Compute Benchmarks
         run: |
-          cmake -B ../compute-benchmarks/build -S ../compute-benchmarks -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DNULL_L0=ON
+          cmake -B compute-benchmarks/build -S compute-benchmarks -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DNULL_L0=ON
       - name: Build Compute Benchmarks
         run: |
-          cmake --build ../compute-benchmarks/build -- -j$(nproc)
+          cmake --build compute-benchmarks/build -- -j$(nproc)
       - name: Run tests
         run: |
-          COMPUTE_BENCHMARK_BUILD_PATH=../compute-benchmarks/build python3 ./devops/scripts/benchmarks/tests/test_integration.py
+          COMPUTE_BENCHMARK_BUILD_PATH=compute-benchmarks/build python3 ./devops/scripts/benchmarks/tests/test_integration.py
 
   # TODO: When we have stable BMG runner(s), consider moving this job to that runner.
   test_benchmark_framework:
