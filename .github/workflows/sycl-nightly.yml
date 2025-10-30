@@ -29,7 +29,10 @@ jobs:
     secrets: inherit
     with:
       build_cache_root: "/__w/"
-      build_configure_extra_args: '--hip --cuda'
+      build_configure_extra_args: |
+        --hip --cuda \
+        -DLLVM_VC_REPOSITORY="${{ github.repositoryUrl }}" -DLLVM_VC_REVISION="${{ github.sha }} Nightly build" \
+        -DCLANG_VC_REPOSITORY="${{ github.repositoryUrl }}" -DCLANG_VC_REVISION="${{ github.sha }} Nightly build"
       build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
 
       retention-days: 90
@@ -191,7 +194,10 @@ jobs:
       # functionality, make sure Linux/Windows names follow the same pattern.
       toolchain_artifact_filename: sycl_windows.tar.gz
       # Disable the spirv-dis requirement as to not require SPIR-V Tools.
-      build_configure_extra_args: -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off
+      build_configure_extra_args: |
+        -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off ^
+        -DLLVM_VC_REPOSITORY="${{ github.repositoryUrl }}" -DLLVM_VC_REVISION="${{ github.sha }} Nightly build" ^
+        -DCLANG_VC_REPOSITORY="${{ github.repositoryUrl }}" -DCLANG_VC_REVISION="${{ github.sha }} Nightly build"
       build_target: all
 
   e2e-win:
