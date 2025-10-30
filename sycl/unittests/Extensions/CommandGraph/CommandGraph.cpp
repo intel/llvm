@@ -626,8 +626,6 @@ TEST_F(CommandGraphTest, AccessorModeEdges) {
 
 // Tests the transitive queue recording behaviour with queue shortcuts.
 TEST_F(CommandGraphTest, TransitiveRecordingShortcuts) {
-// Graphs not supported yet for the no-handler submit path
-#ifndef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
   device Dev;
   context Ctx{{Dev}};
   queue Q1{Ctx, Dev};
@@ -671,7 +669,6 @@ TEST_F(CommandGraphTest, TransitiveRecordingShortcuts) {
             ext::oneapi::experimental::queue_state::executing);
   ASSERT_EQ(Q3.ext_oneapi_get_state(),
             ext::oneapi::experimental::queue_state::executing);
-#endif
 }
 
 // Tests that dynamic_work_group_memory.get() will throw on the host side.

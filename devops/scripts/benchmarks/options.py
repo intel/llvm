@@ -1,3 +1,8 @@
+# Copyright (C) 2025 Intel Corporation
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 from dataclasses import dataclass, field
 from enum import Enum
 import multiprocessing
@@ -49,7 +54,6 @@ class Options:
     ur: str = None
     ur_adapter: str = None
     umf: str = None
-    rebuild: bool = True
     redownload: bool = False
     benchmark_cwd: str = "INVALID"
     timeout: float = 600

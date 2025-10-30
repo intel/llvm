@@ -1,6 +1,18 @@
 name: Coverity
 on:
   workflow_dispatch:
+    inputs:
+      description:
+        description: 'Custom build description'
+        required: true
+        type: string
+        default: 'Out-of-order Coverity scan'
+      ref:
+        description: 'Git ref to checkout and scan'
+        required: true
+        type: string
+        default: 'sycl'
+
   schedule:
     - cron: '0 0 * * 0'
 
@@ -27,7 +39,7 @@ jobs:
     - uses: ./devops/actions/cached_checkout
       with:
         path: src
-        ref: ${{ github.sha }}
+        ref: ${{ inputs.ref || github.sha }}
         cache_path: "/__w/repo_cache/"
 
     - name: Get coverity tool
@@ -45,7 +57,7 @@ jobs:
         cd $GITHUB_WORKSPACE/build
         python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
           -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
-          --ci-defaults --hip --cuda \
+          --ci-defaults --use-zstd --hip --cuda \
           -DNATIVECPU_USE_OCK=Off
 
     - name: Build with coverity
@@ -56,10 +68,15 @@ jobs:
 
     - name: Submit build
       run: |
+        default_description="${{ inputs.description }}"
+        if [[ -z $default_description ]]; then
+          default_description="Regular build"
+        fi
+
         # Initialize a build. Fetch a cloud upload url.
         curl -X POST \
-        -d version="sycl: ${{ github.sha }}" \
-        -d description="Regular build" \
+        -d version="${{ inputs.ref || github.sha }}" \
+        -d description="$default_description" \
         -d email=${{ secrets.COVERITY_EMAIL }} \
         -d token=${{ secrets.COVERITY_TOKEN }} \
         -d file_name="intel_llvm.tgz" \

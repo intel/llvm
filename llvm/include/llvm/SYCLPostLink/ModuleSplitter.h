@@ -18,6 +18,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/SYCLLowerIR/SYCLDeviceRequirements.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/PropertySetIO.h"
 
@@ -140,7 +141,7 @@ public:
   std::string Name = "";
   Properties Props;
 
-  ModuleDesc(std::unique_ptr<Module> &&M, StringRef Name = "TOP-LEVEL")
+  ModuleDesc(std::unique_ptr<Module> M, StringRef Name = "TOP-LEVEL")
       : M(std::move(M)), IsTopLevel(true), Name(Name) {
     // DeviceLib module doesn't include any entry point,it can be constructed
     // using ctor without any entry point related parameter.
@@ -152,13 +153,13 @@ public:
     }
   }
 
-  ModuleDesc(std::unique_ptr<Module> &&M, EntryPointGroup &&EntryPoints,
+  ModuleDesc(std::unique_ptr<Module> M, EntryPointGroup &&EntryPoints,
              const Properties &Props)
       : M(std::move(M)), EntryPoints(std::move(EntryPoints)), Props(Props) {
     Name = this->EntryPoints.GroupId;
   }
 
-  ModuleDesc(std::unique_ptr<Module> &&M, const std::vector<std::string> &Names,
+  ModuleDesc(std::unique_ptr<Module> M, const std::vector<std::string> &Names,
              StringRef Name = "NoName")
       : M(std::move(M)), Name(Name) {
     rebuildEntryPoints(Names);
@@ -224,7 +225,7 @@ public:
   bool isSpecConstantDefault() const;
   void setSpecConstantDefault(bool Value);
 
-  ModuleDesc clone() const;
+  std::unique_ptr<ModuleDesc> clone() const;
 
   std::string makeSymbolTable() const;
 
@@ -238,8 +239,11 @@ public:
 
 #ifndef NDEBUG
   void verifyESIMDProperty() const;
-  void dump() const;
 #endif // NDEBUG
+
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  LLVM_DUMP_METHOD void dump() const;
+#endif
 };
 
 // Module split support interface.
@@ -248,7 +252,7 @@ public:
 // from input module that should be included in a split module.
 class ModuleSplitterBase {
 protected:
-  ModuleDesc Input;
+  std::unique_ptr<ModuleDesc> Input;
   EntryPointGroupVec Groups;
   bool AllowDeviceImageDependencies;
 
@@ -260,14 +264,15 @@ protected:
     return Res;
   }
 
-  Module &getInputModule() { return Input.getModule(); }
+  Module &getInputModule() { return Input->getModule(); }
 
   std::unique_ptr<Module> releaseInputModule() {
-    return Input.releaseModulePtr();
+    return Input->releaseModulePtr();
   }
 
 public:
-  ModuleSplitterBase(ModuleDesc &&MD, EntryPointGroupVec &&GroupVec,
+  ModuleSplitterBase(std::unique_ptr<ModuleDesc> MD,
+                     EntryPointGroupVec &&GroupVec,
                      bool AllowDeviceImageDependencies)
       : Input(std::move(MD)), Groups(std::move(GroupVec)),
         AllowDeviceImageDependencies(AllowDeviceImageDependencies) {
@@ -284,7 +289,7 @@ public:
 
   // Gets next subsequence of entry points in an input module and provides split
   // submodule containing these entry points and their dependencies.
-  virtual ModuleDesc nextSplit() = 0;
+  virtual std::unique_ptr<ModuleDesc> nextSplit() = 0;
 
   // Returns a number of remaining modules, which can be split out using this
   // splitter. The value is reduced by 1 each time nextSplit is called.
@@ -294,20 +299,22 @@ public:
   bool hasMoreSplits() const { return remainingSplits() > 0; }
 };
 
-SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
-                                        bool EmitOnlyKernelsAsEntryPoints,
-                                        bool AllowDeviceImageDependencies);
+SmallVector<std::unique_ptr<ModuleDesc>, 2>
+splitByESIMD(std::unique_ptr<ModuleDesc> MD, bool EmitOnlyKernelsAsEntryPoints,
+             bool AllowDeviceImageDependencies);
 
 std::unique_ptr<ModuleSplitterBase>
-getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
-                      bool EmitOnlyKernelsAsEntryPoints,
+getDeviceCodeSplitter(std::unique_ptr<ModuleDesc> MD, IRSplitMode Mode,
+                      bool IROutputOnly, bool EmitOnlyKernelsAsEntryPoints,
                       bool AllowDeviceImageDependencies);
 
-#ifndef NDEBUG
-void dumpEntryPoints(const EntryPointSet &C, const char *Msg = "", int Tab = 0);
-void dumpEntryPoints(const Module &M, bool OnlyKernelsAreEntryPoints = false,
-                     const char *Msg = "", int Tab = 0);
-#endif // NDEBUG
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+LLVM_DUMP_METHOD void dumpEntryPoints(const EntryPointSet &C,
+                                      const char *Msg = "", int Tab = 0);
+LLVM_DUMP_METHOD void dumpEntryPoints(const Module &M,
+                                      bool OnlyKernelsAreEntryPoints = false,
+                                      const char *Msg = "", int Tab = 0);
+#endif
 
 struct SplitModule {
   std::string ModuleFilePath;

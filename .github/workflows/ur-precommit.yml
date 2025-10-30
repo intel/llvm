@@ -112,7 +112,7 @@ jobs:
     if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
     strategy:
       matrix:
-        os: ['macos-13']
+        os: ['macos-latest']
     runs-on: ${{matrix.os}}
 
     steps:

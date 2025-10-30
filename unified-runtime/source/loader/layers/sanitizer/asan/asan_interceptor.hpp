@@ -86,6 +86,8 @@ struct KernelInfo {
 
   // sanitized kernel
   bool IsInstrumented = false;
+  // check shadow bounds
+  bool IsCheckShadowBounds = false;
 
   // lock this mutex if following fields are accessed
   ur_shared_mutex Mutex;
@@ -95,8 +97,7 @@ struct KernelInfo {
   // Need preserve the order of local arguments
   std::map<uint32_t, LocalArgsInfo> LocalArgs;
 
-  explicit KernelInfo(ur_kernel_handle_t Kernel, bool IsInstrumented)
-      : Handle(Kernel), IsInstrumented(IsInstrumented) {
+  explicit KernelInfo(ur_kernel_handle_t Kernel) : Handle(Kernel) {
     [[maybe_unused]] auto Result =
         getContext()->urDdiTable.Kernel.pfnRetain(Kernel);
     assert(Result == UR_RESULT_SUCCESS);
@@ -113,9 +114,13 @@ struct ProgramInfo {
   ur_program_handle_t Handle;
   std::atomic<int32_t> RefCount = 1;
 
+  struct KernelMetadata {
+    bool CheckShadowBounds;
+  };
+
   // Program is built only once, so we don't need to lock it
   std::unordered_set<std::shared_ptr<AllocInfo>> AllocInfoForGlobals;
-  std::unordered_set<std::string> InstrumentedKernels;
+  std::unordered_map<std::string, KernelMetadata> KernelMetadataMap;
 
   explicit ProgramInfo(ur_program_handle_t Program) : Handle(Program) {
     [[maybe_unused]] auto Result =
@@ -130,6 +135,7 @@ struct ProgramInfo {
   }
 
   bool isKernelInstrumented(ur_kernel_handle_t Kernel) const;
+  const KernelMetadata &getKernelMetadata(ur_kernel_handle_t Kernel) const;
 };
 
 struct ContextInfo {
@@ -277,6 +283,7 @@ struct DeviceGlobalInfo {
 struct SpirKernelInfo {
   uptr KernelName;
   uptr Size;
+  uptr Flags;
 };
 
 class AsanInterceptor {

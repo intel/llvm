@@ -107,6 +107,9 @@ def FC1Option : OptionVisibility;
 // are made available when the driver is running in DXC compatibility mode.
 def DXCOption : OptionVisibility;
 
+// SYCLRTCOnlyOption - only acceptable for the SYCL RTC (Run Time Compilation).
+def SYCLRTCOnlyOption : OptionVisibility;
+
 /////////
 // Docs
 
@@ -194,6 +197,11 @@ def opencl_Group : OptionGroup<"<opencl group>">, Group<f_Group>,
 def sycl_Group : OptionGroup<"<SYCL group>">, Group<f_Group>,
                  DocName<"SYCL options">,
                  Visibility<[ClangOption, CLOption]>;
+
+def sycl_rtc_only_Group : OptionGroup<"<SYCL RTC only group">,
+                          Group<f_Group>,
+                          DocName<"SYCL RTC specific options">,
+                          Visibility<[SYCLRTCOnlyOption]>;
 
 def cuda_Group : OptionGroup<"<CUDA group>">, Group<f_Group>,
                    DocName<"CUDA options">,
@@ -7542,6 +7550,19 @@ def fsyclbin_EQ : Joined<["-"], "fsyclbin=">, Values<"executable,object,input">,
 def fsyclbin : Flag<["-"], "fsyclbin">, Alias<fsyclbin_EQ>,
   AliasArgs<["executable"]>;
 } // let Group = sycl_Group
+
+// Options specific to the SYCL RTC and only available for JIT compilation (not
+// through regular `clang++ -fsycl` in command line):
+let Visibility = [SYCLRTCOnlyOption] in {
+  let Group = sycl_rtc_only_Group in {
+    def auto_pch : Flag<["--"], "auto-pch">,
+                   HelpText<"Enable Auto-PCH for SYCL RTC Compilation">;
+    def persistent_auto_pch_EQ
+        : Joined<["--"], "persistent-auto-pch=">,
+          HelpText<"Use Persistent Auto-PCH cache located at <dir> for SYCL "
+                   "RTC Compilation">;
+  } // let Group = sycl_rtc_only_Group
+} // let Visibility = [SYCLRTCOnlyOption]
 
 // FIXME: -fsycl-explicit-simd is deprecated. remove it when support is dropped.
 def : Flag<["-"], "fsycl-explicit-simd">, Flags<[Deprecated]>,

@@ -1592,6 +1592,11 @@ public:
       return get_info_impl_nocheck<UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP>()
           .value_or(0);
     }
+    CASE(ext_oneapi_is_integrated_gpu) {
+      return is_gpu() &&
+             get_info_impl_nocheck<UR_DEVICE_INFO_IS_INTEGRATED_GPU>().value_or(
+                 0);
+    }
     else {
       return false; // This device aspect has not been implemented yet.
     }

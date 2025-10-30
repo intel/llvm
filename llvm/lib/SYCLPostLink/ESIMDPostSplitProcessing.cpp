@@ -27,17 +27,6 @@
 #include <string>
 #include <vector>
 
-#ifdef NDEBUG
-#define DUMP_ENTRY_POINTS(...)
-#else
-constexpr int DebugESIMDPostSplit = 0;
-
-#define DUMP_ENTRY_POINTS(...)                                                 \
-  if (DebugESIMDPostSplit > 0) {                                               \
-    llvm::module_split::dumpEntryPoints(__VA_ARGS__);                          \
-  }
-#endif // NDEBUG
-
 using namespace llvm;
 using namespace llvm::module_split;
 
@@ -74,20 +63,22 @@ buildESIMDLoweringPipeline(const sycl::ESIMDProcessingOptions &Options) {
   return MPM;
 }
 
-Expected<ModuleDesc> linkModules(ModuleDesc MD1, ModuleDesc MD2) {
+Expected<std::unique_ptr<ModuleDesc>>
+linkModules(std::unique_ptr<ModuleDesc> MD1, std::unique_ptr<ModuleDesc> MD2) {
   std::vector<std::string> Names;
-  MD1.saveEntryPointNames(Names);
-  MD2.saveEntryPointNames(Names);
+  MD1->saveEntryPointNames(Names);
+  MD2->saveEntryPointNames(Names);
   bool LinkError =
-      llvm::Linker::linkModules(MD1.getModule(), MD2.releaseModulePtr());
+      llvm::Linker::linkModules(MD1->getModule(), MD2->releaseModulePtr());
 
   if (LinkError)
     return createStringError(
-        formatv("link failed. Module names: {0}, {1}", MD1.Name, MD2.Name));
+        formatv("link failed. Module names: {0}, {1}", MD1->Name, MD2->Name));
 
-  ModuleDesc Res(MD1.releaseModulePtr(), std::move(Names));
-  Res.assignMergedProperties(MD1, MD2);
-  Res.Name = (Twine("linked[") + MD1.Name + "," + MD2.Name + "]").str();
+  auto Res =
+      std::make_unique<ModuleDesc>(MD1->releaseModulePtr(), std::move(Names));
+  Res->assignMergedProperties(*MD1, *MD2);
+  Res->Name = (Twine("linked[") + MD1->Name + "," + MD2->Name + "]").str();
   return std::move(Res);
 }
 
@@ -121,11 +112,11 @@ bool sycl::lowerESIMDConstructs(ModuleDesc &MD,
   return !Res.areAllPreserved();
 }
 
-Expected<SmallVector<ModuleDesc, 2>>
-llvm::sycl::handleESIMD(ModuleDesc MDesc,
+Expected<SmallVector<std::unique_ptr<ModuleDesc>, 2>>
+llvm::sycl::handleESIMD(std::unique_ptr<ModuleDesc> MDesc,
                         const sycl::ESIMDProcessingOptions &Options,
                         bool &Modified, bool &SplitOccurred) {
-  SmallVector<ModuleDesc, 2> Result =
+  SmallVector<std::unique_ptr<ModuleDesc>, 2> Result =
       splitByESIMD(std::move(MDesc), Options.EmitOnlyKernelsAsEntryPoints,
                    Options.AllowDeviceImageDependencies);
 
@@ -134,37 +125,34 @@ llvm::sycl::handleESIMD(ModuleDesc MDesc,
 
   SplitOccurred |= Result.size() > 1;
 
-  for (ModuleDesc &MD : Result) {
-    DUMP_ENTRY_POINTS(MD.entries(), MD.Name.c_str(), 4);
-    if (Options.LowerESIMD && MD.isESIMD())
-      Modified |= lowerESIMDConstructs(MD, Options);
-  }
+  for (std::unique_ptr<ModuleDesc> &MD : Result)
+    if (Options.LowerESIMD && MD->isESIMD())
+      Modified |= lowerESIMDConstructs(*MD, Options);
 
   if (Options.SplitESIMD || Result.size() == 1)
     return std::move(Result);
 
   // SYCL/ESIMD splitting is not requested, link back into single module.
-  int ESIMDInd = Result[0].isESIMD() ? 0 : 1;
+  int ESIMDInd = Result[0]->isESIMD() ? 0 : 1;
   int SYCLInd = 1 - ESIMDInd;
-  assert(Result[SYCLInd].isSYCL() &&
-         "Result[SYCLInd].isSYCL() expected to be true.");
+  assert(Result[SYCLInd]->isSYCL() &&
+         "Result[SYCLInd]->isSYCL() expected to be true.");
 
   // Make sure that no link conflicts occur.
-  Result[ESIMDInd].renameDuplicatesOf(Result[SYCLInd].getModule(), ".esimd");
+  Result[ESIMDInd]->renameDuplicatesOf(Result[SYCLInd]->getModule(), ".esimd");
   auto LinkedOrErr = linkModules(std::move(Result[0]), std::move(Result[1]));
   if (!LinkedOrErr)
     return LinkedOrErr.takeError();
 
-  ModuleDesc &Linked = *LinkedOrErr;
-  Linked.restoreLinkageOfDirectInvokeSimdTargets();
+  std::unique_ptr<ModuleDesc> &Linked = *LinkedOrErr;
+  Linked->restoreLinkageOfDirectInvokeSimdTargets();
   std::vector<std::string> Names;
-  Linked.saveEntryPointNames(Names);
+  Linked->saveEntryPointNames(Names);
   // Cleanup may remove some entry points, need to save/rebuild.
-  Linked.cleanup(Options.AllowDeviceImageDependencies);
-  Linked.rebuildEntryPoints(Names);
+  Linked->cleanup(Options.AllowDeviceImageDependencies);
+  Linked->rebuildEntryPoints(Names);
   Result.clear();
   Result.emplace_back(std::move(Linked));
-  DUMP_ENTRY_POINTS(Result.back().entries(), Result.back().Name.c_str(), 4);
   Modified = true;
 
   return std::move(Result);

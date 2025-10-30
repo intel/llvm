@@ -131,6 +131,8 @@ ur_result_t ur_exp_command_buffer_handle_t_::finalizeCommandBuffer() {
   auto commandListLocked = commandListManager.lock();
   UR_ASSERT(!isFinalized, UR_RESULT_ERROR_INVALID_OPERATION);
 
+  size_t numEventResets = 0;
+
   if (!isInOrder) {
     ZE2UR_CALL(zeCommandListAppendBarrier,
                (commandListLocked->getZeCommandList(), nullptr, 0, nullptr));
@@ -138,12 +140,15 @@ ur_result_t ur_exp_command_buffer_handle_t_::finalizeCommandBuffer() {
       if (!usedSyncPoints[i]) {
         continue;
       }
+      ++numEventResets;
       ZE2UR_CALL(
           zeCommandListAppendEventReset,
           (commandListLocked->getZeCommandList(), syncPoints[i]->getZeEvent()));
     }
-    ZE2UR_CALL(zeCommandListAppendBarrier,
-               (commandListLocked->getZeCommandList(), nullptr, 0, nullptr));
+
+    if (numEventResets)
+      ZE2UR_CALL(zeCommandListAppendBarrier,
+                 (commandListLocked->getZeCommandList(), nullptr, 0, nullptr));
   }
   // Close the command lists and have them ready for dispatch.
   ZE2UR_CALL(zeCommandListClose, (commandListLocked->getZeCommandList()));

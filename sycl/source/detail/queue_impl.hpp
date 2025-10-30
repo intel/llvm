@@ -386,6 +386,24 @@ public:
     submit_impl(CGF, /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc, SubmitInfo);
   }
 
+  /// Submits a kernel using the scheduler bypass fast path
+  ///
+  /// \param KData is an object storing data related to the kernel.
+  /// \param DepEvents is a list of event dependencies.
+  /// \param EventNeeded should be true, if the resulting event is needed.
+  /// \param Kernel to be used, if kernel defined as a kernel object.
+  /// \param KernelBundleImpPtr to be used, if kernel bundle defined.
+  /// \param CodeLoc is the code location of the submit call.
+  /// \param IsTopCodeLoc is used to determine if the object is in a local
+  ///        scope or in the top level scope.
+  ///
+  /// \return a SYCL event representing submitted command or nullptr.
+  EventImplPtr submit_kernel_scheduler_bypass(
+      KernelData &KData, std::vector<detail::EventImplPtr> &DepEvents,
+      bool EventNeeded, detail::kernel_impl *KernelImplPtr,
+      detail::kernel_bundle_impl *KernelBundleImpPtr,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+
   /// Performs a blocking wait for the completion of all enqueued tasks in the
   /// queue.
   ///
@@ -623,6 +641,12 @@ public:
   }
 
   bool hasCommandGraph() const { return !MGraph.expired(); }
+
+  EventImplPtr submit_command_to_graph(
+      ext::oneapi::experimental::detail::graph_impl &GraphImpl,
+      std::unique_ptr<detail::CG> CommandGroup, sycl::detail::CGType CGType,
+      sycl::ext::oneapi::experimental::node_type UserFacingNodeType =
+          ext::oneapi::experimental::node_type::empty);
 
   unsigned long long getQueueID() { return MQueueID; }
 
@@ -902,14 +926,14 @@ protected:
   ///        scope or in the top level scope.
   ///
   /// \return a SYCL event representing submitted command group or nullptr.
-  detail::EventImplPtr submit_kernel_direct_impl(
+  EventImplPtr submit_kernel_direct_impl(
       const NDRDescT &NDRDesc, detail::HostKernelRefBase &HostKernel,
       detail::DeviceKernelInfo *DeviceKernelInfo, bool CallerNeedsEvent,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
   template <typename SubmitCommandFuncType>
-  detail::EventImplPtr submit_direct(bool CallerNeedsEvent,
-                                     SubmitCommandFuncType &SubmitCommandFunc);
+  EventImplPtr submit_direct(bool CallerNeedsEvent,
+                             SubmitCommandFuncType &SubmitCommandFunc);
 
   /// Helper function for submitting a memory operation with a handler.
   /// \param DepEvents is a vector of dependencies of the operation.

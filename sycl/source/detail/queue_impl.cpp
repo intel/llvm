@@ -420,25 +420,181 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
   return EventImpl;
 }
 
-detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
+EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
+    KernelData &KData, std::vector<detail::EventImplPtr> &DepEvents,
+    bool EventNeeded, detail::kernel_impl *KernelImplPtr,
+    detail::kernel_bundle_impl *KernelBundleImpPtr,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+  std::vector<ur_event_handle_t> RawEvents;
+
+  // TODO checking the size of the events vector and avoiding the call is
+  // more efficient here at this point
+  if (DepEvents.size() > 0) {
+    RawEvents = detail::Command::getUrEvents(DepEvents, this, false);
+  }
+
+  bool DiscardEvent = !EventNeeded && supportsDiscardingPiEvents();
+  if (DiscardEvent) {
+    // Kernel only uses assert if it's non interop one
+    bool KernelUsesAssert =
+        !(KernelImplPtr && KernelImplPtr->isInterop()) && KData.usesAssert();
+    DiscardEvent = !KernelUsesAssert;
+  }
+
+  std::shared_ptr<detail::event_impl> ResultEvent =
+      DiscardEvent ? nullptr : detail::event_impl::create_device_event(*this);
+
+  auto EnqueueKernel = [&]() {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    xpti_td *CmdTraceEvent = nullptr;
+    uint64_t InstanceID = 0;
+    uint8_t StreamID = 0;
+    // Only enable instrumentation if there are subscribes to the SYCL
+    // stream
+    const bool xptiEnabled = xptiTraceEnabled();
+    if (xptiEnabled) {
+      StreamID = detail::getActiveXPTIStreamID();
+      std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
+          StreamID, KernelImplPtr, CodeLoc, IsTopCodeLoc,
+          *KData.getDeviceKernelInfoPtr(), this, KData.getNDRDesc(),
+          KernelBundleImpPtr, KData.getArgs());
+      detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
+                                         xpti::trace_task_begin, nullptr);
+    }
+#endif
+    const detail::RTDeviceBinaryImage *BinImage = nullptr;
+    if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
+      BinImage = detail::retrieveKernelBinary(*this, KData.getKernelName());
+      assert(BinImage && "Failed to obtain a binary image.");
+    }
+    enqueueImpKernel(*this, KData.getNDRDesc(), KData.getArgs(),
+                     KernelBundleImpPtr, KernelImplPtr,
+                     *KData.getDeviceKernelInfoPtr(), RawEvents,
+                     ResultEvent.get(), nullptr, KData.getKernelCacheConfig(),
+                     KData.isCooperative(), KData.usesClusterLaunch(),
+                     KData.getKernelWorkGroupMemorySize(), BinImage,
+                     KData.getKernelFuncPtr());
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    if (xptiEnabled) {
+      // Emit signal only when event is created
+      if (!DiscardEvent) {
+        detail::emitInstrumentationGeneral(
+            StreamID, InstanceID, CmdTraceEvent, xpti::trace_signal,
+            static_cast<const void *>(ResultEvent->getHandle()));
+      }
+      detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
+                                         xpti::trace_task_end, nullptr);
+    }
+#endif
+  };
+
+  if (DiscardEvent) {
+    EnqueueKernel();
+  } else {
+    ResultEvent->setWorkerQueue(weak_from_this());
+    ResultEvent->setStateIncomplete();
+    ResultEvent->setSubmissionTime();
+
+    EnqueueKernel();
+    ResultEvent->setEnqueued();
+    // connect returned event with dependent events
+    if (!isInOrder()) {
+      // DepEvents is not used anymore, so can move.
+      ResultEvent->getPreparedDepsEvents() = std::move(DepEvents);
+      // ResultEvent is local for current thread, no need to lock.
+      ResultEvent->cleanDepEventsThroughOneLevelUnlocked();
+    }
+  }
+
+  return ResultEvent;
+}
+
+EventImplPtr queue_impl::submit_command_to_graph(
+    ext::oneapi::experimental::detail::graph_impl &GraphImpl,
+    std::unique_ptr<detail::CG> CommandGroup, sycl::detail::CGType CGType,
+    sycl::ext::oneapi::experimental::node_type UserFacingNodeType) {
+  auto EventImpl = detail::event_impl::create_completed_host_event();
+  EventImpl->setSubmittedQueue(weak_from_this());
+  ext::oneapi::experimental::detail::node_impl *NodeImpl = nullptr;
+
+  // GraphImpl is read and written in this scope so we lock this graph
+  // with full priviledges.
+  ext::oneapi::experimental::detail::graph_impl::WriteLock Lock(
+      GraphImpl.MMutex);
+
+  ext::oneapi::experimental::node_type NodeType =
+      UserFacingNodeType != ext::oneapi::experimental::node_type::empty
+          ? UserFacingNodeType
+          : ext::oneapi::experimental::detail::getNodeTypeFromCG(CGType);
+
+  // Create a new node in the graph representing this command-group
+  if (isInOrder()) {
+    // In-order queues create implicit linear dependencies between nodes.
+    // Find the last node added to the graph from this queue, so our new
+    // node can set it as a predecessor.
+    std::vector<ext::oneapi::experimental::detail::node_impl *> Deps;
+    if (ext::oneapi::experimental::detail::node_impl *DependentNode =
+            GraphImpl.getLastInorderNode(this)) {
+      Deps.push_back(DependentNode);
+    }
+    NodeImpl = &GraphImpl.add(NodeType, std::move(CommandGroup), Deps);
+
+    // If we are recording an in-order queue remember the new node, so it
+    // can be used as a dependency for any more nodes recorded from this
+    // queue.
+    GraphImpl.setLastInorderNode(*this, *NodeImpl);
+  } else {
+    ext::oneapi::experimental::detail::node_impl *LastBarrierRecordedFromQueue =
+        GraphImpl.getBarrierDep(weak_from_this());
+    std::vector<ext::oneapi::experimental::detail::node_impl *> Deps;
+
+    if (LastBarrierRecordedFromQueue) {
+      Deps.push_back(LastBarrierRecordedFromQueue);
+    }
+    NodeImpl = &GraphImpl.add(NodeType, std::move(CommandGroup), Deps);
+
+    if (NodeImpl->MCGType == sycl::detail::CGType::Barrier) {
+      GraphImpl.setBarrierDep(weak_from_this(), *NodeImpl);
+    }
+  }
+
+  // Associate an event with this new node and return the event.
+  GraphImpl.addEventForNode(EventImpl, *NodeImpl);
+
+  return EventImpl;
+}
+
+EventImplPtr queue_impl::submit_kernel_direct_impl(
     const NDRDescT &NDRDesc, detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo, bool CallerNeedsEvent,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
 
   KernelData KData;
 
-  std::shared_ptr<detail::HostKernelBase> HostKernelPtr =
-      HostKernel.takeOrCopyOwnership();
-
   KData.setDeviceKernelInfoPtr(DeviceKernelInfo);
-  KData.setKernelFunc(HostKernelPtr->getPtr());
   KData.setNDRDesc(NDRDesc);
 
-  auto SubmitKernelFunc =
-      [&](detail::CG::StorageInitHelper &CGData) -> EventImplPtr {
+  auto SubmitKernelFunc = [&](detail::CG::StorageInitHelper &CGData,
+                              bool SchedulerBypass) -> EventImplPtr {
+    if (SchedulerBypass) {
+      // No need to copy/move the kernel function, so we set
+      // the function pointer to the original function
+      KData.setKernelFunc(HostKernel.getPtr());
+
+      return submit_kernel_scheduler_bypass(KData, CGData.MEvents,
+                                            CallerNeedsEvent, nullptr, nullptr,
+                                            CodeLoc, IsTopCodeLoc);
+    }
     std::unique_ptr<detail::CG> CommandGroup;
     std::vector<std::shared_ptr<detail::stream_impl>> StreamStorage;
     std::vector<std::shared_ptr<const void>> AuxiliaryResources;
+
+    std::shared_ptr<detail::HostKernelBase> HostKernelPtr =
+        HostKernel.takeOrCopyOwnership();
+
+    // When the kernel function is stored for future use,
+    // set the function pointer to the stored function
+    KData.setKernelFunc(HostKernelPtr->getPtr());
 
     KData.extractArgsAndReqsFromLambda();
 
@@ -449,12 +605,15 @@ detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
         std::move(CGData), std::move(KData).getArgs(),
         *KData.getDeviceKernelInfoPtr(), std::move(StreamStorage),
         std::move(AuxiliaryResources), detail::CGType::Kernel,
-        UR_KERNEL_CACHE_CONFIG_DEFAULT,
-        false, // KernelIsCooperative
-        false, // KernelUsesClusterLaunch
-        0,     // KernelWorkGroupMemorySize
+        KData.getKernelCacheConfig(), KData.isCooperative(),
+        KData.usesClusterLaunch(), KData.getKernelWorkGroupMemorySize(),
         CodeLoc));
     CommandGroup->MIsTopCodeLoc = IsTopCodeLoc;
+
+    if (auto GraphImpl = getCommandGraph(); GraphImpl) {
+      return submit_command_to_graph(*GraphImpl, std::move(CommandGroup),
+                                     detail::CGType::Kernel);
+    }
 
     return detail::Scheduler::getInstance().addCG(std::move(CommandGroup),
                                                   *this, true);
@@ -470,13 +629,6 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
   detail::CG::StorageInitHelper CGData;
   std::unique_lock<std::mutex> Lock(MMutex);
 
-  // Graphs are not supported yet for the no-handler path
-  assert(!hasCommandGraph());
-
-  // Set the No Last Event Mode to false, since the no-handler path
-  // does not support it yet.
-  MNoLastEventMode.store(false, std::memory_order_relaxed);
-
   // Used by queue_empty() and getLastEvent()
   MEmpty.store(false, std::memory_order_release);
 
@@ -486,8 +638,10 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
     CGData.MEvents.push_back(getSyclObjImpl(*ExternalEvent));
   }
 
+  auto &Deps = hasCommandGraph() ? MExtGraphDeps : MDefaultGraphDeps;
+
   // Sync with the last event for in order queue
-  EventImplPtr &LastEvent = MDefaultGraphDeps.LastEventPtr;
+  EventImplPtr &LastEvent = Deps.LastEventPtr;
   if (isInOrder() && LastEvent) {
     CGData.MEvents.push_back(LastEvent);
   }
@@ -501,22 +655,36 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
           MissedCleanupRequests.clear();
         });
 
-    if (MDefaultGraphDeps.LastBarrier &&
-        !MDefaultGraphDeps.LastBarrier->isEnqueued()) {
-      CGData.MEvents.push_back(MDefaultGraphDeps.LastBarrier);
+    if (Deps.LastBarrier && !Deps.LastBarrier->isEnqueued()) {
+      CGData.MEvents.push_back(Deps.LastBarrier);
     }
   }
 
-  EventImplPtr EventImpl = SubmitCommandFunc(CGData);
+  bool SchedulerBypass =
+      (CGData.MEvents.size() > 0
+           ? detail::Scheduler::areEventsSafeForSchedulerBypass(
+                 CGData.MEvents, getContextImpl())
+           : true) &&
+      !hasCommandGraph();
 
-  // Sync with the last event for in order queue
-  if (isInOrder() && !EventImpl->isDiscarded()) {
-    LastEvent = EventImpl;
+  // Synchronize with the "no last event mode", used by the handler-based
+  // kernel submit path
+  MNoLastEventMode.store(isInOrder() && SchedulerBypass,
+                         std::memory_order_relaxed);
+
+  EventImplPtr EventImpl = SubmitCommandFunc(CGData, SchedulerBypass);
+
+  // Sync with the last event for in order queue. For scheduler-bypass flow,
+  // the ordering is done at the layers below the SYCL runtime,
+  // but for the scheduler-based flow, it needs to be done here, as the
+  // scheduler handles host task submissions.
+  if (isInOrder()) {
+    LastEvent = SchedulerBypass ? nullptr : EventImpl;
   }
 
   // Barrier and un-enqueued commands synchronization for out or order queue
   if (!isInOrder() && !EventImpl->isEnqueued()) {
-    MDefaultGraphDeps.UnenqueuedCmdEvents.push_back(EventImpl);
+    Deps.UnenqueuedCmdEvents.push_back(EventImpl);
   }
 
   return CallerNeedsEvent ? EventImpl : nullptr;
@@ -685,8 +853,12 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   void *TelemetryEvent = nullptr;
   uint64_t IId;
   std::string Name;
-  auto StreamID = detail::getActiveXPTIStreamID();
-  TelemetryEvent = instrumentationProlog(CodeLoc, Name, StreamID, IId);
+  uint8_t StreamID = 0;
+  const bool xptiEnabled = xptiTraceEnabled();
+  if (xptiEnabled) {
+    StreamID = detail::getActiveXPTIStreamID();
+    TelemetryEvent = instrumentationProlog(CodeLoc, Name, StreamID, IId);
+  }
 #endif
 
   if (!MGraph.expired()) {
@@ -768,7 +940,9 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // There is an early return in instrumentationEpilog() if no subscribers are
   // subscribing to queue.wait().
-  instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
+  if (xptiEnabled) {
+    instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
+  }
 #endif
 }
 
