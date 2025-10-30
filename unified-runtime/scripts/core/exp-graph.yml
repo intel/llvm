@@ -90,7 +90,7 @@ params:
     desc: "[in] Handle of the queue on which to end graph capture."
   - type: $x_exp_graph_handle_t*
     name: phGraph
-    desc: "[out] Pointer to the handle of the recorded graph object. If $xGraphBeginCaptureIntoGraphExp
+    desc: "[out] Pointer to the handle of the recorded graph object. If $xQueueBeginCaptureIntoGraphExp
           was used to begin the capture, then phGraph will contain the same graph that was passed to it."
   - type: void*
     name: pNext
