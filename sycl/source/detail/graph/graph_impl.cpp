@@ -181,12 +181,12 @@ void partition::updateSchedule() {
 void exec_graph_impl::makePartitions() {
   int CurrentPartition = -1;
   std::list<node_impl *> HostTaskList;
-  /* find all the host-tasks in the graph
+  // find all the host-tasks in the graph
   for (node_impl &Node : nodes()) {
     if (Node.MCGType == sycl::detail::CGType::CodeplayHostTask) {
       HostTaskList.push_back(&Node);
     }
-  }*/
+  }
 
   MContainsHostTask = HostTaskList.size() > 0;
   // Annotate nodes
@@ -1261,6 +1261,7 @@ void exec_graph_impl::duplicateNodes() {
 
   const size_t NodeCount = ModifiableNodes.size();
   NodesMap.reserve(NodeCount);
+  NewNodes.reserve(NodeCount);
 
   bool foundSubgraph = false;
 
