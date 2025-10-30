@@ -239,7 +239,7 @@ jobs:
       toolchain_artifact: sycl_linux_default
 
   unittest_pr:
-    name: '[PR] SYCL Unit Tests'
+    name: '[PR] Benchmarks Unit Tests'
     if: github.event_name == 'pull_request'
     # needs: [build_pr]
     runs-on: PVC_PERF
@@ -272,7 +272,7 @@ jobs:
           cmake --build compute-benchmarks/build -- -j$(nproc)
       - name: Run tests
         run: |
-          LLVM_BENCHMARKS_UNIT_TESTING=1 COMPUTE_BENCHMARK_BUILD_PATH=$(pwd)/compute-benchmarks/build python3 ./devops/scripts/benchmarks/tests/test_integration.py
+          LLVM_BENCHMARKS_UNIT_TESTING=1 COMPUTE_BENCHMARKS_BUILD_PATH=$(pwd)/compute-benchmarks/build python3 ./devops/scripts/benchmarks/tests/test_integration.py
 
   # TODO: When we have stable BMG runner(s), consider moving this job to that runner.
   test_benchmark_framework:
