@@ -14,7 +14,7 @@ on:
         default:
       cts_ref:
         type: choice
-        description: tag/sha to use for SYCL-CTS -- hardcoded hash is CTS revision matching sycl-rel-N_M branch.
+        description: tag/sha to use for SYCL-CTS -- hardcoded hash is CTS revision matching sycl-rel-6_3 branch.
         required: true
         default: 'main'
         options:
