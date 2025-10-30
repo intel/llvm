@@ -5480,9 +5480,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-fsycl-is-device");
       CmdArgs.push_back("-fdeclare-spirv-builtins");
 
-      // Set the atomic profile update flag to increment counters atomically.
-      CmdArgs.push_back("-fprofile-update=atomic");
-
       // Set O2 optimization level by default
       if (!Args.getLastArg(options::OPT_O_Group))
         CmdArgs.push_back("-O2");

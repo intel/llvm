@@ -69,6 +69,7 @@
 		urDeviceRelease;
 		urDeviceRetain;
 		urDeviceSelectBinary;
+		urDeviceWaitExp;
 		urEnqueueCommandBufferExp;
 		urEnqueueDeviceGlobalVariableRead;
 		urEnqueueDeviceGlobalVariableWrite;
@@ -76,6 +77,7 @@
 		urEnqueueEventsWaitWithBarrier;
 		urEnqueueEventsWaitWithBarrierExt;
 		urEnqueueKernelLaunch;
+		urEnqueueKernelLaunchWithArgsExp;
 		urEnqueueMemBufferCopy;
 		urEnqueueMemBufferCopyRect;
 		urEnqueueMemBufferFill;
@@ -114,6 +116,7 @@
 		urGetBindlessImagesExpProcAddrTable;
 		urGetCommandBufferExpProcAddrTable;
 		urGetContextProcAddrTable;
+		urGetDeviceExpProcAddrTable;
 		urGetDeviceProcAddrTable;
 		urGetEnqueueExpProcAddrTable;
 		urGetEnqueueProcAddrTable;
@@ -286,6 +289,7 @@
 		urPrintDeviceThrottleReasonsFlags;
 		urPrintDeviceType;
 		urPrintDeviceUsmAccessCapabilityFlags;
+		urPrintDeviceWaitExpParams;
 		urPrintEnqueueCommandBufferExpParams;
 		urPrintEnqueueDeviceGlobalVariableReadParams;
 		urPrintEnqueueDeviceGlobalVariableWriteParams;
@@ -293,6 +297,7 @@
 		urPrintEnqueueEventsWaitWithBarrierExtParams;
 		urPrintEnqueueEventsWaitWithBarrierParams;
 		urPrintEnqueueKernelLaunchParams;
+		urPrintEnqueueKernelLaunchWithArgsExpParams;
 		urPrintEnqueueMemBufferCopyParams;
 		urPrintEnqueueMemBufferCopyRectParams;
 		urPrintEnqueueMemBufferFillParams;
@@ -354,7 +359,11 @@
 		urPrintExpImageCopyInputTypes;
 		urPrintExpImageCopyRegion;
 		urPrintExpImageMemType;
+		urPrintExpKernelArgMemObjTuple;
+		urPrintExpKernelArgProperties;
+		urPrintExpKernelArgType;
 		urPrintExpPeerInfo;
+		urPrintExpProgramFlags;
 		urPrintExpSamplerAddrModes;
 		urPrintExpSamplerCubemapFilterMode;
 		urPrintExpSamplerCubemapProperties;
@@ -460,6 +469,7 @@
 		urPrintProgramCreateWithBinaryParams;
 		urPrintProgramCreateWithIlParams;
 		urPrintProgramCreateWithNativeHandleParams;
+		urPrintProgramDynamicLinkExpParams;
 		urPrintProgramGetBuildInfoParams;
 		urPrintProgramGetFunctionPointerParams;
 		urPrintProgramGetGlobalVariablePointerParams;
@@ -561,6 +571,7 @@
 		urProgramCreateWithBinary;
 		urProgramCreateWithIL;
 		urProgramCreateWithNativeHandle;
+		urProgramDynamicLinkExp;
 		urProgramGetBuildInfo;
 		urProgramGetFunctionPointer;
 		urProgramGetGlobalVariablePointer;

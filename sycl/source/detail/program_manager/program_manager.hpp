@@ -282,11 +282,6 @@ public:
   std::vector<DeviceGlobalMapEntry *>
   getDeviceGlobalEntries(const std::vector<std::string> &UniqueIds,
                          bool ExcludeDeviceImageScopeDecorated = false);
-
-  // The function gets all device_global entries that are profile counters.
-  std::vector<DeviceGlobalMapEntry *>
-  getProfileCounterDeviceGlobalEntries(const context_impl *CtxImpl);
-
   // The function inserts or initializes a host_pipe entry into the
   // host_pipe map.
   void addOrInitHostPipeEntry(const void *HostPipePtr, const char *UniqueId);

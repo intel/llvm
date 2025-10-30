@@ -21,7 +21,7 @@ def do_configure(args, passthrough_args):
     if not os.path.isdir(abs_obj_dir):
         os.makedirs(abs_obj_dir)
 
-    llvm_external_projects = "sycl;llvm-spirv;opencl;xpti;xptifw;compiler-rt"
+    llvm_external_projects = "sycl;llvm-spirv;opencl;xpti;xptifw"
 
     # libdevice build requires a working SYCL toolchain, which is not the case
     # with macOS target right now.
