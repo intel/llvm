@@ -162,9 +162,49 @@ The benchmark suite generates an interactive HTML dashboard that visualizes `Res
 **Stability:**
 * Mark unstable benchmarks with `metadata.unstable` to hide them by default.
 
+## Code Style Guidelines
+
+### Benchmark Class Structure
+
+When creating benchmark classes, follow this consistent structure pattern:
+
+**1. Constructor (`__init__`):**
+* Assign all parameters to protected (prefixed with `_`) or private (prefixed with `__`) instance variables.
+* Set `self._iterations_regular` and `self._iterations_trace` BEFORE calling `super().__init__()` (required for subclasses of `ComputeBenchmark`).
+
+**2. Method Order:**
+* Align with methods order as in the abstract base class `Benchmark`. Not all of them are required, but follow the order for consistency.
+* Public methods first, then protected, then private.
+
+### Naming Conventions
+
+**Method Return Values:**
+* `name()`: Unique identifier with underscores, lowercase, includes all distinguishing parameters
+  * Example: `"api_overhead_benchmark_sycl SubmitKernel in order with measure completion"`
+* `display_name()`: User-friendly, uses proper capitalization, commas for readability, used for charts titles
+  * Example: `"SYCL SubmitKernel in order, with measure completion, NumKernels 10"`
+
+**Class method names and variables should follow PEP 8 guidelines.**
+* Use lowercase with underscores for method names and variables.
+* Use single underscores prefixes for protected variables/methods and double underscores for private variables/methods.
+
+### Description Writing
+
+Descriptions should:
+* Clearly state what is being measured
+* Include key parameters and their values
+* Explain the purpose or what the benchmark tests
+* Be 1-3 sentences, clear and concise
+* If not needed, can be omitted
+
+### Tag Selection
+
+* Use predefined tags from `benches/base.py` when available
+* Tags should be lowercase, descriptive, single words
+
 ## Adding New Benchmarks
 
-1. **Create Benchmark Class:** Implement a new class inheriting from `benches.base.Benchmark`. Implement required methods (`run`, `name`) and optional ones (`description`, `get_tags`, etc.) as needed.
+1. **Create Benchmark Class:** Implement a new class inheriting from `benches.base.Benchmark`. Implement required methods (`run`, `name`) and optional ones (`description`, `get_tags`, etc.) as needed. Follow the code style guidelines above.
 2. **Add to Suite:**
     * If adding to an existing category, modify the corresponding `Suite` class (e.g., `benches/compute.py`) to instantiate and return your new benchmark in its `benchmarks()` method.
     * If creating a new category, create a new `Suite` class inheriting from `benches.base.Suite`. Implement `name()` and `benchmarks()`. Add necessary `setup()` if the suite requires shared setup. Add group metadata via `additional_metadata()` if needed.
