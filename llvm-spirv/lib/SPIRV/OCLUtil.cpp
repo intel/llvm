@@ -1010,348 +1010,339 @@ static FunctionType *getBlockInvokeTy(Function *F, unsigned BlockIdx) {
   return FunctionType::get(FuncPtr, Params, false);
 }
 
-class OCLBuiltinFuncMangleInfo : public SPIRV::BuiltinFuncMangleInfo {
-public:
-  OCLBuiltinFuncMangleInfo(Function *F) : F(F) {}
-  OCLBuiltinFuncMangleInfo() = default;
-  void init(StringRef UniqName) override {
-    // Make a local copy as we will modify the string in init function
-    std::string TempStorage = UniqName.str();
-    auto NameRef = StringRef(TempStorage);
+void OCLBuiltinFuncMangleInfo::init(StringRef UniqName) {
+  // Make a local copy as we will modify the string in init function
+  std::string TempStorage = UniqName.str();
+  auto NameRef = StringRef(TempStorage);
 
-    // Helper functions to erase substrings from NameRef (i.e. TempStorage)
-    auto EraseSubstring = [&NameRef, &TempStorage](const std::string &ToErase) {
-      size_t Pos = TempStorage.find(ToErase);
-      if (Pos != std::string::npos) {
-        TempStorage.erase(Pos, ToErase.length());
-        // re-take StringRef as TempStorage was updated
-        NameRef = StringRef(TempStorage);
-      }
-    };
-    auto EraseSymbol = [&NameRef, &TempStorage](size_t Index) {
-      TempStorage.erase(Index, 1);
+  // Helper functions to erase substrings from NameRef (i.e. TempStorage)
+  auto EraseSubstring = [&NameRef, &TempStorage](const std::string &ToErase) {
+    size_t Pos = TempStorage.find(ToErase);
+    if (Pos != std::string::npos) {
+      TempStorage.erase(Pos, ToErase.length());
       // re-take StringRef as TempStorage was updated
       NameRef = StringRef(TempStorage);
-    };
+    }
+  };
+  auto EraseSymbol = [&NameRef, &TempStorage](size_t Index) {
+    TempStorage.erase(Index, 1);
+    // re-take StringRef as TempStorage was updated
+    NameRef = StringRef(TempStorage);
+  };
 
-    if (NameRef.starts_with("async_work_group")) {
-      addUnsignedArg(-1);
-      setArgAttr(1, SPIR::ATTR_CONST);
-    } else if (NameRef.starts_with("printf"))
-      setVarArg(1);
-    else if (NameRef.starts_with("write_imageui"))
-      addUnsignedArg(2);
-    else if (NameRef == "prefetch") {
-      addUnsignedArg(1);
+  if (NameRef.starts_with("async_work_group")) {
+    addUnsignedArg(-1);
+    setArgAttr(1, SPIR::ATTR_CONST);
+  } else if (NameRef.starts_with("printf"))
+    setVarArg(1);
+  else if (NameRef.starts_with("write_imageui"))
+    addUnsignedArg(2);
+  else if (NameRef == "prefetch") {
+    addUnsignedArg(1);
+    setArgAttr(0, SPIR::ATTR_CONST);
+  } else if (NameRef == "get_kernel_work_group_size" ||
+             NameRef == "get_kernel_preferred_work_group_size_multiple") {
+    assert(F && "lack of necessary information");
+    const size_t BlockArgIdx = 0;
+    FunctionType *InvokeTy = getBlockInvokeTy(F, BlockArgIdx);
+    if (InvokeTy->getNumParams() > 1)
+      setLocalArgBlock(BlockArgIdx);
+  } else if (NameRef.starts_with("__enqueue_kernel")) {
+    // clang doesn't mangle enqueue_kernel builtins
+    setAsDontMangle();
+  } else if (NameRef.starts_with("get_") || NameRef == "nan" ||
+             NameRef == "mem_fence" || NameRef.starts_with("shuffle")) {
+    addUnsignedArg(-1);
+    if (NameRef.starts_with(kOCLBuiltinName::GetFence)) {
       setArgAttr(0, SPIR::ATTR_CONST);
-    } else if (NameRef == "get_kernel_work_group_size" ||
-               NameRef == "get_kernel_preferred_work_group_size_multiple") {
-      assert(F && "lack of necessary information");
-      const size_t BlockArgIdx = 0;
-      FunctionType *InvokeTy = getBlockInvokeTy(F, BlockArgIdx);
-      if (InvokeTy->getNumParams() > 1)
-        setLocalArgBlock(BlockArgIdx);
-    } else if (NameRef.starts_with("__enqueue_kernel")) {
-      // clang doesn't mangle enqueue_kernel builtins
-      setAsDontMangle();
-    } else if (NameRef.starts_with("get_") || NameRef == "nan" ||
-               NameRef == "mem_fence" || NameRef.starts_with("shuffle")) {
+      addVoidPtrArg(0);
+    }
+  } else if (NameRef.contains("barrier")) {
+    addUnsignedArg(0);
+    if (NameRef == "work_group_barrier" || NameRef == "sub_group_barrier" ||
+        NameRef == "intel_work_group_barrier_arrive" ||
+        NameRef == "intel_work_group_barrier_wait")
+      setEnumArg(1, SPIR::PRIMITIVE_MEMORY_SCOPE);
+  } else if (NameRef.starts_with("atomic_work_item_fence")) {
+    addUnsignedArg(0);
+    setEnumArg(1, SPIR::PRIMITIVE_MEMORY_ORDER);
+    setEnumArg(2, SPIR::PRIMITIVE_MEMORY_SCOPE);
+  } else if (NameRef.starts_with("atom_")) {
+    setArgAttr(0, SPIR::ATTR_VOLATILE);
+    if (NameRef.ends_with("_umax") || NameRef.ends_with("_umin")) {
       addUnsignedArg(-1);
-      if (NameRef.starts_with(kOCLBuiltinName::GetFence)) {
-        setArgAttr(0, SPIR::ATTR_CONST);
-        addVoidPtrArg(0);
-      }
-    } else if (NameRef.contains("barrier")) {
-      addUnsignedArg(0);
-      if (NameRef == "work_group_barrier" || NameRef == "sub_group_barrier" ||
-          NameRef == "intel_work_group_barrier_arrive" ||
-          NameRef == "intel_work_group_barrier_wait")
-        setEnumArg(1, SPIR::PRIMITIVE_MEMORY_SCOPE);
-    } else if (NameRef.starts_with("atomic_work_item_fence")) {
-      addUnsignedArg(0);
+      // We need to remove u to match OpenCL C built-in function name
+      EraseSymbol(5);
+    }
+  } else if (NameRef.starts_with("atomic")) {
+    setArgAttr(0, SPIR::ATTR_VOLATILE);
+    if (NameRef.contains("_umax") || NameRef.contains("_umin")) {
+      addUnsignedArg(-1);
+      // We need to remove u to match OpenCL C built-in function name
+      if (NameRef.contains("_fetch"))
+        EraseSymbol(13);
+      else
+        EraseSymbol(7);
+    }
+    if (NameRef.contains("store_explicit") ||
+        NameRef.contains("exchange_explicit") ||
+        (NameRef.starts_with("atomic_fetch") && NameRef.contains("explicit"))) {
+      setEnumArg(2, SPIR::PRIMITIVE_MEMORY_ORDER);
+      setEnumArg(3, SPIR::PRIMITIVE_MEMORY_SCOPE);
+    } else if (NameRef.contains("load_explicit") ||
+               (NameRef.starts_with("atomic_flag") &&
+                NameRef.contains("explicit"))) {
       setEnumArg(1, SPIR::PRIMITIVE_MEMORY_ORDER);
       setEnumArg(2, SPIR::PRIMITIVE_MEMORY_SCOPE);
-    } else if (NameRef.starts_with("atom_")) {
-      setArgAttr(0, SPIR::ATTR_VOLATILE);
-      if (NameRef.ends_with("_umax") || NameRef.ends_with("_umin")) {
-        addUnsignedArg(-1);
-        // We need to remove u to match OpenCL C built-in function name
-        EraseSymbol(5);
-      }
-    } else if (NameRef.starts_with("atomic")) {
-      setArgAttr(0, SPIR::ATTR_VOLATILE);
-      if (NameRef.contains("_umax") || NameRef.contains("_umin")) {
-        addUnsignedArg(-1);
-        // We need to remove u to match OpenCL C built-in function name
-        if (NameRef.contains("_fetch"))
-          EraseSymbol(13);
-        else
-          EraseSymbol(7);
-      }
-      if (NameRef.contains("store_explicit") ||
-          NameRef.contains("exchange_explicit") ||
-          (NameRef.starts_with("atomic_fetch") &&
-           NameRef.contains("explicit"))) {
-        setEnumArg(2, SPIR::PRIMITIVE_MEMORY_ORDER);
-        setEnumArg(3, SPIR::PRIMITIVE_MEMORY_SCOPE);
-      } else if (NameRef.contains("load_explicit") ||
-                 (NameRef.starts_with("atomic_flag") &&
-                  NameRef.contains("explicit"))) {
-        setEnumArg(1, SPIR::PRIMITIVE_MEMORY_ORDER);
-        setEnumArg(2, SPIR::PRIMITIVE_MEMORY_SCOPE);
-      } else if (NameRef.ends_with("compare_exchange_strong_explicit") ||
-                 NameRef.ends_with("compare_exchange_weak_explicit")) {
-        setEnumArg(3, SPIR::PRIMITIVE_MEMORY_ORDER);
-        setEnumArg(4, SPIR::PRIMITIVE_MEMORY_ORDER);
-        setEnumArg(5, SPIR::PRIMITIVE_MEMORY_SCOPE);
-      }
-      // Don't set atomic property to the first argument of 1.2 atomic
-      // built-ins.
-      if (!NameRef.ends_with("xchg") && // covers _cmpxchg too
-          (NameRef.contains("fetch") ||
-           !(NameRef.ends_with("_add") || NameRef.ends_with("_sub") ||
-             NameRef.ends_with("_inc") || NameRef.ends_with("_dec") ||
-             NameRef.ends_with("_min") || NameRef.ends_with("_max") ||
-             NameRef.ends_with("_and") || NameRef.ends_with("_or") ||
-             NameRef.ends_with("_xor")))) {
-        addAtomicArg(0);
-      }
-    } else if (NameRef.starts_with("uconvert_")) {
-      addUnsignedArg(0);
-      NameRef = NameRef.drop_front(1);
-      UnmangledName.erase(0, 1);
-    } else if (NameRef.starts_with("s_")) {
-      if (NameRef == "s_upsample")
-        addUnsignedArg(1);
-      NameRef = NameRef.drop_front(2);
-    } else if (NameRef.starts_with("u_")) {
-      addUnsignedArg(-1);
-      NameRef = NameRef.drop_front(2);
-    } else if (NameRef == "fclamp") {
-      NameRef = NameRef.drop_front(1);
+    } else if (NameRef.ends_with("compare_exchange_strong_explicit") ||
+               NameRef.ends_with("compare_exchange_weak_explicit")) {
+      setEnumArg(3, SPIR::PRIMITIVE_MEMORY_ORDER);
+      setEnumArg(4, SPIR::PRIMITIVE_MEMORY_ORDER);
+      setEnumArg(5, SPIR::PRIMITIVE_MEMORY_SCOPE);
     }
-    // handle [read|write]pipe builtins (plus two i32 literal args
-    // required by SPIR 2.0 provisional specification):
-    else if (NameRef == "read_pipe_2" || NameRef == "write_pipe_2") {
-      // with 2 arguments (plus two i32 literals):
-      // int read_pipe (read_only pipe gentype p, gentype *ptr)
-      // int write_pipe (write_only pipe gentype p, const gentype *ptr)
-      addVoidPtrArg(1);
-      addUnsignedArg(2);
-      addUnsignedArg(3);
-      // OpenCL-like representation of blocking pipes
-    } else if (NameRef == "read_pipe_2_bl" || NameRef == "write_pipe_2_bl") {
-      // with 2 arguments (plus two i32 literals):
-      // int read_pipe_bl (read_only pipe gentype p, gentype *ptr)
-      // int write_pipe_bl (write_only pipe gentype p, const gentype *ptr)
-      addVoidPtrArg(1);
-      addUnsignedArg(2);
-      addUnsignedArg(3);
-    } else if (NameRef == "read_pipe_4" || NameRef == "write_pipe_4") {
-      // with 4 arguments (plus two i32 literals):
-      // int read_pipe (read_only pipe gentype p, reserve_id_t reserve_id, uint
-      // index, gentype *ptr) int write_pipe (write_only pipe gentype p,
-      // reserve_id_t reserve_id, uint index, const gentype *ptr)
-      addUnsignedArg(2);
-      addVoidPtrArg(3);
-      addUnsignedArg(4);
-      addUnsignedArg(5);
-    } else if (NameRef.contains("reserve_read_pipe") ||
-               NameRef.contains("reserve_write_pipe")) {
-      // process [|work_group|sub_group]reserve[read|write]pipe builtins
-      addUnsignedArg(1);
-      addUnsignedArg(2);
-      addUnsignedArg(3);
-    } else if (NameRef.contains("commit_read_pipe") ||
-               NameRef.contains("commit_write_pipe")) {
-      // process [|work_group|sub_group]commit[read|write]pipe builtins
-      addUnsignedArg(2);
-      addUnsignedArg(3);
-    } else if (NameRef == "capture_event_profiling_info") {
-      addVoidPtrArg(2);
-      setEnumArg(1, SPIR::PRIMITIVE_CLK_PROFILING_INFO);
-    } else if (NameRef == "enqueue_marker") {
-      setArgAttr(2, SPIR::ATTR_CONST);
-      addUnsignedArg(1);
-    } else if (NameRef.starts_with("vload")) {
-      addUnsignedArg(0);
-      setArgAttr(1, SPIR::ATTR_CONST);
-    } else if (NameRef.starts_with("vstore")) {
-      addUnsignedArg(1);
-    } else if (NameRef.starts_with("ndrange_")) {
-      addUnsignedArgs(0, 2);
-      if (NameRef[8] == '2' || NameRef[8] == '3') {
-        setArgAttr(0, SPIR::ATTR_CONST);
-        setArgAttr(1, SPIR::ATTR_CONST);
-        setArgAttr(2, SPIR::ATTR_CONST);
-      }
-    } else if (NameRef.contains("umax")) {
-      addUnsignedArg(-1);
-      EraseSymbol(NameRef.find("umax"));
-    } else if (NameRef.contains("umin")) {
-      addUnsignedArg(-1);
-      EraseSymbol(NameRef.find("umin"));
-    } else if (NameRef.contains("broadcast")) {
-      addUnsignedArg(-1);
-    } else if (NameRef.starts_with(kOCLBuiltinName::SampledReadImage)) {
-      if (!NameRef.consume_front(kOCLBuiltinName::Sampled))
-        report_fatal_error(llvm::Twine("Builtin name illformed"));
-      addSamplerArg(1);
-    } else if (NameRef.contains(kOCLSubgroupsAVCIntel::Prefix)) {
-      if (NameRef.contains("evaluate_ipe"))
-        addSamplerArg(1);
-      else if (NameRef.contains("evaluate_with_single_reference"))
-        addSamplerArg(2);
-      else if (NameRef.contains("evaluate_with_multi_reference")) {
-        addUnsignedArg(1);
-        std::string PostFix = "_interlaced";
-        if (NameRef.contains(PostFix)) {
-          addUnsignedArg(2);
-          addSamplerArg(3);
-          EraseSubstring(PostFix);
-        } else
-          addSamplerArg(2);
-      } else if (NameRef.contains("evaluate_with_dual_reference"))
-        addSamplerArg(3);
-      else if (NameRef.contains("fme_initialize"))
-        addUnsignedArgs(0, 6);
-      else if (NameRef.contains("bme_initialize"))
-        addUnsignedArgs(0, 7);
-      else if (NameRef.contains("set_inter_base_multi_reference_penalty") ||
-               NameRef.contains("set_inter_shape_penalty") ||
-               NameRef.contains("set_inter_direction_penalty"))
-        addUnsignedArg(0);
-      else if (NameRef.contains("set_motion_vector_cost_function"))
-        addUnsignedArgs(0, 2);
-      else if (NameRef.contains("interlaced_field_polarity"))
-        addUnsignedArg(0);
-      else if (NameRef.contains("interlaced_field_polarities"))
-        addUnsignedArgs(0, 1);
-      else if (NameRef.contains(kOCLSubgroupsAVCIntel::MCEPrefix)) {
-        if (NameRef.contains("get_default"))
-          addUnsignedArgs(0, 1);
-      } else if (NameRef.contains(kOCLSubgroupsAVCIntel::IMEPrefix)) {
-        if (NameRef.contains("initialize"))
-          addUnsignedArgs(0, 2);
-        else if (NameRef.contains("set_single_reference"))
-          addUnsignedArg(1);
-        else if (NameRef.contains("set_dual_reference"))
-          addUnsignedArg(2);
-        else if (NameRef.contains("set_weighted_sad") ||
-                 NameRef.contains("set_early_search_termination_threshold"))
-          addUnsignedArg(0);
-        else if (NameRef.contains("adjust_ref_offset"))
-          addUnsignedArgs(1, 3);
-        else if (NameRef.contains("set_max_motion_vector_count") ||
-                 NameRef.contains("get_border_reached"))
-          addUnsignedArg(0);
-        else if (NameRef.contains("shape_distortions") ||
-                 NameRef.contains("shape_motion_vectors") ||
-                 NameRef.contains("shape_reference_ids")) {
-          if (NameRef.contains("single_reference")) {
-            addUnsignedArg(1);
-            EraseSubstring("_single_reference");
-          } else if (NameRef.contains("dual_reference")) {
-            addUnsignedArgs(1, 2);
-            EraseSubstring("_dual_reference");
-          }
-        } else if (NameRef.contains("ref_window_size"))
-          addUnsignedArg(0);
-      } else if (NameRef.contains(kOCLSubgroupsAVCIntel::SICPrefix)) {
-        if (NameRef.contains("initialize") ||
-            NameRef.contains("set_intra_luma_shape_penalty"))
-          addUnsignedArg(0);
-        else if (NameRef.contains("configure_ipe")) {
-          if (NameRef.contains("_luma")) {
-            addUnsignedArgs(0, 6);
-            EraseSubstring("_luma");
-          }
-          if (NameRef.contains("_chroma")) {
-            addUnsignedArgs(7, 9);
-            EraseSubstring("_chroma");
-          }
-        } else if (NameRef.contains("configure_skc"))
-          addUnsignedArgs(0, 4);
-        else if (NameRef.contains("set_skc")) {
-          if (NameRef.contains("forward_transform_enable"))
-            addUnsignedArg(0);
-        } else if (NameRef.contains("set_block")) {
-          if (NameRef.contains("based_raw_skip_sad"))
-            addUnsignedArg(0);
-        } else if (NameRef.contains("get_motion_vector_mask")) {
-          addUnsignedArgs(0, 1);
-        } else if (NameRef.contains("luma_mode_cost_function"))
-          addUnsignedArgs(0, 2);
-        else if (NameRef.contains("chroma_mode_cost_function"))
-          addUnsignedArg(0);
-      }
-    } else if (NameRef.starts_with("intel_sub_group_shuffle")) {
-      if (NameRef.ends_with("_down") || NameRef.ends_with("_up"))
-        addUnsignedArg(2);
-      else
-        addUnsignedArg(1);
-    } else if (NameRef.starts_with("intel_sub_group_block_write")) {
-      // distinguish write to image and other data types based on number of
-      // arguments--images have one more argument.
-      if (F->getFunctionType()->getNumParams() == 2) {
-        addUnsignedArg(0);
-        addUnsignedArg(1);
-      } else {
-        addUnsignedArg(2);
-      }
-    } else if (NameRef.starts_with("intel_sub_group_block_read")) {
-      // distinguish read from image and other data types based on number of
-      // arguments--images have one more argument.
-      if (F->getFunctionType()->getNumParams() == 1) {
-        setArgAttr(0, SPIR::ATTR_CONST);
-        addUnsignedArg(0);
-      }
-    } else if (NameRef.starts_with("intel_sub_group_media_block_write")) {
-      addUnsignedArg(3);
-    } else if (NameRef.starts_with(kOCLBuiltinName::SubGroupPrefix)) {
-      if (NameRef.contains("ballot")) {
-        if (NameRef.contains("inverse") || NameRef.contains("bit_count") ||
-            NameRef.contains("inclusive_scan") ||
-            NameRef.contains("exclusive_scan") ||
-            NameRef.contains("find_lsb") || NameRef.contains("find_msb"))
-          addUnsignedArg(0);
-        else if (NameRef.contains("bit_extract")) {
-          addUnsignedArgs(0, 1);
-        }
-      } else if (NameRef.starts_with("sub_group_clustered_rotate")) {
-        addUnsignedArg(2);
-      } else if (NameRef.contains("shuffle") || NameRef.contains("clustered"))
-        addUnsignedArg(1);
-    } else if (NameRef.starts_with("bitfield_insert")) {
-      addUnsignedArgs(2, 3);
-    } else if (NameRef.starts_with("bitfield_extract_signed") ||
-               NameRef.starts_with("bitfield_extract_unsigned")) {
-      addUnsignedArgs(1, 2);
-    } else if (NameRef.starts_with("dot_")) {
-      if (NameRef.contains("4x8packed")) {
-        addUnsignedArgs(0, 1);
-        if (NameRef == "dot_acc_sat_4x8packed_uu_uint")
-          addUnsignedArg(2);
-      } else {
-        if (NameRef.ends_with("_uu")) {
-          addUnsignedArgs(0, 1);
-          if (NameRef.starts_with("dot_acc_sat"))
-            addUnsignedArg(2);
-        } else if (NameRef.ends_with("_su"))
-          addUnsignedArg(1);
-        NameRef = NameRef.drop_back(std::string("_uu").length());
-      }
+    // Don't set atomic property to the first argument of 1.2 atomic
+    // built-ins.
+    if (!NameRef.ends_with("xchg") && // covers _cmpxchg too
+        (NameRef.contains("fetch") ||
+         !(NameRef.ends_with("_add") || NameRef.ends_with("_sub") ||
+           NameRef.ends_with("_inc") || NameRef.ends_with("_dec") ||
+           NameRef.ends_with("_min") || NameRef.ends_with("_max") ||
+           NameRef.ends_with("_and") || NameRef.ends_with("_or") ||
+           NameRef.ends_with("_xor")))) {
+      addAtomicArg(0);
     }
-
-    // Store the final version of a function name
-    UnmangledName = NameRef.str();
+  } else if (NameRef.starts_with("uconvert_")) {
+    addUnsignedArg(0);
+    NameRef = NameRef.drop_front(1);
+    UnmangledName.erase(0, 1);
+  } else if (NameRef.starts_with("s_")) {
+    if (NameRef == "s_upsample")
+      addUnsignedArg(1);
+    NameRef = NameRef.drop_front(2);
+  } else if (NameRef.starts_with("u_")) {
+    addUnsignedArg(-1);
+    NameRef = NameRef.drop_front(2);
+  } else if (NameRef == "fclamp") {
+    NameRef = NameRef.drop_front(1);
   }
-  // Auxiliarry information, it is expected that it is relevant at the moment
-  // the init method is called.
-  Function *F; // SPIRV decorated function
-};
+  // handle [read|write]pipe builtins (plus two i32 literal args
+  // required by SPIR 2.0 provisional specification):
+  else if (NameRef == "read_pipe_2" || NameRef == "write_pipe_2") {
+    // with 2 arguments (plus two i32 literals):
+    // int read_pipe (read_only pipe gentype p, gentype *ptr)
+    // int write_pipe (write_only pipe gentype p, const gentype *ptr)
+    addVoidPtrArg(1);
+    addUnsignedArg(2);
+    addUnsignedArg(3);
+    // OpenCL-like representation of blocking pipes
+  } else if (NameRef == "read_pipe_2_bl" || NameRef == "write_pipe_2_bl") {
+    // with 2 arguments (plus two i32 literals):
+    // int read_pipe_bl (read_only pipe gentype p, gentype *ptr)
+    // int write_pipe_bl (write_only pipe gentype p, const gentype *ptr)
+    addVoidPtrArg(1);
+    addUnsignedArg(2);
+    addUnsignedArg(3);
+  } else if (NameRef == "read_pipe_4" || NameRef == "write_pipe_4") {
+    // with 4 arguments (plus two i32 literals):
+    // int read_pipe (read_only pipe gentype p, reserve_id_t reserve_id, uint
+    // index, gentype *ptr) int write_pipe (write_only pipe gentype p,
+    // reserve_id_t reserve_id, uint index, const gentype *ptr)
+    addUnsignedArg(2);
+    addVoidPtrArg(3);
+    addUnsignedArg(4);
+    addUnsignedArg(5);
+  } else if (NameRef.contains("reserve_read_pipe") ||
+             NameRef.contains("reserve_write_pipe")) {
+    // process [|work_group|sub_group]reserve[read|write]pipe builtins
+    addUnsignedArg(1);
+    addUnsignedArg(2);
+    addUnsignedArg(3);
+  } else if (NameRef.contains("commit_read_pipe") ||
+             NameRef.contains("commit_write_pipe")) {
+    // process [|work_group|sub_group]commit[read|write]pipe builtins
+    addUnsignedArg(2);
+    addUnsignedArg(3);
+  } else if (NameRef == "capture_event_profiling_info") {
+    addVoidPtrArg(2);
+    setEnumArg(1, SPIR::PRIMITIVE_CLK_PROFILING_INFO);
+  } else if (NameRef == "enqueue_marker") {
+    setArgAttr(2, SPIR::ATTR_CONST);
+    addUnsignedArg(1);
+  } else if (NameRef.starts_with("vload")) {
+    addUnsignedArg(0);
+    setArgAttr(1, SPIR::ATTR_CONST);
+  } else if (NameRef.starts_with("vstore")) {
+    addUnsignedArg(1);
+  } else if (NameRef.starts_with("ndrange_")) {
+    addUnsignedArgs(0, 2);
+    if (NameRef[8] == '2' || NameRef[8] == '3') {
+      setArgAttr(0, SPIR::ATTR_CONST);
+      setArgAttr(1, SPIR::ATTR_CONST);
+      setArgAttr(2, SPIR::ATTR_CONST);
+    }
+  } else if (NameRef.contains("umax")) {
+    addUnsignedArg(-1);
+    EraseSymbol(NameRef.find("umax"));
+  } else if (NameRef.contains("umin")) {
+    addUnsignedArg(-1);
+    EraseSymbol(NameRef.find("umin"));
+  } else if (NameRef.contains("broadcast")) {
+    addUnsignedArg(-1);
+  } else if (NameRef.starts_with(kOCLBuiltinName::SampledReadImage)) {
+    if (!NameRef.consume_front(kOCLBuiltinName::Sampled))
+      report_fatal_error(llvm::Twine("Builtin name illformed"));
+    addSamplerArg(1);
+  } else if (NameRef.contains(kOCLSubgroupsAVCIntel::Prefix)) {
+    if (NameRef.contains("evaluate_ipe"))
+      addSamplerArg(1);
+    else if (NameRef.contains("evaluate_with_single_reference"))
+      addSamplerArg(2);
+    else if (NameRef.contains("evaluate_with_multi_reference")) {
+      addUnsignedArg(1);
+      std::string PostFix = "_interlaced";
+      if (NameRef.contains(PostFix)) {
+        addUnsignedArg(2);
+        addSamplerArg(3);
+        EraseSubstring(PostFix);
+      } else
+        addSamplerArg(2);
+    } else if (NameRef.contains("evaluate_with_dual_reference"))
+      addSamplerArg(3);
+    else if (NameRef.contains("fme_initialize"))
+      addUnsignedArgs(0, 6);
+    else if (NameRef.contains("bme_initialize"))
+      addUnsignedArgs(0, 7);
+    else if (NameRef.contains("set_inter_base_multi_reference_penalty") ||
+             NameRef.contains("set_inter_shape_penalty") ||
+             NameRef.contains("set_inter_direction_penalty"))
+      addUnsignedArg(0);
+    else if (NameRef.contains("set_motion_vector_cost_function"))
+      addUnsignedArgs(0, 2);
+    else if (NameRef.contains("interlaced_field_polarity"))
+      addUnsignedArg(0);
+    else if (NameRef.contains("interlaced_field_polarities"))
+      addUnsignedArgs(0, 1);
+    else if (NameRef.contains(kOCLSubgroupsAVCIntel::MCEPrefix)) {
+      if (NameRef.contains("get_default"))
+        addUnsignedArgs(0, 1);
+    } else if (NameRef.contains(kOCLSubgroupsAVCIntel::IMEPrefix)) {
+      if (NameRef.contains("initialize"))
+        addUnsignedArgs(0, 2);
+      else if (NameRef.contains("set_single_reference"))
+        addUnsignedArg(1);
+      else if (NameRef.contains("set_dual_reference"))
+        addUnsignedArg(2);
+      else if (NameRef.contains("set_weighted_sad") ||
+               NameRef.contains("set_early_search_termination_threshold"))
+        addUnsignedArg(0);
+      else if (NameRef.contains("adjust_ref_offset"))
+        addUnsignedArgs(1, 3);
+      else if (NameRef.contains("set_max_motion_vector_count") ||
+               NameRef.contains("get_border_reached"))
+        addUnsignedArg(0);
+      else if (NameRef.contains("shape_distortions") ||
+               NameRef.contains("shape_motion_vectors") ||
+               NameRef.contains("shape_reference_ids")) {
+        if (NameRef.contains("single_reference")) {
+          addUnsignedArg(1);
+          EraseSubstring("_single_reference");
+        } else if (NameRef.contains("dual_reference")) {
+          addUnsignedArgs(1, 2);
+          EraseSubstring("_dual_reference");
+        }
+      } else if (NameRef.contains("ref_window_size"))
+        addUnsignedArg(0);
+    } else if (NameRef.contains(kOCLSubgroupsAVCIntel::SICPrefix)) {
+      if (NameRef.contains("initialize") ||
+          NameRef.contains("set_intra_luma_shape_penalty"))
+        addUnsignedArg(0);
+      else if (NameRef.contains("configure_ipe")) {
+        if (NameRef.contains("_luma")) {
+          addUnsignedArgs(0, 6);
+          EraseSubstring("_luma");
+        }
+        if (NameRef.contains("_chroma")) {
+          addUnsignedArgs(7, 9);
+          EraseSubstring("_chroma");
+        }
+      } else if (NameRef.contains("configure_skc"))
+        addUnsignedArgs(0, 4);
+      else if (NameRef.contains("set_skc")) {
+        if (NameRef.contains("forward_transform_enable"))
+          addUnsignedArg(0);
+      } else if (NameRef.contains("set_block")) {
+        if (NameRef.contains("based_raw_skip_sad"))
+          addUnsignedArg(0);
+      } else if (NameRef.contains("get_motion_vector_mask")) {
+        addUnsignedArgs(0, 1);
+      } else if (NameRef.contains("luma_mode_cost_function"))
+        addUnsignedArgs(0, 2);
+      else if (NameRef.contains("chroma_mode_cost_function"))
+        addUnsignedArg(0);
+    }
+  } else if (NameRef.starts_with("intel_sub_group_shuffle")) {
+    if (NameRef.ends_with("_down") || NameRef.ends_with("_up"))
+      addUnsignedArg(2);
+    else
+      addUnsignedArg(1);
+  } else if (NameRef.starts_with("intel_sub_group_block_write")) {
+    // distinguish write to image and other data types based on number of
+    // arguments--images have one more argument.
+    if (F->getFunctionType()->getNumParams() == 2) {
+      addUnsignedArg(0);
+      addUnsignedArg(1);
+    } else {
+      addUnsignedArg(2);
+    }
+  } else if (NameRef.starts_with("intel_sub_group_block_read")) {
+    // distinguish read from image and other data types based on number of
+    // arguments--images have one more argument.
+    if (F->getFunctionType()->getNumParams() == 1) {
+      setArgAttr(0, SPIR::ATTR_CONST);
+      addUnsignedArg(0);
+    }
+  } else if (NameRef.starts_with("intel_sub_group_media_block_write")) {
+    addUnsignedArg(3);
+  } else if (NameRef.starts_with(kOCLBuiltinName::SubGroupPrefix)) {
+    if (NameRef.contains("ballot")) {
+      if (NameRef.contains("inverse") || NameRef.contains("bit_count") ||
+          NameRef.contains("inclusive_scan") ||
+          NameRef.contains("exclusive_scan") || NameRef.contains("find_lsb") ||
+          NameRef.contains("find_msb"))
+        addUnsignedArg(0);
+      else if (NameRef.contains("bit_extract")) {
+        addUnsignedArgs(0, 1);
+      }
+    } else if (NameRef.starts_with("sub_group_clustered_rotate")) {
+      addUnsignedArg(2);
+    } else if (NameRef.contains("shuffle") || NameRef.contains("clustered"))
+      addUnsignedArg(1);
+  } else if (NameRef.starts_with("bitfield_insert")) {
+    addUnsignedArgs(2, 3);
+  } else if (NameRef.starts_with("bitfield_extract_signed") ||
+             NameRef.starts_with("bitfield_extract_unsigned")) {
+    addUnsignedArgs(1, 2);
+  } else if (NameRef.starts_with("dot_")) {
+    if (NameRef.contains("4x8packed")) {
+      addUnsignedArgs(0, 1);
+      if (NameRef == "dot_acc_sat_4x8packed_uu_uint")
+        addUnsignedArg(2);
+    } else {
+      if (NameRef.ends_with("_uu")) {
+        addUnsignedArgs(0, 1);
+        if (NameRef.starts_with("dot_acc_sat"))
+          addUnsignedArg(2);
+      } else if (NameRef.ends_with("_su"))
+        addUnsignedArg(1);
+      NameRef = NameRef.drop_back(std::string("_uu").length());
+    }
+  }
 
-std::unique_ptr<SPIRV::BuiltinFuncMangleInfo> makeMangler(Function &F) {
+  // Store the final version of a function name
+  UnmangledName = NameRef.str();
+}
+
+std::unique_ptr<OCLBuiltinFuncMangleInfo> makeMangler(Function &F) {
   return std::make_unique<OCLBuiltinFuncMangleInfo>(&F);
 }
 

@@ -9,6 +9,8 @@
 #include "include/asan_rtl.hpp"
 #include "asan/asan_libdevice.hpp"
 
+extern "C" __attribute__((weak)) const int __asan_check_shadow_bounds;
+
 // Save the pointer to LaunchInfo
 __SYCL_GLOBAL__ uptr *__SYCL_LOCAL__ __AsanLaunchInfo;
 
@@ -40,6 +42,9 @@ static const __SYCL_CONSTANT__ char __asan_print_shadow_value2[] =
 static __SYCL_CONSTANT__ const char __generic_to[] =
     "[kernel] %p(4) - %p(%d)\n";
 
+static __SYCL_CONSTANT__ const char __asan_print_shadow_bound[] =
+    "[kernel] addr: %p, shadow: %p, lower: %p, upper: %p\n";
+
 #define ASAN_REPORT_NONE 0
 #define ASAN_REPORT_START 1
 #define ASAN_REPORT_FINISH 2
@@ -65,8 +70,12 @@ struct DebugInfo {
   uint32_t line;
 };
 
+inline bool IsCheckShadowBounds() { return __asan_check_shadow_bounds; }
+
 void ReportUnknownDevice(const DebugInfo *debug);
 void PrintShadowMemory(uptr addr, uptr shadow_address, uint32_t as);
+void SaveReport(ErrorType error_type, MemoryType memory_type, bool is_recover,
+                const DebugInfo *debug);
 
 __SYCL_GLOBAL__ void *ToGlobal(void *ptr) {
   return __spirv_GenericCastToPtrExplicit_ToGlobal(ptr, 5);
@@ -113,6 +122,17 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as,
     } else { // Host/Shared USM
       shadow_ptr =
           launch_info->GlobalShadowOffset + (addr >> ASAN_SHADOW_SCALE);
+    }
+
+    if (IsCheckShadowBounds() &&
+        (shadow_ptr < launch_info->GlobalShadowLowerBound ||
+         shadow_ptr > launch_info->GlobalShadowUpperBound)) {
+      ASAN_DEBUG(__spirv_ocl_printf(__asan_print_shadow_bound, addr, shadow_ptr,
+                                    launch_info->GlobalShadowLowerBound,
+                                    launch_info->GlobalShadowUpperBound));
+      SaveReport(ErrorType::OUT_OF_BOUNDS, MemoryType::GLOBAL, false, debug);
+      __devicelib_exit();
+      return 0;
     }
 
     ASAN_DEBUG(
@@ -168,7 +188,7 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as,
       __spirv_ocl_printf(__private_shadow_out_of_bound, addr, shadow_ptr, sid,
                          private_base);
       return 0;
-    };
+    }
 
     return shadow_ptr;
   }
@@ -191,6 +211,17 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as,
     } else { // Only consider 47bit VA
       shadow_ptr = launch_info->GlobalShadowOffset +
                    ((addr & 0x7FFFFFFFFFFF) >> ASAN_SHADOW_SCALE);
+    }
+
+    if (IsCheckShadowBounds() &&
+        (shadow_ptr < launch_info->GlobalShadowLowerBound ||
+         shadow_ptr > launch_info->GlobalShadowUpperBound)) {
+      ASAN_DEBUG(__spirv_ocl_printf(__asan_print_shadow_bound, addr, shadow_ptr,
+                                    launch_info->GlobalShadowLowerBound,
+                                    launch_info->GlobalShadowUpperBound));
+      SaveReport(ErrorType::OUT_OF_BOUNDS, MemoryType::GLOBAL, false, debug);
+      __devicelib_exit();
+      return 0;
     }
 
     ASAN_DEBUG(
@@ -264,15 +295,16 @@ inline uptr MemToShadow(uptr addr, uint32_t as,
 #elif defined(__LIBDEVICE_DG2__)
   shadow_ptr = MemToShadow_DG2(addr, as, debug);
 #else
-  if (GetDeviceTy() == DeviceType::CPU) {
+  auto launch_info = (__SYCL_GLOBAL__ const AsanRuntimeData *)__AsanLaunchInfo;
+  if (launch_info->DeviceTy == DeviceType::CPU) {
     shadow_ptr = MemToShadow_CPU(addr);
-  } else if (GetDeviceTy() == DeviceType::GPU_PVC) {
+  } else if (launch_info->DeviceTy == DeviceType::GPU_PVC) {
     shadow_ptr = MemToShadow_PVC(addr, as, debug);
-  } else if (GetDeviceTy() == DeviceType::GPU_DG2) {
+  } else if (launch_info->DeviceTy == DeviceType::GPU_DG2) {
     shadow_ptr = MemToShadow_DG2(addr, as, debug);
   } else {
     ASAN_DEBUG(__spirv_ocl_printf(__asan_print_unsupport_device_type,
-                                  (int)GetDeviceTy()));
+                                  (int)launch_info->DeviceTy));
     ReportUnknownDevice(debug);
     return 0;
   }
@@ -888,7 +920,8 @@ DEVICE_EXTERN_C_NOINLINE void __asan_set_shadow_private(uptr shadow, uptr size,
 static __SYCL_CONSTANT__ const char __asan_print_private_base[] =
     "[kernel] set_private_base: %llu -> %p\n";
 
-inline void SetPrivateBaseImpl(__SYCL_PRIVATE__ void *ptr) {
+DEVICE_EXTERN_C_NOINLINE void
+__asan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
   auto launch_info = (__SYCL_GLOBAL__ const AsanRuntimeData *)__AsanLaunchInfo;
   const size_t sid = SubGroupLinearId();
   if (!launch_info || sid >= ASAN_MAX_SG_PRIVATE ||
@@ -900,19 +933,6 @@ inline void SetPrivateBaseImpl(__SYCL_PRIVATE__ void *ptr) {
     ASAN_DEBUG(__spirv_ocl_printf(__asan_print_private_base, sid, ptr));
   }
   SubGroupBarrier();
-}
-
-DEVICE_EXTERN_C_NOINLINE void
-__asan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
-#if defined(__LIBDEVICE_CPU__)
-  return;
-#elif defined(__LIBDEVICE_DG2__) || defined(__LIBDEVICE_PVC__)
-  SetPrivateBaseImpl(ptr);
-#else
-  if (GetDeviceTy() == DeviceType::CPU)
-    return;
-  SetPrivateBaseImpl(ptr);
-#endif
 }
 
 #endif // __SPIR__ || __SPIRV__

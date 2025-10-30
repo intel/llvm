@@ -12,6 +12,7 @@
 #include "Resource.h"
 #include "translation/Translation.h"
 
+#include "clang/Lex/PreprocessorOptions.h"
 #include <clang/Basic/DiagnosticDriver.h>
 #include <clang/Basic/Version.h>
 #include <clang/CodeGen/CodeGenAction.h>
@@ -25,6 +26,7 @@
 #include <clang/Frontend/ChainedDiagnosticConsumer.h>
 #include <clang/Frontend/CompilerInstance.h>
 #include <clang/Frontend/FrontendActions.h>
+#include <clang/Frontend/PrecompiledPreamble.h>
 #include <clang/Frontend/TextDiagnosticBuffer.h>
 #include <clang/Frontend/TextDiagnosticPrinter.h>
 #include <clang/Frontend/Utils.h>
@@ -44,12 +46,17 @@
 #include <llvm/SYCLPostLink/ModuleSplitter.h>
 #include <llvm/Support/BLAKE3.h>
 #include <llvm/Support/Base64.h>
+#include <llvm/Support/BinaryByteStream.h>
+#include <llvm/Support/BinaryStreamReader.h>
+#include <llvm/Support/BinaryStreamWriter.h>
+#include <llvm/Support/Caching.h>
 #include <llvm/Support/PropertySetIO.h>
 #include <llvm/Support/TimeProfiler.h>
 #include <llvm/TargetParser/TargetParser.h>
 
 #include <algorithm>
 #include <array>
+#include <memory>
 #include <sstream>
 
 using namespace clang;
@@ -65,50 +72,138 @@ using namespace llvm::vfs;
 using namespace jit_compiler;
 
 namespace {
-
-class HashPreprocessedAction : public PreprocessorFrontendAction {
-protected:
-  void ExecuteAction() override {
-    CompilerInstance &CI = getCompilerInstance();
-
-    std::string PreprocessedSource;
-    raw_string_ostream PreprocessStream(PreprocessedSource);
-
-    PreprocessorOutputOptions Opts;
-    Opts.ShowCPP = 1;
-    Opts.MinimizeWhitespace = 1;
-    // Make cache key insensitive to virtual source file and header locations.
-    Opts.ShowLineMarkers = 0;
-
-    DoPrintPreprocessedInput(CI.getPreprocessor(), &PreprocessStream, Opts);
-
-    Hash = BLAKE3::hash(arrayRefFromStringRef(PreprocessedSource));
-    Executed = true;
-  }
-
+struct AutoPCHError : public ErrorInfo<AutoPCHError> {
 public:
-  BLAKE3Result<> takeHash() {
-    assert(Executed);
-    Executed = false;
-    return std::move(Hash);
+  static char ID;
+
+  std::error_code convertToErrorCode() const override {
+    assert(false && "AutoPCHError doesn't support convertToErrorCode!");
+    return {};
   }
 
-private:
-  BLAKE3Result<> Hash;
-  bool Executed = false;
+  void log(raw_ostream &OS) const override { OS << "auto-pch error"; }
 };
 
-class SYCLToolchain {
-  SYCLToolchain() {
-    for (size_t i = 0; i < NumToolchainFiles; ++i) {
-      auto [Path, Content] = ToolchainFiles[i];
-      ToolchainFS->addFile(Path, 0, llvm::MemoryBuffer::getMemBuffer(Content));
-    }
+char AutoPCHError::ID = 0;
+
+// This key is the same for both in-memory and persistent auto-pch.
+struct auto_pch_key {
+  std::string Opts;
+  std::string Preamble;
+
+  void update_hasher(BLAKE3 &Hasher) const {
+    Hasher.update(Opts);
+    Hasher.update(Preamble);
   }
 
+  Error write(raw_pwrite_stream &OS) const {
+    AppendingBinaryByteStream Stream(llvm::endianness::little);
+    BinaryStreamWriter Writer(Stream);
+    if (auto Error = Writer.writeInteger(Opts.size()))
+      return Error;
+    if (auto Error = Writer.writeFixedString(Opts))
+      return Error;
+    if (auto Error = Writer.writeInteger(Preamble.size()))
+      return Error;
+    if (auto Error = Writer.writeFixedString(Preamble))
+      return Error;
+
+    OS.SetBuffered();
+    for (uint8_t x : Stream.data())
+      OS << x;
+    return Error::success();
+  }
+
+  Error read(llvm::BinaryStreamReader &Reader) {
+    (void)AutoPCHError::ID;
+    auto ReadStr = [&](std::string &Out) -> Error {
+      std::string::size_type StrLen = 0;
+
+      if (auto Err = Reader.readInteger(StrLen))
+        return Err;
+
+      if (StrLen >= std::numeric_limits<uint32_t>::max())
+        return make_error<AutoPCHError>();
+
+      StringRef Str;
+      if (auto Err = Reader.readFixedString(Str, (uint32_t)StrLen))
+        return Err;
+
+      Out = Str.str();
+      return Error::success();
+    };
+
+    if (auto Err = ReadStr(Opts))
+      return Err;
+
+    return ReadStr(Preamble);
+  }
+
+  friend bool operator==(const auto_pch_key &lhs, const auto_pch_key &rhs) {
+    return std::tie(lhs.Opts, lhs.Preamble) == std::tie(rhs.Opts, rhs.Preamble);
+  }
+  friend bool operator!=(const auto_pch_key &lhs, const auto_pch_key &rhs) {
+    return !(lhs == rhs);
+  }
+  friend bool operator<(const auto_pch_key &lhs, const auto_pch_key &rhs) {
+    return std::tie(lhs.Opts, lhs.Preamble) < std::tie(rhs.Opts, rhs.Preamble);
+  }
+};
+} // namespace
+
+template <> struct std::hash<auto_pch_key> {
+  size_t operator()(const auto_pch_key &key) const {
+    BLAKE3 Hasher;
+    key.update_hasher(Hasher);
+
+    // No `std::bit_cast` in c++17, emulate:
+    auto Hash = Hasher.result<sizeof(size_t)>();
+    size_t Result;
+    static_assert(sizeof(Hash) == sizeof(size_t));
+    std::memcpy(&Result, &Hash, sizeof(size_t));
+    return Result;
+  }
+};
+
+namespace {
+class SYCLToolchain {
+  static auto &getToolchainFS() {
+    // TODO: For some reason, removing `thread_local` results in data races
+    // leading to memory corruption (e.g., ::free() report errors). I'm not sure
+    // if that's a bug somewhere in clang tooling/LLVMSupport or intentional
+    // limitation (or maybe a bug in this file, but I can't imagine how could
+    // that be).
+    //
+    // For single thread compilation this gives us [almost] the same performance
+    // as if there was no `thread_local` so performing very time-consuming
+    // investigation wouldn't give a justifiable ROI at this moment.
+    static thread_local const auto ToolchainFS = []() {
+      llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> ToolchainFS =
+          llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
+      using namespace jit_compiler::resource;
+
+      for (size_t i = 0; i < NumToolchainFiles; ++i) {
+        resource_file RF = ToolchainFiles[i];
+        std::string_view Path{RF.Path.S, RF.Path.Size};
+        std::string_view Content{RF.Content.S, RF.Content.Size};
+        ToolchainFS->addFile(Path, 0,
+                             llvm::MemoryBuffer::getMemBuffer(Content));
+      }
+      return ToolchainFS;
+    }();
+    return ToolchainFS;
+  }
+
+  SYCLToolchain() = default;
+
+  struct PrecompiledPreambles {
+    std::mutex Mutex;
+    std::map<auto_pch_key, std::shared_ptr<PrecompiledPreamble>> PreamblesMap;
+  };
+
   // Similar to FrontendActionFactory, but we don't take ownership of
-  // `FrontendAction`, nor do we create copies of it as we only perform a single
-  // `ToolInvocation`.
+  // `FrontendAction`, nor do we create copies of it as we only perform a
+  // single `ToolInvocation`.
   class Action : public ToolAction {
     FrontendAction &FEAction;
 
@@ -145,38 +240,360 @@ class SYCLToolchain {
     }
   };
 
+  std::vector<std::string> createCommandLine(const InputArgList &UserArgList,
+                                             BinaryFormat Format,
+                                             std::string_view SourceFilePath) {
+    DerivedArgList DAL{UserArgList};
+    const auto &OptTable = getDriverOptTable();
+    DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_fsycl_device_only));
+    // User args may contain options not intended for the frontend, but we
+    // can't claim them here to tell the driver they're used later. Hence,
+    // suppress the unused argument warning.
+    DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_Qunused_arguments));
+
+    if (Format == BinaryFormat::PTX || Format == BinaryFormat::AMDGCN) {
+      auto [CPU, Features] =
+          Translator::getTargetCPUAndFeatureAttrs(nullptr, "", Format);
+      (void)Features;
+      StringRef OT = Format == BinaryFormat::PTX ? "nvptx64-nvidia-cuda"
+                                                 : "amdgcn-amd-amdhsa";
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_fsycl_targets_EQ), OT);
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_Xsycl_backend_EQ), OT);
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_offload_arch_EQ), CPU);
+    }
+
+    ArgStringList ASL;
+    for (Arg *A : DAL)
+      A->render(DAL, ASL);
+    for (Arg *A : UserArgList) {
+      Option Group = A->getOption().getGroup();
+      if (Group.isValid() && Group.getID() == OPT_sycl_rtc_only_Group)
+        continue;
+
+      A->render(UserArgList, ASL);
+    }
+
+    std::vector<std::string> CommandLine;
+    CommandLine.reserve(ASL.size() + 2);
+    CommandLine.emplace_back(ClangXXExe);
+    transform(ASL, std::back_inserter(CommandLine),
+              [](const char *AS) { return std::string{AS}; });
+    CommandLine.emplace_back(SourceFilePath);
+    return CommandLine;
+  }
+
+  template <bool Persistent = false>
+  class ActionWithPCHPreamble : public Action {
+    std::string CmdLineOpts;
+    std::string PersistentPCHDir; // Empty if !Persistent.
+
+    static void addImplicitPersistentPreamble(
+        std::unique_ptr<MemoryBuffer> PrecompiledPreamble,
+        const PreambleBounds &Bounds, CompilerInvocation &CI,
+        IntrusiveRefCntPtr<llvm::vfs::FileSystem> &VFS) {
+
+      // Processing similar to PrecompiledPreamble::configurePreamble.
+
+      auto &PreprocessorOpts = CI.getPreprocessorOpts();
+      PreprocessorOpts.PrecompiledPreambleBytes.first = Bounds.Size;
+      PreprocessorOpts.PrecompiledPreambleBytes.second =
+          Bounds.PreambleEndsAtStartOfLine;
+      PreprocessorOpts.DisablePCHOrModuleValidation =
+          DisableValidationForModuleKind::PCH;
+
+      std::string PCHPath = (SYCLToolchain::instance().getPrefix() +
+                             "/remapped_persistent_preamble")
+                                .str();
+      PreprocessorOpts.ImplicitPCHInclude = PCHPath;
+
+      auto PCHFS = llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
+      PCHFS->addFile(PCHPath, 0, std::move(PrecompiledPreamble));
+      auto OverlayFS =
+          llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(VFS);
+      OverlayFS->pushOverlay(PCHFS);
+      VFS = std::move(OverlayFS);
+    }
+
+  public:
+    ActionWithPCHPreamble(FrontendAction &FEAction, std::string &&CmdLineOpts,
+                          std::string PersistentPCHDir = {})
+        : Action(FEAction), CmdLineOpts(std::move(CmdLineOpts)),
+          PersistentPCHDir(std::move(PersistentPCHDir)) {
+      assert(this->PersistentPCHDir.empty() || Persistent);
+    }
+
+    bool runInvocation(std::shared_ptr<CompilerInvocation> Invocation,
+                       FileManager *Files,
+                       std::shared_ptr<PCHContainerOperations> PCHContainerOps,
+                       DiagnosticConsumer *DiagConsumer) override {
+      auto MainFilePath = Invocation->getFrontendOpts().Inputs[0].getFile();
+      auto MainFileBuffer = Files->getBufferForFile(MainFilePath);
+      assert(MainFileBuffer && "Can't get memory buffer for in-memory source?");
+
+      PreambleBounds Bounds = ComputePreambleBounds(
+          Invocation->getLangOpts(), **MainFileBuffer, 100 /* MaxLines */);
+
+      auto_pch_key key{
+          std::move(CmdLineOpts),
+          (*MainFileBuffer)->getBuffer().substr(0, Bounds.Size).str()};
+
+      // In-memory for both `Persistent` and not because PrecompiledPreamble's
+      // `StorePreamblesInMemory==false` would create a *temporary* pch file
+      // on the file system, it will still be removed once preamble object
+      // dies.
+      auto BuildPreamble = [&]() {
+        PreambleCallbacks Callbacks;
+        auto DiagIds = llvm::makeIntrusiveRefCnt<DiagnosticIDs>();
+        auto DiagOpts = Invocation->getDiagnosticOpts();
+        auto Diags = llvm::makeIntrusiveRefCnt<DiagnosticsEngine>(
+            DiagIds, DiagOpts, DiagConsumer, false);
+
+        static std::string StoragePath =
+            (SYCLToolchain::instance().getPrefix() + "/preambles").str();
+        return PrecompiledPreamble::Build(
+            *Invocation, MainFileBuffer->get(), Bounds, Diags,
+            Files->getVirtualFileSystemPtr(), PCHContainerOps,
+            /*StorePreamblesInMemory*/ true, StoragePath, Callbacks,
+            /*AllowASTWithErrors=*/false);
+      };
+
+      if constexpr (Persistent) {
+        BLAKE3 Hasher;
+        key.update_hasher(Hasher);
+
+        std::string EncodedHash = encodeBase64(Hasher.result());
+        // Make the encoding filesystem-friendly.
+        std::replace(EncodedHash.begin(), EncodedHash.end(), '/', '-');
+
+        // `llvm::localCache`'s API uses a callback to process cached data and
+        // the callback's return value (if any) is effectively ignored, so we
+        // need this extra `Success` variable to be able to properly return
+        // compilation status.
+        bool Success = false;
+        auto RunWithoutPCH = [&]() -> bool {
+          // Run original invocation:
+          Success =
+              Action::runInvocation(std::move(Invocation), Files,
+                                    std::move(PCHContainerOps), DiagConsumer);
+          return Success;
+        };
+
+        auto UseCachedPreamble = [&](StringRef PCHContent) {
+          std::unique_ptr<MemoryBuffer> PCHMemBuf =
+              MemoryBuffer::getMemBufferCopy(PCHContent);
+
+          auto VFS = Files->getVirtualFileSystemPtr();
+          addImplicitPersistentPreamble(std::move(PCHMemBuf), Bounds,
+                                        *Invocation, VFS);
+
+          auto NewFiles = makeIntrusiveRefCnt<FileManager>(
+              Files->getFileSystemOpts(), std::move(VFS));
+
+          Success =
+              Action::runInvocation(std::move(Invocation), NewFiles.get(),
+                                    std::move(PCHContainerOps), DiagConsumer);
+          return Success;
+        };
+
+        // `llvm::localCache` calls the callback on either succesful cache read
+        // or during "commit" if an entry is being created. The problem is that
+        // commit might fail and the callback won't be called at all. It's
+        // easier to just don't rely on it on cache miss and perform compilation
+        // with newly generated preamble ourselves.
+        bool CacheHit = true;
+
+        auto CacheCallback = [&](size_t, const Twine &,
+                                 std::unique_ptr<MemoryBuffer> MB) -> void {
+          if (!CacheHit)
+            return; // See above.
+
+          llvm::MemoryBufferByteStream MemBufStream{std::move(MB),
+                                                    llvm::endianness::little};
+          llvm::BinaryStreamReader Reader(MemBufStream);
+
+          auto_pch_key persistent_key;
+          // In case of any errors reading the cache, treat it as a hash
+          // collision and just compile without using PCH.
+          if (errorToBool(persistent_key.read(Reader)))
+            return (void)RunWithoutPCH();
+
+          // Hash collision, **very** unlikely.
+          if (key != persistent_key)
+            return (void)RunWithoutPCH();
+
+          StringRef PCHStorage;
+
+          // This restriction is simply due to the `BinaryStreamReader|Writer`
+          // APIs. Pre-compiled preambles in tests seem to be low double digits
+          // megabytes which is well under 4GB limit imposed here.
+          if (Reader.bytesRemaining() >= std::numeric_limits<uint32_t>::max())
+            return (void)RunWithoutPCH();
+          if (errorToBool(Reader.readFixedString(
+                  PCHStorage, static_cast<uint32_t>(Reader.bytesRemaining()))))
+            return (void)RunWithoutPCH();
+
+          return (void)UseCachedPreamble(PCHStorage);
+        };
+
+        llvm::Expected<llvm::FileCache> CacheOrErr =
+            llvm::localCache("SYCL RTC Persistent Preambles", "syclrtc-tmp-",
+                             PersistentPCHDir, CacheCallback);
+
+        assert(CacheOrErr && "Don't see any code path returning Error");
+        llvm::Expected<llvm::AddStreamFn> AddStreamOrErr =
+            (*CacheOrErr)(0, EncodedHash, "");
+        if (!AddStreamOrErr) {
+          // Not a hit, but we won't be able to store the data in the cache, so
+          // no need to generate precompiled preamble.
+          consumeError(AddStreamOrErr.takeError());
+          return RunWithoutPCH();
+        }
+        llvm::AddStreamFn &AddStream = *AddStreamOrErr;
+        if (!AddStream) {
+          // UseCachedPreamble was called by the cache after successfully
+          // reading persistent auto-pch file.
+          return Success;
+        }
+        CacheHit = false;
+
+        llvm::ErrorOr<PrecompiledPreamble> NewPreamble = BuildPreamble();
+        if (!NewPreamble) {
+          return false;
+        }
+
+        // We could have used `NewPreamble`'s `AddImplicitPreamble` (i.e., as on
+        // the in-memory/non-persistent path) here but I think it's better to
+        // use the same code on cache read/miss:
+        UseCachedPreamble(NewPreamble->memoryContents());
+
+        // Any errors updating the persistent preambles cache won't affect
+        // current compilation, so ignore any error below:
+
+        llvm::Expected<std::unique_ptr<llvm::CachedFileStream>> FileOrErr =
+            AddStream(1, "");
+        if (!FileOrErr) {
+          consumeError(FileOrErr.takeError());
+          return Success;
+        }
+
+        llvm::CachedFileStream *CFS = FileOrErr->get();
+        raw_pwrite_stream &OS = *CFS->OS;
+        consumeError(key.write(OS));
+
+        OS << NewPreamble->memoryContents();
+
+        consumeError(CFS->commit());
+
+        return Success;
+      } else {
+        std::shared_ptr<PrecompiledPreamble> Preamble;
+        {
+          PrecompiledPreambles &Preambles = SYCLToolchain::instance().Preambles;
+          std::lock_guard<std::mutex> Lock{Preambles.Mutex};
+          auto [It, Inserted] = Preambles.PreamblesMap.try_emplace(key);
+
+          if (Inserted) {
+            llvm::ErrorOr<PrecompiledPreamble> NewPreamble = BuildPreamble();
+
+            if (!NewPreamble)
+              return false;
+
+            It->second = std::make_shared<PrecompiledPreamble>(
+                std::move(NewPreamble.get()));
+          }
+
+          Preamble = It->second;
+        } // End lock
+
+        assert(Preamble);
+        assert(Preamble->CanReuse(*Invocation, **MainFileBuffer, Bounds,
+                                  Files->getVirtualFileSystem()));
+
+        assert(Invocation->getPreprocessorOpts().RetainRemappedFileBuffers ==
+               false);
+        // `PreprocessorOptions::RetainRemappedFileBuffers` defaults to false,
+        // so MemoryBuffer will be cleaned up by the CompilerInstance, thus
+        // `std::unique_ptr::release`.
+        auto Buf = llvm::MemoryBuffer::getMemBufferCopy(
+                       (*MainFileBuffer)->getBuffer(), MainFilePath)
+                       .release();
+
+        auto VFS = Files->getVirtualFileSystemPtr();
+        Preamble->AddImplicitPreamble(*Invocation, VFS, Buf);
+        auto NewFiles = makeIntrusiveRefCnt<FileManager>(
+            Files->getFileSystemOpts(), std::move(VFS));
+
+        return Action::runInvocation(std::move(Invocation), NewFiles.get(),
+                                     std::move(PCHContainerOps), DiagConsumer);
+      }
+    }
+  };
+
 public:
   static SYCLToolchain &instance() {
     static SYCLToolchain Instance;
     return Instance;
   }
 
-  bool run(const std::vector<std::string> &CommandLine,
-           FrontendAction &FEAction,
+  bool run(const InputArgList &UserArgList, BinaryFormat Format,
+           const char *SourceFilePath, FrontendAction &FEAction,
            IntrusiveRefCntPtr<FileSystem> FSOverlay = nullptr,
-           DiagnosticConsumer *DiagConsumer = nullptr) {
+           DiagnosticConsumer *DiagConsumer = nullptr,
+           bool EnableAutoPCHOpts = false) {
+    std::vector<std::string> CommandLine =
+        createCommandLine(UserArgList, Format, SourceFilePath);
+
     auto FS = llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(
         llvm::vfs::getRealFileSystem());
-    FS->pushOverlay(ToolchainFS);
+    FS->pushOverlay(getToolchainFS());
     if (FSOverlay)
-      FS->pushOverlay(FSOverlay);
+      FS->pushOverlay(std::move(FSOverlay));
 
     auto Files = llvm::makeIntrusiveRefCnt<clang::FileManager>(
         clang::FileSystemOptions{"." /* WorkingDir */}, FS);
 
-    Action A{FEAction};
-    ToolInvocation TI{CommandLine, &A, Files.get(),
-                      std::make_shared<PCHContainerOperations>()};
-    TI.setDiagnosticConsumer(DiagConsumer ? DiagConsumer : &IgnoreDiag);
+    auto Run = [&](auto &Action) {
+      ToolInvocation TI{std::move(CommandLine), &Action, Files.get(),
+                        std::make_shared<PCHContainerOperations>()};
 
-    return TI.run();
+      TI.setDiagnosticConsumer(DiagConsumer ? DiagConsumer : &IgnoreDiag);
+
+      return TI.run();
+    };
+
+    if (!EnableAutoPCHOpts) {
+      Action A{FEAction};
+      return Run(A);
+    }
+    if (UserArgList.hasArg(OPT_auto_pch)) {
+      // User compilation options must be part of the key in the preambles map.
+      // We can either use "raw" user options or the "processed" from
+      // `createCommandLine` as long as we're consistent in what we're using.
+      // Current internal APIs pass `InputArgList` around instead of a single
+      // `std::string`, so it's easier to use `CommandLine`. Just make sure to
+      // drop `rtc_N.cpp` that is always different:
+      ActionWithPCHPreamble<false /* Persistent */> WithPreamble{
+          FEAction, join(drop_end(CommandLine, 1), " ")};
+      return Run(WithPreamble);
+    }
+    if (UserArgList.hasArg(OPT_persistent_auto_pch_EQ)) {
+      // The comment above applies here as well.
+      ActionWithPCHPreamble<true /* Persistent */> WithPreamble{
+          FEAction, join(drop_end(CommandLine, 1), " "),
+          UserArgList.getLastArgValue(OPT_persistent_auto_pch_EQ).str()};
+      return Run(WithPreamble);
+    }
+
+    // Auto-PCH allowed for this FEAction but not requested by the user:
+    Action A{FEAction};
+    return Run(A);
   }
 
   Expected<ModuleUPtr> loadBitcodeLibrary(StringRef LibPath,
                                           LLVMContext &Context) {
     auto FS = llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(
         llvm::vfs::getRealFileSystem());
-    FS->pushOverlay(ToolchainFS);
+    FS->pushOverlay(getToolchainFS());
 
     auto MemBuf = FS->getBufferForFile(LibPath, /*FileSize*/ -1,
                                        /*RequiresNullTerminator*/ false);
@@ -196,14 +613,16 @@ public:
     return std::move(Lib);
   }
 
+  std::string_view getPrefix() const { return Prefix; }
   std::string_view getClangXXExe() const { return ClangXXExe; }
 
 private:
   clang::IgnoringDiagConsumer IgnoreDiag;
-  std::string ClangXXExe =
-      (jit_compiler::ToolchainPrefix + "/bin/clang++").str();
-  llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> ToolchainFS =
-      llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
+  std::string_view Prefix{jit_compiler::resource::ToolchainPrefix.S,
+                          jit_compiler::resource::ToolchainPrefix.Size};
+  std::string ClangXXExe = (Prefix + "/bin/clang++").str();
+
+  PrecompiledPreambles Preambles;
 };
 
 class ClangDiagnosticWrapper {
@@ -252,42 +671,6 @@ public:
 
 } // anonymous namespace
 
-static std::vector<std::string>
-createCommandLine(const InputArgList &UserArgList, BinaryFormat Format,
-                  std::string_view SourceFilePath) {
-  DerivedArgList DAL{UserArgList};
-  const auto &OptTable = getDriverOptTable();
-  DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_fsycl_device_only));
-  // User args may contain options not intended for the frontend, but we can't
-  // claim them here to tell the driver they're used later. Hence, suppress the
-  // unused argument warning.
-  DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_Qunused_arguments));
-
-  if (Format == BinaryFormat::PTX || Format == BinaryFormat::AMDGCN) {
-    auto [CPU, Features] =
-        Translator::getTargetCPUAndFeatureAttrs(nullptr, "", Format);
-    (void)Features;
-    StringRef OT = Format == BinaryFormat::PTX ? "nvptx64-nvidia-cuda"
-                                               : "amdgcn-amd-amdhsa";
-    DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_fsycl_targets_EQ), OT);
-    DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_Xsycl_backend_EQ), OT);
-    DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_offload_arch_EQ), CPU);
-  }
-
-  ArgStringList ASL;
-  for_each(DAL, [&DAL, &ASL](Arg *A) { A->render(DAL, ASL); });
-  for_each(UserArgList,
-           [&UserArgList, &ASL](Arg *A) { A->render(UserArgList, ASL); });
-
-  std::vector<std::string> CommandLine;
-  CommandLine.reserve(ASL.size() + 2);
-  CommandLine.emplace_back(SYCLToolchain::instance().getClangXXExe());
-  transform(ASL, std::back_inserter(CommandLine),
-            [](const char *AS) { return std::string{AS}; });
-  CommandLine.emplace_back(SourceFilePath);
-  return CommandLine;
-}
-
 static llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem>
 getInMemoryFS(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles) {
   auto InMemoryFS = llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
@@ -309,31 +692,56 @@ Expected<std::string> jit_compiler::calculateHash(
     const InputArgList &UserArgList, BinaryFormat Format) {
   TimeTraceScope TTS{"calculateHash"};
 
-  std::vector<std::string> CommandLine =
-      createCommandLine(UserArgList, Format, SourceFile.Path);
+  class HashPreprocessedAction : public PreprocessorFrontendAction {
+  protected:
+    void ExecuteAction() override {
+      CompilerInstance &CI = getCompilerInstance();
 
-  HashPreprocessedAction HashAction;
+      std::string PreprocessedSource;
+      raw_string_ostream PreprocessStream(PreprocessedSource);
 
-  if (SYCLToolchain::instance().run(CommandLine, HashAction,
-                                    getInMemoryFS(SourceFile, IncludeFiles))) {
-    BLAKE3Result<> SourceHash = HashAction.takeHash();
-    // Last argument is the source file in the format `rtc_N.cpp` which is
-    // unique for each query, so drop it:
-    CommandLine.pop_back();
+      PreprocessorOutputOptions Opts;
+      Opts.ShowCPP = 1;
+      Opts.MinimizeWhitespace = 1;
+      // Make cache key insensitive to virtual source file and header locations.
+      Opts.ShowLineMarkers = 0;
 
-    // TODO: Include hash of the current libsycl-jit.so/.dll somehow...
-    BLAKE3Result<> CommandLineHash =
-        BLAKE3::hash(arrayRefFromStringRef(join(CommandLine, ",")));
+      DoPrintPreprocessedInput(CI.getPreprocessor(), &PreprocessStream, Opts);
 
-    std::string EncodedHash =
-        encodeBase64(SourceHash) + encodeBase64(CommandLineHash);
-    // Make the encoding filesystem-friendly.
-    std::replace(EncodedHash.begin(), EncodedHash.end(), '/', '-');
-    return std::move(EncodedHash);
+      Hasher.update(PreprocessedSource);
+    }
 
-  } else {
+  public:
+    HashPreprocessedAction(BLAKE3 &Hasher) : Hasher(Hasher) {}
+
+  private:
+    BLAKE3 &Hasher;
+  };
+
+  BLAKE3 Hasher;
+  HashPreprocessedAction HashAction{Hasher};
+
+  if (!SYCLToolchain::instance().run(UserArgList, Format, SourceFile.Path,
+                                     HashAction,
+                                     getInMemoryFS(SourceFile, IncludeFiles)))
     return createStringError("Calculating source hash failed");
+
+  Hasher.update(CLANG_VERSION_STRING);
+  Hasher.update(
+      ArrayRef<uint8_t>{reinterpret_cast<const uint8_t *>(&Format),
+                        reinterpret_cast<const uint8_t *>(&Format + 1)});
+
+  for (Arg *Opt : UserArgList) {
+    Hasher.update(Opt->getSpelling());
+    for (const char *Val : Opt->getValues())
+      Hasher.update(Val);
   }
+
+  std::string EncodedHash = encodeBase64(Hasher.result());
+
+  // Make the encoding filesystem-friendly.
+  std::replace(EncodedHash.begin(), EncodedHash.end(), '/', '-');
+  return std::move(EncodedHash);
 }
 
 Expected<ModuleUPtr> jit_compiler::compileDeviceCode(
@@ -346,9 +754,10 @@ Expected<ModuleUPtr> jit_compiler::compileDeviceCode(
   DiagnosticOptions DiagOpts;
   ClangDiagnosticWrapper Wrapper(BuildLog, &DiagOpts);
 
-  if (SYCLToolchain::instance().run(
-          createCommandLine(UserArgList, Format, SourceFile.Path), ELOA,
-          getInMemoryFS(SourceFile, IncludeFiles), Wrapper.consumer())) {
+  if (SYCLToolchain::instance().run(UserArgList, Format, SourceFile.Path, ELOA,
+                                    getInMemoryFS(SourceFile, IncludeFiles),
+                                    Wrapper.consumer(),
+                                    true /* EnableAutoPCHOpts */)) {
     return ELOA.takeModule();
   } else {
     return createStringError(BuildLog);
@@ -500,7 +909,7 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   LLVMContext &Context = Module.getContext();
   for (const std::string &LibName : LibNames) {
     std::string LibPath =
-        (jit_compiler::ToolchainPrefix + "/lib/" + LibName).str();
+        (SYCLToolchain::instance().getPrefix() + "/lib/" + LibName).str();
 
     ModuleUPtr LibModule;
     if (auto Error = SYCLToolchain::instance()
@@ -519,7 +928,7 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   // For GPU targets we need to link against vendor provided libdevice.
   if (IsCudaHIP) {
     Triple T{Module.getTargetTriple()};
-    Driver D{(jit_compiler::ToolchainPrefix + "/bin/clang++").str(),
+    Driver D{(SYCLToolchain::instance().getPrefix() + "/bin/clang++").str(),
              T.getTriple(), Diags};
     auto [CPU, Features] =
         Translator::getTargetCPUAndFeatureAttrs(&Module, "", Format);
@@ -685,7 +1094,7 @@ jit_compiler::performPostLink(ModuleUPtr Module,
   }
 
   std::unique_ptr<ModuleSplitterBase> Splitter = getDeviceCodeSplitter(
-      ModuleDesc{std::move(Module)}, SplitMode,
+      std::make_unique<ModuleDesc>(std::move(Module)), SplitMode,
       /*IROutputOnly=*/false, EmitOnlyKernelsAsEntryPoints,
       AllowDeviceImageDependencies);
   assert(Splitter->hasMoreSplits());
@@ -704,30 +1113,30 @@ jit_compiler::performPostLink(ModuleUPtr Module,
 
   bool IsBF16DeviceLibUsed = false;
   while (Splitter->hasMoreSplits()) {
-    ModuleDesc MDesc = Splitter->nextSplit();
+    std::unique_ptr<ModuleDesc> MDesc = Splitter->nextSplit();
 
     // TODO: Call `MDesc.fixupLinkageOfDirectInvokeSimdTargets()` when
     //       `invoke_simd` is supported.
 
-    SmallVector<ModuleDesc, 2> ESIMDSplits =
+    SmallVector<std::unique_ptr<ModuleDesc>, 2> ESIMDSplits =
         splitByESIMD(std::move(MDesc), EmitOnlyKernelsAsEntryPoints,
                      AllowDeviceImageDependencies);
     for (auto &ES : ESIMDSplits) {
       MDesc = std::move(ES);
 
-      if (MDesc.isESIMD()) {
+      if (MDesc->isESIMD()) {
         // `sycl-post-link` has a `-lower-esimd` option, but there's no clang
         // driver option to influence it. Rather, the driver sets it
         // unconditionally in the multi-file output mode, which we are mimicking
         // here.
-        lowerEsimdConstructs(MDesc, PerformOpts);
+        lowerEsimdConstructs(*MDesc, PerformOpts);
       }
 
-      MDesc.saveSplitInformationAsMetadata();
+      MDesc->saveSplitInformationAsMetadata();
 
       RTCDevImgInfo &DevImgInfo = DevImgInfoVec.emplace_back();
-      DevImgInfo.SymbolTable = FrozenSymbolTable{MDesc.entries().size()};
-      transform(MDesc.entries(), DevImgInfo.SymbolTable.begin(),
+      DevImgInfo.SymbolTable = FrozenSymbolTable{MDesc->entries().size()};
+      transform(MDesc->entries(), DevImgInfo.SymbolTable.begin(),
                 [](Function *F) { return F->getName(); });
 
       // TODO: Determine what is requested.
@@ -738,7 +1147,7 @@ jit_compiler::performPostLink(ModuleUPtr Module,
                                   /*EmitImportedSymbols=*/true,
                                   /*DeviceGlobals=*/true};
       PropertySetRegistry Properties =
-          computeModuleProperties(MDesc.getModule(), MDesc.entries(), PropReq,
+          computeModuleProperties(MDesc->getModule(), MDesc->entries(), PropReq,
                                   AllowDeviceImageDependencies);
 
       // When the split mode is none, the required work group size will be added
@@ -756,8 +1165,8 @@ jit_compiler::performPostLink(ModuleUPtr Module,
 
       encodeProperties(Properties, DevImgInfo);
 
-      IsBF16DeviceLibUsed |= isSYCLDeviceLibBF16Used(MDesc.getModule());
-      Modules.push_back(MDesc.releaseModulePtr());
+      IsBF16DeviceLibUsed |= isSYCLDeviceLibBF16Used(MDesc->getModule());
+      Modules.push_back(MDesc->releaseModulePtr());
     }
   }
 
@@ -765,7 +1174,7 @@ jit_compiler::performPostLink(ModuleUPtr Module,
     auto &Ctx = Modules.front()->getContext();
     auto WrapLibraryInDevImg = [&](const std::string &LibName) -> Error {
       std::string LibPath =
-          (jit_compiler::ToolchainPrefix + "/lib/" + LibName).str();
+          (SYCLToolchain::instance().getPrefix() + "/lib/" + LibName).str();
       ModuleUPtr LibModule;
       if (auto Error = SYCLToolchain::instance()
                            .loadBitcodeLibrary(LibPath, Ctx)
@@ -813,11 +1222,12 @@ jit_compiler::parseUserArgs(View<const char *> UserArgs) {
   // Check for options that are unsupported because they would interfere with
   // the in-memory pipeline.
   Arg *UnsupportedArg =
-      AL.getLastArg(OPT_Action_Group,     // Actions like -c or -S
-                    OPT_Link_Group,       // Linker flags
-                    OPT_o,                // Output file
-                    OPT_fsycl_targets_EQ, // AoT compilation
-                    OPT_fsycl_link_EQ,    // SYCL linker
+      AL.getLastArg(OPT_Action_Group,       // Actions like -c or -S
+                    OPT_Link_Group,         // Linker flags
+                    OPT_o,                  // Output file
+                    OPT_fsycl_targets_EQ,   // AoT compilation
+                    OPT_offload_targets_EQ, // AoT compilation
+                    OPT_fsycl_link_EQ,      // SYCL linker
                     OPT_fno_sycl_device_code_split_esimd, // invoke_simd
                     OPT_fsanitize_EQ                      // Sanitizer
       );
@@ -825,6 +1235,11 @@ jit_compiler::parseUserArgs(View<const char *> UserArgs) {
     return createStringError(
         "Option '%s' is not supported for SYCL runtime compilation",
         UnsupportedArg->getAsString(AL).c_str());
+  }
+
+  if (AL.hasArg(OPT_auto_pch) && AL.hasArg(OPT_persistent_auto_pch_EQ)) {
+    return createStringError(
+        "--auto-pch and --persistent-auto-pch= cannot be used together");
   }
 
   return std::move(AL);

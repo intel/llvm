@@ -1,5 +1,8 @@
 // RUN: %{build} -Wno-error=deprecated-declarations -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
+//
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
 #include "sycl_complex_helper.hpp"
 #include "sycl_complex_operator_test_cases.hpp"

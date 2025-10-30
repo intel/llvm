@@ -23,15 +23,20 @@ struct urKernelSetArgSamplerTestWithParam
         filter_mode                     /* filterMode */
     };
 
-    program_name = "image_copy";
-    UUR_RETURN_ON_FATAL_FAILURE(
-        uur::urBaseKernelTestWithParam<uur::SamplerCreateParamT>::SetUp());
-
+    // Check for image support first, otherwise the offload backend (which doesn't support images yet) will try to load
+    // the non-existant image_copy kernel)
     bool image_support = false;
+    // NOTE: GetParam and getParam are different functions
+    auto &device_tuple = std::get<0>(GetParam());
+    ur_device_handle_t device = device_tuple.device;
     ASSERT_SUCCESS(uur::GetDeviceImageSupport(device, image_support));
     if (!image_support) {
       GTEST_SKIP() << "Device doesn't support images";
     }
+
+    program_name = "image_copy";
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::urBaseKernelTestWithParam<uur::SamplerCreateParamT>::SetUp());
 
     auto ret = urSamplerCreate(context, &sampler_desc, &sampler);
     if (ret == UR_RESULT_ERROR_UNSUPPORTED_FEATURE ||
@@ -71,19 +76,23 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
 
 TEST_P(urKernelSetArgSamplerTestWithParam, Success) {
   uint32_t arg_index = 2;
-  ASSERT_SUCCESS(urKernelSetArgSampler(kernel, arg_index, nullptr, sampler));
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urKernelSetArgSampler(kernel, arg_index, nullptr, sampler));
 }
 
 struct urKernelSetArgSamplerTest : uur::urBaseKernelTest {
   void SetUp() override {
-    program_name = "image_copy";
-    UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTest::SetUp());
-
+    // Check for image support first, otherwise the offload backend (which doesn't support images yet) will try to load
+    // the non-existant image_copy kernel)
     bool image_support = false;
-    ASSERT_SUCCESS(uur::GetDeviceImageSupport(device, image_support));
+    ASSERT_SUCCESS(
+        uur::GetDeviceImageSupport(GetParam().device, image_support));
     if (!image_support) {
       GTEST_SKIP() << "Device doesn't support images";
     }
+
+    program_name = "image_copy";
+    UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTest::SetUp());
 
     ur_sampler_desc_t sampler_desc = {
         UR_STRUCTURE_TYPE_SAMPLER_DESC,   /* sType */

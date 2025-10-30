@@ -8,19 +8,16 @@ from pathlib import Path
 
 from .base import Suite, Benchmark, TracingType
 from options import options
-from utils.utils import git_clone, run, create_build_path
 from utils.result import Result
 from utils.oneapi import get_oneapi
 from utils.logger import log
 from .benchdnn_list import get_bench_dnn_list
+from git_project import GitProject
 
 
 class OneDnnBench(Suite):
-    def __init__(self, directory):
-        self.directory = Path(directory).resolve()
-        build_path = create_build_path(self.directory, "onednn-build")
-        self.build_dir = Path(build_path)
-        self.src_dir = self.directory / "onednn-repo"
+    def __init__(self):
+        self.project = None
 
     def git_url(self):
         return "https://github.com/uxlfoundation/oneDNN.git"
@@ -62,36 +59,38 @@ class OneDnnBench(Suite):
         if options.sycl is None:
             return
 
-        self.src_dir = git_clone(
-            self.directory,
-            "onednn-repo",
-            self.git_url(),
-            self.git_tag(),
-        )
-
         self.oneapi = get_oneapi()
-        cmake_args = [
-            "cmake",
-            f"-S {self.src_dir}",
-            f"-B {self.build_dir}",
+        if self.project is None:
+            self.project = GitProject(
+                self.git_url(),
+                self.git_tag(),
+                Path(options.workdir),
+                "onednn",
+                use_installdir=False,
+            )
+
+        if not self.project.needs_rebuild():
+            log.info(f"Rebuilding {self.project.name} skipped")
+            return
+
+        extra_cmake_args = [
             f"-DCMAKE_PREFIX_PATH={options.sycl}",
             "-DCMAKE_CXX_COMPILER=clang++",
             "-DCMAKE_C_COMPILER=clang",
-            "-DCMAKE_BUILD_TYPE=Release",
             "-DDNNL_BUILD_TESTS=ON",
             "-DDNNL_BUILD_EXAMPLES=OFF",
             "-DDNNL_CPU_RUNTIME=NONE",  # Disable SYCL CPU support
             "-DDNNL_GPU_RUNTIME=SYCL",  # Enable SYCL GPU support
         ]
-        run(
-            cmake_args,
+        self.project.configure(
+            extra_cmake_args,
             add_sycl=True,
         )
-
-        run(
-            f"cmake --build {self.build_dir} --target benchdnn -j {options.build_jobs}",
+        self.project.build(
+            target="benchdnn",
             add_sycl=True,
-            ld_library=[str(self.build_dir) + "/src"] + self.oneapi.ld_libraries(),
+            ld_library=[str(self.project.build_dir / "src")]
+            + self.oneapi.ld_libraries(),
             timeout=60 * 20,
         )
 
@@ -113,7 +112,10 @@ class OneDnnBenchmark(Benchmark):
             self.bench_args += " --execution-mode=direct"
             self.bench_name += "-eager"
         self.bench_args += f" {bench_args}"
-        self.bench_bin = suite.build_dir / "tests" / "benchdnn" / "benchdnn"
+
+    @property
+    def benchmark_bin(self) -> Path:
+        return self.suite.project.build_dir / "tests" / "benchdnn" / "benchdnn"
 
     def enabled(self):
         if options.sycl is None:
@@ -129,8 +131,8 @@ class OneDnnBenchmark(Benchmark):
         return self.exp_group
 
     def setup(self):
-        if not self.bench_bin.exists():
-            raise FileNotFoundError(f"Benchmark binary not found: {self.bench_bin}")
+        if not self.benchmark_bin.exists():
+            raise FileNotFoundError(f"Benchmark binary not found: {self.benchmark_bin}")
 
     def run(
         self,
@@ -145,12 +147,12 @@ class OneDnnBenchmark(Benchmark):
             extra_trace_opt = None
 
         command = [
-            str(self.bench_bin),
+            str(self.benchmark_bin),
             *self.bench_args.split(),
         ]
 
         ld_library = self.suite.oneapi.ld_libraries() + [
-            str(self.suite.build_dir / "src")
+            str(self.suite.project.build_dir / "src")
         ]
 
         env_vars = dict(env_vars) if env_vars else {}

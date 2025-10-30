@@ -29,6 +29,9 @@ struct ur_queue_handle_t_ : ur::opencl::handle_base {
   ur_event_handle_t LastEvent = nullptr;
   ur::RefCount RefCount;
 
+  ur_queue_handle_t_(const ur_queue_handle_t_ &) = delete;
+  ur_queue_handle_t_ &operator=(const ur_queue_handle_t_ &) = delete;
+
   ur_queue_handle_t_(native_type Queue, ur_context_handle_t Ctx,
                      ur_device_handle_t Dev, bool InOrder)
       : handle_base(), CLQueue(Queue), Context(Ctx), Device(Dev),

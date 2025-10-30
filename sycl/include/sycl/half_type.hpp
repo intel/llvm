@@ -10,18 +10,26 @@
 
 #include <sycl/bit_cast.hpp>              // for bit_cast
 #include <sycl/detail/export.hpp>         // for __SYCL_EXPORT
-#include <sycl/detail/iostream_proxy.hpp> // for istream, ostream
+#include <sycl/detail/fwd/half.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
 #include <sycl/aspects.hpp>
 #endif
 
-#include <cstddef>     // for size_t
-#include <cstdint>     // for uint16_t, uint32_t, uint8_t
-#include <functional>  // for hash
+#include <cstddef>
+#include <cstdint>
 #include <limits>      // for float_denorm_style, float_r...
-#include <string_view> // for hash
-#include <type_traits> // for enable_if_t
+#include <type_traits>
+
+// For std::hash, seems to be the most lightweight header provide it under
+// C++17:
+#include <optional>
+
+#ifdef __SYCL_DEVICE_ONLY__
+#include <iosfwd>
+#else
+#include <sycl/detail/iostream_proxy.hpp>
+#endif
 
 #if !defined(__has_builtin) || !__has_builtin(__builtin_expect)
 #define __builtin_expect(a, b) (a)
@@ -146,36 +154,6 @@ inline __SYCL_CONSTEXPR_HALF float half2Float(const uint16_t &Val) {
 
 namespace half_impl {
 class half;
-
-// Several aliases are defined below:
-// - StorageT: actual representation of half data type. It is used by scalar
-//   half values. On device side, it points to some native half data type, while
-//   on host it is represented by a 16-bit integer that the implementation
-//   manipulates to emulate half-precision floating-point behavior.
-//
-// - BIsRepresentationT: data type which is used by built-in functions. It is
-//   distinguished from StorageT, because on host, we can still operate on the
-//   wrapper itself and there is no sense in direct usage of underlying data
-//   type (too many changes required for BIs implementation without any
-//   foreseeable profits)
-//
-// - VecElemT: representation of each element in the vector. On device it is
-//   the same as StorageT to carry a native vector representation, while on
-//   host it stores the sycl::half implementation directly.
-//
-// - VecNStorageT: representation of N-element vector of halfs. Follows the
-//   same logic as VecElemT.
-#ifdef __SYCL_DEVICE_ONLY__
-using StorageT = _Float16;
-using BIsRepresentationT = _Float16;
-using VecElemT = _Float16;
-#else // SYCL_DEVICE_ONLY
-using StorageT = uint16_t;
-// No need to extract underlying data type for built-in functions operating on
-// host
-using BIsRepresentationT = half;
-using VecElemT = half;
-#endif // SYCL_DEVICE_ONLY
 
 // Creation token to disambiguate constructors.
 struct RawHostHalfToken {
@@ -478,6 +456,13 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
 
   // Operator << and >>
+#ifdef __SYCL_DEVICE_ONLY__
+  // std::istream/std::ostream aren't usable on device, so don't provide a
+  // definition to save compile time by using lightweight `<iosfwd>`.
+  inline friend std::ostream &operator<<(std::ostream &O,
+                                         sycl::half const &rhs);
+  inline friend std::istream &operator>>(std::istream &I, sycl::half &rhs);
+#else
   inline friend std::ostream &operator<<(std::ostream &O,
                                          sycl::half const &rhs) {
     O << static_cast<float>(rhs);
@@ -490,6 +475,7 @@ public:
     rhs = ValFloat;
     return I;
   }
+#endif
 
   template <typename Key> friend struct std::hash;
 

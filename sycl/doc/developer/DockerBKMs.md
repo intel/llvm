@@ -143,7 +143,7 @@ for more information.
 
 ### AMD
 
-Follow the [official guide](https://rocmdocs.amd.com/en/latest/ROCm_Virtualization_Containers/ROCm-Virtualization-&-Containers.html).
+Follow the [official guide](https://rocm.docs.amd.com/projects/install-on-linux/en/latest/how-to/docker.html).
 
 ### Nvidia
 

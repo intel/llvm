@@ -13,7 +13,7 @@ find_package(PkgConfig QUIET)
 # so try using that to find the install and if it's not available
 # just try to search for the path.
 if(PkgConfig_FOUND)
-  pkg_check_modules(level-zero level-zero>=1.24.2)
+  pkg_check_modules(level-zero level-zero>=1.25.0)
   if(level-zero_FOUND)
     set(LEVEL_ZERO_INCLUDE_DIR "${level-zero_INCLUDEDIR}/level_zero")
     set(LEVEL_ZERO_LIBRARY_SRC "${level-zero_LIBDIR}")
@@ -50,7 +50,7 @@ if(NOT LEVEL_ZERO_LIB_NAME AND NOT LEVEL_ZERO_LIBRARY)
   set(UR_LEVEL_ZERO_LOADER_REPO "https://github.com/oneapi-src/level-zero.git")
   # Remember to update the pkg_check_modules minimum version above when updating the
   # clone tag
-  set(UR_LEVEL_ZERO_LOADER_TAG v1.24.2)
+  set(UR_LEVEL_ZERO_LOADER_TAG v1.25.0)
 
   # Disable due to a bug https://github.com/oneapi-src/level-zero/issues/104
   set(CMAKE_INCLUDE_CURRENT_DIR OFF)
@@ -125,7 +125,7 @@ if(L0_COMPUTE_RUNTIME_HEADERS)
     set(COMPUTE_RUNTIME_REPO_PATH "${L0_COMPUTE_RUNTIME_HEADERS}")
 else()
     set(UR_COMPUTE_RUNTIME_REPO "https://github.com/intel/compute-runtime.git")
-    set(UR_COMPUTE_RUNTIME_TAG 25.31.34666.3)
+    set(UR_COMPUTE_RUNTIME_TAG 25.35.35096.9)
 
     include(FetchContent)
     # Sparse fetch only the dir with level zero headers for experimental features to avoid pulling in the entire compute-runtime.

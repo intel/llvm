@@ -272,21 +272,36 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
     : SYCLBINContentCopy{ContentCopy(SYCLBINContent, SYCLBINSize)},
       SYCLBINContentCopySize{SYCLBINSize},
       ParsedSYCLBIN(SYCLBIN{SYCLBINContentCopy.get(), SYCLBINSize}) {
-  size_t NumJITBinaries = 0, NumNativeBinaries = 0;
-  for (const SYCLBIN::AbstractModule &AM : ParsedSYCLBIN.AbstractModules) {
-    NumJITBinaries += AM.IRModules.size();
-    NumNativeBinaries += AM.NativeDeviceCodeImages.size();
-  }
-  DeviceBinaries.reserve(NumJITBinaries + NumNativeBinaries);
-  JITDeviceBinaryImages.reserve(NumJITBinaries);
-  NativeDeviceBinaryImages.reserve(NumNativeBinaries);
+  AbstractModuleDescriptors = std::unique_ptr<AbstractModuleDesc[]>(
+      new AbstractModuleDesc[ParsedSYCLBIN.AbstractModules.size()]);
 
-  for (SYCLBIN::AbstractModule &AM : ParsedSYCLBIN.AbstractModules) {
+  size_t NumBinaries = 0;
+  for (const SYCLBIN::AbstractModule &AM : ParsedSYCLBIN.AbstractModules)
+    NumBinaries += AM.IRModules.size() + AM.NativeDeviceCodeImages.size();
+  DeviceBinaries.reserve(NumBinaries);
+  BinaryImages = std::unique_ptr<RTDeviceBinaryImage[]>(
+      new RTDeviceBinaryImage[NumBinaries]);
+
+  RTDeviceBinaryImage *CurrentBinaryImagesStart = BinaryImages.get();
+  for (size_t I = 0; I < getNumAbstractModules(); ++I) {
+    SYCLBIN::AbstractModule &AM = ParsedSYCLBIN.AbstractModules[I];
+    AbstractModuleDesc &AMDesc = AbstractModuleDescriptors[I];
+
+    // Set up the abstract module descriptor.
+    AMDesc.NumJITBinaries = AM.IRModules.size();
+    AMDesc.NumNativeBinaries = AM.NativeDeviceCodeImages.size();
+    AMDesc.JITBinaries = CurrentBinaryImagesStart;
+    AMDesc.NativeBinaries = CurrentBinaryImagesStart + AMDesc.NumJITBinaries;
+    CurrentBinaryImagesStart +=
+        AMDesc.NumJITBinaries + AM.NativeDeviceCodeImages.size();
+
     // Construct properties from SYCLBIN metadata.
     std::vector<_sycl_device_binary_property_set_struct> &BinPropertySets =
         convertAbstractModuleProperties(AM);
 
-    for (SYCLBIN::IRModule &IRM : AM.IRModules) {
+    for (size_t J = 0; J < AM.IRModules.size(); ++J) {
+      SYCLBIN::IRModule &IRM = AM.IRModules[J];
+
       sycl_device_binary_struct &DeviceBinary = DeviceBinaries.emplace_back();
       DeviceBinary.Version = SYCL_DEVICE_BINARY_VERSION;
       DeviceBinary.Kind = 4;
@@ -295,8 +310,10 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
           __SYCL_DEVICE_BINARY_TARGET_SPIRV64; // TODO: Determine.
       DeviceBinary.CompileOptions = nullptr;
       DeviceBinary.LinkOptions = nullptr;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
       DeviceBinary.ManifestStart = nullptr;
       DeviceBinary.ManifestEnd = nullptr;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
       DeviceBinary.BinaryStart =
           reinterpret_cast<const unsigned char *>(IRM.RawIRBytes.data());
       DeviceBinary.BinaryEnd = reinterpret_cast<const unsigned char *>(
@@ -307,11 +324,12 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
       DeviceBinary.PropertySetsEnd =
           BinPropertySets.data() + BinPropertySets.size();
       // Create an image from it.
-      JITDeviceBinaryImages.emplace_back(&DeviceBinary);
+      AMDesc.JITBinaries[J] = RTDeviceBinaryImage{&DeviceBinary};
     }
 
-    for (const SYCLBIN::NativeDeviceCodeImage &NDCI :
-         AM.NativeDeviceCodeImages) {
+    for (size_t J = 0; J < AM.NativeDeviceCodeImages.size(); ++J) {
+      const SYCLBIN::NativeDeviceCodeImage &NDCI = AM.NativeDeviceCodeImages[J];
+
       assert(NDCI.Metadata != nullptr);
       PropertySet &NDCIMetadataProps = (*NDCI.Metadata)
           [PropertySetRegistry::SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA];
@@ -329,8 +347,10 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
           getDeviceTargetSpecFromTriple(TargetTriple);
       DeviceBinary.CompileOptions = nullptr;
       DeviceBinary.LinkOptions = nullptr;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
       DeviceBinary.ManifestStart = nullptr;
       DeviceBinary.ManifestEnd = nullptr;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
       DeviceBinary.BinaryStart = reinterpret_cast<const unsigned char *>(
           NDCI.RawDeviceCodeImageBytes.data());
       DeviceBinary.BinaryEnd = reinterpret_cast<const unsigned char *>(
@@ -342,7 +362,7 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
       DeviceBinary.PropertySetsEnd =
           BinPropertySets.data() + BinPropertySets.size();
       // Create an image from it.
-      NativeDeviceBinaryImages.emplace_back(&DeviceBinary);
+      AMDesc.NativeBinaries[J] = RTDeviceBinaryImage{&DeviceBinary};
     }
   }
 }
@@ -390,33 +410,44 @@ SYCLBINBinaries::convertAbstractModuleProperties(SYCLBIN::AbstractModule &AM) {
 }
 
 std::vector<const RTDeviceBinaryImage *>
-SYCLBINBinaries::getBestCompatibleImages(device_impl &Dev) {
-  auto SelectCompatibleImages =
-      [&](const std::vector<RTDeviceBinaryImage> &Imgs) {
-        std::vector<const RTDeviceBinaryImage *> CompatImgs;
-        for (const RTDeviceBinaryImage &Img : Imgs)
-          if (doesDevSupportDeviceRequirements(Dev, Img) &&
-              doesImageTargetMatchDevice(Img, Dev))
-            CompatImgs.push_back(&Img);
-        return CompatImgs;
-      };
+SYCLBINBinaries::getBestCompatibleImages(device_impl &Dev, bundle_state State) {
+  auto GetCompatibleImage = [&](const RTDeviceBinaryImage *Imgs,
+                                size_t NumImgs) {
+    const RTDeviceBinaryImage *CompatImagePtr =
+        std::find_if(Imgs, Imgs + NumImgs, [&](const RTDeviceBinaryImage &Img) {
+          return doesDevSupportDeviceRequirements(Dev, Img) &&
+                 doesImageTargetMatchDevice(Img, Dev);
+        });
+    return (CompatImagePtr != Imgs + NumImgs) ? CompatImagePtr : nullptr;
+  };
 
-  // Try with native images first.
-  std::vector<const RTDeviceBinaryImage *> NativeImgs =
-      SelectCompatibleImages(NativeDeviceBinaryImages);
-  if (!NativeImgs.empty())
-    return NativeImgs;
+  std::vector<const RTDeviceBinaryImage *> Images;
+  for (size_t I = 0; I < getNumAbstractModules(); ++I) {
+    const AbstractModuleDesc &AMDesc = AbstractModuleDescriptors[I];
+    // If the target state is executable, try with native images first.
+    if (State == bundle_state::executable) {
+      if (const RTDeviceBinaryImage *CompatImagePtr = GetCompatibleImage(
+              AMDesc.NativeBinaries, AMDesc.NumNativeBinaries)) {
+        Images.push_back(CompatImagePtr);
+        continue;
+      }
+    }
 
-  // If there were no native images, pick JIT images.
-  return SelectCompatibleImages(JITDeviceBinaryImages);
+    // Otherwise, select the first compatible JIT binary.
+    if (const RTDeviceBinaryImage *CompatImagePtr =
+            GetCompatibleImage(AMDesc.JITBinaries, AMDesc.NumJITBinaries))
+      Images.push_back(CompatImagePtr);
+  }
+  return Images;
 }
 
 std::vector<const RTDeviceBinaryImage *>
-SYCLBINBinaries::getBestCompatibleImages(devices_range Devs) {
+SYCLBINBinaries::getBestCompatibleImages(devices_range Devs,
+                                         bundle_state State) {
   std::set<const RTDeviceBinaryImage *> Images;
   for (device_impl &Dev : Devs) {
     std::vector<const RTDeviceBinaryImage *> BestImagesForDev =
-        getBestCompatibleImages(Dev);
+        getBestCompatibleImages(Dev, State);
     Images.insert(BestImagesForDev.cbegin(), BestImagesForDev.cend());
   }
   return {Images.cbegin(), Images.cend()};

@@ -29,6 +29,8 @@
 //
 //
 // ===----------------------------------------------------------------------===//
+// UNSUPPORTED: target-nvidia,cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20109
 
 // UNSUPPORTED: target-amd || (windows && level_zero)
 
@@ -40,6 +42,8 @@
 
 #include "../common.hpp"
 #include "atomic_fixt.hpp"
+
+#include <atomic>
 
 constexpr size_t numBlocks = 1;
 constexpr size_t numThreads = 1;

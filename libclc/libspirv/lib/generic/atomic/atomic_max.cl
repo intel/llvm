@@ -9,8 +9,8 @@
 #include <libspirv/spirv.h>
 
 #define IMPL(TYPE, AS, NAME, PREFIX, SUFFIX)                                   \
-  _CLC_OVERLOAD _CLC_DECL TYPE NAME(AS TYPE *p, int scope, int semantics,      \
-                                    TYPE val) {                                \
+  _CLC_OVERLOAD _CLC_DEF TYPE NAME(AS TYPE *p, int scope, int semantics,       \
+                                   TYPE val) {                                 \
     return PREFIX##__sync_fetch_and_##SUFFIX(p, val);                          \
   }
 

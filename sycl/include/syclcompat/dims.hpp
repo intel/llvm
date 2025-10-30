@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include <stdexcept>
 #include <tuple>
 
 #include <sycl/range.hpp>

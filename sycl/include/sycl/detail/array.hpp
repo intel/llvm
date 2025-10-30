@@ -9,7 +9,10 @@
 #pragma once
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
+
+#ifndef __SYCL_DEVICE_ONLY__
 #include <sycl/exception.hpp>
+#endif
 
 #include <stddef.h>    // for size_t
 #include <type_traits> // for enable_if_t

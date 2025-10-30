@@ -12,6 +12,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
     * [Build DPC++ toolchain with support for NVIDIA CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda)
     * [Build DPC++ toolchain with support for HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd)
     * [Build DPC++ toolchain with support for HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia)
+    * [Build DPC++ toolchain with support for Native CPU](#build-dpc-toolchain-with-support-for-native-cpu)
     * [Build DPC++ toolchain with support for ARM processors](#build-dpc-toolchain-with-support-for-arm-processors)
     * [Build DPC++ toolchain with additional features enabled that require runtime/JIT compilation](#build-dpc-toolchain-with-additional-features-enabled-that-require-runtimejit-compilation)
     * [Build DPC++ toolchain with device image compression support](#build-dpc-toolchain-with-device-image-compression-support)
@@ -123,6 +124,7 @@ flags can be found by launching the script with `--help`):
 * `--hip-platform` -> select the platform used by the hip backend, `AMD` or
   `NVIDIA` (see [HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd) or see
   [HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia))
+* `--native_cpu` -> use the Native CPU backend (see [Native CPU](#build-dpc-toolchain-with-support-for-native-cpu))
 * `--enable-all-llvm-targets` -> build compiler (but not a runtime) with all
   supported targets
 * `--shared-libs` -> Build shared libraries
@@ -297,6 +299,13 @@ as well as the CUDA Runtime API to be installed, see [NVIDIA CUDA Installation
 Guide for
 Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html).
 
+### Build DPC++ toolchain with support for Native CPU
+
+Native CPU is a cpu device which by default has no other dependency than DPC++. This device works with all cpu targets supported by the DPC++ runtime.
+Supported targets include x86, Aarch64 and riscv_64.
+
+To enable Native CPU in a DPC++ build just add `--native_cpu` to the set of flags passed to `configure.py`.
+
 ### Build DPC++ toolchain with support for ARM processors
 
 There is no continuous integration for this, and there are no guarantees for supported platforms or configurations.
@@ -342,7 +351,7 @@ You can install zstd using the package manager of your distribution. For example
 ```sh
 sudo apt-get install libzstd-dev
 ```
-Note that the libzstd-dev package provided on Ubuntu 24.04 has a bug ([link](https://bugs.launchpad.net/ubuntu/+source/libzstd/+bug/2086543)) and the zstd static library is not built with the `-fPIC` flag. Linking to this library will result in a build failure. For example: [Issue#15935](https://github.com/intel/llvm/issues/15935). As an alternative, zstd can be built from source either manually or by using the [build_zstd_1_5_6_ub24.sh](https://github.com/intel/llvm/blob/sycl/devops/scripts/build_zstd_1_5_6_ub24.sh) script.
+Note that the libzstd-dev package provided on Ubuntu 24.04 has a bug ([link](https://bugs.launchpad.net/ubuntu/+source/libzstd/+bug/2086543)) and the zstd static library is not built with the `-fPIC` flag. Linking to this library will result in a build failure. For example: [Issue#15935](https://github.com/intel/llvm/issues/15935). As an alternative, zstd can be built from source either manually or by using the [build_zstd.sh](https://github.com/intel/llvm/blob/sycl/devops/scripts/build_zstd.sh) script (it works on Rocky Linux 8.10 / RHEL 8.10 as well).
 
 **Windows**
 
@@ -695,6 +704,13 @@ When building for CUDA or HIP NVIDIA, use the CUDA target triple as follows:
 clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
   simple-sycl-app.cpp -o simple-sycl-app-cuda.exe
 ```
+
+When building for Native CPU use the SYCL target native_cpu:
+
+```bash
+clang++ -fsycl -fsycl-targets=native_cpu simple-sycl-app.cpp -o simple-sycl-app.exe
+```
+More Native CPU build options can be found in [SYCLNativeCPU.md](design/SYCLNativeCPU.md).
 
 **Linux & Windows (64-bit)**:
 

@@ -441,27 +441,35 @@ static cl::opt<AsanDtorKind> ClOverrideDestructorKind(
     cl::init(AsanDtorKind::Invalid), cl::Hidden);
 
 // SYCL flags
-static cl::opt<bool>
-    ClSpirOffloadPrivates("asan-spir-privates",
-                          cl::desc("instrument private pointer"), cl::Hidden,
-                          cl::init(true));
-
-static cl::opt<bool> ClSpirOffloadGlobals("asan-spir-globals",
-                                          cl::desc("instrument global pointer"),
-                                          cl::Hidden, cl::init(true));
-
-static cl::opt<bool> ClSpirOffloadLocals("asan-spir-locals",
-                                         cl::desc("instrument local pointer"),
-                                         cl::Hidden, cl::init(true));
+static cl::opt<bool> ClSpirOffloadPrivates(
+    "asan-spir-privates",
+    cl::desc("Instrument private pointer on SPIR-V target"), cl::Hidden,
+    cl::init(true));
 
 static cl::opt<bool>
-    ClSpirOffloadGenerics("asan-spir-generics",
-                          cl::desc("instrument generic pointer"), cl::Hidden,
-                          cl::init(true));
+    ClSpirOffloadGlobals("asan-spir-globals",
+                         cl::desc("Instrument global pointer on SPIR-V target"),
+                         cl::Hidden, cl::init(true));
 
-static cl::opt<bool> ClDeviceGlobals("asan-device-globals",
-                                     cl::desc("instrument device globals"),
-                                     cl::Hidden, cl::init(true));
+static cl::opt<bool>
+    ClSpirOffloadLocals("asan-spir-locals",
+                        cl::desc("Instrument local pointer on SPIR-V target"),
+                        cl::Hidden, cl::init(true));
+
+static cl::opt<bool> ClSpirOffloadGenerics(
+    "asan-spir-generics",
+    cl::desc("Instrument generic pointer on SPIR-V target"), cl::Hidden,
+    cl::init(true));
+
+static cl::opt<bool>
+    ClDeviceGlobals("asan-device-globals",
+                    cl::desc("Instrument device globals on SPIR-V target"),
+                    cl::Hidden, cl::init(true));
+
+static cl::opt<bool> ClSpirCheckShadowBounds(
+    "asan-spir-shadow-bounds",
+    cl::desc("Enable checking shadow bounds on SPIR-V target"), cl::Hidden,
+    cl::init(false));
 
 // Debug flags.
 
@@ -1116,7 +1124,6 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
   };
   SmallVector<AllocaPoisonCall, 8> DynamicAllocaPoisonCallVec;
   SmallVector<AllocaPoisonCall, 8> StaticAllocaPoisonCallVec;
-  bool HasUntracedLifetimeIntrinsic = false;
 
   SmallVector<AllocaInst *, 1> DynamicAllocaVec;
   SmallVector<IntrinsicInst *, 1> StackRestoreVec;
@@ -1153,14 +1160,6 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
     if (AllocaVec.empty() && DynamicAllocaVec.empty()) return false;
 
     initializeCallbacks(*F.getParent());
-
-    if (HasUntracedLifetimeIntrinsic) {
-      // If there are lifetime intrinsics which couldn't be traced back to an
-      // alloca, we may not know exactly when a variable enters scope, and
-      // therefore should "fail safe" by not poisoning them.
-      StaticAllocaPoisonCallVec.clear();
-      DynamicAllocaPoisonCallVec.clear();
-    }
 
     processDynamicAllocas();
     processStaticAllocas();
@@ -1277,29 +1276,21 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
       return;
     if (!II.isLifetimeStartOrEnd())
       return;
-    // Found lifetime intrinsic, add ASan instrumentation if necessary.
-    auto *Size = cast<ConstantInt>(II.getArgOperand(0));
-    // If size argument is undefined, don't do anything.
-    if (Size->isMinusOne()) return;
-    // Check that size doesn't saturate uint64_t and can
-    // be stored in IntptrTy.
-    const uint64_t SizeValue = Size->getValue().getLimitedValue();
-    if (SizeValue == ~0ULL ||
-        !ConstantInt::isValueValidForType(IntptrTy, SizeValue))
-      return;
     // Find alloca instruction that corresponds to llvm.lifetime argument.
-    // Currently we can only handle lifetime markers pointing to the
-    // beginning of the alloca.
-    AllocaInst *AI = findAllocaForValue(II.getArgOperand(1), true);
-    if (!AI) {
-      HasUntracedLifetimeIntrinsic = true;
-      return;
-    }
+    AllocaInst *AI = dyn_cast<AllocaInst>(II.getArgOperand(0));
     // We're interested only in allocas we can handle.
-    if (!ASan.isInterestingAlloca(*AI))
+    if (!AI || !ASan.isInterestingAlloca(*AI))
       return;
+
+    std::optional<TypeSize> Size = AI->getAllocationSize(AI->getDataLayout());
+    // Check that size is known and can be stored in IntptrTy.
+    // TODO: Add support for scalable vectors if possible.
+    if (!Size || Size->isScalable() ||
+        !ConstantInt::isValueValidForType(IntptrTy, *Size))
+      return;
+
     bool DoPoison = (ID == Intrinsic::lifetime_end);
-    AllocaPoisonCall APC = {&II, AI, SizeValue, DoPoison};
+    AllocaPoisonCall APC = {&II, AI, *Size, DoPoison};
     if (AI->isStaticAlloca())
       StaticAllocaPoisonCallVec.push_back(APC);
     else if (ClInstrumentDynamicAllocas)
@@ -1411,7 +1402,8 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
   // following structure:
   //  uptr unmangled_kernel_name
   //  uptr unmangled_kernel_name_size
-  StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
+  //  uptr sanitized_flags
+  StructType *StructTy = StructType::get(IntptrTy, IntptrTy, IntptrTy);
 
   if (!HasESIMD)
     for (Function &F : M) {
@@ -1442,9 +1434,21 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
       KernelNamesBytes.append(KernelName.begin(), KernelName.end());
       auto *KernelNameGV = GetOrCreateGlobalString(
           M, "__asan_kernel", KernelName, kSpirOffloadConstantAS);
+
+      uintptr_t SanitizerFlags = 0;
+      SanitizerFlags |= ClSpirOffloadLocals ? SanitizedKernelFlags::CHECK_LOCALS
+                                            : SanitizedKernelFlags::NO_CHECK;
+      SanitizerFlags |= ClSpirOffloadPrivates
+                            ? SanitizedKernelFlags::CHECK_PRIVATES
+                            : SanitizedKernelFlags::NO_CHECK;
+      SanitizerFlags |= ClSpirCheckShadowBounds != 0
+                            ? SanitizedKernelFlags::ASAN_CHECK_SHADOW_BOUNDS
+                            : SanitizedKernelFlags::NO_CHECK;
+
       SpirKernelsMetadata.emplace_back(ConstantStruct::get(
           StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
-          ConstantInt::get(IntptrTy, KernelName.size())));
+          ConstantInt::get(IntptrTy, KernelName.size()),
+          ConstantInt::get(IntptrTy, SanitizerFlags)));
     }
 
   // Create global variable to record spirv kernels' information
@@ -1620,17 +1624,22 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
     AsanSpirv->initializeCallbacks();
 
     // FIXME: W/A skip instrumentation if this module has ESIMD
-    bool HasESIMD = false;
-    for (auto &F : M) {
-      if (F.hasMetadata("sycl_explicit_simd")) {
-        HasESIMD = true;
-        break;
-      }
-    }
+    bool HasESIMD = hasESIMDKernel(M);
 
     // Make sure "__AsanKernelMetadata" always exists
     ExtendSpirKernelArgs(M, FAM, HasESIMD);
     Modified = true;
+
+    {
+      IRBuilder<> IRB(M.getContext());
+      M.getOrInsertGlobal("__asan_check_shadow_bounds", IRB.getInt32Ty(), [&] {
+        return new GlobalVariable(
+            M, IRB.getInt32Ty(), true, GlobalValue::WeakODRLinkage,
+            ConstantInt::get(IRB.getInt32Ty(), ClSpirCheckShadowBounds),
+            "__asan_check_shadow_bounds", nullptr,
+            llvm::GlobalValue::NotThreadLocal, kSpirOffloadGlobalAS);
+      });
+    }
 
     if (HasESIMD) {
       GlobalStringMap.clear();
@@ -1710,19 +1719,21 @@ static bool isUnsupportedAMDGPUAddrspace(Value *Addr) {
 }
 
 static bool isUnsupportedDeviceGlobal(GlobalVariable *G) {
-  // Non image scope device globals are implemented by device USM, and the
-  // out-of-bounds check for them will be done by sanitizer USM part. So we
-  // exclude them here.
-  if (!G->hasAttribute("sycl-device-image-scope"))
-    return true;
-
   // Skip instrumenting on "__AsanKernelMetadata" etc.
-  if (G->getName().starts_with("__Asan"))
+  if (G->getName().starts_with("__Asan") || G->getName().starts_with("__asan"))
     return true;
 
   if (G->getAddressSpace() == kSpirOffloadLocalAS)
     return !ClSpirOffloadLocals;
 
+  // When shadow bounds check is enabled, we need to instrument all global
+  // variables that user code can access
+  if (ClSpirCheckShadowBounds)
+    return false;
+
+  // Non image scope device globals are implemented by device USM, and the
+  // out-of-bounds check for them will be done by sanitizer USM part. So we
+  // exclude them here.
   Attribute Attr = G->getAttribute("sycl-device-image-scope");
   return (!Attr.isStringAttribute() || Attr.getValueAsString() == "false");
 }
@@ -4279,8 +4290,8 @@ void FunctionStackPoisoner::processDynamicAllocas() {
 static void findStoresToUninstrumentedArgAllocas(
     AddressSanitizer &ASan, Instruction &InsBefore,
     SmallVectorImpl<Instruction *> &InitInsts) {
-  Instruction *Start = InsBefore.getNextNonDebugInstruction();
-  for (Instruction *It = Start; It; It = It->getNextNonDebugInstruction()) {
+  Instruction *Start = InsBefore.getNextNode();
+  for (Instruction *It = Start; It; It = It->getNextNode()) {
     // Argument initialization looks like:
     // 1) store <Argument>, <Alloca> OR
     // 2) <CastArgument> = cast <Argument> to ...
@@ -4307,7 +4318,7 @@ static void findStoresToUninstrumentedArgAllocas(
           isa<Argument>(cast<CastInst>(Val)->getOperand(0)) &&
           // Check that the cast appears directly before the store. Otherwise
           // moving the cast before InsBefore may break the IR.
-          Val == It->getPrevNonDebugInstruction();
+          Val == It->getPrevNode();
       bool IsArgInit = IsDirectArgInit || IsArgInitViaCast;
       if (!IsArgInit)
         continue;
@@ -4520,6 +4531,7 @@ void FunctionStackPoisoner::processStaticAllocas() {
          "Variable descriptions relative to ASan stack base will be dropped");
 
   // Replace Alloca instructions with base+offset.
+  SmallVector<Value *> NewAllocaPtrs;
   for (const auto &Desc : SVD) {
     AllocaInst *AI = Desc.AI;
     replaceDbgDeclare(AI, LocalStackBaseAllocaPtr, DIB, DIExprFlags,
@@ -4528,6 +4540,7 @@ void FunctionStackPoisoner::processStaticAllocas() {
         IRB.CreateAdd(LocalStackBase, ConstantInt::get(IntptrTy, Desc.Offset)),
         AI->getType());
     AI->replaceAllUsesWith(NewAllocaPtr);
+    NewAllocaPtrs.push_back(NewAllocaPtr);
   }
 
   const auto &TargetTriple = Triple(F.getParent()->getTargetTriple());
@@ -4582,6 +4595,15 @@ void FunctionStackPoisoner::processStaticAllocas() {
       copyToShadow(ShadowAfterScope,
                    APC.DoPoison ? ShadowAfterScope : ShadowInScope, Begin, End,
                    IRB, ShadowBase);
+    }
+  }
+
+  // Remove lifetime markers now that these are no longer allocas.
+  for (Value *NewAllocaPtr : NewAllocaPtrs) {
+    for (User *U : make_early_inc_range(NewAllocaPtr->users())) {
+      auto *I = cast<Instruction>(U);
+      if (I->isLifetimeStartOrEnd())
+        I->eraseFromParent();
     }
   }
 
@@ -4720,6 +4742,13 @@ void FunctionStackPoisoner::handleDynamicAllocaCall(AllocaInst *AI) {
   IRB.CreateStore(IRB.CreatePtrToInt(NewAlloca, IntptrTy), DynamicAllocaLayout);
 
   Value *NewAddressPtr = IRB.CreateIntToPtr(NewAddress, AI->getType());
+
+  // Remove lifetime markers now that this is no longer an alloca.
+  for (User *U : make_early_inc_range(AI->users())) {
+    auto *I = cast<Instruction>(U);
+    if (I->isLifetimeStartOrEnd())
+      I->eraseFromParent();
+  }
 
   // Replace all uses of AddessReturnedByAlloca with NewAddressPtr.
   AI->replaceAllUsesWith(NewAddressPtr);

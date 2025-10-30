@@ -32,6 +32,9 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #undef __SYCL_TOSTRING
 #undef __SYCL_STRINGIFY
 
+// All SYCL macro are provided through this header
+#include <sycl/khr/includes/version.hpp>
+
 #include <sycl/detail/core.hpp>
 
 #include <sycl/accessor_image.hpp>
@@ -113,6 +116,7 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #include <sycl/ext/oneapi/experimental/bfloat16_math.hpp>
 #include <sycl/ext/oneapi/experimental/builtins.hpp>
 #include <sycl/ext/oneapi/experimental/chunk.hpp>
+#include <sycl/ext/oneapi/experimental/clock.hpp>
 #include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>
 #include <sycl/ext/oneapi/experimental/composite_device.hpp>
 #include <sycl/ext/oneapi/experimental/cuda/barrier.hpp>

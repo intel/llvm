@@ -46,7 +46,6 @@ void llvm::initializeCodeGen(PassRegistry &Registry) {
   initializeFPBuiltinFnSelectionLegacyPassPass(Registry);
   initializeFEntryInserterLegacyPass(Registry);
   initializeFinalizeISelPass(Registry);
-  initializeFinalizeMachineBundlesPass(Registry);
   initializeFixupStatepointCallerSavedLegacyPass(Registry);
   initializeFuncletLayoutPass(Registry);
   initializeGCMachineCodeAnalysisPass(Registry);
@@ -111,7 +110,7 @@ void llvm::initializeCodeGen(PassRegistry &Registry) {
   initializePostRAHazardRecognizerLegacyPass(Registry);
   initializePostRASchedulerLegacyPass(Registry);
   initializePreISelIntrinsicLoweringLegacyPassPass(Registry);
-  initializeProcessImplicitDefsPass(Registry);
+  initializeProcessImplicitDefsLegacyPass(Registry);
   initializeRABasicPass(Registry);
   initializeRAGreedyLegacyPass(Registry);
   initializeRegAllocFastPass(Registry);

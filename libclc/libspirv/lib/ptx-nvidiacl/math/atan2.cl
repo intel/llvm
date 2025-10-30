@@ -9,7 +9,6 @@
 #include <libspirv/spirv.h>
 
 #include <libspirv/ptx-nvidiacl/libdevice.h>
-#include <clc/clcmacro.h>
 
 #define __CLC_FUNCTION __spirv_ocl_atan2
 #define __CLC_BUILTIN __nv_atan2

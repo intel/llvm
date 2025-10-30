@@ -73,6 +73,7 @@ if(LLVM_LIBCXX_USED)
 endif()
 
 if (WIN32)
+  list(APPEND compile_opts "-std=c++17")
   list(APPEND compile_opts -D_ALLOW_RUNTIME_LIBRARY_MISMATCH)
   list(APPEND compile_opts -D_ALLOW_ITERATOR_DEBUG_LEVEL_MISMATCH)
 endif()
@@ -319,7 +320,7 @@ function(add_devicelibs filename)
       FILETYPE ${filetype}
       SRC ${ARG_SRC}
       DEPENDENCIES ${ARG_DEPENDENCIES}
-      EXTRA_OPTS ${ARG_EXTRA_OPTS} ${${filetype}_device_compile_opts})
+      EXTRA_OPTS ${ARG_EXTRA_OPTS})
   endforeach()
 
   foreach(arch IN LISTS ARG_BUILD_ARCHS)
@@ -657,6 +658,10 @@ if(LLVM_LIBCXX_USED)
   list(APPEND  imf_host_cxx_flags "-stdlib=libc++")
 endif()
 
+if (WIN32)
+  list(APPEND imf_host_cxx_flags "-std=c++17")
+endif()
+
 macro(mangle_name str output)
   string(STRIP "${str}" strippedStr)
   string(REGEX REPLACE "^/" "" strippedStr "${strippedStr}")
@@ -893,3 +898,13 @@ foreach(ftype IN LISTS filetypes)
     COMPONENT libsycldevice)
 endforeach()
 
+set(libsycldevice_build_targets)
+foreach(filetype IN LISTS filetypes)
+  list(APPEND libsycldevice_build_targets libsycldevice-${filetype})
+endforeach()
+
+add_custom_target(install-libsycldevice
+  COMMAND ${CMAKE_COMMAND} -DCMAKE_INSTALL_COMPONENT=libsycldevice -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
+  DEPENDS ${libsycldevice_build_targets}
+)
+add_dependencies(deploy-sycl-toolchain install-libsycldevice)

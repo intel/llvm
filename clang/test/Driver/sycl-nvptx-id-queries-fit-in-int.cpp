@@ -1,14 +1,14 @@
 // REQUIRES: nvptx-registered-target
 
-// RUN: %clang -### -nocudalib \
+// RUN: %clang -### -fno-sycl-libspirv -nocudalib \
 // RUN:   -fsycl -fsycl-targets=nvptx64-nvidia-cuda %s 2>&1 \
 // RUN: | FileCheck --check-prefix=CHECK-DEFAULT %s
 
-// RUN: %clang -### -nocudalib \
+// RUN: %clang -### -fno-sycl-libspirv -nocudalib \
 // RUN:   -fsycl -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-id-queries-fit-in-int %s 2>&1 \
 // RUN: | FileCheck --check-prefix=CHECK-DEFAULT %s
 
-// RUN: %clang -### -nocudalib \
+// RUN: %clang -### -fno-sycl-libspirv -nocudalib \
 // RUN:   -fsycl -fsycl-targets=nvptx64-nvidia-cuda -fsycl-id-queries-fit-in-int %s 2>&1 \
 // RUN: | FileCheck --check-prefix=CHECK-INT %s
 

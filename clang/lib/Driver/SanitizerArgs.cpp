@@ -852,6 +852,8 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
   }
 
   if (AllAddedKinds & SanitizerKind::KCFI) {
+    CfiICallGeneralizePointers =
+        Args.hasArg(options::OPT_fsanitize_cfi_icall_generalize_pointers);
     CfiICallNormalizeIntegers =
         Args.hasArg(options::OPT_fsanitize_cfi_icall_normalize_integers);
 
@@ -1466,6 +1468,8 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
   if (!AnnotateDebugInfo.empty())
     CmdArgs.push_back(Args.MakeArgString("-fsanitize-annotate-debug-info=" +
                                          toString(AnnotateDebugInfo)));
+
+  Args.AddLastArg(CmdArgs, options::OPT_fsanitize_debug_trap_reasons_EQ);
 
   addSpecialCaseListOpt(Args, CmdArgs,
                         "-fsanitize-ignorelist=", UserIgnorelistFiles);

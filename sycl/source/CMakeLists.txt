@@ -53,6 +53,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
       __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
       __SYCL_INTERNAL_API
       SYCL2020_DISABLE_DEPRECATION_WARNINGS
+      __SYCL_DISABLE_DEPRECATION_WARNINGS
       $<$<BOOL:${MSVC}>:__SYCL_BUILD_SYCL_DLL>
   )
 
@@ -260,6 +261,7 @@ set(SYCL_COMMON_SOURCES
     "detail/device_filter.cpp"
     "detail/host_pipe_map.cpp"
     "detail/device_global_map.cpp"
+    "detail/kernel_data.cpp"
     "detail/kernel_global_info.cpp"
     "detail/device_global_map_entry.cpp"
     "detail/device_image_impl.cpp"
@@ -292,7 +294,6 @@ set(SYCL_COMMON_SOURCES
     "detail/queue_impl.cpp"
     "detail/os_util.cpp"
     "detail/persistent_device_code_cache.cpp"
-    "detail/platform_util.cpp"
     "detail/preview_marker.cpp"
     "detail/reduction.cpp"
     "detail/sampler_impl.cpp"
@@ -328,7 +329,6 @@ set(SYCL_COMMON_SOURCES
     "queue.cpp"
     "sampler.cpp"
     "stream.cpp"
-    "spirv_ops.cpp"
     "virtual_mem.cpp"
     "detail/memory_pool_impl.cpp"
     "detail/async_alloc.cpp"
@@ -339,6 +339,7 @@ set(SYCL_COMMON_SOURCES
 )
 
 set(SYCL_NON_PREVIEW_SOURCES "${SYCL_COMMON_SOURCES}"
+  "spirv_ops.cpp"
 )
 
 

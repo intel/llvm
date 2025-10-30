@@ -32,6 +32,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hEvent,
   case UR_EVENT_INFO_REFERENCE_COUNT:
     return ReturnValue(hEvent->RefCount.load());
   case UR_EVENT_INFO_COMMAND_EXECUTION_STATUS: {
+    if (!hEvent->OffloadEvent) {
+      return ReturnValue(UR_EVENT_STATUS_COMPLETE);
+    }
+
     bool Complete;
     OL_RETURN_ON_ERR(olGetEventInfo(hEvent->OffloadEvent,
                                     OL_EVENT_INFO_IS_COMPLETE, sizeof(Complete),

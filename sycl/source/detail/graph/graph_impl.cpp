@@ -471,7 +471,7 @@ node_impl &graph_impl::add(std::function<void(handler &)> CGF,
 
   // Retrieve any dynamic parameters which have been registered in the CGF and
   // register the actual nodes with them.
-  auto &DynamicParams = Handler.impl->MDynamicParameters;
+  auto &DynamicParams = Handler.impl->MKernelData.getDynamicParameters();
 
   if (NodeType != node_type::kernel && DynamicParams.size() > 0) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
@@ -547,6 +547,13 @@ graph_impl::add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
   DynCGImpl->MNodes.push_back(NodeImpl.shared_from_this());
 
   return NodeImpl;
+}
+
+std::shared_ptr<sycl::detail::queue_impl> graph_impl::getQueue() const {
+  std::shared_ptr<sycl::detail::queue_impl> Return{};
+  if (!MRecordingQueues.empty())
+    Return = MRecordingQueues.begin()->lock();
+  return Return;
 }
 
 void graph_impl::addQueue(sycl::detail::queue_impl &RecordingQueue) {
@@ -717,12 +724,16 @@ void exec_graph_impl::findRealDeps(
   }
 }
 
-ur_exp_command_buffer_sync_point_t exec_graph_impl::enqueueNodeDirect(
-    const sycl::context &Ctx, sycl::detail::device_impl &DeviceImpl,
-    ur_exp_command_buffer_handle_t CommandBuffer, node_impl &Node) {
+std::optional<ur_exp_command_buffer_sync_point_t>
+exec_graph_impl::enqueueNodeDirect(const sycl::context &Ctx,
+                                   sycl::detail::device_impl &DeviceImpl,
+                                   ur_exp_command_buffer_handle_t CommandBuffer,
+                                   node_impl &Node, bool IsInOrderPartition) {
   std::vector<ur_exp_command_buffer_sync_point_t> Deps;
-  for (node_impl &N : Node.predecessors()) {
-    findRealDeps(Deps, N, MPartitionNodes[&Node]);
+  if (!IsInOrderPartition) {
+    for (node_impl &N : Node.predecessors()) {
+      findRealDeps(Deps, N, MPartitionNodes[&Node]);
+    }
   }
   ur_exp_command_buffer_sync_point_t NewSyncPoint;
   ur_exp_command_buffer_command_handle_t NewCommand = 0;
@@ -731,28 +742,29 @@ ur_exp_command_buffer_sync_point_t exec_graph_impl::enqueueNodeDirect(
   const bool xptiEnabled = xptiTraceEnabled();
   xpti_td *CmdTraceEvent = nullptr;
   uint64_t InstanceID = 0;
+  uint8_t StreamID = 0;
   if (xptiEnabled) {
+    StreamID = detail::getActiveXPTIStreamID();
     sycl::detail::CGExecKernel *CGExec =
         static_cast<sycl::detail::CGExecKernel *>(Node.MCommandGroup.get());
     sycl::detail::code_location CodeLoc(CGExec->MFileName.c_str(),
                                         CGExec->MFunctionName.c_str(),
                                         CGExec->MLine, CGExec->MColumn);
     std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
-        sycl::detail::GSYCLStreamID, CGExec->MSyclKernel, CodeLoc,
-        CGExec->MIsTopCodeLoc, CGExec->MKernelName.data(),
+        StreamID, CGExec->MSyclKernel.get(), CodeLoc, CGExec->MIsTopCodeLoc,
         CGExec->MDeviceKernelInfo, nullptr, CGExec->MNDRDesc,
         CGExec->MKernelBundle.get(), CGExec->MArgs);
     if (CmdTraceEvent)
-      sycl::detail::emitInstrumentationGeneral(sycl::detail::GSYCLStreamID,
-                                               InstanceID, CmdTraceEvent,
-                                               xpti::trace_task_begin, nullptr);
+      sycl::detail::emitInstrumentationGeneral(
+          StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_begin, nullptr);
   }
 #endif
 
   ur_result_t Res = sycl::detail::enqueueImpCommandBufferKernel(
       Ctx, DeviceImpl, CommandBuffer,
       *static_cast<sycl::detail::CGExecKernel *>((Node.MCommandGroup.get())),
-      Deps, &NewSyncPoint, MIsUpdatable ? &NewCommand : nullptr, nullptr);
+      Deps, IsInOrderPartition ? nullptr : &NewSyncPoint,
+      MIsUpdatable ? &NewCommand : nullptr, nullptr);
 
   if (MIsUpdatable) {
     MCommandMap[&Node] = NewCommand;
@@ -765,21 +777,25 @@ ur_exp_command_buffer_sync_point_t exec_graph_impl::enqueueNodeDirect(
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiEnabled && CmdTraceEvent)
-    sycl::detail::emitInstrumentationGeneral(sycl::detail::GSYCLStreamID,
-                                             InstanceID, CmdTraceEvent,
-                                             xpti::trace_task_end, nullptr);
+    sycl::detail::emitInstrumentationGeneral(
+        StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_end, nullptr);
 #endif
 
-  return NewSyncPoint;
+  // Linear (in-order) graphs do not return a sync point as the dependencies of
+  // successor nodes are handled by the UR CommandBuffer via the isInOrder flag
+  return IsInOrderPartition
+             ? std::nullopt
+             : std::optional<ur_exp_command_buffer_sync_point_t>{NewSyncPoint};
 }
 
-ur_exp_command_buffer_sync_point_t
+std::optional<ur_exp_command_buffer_sync_point_t>
 exec_graph_impl::enqueueNode(ur_exp_command_buffer_handle_t CommandBuffer,
-                             node_impl &Node) {
-
+                             node_impl &Node, bool IsInOrderPartition) {
   std::vector<ur_exp_command_buffer_sync_point_t> Deps;
-  for (node_impl &N : Node.predecessors()) {
-    findRealDeps(Deps, N, MPartitionNodes[&Node]);
+  if (!IsInOrderPartition) {
+    for (node_impl &N : Node.predecessors()) {
+      findRealDeps(Deps, N, MPartitionNodes[&Node]);
+    }
   }
 
   sycl::detail::EventImplPtr Event =
@@ -791,7 +807,11 @@ exec_graph_impl::enqueueNode(ur_exp_command_buffer_handle_t CommandBuffer,
     MCommandMap[&Node] = Event->getCommandBufferCommand();
   }
 
-  return Event->getSyncPoint();
+  // Linear (in-order) graphs do not return a sync point as the dependencies of
+  // successor nodes are handled by the UR CommandBuffer via the isInOrder flag
+  return IsInOrderPartition ? std::nullopt
+                            : std::optional<ur_exp_command_buffer_sync_point_t>{
+                                  Event->getSyncPoint()};
 }
 
 void exec_graph_impl::buildRequirements() {
@@ -820,10 +840,12 @@ void exec_graph_impl::buildRequirements() {
 
 void exec_graph_impl::createCommandBuffers(
     sycl::device Device, std::shared_ptr<partition> &Partition) {
+  const bool IsInOrderCommandBuffer =
+      Partition->MIsInOrderGraph && !MEnableProfiling;
   ur_exp_command_buffer_handle_t OutCommandBuffer;
-  ur_exp_command_buffer_desc_t Desc{
-      UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC, nullptr, MIsUpdatable,
-      Partition->MIsInOrderGraph && !MEnableProfiling, MEnableProfiling};
+  ur_exp_command_buffer_desc_t Desc{UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC,
+                                    nullptr, MIsUpdatable,
+                                    IsInOrderCommandBuffer, MEnableProfiling};
   context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
   sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
   sycl::detail::device_impl &DeviceImpl = *sycl::detail::getSyclObjImpl(Device);
@@ -852,10 +874,20 @@ void exec_graph_impl::createCommandBuffers(
                     Node.MCommandGroup.get())
                     ->MStreams.size() ==
             0) {
-      MSyncPoints[&Node] =
-          enqueueNodeDirect(MContext, DeviceImpl, OutCommandBuffer, Node);
+      if (auto OptSyncPoint =
+              enqueueNodeDirect(MContext, DeviceImpl, OutCommandBuffer, Node,
+                                IsInOrderCommandBuffer)) {
+        assert(!IsInOrderCommandBuffer &&
+               "In-order partitions should not create a sync point");
+        MSyncPoints[&Node] = *OptSyncPoint;
+      }
     } else {
-      MSyncPoints[&Node] = enqueueNode(OutCommandBuffer, Node);
+      if (auto OptSyncPoint =
+              enqueueNode(OutCommandBuffer, Node, IsInOrderCommandBuffer)) {
+        assert(!IsInOrderCommandBuffer &&
+               "In-order partitions should not create a sync point");
+        MSyncPoints[&Node] = *OptSyncPoint;
+      }
     }
   }
 
@@ -872,10 +904,6 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
                                  const std::shared_ptr<graph_impl> &GraphImpl,
                                  const property_list &PropList)
     : MSchedule(), MGraphImpl(GraphImpl), MSyncPoints(),
-      MQueueImpl(sycl::detail::queue_impl::create(
-          *sycl::detail::getSyclObjImpl(GraphImpl->getDevice()),
-          *sycl::detail::getSyclObjImpl(Context), sycl::async_handler{},
-          sycl::property_list{})),
       MDevice(GraphImpl->getDevice()), MContext(Context), MRequirements(),
       MSchedulerDependencies(),
       MIsUpdatable(PropList.has_property<property::graph::updatable>()),
@@ -895,6 +923,15 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
   }
   // Copy nodes from GraphImpl and merge any subgraph nodes into this graph.
   duplicateNodes();
+
+  if (auto PlaceholderQueuePtr = GraphImpl->getQueue()) {
+    MQueueImpl = std::move(PlaceholderQueuePtr);
+  } else {
+    MQueueImpl = sycl::detail::queue_impl::create(
+        *sycl::detail::getSyclObjImpl(GraphImpl->getDevice()),
+        *sycl::detail::getSyclObjImpl(Context), sycl::async_handler{},
+        sycl::property_list{});
+  }
 }
 
 exec_graph_impl::~exec_graph_impl() {
@@ -1401,14 +1438,14 @@ void exec_graph_impl::update(std::shared_ptr<graph_impl> GraphImpl) {
       sycl::detail::CGExecKernel *TargetCGExec =
           static_cast<sycl::detail::CGExecKernel *>(
               MNodeStorage[i]->MCommandGroup.get());
-      KernelNameStrRefT TargetKernelName = TargetCGExec->getKernelName();
+      std::string_view TargetKernelName = TargetCGExec->getKernelName();
 
       sycl::detail::CGExecKernel *SourceCGExec =
           static_cast<sycl::detail::CGExecKernel *>(
               GraphImpl->MNodeStorage[i]->MCommandGroup.get());
-      KernelNameStrRefT SourceKernelName = SourceCGExec->getKernelName();
+      std::string_view SourceKernelName = SourceCGExec->getKernelName();
 
-      if (TargetKernelName.compare(SourceKernelName) != 0) {
+      if (TargetKernelName != SourceKernelName) {
         std::stringstream ErrorStream(
             "Cannot update using a graph with mismatched kernel "
             "types. Source node type ");
@@ -1568,14 +1605,14 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     UrKernel = Kernel->getHandleRef();
     EliminatedArgMask = Kernel->getKernelArgMask();
   } else if (auto SyclKernelImpl =
-                 KernelBundleImplPtr
-                     ? KernelBundleImplPtr->tryGetKernel(ExecCG.MKernelName)
-                     : std::shared_ptr<kernel_impl>{nullptr}) {
+                 KernelBundleImplPtr ? KernelBundleImplPtr->tryGetKernel(
+                                           ExecCG.MDeviceKernelInfo.Name)
+                                     : std::shared_ptr<kernel_impl>{nullptr}) {
     UrKernel = SyclKernelImpl->getHandleRef();
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else {
     BundleObjs = sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
-        ContextImpl, DeviceImpl, ExecCG.MKernelName, ExecCG.MDeviceKernelInfo);
+        ContextImpl, DeviceImpl, ExecCG.MDeviceKernelInfo);
     UrKernel = BundleObjs->MKernelHandle;
     EliminatedArgMask = BundleObjs->MKernelArgMask;
   }
@@ -1806,6 +1843,12 @@ modifiable_command_graph::modifiable_command_graph(
     const sycl::queue &SyclQueue, const sycl::property_list &PropList)
     : impl(std::make_shared<detail::graph_impl>(
           SyclQueue.get_context(), SyclQueue.get_device(), PropList)) {}
+
+modifiable_command_graph::modifiable_command_graph(
+    const sycl::device &SyclDevice, const sycl::property_list &PropList)
+    : impl(std::make_shared<detail::graph_impl>(
+          SyclDevice.get_platform().khr_get_default_context(), SyclDevice,
+          PropList)) {}
 
 node modifiable_command_graph::addImpl(dynamic_command_group &DynCGF,
                                        const std::vector<node> &Deps) {

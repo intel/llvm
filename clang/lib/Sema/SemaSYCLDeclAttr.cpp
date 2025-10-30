@@ -659,7 +659,7 @@ bool isDeviceAspectType(const QualType Ty) {
   if (!ET)
     return false;
 
-  if (const auto *Attr = ET->getDecl()->getAttr<SYCLTypeAttr>())
+  if (const auto *Attr = ET->getOriginalDecl()->getAttr<SYCLTypeAttr>())
     return Attr->getType() == SYCLTypeAttr::aspect;
 
   return false;

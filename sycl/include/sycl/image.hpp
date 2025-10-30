@@ -413,24 +413,7 @@ private:
         });
   }
 };
-
-template <typename DataT, int Dims, access::mode AccMode,
-          access::target AccTarget, access::placeholder IsPlaceholder>
-class image_accessor;
-
 } // namespace detail
-
-template <typename DataT, int Dimensions, access_mode AccessMode,
-          image_target AccessTarget>
-class unsampled_image_accessor;
-
-template <typename DataT, int Dimensions, access_mode AccessMode>
-class host_unsampled_image_accessor;
-
-template <typename DataT, int Dimensions, image_target AccessTarget>
-class sampled_image_accessor;
-
-template <typename DataT, int Dimensions> class host_sampled_image_accessor;
 
 /// Defines a shared image data.
 ///

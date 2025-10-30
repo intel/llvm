@@ -34,6 +34,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/LineIterator.h"
 #include "llvm/Support/PropertySetIO.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 #include <memory>
 #include <string>
@@ -44,6 +45,9 @@ using namespace llvm::offloading;
 using namespace llvm::util;
 
 namespace {
+
+/// Enable preview breaking changes.
+static bool PreviewBreakingChanges = false;
 
 /// Note: Returned values are a part of ABI. If you want to change them
 /// then coordinate it with SYCL Runtime.
@@ -136,7 +140,6 @@ struct Wrapper {
   }
 
   // TODO: Drop Version in favor of the Version in Binary Descriptor.
-  // TODO: Drop Manifest fields.
   /// Creates a structure corresponding to:
   /// SYCL specific image descriptor type.
   /// \code
@@ -158,10 +161,12 @@ struct Wrapper {
   ///   // a null-terminated string; target- and compiler-specific options
   ///   // which are suggested to use to "link" program at runtime
   ///   const char *LinkOptions;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   ///   // Pointer to the manifest data start
   ///   const unsigned char *ManifestStart;
   ///   // Pointer to the manifest data end
   ///   const unsigned char *ManifestEnd;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   ///   // Pointer to the device binary image start
   ///   void *ImageStart;
   ///   // Pointer to the device binary image end
@@ -174,24 +179,47 @@ struct Wrapper {
   /// };
   /// \endcode
   StructType *getSyclDeviceImageTy() {
-    return StructType::create(
-        {
-            Type::getInt16Ty(C),       // Version
-            Type::getInt8Ty(C),        // OffloadKind
-            Type::getInt8Ty(C),        // Format
-            PointerType::getUnqual(C), // DeviceTargetSpec
-            PointerType::getUnqual(C), // CompileOptions
-            PointerType::getUnqual(C), // LinkOptions
-            PointerType::getUnqual(C), // ManifestStart
-            PointerType::getUnqual(C), // ManifestEnd
-            PointerType::getUnqual(C), // ImageStart
-            PointerType::getUnqual(C), // ImageEnd
-            PointerType::getUnqual(C), // EntriesBegin
-            PointerType::getUnqual(C), // EntriesEnd
-            PointerType::getUnqual(C), // PropertySetBegin
-            PointerType::getUnqual(C)  // PropertySetEnd
-        },
-        "__sycl.tgt_device_image");
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    if (!PreviewBreakingChanges) {
+      return StructType::create(
+          {
+              Type::getInt16Ty(C),       // Version
+              Type::getInt8Ty(C),        // OffloadKind
+              Type::getInt8Ty(C),        // Format
+              PointerType::getUnqual(C), // DeviceTargetSpec
+              PointerType::getUnqual(C), // CompileOptions
+              PointerType::getUnqual(C), // LinkOptions
+              PointerType::getUnqual(C), // ManifestStart
+              PointerType::getUnqual(C), // ManifestEnd
+              PointerType::getUnqual(C), // ImageStart
+              PointerType::getUnqual(C), // ImageEnd
+              PointerType::getUnqual(C), // EntriesBegin
+              PointerType::getUnqual(C), // EntriesEnd
+              PointerType::getUnqual(C), // PropertySetBegin
+              PointerType::getUnqual(C)  // PropertySetEnd
+          },
+          "__sycl.tgt_device_image");
+    } else {
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+      return StructType::create(
+          {
+              Type::getInt16Ty(C),       // Version
+              Type::getInt8Ty(C),        // OffloadKind
+              Type::getInt8Ty(C),        // Format
+              PointerType::getUnqual(C), // DeviceTargetSpec
+              PointerType::getUnqual(C), // CompileOptions
+              PointerType::getUnqual(C), // LinkOptions
+              PointerType::getUnqual(C), // ImageStart
+              PointerType::getUnqual(C), // ImageEnd
+              PointerType::getUnqual(C), // EntriesBegin
+              PointerType::getUnqual(C), // EntriesEnd
+              PointerType::getUnqual(C), // PropertySetBegin
+              PointerType::getUnqual(C)  // PropertySetEnd
+          },
+          "__sycl.tgt_device_image");
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   }
 
   /// Creates a structure for SYCL specific binary descriptor type. Corresponds
@@ -544,7 +572,12 @@ struct Wrapper {
     auto *NullPtr = Constant::getNullValue(PointerType::getUnqual(C));
     // DeviceImageStructVersion change log:
     // -- version 2: updated to PI 1.2 binary image format
-    constexpr uint16_t DeviceImageStructVersion = 2;
+    // -- version 3: removed ManifestStart, ManifestEnd pointers
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    uint16_t DeviceImageStructVersion = PreviewBreakingChanges ? 3 : 2;
+#else                                      // __INTEL_PREVIEW_BREAKING_CHANGES
+    constexpr uint16_t DeviceImageStructVersion = 3;
+#endif                                     // __INTEL_PREVIEW_BREAKING_CHANGES
     constexpr uint8_t SYCLOffloadKind = 4; // Corresponds to SYCL
     auto *Version =
         ConstantInt::get(Type::getInt16Ty(C), DeviceImageStructVersion);
@@ -572,20 +605,33 @@ struct Wrapper {
           Twine(OffloadKindTag) + ImageID + ".data", Image.Target);
     }
 
-    // TODO: Manifests are going to be removed.
-    // Note: Manifests are deprecated but corresponding nullptr fields should
-    // remain to comply ABI.
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     std::pair<Constant *, Constant *> Manifests = {NullPtr, NullPtr};
+#endif
 
     // For SYCL image offload entries are defined here, by wrapper, so
     // those are created per image
     std::pair<Constant *, Constant *> ImageEntriesPtrs =
         addOffloadEntriesToModule(Image.Entries);
-    Constant *WrappedImage = ConstantStruct::get(
-        SyclDeviceImageTy, Version, Kind, Format, Target, CompileOptions,
-        LinkOptions, Manifests.first, Manifests.second, Binary.first,
-        Binary.second, ImageEntriesPtrs.first, ImageEntriesPtrs.second,
-        PropSets.first, PropSets.second);
+    Constant *WrappedImage =
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+        PreviewBreakingChanges
+            ?
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+            ConstantStruct::get(SyclDeviceImageTy, Version, Kind, Format,
+                                Target, CompileOptions, LinkOptions,
+                                Binary.first, Binary.second,
+                                ImageEntriesPtrs.first, ImageEntriesPtrs.second,
+                                PropSets.first, PropSets.second)
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+            : ConstantStruct::get(
+                  SyclDeviceImageTy, Version, Kind, Format, Target,
+                  CompileOptions, LinkOptions, Manifests.first,
+                  Manifests.second, Binary.first, Binary.second,
+                  ImageEntriesPtrs.first, ImageEntriesPtrs.second,
+                  PropSets.first, PropSets.second)
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+        ;
 
     if (Options.EmitRegistrationFunctions)
       emitRegistrationFunctions(Binary.first, Image.Image->getBufferSize(),
@@ -647,20 +693,26 @@ struct Wrapper {
   ///  ...
   /// static const char ImageN[] = { <Bufs.back() contents> };
   ///
-  /// static constexpr uint16_t Version = 2;
-  /// static constexpr uint16_t OffloadKind = 4; // SYCL
-  ///
-  /// static const __sycl.tgt_device_image Images[] = {
-  ///   {
-  ///     Version,                      /*Version*/
-  ///     OffloadKind,                  // Kind of offload model.
-  ///     Format,                       // format of the image - SPIRV, LLVMIR
-  ///                                   // bc, etc
-  //      NULL,                         /*DeviceTargetSpec*/
-  ///     CompileOptions0,              /*CompileOptions0*/
-  ///     LinkOptions0,                 /*LinkOptions0*/
-  ///     NULL,                         /*ManifestStart*/
-  ///     NULL,                         /*ManifestEnd*/
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+/// static constexpr uint16_t Version = 2;
+#else  // __INTEL_PREVIEW_BREAKING_CHANGES
+/// static constexpr uint16_t Version = 3;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+/// static constexpr uint16_t OffloadKind = 4; // SYCL
+///
+/// static const __sycl.tgt_device_image Images[] = {
+///   {
+///     Version,                      /*Version*/
+///     OffloadKind,                  // Kind of offload model.
+///     Format,                       // format of the image - SPIRV, LLVMIR
+///                                   // bc, etc
+//      NULL,                         /*DeviceTargetSpec*/
+///     CompileOptions0,              /*CompileOptions0*/
+///     LinkOptions0,                 /*LinkOptions0*/
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+///     NULL,                         /*ManifestStart*/
+///     NULL,                         /*ManifestEnd*/
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   ///     Image0,                       /*ImageStart*/
   ///     Image0 + sizeof(Image0),      /*ImageEnd*/
   ///     __start_offloading_entries0,  /*EntriesBegin*/
@@ -734,20 +786,70 @@ struct Wrapper {
     // Add this function to global destructors.
     appendToGlobalDtors(M, Func, /*Priority*/ 1);
   }
+
+  void createSyclRegisterWithAtexitUnregister(GlobalVariable *FatbinDesc) {
+    auto *UnregFuncTy =
+        FunctionType::get(Type::getVoidTy(C), /*isVarArg*/ false);
+    auto *UnregFunc =
+        Function::Create(UnregFuncTy, GlobalValue::InternalLinkage,
+                         "sycl.descriptor_unreg.atexit", &M);
+    UnregFunc->setSection(".text.startup");
+
+    // Declaration for __sycl_unregister_lib(void*).
+    auto *UnregTargetTy =
+        FunctionType::get(Type::getVoidTy(C), PointerType::getUnqual(C), false);
+    FunctionCallee UnregTargetC =
+        M.getOrInsertFunction("__sycl_unregister_lib", UnregTargetTy);
+
+    // Body of the unregister wrapper.
+    IRBuilder<> UnregBuilder(BasicBlock::Create(C, "entry", UnregFunc));
+    UnregBuilder.CreateCall(UnregTargetC, FatbinDesc);
+    UnregBuilder.CreateRetVoid();
+
+    auto *RegFuncTy = FunctionType::get(Type::getVoidTy(C), /*isVarArg*/ false);
+    auto *RegFunc = Function::Create(RegFuncTy, GlobalValue::InternalLinkage,
+                                     "sycl.descriptor_reg", &M);
+    RegFunc->setSection(".text.startup");
+
+    auto *RegTargetTy =
+        FunctionType::get(Type::getVoidTy(C), PointerType::getUnqual(C), false);
+    FunctionCallee RegTargetC =
+        M.getOrInsertFunction("__sycl_register_lib", RegTargetTy);
+
+    // `atexit` takes a `void(*)()` function pointer arg and returns an i32.
+    FunctionType *AtExitTy = FunctionType::get(
+        Type::getInt32Ty(C), PointerType::getUnqual(C), false);
+    FunctionCallee AtExitC = M.getOrInsertFunction("atexit", AtExitTy);
+
+    IRBuilder<> RegBuilder(BasicBlock::Create(C, "entry", RegFunc));
+    RegBuilder.CreateCall(RegTargetC, FatbinDesc);
+    RegBuilder.CreateCall(AtExitC, UnregFunc);
+    RegBuilder.CreateRetVoid();
+
+    // Finally, add to global constructors.
+    appendToGlobalCtors(M, RegFunc, /*Priority*/ 1);
+  }
+
 }; // end of Wrapper
 
 } // anonymous namespace
 
 Error llvm::offloading::wrapSYCLBinaries(llvm::Module &M,
                                          const SmallVector<SYCLImage> &Images,
-                                         SYCLWrappingOptions Options) {
+                                         SYCLWrappingOptions Options,
+                                         bool _PreviewBreakingChanges) {
+  PreviewBreakingChanges = _PreviewBreakingChanges;
   Wrapper W(M, Options);
   GlobalVariable *Desc = W.createFatbinDesc(Images);
   if (!Desc)
     return createStringError(inconvertibleErrorCode(),
                              "No binary descriptors created.");
 
-  W.createRegisterFatbinFunction(Desc);
-  W.createUnregisterFunction(Desc);
+  if (Triple(M.getTargetTriple()).isOSWindows()) {
+    W.createSyclRegisterWithAtexitUnregister(Desc);
+  } else {
+    W.createRegisterFatbinFunction(Desc);
+    W.createUnregisterFunction(Desc);
+  }
   return Error::success();
 }

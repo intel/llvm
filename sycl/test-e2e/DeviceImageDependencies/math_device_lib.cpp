@@ -5,6 +5,9 @@
 // RUN: %{build} -fsycl-allow-device-image-dependencies %if target-spir %{ -fsycl-device-lib-jit-link -Wno-deprecated %} %{mathflags} -o %t.out
 // RUN: %{run} %t.out
 
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
 #include <cmath>
 #include <sycl/detail/core.hpp>
 

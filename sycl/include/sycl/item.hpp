@@ -10,9 +10,7 @@
 
 #include <sycl/detail/defines.hpp>            // for __SYCL_ASSUME_INT
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE, __SYC...
-#include <sycl/detail/helpers.hpp>            // for Builder
 #include <sycl/detail/item_base.hpp>          // for id, range, ItemBase
-#include <sycl/exception.hpp> // for make_error_code, errc, exce...
 #include <sycl/id.hpp>        // for id, item
 #include <sycl/range.hpp>     // for range
 
@@ -93,8 +91,7 @@ public:
 
   template <bool has_offset = with_offset>
   operator std::enable_if_t<!has_offset, item<Dimensions, true>>() const {
-    return detail::Builder::createItem<Dimensions, true>(
-        MImpl.MExtent, MImpl.MIndex, /*Offset*/ {});
+    return item<Dimensions, true>{MImpl.MExtent, MImpl.MIndex, /*Offset*/ {}};
   }
 
   size_t __SYCL_ALWAYS_INLINE get_linear_id() const {
@@ -127,6 +124,8 @@ protected:
       : MImpl{extent, index} {}
 
   friend class detail::Builder;
+
+  template <int, bool> friend class item;
 
 private:
   detail::ItemBase<Dimensions, with_offset> MImpl;

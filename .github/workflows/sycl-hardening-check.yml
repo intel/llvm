@@ -28,7 +28,7 @@ jobs:
         sudo apt install -y devscripts
 
     - name: Download SYCL toolchain
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         name: ${{ inputs.sycl_linux_artifact }}
 
@@ -63,7 +63,7 @@ jobs:
         unzip "windows.x64.Release.zip" -d winchecksec
 
     - name: Download SYCL toolchain
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         name: ${{ inputs.sycl_windows_artifact }}
 

@@ -34,11 +34,6 @@ __SYCL_EXPORT void waitEvents(std::vector<sycl::event> DepEvents) {
 }
 #endif
 
-__SYCL_EXPORT void
-markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl) {
-  BufImpl->markAsInternal();
-}
-
 const RTDeviceBinaryImage *retrieveKernelBinary(queue_impl &Queue,
                                                 KernelNameStrRefT KernelName,
                                                 CGExecKernel *KernelCG) {

@@ -30,6 +30,6 @@ _CLC_OVERLOAD _CLC_DEF half __spirv_ocl_nextafter(half x, half y) {
 }
 #endif
 
-#define FUNCTION __spirv_ocl_nextafter
+#define __CLC_FUNCTION __spirv_ocl_nextafter
 #define __CLC_BODY <clc/shared/binary_def_scalarize.inc>
 #include <clc/math/gentype.inc>

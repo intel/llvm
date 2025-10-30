@@ -11,6 +11,7 @@
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/compile_time_kernel_info.hpp>
 #include <sycl/detail/helpers.hpp>
+#include <sycl/detail/is_device_copyable.hpp>
 #include <sycl/ext/intel/experimental/fp_control_kernel_properties.hpp>
 #include <sycl/ext/intel/experimental/kernel_execution_properties.hpp>
 #include <sycl/ext/oneapi/experimental/virtual_functions.hpp>

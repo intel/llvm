@@ -9,6 +9,7 @@ on:
     - sycl
     - sycl-rel-**
     # Do not run builds if changes are only in the following locations
+    # Note: benchmark-related paths are the same as in sycl-ur-perf-benchmarking.yml (to run there instead)
     paths-ignore:
     - '.github/ISSUE_TEMPLATE/**'
     - '.github/CODEOWNERS'
@@ -23,7 +24,8 @@ on:
     - '.github/workflows/sycl-nightly.yml'
     - '.github/workflows/sycl-rel-nightly.yml'
     - '.github/workflows/sycl-rel-nightly-launch.yml'
-    - '.github/workflows/trivy.yml'
+    - '.github/workflows/sycl-trivy.yml'
+    - '.github/workflows/sycl-coverity.yml'
     - 'devops/containers/**'
     - 'devops/actions/build_container/**'
     - 'unified-runtime/examples/**'
@@ -31,6 +33,9 @@ on:
     - 'unified-runtime/test/**'
     - 'unified-runtime/third_party/**'
     - 'unified-runtime/tools/**'
+    - 'devops/scripts/benchmarks/**'
+    - 'devops/actions/run-tests/benchmark/**'
+    - '.github/workflows/sycl-ur-perf-benchmarking.yml'
 
 concurrency:
   #  Cancel a currently running workflow from the same PR, branch or tag.
@@ -62,6 +67,42 @@ jobs:
       e2e_binaries_artifact: e2e_bin
       e2e_binaries_preview_artifact: e2e_bin_preview
 
+  # Build and run native cpu e2e tests separately as cannot currently
+  # build all the e2e tests
+  build_run_native_cpu_e2e_tests:
+    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}  
+    runs-on: [Linux, build]
+    needs: [build]
+    container:
+      image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
+      options: -u 1001:1001
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: |
+            devops/
+
+      # download build artefact
+      - name: Download toolchain
+        uses: actions/download-artifact@v5
+        with:
+          name: sycl_linux_default
+      - name: Extract SYCL toolchain
+        shell: bash
+        run: |
+          mkdir toolchain
+          tar -xf llvm_sycl.tar.zst -C toolchain
+          rm llvm_sycl.tar.zst
+      - name: Build and run E2E tests
+        uses: ./devops/actions/run-tests/e2e
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          testing_mode: full
+          target_devices: native_cpu:cpu
+          sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
+          extra_lit_opts: --param sycl_build_targets="native_cpu"
+          extra_cmake_args: -DSYCL_TEST_E2E_TARGETS="native_cpu:cpu" -DSYCL_TEST_E2E_STANDALONE=ON
+
   # If a PR changes CUDA adapter, run the build on Ubuntu 22.04 as well.
   # Ubuntu 22.04 container has CUDA 12.1 installed while Ubuntu 24.0 image
   # has CUDA 12.6.1 installed.
@@ -86,7 +127,7 @@ jobs:
       FILTER_6_2: ${{ steps.result.outputs.FILTER_6_2 }}
       FILTER_6_3: ${{ steps.result.outputs.FILTER_6_3 }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         sparse-checkout: |
           devops/
@@ -100,14 +141,14 @@ jobs:
         echo FILTER_6_2="$(grep -v '^#\|^\W*$' devops/compat_ci_exclude.sycl-rel-6_2 | paste -sd '|')" >> $GITHUB_OUTPUT
         echo FILTER_6_3="$(grep -v '^#\|^\W*$' devops/compat_ci_exclude.sycl-rel-6_3 | paste -sd '|')" >> $GITHUB_OUTPUT
 
-  run_prebuilt_e2e_tests:
+  E2E:
     needs: [build, detect_changes, compat_read_exclude]
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: GEN 12 Integrated
+          - name: Intel / GEN 12 Integrated
             runner: '["Linux", "gen12"]'
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
           - name: NVIDIA/CUDA
@@ -119,25 +160,25 @@ jobs:
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: hip:gpu
             extra_lit_opts: -j 1
-          - name: Intel Arc A-Series Graphics
+          - name: Intel / Arc A-Series Graphics
             runner: '["Linux", "arc"]'
             target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
-          - name: Dev IGC / Intel Arc A-Series Graphics
+          - name: Intel Dev IGC / Arc A-Series Graphics
             runner: '["Linux", "arc"]'
             image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
             target_devices: level_zero:gpu
             use_igc_dev: true
             env: '{"LIT_FILTER":"Matrix/"}'
-          - name: Intel Ponte Vecchio GPU
+          - name: Intel / Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
             target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
-          - name: Dev IGC / Intel Ponte Vecchio GPU
+          - name: Intel Dev IGC / Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
             target_devices: level_zero:gpu
             use_igc_dev: true
             env: '{"LIT_FILTER":"Matrix/"}'
-          - name: Intel Battlemage Graphics
+          - name: Intel / Battlemage Graphics
             runner: '["Linux", "bmg"]'
             target_devices: level_zero_v1:gpu;level_zero_v2:gpu
           - name: Preview Mode
@@ -145,13 +186,13 @@ jobs:
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             extra_lit_opts: --param test-preview-mode=True
             e2e_binaries_artifact: e2e_bin_preview
-          - name: ABI compatibility against sycl-rel-6_2
+          - name: ABI compatibility / sycl-rel-6_2
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_2
             target_devices: level_zero:gpu
             extra_lit_opts: '--param test-preview-mode=False --filter-out "${{ needs.compat_read_exclude.outputs.FILTER_6_2 }}"'
             e2e_binaries_artifact: 'in-container'
-          - name: ABI compatibility against sycl-rel-6_3
+          - name: ABI compatibility / sycl-rel-6_3
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_3
             target_devices: level_zero:gpu
@@ -187,28 +228,6 @@ jobs:
       # Run only if the PR does not have the 'ci-no-devigc' label.
       skip_run: ${{matrix.use_igc_dev && contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') || 'false'}}
       env: ${{ matrix.env || (contains(needs.detect_changes.outputs.filters, 'esimd') && '{}' || '{"LIT_FILTER_OUT":"ESIMD/"}') }}
-
-  test_benchmark_scripts:
-    needs: [build, detect_changes]
-    if: |
-      always() && !cancelled()
-      && needs.build.outputs.build_conclusion == 'success'
-      && contains(needs.detect_changes.outputs.filters, 'benchmarks')
-    uses: ./.github/workflows/sycl-linux-run-tests.yml
-    with:
-      name: Benchmark suite precommit testing
-      runner: '["PVC_PERF"]'
-      image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
-      image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-      target_devices: 'level_zero:gpu'
-      tests_selector: benchmarks
-      benchmark_upload_results: false
-      benchmark_preset: 'Minimal'
-      benchmark_dry_run: true
-      repo_ref: ${{ github.sha }}
-      toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
-      toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
-      toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}
 
   test-perf:
     needs: [build, detect_changes]

@@ -531,7 +531,7 @@ ur_result_t urEventGetProfilingInfo(
   std::shared_lock<ur_shared_mutex> EventLock(Event->Mutex);
 
   // The event must either have profiling enabled or be recording timestamps.
-  bool isTimestampedEvent = Event->isTimestamped();
+  bool isTimestampedEvent = Event->IsTimestamped;
   if (!Event->isProfilingEnabled() && !isTimestampedEvent) {
     return UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE;
   }
@@ -763,6 +763,9 @@ ur_result_t urEnqueueTimestampRecordingExp(
   UR_CALL(ur::level_zero::urDeviceGetGlobalTimestamps(
       Device, &DeviceStartTimestamp, nullptr));
   (*OutEvent)->RecordEventStartTimestamp = DeviceStartTimestamp;
+
+  // Mark this event as timestamped
+  (*OutEvent)->IsTimestamped = true;
 
   // Create a new entry in the queue's recordings.
   Queue->EndTimeRecordings[*OutEvent] = 0;
@@ -1141,7 +1144,7 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event,
 
   // If the event was a timestamp recording, we try to evict its entry in the
   // queue.
-  if (Event->isTimestamped()) {
+  if (Event->IsTimestamped) {
     auto Entry = Queue->EndTimeRecordings.find(Event);
     if (Entry != Queue->EndTimeRecordings.end()) {
       auto &EndTimeRecording = Entry->second;
@@ -1349,15 +1352,17 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
 // The "HostVisible" argument specifies if event needs to be allocated from
 // a host-visible pool.
 //
-ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
-                        bool IsMultiDevice, bool HostVisible,
-                        ur_event_handle_t *RetEvent,
-                        bool CounterBasedEventEnabled,
-                        bool ForceDisableProfiling,
-                        bool InterruptBasedEventEnabled) {
+ur_result_t
+EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
+            bool IsMultiDevice, bool HostVisible, ur_event_handle_t *RetEvent,
+            bool CounterBasedEventEnabled, bool ForceDisableProfiling,
+            bool InterruptBasedEventEnabled, std::optional<bool> IsInternal) {
   bool ProfilingEnabled =
       ForceDisableProfiling ? false : (!Queue || Queue->isProfilingEnabled());
   bool UsingImmediateCommandlists = !Queue || Queue->UsingImmCmdLists;
+
+  // Handle optional IsInternal parameter - default to false if not provided
+  bool isInternalValue = IsInternal.value_or(false);
 
   ur_device_handle_t Device = nullptr;
 
@@ -1380,7 +1385,7 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
   if (auto Res = Context->getFreeSlotInExistingOrNewPool(
           ZeEventPool, Index, HostVisible, ProfilingEnabled, Device,
           CounterBasedEventEnabled, UsingImmediateCommandlists,
-          InterruptBasedEventEnabled))
+          InterruptBasedEventEnabled, Queue, isInternalValue))
     return Res;
 
   ZeStruct<ze_event_desc_t> ZeEventDesc;
@@ -1433,6 +1438,7 @@ ur_result_t ur_event_handle_t_::reset() {
   CommandList = std::nullopt;
   completionBatch = std::nullopt;
   OriginAllocEvent = nullptr;
+  IsTimestamped = false;
 
   if (!isHostVisible())
     HostVisibleEvent = nullptr;
@@ -1764,13 +1770,4 @@ ur_result_t ur_ze_event_list_t::collectEventsForReleaseAndDestroyUrZeEventList(
 bool ur_event_handle_t_::isProfilingEnabled() const {
   return !UrQueue || // tentatively assume user events are profiling enabled
          (UrQueue->Properties & UR_QUEUE_FLAG_PROFILING_ENABLE) != 0;
-}
-
-// Tells if this event was created as a timestamp event, allowing profiling
-// info even if profiling is not enabled.
-bool ur_event_handle_t_::isTimestamped() const {
-  // If we are recording, the start time of the event will be non-zero. The
-  // end time might still be missing, depending on whether the corresponding
-  // enqueue is still running.
-  return RecordEventStartTimestamp != 0;
 }

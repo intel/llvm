@@ -100,16 +100,14 @@ template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess {
 template <typename CommandGroupFunc, typename PropertiesT>
 void submit_impl(const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
                  const sycl::detail::code_location &CodeLoc) {
-  Q.submit_without_event<__SYCL_USE_FALLBACK_ASSERT>(
-      Props, detail::type_erased_cgfo_ty{CGF}, CodeLoc);
+  Q.submit_without_event(Props, detail::type_erased_cgfo_ty{CGF}, CodeLoc);
 }
 
 template <typename CommandGroupFunc, typename PropertiesT>
 event submit_with_event_impl(const queue &Q, PropertiesT Props,
                              CommandGroupFunc &&CGF,
                              const sycl::detail::code_location &CodeLoc) {
-  return Q.submit_with_event<__SYCL_USE_FALLBACK_ASSERT>(
-      Props, detail::type_erased_cgfo_ty{CGF}, CodeLoc);
+  return Q.submit_with_event(Props, detail::type_erased_cgfo_ty{CGF}, CodeLoc);
 }
 } // namespace detail
 
@@ -154,9 +152,21 @@ template <typename KernelName = sycl::detail::auto_name, typename KernelType>
 void single_task(queue Q, const KernelType &KernelObj,
                  const sycl::detail::code_location &CodeLoc =
                      sycl::detail::code_location::current()) {
-  submit(
-      std::move(Q),
-      [&](handler &CGH) { single_task<KernelName>(CGH, KernelObj); }, CodeLoc);
+  // TODO The handler-less path does not support kernel function properties
+  // and kernel functions with the kernel_handler type argument yet.
+  if constexpr (!(ext::oneapi::experimental::detail::
+                      HasKernelPropertiesGetMethod<
+                          const KernelType &>::value) &&
+                !(detail::KernelLambdaHasKernelHandlerArgT<KernelType,
+                                                           void>::value)) {
+    detail::submit_kernel_direct_single_task<KernelName>(
+        std::move(Q), empty_properties_t{}, KernelObj, CodeLoc);
+  } else {
+    submit(
+        std::move(Q),
+        [&](handler &CGH) { single_task<KernelName>(CGH, KernelObj); },
+        CodeLoc);
+  }
 }
 
 template <typename... ArgsT>
@@ -261,10 +271,23 @@ template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename KernelType, typename... ReductionsT>
 void nd_launch(queue Q, nd_range<Dimensions> Range, const KernelType &KernelObj,
                ReductionsT &&...Reductions) {
-  submit(std::move(Q), [&](handler &CGH) {
-    nd_launch<KernelName>(CGH, Range, KernelObj,
-                          std::forward<ReductionsT>(Reductions)...);
-  });
+  // TODO The handler-less path does not support reductions, kernel
+  // function properties and kernel functions with the kernel_handler
+  // type argument yet.
+  if constexpr (sizeof...(ReductionsT) == 0 &&
+                !(ext::oneapi::experimental::detail::
+                      HasKernelPropertiesGetMethod<
+                          const KernelType &>::value) &&
+                !(detail::KernelLambdaHasKernelHandlerArgT<
+                    KernelType, sycl::nd_item<Dimensions>>::value)) {
+    detail::submit_kernel_direct_parallel_for<KernelName>(
+        std::move(Q), empty_properties_t{}, Range, KernelObj);
+  } else {
+    submit(std::move(Q), [&](handler &CGH) {
+      nd_launch<KernelName>(CGH, Range, KernelObj,
+                            std::forward<ReductionsT>(Reductions)...);
+    });
+  }
 }
 
 template <typename KernelName = sycl::detail::auto_name, int Dimensions,
@@ -285,6 +308,9 @@ template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename Properties, typename KernelType, typename... ReductionsT>
 void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
                const KernelType &KernelObj, ReductionsT &&...Reductions) {
+  // TODO This overload of the nd_launch function takes the kernel function
+  // properties, which are not yet supported for the handler-less path,
+  // so it only supports handler based submission for now
   submit(std::move(Q), [&](handler &CGH) {
     nd_launch<KernelName>(CGH, Config, KernelObj,
                           std::forward<ReductionsT>(Reductions)...);

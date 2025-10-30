@@ -221,13 +221,6 @@ namespace ext::intel::esimd::detail {
 class AccessorPrivateProxy;
 } // namespace ext::intel::esimd::detail
 
-template <typename DataT, int Dimensions = 1,
-          access::mode AccessMode = access::mode::read_write,
-          access::target AccessTarget = access::target::device,
-          access::placeholder IsPlaceholder = access::placeholder::false_t,
-          typename PropertyListT = ext::oneapi::accessor_property_list<>>
-class accessor;
-
 namespace ext::oneapi::experimental {
 template <typename, int> class dynamic_local_accessor;
 }
@@ -616,9 +609,11 @@ protected:
 /// \sa buffer
 ///
 /// \ingroup sycl_api_acc
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder,
-          typename PropertyListT>
+template <typename DataT, int Dimensions = 1,
+          access::mode AccessMode = access::mode::read_write,
+          access::target AccessTarget = access::target::device,
+          access::placeholder IsPlaceholder = access::placeholder::false_t,
+          typename PropertyListT = ext::oneapi::accessor_property_list<>>
 class __SYCL_EBO __SYCL_SPECIAL_CLASS __SYCL_TYPE(accessor) accessor :
 #ifndef __SYCL_DEVICE_ONLY__
     public detail::AccessorBaseHost,

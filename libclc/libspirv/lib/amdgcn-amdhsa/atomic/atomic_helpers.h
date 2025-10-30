@@ -60,8 +60,8 @@ extern int __oclc_amdgpu_reflect(__constant char *);
   }
 
 #define AMDGPU_ATOMIC_IMPL(FUNC_NAME, TYPE, AS, BUILTIN)                       \
-  _CLC_OVERLOAD _CLC_DECL TYPE FUNC_NAME(AS TYPE *p, int scope, int semantics, \
-                                         TYPE val) {                           \
+  _CLC_OVERLOAD _CLC_DEF TYPE FUNC_NAME(AS TYPE *p, int scope, int semantics,  \
+                                        TYPE val) {                            \
     int atomic_scope = 0, memory_order = 0;                                    \
     GET_ATOMIC_SCOPE_AND_ORDER(scope, atomic_scope, semantics, memory_order)   \
     return BUILTIN(p, val, memory_order, atomic_scope);                        \

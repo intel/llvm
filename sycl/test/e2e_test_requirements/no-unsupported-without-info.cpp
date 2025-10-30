@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 153
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 149
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -200,10 +200,6 @@
 // CHECK-NEXT: Tracing/usm/queue_single_task_nullptr.cpp
 // CHECK-NEXT: Tracing/usm/queue_single_task_released_pointer.cpp
 // CHECK-NEXT: USM/badmalloc.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_device_to_host.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_host_to_device.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_device_to_host.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_host_to_device.cpp
 // CHECK-NEXT: USM/pointer_query_descendent_device.cpp
 // CHECK-NEXT: syclcompat/atomic/atomic_arith.cpp
 // CHECK-NEXT: syclcompat/atomic/atomic_bitwise.cpp

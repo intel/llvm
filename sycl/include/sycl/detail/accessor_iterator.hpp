@@ -10,7 +10,8 @@
 
 #include <sycl/access/access.hpp> // for mode, placeholder, target
 #include <sycl/buffer.hpp>        // for range
-#include <sycl/id.hpp>            // for id
+#include <sycl/detail/fwd/accessor.hpp>
+#include <sycl/id.hpp>
 
 #include <cstddef>  // for size_t
 #include <iterator> // for random_access_iterator_tag
@@ -37,14 +38,7 @@
 
 namespace sycl {
 inline namespace _V1 {
-
-template <typename AccessorDataT, int AccessorDimensions,
-          access::mode AccessMode, access::target AccessTarget,
-          access::placeholder IsPlaceholder, typename PropertyListT>
-class accessor;
-
 namespace detail {
-
 template <typename DataT, int Dimensions> class accessor_iterator {
 public:
   using difference_type = std::ptrdiff_t;

@@ -9,7 +9,9 @@
 #pragma once
 
 #include <sycl/__spirv/spirv_ops.hpp>
+#include <sycl/detail/address_space_cast.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/id.hpp>
 #include <sycl/vector.hpp>
 
 namespace sycl {
@@ -88,9 +90,9 @@ void prefetch_impl(T *ptr, size_t bytes, Properties properties) {
   }
   __spirv_ocl_prefetch(ptrAnnotated, bytes);
 #else
-  std::ignore = ptr;
-  std::ignore = bytes;
-  std::ignore = properties;
+  (void)ptr;
+  (void)bytes;
+  (void)properties;
 #endif
 }
 
@@ -99,7 +101,7 @@ void joint_prefetch_impl(Group g, T *ptr, size_t bytes, Properties properties) {
   // Although calling joint_prefetch is functionally equivalent to calling
   // prefetch from every work-item in a group, native suppurt may be added to to
   // issue cooperative prefetches more efficiently on some hardware.
-  std::ignore = g;
+  (void)g;
   prefetch_impl(ptr, bytes, properties);
 }
 } // namespace detail

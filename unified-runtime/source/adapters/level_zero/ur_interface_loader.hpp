@@ -562,8 +562,10 @@ ur_result_t urBindlessImagesImageCopyExp(
     const ur_image_format_t *pSrcImageFormat,
     const ur_image_format_t *pDstImageFormat,
     ur_exp_image_copy_region_t *pCopyRegion,
-    ur_exp_image_copy_flags_t imageCopyFlags, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent);
+    ur_exp_image_copy_flags_t imageCopyFlags,
+    ur_exp_image_copy_input_types_t imageCopyInputTypes,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent);
 ur_result_t urBindlessImagesImageGetInfoExp(
     ur_context_handle_t hContext, ur_exp_image_mem_native_handle_t hImageMem,
     ur_image_info_t propName, void *pPropValue, size_t *pPropSizeRet);
@@ -765,9 +767,23 @@ urCommandBufferGetInfoExp(ur_exp_command_buffer_handle_t hCommandBuffer,
 ur_result_t
 urCommandBufferGetNativeHandleExp(ur_exp_command_buffer_handle_t hCommandBuffer,
                                   ur_native_handle_t *phNativeCommandBuffer);
+ur_result_t urDeviceWaitExp(ur_device_handle_t hDevice);
+ur_result_t urProgramDynamicLinkExp(ur_context_handle_t hContext,
+                                    uint32_t count,
+                                    const ur_program_handle_t *phPrograms);
 ur_result_t urEnqueueTimestampRecordingExp(
     ur_queue_handle_t hQueue, bool blocking, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent);
+ur_result_t urIPCGetMemHandleExp(ur_context_handle_t hContext, void *pMem,
+                                 void *pIPCMemHandleData,
+                                 size_t *pIPCMemHandleDataSizeRet);
+ur_result_t urIPCPutMemHandleExp(ur_context_handle_t hContext,
+                                 void *pIPCMemHandleData);
+ur_result_t urIPCOpenMemHandleExp(ur_context_handle_t hContext,
+                                  ur_device_handle_t hDevice,
+                                  void *pIPCMemHandleData,
+                                  size_t ipcMemHandleDataSize, void **ppMem);
+ur_result_t urIPCCloseMemHandleExp(ur_context_handle_t hContext, void *pMem);
 ur_result_t urMemoryExportAllocExportableMemoryExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t alignment,
     size_t size, ur_exp_external_mem_type_t handleTypeToExport, void **ppMem);
@@ -780,13 +796,16 @@ ur_result_t urMemoryExportExportMemoryHandleExp(
     void *pMemHandleRet);
 ur_result_t urProgramBuildExp(ur_program_handle_t hProgram, uint32_t numDevices,
                               ur_device_handle_t *phDevices,
+                              ur_exp_program_flags_t flags,
                               const char *pOptions);
 ur_result_t urProgramCompileExp(ur_program_handle_t hProgram,
                                 uint32_t numDevices,
                                 ur_device_handle_t *phDevices,
+                                ur_exp_program_flags_t flags,
                                 const char *pOptions);
 ur_result_t urProgramLinkExp(ur_context_handle_t hContext, uint32_t numDevices,
-                             ur_device_handle_t *phDevices, uint32_t count,
+                             ur_device_handle_t *phDevices,
+                             ur_exp_program_flags_t flags, uint32_t count,
                              const ur_program_handle_t *phPrograms,
                              const char *pOptions,
                              ur_program_handle_t *phProgram);
@@ -804,6 +823,15 @@ ur_result_t urUsmP2PPeerAccessGetInfoExp(ur_device_handle_t commandDevice,
                                          ur_exp_peer_info_t propName,
                                          size_t propSize, void *pPropValue,
                                          size_t *pPropSizeRet);
+ur_result_t urEnqueueKernelLaunchWithArgsExp(
+    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    const size_t *pLocalWorkSize, uint32_t numArgs,
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    uint32_t numPropsInLaunchPropList,
+    const ur_kernel_launch_property_t *launchPropList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent);
 ur_result_t urEnqueueEventsWaitWithBarrierExt(
     ur_queue_handle_t hQueue,
     const ur_exp_enqueue_ext_properties_t *pProperties,

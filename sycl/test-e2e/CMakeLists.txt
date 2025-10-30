@@ -39,10 +39,11 @@ endif() # Standalone.
 
 if(SYCL_TEST_E2E_STANDALONE)
   set(SYCL_CXX_COMPILER ${CMAKE_CXX_COMPILER})
+  set(SYCL_E2E_CLANG_CXX_FLAGS ${CMAKE_CXX_FLAGS})
 else()
   set(SYCL_CXX_COMPILER "${LLVM_BINARY_DIR}/bin/clang++")
-  # Don't want options used for building sycl-toolchain.
-  unset(CMAKE_CXX_FLAGS)
+  set(SYCL_E2E_CLANG_CXX_FLAGS "" CACHE STRING
+      "Flags passed to clang++ when building SYCL end-to-end tests")
 endif() # Standalone.
 
 find_package(Threads REQUIRED)
@@ -64,25 +65,6 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter)
 if(NOT SYCL_TEST_E2E_TARGETS)
   set(SYCL_TEST_E2E_TARGETS "all")
 endif()
-
-if(MSVC AND NOT SYCL_TEST_E2E_STANDALONE)
-  # We're trying to pass MSVC flags to Clang, which doesn't work by default
-  separate_arguments(cxx_flags NATIVE_COMMAND "${CMAKE_CXX_FLAGS}")
-  foreach(flag IN ITEMS ${cxx_flags})
-    # Skip certain flags that only exists for MSVC
-    if("${flag}" STREQUAL "/EHsc")
-      continue()
-    endif()
-    # Change the way compiler definitions are passed in
-    string(REGEX REPLACE "^/D" "-D" clang_flag "${flag}")
-    list(APPEND SYCL_E2E_CLANG_CXX_FLAGS ${clang_flag})
-  endforeach()
-  string (REPLACE ";" " " SYCL_E2E_CLANG_CXX_FLAGS "${SYCL_E2E_CLANG_CXX_FLAGS}")
-else()
-  set(SYCL_E2E_CLANG_CXX_FLAGS ${CMAKE_CXX_FLAGS})
-endif()
-
-set(SYCL_E2E_CLANG_CXX_FLAGS "${SYCL_E2E_CLANG_CXX_FLAGS} -Werror")
 
 if(NOT DEFINED CUDA_LIBS_DIR AND NOT DEFINED CUDA_INCLUDE)
   find_package(CUDAToolkit)

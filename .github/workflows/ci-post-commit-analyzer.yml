@@ -41,10 +41,10 @@ jobs:
       LLVM_VERSION: 18
     steps:
       - name: Checkout Source
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493 # v5.0.0
 
       - name: Setup ccache
-        uses: hendrikmuhs/ccache-action@63069e3931dedbf3b63792097479563182fe70d1 # v1.2.18
+        uses: hendrikmuhs/ccache-action@bfa03e1de4d7f7c3e80ad9109feedd05c4f5a716 # v1.2.19
         with:
           # A full build of llvm, clang, lld, and lldb takes about 250MB
           # of ccache space. There's not much reason to have more than this,

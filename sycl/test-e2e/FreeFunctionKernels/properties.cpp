@@ -5,6 +5,9 @@
 // UNSUPPORTED: cuda, hip
 // UNSUPPORTED-INTENDED: Device incompatible error
 
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
 #include <iostream>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/ext/oneapi/get_kernel_info.hpp>

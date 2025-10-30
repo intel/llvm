@@ -80,4 +80,7 @@ __SYCL_ASPECT(ext_oneapi_async_memory_alloc, 87)
 __SYCL_ASPECT(ext_intel_device_info_luid, 88)
 __SYCL_ASPECT(ext_intel_device_info_node_mask, 89)
 __SYCL_ASPECT(ext_oneapi_exportable_device_mem, 90)
-
+__SYCL_ASPECT(ext_oneapi_clock_sub_group, 91)
+__SYCL_ASPECT(ext_oneapi_clock_work_group, 92)
+__SYCL_ASPECT(ext_oneapi_clock_device, 93)
+__SYCL_ASPECT(ext_oneapi_is_integrated_gpu, 94)

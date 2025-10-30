@@ -14,6 +14,7 @@
 namespace sycl {
 inline namespace _V1 {
 class device;
+class context;
 
 namespace detail::usm {
 

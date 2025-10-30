@@ -7,6 +7,7 @@ EXPORTS
 	urGetEnqueueProcAddrTable
 	urGetEnqueueExpProcAddrTable
 	urGetEventProcAddrTable
+	urGetIPCExpProcAddrTable
 	urGetKernelProcAddrTable
 	urGetMemProcAddrTable
 	urGetMemoryExportExpProcAddrTable
@@ -21,3 +22,4 @@ EXPORTS
 	urGetUsmP2PExpProcAddrTable
 	urGetVirtualMemProcAddrTable
 	urGetDeviceProcAddrTable
+	urGetDeviceExpProcAddrTable

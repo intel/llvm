@@ -106,16 +106,18 @@ endif()
 add_llvm_component_library(LLVMNativeCPUVecz
   ${COMMON_SRCS}
   LINK_COMPONENTS
+  AggressiveInstCombine
+  Analysis
+  Core
+  InstCombine
+  IPO
   NativeCPUPipeline
-  support
-  core
-  analysis
-  instcombine
-  aggressiveinstcombine
-  transformutils
-  scalaropts
-  ipo
-  passes
+  Passes
+  ScalarOpts
+  Support
+  Target
+  TargetParser
+  TransformUtils
   )
 
 target_include_directories(LLVMNativeCPUVecz

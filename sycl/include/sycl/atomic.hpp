@@ -9,12 +9,13 @@
 #pragma once
 
 #include <sycl/__spirv/spirv_ops.hpp>
-#include <sycl/__spirv/spirv_types.hpp>       // for Scope, MemorySemanticsMask
-#include <sycl/access/access.hpp>             // for address_space, decorated
+#include <sycl/__spirv/spirv_types.hpp> // for Scope, MemorySemanticsMask
+#include <sycl/aliases.hpp>
+#include <sycl/bit_cast.hpp>
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
-#include <sycl/detail/helpers.hpp>            // for getSPIRVMemorySemanticsMask
-#include <sycl/memory_enums.hpp> // for memory_order, getStdMemoryO...
-#include <sycl/multi_ptr.hpp>    // for multi_ptr
+#include <sycl/detail/fwd/multi_ptr.hpp>
+#include <sycl/detail/helpers.hpp> // for getSPIRVMemorySemanticsMask
+#include <sycl/memory_enums.hpp>   // for memory_order, getStdMemoryO...
 
 #include <type_traits> // for is_same
 
@@ -28,12 +29,6 @@
 
 namespace sycl {
 inline namespace _V1 {
-
-// Forward declaration
-template <typename pointerT, access::address_space addressSpace,
-          access::decorated isDecorated>
-class multi_ptr;
-
 namespace detail {
 
 using memory_order = sycl::memory_order;

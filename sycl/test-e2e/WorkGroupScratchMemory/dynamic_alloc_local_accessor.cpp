@@ -5,6 +5,9 @@
 // UNSUPPORTED: gpu-intel-gen12
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16072
 
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
 // Test work_group_dynamic extension with allocation size specified at runtime
 // and an additional local accessor.
 

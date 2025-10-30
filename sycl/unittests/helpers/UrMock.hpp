@@ -212,6 +212,7 @@ inline ur_result_t mock_urDeviceGetInfo(void *pParams) {
   case UR_DEVICE_INFO_AVAILABLE:
   case UR_DEVICE_INFO_LINKER_AVAILABLE:
   case UR_DEVICE_INFO_COMPILER_AVAILABLE:
+  case UR_DEVICE_INFO_IS_INTEGRATED_GPU:
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
     if (*params->ppPropValue)
       *static_cast<ur_bool_t *>(*params->ppPropValue) = true;

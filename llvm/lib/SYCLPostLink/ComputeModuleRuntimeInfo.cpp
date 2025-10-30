@@ -11,7 +11,6 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSet.h"
-#include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/PassInstrumentation.h"
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
@@ -32,7 +31,7 @@ namespace llvm::sycl {
 namespace {
 module_split::SyclEsimdSplitStatus
 getSYCLESIMDSplitStatusFromMetadata(const Module &M) {
-  auto *SplitMD = M.getNamedMetadata(module_split::SYCL_ESIMD_SPLIT_MD_NAME);
+  auto *SplitMD = M.getNamedMetadata(module_split::SyclEsimdSplitMdName);
   assert(SplitMD && "Unexpected metadata");
   auto *MDOp = SplitMD->getOperand(0);
   assert(MDOp && "Unexpected metadata operand");
@@ -67,7 +66,7 @@ bool isModuleUsingTsan(const Module &M) {
 // Optional.
 // Otherwise, it returns an Optional containing a list of reached
 // SPIR kernel function's names.
-std::optional<std::vector<StringRef>>
+static std::optional<std::vector<StringRef>>
 traverseCGToFindSPIRKernels(const Function *StartingFunction) {
   std::queue<const Function *> FunctionsToVisit;
   std::unordered_set<const Function *> VisitedFunctions;
@@ -106,7 +105,8 @@ traverseCGToFindSPIRKernels(const Function *StartingFunction) {
 
   return {std::move(KernelNames)};
 }
-std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
+
+static std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
   auto *DevicelibAssertFailFunction = M.getFunction("__devicelib_assert_fail");
   if (!DevicelibAssertFailFunction)
     return {};
@@ -131,8 +131,8 @@ std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
 // Gets 1- to 3-dimension work-group related information for function Func.
 // Returns an empty vector if not present.
 template <typename T>
-std::vector<T> getKernelWorkGroupMetadata(const Function &Func,
-                                          const char *MDName) {
+static std::vector<T> getKernelWorkGroupMetadata(const Function &Func,
+                                                 const char *MDName) {
   MDNode *WorkGroupMD = Func.getMetadata(MDName);
   if (!WorkGroupMD)
     return {};
@@ -149,8 +149,8 @@ std::vector<T> getKernelWorkGroupMetadata(const Function &Func,
 // Gets a single-dimensional piece of information for function Func.
 // Returns std::nullopt if metadata is not present.
 template <typename T>
-std::optional<T> getKernelSingleEltMetadata(const Function &Func,
-                                            const char *MDName) {
+static std::optional<T> getKernelSingleEltMetadata(const Function &Func,
+                                                   const char *MDName) {
   if (MDNode *MaxDimMD = Func.getMetadata(MDName)) {
     assert(MaxDimMD->getNumOperands() == 1 && "Malformed node.");
     return mdconst::extract<ConstantInt>(MaxDimMD->getOperand(0))
@@ -543,6 +543,7 @@ PropSetRegTy computeModuleProperties(const Module &M,
 
   return PropSet;
 }
+
 std::string computeModuleSymbolTable(const Module &M,
                                      const EntryPointSet &EntryPoints) {
 

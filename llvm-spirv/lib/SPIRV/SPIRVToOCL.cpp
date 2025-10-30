@@ -253,7 +253,7 @@ void SPIRVToOCLBase::visitCastInst(CastInst &Cast) {
   CastBuiltInName += mapLLVMTypeToOCLType(DstVecTy, !isa<FPToUIInst>(Cast));
 
   // Replace LLVM conversion instruction with call to conversion built-in
-  BuiltinFuncMangleInfo Mangle;
+  OCLBuiltinFuncMangleInfo Mangle;
   // It does matter if the source is unsigned integer or not. SExt is for
   // signed source, ZExt and UIToFPInst are for unsigned source.
   if (isa<ZExtInst>(Cast) || isa<UIToFPInst>(Cast))
@@ -275,7 +275,7 @@ void SPIRVToOCLBase::visitCallSPIRVImageQuerySize(CallInst *CI) {
   bool ImgArray = Desc.Arrayed;
 
   AttributeList Attributes = CI->getCalledFunction()->getAttributes();
-  BuiltinFuncMangleInfo Mangle;
+  OCLBuiltinFuncMangleInfo Mangle;
   Mangle.getTypeMangleInfo(0).PointerTy = ImgTy;
   Type *Int32Ty = Type::getInt32Ty(*Ctx);
   Instruction *GetImageSize = nullptr;

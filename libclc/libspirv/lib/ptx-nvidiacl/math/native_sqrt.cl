@@ -15,7 +15,7 @@ _CLC_DEF _CLC_OVERLOAD float __spirv_ocl_native_sqrt(float x) {
                                     : __nvvm_sqrt_approx_f(x);
 }
 
-#define FUNCTION __spirv_ocl_native_sqrt
-#define __FLOAT_ONLY
+#define __CLC_FUNCTION __spirv_ocl_native_sqrt
+#define __CLC_FLOAT_ONLY
 #define __CLC_BODY <clc/shared/unary_def_scalarize.inc>
 #include <clc/math/gentype.inc>

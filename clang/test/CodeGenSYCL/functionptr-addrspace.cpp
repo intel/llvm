@@ -7,8 +7,8 @@ __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc();
 }
 
-// CHECK: define {{.*}}spir_func{{.*}}invoke_function{{.*}}(ptr noundef %fptr, ptr addrspace(4) noundef %ptr)
-void invoke_function(int (*fptr)(), int *ptr) {}
+// CHECK: define {{.*}} spir_func{{.*}}invoke_function{{.*}}(ptr noundef %fptr, ptr addrspace(4) noundef %ptr)
+[[clang::sycl_external]] void invoke_function(int (*fptr)(), int *ptr) {}
 
 int f() { return 0; }
 
@@ -27,7 +27,7 @@ int main() {
   int (*fptr)();
   int *ptr;
 
-  // define dso_local spir_kernel void @{{.*}}fake_kernel_2{{.*}}(i32 ()* align 4 %_arg_fptr, i32 addrspace(1)* align 4 %_arg_ptr)
+  // define {{.*}} spir_kernel void @{{.*}}fake_kernel_2{{.*}}(i32 ()* align 4 %_arg_fptr, i32 addrspace(1)* align 4 %_arg_ptr)
   kernel_single_task<class fake_kernel_2>([=]() {
     invoke_function(fptr, ptr);
   });

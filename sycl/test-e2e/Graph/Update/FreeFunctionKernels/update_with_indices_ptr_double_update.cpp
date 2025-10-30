@@ -1,5 +1,3 @@
-// XFAIL: run-mode && linux && arch-intel_gpu_bmg_g21 && spirv-backend
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19586
 // RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG

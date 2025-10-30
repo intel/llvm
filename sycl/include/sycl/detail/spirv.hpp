@@ -9,7 +9,6 @@
 #pragma once
 
 #ifdef __SYCL_DEVICE_ONLY__
-
 // Some __spirv_* inrinsics are automatically forward-declared by the compiler,
 // but not all of them. For example:
 //   __spirv_AtomicStore(unsigned long long*, ...)
@@ -18,7 +17,11 @@
 #include <sycl/__spirv/spirv_ops.hpp>
 #include <sycl/__spirv/spirv_types.hpp>
 
-#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp> // for IdToMaskPosition
+#include <sycl/access/access.hpp>
+#include <sycl/detail/generic_type_traits.hpp>
+#include <sycl/id.hpp>
+#include <sycl/memory_enums.hpp>
+#include <sycl/multi_ptr.hpp>
 
 #if defined(__NVPTX__)
 #include <sycl/ext/oneapi/experimental/cuda/masked_shuffles.hpp>
@@ -33,6 +36,7 @@ struct sub_group;
 namespace ext {
 namespace oneapi {
 struct sub_group;
+struct sub_group_mask;
 namespace experimental {
 template <typename ParentGroup> class fragment;
 
@@ -61,6 +65,9 @@ GetMultiPtrDecoratedAs(multi_ptr<FromT, Space, IsDecorated> MPtr) {
 
 template <typename NonUniformGroup>
 inline uint32_t IdToMaskPosition(NonUniformGroup Group, uint32_t Id);
+template <typename NonUniformGroup>
+inline ext::oneapi::sub_group_mask GetMask(NonUniformGroup Group);
+inline sycl::vec<unsigned, 4> ExtractMask(ext::oneapi::sub_group_mask Mask);
 
 namespace spirv {
 
@@ -917,7 +924,7 @@ template <typename GroupT, typename T>
 EnableIfNativeShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
   uint32_t LocalId = MapShuffleID(g, local_id);
 #ifndef __NVPTX__
-  std::ignore = g;
+  (void)g;
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                     GroupT> &&
                 detail::is_vec<T>::value) {
@@ -950,7 +957,7 @@ EnableIfNativeShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
 template <typename GroupT, typename T>
 EnableIfNativeShuffle<T> ShuffleXor(GroupT g, T x, id<1> mask) {
 #ifndef __NVPTX__
-  std::ignore = g;
+  (void)g;
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                     GroupT> &&
                 detail::is_vec<T>::value) {
@@ -1218,22 +1225,26 @@ EnableIfGenericShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
 template <typename Group>
 typename std::enable_if_t<
     ext::oneapi::experimental::is_fixed_topology_group_v<Group>>
-ControlBarrier(Group, memory_scope FenceScope, memory_order Order) {
+ControlBarrier(Group, [[maybe_unused]] memory_scope FenceScope,
+               [[maybe_unused]] memory_order Order) {
+#ifdef __SYCL_DEVICE_ONLY__
   __spirv_ControlBarrier(group_scope<Group>::value, getScope(FenceScope),
                          getMemorySemanticsMask(Order) |
                              __spv::MemorySemanticsMask::SubgroupMemory |
                              __spv::MemorySemanticsMask::WorkgroupMemory |
                              __spv::MemorySemanticsMask::CrossWorkgroupMemory);
+#endif
 }
 
 template <typename Group>
 typename std::enable_if_t<
     ext::oneapi::experimental::is_user_constructed_group_v<Group>>
-ControlBarrier(Group g, memory_scope FenceScope, memory_order Order) {
+ControlBarrier([[maybe_unused]] Group g,
+               [[maybe_unused]] memory_scope FenceScope,
+               [[maybe_unused]] memory_order Order) {
 #if defined(__NVPTX__)
   __nvvm_bar_warp_sync(detail::ExtractMask(detail::GetMask(g))[0]);
-#else
-  (void)g;
+#elif defined(__SYCL_DEVICE_ONLY__)
   // SPIR-V does not define an instruction to synchronize partial groups.
   // However, most (possibly all?) of the current SPIR-V targets execute
   // work-items in lockstep, so we can probably get away with a MemoryBarrier.

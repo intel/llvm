@@ -84,6 +84,10 @@ static cl::opt<bool> ClCompoundReadBeforeWrite(
     "tsan-compound-read-before-write", cl::init(false),
     cl::desc("Emit special compound instrumentation for reads-before-writes"),
     cl::Hidden);
+static cl::opt<bool>
+    ClOmitNonCaptured("tsan-omit-by-pointer-capturing", cl::init(true),
+                      cl::desc("Omit accesses due to pointer capturing"),
+                      cl::Hidden);
 
 static cl::opt<bool> ClSpirOffloadLocals("tsan-spir-locals",
                                          cl::desc("instrument local pointer"),
@@ -113,6 +117,7 @@ struct ThreadSanitizerOnSpirv {
   ThreadSanitizerOnSpirv(Module &M)
       : M(M), C(M.getContext()), DL(M.getDataLayout()) {
     IntptrTy = DL.getIntPtrType(C);
+    HasESIMD = hasESIMDKernel(M);
   }
 
   void initialize();
@@ -129,6 +134,8 @@ struct ThreadSanitizerOnSpirv {
   void appendDebugInfoToArgs(Instruction *I, SmallVectorImpl<Value *> &Args);
 
   bool isUnsupportedSPIRAccess(Value *Addr, Instruction *Inst);
+
+  bool hasESIMD() { return HasESIMD; }
 
 private:
   void instrumentGlobalVariables();
@@ -150,6 +157,7 @@ private:
   Module &M;
   LLVMContext &C;
   const DataLayout &DL;
+  bool HasESIMD;
   Type *IntptrTy;
 
   StringMap<GlobalVariable *> GlobalStringMap;
@@ -691,20 +699,21 @@ void ThreadSanitizerOnSpirv::instrumentKernelsMetadata() {
   //  uptr unmangled_kernel_name_size
   StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
 
-  for (Function &F : M) {
-    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
-      continue;
+  if (!HasESIMD)
+    for (Function &F : M) {
+      if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+        continue;
 
-    if (isSupportedSPIRKernel(F)) {
-      auto KernelName = F.getName();
-      KernelNamesBytes.append(KernelName.begin(), KernelName.end());
-      auto *KernelNameGV = GetOrCreateGlobalString("__tsan_kernel", KernelName,
-                                                   kSpirOffloadConstantAS);
-      SpirKernelsMetadata.emplace_back(ConstantStruct::get(
-          StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
-          ConstantInt::get(IntptrTy, KernelName.size())));
+      if (isSupportedSPIRKernel(F)) {
+        auto KernelName = F.getName();
+        KernelNamesBytes.append(KernelName.begin(), KernelName.end());
+        auto *KernelNameGV = GetOrCreateGlobalString(
+            "__tsan_kernel", KernelName, kSpirOffloadConstantAS);
+        SpirKernelsMetadata.emplace_back(ConstantStruct::get(
+            StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
+            ConstantInt::get(IntptrTy, KernelName.size())));
+      }
     }
-  }
 
   // Create global variable to record spirv kernels' information
   ArrayType *ArrayTy = ArrayType::get(StructTy, SpirKernelsMetadata.size());
@@ -1002,7 +1011,8 @@ void ThreadSanitizer::chooseInstructionsToInstrument(
 
     const AllocaInst *AI = findAllocaForValue(Addr);
     // Instead of Addr, we should check whether its base pointer is captured.
-    if (AI && !PointerMayBeCaptured(AI, /*ReturnCaptures=*/true)) {
+    if (AI && !PointerMayBeCaptured(AI, /*ReturnCaptures=*/true) &&
+        ClOmitNonCaptured) {
       // The variable is addressable but not captured, so it cannot be
       // referenced from a different thread and participate in a data race
       // (see llvm/Analysis/CaptureTracking.h for details).
@@ -1070,6 +1080,10 @@ bool ThreadSanitizer::sanitizeFunction(Function &F,
   bool HasCalls = false;
   bool SanitizeFunction = F.hasFnAttribute(Attribute::SanitizeThread);
   const DataLayout &DL = F.getDataLayout();
+
+  // FIXME: W/A skip instrumentation if this module has ESIMD
+  if (Spirv && Spirv->hasESIMD())
+    return false;
 
   // Traverse all instructions, collect loads/stores/returns, check for calls.
   for (auto &BB : F) {

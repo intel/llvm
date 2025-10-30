@@ -70,53 +70,54 @@ def _write_output_to_file(
     """
     # Define variable configuration based on whether we're archiving or not
     filename = "data_archive" if archive else "data"
+    output_data = json.loads(output.to_json())  # type: ignore
+
+    if options.flamegraph:
+        flamegraph_data = _get_flamegraph_data(html_path)
+        if flamegraph_data and flamegraph_data.get("runs"):
+            output_data["flamegraphData"] = flamegraph_data
+            log.debug(
+                f"Added flamegraph data for {len(flamegraph_data['runs'])} runs to {filename}.*"
+            )
+
+    runs_list = output_data.get("runs", [])
 
     if options.output_html == "local":
+        # Local JS: emit standalone globals (legacy-style) without wrapper object
         data_path = os.path.join(html_path, f"{filename}.js")
         with open(data_path, "w") as f:
-            # For local format, we need to write JavaScript variable assignments
             f.write("benchmarkRuns = ")
-            json.dump(json.loads(output.to_json())["runs"], f, indent=2)  # type: ignore
-            f.write(";\n\n")
-
-            f.write(f"benchmarkMetadata = ")
-            json.dump(json.loads(output.to_json())["metadata"], f, indent=2)  # type: ignore
-            f.write(";\n\n")
-
-            f.write(f"benchmarkTags = ")
-            json.dump(json.loads(output.to_json())["tags"], f, indent=2)  # type: ignore
-            f.write(";\n\n")
-
-            f.write(f"defaultCompareNames = ")
-            json.dump(output.default_compare_names, f, indent=2)
-            f.write(";\n\n")
-
-            # Add flamegraph data if it exists
-            if options.flamegraph:
-                flamegraph_data = _get_flamegraph_data(html_path)
-                if flamegraph_data and flamegraph_data.get("runs"):
-                    f.write("flamegraphData = ")
-                    json.dump(flamegraph_data, f, indent=2)
-                    f.write(";\n\n")
-                    log.debug(
-                        f"Added flamegraph data for {len(flamegraph_data['runs'])} runs to data.js"
-                    )
-
-            if not archive:
-                log.info(f"See {html_path}/index.html for the results.")
+            json.dump(runs_list, f, indent=2)
+            f.write(";\n")
+            if "flamegraphData" in output_data:
+                f.write("flamegraphData = ")
+                json.dump(output_data["flamegraphData"], f, indent=2)
+                f.write(";\n")
+            else:
+                f.write("flamegraphData = { runs: {} };\n")
+            f.write("benchmarkMetadata = ")
+            json.dump(output_data.get("metadata", {}), f, indent=2)
+            f.write(";\n")
+            f.write("benchmarkTags = ")
+            json.dump(output_data.get("tags", {}), f, indent=2)
+            f.write(";\n")
+            f.write("defaultCompareNames = ")
+            json.dump(output.default_compare_names, f)
+            f.write(";\n")
+        if not archive:
+            log.info(f"See {html_path}/index.html for the results.")
     else:
-        # For remote format, we write a single JSON file
+        # Remote JSON: emit flat schema aligning with local globals
+        remote_obj = {
+            "benchmarkRuns": runs_list,
+            "benchmarkMetadata": output_data.get("metadata", {}),
+            "benchmarkTags": output_data.get("tags", {}),
+            "flamegraphData": output_data.get("flamegraphData", {"runs": {}}),
+            "defaultCompareNames": output.default_compare_names,
+        }
         data_path = os.path.join(html_path, f"{filename}.json")
-        output_data = json.loads(output.to_json())  # type: ignore
-        if options.flamegraph:
-            flamegraph_data = _get_flamegraph_data(html_path)
-            if flamegraph_data and flamegraph_data.get("runs"):
-                output_data["flamegraphs"] = flamegraph_data
-                log.debug(
-                    f"Added flamegraph data for {len(flamegraph_data['runs'])} runs to {filename}.json"
-                )
         with open(data_path, "w") as f:
-            json.dump(output_data, f, indent=2)
+            json.dump(remote_obj, f, indent=2)
         log.info(
             f"Upload {data_path} to a location set in config.js remoteDataUrl argument."
         )

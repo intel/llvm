@@ -62,18 +62,11 @@ and `+__LINE__+`, and the value of the standard variable `+__func__+`. If the
 failing assert comes from an `nd_range` `parallel_for` it will also include the
 global ID and the local ID of the failing work item.
 
-Some devices implement `assert()` natively while others use a fallback
-implementation, and the two implementations provide different guarantees. The
-native implementation is most similar to the way `assert()` works on the host. If
-an assertion fails in the native implementation, the assertion message is
-immediately printed to stderr and the program terminates by calling
-`std::abort()`. If an assertion fails with the fallback implementation, the
-failing assert() returns back to its caller and the device code must continue
-executing (without deadlocking) until the kernel completes. The implementation
-prints the assertion message to stderr and terminates with `std::abort()` only
-after the kernel completes execution. An application can determine which of the
-two mechanisms a device uses by testing the device aspect
-`aspect::ext_oneapi_native_assert`.
+Only some devices support `assert()` natively, as determinable by querying the
+new `aspect::ext_oneapi_native_assert` aspect. If an assertion fails in devices
+that support these natively, the assertion message is immediately printed to
+stderr and the program terminates by calling `std::abort()`. Failures in calls
+to `assert()` on devices that do not natively support it are ignored.
 
 The `assert()` macro is defined in system include headers, not in SYCL headers.
 On most of systems it is `<cassert>` and/or `<assert.h>` header files.
@@ -137,9 +130,8 @@ enum class aspect {
 ----
 
 If device has the `ext_oneapi_native_assert` aspect, then its Device-Side
-Runtime is capable of native support of `assert`. That is, safe implementation
-is used. If device doesn't have the aspect, then fallback implementation is
-used.
+Runtime is capable of native support of `assert`.  If device doesn't have the
+aspect, then assertions on the device will be silently ignored.
 
 == Version
 
