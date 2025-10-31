@@ -183,6 +183,3 @@ class LlamaBench(Benchmark):
                 raise ValueError(f"Error parsing output: {e}")
 
         return results
-
-    def teardown(self):
-        return

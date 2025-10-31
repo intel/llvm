@@ -94,9 +94,6 @@ class OneDnnBench(Suite):
             timeout=60 * 20,
         )
 
-    def teardown(self):
-        pass
-
 
 class OneDnnBenchmark(Benchmark):
     def __init__(self, suite, bench_driver, bench_name, bench_args, syclgraph=True):
@@ -210,6 +207,3 @@ class OneDnnBenchmark(Benchmark):
         if values:
             return sum(values)
         return 0.0
-
-    def teardown(self):
-        pass
