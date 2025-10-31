@@ -2418,10 +2418,20 @@ void ProgramManager::registerKernelGlobalInfo(
   if (m_FreeFunctionKernelGlobalInfo.empty())
     m_FreeFunctionKernelGlobalInfo = std::move(GlobalInfoToCopy);
   else {
-    for (auto &GlobalInfo : GlobalInfoToCopy) {
+    for (auto &GlobalInfo : GlobalInfoToCopy)
       m_FreeFunctionKernelGlobalInfo.insert(GlobalInfo);
-    }
   }
+}
+
+// Remove entries from m_FreeFunctionKernelGlobalInfo that matches
+// the ones in GlobalInfoToCopy. This function is called when a shared
+// library consisting of SYCL kernels is unloaded.
+void ProgramManager::unRegisterKernelGlobalInfo(
+    std::unordered_map<std::string_view, unsigned> &&GlobalInfoToCopy) {
+  std::lock_guard<std::mutex> Guard(MNativeProgramsMutex);
+
+  for (const auto &GlobalInfo : GlobalInfoToCopy)
+    m_FreeFunctionKernelGlobalInfo.erase(GlobalInfo.first);
 }
 
 std::optional<unsigned>
