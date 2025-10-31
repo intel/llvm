@@ -37,6 +37,9 @@ inputs:
     type: string
     required: False
 
+env:
+  BENCHMARK_RESULTS_BRANCH: "sycl-benchmark-ci-results"
+
 runs:
   using: "composite"
   steps:
@@ -79,9 +82,6 @@ runs:
       python3 ./devops/scripts/benchmarks/presets.py query "$PRESET"
       [ "$?" -ne 0 ] && exit 1  # Stop workflow if invalid preset
       echo "PRESET=$PRESET" >> $GITHUB_ENV
-
-      # Set branch containing benchmark CI results:
-      echo "BENCHMARK_RESULTS_BRANCH=sycl-benchmark-ci-results" >> $GITHUB_ENV
   - name: Compute CPU core range to run benchmarks on
     shell: bash
     run: |
