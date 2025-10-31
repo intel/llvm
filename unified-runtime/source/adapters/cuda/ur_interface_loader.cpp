@@ -464,6 +464,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   pDdiTable->pfnUSMHostAllocExp = urEnqueueUSMHostAllocExp;
   pDdiTable->pfnUSMFreeExp = urEnqueueUSMFreeExp;
   pDdiTable->pfnCommandBufferExp = urEnqueueCommandBufferExp;
+  pDdiTable->pfnKernelLaunchWithArgsExp = urEnqueueKernelLaunchWithArgsExp;
 
   return UR_RESULT_SUCCESS;
 }
@@ -493,6 +494,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
   pDdiTable->pfnBuildExp = urProgramBuildExp;
   pDdiTable->pfnCompileExp = urProgramCompileExp;
   pDdiTable->pfnLinkExp = urProgramLinkExp;
+  pDdiTable->pfnDynamicLinkExp = urProgramDynamicLinkExp;
 
   return UR_RESULT_SUCCESS;
 }
