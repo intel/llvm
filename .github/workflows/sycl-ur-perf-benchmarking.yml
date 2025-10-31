@@ -78,6 +78,17 @@ on:
           - 'level_zero:gpu'
           - 'level_zero_v2:gpu'
 
+concurrency:
+  # Cancel a currently running workflow for:
+  # - the same PR
+  # - manual dispatch if pr_no or commit_hash is repeated, and the runner & backend are the same
+  # - scheduled runs if they overlap in time
+  group: >-
+    ${{ github.workflow }}-${{ github.event_name }}-
+      ${{ github.event.pull_request.number || inputs.pr_no || inputs.commit_hash || github.ref }}-
+      ${{ inputs.runner }}-${{ inputs.backend }}
+  cancel-in-progress: true
+
 permissions: read-all
 
 jobs:
