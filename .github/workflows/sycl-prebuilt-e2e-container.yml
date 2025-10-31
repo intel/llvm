@@ -1,8 +1,8 @@
 name: Create container with pre-built tests
 
-# The purpose of this is to build E2E tests with the latest release toolchain
-# and then run them with the trunk SYCL RT (libsycl.so and friends) to verify
-# that ABI compatibility hasn't been broken.
+# The purpose of this is to build E2E and CTS tests with the latest release
+# toolchain and then run them with the trunk SYCL RT (libsycl.so and friends)
+# to verify that ABI compatibility hasn't been broken.
 
 on:
   workflow_dispatch:
@@ -12,6 +12,18 @@ on:
         description: tag/sha
         required: true
         default:
+      cts_ref:
+        type: choice
+        description: tag/sha to use for SYCL-CTS -- hardcoded hash is CTS revision matching sycl-rel-6_3 branch.
+        required: true
+        default: 'main'
+        options:
+          - main
+          # Author: Tom Deakin <thomasdeakin@gmail.com>
+          # Date:   Thu Jul 10 16:45:48 2025 +0100
+          # Merge pull request #1102 from steffenlarsen/steffen/remove_secondary_queue_exceptions
+          # Remove expected exceptions for secondary queue
+          - 19e4ed34377c8a8a354d701772427be8c5430b0d
 
   push:
     branches:
@@ -35,6 +47,12 @@ jobs:
       toolchain_artifact: toolchain
       toolchain_artifact_filename: toolchain.tar.zst
       e2e_binaries_artifact: e2e_bin
+      cts_binaries_artifact: cts_bin
+      # Author: Tom Deakin <thomasdeakin@gmail.com>
+      # Date:   Thu Jul 10 16:45:48 2025 +0100
+      # Merge pull request #1102 from steffenlarsen/steffen/remove_secondary_queue_exceptions
+      # Remove expected exceptions for secondary queue
+      cts_binaries_ref: ${{ inputs.cts_ref || '19e4ed34377c8a8a354d701772427be8c5430b0d' }}
 
   # Couldn't make it work from inside the container, so have to use an extra job
   # and pass an artifact.
@@ -72,7 +90,11 @@ jobs:
         with:
           name: e2e_bin
           path: devops/
-
+      - name: Download CTS binaries
+        uses: actions/download-artifact@v5
+        with:
+          name: cts_bin
+          path: devops/
 
       - name: Build container
         uses: ./devops/actions/build_container
@@ -84,14 +106,14 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}/sycl_prebuilt_tests:${{ inputs.ref || github.ref_name }}
 
-  run-e2e:
+  run-prebuilt-tests:
     # Ensure those tests can actually pass with the toolchain they were built
     # with, otherwise testing compatibility with those binaries is pointless.
     # This job should be aligned with how the image will be used in trunk CI.
     #
     # I'll start with just a single configuration, but this might be extended
     # with a matrix in future (e.g., to run on cpu/CUDA/AMDGPU).
-    name: Run E2E tests with SYCL RT they were built with
+    name: Run E2E, CTS tests with SYCL RT they were built with
     runs-on: [Linux, pvc]
     needs: [docker, build]
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
@@ -103,7 +125,8 @@ jobs:
         with:
           sparse-checkout: |
             devops
-      - run: |
+      - id: decompress
+        run: |
           mkdir toolchain
           tar -I 'zstd' -xf /sycl-prebuilt/toolchain.tar.zst -C toolchain
           echo LD_LIBRARY_PATH=$PWD/toolchain/lib:$LD_LIBRARY_PATH >> $GITHUB_ENV
@@ -112,7 +135,15 @@ jobs:
           sycl-ls
       - name: Run E2E tests
         uses: ./devops/actions/run-tests/e2e
+        if: ${{ always() && !cancelled() && steps.decompress.outcome == 'success' }}
         timeout-minutes: 20
         with:
           testing_mode: run-only
+          target_devices: level_zero:gpu
+      - name: Run CTS tests
+        uses: ./devops/actions/run-tests/cts
+        if: ${{ always() && !cancelled() && steps.decompress.outcome == 'success' }}
+        timeout-minutes: 20
+        with:
+          cts_testing_mode: run-only
           target_devices: level_zero:gpu

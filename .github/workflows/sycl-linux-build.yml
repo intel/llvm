@@ -76,6 +76,14 @@ on:
         type: string
         required: false
 
+      cts_binaries_artifact:
+        type: string
+        required: false
+      cts_binaries_ref:
+        type: string
+        description: tag/ref of CTS tests to compile
+        default: main
+
     outputs:
       build_conclusion:
         value: ${{ jobs.build.outputs.build_conclusion }}
@@ -173,6 +181,7 @@ jobs:
       with:
         sparse-checkout: |
           devops/actions
+          sycl/cts_exclude_filter
     # Cleanup will be run after all actions are completed.
     - name: Register cleanup after job is finished
       uses: ./devops/actions/cleanup
@@ -325,6 +334,16 @@ jobs:
         env | sort > env_after
         comm -13 env_before env_after >> $GITHUB_ENV
         rm env_before env_after
+
+    - name: Build CTS tests
+      if: ${{ inputs.cts_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
+      uses: ./devops/actions/run-tests/cts
+      with:
+        ref: ${{ inputs.cts_binaries_ref }}
+        cts_testing_mode: build-only
+        target_devices: all
+        sycl_cts_artifact: ${{ inputs.cts_binaries_artifact }}
+        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
 
     - name: Build E2E tests
       if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
