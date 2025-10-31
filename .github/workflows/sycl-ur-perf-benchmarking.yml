@@ -247,6 +247,9 @@ jobs:
   test_benchmark_framework:
     name: '[PR] Benchmark suite testing'
     needs: [build_pr]
+    permissions:
+      contents: write
+      packages: read
     if: always() && !cancelled() && needs.build_pr.outputs.build_conclusion == 'success'
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
