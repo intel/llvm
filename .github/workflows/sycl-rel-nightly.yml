@@ -2,6 +2,9 @@ name: SYCL Release Branch Nightly
 
 on:
   workflow_dispatch:
+    inputs:
+      release_version:
+        type: string
 
 permissions: read-all
 
@@ -12,7 +15,13 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_artifact_suffix: default
-      build_configure_extra_args: '-DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_INSTALL_LIBDIR=lib --disable-jit --no-assertions --add_security_flags=sanitize --hip --cuda'
+      build_configure_extra_args: |
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_INSTALL_LIBDIR=lib \
+        --disable-jit --no-assertions --add_security_flags=sanitize --hip --cuda \
+        -DLLVM_VC_REPOSITORY="${{ github.repositoryUrl }}" \
+        -DCLANG_VC_REPOSITORY="${{ github.repositoryUrl }}" \
+        -DLLVM_VC_REVISION="${{ inputs.release_version || format('{0}:{1} Nightly build', github.ref_name, github.sha) }}" \
+        -DCLANG_VC_REVISION="${{ inputs.release_version || format('{0}:{1} Nightly build', github.ref_name, github.sha) }}"
       build_image: ghcr.io/intel/llvm/release_build:latest
       pack_release: 'true'
 
@@ -80,7 +89,13 @@ jobs:
   build-win:
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
-      build_configure_extra_args: '-DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off -DCMAKE_POSITION_INDEPENDENT_CODE=ON --disable-jit --no-assertions --add_security_flags=sanitize'
+      build_configure_extra_args: |
+        -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off -DCMAKE_POSITION_INDEPENDENT_CODE=ON ^
+        --disable-jit --no-assertions --add_security_flags=sanitize ^
+        -DLLVM_VC_REPOSITORY="${{ github.repositoryUrl }}" ^
+        -DCLANG_VC_REPOSITORY="${{ github.repositoryUrl }}" ^
+        -DLLVM_VC_REVISION="${{ inputs.release_version || format('{0}:{1} Nightly build', github.ref_name, github.sha) }}" ^
+        -DCLANG_VC_REVISION="${{ inputs.release_version || format('{0}:{1} Nightly build', github.ref_name, github.sha) }}"
       pack_release: 'true'
 
       # We upload both Linux/Windows build via Github's "Releases"
