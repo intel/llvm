@@ -160,7 +160,7 @@ void single_task(queue Q, const KernelType &KernelObj,
                 !(detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                            void>::value)) {
     detail::submit_kernel_direct_single_task<KernelName>(
-        std::move(Q), empty_properties_t{}, KernelObj, CodeLoc);
+        std::move(Q), empty_properties_t{}, KernelObj, {}, CodeLoc);
   } else {
     submit(
         std::move(Q),
@@ -281,7 +281,7 @@ void nd_launch(queue Q, nd_range<Dimensions> Range, const KernelType &KernelObj,
                 !(detail::KernelLambdaHasKernelHandlerArgT<
                     KernelType, sycl::nd_item<Dimensions>>::value)) {
     detail::submit_kernel_direct_parallel_for<KernelName>(
-        std::move(Q), empty_properties_t{}, Range, KernelObj);
+        std::move(Q), empty_properties_t{}, Range, KernelObj, {});
   } else {
     submit(std::move(Q), [&](handler &CGH) {
       nd_launch<KernelName>(CGH, Range, KernelObj,

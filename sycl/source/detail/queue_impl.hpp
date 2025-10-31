@@ -363,10 +363,11 @@ public:
   event submit_kernel_direct_with_event(
       const nd_range<Dims> &Range, detail::HostKernelRefBase &HostKernel,
       detail::DeviceKernelInfo *DeviceKernelInfo,
-      const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+      sycl::span<const event> DepEvents, const detail::code_location &CodeLoc,
+      bool IsTopCodeLoc) {
     detail::EventImplPtr EventImpl =
         submit_kernel_direct_impl(NDRDescT{Range}, HostKernel, DeviceKernelInfo,
-                                  true, CodeLoc, IsTopCodeLoc);
+                                  true, DepEvents, CodeLoc, IsTopCodeLoc);
     return createSyclObjFromImpl<event>(EventImpl);
   }
 
@@ -374,9 +375,10 @@ public:
   void submit_kernel_direct_without_event(
       const nd_range<Dims> &Range, detail::HostKernelRefBase &HostKernel,
       detail::DeviceKernelInfo *DeviceKernelInfo,
-      const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+      sycl::span<const event> DepEvents, const detail::code_location &CodeLoc,
+      bool IsTopCodeLoc) {
     submit_kernel_direct_impl(NDRDescT{Range}, HostKernel, DeviceKernelInfo,
-                              false, CodeLoc, IsTopCodeLoc);
+                              false, DepEvents, CodeLoc, IsTopCodeLoc);
   }
 
   void submit_without_event(const detail::type_erased_cgfo_ty &CGF,
@@ -622,9 +624,8 @@ public:
                                const std::vector<event> &DepEvents,
                                bool CallerNeedsEvent);
 
-  void setCommandGraph(
+  void setCommandGraphUnlocked(
       std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
-    std::lock_guard<std::mutex> Lock(MMutex);
     MGraph = Graph;
     MExtGraphDeps.reset();
 
@@ -633,6 +634,12 @@ public:
     } else {
       trySwitchingToNoEventsMode();
     }
+  }
+
+  void setCommandGraph(
+      std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
+    std::lock_guard<std::mutex> Lock(MMutex);
+    setCommandGraphUnlocked(Graph);
   }
 
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
@@ -929,10 +936,12 @@ protected:
   EventImplPtr submit_kernel_direct_impl(
       const NDRDescT &NDRDesc, detail::HostKernelRefBase &HostKernel,
       detail::DeviceKernelInfo *DeviceKernelInfo, bool CallerNeedsEvent,
-      const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+      sycl::span<const event> DepEvents, const detail::code_location &CodeLoc,
+      bool IsTopCodeLoc);
 
   template <typename SubmitCommandFuncType>
   EventImplPtr submit_direct(bool CallerNeedsEvent,
+                             sycl::span<const event> DepEvents,
                              SubmitCommandFuncType &SubmitCommandFunc);
 
   /// Helper function for submitting a memory operation with a handler.
