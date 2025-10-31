@@ -23,7 +23,8 @@ class OneDnnBench(Suite):
         return "https://github.com/uxlfoundation/oneDNN.git"
 
     def git_tag(self):
-        return "v3.8"
+        # 16 Oct, 2025
+        return "v3.9.2"
 
     def name(self):
         return "BenchDNN"

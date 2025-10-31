@@ -28,7 +28,8 @@ class GromacsBench(Suite):
         return "https://gitlab.com/gromacs/gromacs.git"
 
     def git_tag(self):
-        return "v2025.2"
+        # 29 Aug, 2025
+        return "v2025.3"
 
     def grappa_url(self):
         return "https://zenodo.org/record/11234002/files/grappa-1.5k-6.1M_rc0.9.tar.gz"
