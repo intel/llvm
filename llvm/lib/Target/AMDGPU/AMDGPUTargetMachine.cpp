@@ -625,6 +625,7 @@ extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeAMDGPUPreloadKernArgPrologLegacyPass(*PR);
   initializeAMDGPUWaitSGPRHazardsLegacyPass(*PR);
   initializeAMDGPUPreloadKernelArgumentsLegacyPass(*PR);
+  initializeAMDGPUUniformIntrinsicCombineLegacyPass(*PR);
 }
 
 static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
@@ -899,9 +900,6 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
 
         if (EarlyInlineAll && !EnableFunctionCalls)
           PM.addPass(AMDGPUAlwaysInlinePass());
-
-        if (EnableUniformIntrinsicCombine)
-          PM.addPass(AMDGPUUniformIntrinsicCombinePass());
       });
 
   PB.registerPeepholeEPCallback(
@@ -912,6 +910,9 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
         FPM.addPass(AMDGPUUseNativeCallsPass());
         if (EnableLibCallSimplify)
           FPM.addPass(AMDGPUSimplifyLibCallsPass());
+
+        if (EnableUniformIntrinsicCombine)
+          FPM.addPass(AMDGPUUniformIntrinsicCombinePass());
       });
 
   PB.registerCGSCCOptimizerLateEPCallback(
@@ -1325,6 +1326,9 @@ void AMDGPUPassConfig::addIRPasses() {
   if (TM.getTargetTriple().isAMDGCN() &&
       isPassEnabled(EnableImageIntrinsicOptimizer))
     addPass(createAMDGPUImageIntrinsicOptimizerPass(&TM));
+
+  if (EnableUniformIntrinsicCombine)
+    addPass(createAMDGPUUniformIntrinsicCombineLegacyPass());
 
   // This can be disabled by passing ::Disable here or on the command line
   // with --expand-variadics-override=disable.
@@ -2083,6 +2087,8 @@ void AMDGPUCodeGenPassBuilder::addIRPasses(AddIRPass &addPass) const {
   if (isPassEnabled(EnableImageIntrinsicOptimizer))
     addPass(AMDGPUImageIntrinsicOptimizerPass(TM));
 
+  if (EnableUniformIntrinsicCombine)
+    addPass(AMDGPUUniformIntrinsicCombinePass());
   // This can be disabled by passing ::Disable here or on the command line
   // with --expand-variadics-override=disable.
   addPass(ExpandVariadicsPass(ExpandVariadicsMode::Lowering));
