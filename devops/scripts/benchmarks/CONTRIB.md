@@ -18,10 +18,10 @@ The suite is structured around four main components: Suites, Benchmarks, Results
     * Represent a single benchmark, usually mapping to a binary execution.
     * Must implement the `Benchmark` base class (`benches/base.py`).
     * **Required Methods:**
-        * `setup()`: Initializes the benchmark (e.g., build, download data). Use `self.download()` for data dependencies. **Do not** perform setup in `__init__`.
         * `run(env_vars)`: Executes the benchmark binary (use `self.run_bench()`) and returns a list of `Result` objects. Can be called multiple times, must produce consistent results.
         * `name()`: Returns a unique identifier string for the benchmark across *all* suites. If a benchmark class is instantiated multiple times with different parameters (e.g., "Submit In Order", "Submit Out Of Order"), the `name()` must reflect this uniqueness.
     * **Optional Methods:**
+        * `setup()`: Initializes the benchmark (e.g., build, download data). Use `self.download()` for data dependencies. **Do not** perform setup in `__init__`.
         * `lower_is_better()`: Returns `True` if lower result values are better (default: `True`).
         * `description()`: Provides a short description about the benchmark.
         * `notes()`: Provides additional commentary about the benchmark results (string).
