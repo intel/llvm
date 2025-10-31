@@ -1006,9 +1006,9 @@ private:
   /// library. It is defined as follows
   ///
   /// __attribute__((visibility("hidden")))
-  /// extern __tgt_offload_entry *__start_omp_offloading_entries;
+  /// extern __tgt_offload_entry *__start_llvm_offload_entries;
   /// __attribute__((visibility("hidden")))
-  /// extern __tgt_offload_entry *__stop_omp_offloading_entries;
+  /// extern __tgt_offload_entry *__stop_llvm_offload_entries;
   ///
   /// static const char Image0[] = { <Bufs.front() contents> };
   ///  ...
@@ -1018,23 +1018,23 @@ private:
   ///   {
   ///     Image0,                            /*ImageStart*/
   ///     Image0 + sizeof(Image0),           /*ImageEnd*/
-  ///     __start_omp_offloading_entries,    /*EntriesBegin*/
-  ///     __stop_omp_offloading_entries      /*EntriesEnd*/
+  ///     __start_llvm_offload_entries,      /*EntriesBegin*/
+  ///     __stop_llvm_offload_entries        /*EntriesEnd*/
   ///   },
   ///   ...
   ///   {
   ///     ImageN,                            /*ImageStart*/
   ///     ImageN + sizeof(ImageN),           /*ImageEnd*/
-  ///     __start_omp_offloading_entries,    /*EntriesBegin*/
-  ///     __stop_omp_offloading_entries      /*EntriesEnd*/
+  ///     __start_llvm_offload_entries,      /*EntriesBegin*/
+  ///     __stop_llvm_offload_entries        /*EntriesEnd*/
   ///   }
   /// };
   ///
   /// static const __tgt_bin_desc BinDesc = {
   ///   sizeof(Images) / sizeof(Images[0]),  /*NumDeviceImages*/
   ///   Images,                              /*DeviceImages*/
-  ///   __start_omp_offloading_entries,      /*HostEntriesBegin*/
-  ///   __stop_omp_offloading_entries        /*HostEntriesEnd*/
+  ///   __start_llvm_offload_entries,        /*HostEntriesBegin*/
+  ///   __stop_llvm_offload_entries          /*HostEntriesEnd*/
   /// };
   ///
   /// Global variable that represents BinDesc is returned.
@@ -1049,16 +1049,16 @@ private:
       // Create external begin/end symbols for the offload entries table.
       auto *EntriesStart = new GlobalVariable(
           M, getEntryTy(), /*isConstant*/ true, GlobalValue::ExternalLinkage,
-          /*Initializer*/ nullptr, "__start_omp_offloading_entries");
+          /*Initializer*/ nullptr, "__start_llvm_offload_entries");
       EntriesStart->setVisibility(GlobalValue::HiddenVisibility);
       auto *EntriesStop = new GlobalVariable(
           M, getEntryTy(), /*isConstant*/ true, GlobalValue::ExternalLinkage,
-          /*Initializer*/ nullptr, "__stop_omp_offloading_entries");
+          /*Initializer*/ nullptr, "__stop_llvm_offload_entries");
       EntriesStop->setVisibility(GlobalValue::HiddenVisibility);
 
       // We assume that external begin/end symbols that we have created above
       // will be defined by the linker. But linker will do that only if linker
-      // inputs have section with "omp_offloading_entries" name which is not
+      // inputs have section with "llvm_offload_entries" name which is not
       // guaranteed. So, we just create dummy zero sized object in the offload
       // entries section to force linker to define those symbols.
       auto *DummyInit =
@@ -1066,7 +1066,7 @@ private:
       auto *DummyEntry = new GlobalVariable(
           M, DummyInit->getType(), true, GlobalVariable::ExternalLinkage,
           DummyInit, "__dummy.omp_offloading.entry");
-      DummyEntry->setSection("omp_offloading_entries");
+      DummyEntry->setSection("llvm_offload_entries");
       DummyEntry->setVisibility(GlobalValue::HiddenVisibility);
 
       EntriesB = EntriesStart;

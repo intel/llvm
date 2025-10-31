@@ -328,7 +328,8 @@ public:
 
   // Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is
   // set.
-  static inline void traceProgram(const std::string &Msg,
+  template <typename MsgType>
+  static inline void traceProgram(const MsgType &Msg,
                                   const ProgramCacheKeyT &CacheKey) {
     if (!SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache())
       return;
@@ -362,8 +363,9 @@ public:
 
   // Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is
   // set.
-  static inline void traceKernel(std::string_view Msg,
-                                 std::string_view KernelName,
+  template <typename MsgType>
+  static inline void traceKernel(const MsgType &Msg,
+                                 KernelNameStrRefT KernelName,
                                  bool IsFastKernelCache = false) {
     if (!SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache())
       return;
