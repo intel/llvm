@@ -25,7 +25,7 @@
 
 /// Check phases w/out specifying a compute capability.
 // RUN: %clangxx -ccc-print-phases -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
-// RUN: -fsycl-targets=amdgcn-amd-amdhsa -fsycl-device-lib=all -Xsycl-target-backend --offload-arch=gfx906 %s 2>&1 \
+// RUN: -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=gfx906 %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-PHASES-NO-CC %s
 // CHK-PHASES-NO-CC: 0: input, "{{.*}}", c++, (host-sycl)
 // CHK-PHASES-NO-CC: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)

@@ -10,7 +10,7 @@
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-instrument-device-code --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64 -### %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-SPIRV,CHECK-HOST %s
 // -fno-sycl-device-lib mustn't affect the linkage of ITT libraries
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-instrument-device-code --offload-new-driver --sysroot=%S/Inputs/SYCL -fno-sycl-device-lib=all -fsycl-targets=spir64 -### %s 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-instrument-device-code --offload-new-driver --sysroot=%S/Inputs/SYCL --no-offloadlib -fsycl-targets=spir64 -### %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-SPIRV %s
 
 // CHECK-SPIRV: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-instrument-device-code"

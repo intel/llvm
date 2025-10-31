@@ -171,7 +171,7 @@
 
 /// AMD Test phases, BoundArch settings used for -device target. Additional
 /// offload action used for compilation and backend compilation.
-// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx700 -fno-sycl-device-lib=all \
+// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx700 --no-offloadlib \
 // RUN:   -fno-sycl-instrument-device-code \
 // RUN:   -target x86_64-unknown-linux-gnu -ccc-print-phases %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=AMD_CHECK_PHASES
