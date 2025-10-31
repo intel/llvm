@@ -196,6 +196,9 @@ jobs:
   benchmark_nightly:
     name: '[Nightly] Benchmarks'
     needs: [build_nightly]
+    permissions:
+      contents: write
+      packages: read
     if: always() && !cancelled() && needs.build_nightly.outputs.build_conclusion == 'success'
     strategy:
       fail-fast: false
