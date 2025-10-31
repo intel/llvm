@@ -994,6 +994,46 @@ int main() {
 }
 ----
 
+=== Using "scratch" work-group local memory
+
+Free function kernels can use work-group local memory via `local_accessor` or
+via other extensions.
+This example demonstrates how to use work-group local memory via the
+link:../experimental/sycl_ext_oneapi_work_group_scratch_memory.asciidoc[
+sycl_ext_oneapi_work_group_scratch_memory] extension because it also illustrates
+how to pass a kernel launch parameter.
+
+[source,c++]
+----
+#include <sycl/sycl.hpp>
+namespace syclext = sycl::ext::oneapi;
+namespace syclexp = sycl::ext::oneapi::experimental;
+
+static constexpr size_t NUM = 1024;
+static constexpr size_t WGSIZE = 16;
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+void mykernel() {
+  // Gets a pointer to WGSIZE int's
+  int *ptr = static_cast<int *>(syclexp::get_work_group_scratch_memory());
+}
+
+int main() {
+  sycl::queue q;
+
+  syclexp::launch_config cfg{
+    sycl::nd_range{{NUM}, {WGSIZE}},
+    syclexp::properties{
+      syclexp::work_group_scratch_size{WGSIZE * sizeof(int)}
+    }
+  };
+  syclexp::nd_launch(q, cfg, syclexp::kernel_function<mykernel>);
+
+  q.wait();
+}
+----
+
+
 
 [[level-zero-and-opencl-compatibility]]
 == {dpcpp} guaranteed compatibility with Level Zero and OpenCL backends
