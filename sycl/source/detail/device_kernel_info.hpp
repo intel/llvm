@@ -109,6 +109,7 @@ public:
 
   FastKernelSubcacheT &getKernelSubcache();
   bool usesAssert();
+  bool usesMalloc();
   const std::optional<int> &getImplicitLocalArgPos();
 
 private:
@@ -121,6 +122,7 @@ private:
   FastKernelSubcacheT MFastKernelSubcache;
   bool MUsesAssert;
   std::optional<int> MImplicitLocalArgPos;
+  bool MUsesMalloc;
 };
 
 } // namespace detail
