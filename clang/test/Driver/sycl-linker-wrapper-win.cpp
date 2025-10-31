@@ -19,7 +19,7 @@
 // CHK-CMDS-NEXT: "{{.*}}llvm-link.exe" -only-needed --suppress-warnings [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc
 // CHK-CMDS-NEXT: "{{.*}}sycl-post-link.exe"{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
 // CHK-CMDS-NEXT: "{{.*}}llvm-spirv.exe"{{.*}} LLVM_SPIRV_OPTIONS -o {{.*}}
-// CHK-CMDS-NEXT: offload-wrapper: input: {{.*}}, output: [[WRAPPEROUT:.*]].bc
+// CHK-CMDS-NEXT: offload-wrapper: output: [[WRAPPEROUT:.*]].bc, input: {{.*}}
 // CHK-CMDS-NEXT: "{{.*}}clang.exe"{{.*}} -c -o [[LLCOUT:.*]].o [[WRAPPEROUT]].bc
 // CHK-CMDS-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]].o HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
 
@@ -43,7 +43,7 @@
 // CHK-CMDS-AOT-GEN-NEXT: "{{.*}}sycl-post-link.exe"{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
 // CHK-CMDS-AOT-GEN-NEXT: "{{.*}}llvm-spirv.exe"{{.*}} LLVM_SPIRV_OPTIONS -o {{.*}}
 // CHK-CMDS-AOT-GEN-NEXT: "{{.*}}ocloc{{.*}} -output_no_suffix -spirv_input -device pvc -output {{.*}} -file {{.*}}
-// CHK-CMDS-AOT-GEN-NEXT: offload-wrapper: input: {{.*}}, output: [[WRAPPEROUT:.*]].bc
+// CHK-CMDS-AOT-GEN-NEXT: offload-wrapper: output: [[WRAPPEROUT:.*]].bc, input: {{.*}}
 // CHK-CMDS-AOT-GEN-NEXT: "{{.*}}clang.exe"{{.*}} -c -o [[LLCOUT:.*]].o [[WRAPPEROUT]].bc
 // CHK-CMDS-AOT-GEN-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]].o HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
 
@@ -67,7 +67,7 @@
 // CHK-CMDS-AOT-CPU-NEXT: "{{.*}}sycl-post-link.exe"{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
 // CHK-CMDS-AOT-CPU-NEXT: "{{.*}}llvm-spirv.exe"{{.*}} LLVM_SPIRV_OPTIONS -o {{.*}}
 // CHK-CMDS-AOT-CPU-NEXT: "{{.*}}opencl-aot.exe"{{.*}} --device=cpu -o {{.*}}
-// CHK-CMDS-AOT-CPU-NEXT: offload-wrapper: input: {{.*}}, output: [[WRAPPEROUT:.*]].bc
+// CHK-CMDS-AOT-CPU-NEXT: offload-wrapper: output: [[WRAPPEROUT:.*]].bc, input: {{.*}}
 // CHK-CMDS-AOT-CPU-NEXT: "{{.*}}clang.exe"{{.*}} -c -o [[LLCOUT:.*]].o [[WRAPPEROUT]].bc
 // CHK-CMDS-AOT-CPU-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]].o HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
 
@@ -92,7 +92,7 @@
 // CHK-CMDS-AOT-NV-NEXT: "{{.*}}clang.exe"{{.*}} -o [[CLANGOUT:.*]] -dumpdir {{.*}}.img. --target=nvptx64-nvidia-cuda -march={{.*}}
 // CHK-CMDS-AOT-NV-NEXT: "{{.*}}ptxas{{.*}} --output-file [[PTXASOUT:.*]] [[CLANGOUT]]
 // CHK-CMDS-AOT-NV-NEXT: "{{.*}}fatbinary{{.*}} --create [[FATBINOUT:.*]] --image=profile={{.*}},file=[[CLANGOUT]] --image=profile={{.*}},file=[[PTXASOUT]]
-// CHK-CMDS-AOT-NV-NEXT: offload-wrapper: input: [[FATBINOUT]], output: [[WRAPPEROUT:.*]].bc
+// CHK-CMDS-AOT-NV-NEXT: offload-wrapper: output: [[WRAPPEROUT:.*]].bc, input: [[FATBINOUT]]
 // CHK-CMDS-AOT-NV-NEXT: "{{.*}}clang.exe"{{.*}} -c -o [[LLCOUT:.*]].o [[WRAPPEROUT]].bc
 // CHK-CMDS-AOT-NV-NEXT: "{{.*}}ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]].o HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
 /// Check for list of commands for standalone clang-linker-wrapper run for sycl (AOT for AMD)
@@ -109,7 +109,7 @@
 // CHK-CMDS-AOT-AMD-NEXT: "{{.*}}sycl-post-link.exe"{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[FIRSTLLVMLINKOUT]].bc
 // CHK-CMDS-AOT-AMD-NEXT: "{{.*}}clang.exe"{{.*}} -o [[CLANGOUT:.*]] -dumpdir {{.*}}.img. --target=amdgcn-amd-amdhsa -mcpu={{.*}}
 // CHK-CMDS-AOT-AMD-NEXT: "{{.*}}clang-offload-bundler.exe"{{.*}} -input=[[CLANGOUT]] -output=[[BUNDLEROUT:.*]]
-// CHK-CMDS-AOT-AMD-NEXT: offload-wrapper: input: [[BUNDLEROUT]], output: [[WRAPPEROUT:.*]].bc
+// CHK-CMDS-AOT-AMD-NEXT: offload-wrapper: output: [[WRAPPEROUT:.*]].bc, input: [[BUNDLEROUT]]
 // CHK-CMDS-AOT-AMD-NEXT: "{{.*}}clang.exe"{{.*}} -c -o [[LLCOUT:.*]].o [[WRAPPEROUT]].bc
 // CHK-CMDS-AOT-AMD-NEXT: "{{.*}}ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]].o HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
 
@@ -138,7 +138,7 @@
 // CHK-DEVLINK-CMDS-NEXT: "{{.*}}llvm-link.exe" -only-needed --suppress-warnings [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc
 // CHK-DEVLINK-CMDS-NEXT: "{{.*}}sycl-post-link.exe"{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
 // CHK-DEVLINK-CMDS-NEXT: "{{.*}}llvm-spirv.exe"{{.*}} LLVM_SPIRV_OPTIONS -o {{.*}}
-// CHK-DEVLINK-CMDS-NEXT: offload-wrapper: input: {{.*}}, output: [[WRAPPEROUT:.*]].bc
+// CHK-DEVLINK-CMDS-NEXT: offload-wrapper: output: [[WRAPPEROUT:.*]].bc, input: {{.*}}
 // CHK-DEVLINK-CMDS-NEXT: "{{.*}}clang.exe"{{.*}} -c -o {{.*}} [[WRAPPEROUT]].bc
 // CHK-DEVLINK-CMDS-NEXT: "{{.*}}copy"{{.*}} {{.*}} a.exe
 // CHK-DEVLINK-CMDS-NOT: "{{.*}}ld"
@@ -150,7 +150,7 @@
 // CHK-SYCLBIN-CMDS-NEXT: "{{.*}}llvm-link.exe" -only-needed --suppress-warnings [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc
 // CHK-SYCLBIN-CMDS-NEXT: "{{.*}}sycl-post-link.exe" {{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
 // CHK-SYCLBIN-CMDS-NEXT: "{{.*}}llvm-spirv.exe" {{.*}} -o {{.*}}
-// CHK-SYCLBIN-CMDS-NOT:  offload-wrapper: input
+// CHK-SYCLBIN-CMDS-NOT:  offload-wrapper:
 // CHK-SYCLBIN-CMDS-NOT: "{{.*}}clang"
 // CHK-SYCLBIN-CMDS-NEXT: "{{.*}}copy" {{.*}}.syclbin a.exe
 // CHK-SYCLBIN-CMDS-NOT: "{{.*}}ld"
