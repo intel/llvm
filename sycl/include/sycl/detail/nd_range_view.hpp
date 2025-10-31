@@ -28,27 +28,28 @@ public:
   nd_range_view &operator=(nd_range_view &&Desc) = default;
 
   template <int Dims_>
-  nd_range_view(sycl::range<Dims_> &GlobalSizes, sycl::range<Dims_> &LocalSizes)
-      : GlobalSize(&(GlobalSizes[0])), LocalSize(&(LocalSizes[0])),
-        Dims{size_t(Dims_)} {}
+  nd_range_view(sycl::range<Dims_> &N, bool SetNumWorkGroups = false)
+      : MGlobalSize(&(N[0])), MSetNumWorkGroups(SetNumWorkGroups),
+        MDims{size_t(Dims_)} {}
 
-  // to support usage in sycl::ext::oneapi::experimental::submit_with_event()
+  template <int Dims_>
+  nd_range_view(sycl::range<Dims_> &GlobalSize, sycl::id<Dims_> &Offset)
+      : MGlobalSize(&(GlobalSize[0])), MOffset(&(Offset[0])),
+        MDims{size_t(Dims_)} {}
+
   template <int Dims_>
   nd_range_view(sycl::nd_range<Dims_> &ExecutionRange)
-      : GlobalSize(&ExecutionRange.globalSize[0]),
-        LocalSize(&ExecutionRange.localSize[0]),
-        Offset(&ExecutionRange.offset[0]), Dims{size_t(Dims_)} {}
-
-  template <int Dims_>
-  nd_range_view(sycl::range<Dims_> &Range)
-      : GlobalSize(&(Range[0])), Dims{size_t(Dims_)} {}
+      : MGlobalSize(&(ExecutionRange.globalSize[0])),
+        MLocalSize(&(ExecutionRange.localSize[0])),
+        MOffset(&(ExecutionRange.offset[0])), MDims{size_t(Dims_)} {}
 
   sycl::detail::NDRDescT toNDRDescT() const;
 
-  const size_t *GlobalSize = nullptr;
-  const size_t *LocalSize = nullptr;
-  const size_t *Offset = nullptr;
-  size_t Dims = 0;
+  const size_t *MGlobalSize = nullptr;
+  const size_t *MLocalSize = nullptr;
+  const size_t *MOffset = nullptr;
+  bool MSetNumWorkGroups = false;
+  size_t MDims = 0;
 };
 
 } // namespace detail

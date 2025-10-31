@@ -471,61 +471,23 @@ void queue::ext_oneapi_set_external_event(const event &external_event) {
 
 const property_list &queue::getPropList() const { return impl->getPropList(); }
 
-template <int Dims>
 event submit_kernel_direct_with_event_impl(
-    const queue &Queue, const nd_range<Dims> &Range,
+    const queue &Queue, detail::nd_range_view RangeView,
     detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
   return getSyclObjImpl(Queue)->submit_kernel_direct_with_event(
-      Range, HostKernel, DeviceKernelInfo, CodeLoc, IsTopCodeLoc);
+      RangeView, HostKernel, DeviceKernelInfo, CodeLoc, IsTopCodeLoc);
 }
 
-template event __SYCL_EXPORT submit_kernel_direct_with_event_impl<1>(
-    const queue &Queue, const nd_range<1> &Range,
-    detail::HostKernelRefBase &HostKernel,
-    detail::DeviceKernelInfo *DeviceKernelInfo,
-    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
-
-template event __SYCL_EXPORT submit_kernel_direct_with_event_impl<2>(
-    const queue &Queue, const nd_range<2> &Range,
-    detail::HostKernelRefBase &HostKernel,
-    detail::DeviceKernelInfo *DeviceKernelInfo,
-    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
-
-template event __SYCL_EXPORT submit_kernel_direct_with_event_impl<3>(
-    const queue &Queue, const nd_range<3> &Range,
-    detail::HostKernelRefBase &HostKernel,
-    detail::DeviceKernelInfo *DeviceKernelInfo,
-    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
-
-template <int Dims>
 void submit_kernel_direct_without_event_impl(
-    const queue &Queue, const nd_range<Dims> &Range,
+    const queue &Queue, detail::nd_range_view RangeView,
     detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
   getSyclObjImpl(Queue)->submit_kernel_direct_without_event(
-      Range, HostKernel, DeviceKernelInfo, CodeLoc, IsTopCodeLoc);
+      RangeView, HostKernel, DeviceKernelInfo, CodeLoc, IsTopCodeLoc);
 }
-
-template void __SYCL_EXPORT submit_kernel_direct_without_event_impl<1>(
-    const queue &Queue, const nd_range<1> &Range,
-    detail::HostKernelRefBase &HostKernel,
-    detail::DeviceKernelInfo *DeviceKernelInfo,
-    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
-
-template void __SYCL_EXPORT submit_kernel_direct_without_event_impl<2>(
-    const queue &Queue, const nd_range<2> &Range,
-    detail::HostKernelRefBase &HostKernel,
-    detail::DeviceKernelInfo *DeviceKernelInfo,
-    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
-
-template void __SYCL_EXPORT submit_kernel_direct_without_event_impl<3>(
-    const queue &Queue, const nd_range<3> &Range,
-    detail::HostKernelRefBase &HostKernel,
-    detail::DeviceKernelInfo *DeviceKernelInfo,
-    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
 } // namespace _V1
 } // namespace sycl

@@ -359,24 +359,22 @@ public:
     return createSyclObjFromImpl<event>(ResEvent);
   }
 
-  template <int Dims>
   event submit_kernel_direct_with_event(
-      const nd_range<Dims> &Range, detail::HostKernelRefBase &HostKernel,
+      detail::nd_range_view RangeView, detail::HostKernelRefBase &HostKernel,
       detail::DeviceKernelInfo *DeviceKernelInfo,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
-    detail::EventImplPtr EventImpl =
-        submit_kernel_direct_impl(NDRDescT{Range}, HostKernel, DeviceKernelInfo,
-                                  true, CodeLoc, IsTopCodeLoc);
+    detail::EventImplPtr EventImpl = submit_kernel_direct_impl(
+        RangeView.toNDRDescT(), HostKernel, DeviceKernelInfo, true, CodeLoc,
+        IsTopCodeLoc);
     return createSyclObjFromImpl<event>(EventImpl);
   }
 
-  template <int Dims>
   void submit_kernel_direct_without_event(
-      const nd_range<Dims> &Range, detail::HostKernelRefBase &HostKernel,
+      detail::nd_range_view RangeView, detail::HostKernelRefBase &HostKernel,
       detail::DeviceKernelInfo *DeviceKernelInfo,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
-    submit_kernel_direct_impl(NDRDescT{Range}, HostKernel, DeviceKernelInfo,
-                              false, CodeLoc, IsTopCodeLoc);
+    submit_kernel_direct_impl(RangeView.toNDRDescT(), HostKernel,
+                              DeviceKernelInfo, false, CodeLoc, IsTopCodeLoc);
   }
 
   void submit_without_event(const detail::type_erased_cgfo_ty &CGF,

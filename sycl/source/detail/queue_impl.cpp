@@ -127,21 +127,15 @@ prepareSYCLEventAssociatedWithQueue(detail::queue_impl &QueueImpl) {
 }
 
 sycl::detail::NDRDescT nd_range_view::toNDRDescT() const {
-  NDRDescT NDRDesc;
-
-  NDRDesc.Dims = Dims;
-  for (size_t i = 0; i < Dims; ++i) {
-    NDRDesc.GlobalSize[i] = GlobalSize[i];
+  if (!MGlobalSize) {
+    return NDRDescT(nd_range<1>{1, 1});
+  } else if (MLocalSize) {
+    return NDRDescT(MGlobalSize, MLocalSize, MOffset, MDims);
+  } else if (MOffset) {
+    return NDRDescT(MGlobalSize, MOffset, MDims);
+  } else {
+    return NDRDescT(MGlobalSize, MSetNumWorkGroups, MDims);
   }
-  if (LocalSize)
-    for (size_t i = 0; i < Dims; ++i) {
-      NDRDesc.LocalSize[i] = LocalSize[i];
-    }
-  if (Offset)
-    for (size_t i = 0; i < Dims; ++i) {
-      NDRDesc.GlobalOffset[i] = Offset[i];
-    }
-  return NDRDesc;
 }
 
 const std::vector<event> &
