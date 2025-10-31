@@ -138,6 +138,8 @@ devops/dependencies-igc-dev.json @intel/sycl-matrix-reviewers @intel/dpcpp-esimd
 
 # Benchmarking scripts
 devops/scripts/benchmarks/ @intel/llvm-reviewers-benchmarking
+devops/actions/run-tests/benchmark/ @intel/llvm-reviewers-benchmarking
+.github/workflows/sycl-ur-perf-benchmarking.yml @intel/llvm-reviewers-benchmarking
 
 # JIT compiler
 sycl-jit/ @intel/llvm-reviewers-runtime @cperkinsintel @aelovikov-intel
