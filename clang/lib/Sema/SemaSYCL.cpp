@@ -7325,7 +7325,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "  }\n";
     O << "};\n";
     O << "static GlobalMapUpdater updater;\n";
-    O << "} //\n";
+    O << "} // namespace\n";
   }
 }
 
