@@ -2851,10 +2851,9 @@ public:
         !(ext::oneapi::experimental::detail::HasKernelPropertiesGetMethod<
             const KernelType &>::value) &&
         !(detail::KernelLambdaHasKernelHandlerArgT<KernelType, void>::value)) {
-      std::vector<event> DepEvents = {DepEvent};
       return detail::submit_kernel_direct_single_task<KernelName, true>(
           *this, ext::oneapi::experimental::empty_properties_t{}, KernelFunc,
-          DepEvents, TlsCodeLocCapture.query());
+          sycl::span<const event>(&DepEvent, 1), TlsCodeLocCapture.query());
     } else {
       return submit(
           [&](handler &CGH) {
@@ -3441,7 +3440,6 @@ public:
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     using KernelType = std::tuple_element_t<0, std::tuple<RestT...>>;
-
     // TODO The handler-less path does not support reductions, kernel
     // function properties and kernel functions with the kernel_handler
     // type argument yet.
@@ -3451,10 +3449,10 @@ public:
                             const KernelType &>::value) &&
                   !(detail::KernelLambdaHasKernelHandlerArgT<
                       KernelType, sycl::nd_item<Dims>>::value)) {
-      std::vector<event> DepEvents = {DepEvent};
       return detail::submit_kernel_direct_parallel_for<KernelName, true>(
           *this, ext::oneapi::experimental::empty_properties_t{}, Range,
-          Rest..., DepEvents, TlsCodeLocCapture.query());
+          Rest..., sycl::span<const event>(&DepEvent, 1),
+          TlsCodeLocCapture.query());
     } else {
       return submit(
           [&](handler &CGH) {
