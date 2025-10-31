@@ -25,12 +25,9 @@
 // CHECK-NEXT: detail/fwd/multi_ptr.hpp
 // CHECK-NEXT: exception.hpp
 // CHECK-NEXT: detail/string.hpp
-// CHECK-NEXT: stl_wrappers/cstdlib
 // CHECK-NEXT: functional.hpp
 // CHECK-NEXT: group.hpp
 // CHECK-NEXT: detail/common.hpp
-// CHECK-NEXT: stl_wrappers/cassert
-// CHECK-NEXT: stl_wrappers/assert.h
 // CHECK-NEXT: detail/generic_type_traits.hpp
 // CHECK-NEXT: aliases.hpp
 // CHECK-NEXT: bit_cast.hpp

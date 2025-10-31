@@ -36,6 +36,10 @@ using the built compiler located in `~/llvm/build/` and
 installed Unified Runtime in directory `~/ur_install`,
 and then **run** the benchmarks for `adapter_name` adapter.
 
+The scripts will try to reuse the files stored in `~/benchmarks_workdir/`. 
+If any dependant projects binaries are already built, they will not be rebuilt
+again if their tags match tags specified by benchmarks source code.
+
 >NOTE: By default `level_zero` adapter is used.
 
 >NOTE: Pay attention to the `--ur` parameter. It points directly to the directory where UR is installed.  
@@ -47,10 +51,6 @@ $ cmake -DCMAKE_BUILD_TYPE=Release -S~/llvm/unified-runtime -B~/ur_build -DCMAKE
 $ cmake --build ~/ur_build -j $(nproc)
 $ cmake --install ~/ur_build
 ```
-
-### Rebuild
-The scripts will try to reuse the files stored in `~/benchmarks_workdir/`, but the benchmarks will be rebuilt every time.  
-To avoid that, use `--no-rebuild` option.
 
 ## Results
 
@@ -115,7 +115,7 @@ The benchmarks scripts are used in a GitHub Actions workflow, and can be automat
 
 ![compute benchmarks](workflow.png "Compute Benchmarks CI job")
 
-To execute the benchmarks in CI, navigate to the `Actions` tab and then go to the `Run Benchmarks` workflow. Here, you will find a list of previous runs and a "Run workflow" button. Upon clicking the button, you will be prompted to fill in a form to customize your benchmark run. Important field is the `PR number`, which is the identifier for the Pull Request against which you want the benchmarks to run. Instead, you can specify `Commit hash` from within intel/llvm repository, or leave both empty to run benchmarks against the branch/tag the workflow started from (the value from dropdown list at the top).
+To execute the benchmarks in CI, navigate to the `Actions` tab and then go to the `SYCL Run Benchmarks` workflow. Here, you will find a list of previous runs and a "Run workflow" button. Upon clicking the button, you will be prompted to fill in a form to customize your benchmark run. Important field is the `PR number`, which is the identifier for the Pull Request against which you want the benchmarks to run. Instead, you can specify `Commit hash` from within intel/llvm repository, or leave both empty to run benchmarks against the branch/tag the workflow started from (the value from dropdown list at the top).
 
 Once all the information is entered, click the "Run workflow" button to initiate a new workflow run. This will execute the benchmarks and then post the results as a comment on the specified Pull Request.
 

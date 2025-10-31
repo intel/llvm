@@ -60,7 +60,7 @@ ModulePass *llvm::createGlobalOffsetPassLegacy() {
   return new GlobalOffsetLegacy();
 }
 
-// Helper function to collect all GEPs, PHIs and Loads in post-order.
+// Helper function to collect all Uses of Load's pointer operand in post-order.
 static void collectGlobalOffsetUses(Function *ImplicitOffsetIntrinsic,
                                     SmallVectorImpl<Instruction *> &LoadPtrUses,
                                     SmallVectorImpl<Instruction *> &Loads) {
@@ -246,11 +246,14 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
     L->eraseFromParent();
   }
 
-  // Remove all collected Loads and GEPs from the kernel.
+  // Try to remove all collected Loads and their Defs from the kernel.
   // PtrUses is returned by `collectGlobalOffsetUses` in topological order.
   // Walk it backwards so we don't violate users.
-  for (auto *I : reverse(PtrUses))
-    I->eraseFromParent();
+  for (auto *I : reverse(PtrUses)) {
+    // A Def might not be a GEP. Remove it if it has no use.
+    if (I->use_empty())
+      I->eraseFromParent();
+  }
 
   // Remove all collected CallInsts from the kernel.
   for (auto *U : make_early_inc_range(ImplicitOffsetIntrinsic->users()))
