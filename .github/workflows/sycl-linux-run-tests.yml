@@ -235,6 +235,7 @@ jobs:
     runs-on: ${{ fromJSON(inputs.runner) }}
     permissions:
       contents: write
+      packages: read
     container:
       image: ${{ inputs.image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'}}
       options: ${{ inputs.image_options }}
