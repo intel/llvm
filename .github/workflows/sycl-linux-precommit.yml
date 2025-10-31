@@ -144,6 +144,8 @@ jobs:
   E2E:
     needs: [build, detect_changes, compat_read_exclude]
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -231,6 +233,8 @@ jobs:
 
   test-perf:
     needs: [build, detect_changes]
+    permissions:
+      contents: write
     if: |
       always() && !cancelled()
       && needs.build.outputs.build_conclusion == 'success'

@@ -82,6 +82,8 @@ jobs:
 
   ubuntu2204_test:
     needs: [ubuntu2204_build]
+    permissions:
+      contents: write
     if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
@@ -169,6 +171,8 @@ jobs:
 
   ubuntu2404_oneapi_test:
     needs: [ubuntu2404_oneapi_build]
+    permissions:
+      contents: write
     if: ${{ always() && !cancelled() && needs.ubuntu2404_oneapi_build.outputs.build_conclusion == 'success' }}
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
@@ -230,6 +234,8 @@ jobs:
 
   cuda-run-tests:
     needs: [ubuntu2204_build, cuda-aws-start]
+    permissions:
+      contents: write
     if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
@@ -254,6 +260,8 @@ jobs:
 
   build-sycl-cts-linux:
     needs: ubuntu2204_build
+    permissions:
+      contents: write
     if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
@@ -270,6 +278,8 @@ jobs:
 
   run-sycl-cts-linux:
     needs: [ubuntu2204_build, build-sycl-cts-linux]
+    permissions:
+      contents: write
     if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false

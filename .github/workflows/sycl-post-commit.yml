@@ -48,6 +48,8 @@ jobs:
   e2e-lin:
     needs: [detect_changes, build-lin]
     if: ${{ always() && !cancelled() && needs.build-lin.outputs.build_conclusion == 'success' }}
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:

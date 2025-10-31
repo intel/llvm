@@ -22,6 +22,8 @@ jobs:
   # This job builds SYCL-CTS with -fsycl-use-spirv-backend-for-spirv-gen.
   build-sycl-cts:
     needs: ubuntu2204_build
+    permissions:
+      contents: write
     if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
@@ -39,6 +41,8 @@ jobs:
 
   run-sycl-cts:
     needs: [ubuntu2204_build, build-sycl-cts]
+    permissions:
+      contents: write
     if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
