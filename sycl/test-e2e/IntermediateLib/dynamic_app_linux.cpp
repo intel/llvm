@@ -2,7 +2,7 @@
 
 // build shared library
 // RUN: rm -rf %t.dir; mkdir -p %t.dir
-// RUN: %clangxx -fsycl -fPIC -shared -o %t.dir/simple_lib.so %S/Inputs/simple_lib.cpp
+// RUN: %clangxx -fsycl -fPIC %shared_lib -o %t.dir/simple_lib.so %S/Inputs/simple_lib.cpp
 
 // build app
 // RUN: %clangxx -DSO_PATH="%t.dir/simple_lib.so" -o %t.out %s %if preview-mode %{-Wno-unused-command-line-argument%}
