@@ -7302,22 +7302,30 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   }
 
   if (FreeFunctionCount > 0) {
+    // GlobalMapUpdater has to be in an anonymous namespace.
+    // Otherwise, if multiple translation units include the same integration
+    // header, there will be multiple varying definitions of GlobalMapUpdater
+    // with the same name across translation units, violating the C++'s One
+    // Definition Rule. Putting it in an anonymous namespace gives each
+    // translation unit its own unique definition.
+
     O << "\n#include <sycl/kernel_bundle.hpp>\n";
     O << "#include <sycl/detail/kernel_global_info.hpp>\n";
-    O << "namespace sycl {\n";
-    O << "inline namespace _V1 {\n";
-    O << "namespace detail {\n";
+    O << "namespace {\n";
     O << "struct GlobalMapUpdater {\n";
     O << "  GlobalMapUpdater() {\n";
     O << "    sycl::detail::free_function_info_map::add("
       << "sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, "
       << KernelDescs.size() << ");\n";
     O << "  }\n";
+    O << "  ~GlobalMapUpdater() {\n";
+    O << "    sycl::detail::free_function_info_map::remove("
+      << "sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, "
+      << KernelDescs.size() << ");\n";
+    O << "  }\n";
     O << "};\n";
     O << "static GlobalMapUpdater updater;\n";
-    O << "} // namespace detail\n";
-    O << "} // namespace _V1\n";
-    O << "} // namespace sycl\n";
+    O << "} // namespace\n";
   }
 }
 

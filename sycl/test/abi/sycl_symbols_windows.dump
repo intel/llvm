@@ -4393,6 +4393,7 @@
 ?release_external_semaphore@experimental@oneapi@ext@_V1@sycl@@YAXUexternal_semaphore@12345@AEBVqueue@45@@Z
 ?release_from_device_copy@experimental@oneapi@ext@_V1@sycl@@YAXPEBXAEBVcontext@45@@Z
 ?release_from_device_copy@experimental@oneapi@ext@_V1@sycl@@YAXPEBXAEBVqueue@45@@Z
+?remove@free_function_info_map@detail@_V1@sycl@@YAXPEBQEBDPEBII@Z
 ?removeDuplicateDevices@detail@_V1@sycl@@YA?BV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@AEBV45@@Z
 ?remquo_impl@detail@_V1@sycl@@YA?AVhalf@half_impl@123@V45123@0PEAH@Z
 ?remquo_impl@detail@_V1@sycl@@YAMMMPEAH@Z
