@@ -146,6 +146,7 @@ jobs:
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
     permissions:
       contents: write
+      packages: read
     strategy:
       fail-fast: false
       matrix:
@@ -235,6 +236,7 @@ jobs:
     needs: [build, detect_changes]
     permissions:
       contents: write
+      packages: read
     if: |
       always() && !cancelled()
       && needs.build.outputs.build_conclusion == 'success'

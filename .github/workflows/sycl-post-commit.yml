@@ -50,6 +50,7 @@ jobs:
     if: ${{ always() && !cancelled() && needs.build-lin.outputs.build_conclusion == 'success' }}
     permissions:
       contents: write
+      packages: read
     strategy:
       fail-fast: false
       matrix:
