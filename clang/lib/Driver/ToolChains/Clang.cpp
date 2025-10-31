@@ -5083,7 +5083,7 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   const Tool *T = TC.SelectTool(JA);
   auto Cmd = std::make_unique<Command>(JA, *T, ResponseFileSupport::None(),
                                        TCArgs.MakeArgString(ExecPath),
-                                       HostCompileArgs, std::nullopt);
+                                       HostCompileArgs, ArrayRef<InputInfo>{});
 
   C.addCommand(std::move(Cmd));
 }
@@ -10095,7 +10095,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     auto Cmd = std::make_unique<Command>(
         JA, *this, ResponseFileSupport::None(),
         TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
-        WrapperArgs, std::nullopt);
+        WrapperArgs, ArrayRef<InputInfo>{});
     C.addCommand(std::move(Cmd));
 
     if (WrapperCompileEnabled) {
@@ -10121,7 +10121,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       const char *Clang = C.getArgs().MakeArgString(ClangPath);
       auto PostWrapCompileCmd =
           std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
-                                    Clang, ClangArgs, std::nullopt);
+                                    Clang, ClangArgs, ArrayRef<InputInfo>{});
       C.addCommand(std::move(PostWrapCompileCmd));
     }
     return;
@@ -10407,7 +10407,7 @@ void OffloadDeps::constructJob(Compilation &C, const JobAction &JA,
   C.addCommand(std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),
       TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
-      CmdArgs, std::nullopt, Outputs));
+      CmdArgs, ArrayRef<InputInfo>{}, Outputs));
 }
 
 void OffloadDeps::ConstructJob(Compilation &C, const JobAction &JA,
@@ -10585,7 +10585,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
   auto Cmd = std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),
       TCArgs.MakeArgString(getToolChain().GetProgramPath(ToolName)),
-      TranslatorArgs, std::nullopt);
+      TranslatorArgs, ArrayRef<InputInfo>{});
 
   if (!ForeachArgs.empty()) {
     // Construct llvm-foreach command.
@@ -10632,7 +10632,8 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     llvm::sys::path::append(ForeachPath, "llvm-foreach");
     const char *Foreach = C.getArgs().MakeArgString(ForeachPath);
     C.addCommand(std::make_unique<Command>(
-        JA, *this, ResponseFileSupport::None(), Foreach, ForeachArgs, std::nullopt));
+        JA, *this, ResponseFileSupport::None(), Foreach, ForeachArgs,
+        ArrayRef<InputInfo>{}));
   } else
     C.addCommand(std::move(Cmd));
 }
@@ -11023,7 +11024,7 @@ void AppendFooter::ConstructJob(Compilation &C, const JobAction &JA,
   C.addCommand(std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),
       TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
-      CmdArgs, std::nullopt));
+      CmdArgs, ArrayRef<InputInfo>{}));
 }
 
 void SpirvToIrWrapper::ConstructJob(Compilation &C, const JobAction &JA,
@@ -11068,7 +11069,7 @@ void SpirvToIrWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   auto Cmd = std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),
       TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
-      CmdArgs, std::nullopt);
+      CmdArgs, ArrayRef<InputInfo>{});
   if (!ForeachInputs.empty()) {
     StringRef ParallelJobs =
         TCArgs.getLastArgValue(options::OPT_fsycl_max_parallel_jobs_EQ);
