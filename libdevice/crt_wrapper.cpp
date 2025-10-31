@@ -165,6 +165,12 @@ void _wassert(const wchar_t *wexpr, const wchar_t *wfile, unsigned line) {
 }
 #else
 DEVICE_EXTERN_C
+void *malloc(size_t size) {
+  return reinterpret_cast<void *>(0xEFEFEFEFEFEFEFEF);
+}
+DEVICE_EXTERN_C
+void free(void *ptr) { return ; }
+DEVICE_EXTERN_C
 void __assert_fail(const char *expr, const char *file, unsigned int line,
                    const char *func) {
   __devicelib_assert_fail(

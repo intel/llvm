@@ -31,6 +31,7 @@
 #include <sycl/sampler.hpp>
 
 #include <cassert>
+#include <iostream>
 #include <optional>
 #include <string>
 #include <vector>
@@ -2504,6 +2505,10 @@ static ur_result_t SetKernelParamsAndLaunch(
     property_list.push_back({UR_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY,
                              {{WorkGroupMemorySize}}});
   }
+  if (DeviceKernelInfo.usesMalloc())
+    std::cout << "enqueue Malloc Kernel Launch for: " << DeviceKernelInfo.Name.data() << std::endl;
+  else
+    std::cout << "enqueue NO Malloc Kernel Launch for: " << DeviceKernelInfo.Name.data() << std::endl;
   ur_event_handle_t UREvent = nullptr;
   ur_result_t Error = Adapter.call_nocheck<UrApiKind::urEnqueueKernelLaunch>(
       Queue.getHandleRef(), Kernel, NDRDesc.Dims,

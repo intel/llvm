@@ -25,6 +25,7 @@ DeviceKernelInfo::DeviceKernelInfo(const CompileTimeKernelInfoTy &Info)
 void DeviceKernelInfo::init(KernelNameStrRefT KernelName) {
   auto &PM = detail::ProgramManager::getInstance();
   MUsesAssert = PM.kernelUsesAssert(KernelName);
+  MUsesMalloc = PM.kernelUsesMalloc(KernelName);
   MImplicitLocalArgPos = PM.kernelImplicitLocalArgPos(KernelName);
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   MInitialized.store(true);
@@ -78,10 +79,17 @@ FastKernelSubcacheT &DeviceKernelInfo::getKernelSubcache() {
   assertInitialized();
   return MFastKernelSubcache;
 }
+
 bool DeviceKernelInfo::usesAssert() {
   assertInitialized();
   return MUsesAssert;
 }
+
+bool DeviceKernelInfo::usesMalloc() {
+  assertInitialized();
+  return MUsesMalloc;
+}
+
 const std::optional<int> &DeviceKernelInfo::getImplicitLocalArgPos() {
   assertInitialized();
   return MImplicitLocalArgPos;

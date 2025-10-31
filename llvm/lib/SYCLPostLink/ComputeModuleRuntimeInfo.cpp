@@ -128,6 +128,28 @@ static std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
   return SPIRKernelNames;
 }
 
+static std::vector<StringRef> getKernelNamesUsingMalloc(const Module &M) {
+  auto *DeviceMallocFunction = M.getFunction("malloc");
+  if (!DeviceMallocFunction)
+    return {};
+
+  auto TraverseResult =
+      traverseCGToFindSPIRKernels(DeviceMallocFunction);
+
+  if (TraverseResult.has_value())
+    return std::move(*TraverseResult);
+
+  // Here we reached "referenced-indirectly", so we need to find all kernels and
+  // return them.
+  std::vector<StringRef> SPIRKernelNames;
+  for (const Function &F : M) {
+    if (F.getCallingConv() == CallingConv::SPIR_KERNEL)
+      SPIRKernelNames.push_back(F.getName());
+  }
+
+  return SPIRKernelNames;
+}
+
 // Gets 1- to 3-dimension work-group related information for function Func.
 // Returns an empty vector if not present.
 template <typename T>
@@ -445,6 +467,11 @@ PropSetRegTy computeModuleProperties(const Module &M,
     std::vector<StringRef> FuncNames = getKernelNamesUsingAssert(M);
     for (const StringRef &FName : FuncNames)
       PropSet.add(PropSetRegTy::SYCL_ASSERT_USED, FName, true);
+  }
+  {
+    std::vector<StringRef> FuncNames = getKernelNamesUsingMalloc(M);
+    for (const StringRef &FName : FuncNames)
+      PropSet.add(PropSetRegTy::SYCL_MALLOC_USED, FName, true);
   }
   {
     std::vector<std::pair<StringRef, int>> ArgPos =
