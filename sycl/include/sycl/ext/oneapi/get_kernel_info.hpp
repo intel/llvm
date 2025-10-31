@@ -40,7 +40,8 @@ template <typename KernelName, typename Param>
 typename sycl::detail::is_kernel_device_specific_info_desc<Param>::return_type
 get_kernel_info(const context &Ctx, const device &Dev) {
   auto Bundle =
-      sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(Ctx);
+      sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(
+          Ctx, {Dev});
   return Bundle.template get_kernel<KernelName>().template get_info<Param>(Dev);
 }
 
@@ -49,7 +50,7 @@ typename sycl::detail::is_kernel_device_specific_info_desc<Param>::return_type
 get_kernel_info(const queue &Q) {
   auto Bundle =
       sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(
-          Q.get_context());
+          Q.get_context(), {Q.get_device()});
   return Bundle.template get_kernel<KernelName>().template get_info<Param>(
       Q.get_device());
 }
@@ -73,7 +74,7 @@ std::enable_if_t<ext::oneapi::experimental::is_kernel_v<Func>,
                      Param>::return_type>
 get_kernel_info(const context &ctxt, const device &dev) {
   auto Bundle = sycl::ext::oneapi::experimental::get_kernel_bundle<
-      Func, sycl::bundle_state::executable>(ctxt);
+      Func, sycl::bundle_state::executable>(ctxt, {dev});
   return Bundle.template ext_oneapi_get_kernel<Func>().template get_info<Param>(
       dev);
 }

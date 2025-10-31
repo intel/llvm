@@ -214,6 +214,22 @@ static bool hasCallToAFuncWithWGMetadata(Function &F) {
   return false;
 }
 
+// Recursively searches for a call to a function with parallel_for_work_item
+// metadata inside F.
+static bool hasCallToAFuncWithPFWIMetadata(Function &F) {
+  for (auto &BB : F)
+    for (auto &I : BB) {
+      if (isCallToAFuncMarkedWithMD(&I, PFWI_MD))
+        return true;
+      const CallInst *Call = dyn_cast<CallInst>(&I);
+      Function *F = dyn_cast_or_null<Function>(Call ? Call->getCalledFunction()
+                                                    : nullptr);
+      if (F && hasCallToAFuncWithPFWIMetadata(*F))
+        return true;
+    }
+  return false;
+}
+
 // Checks if this is a call to parallel_for_work_item.
 static bool isPFWICall(const Instruction *I) {
   return isCallToAFuncMarkedWithMD(I, PFWI_MD);
@@ -835,7 +851,14 @@ PreservedAnalyses SYCLLowerWGScopePass::run(Function &F,
         }
         continue;
       }
-      if (!mayHaveSideEffects(I))
+      // In addition to an instruction not having side effects, we end the range
+      // if the instruction is a call that contains, possibly several layers
+      // down the stack, a call to a parallel_for_work_item. Such calls should
+      // not be subject to lowering since they must be executed by every work
+      // item.
+      const CallInst *Call = dyn_cast<CallInst>(I);
+      if (!mayHaveSideEffects(I) ||
+          (Call && hasCallToAFuncWithPFWIMetadata(*Call->getCalledFunction())))
         continue;
       LLVM_DEBUG(llvm::dbgs() << "+++ Side effects: " << *I << "\n");
       if (!First)

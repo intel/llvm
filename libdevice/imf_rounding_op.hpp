@@ -670,10 +670,22 @@ template <typename Ty> Ty __fp_div(Ty x, Ty y, int rd) {
   const UTy sig_off_mask = (one_bits << (sizeof(UTy) * 8 - 1)) - 1;
 
   if (((x_exp == __iml_fp_config<Ty>::exp_mask) && (x_fra != 0x0)) ||
-      ((y_exp == __iml_fp_config<Ty>::exp_mask) && (y_fra != 0x0)) ||
-      ((y_bit & sig_off_mask) == 0x0)) {
+      ((y_exp == __iml_fp_config<Ty>::exp_mask) && (y_fra != 0x0))) {
     UTy tmp = __iml_fp_config<Ty>::nan_bits;
     return __builtin_bit_cast(Ty, tmp);
+  }
+
+  // 0.f / 0.f ----> NAN
+  if ((y_bit & sig_off_mask) == 0x0) {
+    if ((x_bit & sig_off_mask) == 0x0) {
+      UTy tmp = __iml_fp_config<Ty>::nan_bits;
+      return __builtin_bit_cast(Ty, tmp);
+    } else {
+      // return +inf if x_sig and y_sig are same otherwise return -inf
+      UTy tmp = (z_sig == 0) ? __iml_fp_config<Ty>::pos_inf_bits
+                             : __iml_fp_config<Ty>::neg_inf_bits;
+      return __builtin_bit_cast(Ty, tmp);
+    }
   }
 
   if ((x_exp == __iml_fp_config<Ty>::exp_mask) && (x_fra == 0x0)) {

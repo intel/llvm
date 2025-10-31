@@ -152,9 +152,21 @@ template <typename KernelName = sycl::detail::auto_name, typename KernelType>
 void single_task(queue Q, const KernelType &KernelObj,
                  const sycl::detail::code_location &CodeLoc =
                      sycl::detail::code_location::current()) {
-  submit(
-      std::move(Q),
-      [&](handler &CGH) { single_task<KernelName>(CGH, KernelObj); }, CodeLoc);
+  // TODO The handler-less path does not support kernel function properties
+  // and kernel functions with the kernel_handler type argument yet.
+  if constexpr (!(ext::oneapi::experimental::detail::
+                      HasKernelPropertiesGetMethod<
+                          const KernelType &>::value) &&
+                !(detail::KernelLambdaHasKernelHandlerArgT<KernelType,
+                                                           void>::value)) {
+    detail::submit_kernel_direct_single_task<KernelName>(
+        std::move(Q), empty_properties_t{}, KernelObj, CodeLoc);
+  } else {
+    submit(
+        std::move(Q),
+        [&](handler &CGH) { single_task<KernelName>(CGH, KernelObj); },
+        CodeLoc);
+  }
 }
 
 template <typename... ArgsT>
@@ -268,8 +280,8 @@ void nd_launch(queue Q, nd_range<Dimensions> Range, const KernelType &KernelObj,
                           const KernelType &>::value) &&
                 !(detail::KernelLambdaHasKernelHandlerArgT<
                     KernelType, sycl::nd_item<Dimensions>>::value)) {
-    detail::submit_kernel_direct<KernelName>(std::move(Q), empty_properties_t{},
-                                             Range, KernelObj);
+    detail::submit_kernel_direct_parallel_for<KernelName>(
+        std::move(Q), empty_properties_t{}, Range, KernelObj);
   } else {
     submit(std::move(Q), [&](handler &CGH) {
       nd_launch<KernelName>(CGH, Range, KernelObj,

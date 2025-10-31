@@ -638,8 +638,10 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
     CGData.MEvents.push_back(getSyclObjImpl(*ExternalEvent));
   }
 
+  auto &Deps = hasCommandGraph() ? MExtGraphDeps : MDefaultGraphDeps;
+
   // Sync with the last event for in order queue
-  EventImplPtr &LastEvent = MDefaultGraphDeps.LastEventPtr;
+  EventImplPtr &LastEvent = Deps.LastEventPtr;
   if (isInOrder() && LastEvent) {
     CGData.MEvents.push_back(LastEvent);
   }
@@ -653,9 +655,8 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
           MissedCleanupRequests.clear();
         });
 
-    if (MDefaultGraphDeps.LastBarrier &&
-        !MDefaultGraphDeps.LastBarrier->isEnqueued()) {
-      CGData.MEvents.push_back(MDefaultGraphDeps.LastBarrier);
+    if (Deps.LastBarrier && !Deps.LastBarrier->isEnqueued()) {
+      CGData.MEvents.push_back(Deps.LastBarrier);
     }
   }
 
@@ -683,7 +684,7 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
 
   // Barrier and un-enqueued commands synchronization for out or order queue
   if (!isInOrder() && !EventImpl->isEnqueued()) {
-    MDefaultGraphDeps.UnenqueuedCmdEvents.push_back(EventImpl);
+    Deps.UnenqueuedCmdEvents.push_back(EventImpl);
   }
 
   return CallerNeedsEvent ? EventImpl : nullptr;
