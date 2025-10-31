@@ -64,6 +64,9 @@ specification.*
 This extension adds the ability to reuse the same `event` object to track
 completion of multiple command submissions, rather than creating a new event for
 each submission.
+An `event` object is still only able to track one command at a time, but this
+extension allows an `event` to track a new command once the application no
+longer needs to track the previous one.
 This pattern may perform better on some implementations because fewer event
 objects need to be created and destroyed.
 This pattern may also be more familiar to users porting CUDA code to SYCL.
