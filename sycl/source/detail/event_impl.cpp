@@ -211,8 +211,9 @@ void event_impl::initHostProfilingInfo() {
   MHostProfilingInfo->setDevice(&Device);
 }
 
-void event_impl::setSubmittedQueue(std::weak_ptr<queue_impl> SubmittedQueue) {
-  MSubmittedQueue = std::move(SubmittedQueue);
+void event_impl::setSubmittedQueue(queue_impl *SubmittedQueue) {
+  MSubmittedQueue = SubmittedQueue->weak_from_this();
+  MSubmittedDevice = &SubmittedQueue->getDeviceImpl();
 }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -307,9 +308,7 @@ void event_impl::wait(bool *Success) {
 
 void event_impl::wait_and_throw() {
   wait();
-
-  if (std::shared_ptr<queue_impl> SubmittedQueue = MSubmittedQueue.lock())
-    SubmittedQueue->throw_asynchronous();
+  Scheduler::getInstance().flushAsyncExceptions();
 }
 
 void event_impl::checkProfilingPreconditions() const {
