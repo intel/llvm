@@ -805,7 +805,7 @@ clang::MakeDeductionFailureInfo(ASTContext &Context,
   case TemplateDeductionResult::ConstraintsNotSatisfied: {
     CNSInfo *Saved = new (Context) CNSInfo;
     Saved->TemplateArgs = Info.takeSugared();
-    Saved->Satisfaction = Info.AssociatedConstraintsSatisfaction;
+    Saved->Satisfaction = std::move(Info.AssociatedConstraintsSatisfaction);
     Result.Data = Saved;
     break;
   }
@@ -853,6 +853,7 @@ void DeductionFailureInfo::Destroy() {
 
   case TemplateDeductionResult::ConstraintsNotSatisfied:
     // FIXME: Destroy the template argument list?
+    static_cast<CNSInfo *>(Data)->Satisfaction.~ConstraintSatisfaction();
     Data = nullptr;
     if (PartialDiagnosticAt *Diag = getSFINAEDiagnostic()) {
       Diag->~PartialDiagnosticAt();
@@ -2180,9 +2181,18 @@ static bool IsVectorConversion(Sema &S, QualType FromType, QualType ToType,
 
   // There are no conversions between extended vector types, only identity.
   if (auto *ToExtType = ToType->getAs<ExtVectorType>()) {
-    if (FromType->getAs<ExtVectorType>()) {
-      // There are no conversions between extended vector types other than the
-      // identity conversion.
+    if (auto *FromExtType = FromType->getAs<ExtVectorType>()) {
+      // Implicit conversions require the same number of elements.
+      if (ToExtType->getNumElements() != FromExtType->getNumElements())
+        return false;
+
+      // Permit implicit conversions from integral values to boolean vectors.
+      if (ToType->isExtVectorBoolType() &&
+          FromExtType->getElementType()->isIntegerType()) {
+        ICK = ICK_Boolean_Conversion;
+        return true;
+      }
+      // There are no other conversions between extended vector types.
       return false;
     }
 
@@ -12792,7 +12802,8 @@ static void NoteFunctionCandidate(Sema &S, OverloadCandidate *Cand,
         << (unsigned)FnKindPair.first << (unsigned)ocs_non_template
         << FnDesc /* Ignored */;
     ConstraintSatisfaction Satisfaction;
-    if (S.CheckFunctionConstraints(Fn, Satisfaction))
+    if (S.CheckFunctionConstraints(Fn, Satisfaction, SourceLocation(),
+                                   /*ForOverloadResolution=*/true))
       break;
     S.DiagnoseUnsatisfiedConstraint(Satisfaction);
   }

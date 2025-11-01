@@ -4479,5 +4479,22 @@ public:
 _SPIRV_OP(BitwiseFunction, true, 7)
 #undef _SPIRV_OP
 
+class SPIRVPredicatedIOINTELInst : public SPIRVInstTemplateBase {
+public:
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_predicated_io;
+  }
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(internal::CapabilityPredicatedIOINTEL);
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVPredicatedIOINTELInst,                        \
+                            internal::Op##x##INTEL, __VA_ARGS__>               \
+      SPIRV##x##INTEL;
+_SPIRV_OP(PredicatedLoad, true, 6, true)
+_SPIRV_OP(PredicatedStore, false, 4, true)
+#undef _SPIRV_OP
 } // namespace SPIRV
 #endif // SPIRV_LIBSPIRV_SPIRVINSTRUCTION_H
