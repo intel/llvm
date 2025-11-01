@@ -129,7 +129,7 @@ jobs:
           llvm/utils/lit
           sycl/test-e2e          
     - name: Download compiler toolchain
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         name: ${{ inputs.toolchain_artifact }}
     - name: Extract SYCL toolchain

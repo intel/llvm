@@ -278,7 +278,7 @@ jobs:
       run: tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/toolchain .
     - name: Upload toolchain release
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: ${{ inputs.release_toolchain_artifact }}
         path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
@@ -300,7 +300,7 @@ jobs:
       run: tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/toolchain .
     - name: Upload toolchain
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: ${{ inputs.toolchain_artifact }}
         path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}

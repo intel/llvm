@@ -275,7 +275,7 @@ jobs:
         rm env_before env_after
     - name: Download SYCL toolchain
       if: inputs.toolchain_artifact != '' && github.event_name != 'workflow_run'
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         name: ${{ inputs.toolchain_artifact }}
     - name: Download SYCL toolchain [workflow_run]
