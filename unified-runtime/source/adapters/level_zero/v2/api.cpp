@@ -63,4 +63,54 @@ ur_result_t UR_APICALL urUSMPoolTrimToExp(ur_context_handle_t hContext,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+ur_result_t urGraphCreateExp(ur_context_handle_t hContext,
+                             ur_exp_graph_handle_t *phGraph, void *pNext) {
+  (void)hContext;
+  (void)phGraph;
+  (void)pNext;
+  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t
+urQueueInstantiateGraphExp(ur_exp_graph_handle_t hGraph,
+                           ur_exp_executable_graph_handle_t *phExecutableGraph,
+                           void *pNext) {
+  (void)hGraph;
+  (void)phExecutableGraph;
+  (void)pNext;
+  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urGraphDestroyExp(ur_exp_graph_handle_t hGraph) {
+  (void)hGraph;
+  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urGraphExecutableGraphDestroyExp(
+    ur_exp_executable_graph_handle_t hExecutableGraph) {
+  (void)hExecutableGraph;
+  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urGraphIsEmptyExp(ur_exp_graph_handle_t hGraph, bool *hResult) {
+  (void)hGraph;
+  if (hResult)
+    *hResult = false;
+  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urGraphDumpContentsExp(ur_exp_graph_handle_t hGraph,
+                                   const char *filePath, void *pNext) {
+  (void)hGraph;
+  (void)filePath;
+  (void)pNext;
+  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 } // namespace ur::level_zero
