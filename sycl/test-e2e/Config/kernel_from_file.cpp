@@ -15,7 +15,8 @@
 // RUN: %clangxx -Wno-error=ignored-attributes %sycl_include -DSYCL_DISABLE_FALLBACK_ASSERT %cxx_std_optionc++17 %include_option %t.h %s -o %t.out %sycl_options -Xclang -verify-ignore-unexpected=note,warning %if preview-mode %{-Wno-unused-command-line-argument%}
 // RUN: env SYCL_USE_KERNEL_SPV=%t.spv %{run} %t.out
 
-// Check backward compatibility: verify that SYCL object files can be unbundled to extract device code as in old-offloading-model workflows.
+// Check backward compatibility: verify that SYCL object files can be unbundled
+// to extract device code as in old-offloading-model workflows.
 // >> ---- unbundle compiler wrapper and asan device objects
 // RUN: clang-offload-bundler -type=o -targets=sycl-spir64-unknown-unknown -input=%sycl_static_libs_dir/libsycl-itt-compiler-wrappers.old%obj_ext -output=%t_compiler_wrappers.old.bc -unbundle
 // RUN: %if linux %{ clang-offload-bundler -type=o -targets=sycl-spir64-unknown-unknown -input=%sycl_static_libs_dir/libsycl-asan.old%obj_ext -output=%t_asan.old.bc -unbundle %}
@@ -26,7 +27,6 @@
 // >> ---- translate to SPIR-V
 // RUN: llvm-spirv -o %t.old.spv %t_app.old.bc
 // RUN: env SYCL_USE_KERNEL_SPV=%t.old.spv %{run} %t.out
-
 
 #include <iostream>
 #include <sycl/detail/core.hpp>

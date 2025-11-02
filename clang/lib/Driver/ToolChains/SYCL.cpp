@@ -700,7 +700,7 @@ getDeviceLibrariesLegacy(const Compilation &C, const llvm::Triple &TargetTriple,
   StringRef LibSuffix = ".bc";
   if (IsNewOffload)
     // For new offload model, we use packaged .bc files.
-    LibSuffix = IsWindowsMSVCEnv ? ".new.obj" : ".new.o";
+    LibSuffix = IsWindowsMSVCEnv ? ".obj" : ".o";
   auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {
     for (const DeviceLibOptInfo &Lib : LibsList) {
       if (!DeviceLibLinkInfo[Lib.DeviceLibOption])
@@ -807,7 +807,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   StringRef LibSuffix = ".bc";
   if (IsNewOffload)
     // For new offload model, we use packaged .bc files.
-    LibSuffix = IsWindowsMSVCEnv ? ".new.obj" : ".new.o";
+    LibSuffix = IsWindowsMSVCEnv ? ".obj" : ".o";
   auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {
     for (const StringRef &Lib : LibsList) {
       LibraryList.push_back(Args.MakeArgString(Twine(Lib) + LibSuffix));
@@ -1024,10 +1024,10 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       const bool IsSYCLNativeCPU =
           this->getToolChain().getTriple().isNativeCPU();
       StringRef LibPostfix = ".bc";
-      StringRef NewLibPostfix = ".new.o";
+      StringRef NewLibPostfix = ".o";
       if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
           C.getDriver().IsCLMode())
-        NewLibPostfix = ".new.obj";
+        NewLibPostfix = ".obj";
       std::string FileName = this->getToolChain().getInputFilename(II);
       StringRef InputFilename = llvm::sys::path::filename(FileName);
       // NativeCPU links against libclc (libspirv)

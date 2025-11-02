@@ -37,7 +37,8 @@
 // RUN: %clangxx wrapper.o a.o b.o -Wno-unused-command-line-argument -o app.exe %sycl_options
 // RUN: %{run} ./app.exe
 
-// Check backward compatibility: verify that SYCL object files can be unbundled to extract device code as in old-offloading-model workflows.
+// Check backward compatibility: verify that SYCL object files can be unbundled
+// to extract device code as in old-offloading-model workflows.
 // >> ---- bundle .o with .spv
 // >> run bundler
 // RUN: clang-offload-bundler -type=o -targets=host-x86_64,sycl-spir64-pc-linux-gnu -input=a.o -input=a_kernel.bc -output=a_fat.old.o
