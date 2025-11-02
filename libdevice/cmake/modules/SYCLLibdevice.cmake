@@ -1,26 +1,26 @@
 include(CheckCXXCompilerFlag)
 set(obj_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
-set(obj-new-offload_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
+set(obj-old-offload_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 if (MSVC)
   set(obj-suffix obj)
-  set(obj-new-offload-suffix new.obj)
+  set(obj-old-offload-suffix old.obj)
   set(spv_binary_dir "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
   set(install_dest_spv bin)
   set(devicelib_host_static_obj sycl-devicelib-host.lib)
-  set(devicelib_host_static_obj-new-offload sycl-devicelib-host.new.lib)
+  set(devicelib_host_static_obj-old-offload sycl-devicelib-host.old.lib)
 else()
   set(obj-suffix o)
-  set(obj-new-offload-suffix new.o)
+  set(obj-old-offload-suffix old.o)
   set(spv_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
   set(install_dest_spv lib${LLVM_LIBDIR_SUFFIX})
   set(devicelib_host_static_obj libsycl-devicelib-host.a)
-  set(devicelib_host_static_obj-new-offload libsycl-devicelib-host.new.a)
+  set(devicelib_host_static_obj-old-offload libsycl-devicelib-host.old.a)
 endif()
 set(spv-suffix spv)
 set(bc-suffix bc)
 set(bc_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 set(install_dest_obj lib${LLVM_LIBDIR_SUFFIX})
-set(install_dest_obj-new-offload lib${LLVM_LIBDIR_SUFFIX})
+set(install_dest_obj-old-offload lib${LLVM_LIBDIR_SUFFIX})
 set(install_dest_bc lib${LLVM_LIBDIR_SUFFIX})
 
 string(CONCAT sycl_targets_opt
@@ -80,8 +80,8 @@ endif()
 
 add_custom_target(libsycldevice)
 
-set(filetypes obj obj-new-offload spv bc)
-set(filetypes_no_spv obj obj-new-offload bc)
+set(filetypes obj obj-old-offload spv bc)
+set(filetypes_no_spv obj obj-old-offload bc)
 
 foreach(filetype IN LISTS filetypes)
   add_custom_target(libsycldevice-${filetype})
@@ -109,9 +109,9 @@ endif()
 
 set(spv_device_compile_opts -fsycl-device-only -fsycl-device-obj=spirv)
 set(bc_device_compile_opts -fsycl-device-only -fsycl-device-obj=llvmir)
-set(obj-new-offload_device_compile_opts -fsycl -c --offload-new-driver
+set(obj-old-offload_device_compile_opts -fsycl -c ${sycl_targets_opt})
+set(obj_device_compile_opts -fsycl -c --offload-new-driver
   -foffload-lto=thin ${sycl_targets_opt})
-set(obj_device_compile_opts -fsycl -c ${sycl_targets_opt})
 
 # Compiles and installs a single device library.
 #
@@ -364,47 +364,50 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
                             -I${UR_SANITIZER_INCLUDE_DIR}
                             -I${CMAKE_CURRENT_SOURCE_DIR})
 
-  set(sanitizer_pvc_compile_opts_obj -fsycl -c
+  set(sanitizer_pvc_compile_opts_obj -fsycl -c --offload-new-driver
+                                -foffload-lto=thin
                                 ${sanitizer_generic_compile_opts}
                                 ${sycl_pvc_target_opt}
                                 -D__LIBDEVICE_PVC__)
 
-  set(sanitizer_cpu_compile_opts_obj -fsycl -c
+  set(sanitizer_cpu_compile_opts_obj -fsycl -c --offload-new-driver
+                                -foffload-lto=thin
                                 ${sanitizer_generic_compile_opts}
                                 ${sycl_cpu_target_opt}
                                 -D__LIBDEVICE_CPU__)
 
-  set(sanitizer_dg2_compile_opts_obj -fsycl -c
+  set(sanitizer_dg2_compile_opts_obj -fsycl -c --offload-new-driver
+                                -foffload-lto=thin
                                 ${sanitizer_generic_compile_opts}
                                 ${sycl_dg2_target_opt}
                                 -D__LIBDEVICE_DG2__)
 
-  set(sanitizer_pvc_compile_opts_bc  ${bc_device_compile_opts}
+  set(sanitizer_pvc_compile_opts_bc  ${bc_device_compile_opts} --offload-new-driver
+                                -foffload-lto=thin
                                 ${sanitizer_generic_compile_opts}
                                 -D__LIBDEVICE_PVC__)
 
-  set(sanitizer_cpu_compile_opts_bc  ${bc_device_compile_opts}
+  set(sanitizer_cpu_compile_opts_bc  ${bc_device_compile_opts} --offload-new-driver
+                                -foffload-lto=thin
                                 ${sanitizer_generic_compile_opts}
                                 -D__LIBDEVICE_CPU__)
 
-  set(sanitizer_dg2_compile_opts_bc  ${bc_device_compile_opts}
+  set(sanitizer_dg2_compile_opts_bc  ${bc_device_compile_opts} --offload-new-driver
+                                -foffload-lto=thin
                                 ${sanitizer_generic_compile_opts}
                                 -D__LIBDEVICE_DG2__)
 
-  set(sanitizer_pvc_compile_opts_obj-new-offload -fsycl -c --offload-new-driver
-                                            -foffload-lto=thin
+  set(sanitizer_pvc_compile_opts_obj-old-offload -fsycl -c
                                             ${sanitizer_generic_compile_opts}
                                             ${sycl_pvc_target_opt}
                                             -D__LIBDEVICE_PVC__)
 
-  set(sanitizer_cpu_compile_opts_obj-new-offload -fsycl -c --offload-new-driver
-                                            -foffload-lto=thin
+  set(sanitizer_cpu_compile_opts_obj-old-offload -fsycl -c
                                             ${sanitizer_generic_compile_opts}
                                             ${sycl_cpu_target_opt}
                                             -D__LIBDEVICE_CPU__)
 
-  set(sanitizer_dg2_compile_opts_obj-new-offload -fsycl -c --offload-new-driver
-                                            -foffload-lto=thin
+  set(sanitizer_dg2_compile_opts_obj-old-offload -fsycl -c
                                             ${sanitizer_generic_compile_opts}
                                             ${sycl_dg2_target_opt}
                                             -D__LIBDEVICE_DG2__)
@@ -704,8 +707,7 @@ if (NOT WIN32)
   add_imf_host_cxx_flags_compile_flags_if_supported("-fcf-protection=full")
 endif()
 
-set(obj-new-offload_host_compile_opts ${imf_host_cxx_flags} --offload-new-driver
-  -foffload-lto=thin)
+set(obj-old-offload_host_compile_opts ${imf_host_cxx_flags})
 set(obj_host_compile_opts ${imf_host_cxx_flags})
 
 foreach(datatype IN ITEMS fp32 fp64 bf16)
@@ -834,9 +836,9 @@ foreach(arch IN LISTS full_build_archs)
            COMPONENT libsycldevice)
 endforeach()
 
-# Add host device imf libraries for obj and new offload objects.
+# Add host device imf libraries for obj and old offload objects.
 foreach(dtype IN ITEMS bf16 fp32 fp64)
-  foreach(ftype IN ITEMS obj obj-new-offload)
+  foreach(ftype IN ITEMS obj obj-old-offload)
     set(tgt_name imf_fallback_${dtype}_host_${ftype})
 
     add_lib_imf(fallback-imf-${dtype}-host
@@ -864,7 +866,7 @@ foreach(dtype IN ITEMS bf16 fp32 fp64)
   endforeach()
 endforeach()
 
-foreach(ftype IN ITEMS obj obj-new-offload)
+foreach(ftype IN ITEMS obj obj-old-offload)
   add_custom_target(imf_host_${ftype}
     DEPENDS ${${ftype}_binary_dir}/${devicelib_host_static_${ftype}})
   add_custom_command(
