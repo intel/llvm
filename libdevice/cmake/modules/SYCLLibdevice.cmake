@@ -109,7 +109,7 @@ endif()
 
 set(spv_device_compile_opts -fsycl-device-only -fsycl-device-obj=spirv)
 set(bc_device_compile_opts -fsycl-device-only -fsycl-device-obj=llvmir)
-set(obj-old-offload_device_compile_opts -fsycl -c ${sycl_targets_opt})
+set(obj-old-offload_device_compile_opts -fsycl -c ${sycl_targets_opt} --no-offload-new-driver)
 set(obj_device_compile_opts -fsycl -c --offload-new-driver
   -foffload-lto=thin ${sycl_targets_opt})
 
@@ -397,17 +397,17 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
                                 ${sanitizer_generic_compile_opts}
                                 -D__LIBDEVICE_DG2__)
 
-  set(sanitizer_pvc_compile_opts_obj-old-offload -fsycl -c
+  set(sanitizer_pvc_compile_opts_obj-old-offload -fsycl -c --no-offload-new-driver
                                             ${sanitizer_generic_compile_opts}
                                             ${sycl_pvc_target_opt}
                                             -D__LIBDEVICE_PVC__)
 
-  set(sanitizer_cpu_compile_opts_obj-old-offload -fsycl -c
+  set(sanitizer_cpu_compile_opts_obj-old-offload -fsycl -c --no-offload-new-driver
                                             ${sanitizer_generic_compile_opts}
                                             ${sycl_cpu_target_opt}
                                             -D__LIBDEVICE_CPU__)
 
-  set(sanitizer_dg2_compile_opts_obj-old-offload -fsycl -c
+  set(sanitizer_dg2_compile_opts_obj-old-offload -fsycl -c --no-offload-new-driver
                                             ${sanitizer_generic_compile_opts}
                                             ${sycl_dg2_target_opt}
                                             -D__LIBDEVICE_DG2__)
@@ -707,7 +707,7 @@ if (NOT WIN32)
   add_imf_host_cxx_flags_compile_flags_if_supported("-fcf-protection=full")
 endif()
 
-set(obj-old-offload_host_compile_opts ${imf_host_cxx_flags})
+set(obj-old-offload_host_compile_opts ${imf_host_cxx_flags} --no-offload-new-driver)
 set(obj_host_compile_opts ${imf_host_cxx_flags})
 
 foreach(datatype IN ITEMS fp32 fp64 bf16)

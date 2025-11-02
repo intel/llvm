@@ -19,7 +19,7 @@
 // RUN: llvm-link -o=app.bc a_kernel.bc b_kernel.bc %sycl_static_libs_dir/libsycl-itt-compiler-wrappers.bc %sycl_static_libs_dir/libsycl-itt-stubs.bc %sycl_static_libs_dir/libsycl-itt-user-wrappers.bc
 
 // >> ---- produce entries data
-// RUN: sycl-post-link -split=auto -emit-param-info -symbols -emit-exported-symbols  -o test.table app.bc
+// RUN: sycl-post-link -split=auto -emit-param-info -symbols -emit-exported-symbols -o test.table app.bc
 //
 // >> ---- do table transformations from bc to spv entries
 // RUN: file-table-tform -extract=Code -drop_titles -o test_spv_in.table test.table
@@ -37,27 +37,44 @@
 // RUN: %clangxx wrapper.o a.o b.o -Wno-unused-command-line-argument -o app.exe %sycl_options
 // RUN: %{run} ./app.exe
 
-// Check backward compatibility: verify that legacy SYCL object files can be unbundled to extract device code as in previous workflows.
+// Check backward compatibility: verify that SYCL object files can be unbundled to extract device code as in old-offloading-model workflows.
 // >> ---- bundle .o with .spv
 // >> run bundler
-// RUN: clang-offload-bundler -type=o -targets=host-x86_64,sycl-spir64-pc-linux-gnu -input=a.o -input=a_kernel.bc -output=a_fat.o
-// RUN: clang-offload-bundler -type=o -targets=host-x86_64,sycl-spir64-pc-linux-gnu -input=b.o -input=b_kernel.bc -output=b_fat.o
+// RUN: clang-offload-bundler -type=o -targets=host-x86_64,sycl-spir64-pc-linux-gnu -input=a.o -input=a_kernel.bc -output=a_fat.old.o
+// RUN: clang-offload-bundler -type=o -targets=host-x86_64,sycl-spir64-pc-linux-gnu -input=b.o -input=b_kernel.bc -output=b_fat.old.o
 //
 // >> ---- unbundle fat objects
-// RUN: clang-offload-bundler -type=o -targets=host-x86_64,sycl-spir64-pc-linux-gnu -output=a.o -output=a_kernel.bc -input=a_fat.o -unbundle
-// RUN: clang-offload-bundler -type=o -targets=host-x86_64,sycl-spir64-pc-linux-gnu -output=b.o -output=b_kernel.bc -input=b_fat.o -unbundle
+// RUN: clang-offload-bundler -type=o -targets=host-x86_64,sycl-spir64-pc-linux-gnu -output=a.old.o -output=a_kernel.old.bc -input=a_fat.old.o -unbundle
+// RUN: clang-offload-bundler -type=o -targets=host-x86_64,sycl-spir64-pc-linux-gnu -output=b.old.o -output=b_kernel.old.bc -input=b_fat.old.o -unbundle
 //
 // As we are doing a separate device compilation here, we need to explicitly
 // add the device lib instrumentation (itt_compiler_wrapper)
 // >> ---- unbundle compiler wrapper device object
-// RUN: clang-offload-bundler -type=o -targets=sycl-spir64-unknown-unknown -input=%sycl_static_libs_dir/libsycl-itt-compiler-wrappers%obj_ext -output=compiler_wrappers.bc -unbundle
-// RUN: clang-offload-bundler -type=o -targets=sycl-spir64-unknown-unknown -input=%sycl_static_libs_dir/libsycl-itt-stubs%obj_ext -output=itt_stubs.bc -unbundle
-// RUN: clang-offload-bundler -type=o -targets=sycl-spir64-unknown-unknown -input=%sycl_static_libs_dir/libsycl-itt-user-wrappers%obj_ext -output=user_wrappers.bc -unbundle
+// RUN: clang-offload-bundler -type=o -targets=sycl-spir64-unknown-unknown -input=%sycl_static_libs_dir/libsycl-itt-compiler-wrappers.old%obj_ext -output=compiler_wrappers.old.bc -unbundle
+// RUN: clang-offload-bundler -type=o -targets=sycl-spir64-unknown-unknown -input=%sycl_static_libs_dir/libsycl-itt-stubs.old%obj_ext -output=itt_stubs.old.bc -unbundle
+// RUN: clang-offload-bundler -type=o -targets=sycl-spir64-unknown-unknown -input=%sycl_static_libs_dir/libsycl-itt-user-wrappers.old%obj_ext -output=user_wrappers.old.bc -unbundle
 //
 // >> ---- link device code
-// RUN: llvm-link -o=app.bc a_kernel.bc b_kernel.bc compiler_wrappers.bc itt_stubs.bc user_wrappers.bc
-
-
+// RUN: llvm-link -o=app.old.bc a_kernel.old.bc b_kernel.old.bc compiler_wrappers.old.bc itt_stubs.old.bc user_wrappers.old.bc
+//
+// >> ---- produce entries data
+// RUN: sycl-post-link -split=auto -emit-param-info -symbols -emit-exported-symbols -o test.old.table app.old.bc
+//
+// >> ---- do table transformations from bc to spv entries
+// RUN: file-table-tform -extract=Code -drop_titles -o test_spv_in.old.table test.old.table
+// RUN: llvm-foreach --in-file-list=test_spv_in.old.table --in-replace=test_spv_in.old.table --out-ext=spv --out-file-list=test_spv_out.old.table --out-replace=test_spv_out.old.table -- llvm-spirv -o test_spv_out.old.table -spirv-allow-extra-diexpressions -spirv-allow-unknown-intrinsics=llvm.genx. -spirv-ext=-all test_spv_in.old.table
+// RUN: file-table-tform -replace=Code,Code -o test_spv.old.table test.old.table test_spv_out.old.table
+//
+// >> ---- wrap device binary
+// >> produce .bc
+// RUN: clang-offload-wrapper -o wrapper.old.bc -host=x86_64 -kind=sycl -target=spir64 -batch test_spv.old.table
+//
+// >> compile .bc to .o
+// RUN: %clangxx -Wno-error=override-module -c wrapper.old.bc -o wrapper.old.o %if preview-mode %{-Wno-unused-command-line-argument%}
+//
+// >> ---- link the full hetero app
+// RUN: %clangxx wrapper.old.o a.old.o b.old.o -Wno-unused-command-line-argument -o app.old.exe %sycl_options
+// RUN: %{run} ./app.old.exe
 
 //==----------- test.cpp - Tests SYCL separate compilation -----------------==//
 //

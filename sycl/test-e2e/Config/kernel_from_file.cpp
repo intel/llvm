@@ -15,13 +15,17 @@
 // RUN: %clangxx -Wno-error=ignored-attributes %sycl_include -DSYCL_DISABLE_FALLBACK_ASSERT %cxx_std_optionc++17 %include_option %t.h %s -o %t.out %sycl_options -Xclang -verify-ignore-unexpected=note,warning %if preview-mode %{-Wno-unused-command-line-argument%}
 // RUN: env SYCL_USE_KERNEL_SPV=%t.spv %{run} %t.out
 
-// Check backward compatibility: verify that legacy SYCL object files can be unbundled to extract device code as in previous workflows.
+// Check backward compatibility: verify that SYCL object files can be unbundled to extract device code as in old-offloading-model workflows.
 // >> ---- unbundle compiler wrapper and asan device objects
-// RUN: clang-offload-bundler -type=o -targets=sycl-spir64-unknown-unknown -input=%sycl_static_libs_dir/libsycl-itt-compiler-wrappers%obj_ext -output=%t_compiler_wrappers.bc -unbundle
-// RUN: %if linux %{ clang-offload-bundler -type=o -targets=sycl-spir64-unknown-unknown -input=%sycl_static_libs_dir/libsycl-asan%obj_ext -output=%t_asan.bc -unbundle %}
+// RUN: clang-offload-bundler -type=o -targets=sycl-spir64-unknown-unknown -input=%sycl_static_libs_dir/libsycl-itt-compiler-wrappers.old%obj_ext -output=%t_compiler_wrappers.old.bc -unbundle
+// RUN: %if linux %{ clang-offload-bundler -type=o -targets=sycl-spir64-unknown-unknown -input=%sycl_static_libs_dir/libsycl-asan.old%obj_ext -output=%t_asan.old.bc -unbundle %}
 
 // >> ---- link device code
-// RUN: %if linux %{ llvm-link -o=%t_app.bc %t.bc %t_compiler_wrappers.bc %t_asan.bc %} %else %{ llvm-link -o=%t_app.bc %t.bc %t_compiler_wrappers.bc %}
+// RUN: %if linux %{ llvm-link -o=%t_app.old.bc %t.bc %t_compiler_wrappers.old.bc %t_asan.old.bc %} %else %{ llvm-link -o=%t_app.old.bc %t.bc %t_compiler_wrappers.old.bc %}
+
+// >> ---- translate to SPIR-V
+// RUN: llvm-spirv -o %t.old.spv %t_app.old.bc
+// RUN: env SYCL_USE_KERNEL_SPV=%t.old.spv %{run} %t.out
 
 
 #include <iostream>
