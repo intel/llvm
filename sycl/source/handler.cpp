@@ -887,7 +887,7 @@ event handler::finalize() {
   //
   // For commands other than kernel submission, if an event has not been
   // requested, the queue supports events discarding, and the scheduler
-  // might have been bypassed (not supported yet), the event can be skipped.
+  // could have been bypassed (not supported yet), the event can be skipped.
   bool DiscardEvent =
       (type != detail::CGType::Kernel && KernelSchedulerBypass &&
        !impl->MEventNeeded && Queue->supportsDiscardingPiEvents());
