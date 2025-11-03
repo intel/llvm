@@ -17,8 +17,8 @@ RUN /install.sh
 # This causes linking errors when building SYCL runtime.
 # Bug: https://github.com/intel/llvm/issues/15935
 # Workaround: build zstd from sources with -fPIC flag.
-COPY scripts/build_zstd_1_5_6_ub24.sh /build_zstd_1_5_6_ub24.sh
-RUN /build_zstd_1_5_6_ub24.sh
+COPY scripts/build_zstd.sh /build_zstd.sh
+RUN /build_zstd.sh
 
 COPY scripts/create-sycl-user.sh /user-setup.sh
 RUN /user-setup.sh
