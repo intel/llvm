@@ -366,14 +366,6 @@ event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
                !EventImpl.hasCommandGraph();
       });
 
-  // If we have an empty in-order queue and no dependencies, we can just return
-  // a trivially finished event.
-  if (is_in_order() && !impl->hasCommandGraph() && !impl->MIsProfilingEnabled &&
-      AllEventsEmptyOrNop && ext_oneapi_empty()) {
-    return detail::createSyclObjFromImpl<event>(
-        detail::event_impl::create_default_event());
-  }
-
   if (WaitList.empty() || AllEventsEmptyOrNop)
     return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(); }, CodeLoc);
   else
