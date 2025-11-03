@@ -5499,7 +5499,7 @@ __urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleExp(
     /// [in] pointer to device USM memory
     void *pMem,
     /// [out][optional] a pointer to the IPC memory handle data
-    void *pIPCMemHandleData,
+    void **ppIPCMemHandleData,
     /// [out][optional] size of the resulting IPC memory handle data
     size_t *pIPCMemHandleDataSizeRet) {
 
@@ -5510,7 +5510,7 @@ __urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleExp(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnGetMemHandleExp(hContext, pMem, pIPCMemHandleData,
+  return pfnGetMemHandleExp(hContext, pMem, ppIPCMemHandleData,
                             pIPCMemHandleDataSizeRet);
 }
 
