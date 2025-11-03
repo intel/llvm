@@ -514,7 +514,7 @@ EventImplPtr queue_impl::submit_command_to_graph(
     std::unique_ptr<detail::CG> CommandGroup, sycl::detail::CGType CGType,
     sycl::ext::oneapi::experimental::node_type UserFacingNodeType) {
   auto EventImpl = detail::event_impl::create_completed_host_event();
-  EventImpl->setSubmittedQueue(weak_from_this());
+  EventImpl->setSubmittedQueue(this);
   ext::oneapi::experimental::detail::node_impl *NodeImpl = nullptr;
 
   // GraphImpl is read and written in this scope so we lock this graph
