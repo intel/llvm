@@ -9,6 +9,8 @@
 #include <sycl/properties/all_properties.hpp>
 #include <sycl/usm.hpp>
 
+namespace FreeFunctionEventsHelpers {
+
 inline ur_result_t after_urKernelGetInfo(void *pParams) {
   auto params = *static_cast<ur_kernel_get_info_params_t *>(pParams);
   constexpr char MockKernel[] = "TestKernel";
@@ -23,16 +25,20 @@ inline ur_result_t after_urKernelGetInfo(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-static thread_local size_t counter_urEnqueueKernelLaunch = 0;
-inline ur_result_t redefined_urEnqueueKernelLaunch(void *pParams) {
-  ++counter_urEnqueueKernelLaunch;
+static thread_local size_t counter_urEnqueueKernelLaunchWithArgsExp = 0;
+inline ur_result_t redefined_urEnqueueKernelLaunchWithArgsExp(void *pParams) {
+  ++counter_urEnqueueKernelLaunchWithArgsExp;
+  auto params =
+      *static_cast<ur_enqueue_kernel_launch_with_args_exp_params_t *>(pParams);
+  EXPECT_EQ(*params.pphEvent, nullptr);
   return UR_RESULT_SUCCESS;
 }
 
 static thread_local size_t counter_urEnqueueKernelLaunchWithEvent = 0;
 inline ur_result_t redefined_urEnqueueKernelLaunchWithEvent(void *pParams) {
   ++counter_urEnqueueKernelLaunchWithEvent;
-  auto params = *static_cast<ur_enqueue_kernel_launch_params_t *>(pParams);
+  auto params =
+      *static_cast<ur_enqueue_kernel_launch_with_args_exp_params_t *>(pParams);
   EXPECT_NE(*params.pphEvent, nullptr);
   return UR_RESULT_SUCCESS;
 }
@@ -69,3 +75,5 @@ inline ur_result_t after_urEnqueueEventsWaitWithBarrier(void *pParams) {
   timestamp_urEnqueueEventsWaitWithBarrier = std::chrono::steady_clock::now();
   return UR_RESULT_SUCCESS;
 }
+
+} // namespace FreeFunctionEventsHelpers

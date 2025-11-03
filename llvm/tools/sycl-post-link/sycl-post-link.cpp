@@ -540,8 +540,9 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
 
   std::unique_ptr<module_split::ModuleSplitterBase> Splitter =
       module_split::getDeviceCodeSplitter(
-          module_split::ModuleDesc{std::move(M)}, SplitMode, IROutputOnly,
-          EmitOnlyKernelsAsEntryPoints, AllowDeviceImageDependencies);
+          std::make_unique<module_split::ModuleDesc>(std::move(M)), SplitMode,
+          IROutputOnly, EmitOnlyKernelsAsEntryPoints,
+          AllowDeviceImageDependencies);
   bool SplitOccurred = Splitter->remainingSplits() > 1;
   Modified |= SplitOccurred;
 
@@ -562,10 +563,10 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
   // same time, because it leads to a huge RAM consumption by the tool on bigger
   // inputs.
   while (Splitter->hasMoreSplits()) {
-    module_split::ModuleDesc MDesc = Splitter->nextSplit();
-    DUMP_ENTRY_POINTS(MDesc.entries(), MDesc.Name.c_str(), 1);
+    std::unique_ptr<module_split::ModuleDesc> MDesc = Splitter->nextSplit();
+    DUMP_ENTRY_POINTS(MDesc->entries(), MDesc->Name.c_str(), 1);
 
-    MDesc.fixupLinkageOfDirectInvokeSimdTargets();
+    MDesc->fixupLinkageOfDirectInvokeSimdTargets();
 
     ESIMDProcessingOptions Options = {SplitMode,
                                       EmitOnlyKernelsAsEntryPoints,
@@ -577,9 +578,11 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
     auto ModulesOrErr =
         handleESIMD(std::move(MDesc), Options, Modified, SplitOccurred);
     CHECK_AND_EXIT(ModulesOrErr.takeError());
-    SmallVector<module_split::ModuleDesc, 2> &MMs = *ModulesOrErr;
+    SmallVector<std::unique_ptr<module_split::ModuleDesc>, 2> &MMs =
+        *ModulesOrErr;
     assert(MMs.size() && "at least one module is expected after ESIMD split");
-    SmallVector<module_split::ModuleDesc, 2> MMsWithDefaultSpecConsts;
+    SmallVector<std::unique_ptr<module_split::ModuleDesc>, 2>
+        MMsWithDefaultSpecConsts;
     Modified |=
         handleSpecializationConstants(MMs, SCMode, MMsWithDefaultSpecConsts,
                                       GenerateDeviceImageWithDefaultSpecConsts);
@@ -589,8 +592,8 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
         error("some modules had to be split, '-" + IROutputOnly.ArgStr +
               "' can't be used");
       }
-      MMs.front().cleanup(AllowDeviceImageDependencies);
-      saveModuleIR(MMs.front().getModule(), OutputFiles[0].Filename);
+      MMs.front()->cleanup(AllowDeviceImageDependencies);
+      saveModuleIR(MMs.front()->getModule(), OutputFiles[0].Filename);
       return Tables;
     }
     // Empty IR file name directs saveModule to generate one and save IR to
@@ -603,18 +606,19 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
       errs() << "sycl-post-link NOTE: no modifications to the input LLVM IR "
                 "have been made\n";
     }
-    for (module_split::ModuleDesc &IrMD : MMs) {
-      IsBF16DeviceLibUsed |= isSYCLDeviceLibBF16Used(IrMD.getModule());
-      saveModule(Tables, IrMD, ID, OutputPrefix, OutIRFileName);
+    for (const std::unique_ptr<module_split::ModuleDesc> &IrMD : MMs) {
+      IsBF16DeviceLibUsed |= isSYCLDeviceLibBF16Used(IrMD->getModule());
+      saveModule(Tables, *IrMD, ID, OutputPrefix, OutIRFileName);
     }
 
     ++ID;
 
     if (!MMsWithDefaultSpecConsts.empty()) {
       for (size_t i = 0; i != MMsWithDefaultSpecConsts.size(); ++i) {
-        module_split::ModuleDesc &IrMD = MMsWithDefaultSpecConsts[i];
-        IsBF16DeviceLibUsed |= isSYCLDeviceLibBF16Used(IrMD.getModule());
-        saveModule(Tables, IrMD, ID, OutputPrefix, OutIRFileName);
+        const std::unique_ptr<module_split::ModuleDesc> &IrMD =
+            MMsWithDefaultSpecConsts[i];
+        IsBF16DeviceLibUsed |= isSYCLDeviceLibBF16Used(IrMD->getModule());
+        saveModule(Tables, *IrMD, ID, OutputPrefix, OutIRFileName);
       }
 
       ++ID;

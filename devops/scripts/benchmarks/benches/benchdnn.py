@@ -66,8 +66,12 @@ class OneDnnBench(Suite):
                 self.git_tag(),
                 Path(options.workdir),
                 "onednn",
-                force_rebuild=True,
+                use_installdir=False,
             )
+
+        if not self.project.needs_rebuild():
+            log.info(f"Rebuilding {self.project.name} skipped")
+            return
 
         extra_cmake_args = [
             f"-DCMAKE_PREFIX_PATH={options.sycl}",
@@ -80,7 +84,6 @@ class OneDnnBench(Suite):
         ]
         self.project.configure(
             extra_cmake_args,
-            install_prefix=False,
             add_sycl=True,
         )
         self.project.build(

@@ -67,6 +67,8 @@ jobs:
               - devops/dependencies-igc-dev.json
             benchmarks:
               - 'devops/scripts/benchmarks/**'
+              - 'devops/actions/run-tests/benchmark/**'
+              - '.github/workflows/sycl-ur-perf-benchmarking.yml'
             perf-tests:
               - sycl/test-e2e/PerformanceTests/**
             esimd:

@@ -22,11 +22,11 @@
 #include <optional>
 
 using namespace llvm;
+using namespace llvm::module_split;
 
 namespace {
 
-bool lowerSpecConstants(module_split::ModuleDesc &MD,
-                        SpecConstantsPass::HandlingMode Mode) {
+bool lowerSpecConstants(ModuleDesc &MD, SpecConstantsPass::HandlingMode Mode) {
   ModulePassManager RunSpecConst;
   ModuleAnalysisManager MAM;
   SpecConstantsPass SCP(Mode);
@@ -45,14 +45,12 @@ bool lowerSpecConstants(module_split::ModuleDesc &MD,
 /// Specialization constants are replaced by corresponding default values.
 /// If the Module in \p MD doesn't contain specialization constants then
 /// std::nullopt is returned.
-std::optional<module_split::ModuleDesc>
-cloneModuleWithSpecConstsReplacedByDefaultValues(
-    const module_split::ModuleDesc &MD) {
-  std::optional<module_split::ModuleDesc> NewMD;
+std::optional<std::unique_ptr<ModuleDesc>>
+cloneModuleWithSpecConstsReplacedByDefaultValues(const ModuleDesc &MD) {
   if (!checkModuleContainsSpecConsts(MD.getModule()))
-    return NewMD;
+    return std::nullopt;
 
-  NewMD = MD.clone();
+  std::unique_ptr<ModuleDesc> NewMD = MD.clone();
   NewMD->setSpecConstantDefault(true);
 
   ModulePassManager MPM;
@@ -68,25 +66,25 @@ cloneModuleWithSpecConstsReplacedByDefaultValues(
          "SpecConstsMet should be true since the presence of SpecConsts "
          "has been checked before the run of the pass");
   NewMD->rebuildEntryPoints();
-  return NewMD;
+  return std::move(NewMD);
 }
 
 } // namespace
 
 bool llvm::sycl::handleSpecializationConstants(
-    SmallVectorImpl<module_split::ModuleDesc> &MDs,
+    SmallVectorImpl<std::unique_ptr<ModuleDesc>> &MDs,
     std::optional<SpecConstantsPass::HandlingMode> Mode,
-    SmallVectorImpl<module_split::ModuleDesc> &NewModuleDescs,
+    SmallVectorImpl<std::unique_ptr<ModuleDesc>> &NewModuleDescs,
     bool GenerateModuleDescWithDefaultSpecConsts) {
   bool Modified = false;
-  for (module_split::ModuleDesc &MD : MDs) {
+  for (std::unique_ptr<ModuleDesc> &MD : MDs) {
     if (GenerateModuleDescWithDefaultSpecConsts)
-      if (std::optional<module_split::ModuleDesc> NewMD =
-              cloneModuleWithSpecConstsReplacedByDefaultValues(MD))
+      if (std::optional<std::unique_ptr<ModuleDesc>> NewMD =
+              cloneModuleWithSpecConstsReplacedByDefaultValues(*MD))
         NewModuleDescs.push_back(std::move(*NewMD));
 
     if (Mode)
-      Modified |= lowerSpecConstants(MD, *Mode);
+      Modified |= lowerSpecConstants(*MD, *Mode);
   }
 
   return Modified;

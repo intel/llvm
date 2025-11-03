@@ -1761,10 +1761,12 @@ static bool checkContextSupports(detail::context_impl &ContextImpl,
   return SupportsOp;
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::verifyDeviceHasProgressGuarantee(
     sycl::ext::oneapi::experimental::forward_progress_guarantee guarantee,
     sycl::ext::oneapi::experimental::execution_scope threadScope,
     sycl::ext::oneapi::experimental::execution_scope coordinationScope) {
+
   using execution_scope = sycl::ext::oneapi::experimental::execution_scope;
   using forward_progress =
       sycl::ext::oneapi::experimental::forward_progress_guarantee;
@@ -1806,6 +1808,7 @@ void handler::verifyDeviceHasProgressGuarantee(
     }
   }
 }
+#endif
 
 bool handler::supportsUSMMemcpy2D() {
   if (impl->get_graph_or_null())
@@ -1919,6 +1922,13 @@ void handler::memcpyFromHostOnlyDeviceGlobal(void *Dest,
   });
 }
 
+void handler::setKernelLaunchProperties(
+    const detail::KernelPropertyHolderStructTy &Kprop) {
+  impl->MKernelData.validateAndSetKernelLaunchProperties(
+      Kprop, getCommandGraph() != nullptr /*hasGraph?*/,
+      impl->get_device() /*device_impl*/);
+}
+
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 const std::shared_ptr<detail::context_impl> &
 handler::getContextImplPtr() const {
@@ -1936,6 +1946,7 @@ detail::context_impl &handler::getContextImpl() const {
   return impl->get_queue().getContextImpl();
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::setKernelCacheConfig(handler::StableKernelCacheConfig Config) {
   switch (Config) {
   case handler::StableKernelCacheConfig::Default:
@@ -1954,7 +1965,6 @@ void handler::setKernelIsCooperative(bool KernelIsCooperative) {
   impl->MKernelData.setCooperative(KernelIsCooperative);
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims) {
   throwIfGraphAssociated<
       syclex::detail::UnsupportedGraphFeatures::
@@ -1970,7 +1980,6 @@ void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims) {
     impl->MKernelData.setClusterDimensions(ClusterSize);
   }
 }
-#endif
 
 void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize) {
   throwIfGraphAssociated<
@@ -1998,6 +2007,7 @@ void handler::setKernelWorkGroupMem(size_t Size) {
                              sycl_ext_oneapi_work_group_scratch_memory>();
   impl->MKernelData.setKernelWorkGroupMemorySize(Size);
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 void handler::ext_oneapi_graph(
     ext::oneapi::experimental::command_graph<
@@ -2323,7 +2333,7 @@ __SYCL_EXPORT void HandlerAccess::preProcess(handler &CGH,
   F(AuxHandler);
   auto E = AuxHandler.finalize();
   if (EventNeeded)
-    CGH.depends_on(E);
+    CGH.depends_on(std::move(E));
 }
 __SYCL_EXPORT void HandlerAccess::postProcess(handler &CGH,
                                               type_erased_cgfo_ty F) {
@@ -2340,7 +2350,7 @@ __SYCL_EXPORT void HandlerAccess::postProcess(handler &CGH,
   PostProcessHandler.impl->MAuxiliaryResources = CGH.impl->MAuxiliaryResources;
   auto E = CGH.finalize();
   if (!InOrder)
-    PostProcessHandler.depends_on(E);
+    PostProcessHandler.depends_on(std::move(E));
   F(PostProcessHandler);
   swap(CGH, PostProcessHandler);
 }

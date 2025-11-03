@@ -92,18 +92,24 @@ int main(int, char **) {
   }
 
   {
-    std::initializer_list<float> input_vals1 = {0x1p-1, 0x1.8bd054p+6,
-                                                0x1.fcd686p+0, -0x1.7f9abp+3};
-    std::initializer_list<float> input_vals2 = {-0x1.a8p+2, -0x1.674a3cp+5,
-                                                0x1.f3d6aep+10, 0x1.d6bf48p+10};
-    std::initializer_list<uint32_t> ref_vals_rd = {0xbd9a90e8, 0xc00d030d,
-                                                   0x3a824df9, 0xbbd09c3a};
-    std::initializer_list<uint32_t> ref_vals_rn = {0xbd9a90e8, 0xc00d030c,
-                                                   0x3a824df9, 0xbbd09c39};
-    std::initializer_list<uint32_t> ref_vals_ru = {0xbd9a90e7, 0xc00d030c,
-                                                   0x3a824dfa, 0xbbd09c39};
-    std::initializer_list<uint32_t> ref_vals_rz = {0xbd9a90e7, 0xc00d030c,
-                                                   0x3a824df9, 0xbbd09c39};
+    std::initializer_list<float> input_vals1 = {
+        0x1p-1, 0x1.8bd054p+6, 0x1.fcd686p+0, -0x1.7f9abp+3,
+        0x1p+0, -0x1p+0,       0x0p+0};
+    std::initializer_list<float> input_vals2 = {
+        -0x1.a8p+2, -0x1.674a3cp+5, 0x1.f3d6aep+10, 0x1.d6bf48p+10,
+        0x0p+0,     0x0p+0,         0x0p+0};
+    std::initializer_list<uint32_t> ref_vals_rd = {
+        0xbd9a90e8, 0xc00d030d, 0x3a824df9, 0xbbd09c3a,
+        0x7F800000, 0xFF800000, 0x7FC00000};
+    std::initializer_list<uint32_t> ref_vals_rn = {
+        0xbd9a90e8, 0xc00d030c, 0x3a824df9, 0xbbd09c39,
+        0x7F800000, 0xFF800000, 0x7FC00000};
+    std::initializer_list<uint32_t> ref_vals_ru = {
+        0xbd9a90e7, 0xc00d030c, 0x3a824dfa, 0xbbd09c39,
+        0x7F800000, 0xFF800000, 0x7FC00000};
+    std::initializer_list<uint32_t> ref_vals_rz = {
+        0xbd9a90e7, 0xc00d030c, 0x3a824df9, 0xbbd09c39,
+        0x7F800000, 0xFF800000, 0x7FC00000};
     test2(device_queue, input_vals1, input_vals2, ref_vals_rd,
           F2T(uint32_t, sycl::ext::intel::math::fdiv_rd));
     std::cout << "sycl::ext::intel::math::fdiv_rd passes." << std::endl;

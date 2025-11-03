@@ -36,7 +36,8 @@ int main(int argc, char **argv) {
 
   kernel<2> krn2;
   q.single_task(krn2);
-  assert(copy_count == 1);
+  // The kernel is copied on the scheduler-based path only.
+  assert(copy_count == 0);
   assert(move_count == 0);
   copy_count = 0;
 

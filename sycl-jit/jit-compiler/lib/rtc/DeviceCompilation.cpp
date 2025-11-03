@@ -56,6 +56,7 @@
 
 #include <algorithm>
 #include <array>
+#include <memory>
 #include <sstream>
 
 using namespace clang;
@@ -116,7 +117,7 @@ struct auto_pch_key {
   Error read(llvm::BinaryStreamReader &Reader) {
     (void)AutoPCHError::ID;
     auto ReadStr = [&](std::string &Out) -> Error {
-      std::string::size_type StrLen;
+      std::string::size_type StrLen = 0;
 
       if (auto Err = Reader.readInteger(StrLen))
         return Err;
@@ -434,19 +435,20 @@ class SYCLToolchain {
           return (void)UseCachedPreamble(PCHStorage);
         };
 
-        auto CacheOrErr =
+        llvm::Expected<llvm::FileCache> CacheOrErr =
             llvm::localCache("SYCL RTC Persistent Preambles", "syclrtc-tmp-",
                              PersistentPCHDir, CacheCallback);
 
         assert(CacheOrErr && "Don't see any code path returning Error");
-        auto AddStreamOrErr = (*CacheOrErr)(0, EncodedHash, "");
+        llvm::Expected<llvm::AddStreamFn> AddStreamOrErr =
+            (*CacheOrErr)(0, EncodedHash, "");
         if (!AddStreamOrErr) {
           // Not a hit, but we won't be able to store the data in the cache, so
           // no need to generate precompiled preamble.
           consumeError(AddStreamOrErr.takeError());
           return RunWithoutPCH();
         }
-        auto &AddStream = *AddStreamOrErr;
+        llvm::AddStreamFn &AddStream = *AddStreamOrErr;
         if (!AddStream) {
           // UseCachedPreamble was called by the cache after successfully
           // reading persistent auto-pch file.
@@ -467,9 +469,12 @@ class SYCLToolchain {
         // Any errors updating the persistent preambles cache won't affect
         // current compilation, so ignore any error below:
 
-        auto FileOrErr = AddStream(1, "");
-        if (!FileOrErr)
+        llvm::Expected<std::unique_ptr<llvm::CachedFileStream>> FileOrErr =
+            AddStream(1, "");
+        if (!FileOrErr) {
+          consumeError(FileOrErr.takeError());
           return Success;
+        }
 
         llvm::CachedFileStream *CFS = FileOrErr->get();
         raw_pwrite_stream &OS = *CFS->OS;
@@ -1089,7 +1094,7 @@ jit_compiler::performPostLink(ModuleUPtr Module,
   }
 
   std::unique_ptr<ModuleSplitterBase> Splitter = getDeviceCodeSplitter(
-      ModuleDesc{std::move(Module)}, SplitMode,
+      std::make_unique<ModuleDesc>(std::move(Module)), SplitMode,
       /*IROutputOnly=*/false, EmitOnlyKernelsAsEntryPoints,
       AllowDeviceImageDependencies);
   assert(Splitter->hasMoreSplits());
@@ -1108,30 +1113,30 @@ jit_compiler::performPostLink(ModuleUPtr Module,
 
   bool IsBF16DeviceLibUsed = false;
   while (Splitter->hasMoreSplits()) {
-    ModuleDesc MDesc = Splitter->nextSplit();
+    std::unique_ptr<ModuleDesc> MDesc = Splitter->nextSplit();
 
     // TODO: Call `MDesc.fixupLinkageOfDirectInvokeSimdTargets()` when
     //       `invoke_simd` is supported.
 
-    SmallVector<ModuleDesc, 2> ESIMDSplits =
+    SmallVector<std::unique_ptr<ModuleDesc>, 2> ESIMDSplits =
         splitByESIMD(std::move(MDesc), EmitOnlyKernelsAsEntryPoints,
                      AllowDeviceImageDependencies);
     for (auto &ES : ESIMDSplits) {
       MDesc = std::move(ES);
 
-      if (MDesc.isESIMD()) {
+      if (MDesc->isESIMD()) {
         // `sycl-post-link` has a `-lower-esimd` option, but there's no clang
         // driver option to influence it. Rather, the driver sets it
         // unconditionally in the multi-file output mode, which we are mimicking
         // here.
-        lowerEsimdConstructs(MDesc, PerformOpts);
+        lowerEsimdConstructs(*MDesc, PerformOpts);
       }
 
-      MDesc.saveSplitInformationAsMetadata();
+      MDesc->saveSplitInformationAsMetadata();
 
       RTCDevImgInfo &DevImgInfo = DevImgInfoVec.emplace_back();
-      DevImgInfo.SymbolTable = FrozenSymbolTable{MDesc.entries().size()};
-      transform(MDesc.entries(), DevImgInfo.SymbolTable.begin(),
+      DevImgInfo.SymbolTable = FrozenSymbolTable{MDesc->entries().size()};
+      transform(MDesc->entries(), DevImgInfo.SymbolTable.begin(),
                 [](Function *F) { return F->getName(); });
 
       // TODO: Determine what is requested.
@@ -1142,7 +1147,7 @@ jit_compiler::performPostLink(ModuleUPtr Module,
                                   /*EmitImportedSymbols=*/true,
                                   /*DeviceGlobals=*/true};
       PropertySetRegistry Properties =
-          computeModuleProperties(MDesc.getModule(), MDesc.entries(), PropReq,
+          computeModuleProperties(MDesc->getModule(), MDesc->entries(), PropReq,
                                   AllowDeviceImageDependencies);
 
       // When the split mode is none, the required work group size will be added
@@ -1160,8 +1165,8 @@ jit_compiler::performPostLink(ModuleUPtr Module,
 
       encodeProperties(Properties, DevImgInfo);
 
-      IsBF16DeviceLibUsed |= isSYCLDeviceLibBF16Used(MDesc.getModule());
-      Modules.push_back(MDesc.releaseModulePtr());
+      IsBF16DeviceLibUsed |= isSYCLDeviceLibBF16Used(MDesc->getModule());
+      Modules.push_back(MDesc->releaseModulePtr());
     }
   }
 

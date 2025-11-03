@@ -53,8 +53,9 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
 enum class CommandType { KERNEL = 1, MEMSET = 2, HOST_TASK = 3 };
 std::vector<std::tuple<CommandType, size_t, size_t>> ExecutedCommands;
 
-inline ur_result_t customEnqueueKernelLaunch(void *pParams) {
-  auto params = *static_cast<ur_enqueue_kernel_launch_params_t *>(pParams);
+inline ur_result_t customEnqueueKernelLaunchWithArgsExp(void *pParams) {
+  auto params =
+      *static_cast<ur_enqueue_kernel_launch_with_args_exp_params_t *>(pParams);
   ExecutedCommands.push_back({CommandType::KERNEL, *params.pnumEventsInWaitList,
                               **params.ppGlobalWorkSize});
   return UR_RESULT_SUCCESS;
@@ -70,8 +71,9 @@ inline ur_result_t customEnqueueUSMFill(void *pParams) {
 TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
   ExecutedCommands.clear();
   sycl::unittest::UrMock<> Mock;
-  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
-                                           &customEnqueueKernelLaunch);
+  mock::getCallbacks().set_before_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &customEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_before_callback("urEnqueueUSMFill",
                                            &customEnqueueUSMFill);
 
@@ -128,8 +130,9 @@ TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
 TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
   ExecutedCommands.clear();
   sycl::unittest::UrMock<> Mock;
-  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
-                                           &customEnqueueKernelLaunch);
+  mock::getCallbacks().set_before_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &customEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_before_callback("urEnqueueUSMFill",
                                            &customEnqueueUSMFill);
 
@@ -178,8 +181,9 @@ TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
 TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncsParallelFor) {
   ExecutedCommands.clear();
   sycl::unittest::UrMock<> Mock;
-  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
-                                           &customEnqueueKernelLaunch);
+  mock::getCallbacks().set_before_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &customEnqueueKernelLaunchWithArgsExp);
 
   sycl::platform Plt = sycl::platform();
 
@@ -221,8 +225,9 @@ TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncsParallelFor) {
 TEST_F(SchedulerTest, InOrderQueueCrossDepsEnqueueFunctions) {
   ExecutedCommands.clear();
   sycl::unittest::UrMock<> Mock;
-  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
-                                           &customEnqueueKernelLaunch);
+  mock::getCallbacks().set_before_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &customEnqueueKernelLaunchWithArgsExp);
 
   sycl::platform Plt = sycl::platform();
 
