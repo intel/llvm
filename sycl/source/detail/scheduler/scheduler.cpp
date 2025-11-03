@@ -707,6 +707,15 @@ bool Scheduler::areEventsSafeForSchedulerBypass(events_range DepEvents,
   });
 }
 
+void Scheduler::reportAsyncException(
+    const std::shared_ptr<queue_impl> &QueuePtr,
+    const std::exception_ptr &ExceptionPtr) {
+  std::lock_guard<std::mutex> Lock(MAsyncExceptionsMutex);
+  MAsyncExceptions[AsyncExceptionKey{QueuePtr,
+                                     QueuePtr->getContextImplWeakPtr()}]
+      .PushBack(ExceptionPtr);
+}
+
 void Scheduler::flushAsyncExceptions() {
   decltype(MAsyncExceptions) AsyncExceptions;
   {
@@ -719,11 +728,16 @@ void Scheduler::flushAsyncExceptions() {
     if (Exceptions.size() == 0)
       continue;
 
-    std::shared_ptr<queue_impl> Queue = ExceptionsEntryIt.first.lock();
+    std::shared_ptr<queue_impl> Queue = ExceptionsEntryIt.first.first.lock();
     if (Queue && Queue->getAsynchHandler()) {
       Queue->getAsynchHandler()(std::move(Exceptions));
-    } else if (Queue && Queue->getContextImpl().get_async_handler()) {
-      Queue->getContextImpl().get_async_handler()(std::move(Exceptions));
+      continue;
+    }
+
+    std::shared_ptr<context_impl> Context =
+        ExceptionsEntryIt.first.second.lock();
+    if (Context && Context->get_async_handler()) {
+      Context->get_async_handler()(std::move(Exceptions));
     } else {
       // If the queue is dead, use the default handler.
       defaultAsyncHandler(std::move(Exceptions));

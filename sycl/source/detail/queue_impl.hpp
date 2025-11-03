@@ -295,6 +295,8 @@ public:
 
   context_impl &getContextImpl() const { return *MContext; }
 
+  std::weak_ptr<context_impl> getContextImplWeakPtr() const { return MContext; }
+
   device_impl &getDeviceImpl() const { return MDevice; }
 
   /// \return an associated SYCL device.
