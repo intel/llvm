@@ -6,15 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clc_as_type.h>
-#include <clc/math/clc_ldexp.h>
-#include <libspirv/spirv.h>
+#ifndef __CLC_IMPL_FUNCTION
+#define __CLC_IMPL_FUNCTION(x) __CLC_CONCAT(__clc_, x)
+#endif
 
-#define __CLC_FUNCTION __spirv_ocl_ldexp
-#define __CLC_IMPL_FUNCTION(x) __clc_ldexp
-
-#define __CLC_BODY <clc/shared/binary_def_with_int_second_arg.inc>
-#include <clc/math/gentype.inc>
-
-#define __CLC_BODY <binary_def_with_uint_second_arg.inc>
-#include <clc/math/gentype.inc>
+_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __CLC_FUNCTION(__CLC_GENTYPE x,
+                                                    __CLC_UINTN y) {
+  return __CLC_IMPL_FUNCTION(__CLC_FUNCTION)(x, __CLC_AS_INTN(y));
+}
