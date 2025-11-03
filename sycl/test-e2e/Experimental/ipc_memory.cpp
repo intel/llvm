@@ -3,8 +3,12 @@
 // UNSUPPORTED: level_zero && windows
 // UNSUPPORTED-TRACKER: UMFW-348
 
+// DEFINE: %{cpp20} = %if cl_options %{/clang:-std=c++20%} %else %{-std=c++20%}
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// RUN: %{build} -DUSE_VIEW %{cpp20} -o %t.view.out
+// RUN: %{run} %t.view.out
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/ipc_memory.hpp>
@@ -50,7 +54,11 @@ int spawner(int argc, char *argv[]) {
     {
       syclexp::ipc_memory::handle Handle =
           syclexp::ipc_memory::get(DataPtr, Q.get_context());
+#ifdef USE_VIEW
+      syclexp::ipc_memory::handle_data_view_t HandleData = Handle.data_view();
+#else
       syclexp::ipc_memory::handle_data_t HandleData = Handle.data();
+#endif
       size_t HandleDataSize = HandleData.size();
       std::fstream FS(CommsFile, std::ios_base::out | std::ios_base::binary);
       FS.write(reinterpret_cast<const char *>(&HandleDataSize), sizeof(size_t));
@@ -89,8 +97,12 @@ int consumer() {
   FS.read(reinterpret_cast<char *>(HandleData.get()), HandleSize);
 
   // Open IPC handle.
+#ifdef USE_VIEW
+  syclexp::ipc_memory::handle_data_view_t Handle{HandleData.get(), HandleSize};
+#else
   syclexp::ipc_memory::handle_data_t Handle{HandleData.get(),
                                             HandleData.get() + HandleSize};
+#endif
   int *DataPtr = reinterpret_cast<int *>(
       syclexp::ipc_memory::open(Handle, Q.get_context(), Q.get_device()));
 

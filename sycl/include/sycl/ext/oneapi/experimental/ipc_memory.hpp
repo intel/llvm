@@ -15,27 +15,44 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/device.hpp>
 #include <sycl/platform.hpp>
-#include <sycl/sycl_span.hpp>
 
 #include <cstddef>
+
+#if __has_include(<span>)
+#include <span>
+#endif
 
 namespace sycl {
 inline namespace _V1 {
 
+namespace detail {
+__SYCL_EXPORT void *openIPCMemHandle(const std::byte *HandleData,
+                                     size_t HandleDataSize,
+                                     const sycl::context &Ctx,
+                                     const sycl::device &Dev);
+}
+
 namespace ext::oneapi::experimental::ipc_memory {
 
-using handle_data_t = sycl::span<const std::byte, dynamic_extent>;
+using handle_data_t = std::vector<std::byte>;
+
+#if __cpp_lib_span
+using handle_data_view_t = std::span<const std::byte, std::dynamic_extent>;
+#endif
 
 struct handle {
 public:
-  handle_data_t data() const {
-    return {reinterpret_cast<std::byte *>(MData), MSize};
-  }
+  handle_data_t data() const { return {MData, MData + MSize}; }
+
+#if __cpp_lib_span
+  handle_data_view_t data_view() const { return {MData, MSize}; }
+#endif
 
 private:
-  handle(void *Data, size_t Size) : MData{Data}, MSize{Size} {}
+  handle(void *Data, size_t Size)
+      : MData{reinterpret_cast<std::byte *>(Data)}, MSize{Size} {}
 
-  void *MData;
+  std::byte *MData;
   size_t MSize;
 
   friend __SYCL_EXPORT handle get(void *Ptr, const sycl::context &Ctx);
@@ -58,8 +75,11 @@ inline void put(handle &HandleData) {
   ipc_memory::put(HandleData, Ctx);
 }
 
-__SYCL_EXPORT void *open(handle_data_t HandleData, const sycl::context &Ctx,
-                         const sycl::device &Dev);
+inline void *open(const handle_data_t &HandleData, const sycl::context &Ctx,
+                  const sycl::device &Dev) {
+  return sycl::detail::openIPCMemHandle(HandleData.data(), HandleData.size(),
+                                        Ctx, Dev);
+}
 
 inline void *open(handle_data_t HandleData, const sycl::device &Dev) {
   sycl::context Ctx = Dev.get_platform().khr_get_default_context();
@@ -71,6 +91,25 @@ inline void *open(handle_data_t HandleData) {
   sycl::context Ctx = Dev.get_platform().khr_get_default_context();
   return ipc_memory::open(HandleData, Ctx, Dev);
 }
+
+#if __cpp_lib_span
+inline void *open(const handle_data_view_t &HandleDataView,
+                  const sycl::context &Ctx, const sycl::device &Dev) {
+  return sycl::detail::openIPCMemHandle(HandleDataView.data(),
+                                        HandleDataView.size(), Ctx, Dev);
+}
+
+inline void *open(handle_data_view_t HandleDataView, const sycl::device &Dev) {
+  sycl::context Ctx = Dev.get_platform().khr_get_default_context();
+  return ipc_memory::open(HandleDataView, Ctx, Dev);
+}
+
+inline void *open(handle_data_view_t HandleDataView) {
+  sycl::device Dev;
+  sycl::context Ctx = Dev.get_platform().khr_get_default_context();
+  return ipc_memory::open(HandleDataView, Ctx, Dev);
+}
+#endif
 
 __SYCL_EXPORT void close(void *Ptr, const sycl::context &Ctx);
 

@@ -117,16 +117,23 @@ functions specified in the following section.
 
 === Inter-process communicable memory
 
-This extension adds a new type alias `handle_data_t` and a new IPC memory handle
-type `handle` under the `ipc_memory` experimental namespace.
+This extension adds a new type aliases `handle_data_t` and `handle_data_view_t`
+as well as a new IPC memory handle type `handle` under the `ipc_memory`
+experimental namespace.
 
 ```
 namespace sycl::ext::oneapi::experimental::ipc_memory {
 
-using handle_data_t = sycl::span<const std::byte, dynamic_extent>;
+using handle_data_t = std::vector<std::byte>;
+
+// Requires C++20
+using handle_data_view_t = std::span<const std::byte, std::dynamic_extent>;
 
 struct handle {
   handle_data_t data() const;
+
+  // Requires C++20
+  handle_data_view_t data_view() const;
 };
 
 }
@@ -150,6 +157,22 @@ _Returns:_ The handle data associated with the IPC handle object. This data can
 be transferred to other processes, but cannot be used to recreate a `handle`
 object.
 
+!====
+a!
+[source]
+----
+handle_data_view_t data_view() const;
+----
+!====
+
+_Preconditions:_ The `put` function has not previously been called with this
+handle and the USM device memory associated with this handle has not been freed.
+
+_Returns:_ A `std::span` with a view into the handle data associated with the
+IPC handle object. This data can be transferred to other processes, but cannot
+be used to recreate a `handle` object.
+
+
 |====
 
 Additionally, this extension adds new free functions under the `ipc_memory`
@@ -172,6 +195,16 @@ void *open(const handle_data_t &handle_data, const sycl::context &ctx,
 void *open(const handle_data_t &handle_data, const sycl::device &dev);
 
 void *open(const handle_data_t &handle_data);
+
+// Requires C++20
+void *open(const handle_data_view_t &handle_data, const sycl::context &ctx,
+           const sycl::device &dev);
+
+// Requires C++20
+void *open(const handle_data_view_t &handle_data, const sycl::device &dev);
+
+// Requires C++20
+void *open(const handle_data_view_t &handle_data);
 
 void close(void *ptr, const sycl::context &ctx);
 
@@ -266,7 +299,7 @@ a!
 [source]
 ----
 void *open(const handle_data_t &handle_data, const sycl::context &ctx,
-                  const sycl::device &dev)
+           const sycl::device &dev)
 ----
 !====
 
@@ -320,7 +353,7 @@ a!
 [source]
 ----
 void *open(const handle_data_t &handle_data, const sycl::context &ctx,
-                  const sycl::device &dev)
+           const sycl::device &dev)
 ----
 !====
 
@@ -331,6 +364,57 @@ _Effects_: Equivalent to:
 sycl::device d;
 sycl::context ctxt = d.get_platform().khr_get_default_context();
 return ipc_memory::open(handle_data, ctxt, d);
+----
+
+!====
+a!
+[source]
+----
+void *open(const handle_data_view_t &handle_data_view, const sycl::context &ctx,
+           const sycl::device &dev)
+----
+!====
+
+_Effects_: Equivalent to:
+
+[source,c++,indent=2]
+----
+handle_data_t handle_data{handle_data_view.begin(), handle_data_view.end()};
+return ipc_memory::put(handle_data, ctx, dev);
+----
+
+!====
+a!
+[source]
+----
+void *open(const handle_data_view_t &handle_data_view, const sycl::device &dev)
+----
+!====
+
+_Effects_: Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::context ctxt = dev.get_platform().khr_get_default_context();
+return ipc_memory::put(handle_data_view, ctxt, dev);
+----
+
+!====
+a!
+[source]
+----
+void *open(const handle_data_view_t &handle_data_view, const sycl::context &ctx,
+           const sycl::device &dev)
+----
+!====
+
+_Effects_: Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::device d;
+sycl::context ctxt = d.get_platform().khr_get_default_context();
+return ipc_memory::open(handle_data_view, ctxt, d);
 ----
 
 !====

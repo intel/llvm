@@ -166,4 +166,26 @@ TEST_F(IPCTests, IPCOpenClose) {
   EXPECT_EQ(urIPCCloseMemHandleExp_counter, 1);
 }
 
+TEST_F(IPCTests, IPCOpenCloseView) {
+  syclexp::ipc_memory::handle_data_view_t HandleDataView{DummyHandleData,
+                                                         DummyHandleDataSize};
+  void *Ptr =
+      syclexp::ipc_memory::open(HandleDataView, Ctxt, Ctxt.get_devices()[0]);
+  EXPECT_EQ(Ptr, DummyPtr);
+
+  // Opening an IPC handle should call open.
+  EXPECT_EQ(urIPCGetMemHandleExp_counter, 0);
+  EXPECT_EQ(urIPCPutMemHandleExp_counter, 0);
+  EXPECT_EQ(urIPCOpenMemHandleExp_counter, 1);
+  EXPECT_EQ(urIPCCloseMemHandleExp_counter, 0);
+
+  syclexp::ipc_memory::close(Ptr, Ctxt);
+
+  // When we close an IPC memory pointer, it should call close.
+  EXPECT_EQ(urIPCGetMemHandleExp_counter, 0);
+  EXPECT_EQ(urIPCPutMemHandleExp_counter, 0);
+  EXPECT_EQ(urIPCOpenMemHandleExp_counter, 1);
+  EXPECT_EQ(urIPCCloseMemHandleExp_counter, 1);
+}
+
 } // namespace

@@ -14,6 +14,43 @@
 
 namespace sycl {
 inline namespace _V1 {
+
+namespace detail {
+
+__SYCL_EXPORT void *openIPCMemHandle(const std::byte *HandleData,
+                                     size_t HandleDataSize,
+                                     const sycl::context &Ctx,
+                                     const sycl::device &Dev) {
+  if (!Dev.has(aspect::ext_oneapi_ipc_memory))
+    throw sycl::exception(
+        sycl::make_error_code(errc::feature_not_supported),
+        "Device does not support aspect::ext_oneapi_ipc_memory.");
+
+  auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
+  sycl::detail::adapter_impl &Adapter = CtxImpl->getAdapter();
+
+  // TODO: UMF and UR currently requires the handle data to be non-const, so we
+  //       need const-cast the data pointer. Once this has been changed, the
+  //       const-cast can be removed.
+  //       CMPLRLLVM-71181
+  //       https://github.com/oneapi-src/unified-memory-framework/issues/1536
+  std::byte *NonConstHandleData = const_cast<std::byte *>(HandleData);
+
+  void *Ptr = nullptr;
+  ur_result_t UrRes =
+      Adapter.call_nocheck<sycl::detail::UrApiKind::urIPCOpenMemHandleExp>(
+          CtxImpl->getHandleRef(), getSyclObjImpl(Dev)->getHandleRef(),
+          NonConstHandleData, HandleDataSize, &Ptr);
+  if (UrRes == UR_RESULT_ERROR_INVALID_VALUE)
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "HandleData data size does not correspond "
+                          "to the target platform's IPC memory handle size.");
+  Adapter.checkUrResult(UrRes);
+  return Ptr;
+}
+
+} // namespace detail
+
 namespace ext::oneapi::experimental::ipc_memory {
 
 __SYCL_EXPORT handle get(void *Ptr, const sycl::context &Ctx) {
@@ -46,36 +83,6 @@ __SYCL_EXPORT void put(handle &Handle, const sycl::context &Ctx) {
   auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
   CtxImpl->getAdapter().call<sycl::detail::UrApiKind::urIPCPutMemHandleExp>(
       CtxImpl->getHandleRef(), Handle.MData);
-}
-
-__SYCL_EXPORT void *open(handle_data_t HandleData, const sycl::context &Ctx,
-                         const sycl::device &Dev) {
-  if (!Dev.has(aspect::ext_oneapi_ipc_memory))
-    throw sycl::exception(
-        sycl::make_error_code(errc::feature_not_supported),
-        "Device does not support aspect::ext_oneapi_ipc_memory.");
-
-  auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
-  sycl::detail::adapter_impl &Adapter = CtxImpl->getAdapter();
-
-  // TODO: UMF and UR currently requires the handle data to be non-const, so we
-  //       need const-cast the data pointer. Once this has been changed, the
-  //       const-cast can be removed.
-  //       CMPLRLLVM-71181
-  //       https://github.com/oneapi-src/unified-memory-framework/issues/1536
-  std::byte *HandleDataPtr = const_cast<std::byte *>(HandleData.data());
-
-  void *Ptr = nullptr;
-  ur_result_t UrRes =
-      Adapter.call_nocheck<sycl::detail::UrApiKind::urIPCOpenMemHandleExp>(
-          CtxImpl->getHandleRef(), getSyclObjImpl(Dev)->getHandleRef(),
-          HandleDataPtr, HandleData.size(), &Ptr);
-  if (UrRes == UR_RESULT_ERROR_INVALID_VALUE)
-    throw sycl::exception(sycl::make_error_code(errc::invalid),
-                          "HandleData data size does not correspond "
-                          "to the target platform's IPC memory handle size.");
-  Adapter.checkUrResult(UrRes);
-  return Ptr;
 }
 
 __SYCL_EXPORT void close(void *Ptr, const sycl::context &Ctx) {
