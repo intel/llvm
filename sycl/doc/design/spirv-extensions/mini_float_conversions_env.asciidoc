@@ -82,10 +82,10 @@ Only the following conversions via *OpClampConvertFToFINTEL* are supported: +
 | 4-bit *Float4E2M1INTEL*     | 16-bit *BFloat16KHR*
 |===
 
-Float to integer conversions via OpClampConvertFToS
----------------------------------------------------
+Float to integer conversions via OpClampConvertFToSINTEL
+--------------------------------------------------------
 
-Only the following conversions via *OpClampConvertFToS* from float to 4-bit integer values are supported: +
+Only the following conversions via *OpClampConvertFToSINTEL* from float to 4-bit integer values are supported: +
  +
 
 [cols="1,1", options="header"]
@@ -134,7 +134,7 @@ Only the following conversions via *OpClampStochasticRoundFToFINTEL* are support
 Float to integer conversions via OpClampStochasticRoundFToSINTEL
 ----------------------------------------------------------------
 
-Only the following conversions via *OpStochasticRoundFToSINTEL* from float to 4-bit integer values are supported: +
+Only the following conversions via *OpClampStochasticRoundFToSINTEL* from float to 4-bit integer values are supported: +
  +
 
 [cols="1,1", options="header"]

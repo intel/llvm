@@ -37,7 +37,7 @@
 Notice
 ------
 
-Copyright (c) 2024 Intel Corporation. All rights reserved.
+Copyright (c) 2025 Intel Corporation. All rights reserved.
 
 Status
 ------
@@ -90,7 +90,7 @@ Modify Section 3.31, Capability, adding rows to the Capability table:
 |====
 2+^| Capability ^| Implicitly Declares 
 | {convert_capability_token} | *{convert_capability_name}* +
-Uses *OpClampConvertFToFINTEL*, *OpStochasticRoundFToFINTEL*, *OpClampStochasticRoundFToFINTEL* and *OpStochasticRoundFToSINTEL*
+Uses *OpClampConvertFToFINTEL*, *OpStochasticRoundFToFINTEL*, *OpClampStochasticRoundFToFINTEL* and *OpClampStochasticRoundFToSINTEL*
 instructions. +
 |
 |====
@@ -132,7 +132,7 @@ _Value_
 4+|[[OpClampConvertFToSINTEL]]*OpClampConvertFToSINTEL* +
  +
 Converts numerically a floating point value to integer.
-In case of overflow, the positive result is saturated to INT_MAX or INT_MIN depending on a sign bit. +
+In case of overflow, the result is saturated to INT_MAX or INT_MIN depending on a sign bit. +
  +
 _Result Type_ is the type of the converted object, it must be a scalar or
 vector of _integer type_. +
@@ -160,7 +160,7 @@ Converts numerically one floating point value to another using stochastic roundi
  +
 Stochastic rounding is performed by adding a pseudo-random bias value to the mantissa
 of the converted value as follows. The bias is first added to the mantissa of the converted value.
-If this causes the mantissa to overflow, the the exponent of the converted value
+If this causes the mantissa to overflow, then the exponent of the converted value
 is increased by 1 and the mantissa bits are shifted right. The value is then converted
 to the _Result Type_, rounding towards zero. If the exponent overflows when converting
 to the _Result Type_, the result of the conversion is +/- Inf. If _Result Type_ doesn't have
@@ -245,11 +245,11 @@ _Next Seed_
 
 [cols="1a,1,5*3",width="100%"]
 |=====
-6+|[[OpClampStochasticRoundFToSINTEL]]*OpStochasticRoundFToSINTEL* +
+6+|[[OpClampStochasticRoundFToSINTEL]]*OpClampStochasticRoundFToSINTEL* +
  +
 Converts a floating point value to integer using stochastic rounding.
 Has the same semantics as *OpStochasticRoundFToFINTEL*.
-In case of overflow, the positive result is saturated to INT_MAX or INT_MIN depending on a sign bit.
+In case of overflow, the result is saturated to INT_MAX or INT_MIN depending on a sign bit.
 This instruction may be used for stochastic rounding operation, if a producer
 passes pseudo-random _Seed_ value. +
  +
@@ -267,7 +267,7 @@ _Next Seed_ must be of a _pointer type_ with *Function* storage class and 32-bit
  +
 1+|Capability: +
 *{convert_capability_name}*
-1+| 4+ | {OpStochasticRoundFToSINTEL_token}
+1+| 4+ | {OpClampStochasticRoundFToSINTEL_token}
 | _<id>_ +
 _Result Type_
 | _Result <id>_
@@ -285,10 +285,10 @@ Validation Rules
 
 Add the following bullets to section 2.16.11, Universal Validation Rules:
 
-  * Variables with a type that is or includes a floating-point type with the *BFloat16KHR*, *Float8E4M3EXT* and *Float8E5M2EXT* encodings can also be used with the following instructions:
+  * Variables with a type that is or includes a floating-point type with the *BFloat16KHR*, *Float8E4M3EXT*, *Float8E5M2EXT* and *Float4E2M1INTEL* encodings can also be used with the following instructions:
   ** *OpClampConvertFToFINTEL*
 
-  * Variables with a type that is or includes a floating-point type with the *BFloat16KHR*, *Float8E5M2EXT* and *Float4E2M1INTEL* encodings can also be used with the following instructions:
+  * Variables with a type that is or includes a floating-point type with the *BFloat16KHR*, *Float8E4M3EXT*, *Float8E5M2EXT* and *Float4E2M1INTEL* encodings can also be used with the following instructions:
   ** *OpStochasticRoundFToFINTEL*
   ** *OpClampStochasticRoundFToFINTEL*
 
