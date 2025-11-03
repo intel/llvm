@@ -288,10 +288,10 @@
 ??$is_image_handle_supported@Uunsampled_image_handle@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA_NAEBUimage_descriptor@01234@W4image_memory_handle_type@01234@AEBVqueue@34@@Z
 ??$submit_kernel_direct_with_event_impl@$00@_V1@sycl@@YA?AVevent@01@AEBVqueue@01@AEBV?$nd_range@$00@01@AEAVHostKernelRefBase@detail@01@PEAVDeviceKernelInfo@601@AEBUcode_location@601@_N@Z
 ??$submit_kernel_direct_with_event_impl@$01@_V1@sycl@@YA?AVevent@01@AEBVqueue@01@AEBV?$nd_range@$01@01@AEAVHostKernelRefBase@detail@01@PEAVDeviceKernelInfo@601@AEBUcode_location@601@_N@Z
-??$submit_kernel_direct_without_event_impl@$02@_V1@sycl@@YAXAEBVqueue@01@AEBV?$nd_range@$02@01@AEAVHostKernelRefBase@detail@01@PEAVDeviceKernelInfo@501@AEBUcode_location@501@_N@Z
+??$submit_kernel_direct_with_event_impl@$02@_V1@sycl@@YA?AVevent@01@AEBVqueue@01@AEBV?$nd_range@$02@01@AEAVHostKernelRefBase@detail@01@PEAVDeviceKernelInfo@601@AEBUcode_location@601@_N@Z
 ??$submit_kernel_direct_without_event_impl@$00@_V1@sycl@@YAXAEBVqueue@01@AEBV?$nd_range@$00@01@AEAVHostKernelRefBase@detail@01@PEAVDeviceKernelInfo@501@AEBUcode_location@501@_N@Z
 ??$submit_kernel_direct_without_event_impl@$01@_V1@sycl@@YAXAEBVqueue@01@AEBV?$nd_range@$01@01@AEAVHostKernelRefBase@detail@01@PEAVDeviceKernelInfo@501@AEBUcode_location@501@_N@Z
-??$submit_kernel_direct_with_event_impl@$02@_V1@sycl@@YA?AVevent@01@AEBVqueue@01@AEBV?$nd_range@$02@01@AEAVHostKernelRefBase@detail@01@PEAVDeviceKernelInfo@601@AEBUcode_location@601@_N@Z
+??$submit_kernel_direct_without_event_impl@$02@_V1@sycl@@YAXAEBVqueue@01@AEBV?$nd_range@$02@01@AEAVHostKernelRefBase@detail@01@PEAVDeviceKernelInfo@501@AEBUcode_location@501@_N@Z
 ??$update_nd_range@$00@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$nd_range@$00@45@@Z
 ??$update_nd_range@$01@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$nd_range@$01@45@@Z
 ??$update_nd_range@$02@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$nd_range@$02@45@@Z
@@ -740,6 +740,7 @@
 ?SecondaryQueue@SubmissionInfo@v1@detail@_V1@sycl@@QEBAAEBV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@XZ
 ?SetHostTask@handler@_V1@sycl@@AEAAX$$QEAV?$function@$$A6AXVinterop_handle@_V1@sycl@@@Z@std@@@Z
 ?SetHostTask@handler@_V1@sycl@@AEAAX$$QEAV?$function@$$A6AXXZ@std@@@Z
+?SetKernelLaunchpropertiesIfNotEmpty@handler@_V1@sycl@@AEAAXAEBU?$PropsHolder@Uwork_group_scratch_size@experimental@oneapi@ext@_V1@sycl@@Ucache_config@2intel@456@Uuse_root_sync_key@23456@Uwork_group_progress_key@23456@Usub_group_progress_key@23456@Uwork_item_progress_key@23456@U?$cluster_size@$00@cuda@23456@U?$cluster_size@$01@cuda@23456@U?$cluster_size@$02@cuda@23456@@kernel_launch_properties_v1@detail@23@@Z
 ?__abs_diff_impl@_V1@sycl@@YA?AV?$vec@C$00@12@V312@0@Z
 ?__abs_diff_impl@_V1@sycl@@YA?AV?$vec@C$01@12@V312@0@Z
 ?__abs_diff_impl@_V1@sycl@@YA?AV?$vec@C$02@12@V312@0@Z
@@ -4392,6 +4393,7 @@
 ?release_external_semaphore@experimental@oneapi@ext@_V1@sycl@@YAXUexternal_semaphore@12345@AEBVqueue@45@@Z
 ?release_from_device_copy@experimental@oneapi@ext@_V1@sycl@@YAXPEBXAEBVcontext@45@@Z
 ?release_from_device_copy@experimental@oneapi@ext@_V1@sycl@@YAXPEBXAEBVqueue@45@@Z
+?remove@free_function_info_map@detail@_V1@sycl@@YAXPEBQEBDPEBII@Z
 ?removeDuplicateDevices@detail@_V1@sycl@@YA?BV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@AEBV45@@Z
 ?remquo_impl@detail@_V1@sycl@@YA?AVhalf@half_impl@123@V45123@0PEAH@Z
 ?remquo_impl@detail@_V1@sycl@@YAMMMPEAH@Z
@@ -4425,9 +4427,10 @@
 ?setKernelClusterLaunch@handler@_V1@sycl@@AEAAXV?$range@$01@23@@Z
 ?setKernelClusterLaunch@handler@_V1@sycl@@AEAAXV?$range@$02@23@@Z
 ?setKernelClusterLaunch@handler@_V1@sycl@@AEAAXV?$range@$02@23@H@Z
-?setKernelInfo@handler@_V1@sycl@@AEAAXPEAXHP6A?AUkernel_param_desc_t@detail@23@H@Z_N2@Z
 ?setKernelFunc@handler@_V1@sycl@@AEAAXPEAX@Z
+?setKernelInfo@handler@_V1@sycl@@AEAAXPEAXHP6A?AUkernel_param_desc_t@detail@23@H@Z_N2@Z
 ?setKernelIsCooperative@handler@_V1@sycl@@AEAAX_N@Z
+?setKernelLaunchProperties@handler@_V1@sycl@@AEAAXAEBU?$PropsHolder@Uwork_group_scratch_size@experimental@oneapi@ext@_V1@sycl@@Ucache_config@2intel@456@Uuse_root_sync_key@23456@Uwork_group_progress_key@23456@Usub_group_progress_key@23456@Uwork_item_progress_key@23456@U?$cluster_size@$00@cuda@23456@U?$cluster_size@$01@cuda@23456@U?$cluster_size@$02@cuda@23456@@kernel_launch_properties_v1@detail@23@@Z
 ?setKernelNameBasedCachePtr@handler@_V1@sycl@@AEAAXPEAUKernelNameBasedCacheT@detail@23@@Z
 ?setKernelWorkGroupMem@handler@_V1@sycl@@AEAAX_K@Z
 ?setLocalAccessorArgHelper@handler@_V1@sycl@@AEAAXHAEAVLocalAccessorBaseHost@detail@23@@Z

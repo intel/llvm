@@ -37,8 +37,9 @@ static ur_result_t redefinedKernelGetGroupInfo(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-static ur_result_t redefinedEnqueueKernelLaunch(void *pParams) {
-  auto params = *static_cast<ur_enqueue_kernel_launch_params_t *>(pParams);
+static ur_result_t redefinedEnqueueKernelLaunchWithArgsExp(void *pParams) {
+  auto params =
+      *static_cast<ur_enqueue_kernel_launch_with_args_exp_params_t *>(pParams);
   if (*params.ppLocalWorkSize) {
     IncomingLocalSize[0] = (*params.ppLocalWorkSize)[0];
     IncomingLocalSize[1] = (*params.ppLocalWorkSize)[1];
@@ -56,8 +57,9 @@ static void reset() {
 static void performChecks() {
   sycl::unittest::UrMock<> Mock;
   sycl::platform Plt = sycl::platform();
-  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
-                                           &redefinedEnqueueKernelLaunch);
+  mock::getCallbacks().set_before_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefinedEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_before_callback("urKernelGetGroupInfo",
                                            &redefinedKernelGetGroupInfo);
 

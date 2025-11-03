@@ -1320,6 +1320,10 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(true);
+  case UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_DYNAMIC_LINK_SUPPORT_EXP:
+    return ReturnValue(true);
   case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS: {
@@ -1785,6 +1789,11 @@ ur_result_t urDeviceRelease(ur_device_handle_t Device) {
     }
   }
 
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urDeviceWaitExp(ur_device_handle_t Device) {
+  ZE2UR_CALL(zeDeviceSynchronize, (Device->ZeDevice));
   return UR_RESULT_SUCCESS;
 }
 } // namespace ur::level_zero

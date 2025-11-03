@@ -264,8 +264,9 @@ ur_result_t after_urKernelCreate(void *pParams) {
 
 std::string LastEnqueuedKernel;
 
-ur_result_t after_urEnqueueKernelLaunch(void *pParams) {
-  auto params = *static_cast<ur_enqueue_kernel_launch_params_t *>(pParams);
+ur_result_t after_urEnqueueKernelLaunchWithArgsExp(void *pParams) {
+  auto params =
+      *static_cast<ur_enqueue_kernel_launch_with_args_exp_params_t *>(pParams);
   auto KernelIt = KernelToNameMap.find(*params.phKernel);
   EXPECT_TRUE(KernelIt != KernelToNameMap.end());
   LastEnqueuedKernel = KernelIt->second;
@@ -347,8 +348,9 @@ TEST(USMMemcpy2DTest, USMMemops2DUnsupported) {
                                           &after_urDeviceGetInfo);
   mock::getCallbacks().set_after_callback("urKernelCreate",
                                           &after_urKernelCreate);
-  mock::getCallbacks().set_after_callback("urEnqueueKernelLaunch",
-                                          &after_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_after_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &after_urEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_after_callback(
       "urUSMGetMemAllocInfo", &after_urUSMGetMemAllocInfo<UR_USM_TYPE_DEVICE>);
 
@@ -388,8 +390,9 @@ TEST(USMMemcpy2DTest, USMFillSupportedOnly) {
                                           &after_urDeviceGetInfo);
   mock::getCallbacks().set_after_callback("urKernelCreate",
                                           &after_urKernelCreate);
-  mock::getCallbacks().set_after_callback("urEnqueueKernelLaunch",
-                                          &after_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_after_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &after_urEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_replace_callback("urEnqueueUSMFill2D",
                                             &redefine_urEnqueueUSMFill2D);
   mock::getCallbacks().set_after_callback(
@@ -435,8 +438,9 @@ TEST(USMMemcpy2DTest, USMMemsetSupportedOnly) {
                                           &after_urDeviceGetInfo);
   mock::getCallbacks().set_after_callback("urKernelCreate",
                                           &after_urKernelCreate);
-  mock::getCallbacks().set_after_callback("urEnqueueKernelLaunch",
-                                          &after_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_after_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &after_urEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_after_callback(
       "urUSMGetMemAllocInfo", &after_urUSMGetMemAllocInfo<UR_USM_TYPE_DEVICE>);
   mock::getCallbacks().set_replace_callback("urEnqueueUSMFill2D",
@@ -480,8 +484,9 @@ TEST(USMMemcpy2DTest, USMMemcpySupportedOnly) {
                                           &after_urDeviceGetInfo);
   mock::getCallbacks().set_after_callback("urKernelCreate",
                                           &after_urKernelCreate);
-  mock::getCallbacks().set_after_callback("urEnqueueKernelLaunch",
-                                          &after_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_after_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &after_urEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_replace_callback("urEnqueueUSMMemcpy2D",
                                             &redefine_urEnqueueUSMMemcpy2D);
   mock::getCallbacks().set_after_callback(

@@ -29,11 +29,16 @@ inputs:
     type: string
     required: False
     default: ""
+  # dry-run is passed only to compare.py (to not fail on regression), not to main.py (where such flag would omit all benchmark runs)
   dry_run:
+    type: string
+    required: False
+  exit_on_failure:
     type: string
     required: False
 
 runs:
+  # composite actions don't make use of 'name', so copy-paste names as a comment in the first line of each step
   using: "composite"
   steps:
   - name: Check specified runner type / target backend
@@ -42,6 +47,7 @@ runs:
       TARGET_DEVICE: ${{ inputs.target_devices }}
       PRESET: ${{ inputs.preset }}
     run: |
+      # Check specified runner type / target backend
       case "$RUNNER_TAG" in
         '["PVC_PERF"]' ) ;;
         '["BMG_PERF"]' ) ;;
@@ -110,6 +116,7 @@ runs:
   - name: Build Unified Runtime
     shell: bash
     run: |
+      # Build Unified Runtime
       # Sparse-checkout UR at build ref:
       git clone --depth 1 --no-checkout https://github.com/intel/llvm ur
       cd ur
@@ -136,14 +143,16 @@ runs:
   - name: Checkout results repo
     shell: bash
     run: |
+      # Checkout results repo
       git clone -b unify-ci https://github.com/intel/llvm-ci-perf-results
-  - name: Run compute-benchmarks
+  - name: Build and run benchmarks
     env:
       # Need to append "_<device>_<backend>" to save name in order to follow
       # conventions:
       SAVE_PREFIX: ${{ inputs.save_name }}
     shell: bash
     run: |
+      # Build and run benchmarks
       # TODO generate summary + display helpful message here
       export CMPLR_ROOT=./toolchain
       echo "-----"
@@ -192,8 +201,10 @@ runs:
       sycl-ls
       echo "-----"
 
-      taskset -c "$CORES" ./devops/scripts/benchmarks/main.py \
-        "$(realpath ./llvm_test_workdir)" \
+      WORKDIR="$(realpath ./llvm_test_workdir)"
+      if [ -n "$WORKDIR" ] && [ -d "$WORKDIR" ] && [[ "$WORKDIR" == *llvm_test_workdir* ]]; then rm -rf "$WORKDIR" ; fi
+
+      taskset -c "$CORES" ./devops/scripts/benchmarks/main.py "$WORKDIR" \
         --sycl "$(realpath ./toolchain)" \
         --ur "$(realpath ./ur/install)" \
         --adapter "$FORCELOAD_ADAPTER" \
@@ -204,7 +215,8 @@ runs:
         --preset "$PRESET" \
         --timestamp-override "$SAVE_TIMESTAMP" \
         --detect-version sycl,compute_runtime \
-        --flamegraph inclusive
+        ${{ inputs.exit_on_failure == 'true' && '--exit-on-failure --iterations 1' || '' }}
+      # TODO: add back: "--flamegraph inclusive" once works properly
 
       echo "-----"
       python3 ./devops/scripts/benchmarks/compare.py to_hist \
@@ -224,7 +236,8 @@ runs:
   - name: Cache changes and upload github summary
     if: always()
     shell: bash
-    run: | 
+    run: |
+      # Cache changes and upload github summary
       [ -f "github_summary.md" ] && cat github_summary.md >> $GITHUB_STEP_SUMMARY
 
       cd "./llvm-ci-perf-results"
@@ -237,6 +250,7 @@ runs:
     if: inputs.upload_results == 'true' && always()
     shell: bash
     run: |
+      # Push benchmarks results
       cd "./llvm-ci-perf-results"
       git config user.name "SYCL Benchmarking Bot"
       git config user.email "sys_sycl_benchmarks@intel.com"
