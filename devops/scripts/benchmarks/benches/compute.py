@@ -62,8 +62,8 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        # Oct 31, 2025
-        return "1d4f68f82a5fe8c404aa1126615da4a1b789e254"
+        # Oct 28, 2025
+        return "2cfc831cdc536f1bfd14ce4aafbe59450d5ba090"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -77,6 +77,13 @@ class ComputeBench(Suite):
                 "compute-benchmarks",
                 use_installdir=False,
             )
+        # Cherry-pick a fix for build with latest unified-runtime
+        # This is to omit changes that force usage of L0 v1.25.0
+        # which are not supported by the latest Compute Runtime yet.
+        try:
+            self.project.cherry_pick("8a90f69aa4fdbb73ab5a1d0c0d5a412a03d6c2b5")
+        except Exception as e:
+            log.warning(f"Cherry-pick failed, continuing with build: {e}")
 
         if not self.project.needs_rebuild():
             log.info(f"Rebuilding {self.project.name} skipped")

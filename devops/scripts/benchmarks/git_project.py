@@ -107,6 +107,16 @@ class GitProject:
         """Installs the project."""
         run(f"cmake --install {self.build_dir}")
 
+    def cherry_pick(self, commit_hash: str) -> None:
+        """Cherry-pick a specific commit."""
+        try:
+            log.debug(f"Cherry-picking commit {commit_hash} in {self.src_dir}")
+            run(f"git cherry-pick {commit_hash}", cwd=self.src_dir)
+            log.debug(f"Successfully cherry-picked commit {commit_hash}")
+        except Exception as e:
+            log.error(f"Failed to cherry-pick commit {commit_hash}: {e}")
+            raise
+
     def _can_shallow_clone_ref(self, ref: str) -> bool:
         """Check if we can do a shallow clone with this ref using git ls-remote."""
         try:
