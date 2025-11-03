@@ -6,8 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_mix(__CLC_GENTYPE x,
-                                                     __CLC_GENTYPE y,
-                                                     __CLC_GENTYPE a) {
-  return __clc_mad(y - x, a, x);
-}
+#include <clc/integer/clc_bit_reverse.h>
+#include <libspirv/spirv.h>
+
+#define __CLC_FUNCTION __spirv_BitReverse
+#define __CLC_IMPL_FUNCTION(x) __clc_bit_reverse
+#define __CLC_BODY <clc/shared/unary_def.inc>
+#include <clc/integer/gentype.inc>
