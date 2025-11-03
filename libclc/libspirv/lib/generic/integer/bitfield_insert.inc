@@ -6,8 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_mix(__CLC_GENTYPE x,
-                                                     __CLC_GENTYPE y,
-                                                     __CLC_GENTYPE a) {
-  return __clc_mad(y - x, a, x);
+_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_BitFieldInsert(
+    __CLC_GENTYPE base, __CLC_GENTYPE insert, uint offset, uint count) {
+  return __clc_bitfield_insert(base, insert, offset, count);
 }

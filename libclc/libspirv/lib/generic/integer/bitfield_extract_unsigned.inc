@@ -6,8 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_mix(__CLC_GENTYPE x,
-                                                     __CLC_GENTYPE y,
-                                                     __CLC_GENTYPE a) {
-  return __clc_mad(y - x, a, x);
+#ifdef __CLC_GEN_U
+
+_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE
+__spirv_BitFieldUExtract(__CLC_GENTYPE base, uint offset, uint count) {
+  return __clc_bitfield_extract_unsigned(base, offset, count);
 }
+
+#endif
