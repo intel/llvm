@@ -19,6 +19,7 @@
 #include <sycl/sampler.hpp>
 #include <sycl/stream.hpp>
 #include <sycl/vector.hpp>
+#include <sycl/detail/nd_range_view.hpp>
 
 using namespace sycl;
 
@@ -58,6 +59,7 @@ int main() {
 #endif
   check<image<1>, 16, 8>();
   check<kernel, 16, 8>();
+  check<detail::nd_range_view, 40, 8>();
   check<platform, 16, 8>();
 #ifdef __SYCL_DEVICE_ONLY__
   check<private_memory<int, 1>, 4, 4>();
