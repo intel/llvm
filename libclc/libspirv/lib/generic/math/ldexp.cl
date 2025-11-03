@@ -6,14 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <libspirv/spirv.h>
-
-#include <clc/math/clc_subnormal_config.h>
-#include <clc/math/math.h>
 #include <clc/math/clc_ldexp.h>
+#include <libspirv/spirv.h>
 
 #define __CLC_FUNCTION __spirv_ocl_ldexp
 #define __CLC_IMPL_FUNCTION __clc_ldexp
+#define __CLC_MIN_VECSIZE 1
 
 #define __CLC_ARG2_TYPE int
 #define __CLC_BODY <clc/shared/binary_def_scalarize.inc>
