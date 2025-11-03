@@ -150,6 +150,9 @@ jobs:
   benchmark_dispatch:
     name: '[Dispatch] Benchmarks'
     needs: [ build_sycl_dispatch, sanitize_inputs_dispatch ]
+    permissions:
+      contents: write
+      packages: read
     if: always() && !cancelled() && needs.build_sycl_dispatch.outputs.build_conclusion == 'success'
     strategy:
       matrix:
@@ -193,6 +196,9 @@ jobs:
   benchmark_nightly:
     name: '[Nightly] Benchmarks'
     needs: [build_nightly]
+    permissions:
+      contents: write
+      packages: read
     if: always() && !cancelled() && needs.build_nightly.outputs.build_conclusion == 'success'
     strategy:
       fail-fast: false
@@ -241,6 +247,9 @@ jobs:
   test_benchmark_framework:
     name: '[PR] Benchmark suite testing'
     needs: [build_pr]
+    permissions:
+      contents: write
+      packages: read
     if: always() && !cancelled() && needs.build_pr.outputs.build_conclusion == 'success'
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:

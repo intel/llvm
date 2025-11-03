@@ -37,6 +37,9 @@ inputs:
     type: string
     required: False
 
+env:
+  BENCHMARK_RESULTS_BRANCH: "sycl-benchmark-ci-results"
+
 runs:
   # composite actions don't make use of 'name', so copy-paste names as a comment in the first line of each step
   using: "composite"
@@ -162,10 +165,10 @@ runs:
 
       cd -
   - name: Checkout results repo
-    shell: bash
-    run: |
-      # Checkout results repo
-      git clone -b unify-ci https://github.com/intel/llvm-ci-perf-results
+    uses: actions/checkout@v5
+    with:
+      ref: ${{ env.BENCHMARK_RESULTS_BRANCH }}
+      path: llvm-ci-perf-results
   - name: Build and run benchmarks
     env:
       # Need to append "_<device>_<backend>" to save name in order to follow
@@ -273,9 +276,8 @@ runs:
     run: |
       # Push benchmarks results
       cd "./llvm-ci-perf-results"
-      git config user.name "SYCL Benchmarking Bot"
-      git config user.email "sys_sycl_benchmarks@intel.com"
-      results_branch="unify-ci"
+      git config user.name "github-actions[bot]"
+      git config user.email "github-actions[bot]@users.noreply.github.com"
 
       if git diff --quiet && git diff --cached --quiet; then
         echo "No new results added, skipping push."
@@ -288,7 +290,7 @@ runs:
         git commit -m "[GHA] Upload compute-benchmarks results from https://github.com/intel/llvm/actions/runs/${{ github.run_id }}"
         results_file="$(git diff HEAD~1 --name-only -- results/ | head -n 1)"
 
-        if git push "https://$GITHUB_TOKEN@github.com/intel/llvm-ci-perf-results.git" "$results_branch"; then
+        if git push; then
           echo "Push succeeded"
           break
         fi
@@ -298,8 +300,8 @@ runs:
           cached_result="$(mktemp -d)/$(basename $results_file)"
           mv "$results_file" "$cached_result"
 
-          git reset --hard "origin/$results_branch"
-          git pull origin "$results_branch"
+          git reset --hard "origin/$BENCHMARK_RESULTS_BRANCH"
+          git pull
 
           mv "$cached_result" "$results_file"
         fi
