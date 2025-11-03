@@ -2,5 +2,3 @@
 # Do not delete the file even if it's empty.
 # https://github.com/intel/llvm/issues/19677
 range
-# https://github.com/intel/llvm/issues/19625
-spec_constants

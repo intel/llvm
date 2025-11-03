@@ -18,6 +18,7 @@
 #include <sycl/detail/common.hpp>             // for code_location
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEP...
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/id_queries_fit_in_int.hpp> // for checkValueRange
 #include <sycl/detail/info_desc_helpers.hpp>  // for is_queue_info_...
 #include <sycl/detail/kernel_desc.hpp>        // for KernelInfo
 #include <sycl/detail/optional.hpp>
@@ -156,14 +157,14 @@ private:
 
 } // namespace v1
 
-template <typename KernelName = detail::auto_name, bool EventNeeded = false,
+template <detail::WrapAs WrapAs, typename LambdaArgType,
+          typename KernelName = detail::auto_name, bool EventNeeded = false,
           typename PropertiesT, typename KernelTypeUniversalRef, int Dims>
 auto submit_kernel_direct(
-    const queue &Queue, PropertiesT Props, const nd_range<Dims> &Range,
-    KernelTypeUniversalRef &&KernelFunc,
+    const queue &Queue, [[maybe_unused]] PropertiesT Props,
+    const nd_range<Dims> &Range, KernelTypeUniversalRef &&KernelFunc,
     const detail::code_location &CodeLoc = detail::code_location::current()) {
   // TODO Properties not supported yet
-  (void)Props;
   static_assert(
       std::is_same_v<PropertiesT,
                      ext::oneapi::experimental::empty_properties_t>,
@@ -175,30 +176,39 @@ auto submit_kernel_direct(
 
   using NameT =
       typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-  using LambdaArgType =
-      sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
-  static_assert(
-      std::is_convertible_v<sycl::nd_item<Dims>, LambdaArgType>,
-      "Kernel argument of a sycl::parallel_for with sycl::nd_range "
-      "must be either sycl::nd_item or be convertible from sycl::nd_item");
-  using TransformedArgType = sycl::nd_item<Dims>;
 
-  detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
-                        TransformedArgType, PropertiesT>::wrap(KernelFunc);
+  detail::KernelWrapper<WrapAs, NameT, KernelType, LambdaArgType,
+                        PropertiesT>::wrap(KernelFunc);
 
-  HostKernelRef<KernelType, KernelTypeUniversalRef, TransformedArgType, Dims>
+  HostKernelRef<KernelType, KernelTypeUniversalRef, LambdaArgType, Dims>
       HostKernel(std::forward<KernelTypeUniversalRef>(KernelFunc));
 
   // Instantiating the kernel on the host improves debugging.
   // Passing this pointer to another translation unit prevents optimization.
 #ifndef NDEBUG
-  // TODO: call library to prevent dropping call due to optimization
+  // TODO: call library to prevent dropping call due to optimization.
   (void)
       detail::GetInstantiateKernelOnHostPtr<KernelType, LambdaArgType, Dims>();
 #endif
 
   detail::DeviceKernelInfo *DeviceKernelInfoPtr =
       &detail::getDeviceKernelInfo<NameT>();
+  constexpr auto Info = detail::CompileTimeKernelInfo<NameT>;
+
+  assert(Info.Name != std::string_view{} && "Kernel must have a name!");
+
+  static_assert(
+      Info.Name == std::string_view{} || sizeof(KernelType) == Info.KernelSize,
+      "Unexpected kernel lambda size. This can be caused by an "
+      "external host compiler producing a lambda with an "
+      "unexpected layout. This is a limitation of the compiler."
+      "In many cases the difference is related to capturing constexpr "
+      "variables. In such cases removing constexpr specifier aligns the "
+      "captures between the host compiler and the device compiler."
+      "\n"
+      "In case of MSVC, passing "
+      "-fsycl-host-compiler-options='/std:c++latest' "
+      "might also help.");
 
   if constexpr (EventNeeded) {
     return submit_kernel_direct_with_event_impl(
@@ -209,6 +219,48 @@ auto submit_kernel_direct(
         Queue, Range, HostKernel, DeviceKernelInfoPtr,
         TlsCodeLocCapture.query(), TlsCodeLocCapture.isToplevel());
   }
+}
+
+template <typename KernelName = detail::auto_name, bool EventNeeded = false,
+          typename PropertiesT, typename KernelTypeUniversalRef, int Dims>
+auto submit_kernel_direct_parallel_for(
+    const queue &Queue, PropertiesT Props, const nd_range<Dims> &Range,
+    KernelTypeUniversalRef &&KernelFunc,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+
+  using KernelType =
+      std::remove_const_t<std::remove_reference_t<KernelTypeUniversalRef>>;
+
+  using LambdaArgType =
+      sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
+  static_assert(
+      std::is_convertible_v<sycl::nd_item<Dims>, LambdaArgType>,
+      "Kernel argument of a sycl::parallel_for with sycl::nd_range "
+      "must be either sycl::nd_item or be convertible from sycl::nd_item");
+  using TransformedArgType = sycl::nd_item<Dims>;
+
+#ifndef __SYCL_DEVICE_ONLY__
+  detail::checkValueRange<Dims>(Range);
+#endif
+
+  return submit_kernel_direct<detail::WrapAs::parallel_for, TransformedArgType,
+                              KernelName, EventNeeded, PropertiesT,
+                              KernelTypeUniversalRef, Dims>(
+      Queue, Props, Range, std::forward<KernelTypeUniversalRef>(KernelFunc),
+      CodeLoc);
+}
+
+template <typename KernelName = detail::auto_name, bool EventNeeded = false,
+          typename PropertiesT, typename KernelTypeUniversalRef>
+auto submit_kernel_direct_single_task(
+    const queue &Queue, PropertiesT Props, KernelTypeUniversalRef &&KernelFunc,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+
+  return submit_kernel_direct<detail::WrapAs::single_task, void, KernelName,
+                              EventNeeded, PropertiesT, KernelTypeUniversalRef,
+                              1>(
+      Queue, Props, nd_range<1>{1, 1},
+      std::forward<KernelTypeUniversalRef>(KernelFunc), CodeLoc);
 }
 
 } // namespace detail
@@ -2722,12 +2774,27 @@ public:
         "Use queue.submit() instead");
 
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    return submit(
-        [&](handler &CGH) {
-          CGH.template single_task<KernelName, KernelType, PropertiesT>(
-              Properties, KernelFunc);
-        },
-        TlsCodeLocCapture.query());
+
+    // TODO The handler-less path does not support kernel
+    // function properties and kernel functions with the kernel_handler
+    // type argument yet.
+    if constexpr (
+        std::is_same_v<PropertiesT,
+                       ext::oneapi::experimental::empty_properties_t> &&
+        !(ext::oneapi::experimental::detail::HasKernelPropertiesGetMethod<
+            const KernelType &>::value) &&
+        !(detail::KernelLambdaHasKernelHandlerArgT<KernelType, void>::value)) {
+      return detail::submit_kernel_direct_single_task<KernelName, true>(
+          *this, ext::oneapi::experimental::empty_properties_t{}, KernelFunc,
+          TlsCodeLocCapture.query());
+    } else {
+      return submit(
+          [&](handler &CGH) {
+            CGH.template single_task<KernelName, KernelType, PropertiesT>(
+                Properties, KernelFunc);
+          },
+          TlsCodeLocCapture.query());
+    }
   }
 
   /// single_task version with a kernel represented as a lambda.
@@ -3275,21 +3342,21 @@ public:
   parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
     using KernelType = std::tuple_element_t<0, std::tuple<RestT...>>;
 
-    // TODO The handler-less path does not support reductions and kernel
-    // function properties yet.
+    // TODO The handler-less path does not support reductions, kernel
+    // function properties and kernel functions with the kernel_handler
+    // type argument yet.
     if constexpr (sizeof...(RestT) == 1 &&
                   !(ext::oneapi::experimental::detail::
                         HasKernelPropertiesGetMethod<
-                            const KernelType &>::value)) {
-      return detail::submit_kernel_direct<KernelName, true>(
+                            const KernelType &>::value) &&
+                  !(detail::KernelLambdaHasKernelHandlerArgT<
+                      KernelType, sycl::nd_item<Dims>>::value)) {
+      return detail::submit_kernel_direct_parallel_for<KernelName, true>(
           *this, ext::oneapi::experimental::empty_properties_t{}, Range,
-          Rest...);
-    } else
-#endif
-    {
+          Rest..., TlsCodeLocCapture.query());
+    } else {
       return submit(
           [&](handler &CGH) {
             CGH.template parallel_for<KernelName>(Range, Rest...);

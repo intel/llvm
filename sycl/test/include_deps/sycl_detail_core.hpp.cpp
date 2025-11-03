@@ -10,12 +10,9 @@
 // CHECK-NEXT: detail/defines_elementary.hpp
 // CHECK-NEXT: buffer.hpp
 // CHECK-NEXT: backend_types.hpp
-// CHECK-NEXT: stl_wrappers/cstdlib
 // CHECK-NEXT: detail/array.hpp
 // CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: detail/export.hpp
-// CHECK-NEXT: stl_wrappers/cassert
-// CHECK-NEXT: stl_wrappers/assert.h
 // CHECK-NEXT: __spirv/spirv_vars.hpp
 // CHECK-NEXT: detail/fwd/accessor.hpp
 // CHECK-NEXT: detail/defines.hpp
@@ -100,6 +97,7 @@
 // CHECK-NEXT: kernel_handler.hpp
 // CHECK-NEXT: nd_item.hpp
 // CHECK-NEXT: nd_range.hpp
+// CHECK-NEXT: detail/id_queries_fit_in_int.hpp
 // CHECK-NEXT: detail/optional.hpp
 // CHECK-NEXT: device.hpp
 // CHECK-NEXT: detail/string_view.hpp
@@ -134,10 +132,11 @@
 // CHECK-NEXT: CL/cl_ext.h
 // CHECK-NEXT: detail/get_device_kernel_info.hpp
 // CHECK-NEXT: detail/compile_time_kernel_info.hpp
-// CHECK-NEXT: detail/id_queries_fit_in_int.hpp
 // CHECK-NEXT: detail/kernel_launch_helper.hpp
 // CHECK-NEXT: ext/intel/experimental/fp_control_kernel_properties.hpp
 // CHECK-NEXT: ext/intel/experimental/kernel_execution_properties.hpp
+// CHECK-NEXT: ext/oneapi/experimental/cluster_group_prop.hpp
+// CHECK-NEXT: ext/oneapi/experimental/use_root_sync_prop.hpp
 // CHECK-NEXT: ext/oneapi/experimental/virtual_functions.hpp
 // CHECK-NEXT: ext/oneapi/kernel_properties/properties.hpp
 // CHECK-NEXT: ext/oneapi/work_group_scratch_memory.hpp
@@ -149,9 +148,7 @@
 // CHECK-NEXT: ext/oneapi/bindless_images_interop.hpp
 // CHECK-NEXT: ext/oneapi/interop_common.hpp
 // CHECK-NEXT: ext/oneapi/bindless_images_mem_handle.hpp
-// CHECK-NEXT: ext/oneapi/experimental/cluster_group_prop.hpp
 // CHECK-NEXT: ext/oneapi/experimental/raw_kernel_arg.hpp
-// CHECK-NEXT: ext/oneapi/experimental/use_root_sync_prop.hpp
 // CHECK-NEXT: kernel.hpp
 // CHECK-NEXT: sampler.hpp
 // CHECK-NEXT: feature_test.hpp

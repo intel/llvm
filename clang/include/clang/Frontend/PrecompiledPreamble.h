@@ -87,8 +87,8 @@ public:
         IntrusiveRefCntPtr<DiagnosticsEngine> Diagnostics,
         IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS,
         std::shared_ptr<PCHContainerOperations> PCHContainerOps,
-        bool StoreInMemory, StringRef StoragePath,
-        PreambleCallbacks &Callbacks);
+        bool StoreInMemory, StringRef StoragePath, PreambleCallbacks &Callbacks,
+        bool AllowASTWithErrors = true);
 
   PrecompiledPreamble(PrecompiledPreamble &&);
   PrecompiledPreamble &operator=(PrecompiledPreamble &&);
@@ -131,6 +131,8 @@ public:
   void OverridePreamble(CompilerInvocation &CI,
                         IntrusiveRefCntPtr<llvm::vfs::FileSystem> &VFS,
                         llvm::MemoryBuffer *MainFileBuffer) const;
+
+  llvm::StringRef memoryContents() const;
 
 private:
   PrecompiledPreamble(std::unique_ptr<PCHStorage> Storage,

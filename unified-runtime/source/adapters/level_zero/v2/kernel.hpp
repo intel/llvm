@@ -96,18 +96,26 @@ public:
 
   // Set all required values for the kernel before submission (including pending
   // memory allocations).
+  // The kMemObj argument must be a non-empty vector
+  // in the path of zeCommandListAppendLaunchKernelWithArguments()
   ur_result_t prepareForSubmission(ur_context_handle_t hContext,
                                    ur_device_handle_t hDevice,
                                    const size_t *pGlobalWorkOffset,
                                    uint32_t workDim, uint32_t groupSizeX,
                                    uint32_t groupSizeY, uint32_t groupSizeZ,
                                    ze_command_list_handle_t cmdList,
-                                   wait_list_view &waitListView);
+                                   wait_list_view &waitListView,
+                                   std::vector<void *> *kMemObj = nullptr);
 
   // Get context of the kernel.
   ur_context_handle_t getContext() const { return hProgram->Context; }
 
   ur::RefCount RefCount;
+
+  // kernelMemObj contains kernel memory objects that
+  // UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ kernelArgs pointers point to
+  std::vector<void *> kernelMemObj;
+  std::vector<void *> kernelArgs;
 
 private:
   // Keep the program of the kernel.
@@ -117,7 +125,7 @@ private:
   std::vector<std::optional<ur_single_device_kernel_t>> deviceKernels;
 
   // Cache of the common kernel properties.
-  mutable ZeCache<common_properties_t> zeCommonProperties;
+  common_properties_t zeCommonProperties;
 
   // Index of the device in the deviceKernels vector.
   size_t deviceIndex(ur_device_handle_t hDevice) const;

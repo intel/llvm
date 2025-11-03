@@ -58,6 +58,11 @@ __urdlllocal ur_result_t context_t::ddiInit() {
 
   if (UR_RESULT_SUCCESS == result) {
     result =
+        urGetIPCExpProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.IPCExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result =
         urGetKernelProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.Kernel);
   }
 
@@ -121,6 +126,11 @@ __urdlllocal ur_result_t context_t::ddiInit() {
   if (UR_RESULT_SUCCESS == result) {
     result =
         urGetDeviceProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.Device);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = urGetDeviceExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                         &urDdiTable.DeviceExp);
   }
 
   return result;
