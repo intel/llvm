@@ -283,8 +283,12 @@ struct MarshalledProperty<
 
 // Generic implementation for properties with non-template value_t.
 template <typename PropertyTy>
-struct MarshalledProperty<PropertyTy,
-                          std::void_t<typename PropertyTy::value_t>> {
+struct MarshalledProperty<
+    PropertyTy,
+    // `std::void_t<typename PropertyTy::value_t>` should be enough, but MSVC
+    // had a bug: https://godbolt.org/z/TTjsM1cWE
+    std::enable_if_t<std::is_same_v<typename PropertyTy::value_t,
+                                    typename PropertyTy::value_t>>> {
   bool MPresent = false;
 
   template <typename InputPropertyTy>
