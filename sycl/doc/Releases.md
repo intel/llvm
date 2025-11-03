@@ -46,7 +46,7 @@ we have the following tags published:
 
 ### [Legacy] releases
 
-These releases a _legacy_ meaning that we do not provide support for the
+These releases are _legacy_ meaning that we do not provide support for the
 corresponding release branches anymore, no bug fixes (functional or security)
 will be backported to them and no new tags will be made.
 
