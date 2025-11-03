@@ -64,8 +64,8 @@ bb:
   %1 = alloca %struct.foo.0, align 1
   store ptr addrspace(4) %arg, ptr %0, align 8
   %2 = addrspacecast ptr %arg1 to ptr addrspace(4)
-  call spir_func void @bar(ptr addrspace(4) %2, ptr byval(%struct.foo.0) align 1 %1)
   call spir_func void @foo(ptr addrspace(4) %2, ptr byval(%struct.foo.0) align 1 %1)
+  call spir_func void @bar(ptr addrspace(4) %2, ptr byval(%struct.foo.0) align 1 %1)
   ret void
 }
 
