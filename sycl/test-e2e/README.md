@@ -214,6 +214,9 @@ used.
 to specify the correct build target type for the available Offload device.
 Valid values are `target-nvidia` and `target-amd`.
 
+***USE_DEBUG_LIBRARIES*** - enable the use of Windows debug libraries by setting
+this to "ON". "OFF" by default.
+
 ## Special test categories
 
 There are two special directories for extended testing. See documentation at:

@@ -16,10 +16,10 @@ if (SYCL_ENABLE_XPTI_TRACING)
   include_directories(${LLVM_EXTERNAL_XPTI_SOURCE_DIR}/include)
 endif()
 
-function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
+function(add_sycl_rt_library LIB_TARGET_NAME LIB_OBJ_NAME LIB_OUTPUT_NAME)
   # Add an optional argument so we can get the library name to
   # link with for Windows Debug version
-  cmake_parse_arguments(ARG "" "XPTI_LIB;IMPLIB_NAME" "COMPILE_OPTIONS;SOURCES" ${ARGN})
+  cmake_parse_arguments(ARG "" "XPTI_LIB;IMPLIB_OUTPUT_NAME" "COMPILE_OPTIONS;SOURCES" ${ARGN})
 
   add_library(${LIB_OBJ_NAME} OBJECT ${ARG_SOURCES})
 
@@ -75,13 +75,13 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   # Common link step setup
 
-  add_library(${LIB_NAME} SHARED
+  add_library(${LIB_TARGET_NAME} SHARED
               $<TARGET_OBJECTS:${LIB_OBJ_NAME}>
               ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
 
   find_package(Threads REQUIRED)
 
-  target_link_libraries(${LIB_NAME}
+  target_link_libraries(${LIB_TARGET_NAME}
     PRIVATE
       ${CMAKE_DL_LIBS}
       ${CMAKE_THREAD_LIBS_INIT}
@@ -96,22 +96,22 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   if (SYCL_ENABLE_STACK_PRINTING)
     if(NOT MSVC OR (CMAKE_BUILD_TYPE STREQUAL "Debug" AND ARG_COMPILE_OPTIONS MATCHES ".*MDd.*") OR
       (NOT CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ARG_COMPILE_OPTIONS MATCHES ".*MDd.*"))
-        add_dependencies(${LIB_NAME} LLVMSupport)
+        add_dependencies(${LIB_TARGET_NAME} LLVMSupport)
         target_compile_definitions(${LIB_OBJ_NAME} PUBLIC ENABLE_STACK_TRACE)
-        target_link_libraries(${LIB_NAME} PRIVATE LLVMSupport)
+        target_link_libraries(${LIB_TARGET_NAME} PRIVATE LLVMSupport)
     endif()
   endif()
 
   # TODO: Enabled for MSVC
   if (NOT MSVC AND SYCL_LIB_WITH_DEBUG_SYMBOLS)
     separate_arguments(CMAKE_CXX_FLAGS_DEBUG_SEPARATED UNIX_COMMAND "${CMAKE_CXX_FLAGS_DEBUG}")
-    target_compile_options(${LIB_NAME} PRIVATE ${CMAKE_CXX_FLAGS_DEBUG_SEPARATED})
+    target_compile_options(${LIB_TARGET_NAME} PRIVATE ${CMAKE_CXX_FLAGS_DEBUG_SEPARATED})
   endif()
 
   # To facilitate better tracing and profiling except on release builds.
   check_cxx_compiler_flag("-fno-omit-frame-pointer" CXX_HAS_NO_OMIT_FRAME_POINTER)
   if (CXX_HAS_NO_OMIT_FRAME_POINTER)
-    target_compile_options(${LIB_NAME} PUBLIC
+    target_compile_options(${LIB_TARGET_NAME} PUBLIC
       $<$<CONFIG:Debug,RelWithDebInfo>:-fno-omit-frame-pointer>
       )
     target_compile_options(${LIB_OBJ_NAME} PUBLIC
@@ -123,10 +123,10 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_compile_options(${LIB_OBJ_NAME} PUBLIC
       -fprofile-instr-generate -fcoverage-mapping
     )
-    target_compile_options(${LIB_NAME} PUBLIC
+    target_compile_options(${LIB_TARGET_NAME} PUBLIC
       -fprofile-instr-generate -fcoverage-mapping
     )
-    target_link_options(${LIB_NAME} PUBLIC
+    target_link_options(${LIB_TARGET_NAME} PUBLIC
       -fprofile-instr-generate -fcoverage-mapping
     )
   endif()
@@ -135,16 +135,16 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     sycl-headers
   )
 
-  set_target_properties(${LIB_NAME} PROPERTIES LINKER_LANGUAGE CXX)
+  set_target_properties(${LIB_TARGET_NAME} PROPERTIES LINKER_LANGUAGE CXX)
 
   if (SYCL_ENABLE_XPTI_TRACING)
     target_compile_definitions(${LIB_OBJ_NAME} PRIVATE XPTI_ENABLE_INSTRUMENTATION XPTI_STATIC_LIBRARY)
-    target_link_libraries(${LIB_NAME} PRIVATE ${ARG_XPTI_LIB})
+    target_link_libraries(${LIB_TARGET_NAME} PRIVATE ${ARG_XPTI_LIB})
   endif()
 
   if (LLVM_ENABLE_ZSTD)
     target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL_RT_ZSTD_AVAILABLE)
-    target_link_libraries(${LIB_NAME} PRIVATE ${zstd_STATIC_LIBRARY})
+    target_link_libraries(${LIB_TARGET_NAME} PRIVATE ${zstd_STATIC_LIBRARY})
     target_include_directories(${LIB_OBJ_NAME} PRIVATE ${zstd_INCLUDE_DIR})
   endif()
 
@@ -153,44 +153,38 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   # ur_win_proxy_loader
   if (WIN32)
     include_directories(${LLVM_EXTERNAL_SYCL_SOURCE_DIR}/ur_win_proxy_loader)
-    if(WIN_DUPE)
-      target_link_libraries(${LIB_NAME} PUBLIC ur_win_proxy_loaderd)
-      set(MANIFEST_FILE_NAME "sycld.manifest")
-    else()
-      target_link_libraries(${LIB_NAME} PUBLIC ur_win_proxy_loader)
-      set(MANIFEST_FILE_NAME "sycl.manifest")
-    endif()
+    target_link_libraries(${LIB_TARGET_NAME} PUBLIC ur_win_proxy_loader)
+    set(MANIFEST_FILE_NAME "sycl$<$<CONFIG:Debug>:d>.manifest")
     # Embed manifest into the sycl.dll where ur_win_proxy_loader.dll is described as sycl.dll's private dll and will always be loaded from the same directory.
     # 0x2000: LOAD_LIBRARY_SAFE_CURRENT_DIRS flag. Using this flag means that loading dependency DLLs (of sycl.dll)
     # from the current directory is only allowed if it is under a directory in the Safe load list.
-    target_link_options(${LIB_NAME} PRIVATE "LINKER:/DEPENDENTLOADFLAG:0x2000" "LINKER:/MANIFEST:NO" "LINKER:/MANIFEST:EMBED" "LINKER:/MANIFESTINPUT:${CMAKE_CURRENT_SOURCE_DIR}/${MANIFEST_FILE_NAME}")
+    target_link_options(${LIB_TARGET_NAME} PRIVATE "LINKER:/DEPENDENTLOADFLAG:0x2000" "LINKER:/MANIFEST:NO" "LINKER:/MANIFEST:EMBED" "LINKER:/MANIFESTINPUT:${CMAKE_CURRENT_SOURCE_DIR}/${MANIFEST_FILE_NAME}")
   endif()
 
   if (WIN32)
-    if (ARG_IMPLIB_NAME)
-      add_custom_command(
-        TARGET ${LIB_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy
-        ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${LIB_NAME}.lib ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ARG_IMPLIB_NAME}.lib
-        COMMENT "Creating version-agnostic copy of the import library.")
-      install(
-        FILES ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ARG_IMPLIB_NAME}.lib
-        DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT sycl)
-    endif()
+    add_custom_command(
+      TARGET ${LIB_TARGET_NAME} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy
+              ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${LIB_OUTPUT_NAME}.lib
+              ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ARG_IMPLIB_OUTPUT_NAME}.lib
+      COMMENT "Creating version-agnostic copy of the import library.")
+    install(
+      FILES ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ARG_IMPLIB_OUTPUT_NAME}.lib
+      DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT sycl)
   endif()
 
   if (MSVC)
     # Install stripped PDB
-    add_stripped_pdb(${LIB_NAME})
+    add_stripped_pdb(${LIB_TARGET_NAME})
   else()
     if (UNIX AND NOT APPLE)
       set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/ld-version-script.txt")
       target_link_libraries(
-          ${LIB_NAME} PRIVATE "-Wl,--version-script=${linker_script}")
-      set_target_properties(${LIB_NAME} PROPERTIES LINK_DEPENDS ${linker_script})
+          ${LIB_TARGET_NAME} PRIVATE "-Wl,--version-script=${linker_script}")
+      set_target_properties(${LIB_TARGET_NAME} PROPERTIES LINK_DEPENDS ${linker_script})
     endif()
     if (SYCL_ENABLE_XPTI_TRACING)
-      target_link_libraries(${LIB_NAME} PRIVATE ${CMAKE_DL_LIBS})
+      target_link_libraries(${LIB_TARGET_NAME} PRIVATE ${CMAKE_DL_LIBS})
     endif()
   endif()
 
@@ -198,7 +192,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   if(LINKER_SUPPORTS_WL_GC_SECTIONS)
     # Reduces the size of the resulting library by having the linker perform
     # garbage collection.
-    target_link_options(${LIB_NAME} PRIVATE -Wl,--gc-sections)
+    target_link_options(${LIB_TARGET_NAME} PRIVATE -Wl,--gc-sections)
   endif()
 
   if(SYCL_ENABLE_EXTENSION_JIT)
@@ -208,18 +202,18 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     set(SYCL_JIT_INCLUDE_DIRS
         ${LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR}/common/include
         ${LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR}/jit-compiler/include)
-    add_dependencies(${LIB_NAME} sycl-jit)
+    add_dependencies(${LIB_TARGET_NAME} sycl-jit)
     add_dependencies(${LIB_OBJ_NAME} sycl-jit)
     target_include_directories(${LIB_OBJ_NAME} PRIVATE ${SYCL_JIT_INCLUDE_DIRS})
     set_property(GLOBAL APPEND PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONENTS
        sycl-jit)
-    target_compile_definitions(${LIB_NAME} PRIVATE SYCL_EXT_JIT_ENABLE)
+    target_compile_definitions(${LIB_TARGET_NAME} PRIVATE SYCL_EXT_JIT_ENABLE)
     target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL_EXT_JIT_ENABLE)
   endif(SYCL_ENABLE_EXTENSION_JIT)
 
-  add_common_options(${LIB_NAME} ${LIB_OBJ_NAME})
+  add_common_options(${LIB_TARGET_NAME} ${LIB_OBJ_NAME})
 
-  set_target_properties(${LIB_NAME} PROPERTIES
+  set_target_properties(${LIB_TARGET_NAME} PROPERTIES
                         VERSION ${SYCL_VERSION_STRING}
                         SOVERSION ${SYCL_MAJOR_VERSION}
                         # Set the runpath to the lib directory so libsycl can find libur_loader
@@ -346,40 +340,6 @@ set(SYCL_NON_PREVIEW_SOURCES "${SYCL_COMMON_SOURCES}"
 set(SYCL_PREVIEW_SOURCES "${SYCL_COMMON_SOURCES}"
 )
 
-if (MSVC)
-  # MSVC provides two incompatible build variants for its CRT: release and debug
-  # To avoid potential issues in user code we also need to provide two kinds
-  # of SYCL Runtime Library for release and debug configurations.
-  foreach(flag_var
-      CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
-      CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
-    string(REGEX REPLACE "/MDd" "" ${flag_var} "${${flag_var}}")
-    string(REGEX REPLACE "/MTd" "" ${flag_var} "${${flag_var}}")
-    string(REGEX REPLACE "/MD" "" ${flag_var} "${${flag_var}}")
-    string(REGEX REPLACE "/MT" "" ${flag_var} "${${flag_var}}")
-  endforeach()
-
-  set(WIN_DUPE "1")
-  if (SYCL_ENABLE_XPTI_TRACING)
-    add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object XPTI_LIB xptid COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_NON_PREVIEW_SOURCES} IMPLIB_NAME sycld)
-    if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
-      add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}-previewd sycl-previewd_object XPTI_LIB xptid COMPILE_OPTIONS "/MDd" "/D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES} IMPLIB_NAME sycl-previewd)
-    endif()
-  else()
-    add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_NON_PREVIEW_SOURCES} IMPLIB_NAME sycld)
-    if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
-      add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}-previewd sycl-previewd_object COMPILE_OPTIONS "/MDd" "/D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES} IMPLIB_NAME sycl-previewd)
-    endif()
-  endif()
-  unset(WIN_DUPE)
-  add_library(sycld ALIAS sycl${SYCL_MAJOR_VERSION}d)
-  if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
-    add_library(sycl-previewd ALIAS sycl${SYCL_MAJOR_VERSION}-previewd)
-  endif()
-
-  set(SYCL_EXTRA_OPTS "/MD")
-endif()
-
 check_cxx_compiler_flag(-fsemantic-interposition HAS_SEMANTIC_INTERPOSITION_FLAG)
 if (HAS_SEMANTIC_INTERPOSITION_FLAG AND NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
   # See https://github.com/llvm/llvm-project/issues/58295.
@@ -387,29 +347,54 @@ if (HAS_SEMANTIC_INTERPOSITION_FLAG AND NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
 endif()
 
 if (WIN32)
-set(LIB_NAME "sycl${SYCL_MAJOR_VERSION}")
+  set(LIB_NAME "sycl${SYCL_MAJOR_VERSION}")
+  set(LIB_OUTPUT_NAME "${LIB_NAME}")
+  set(LIB_PREVIEW_NAME ${LIB_NAME}-preview)
+  set(LIB_PREVIEW_OUTPUT_NAME ${LIB_OUTPUT_NAME}-preview)
+  if (CMAKE_BUILD_TYPE STREQUAL Debug OR CMAKE_MSVC_RUNTIME_LIBRARY STREQUAL MultiThreadedDebugDLL)
+    set(LIB_OUTPUT_NAME "${LIB_OUTPUT_NAME}d")
+    set(LIB_PREVIEW_OUTPUT_NAME ${LIB_PREVIEW_OUTPUT_NAME}d)
+  endif()
 else()
-set(LIB_NAME "sycl")
+  set(LIB_NAME "sycl")
+  set(LIB_OUTPUT_NAME "${LIB_NAME}")
+  set(LIB_PREVIEW_NAME ${LIB_NAME}-preview)
+  set(LIB_PREVIEW_OUTPUT_NAME ${LIB_OUTPUT_NAME}-preview)
 endif()
+
 # Version-agnostic name of the import library, has effect on Windows only.
 set(IMPLIB_NAME "sycl")
-
-if (SYCL_ENABLE_XPTI_TRACING)
-  add_sycl_rt_library(${LIB_NAME} sycl_object XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS}  SOURCES ${SYCL_NON_PREVIEW_SOURCES} IMPLIB_NAME ${IMPLIB_NAME})
-  if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
-    add_sycl_rt_library(${LIB_NAME}-preview sycl-preview_object XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} "-D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES} IMPLIB_NAME ${IMPLIB_NAME}-preview)
-  endif()
-else()
-  add_sycl_rt_library(${LIB_NAME} sycl_object COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} SOURCES ${SYCL_NON_PREVIEW_SOURCES} IMPLIB_NAME ${IMPLIB_NAME})
-  if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
-    add_sycl_rt_library(${LIB_NAME}-preview sycl-preview_object COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} "-D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES} IMPLIB_NAME ${IMPLIB_NAME}-preview)
-  endif()
+set(IMPLIB_PREVIEW_NAME "${IMPLIB_NAME}-preview")
+if (CMAKE_BUILD_TYPE STREQUAL Debug OR CMAKE_MSVC_RUNTIME_LIBRARY STREQUAL MultiThreadedDebugDLL)
+  set(IMPLIB_NAME "${IMPLIB_NAME}d")
+  set(IMPLIB_PREVIEW_NAME "${IMPLIB_PREVIEW_NAME}d")
 endif()
 
-if (WIN32)
+add_sycl_rt_library(${LIB_NAME} sycl_object ${LIB_OUTPUT_NAME}
+                    XPTI_LIB xpti
+                    COMPILE_OPTIONS ${SYCL_EXTRA_OPTS}
+                    SOURCES ${SYCL_NON_PREVIEW_SOURCES}
+                    IMPLIB_OUTPUT_NAME ${IMPLIB_NAME})
+if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
+  add_sycl_rt_library(${LIB_PREVIEW_NAME} sycl-preview_object ${LIB_PREVIEW_OUTPUT_NAME}
+                      XPTI_LIB xpti
+                      COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} "-D__INTEL_PREVIEW_BREAKING_CHANGES"
+                      SOURCES ${SYCL_PREVIEW_SOURCES}
+                      IMPLIB_OUTPUT_NAME ${IMPLIB_PREVIEW_NAME})
+endif()
+
+if (CMAKE_SYSTEM_NAME STREQUAL Windows)
   add_library(sycl ALIAS ${LIB_NAME})
   if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
     add_library(sycl-preview ALIAS sycl${SYCL_MAJOR_VERSION}-preview)
+  endif()
+endif()
+
+if (CMAKE_SYSTEM_NAME STREQUAL Windows AND
+    (CMAKE_BUILD_TYPE STREQUAL Debug OR CMAKE_MSVC_RUNTIME_LIBRARY STREQUAL MultiThreadedDebugDLL))
+  set_target_properties(sycl${SYCL_MAJOR_VERSION} PROPERTIES OUTPUT_NAME "sycl${SYCL_MAJOR_VERSION}d")
+  if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
+    set_target_properties(sycl${SYCL_MAJOR_VERSION}-preview PROPERTIES OUTPUT_NAME "sycl${SYCL_MAJOR_VERSION}-previewd")
   endif()
 endif()
 

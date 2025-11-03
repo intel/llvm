@@ -57,9 +57,6 @@ if(NOT LEVEL_ZERO_LIB_NAME AND NOT LEVEL_ZERO_LIBRARY)
   # Prevent L0 loader from exporting extra symbols
   set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS OFF)
 
-  set(CMAKE_MSVC_RUNTIME_LIBRARY_BAK "${CMAKE_MSVC_RUNTIME_LIBRARY}")
-  # UMF has not yet been able to build as static
-  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
   message(STATUS "Level Zero Adapter: Will fetch Level Zero Loader from ${UR_LEVEL_ZERO_LOADER_REPO}")
   include(FetchContent)
   FetchContent_Declare(level-zero-loader
@@ -74,7 +71,6 @@ if(NOT LEVEL_ZERO_LIB_NAME AND NOT LEVEL_ZERO_LIBRARY)
 
   # Restore original flags
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_BAK}")
-  set(CMAKE_MSVC_RUNTIME_LIBRARY "${CMAKE_MSVC_RUNTIME_LIBRARY_BAK}")
   set(LEVEL_ZERO_LIBRARY ze_loader)
   set(LEVEL_ZERO_INCLUDE_DIR
     ${level-zero-loader_SOURCE_DIR}/include CACHE PATH "Path to Level Zero Headers")

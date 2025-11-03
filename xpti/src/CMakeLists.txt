@@ -22,13 +22,3 @@ set(SOURCES
 )
 
 add_xpti_lib(xpti ${SOURCES})
-
-# Handle the debug version for the Microsoft compiler as a special case by
-# creating a debug version of the static library that uses the flags used by
-# the SYCL runtime
-if (MSVC)
-  add_xpti_lib(xptid STATIC ${SOURCES})
-  target_compile_options(xptid PRIVATE ${XPTI_CXX_FLAGS_DEBUG})
-  target_compile_options(xpti PRIVATE ${XPTI_CXX_FLAGS_RELEASE})
-endif()
-
