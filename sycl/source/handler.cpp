@@ -511,7 +511,7 @@ event handler::finalize() {
 
   // TODO checking the size of the events vector and avoiding the call is more
   // efficient here at this point
-  const bool SchedulerBypassPath =
+  const bool KernelSchedulerBypass =
       (Queue && !Graph && !impl->MSubgraphNode && !Queue->hasCommandGraph() &&
        !impl->CGData.MRequirements.size() && !MStreamStorage.size() &&
        (impl->CGData.MEvents.size() == 0 ||
@@ -521,7 +521,7 @@ event handler::finalize() {
   // Extract arguments from the kernel lambda, if required.
   // Skipping this is currently limited to simple kernels on the fast path.
   if (type == detail::CGType::Kernel && impl->MKernelData.getKernelFuncPtr() &&
-      (!SchedulerBypassPath || impl->MKernelData.hasSpecialCaptures())) {
+      (!KernelSchedulerBypass || impl->MKernelData.hasSpecialCaptures())) {
     impl->MKernelData.extractArgsAndReqsFromLambda();
   }
 
@@ -633,7 +633,7 @@ event handler::finalize() {
       }
     }
 
-    if (SchedulerBypassPath) {
+    if (KernelSchedulerBypass) {
       // if user does not add a new dependency to the dependency graph, i.e.
       // the graph is not changed, then this faster path is used to submit
       // kernel bypassing scheduler and avoiding CommandGroup, Command objects
@@ -889,7 +889,7 @@ event handler::finalize() {
   // requested, the queue supports events discarding, and the scheduler
   // might have been bypassed (not supported yet), the event can be skipped.
   bool DiscardEvent =
-      (type != detail::CGType::Kernel && SchedulerBypassPath &&
+      (type != detail::CGType::Kernel && KernelSchedulerBypass &&
        !impl->MEventNeeded && Queue->supportsDiscardingPiEvents());
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(

@@ -46,24 +46,32 @@ inline ur_result_t redefined_urEnqueueKernelLaunchWithEvent(void *pParams) {
 static thread_local size_t counter_urUSMEnqueueMemcpy = 0;
 inline ur_result_t redefined_urUSMEnqueueMemcpy(void *pParams) {
   ++counter_urUSMEnqueueMemcpy;
+  auto params = *static_cast<ur_enqueue_usm_memcpy_params_t *>(pParams);
+  EXPECT_EQ(*params.pphEvent, nullptr);
   return UR_RESULT_SUCCESS;
 }
 
 static thread_local size_t counter_urUSMEnqueueFill = 0;
 inline ur_result_t redefined_urUSMEnqueueFill(void *pParams) {
   ++counter_urUSMEnqueueFill;
+  auto params = *static_cast<ur_enqueue_usm_fill_params_t *>(pParams);
+  EXPECT_EQ(*params.pphEvent, nullptr);
   return UR_RESULT_SUCCESS;
 }
 
 static thread_local size_t counter_urUSMEnqueuePrefetch = 0;
 inline ur_result_t redefined_urUSMEnqueuePrefetch(void *pParams) {
   ++counter_urUSMEnqueuePrefetch;
+  auto params = *static_cast<ur_enqueue_usm_prefetch_params_t *>(pParams);
+  EXPECT_EQ(*params.pphEvent, nullptr);
   return UR_RESULT_SUCCESS;
 }
 
 static thread_local size_t counter_urUSMEnqueueMemAdvise = 0;
 inline ur_result_t redefined_urUSMEnqueueMemAdvise(void *pParams) {
   ++counter_urUSMEnqueueMemAdvise;
+  auto params = *static_cast<ur_enqueue_usm_advise_params_t *>(pParams);
+  EXPECT_EQ(*params.pphEvent, nullptr);
   return UR_RESULT_SUCCESS;
 }
 
