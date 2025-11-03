@@ -264,7 +264,7 @@ public:
     MWorkerQueue = std::move(WorkerQueue);
   };
 
-  /// Sets original queue and device used for submission.
+  /// Sets original queue used for submission.
   ///
   /// @return
   void setSubmittedQueue(queue_impl *SubmittedQueue);
@@ -394,7 +394,6 @@ protected:
 
   std::weak_ptr<queue_impl> MWorkerQueue;
   std::weak_ptr<queue_impl> MSubmittedQueue;
-  device_impl *MSubmittedDevice = nullptr;
 
   /// Dependency events prepared for waiting by backend.
   std::vector<EventImplPtr> MPreparedDepsEvents;

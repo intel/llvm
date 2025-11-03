@@ -213,7 +213,6 @@ void event_impl::initHostProfilingInfo() {
 
 void event_impl::setSubmittedQueue(queue_impl *SubmittedQueue) {
   MSubmittedQueue = SubmittedQueue->weak_from_this();
-  MSubmittedDevice = &SubmittedQueue->getDeviceImpl();
 }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
