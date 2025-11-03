@@ -111,7 +111,6 @@ struct ur_integrated_buffer_handle_t : ur_mem_buffer_t {
 
 private:
   usm_unique_ptr_t ptr;
-  void *writeBackPtr = nullptr;
 };
 
 struct host_allocation_desc_t {

@@ -706,7 +706,7 @@ def remove_level_zero_suffix(devices):
 available_devices = {
     "opencl": ("cpu", "gpu", "fpga"),
     "cuda": "gpu",
-    "level_zero": "gpu",
+    "level_zero": ("gpu", "0", "1"),
     "hip": "gpu",
     "native_cpu": "cpu",
     "offload": "gpu",

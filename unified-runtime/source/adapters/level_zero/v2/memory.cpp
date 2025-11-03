@@ -57,16 +57,34 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
     ur_context_handle_t hContext, void *hostPtr, size_t size,
     device_access_mode_t accessMode)
     : ur_mem_buffer_t(hContext, size, accessMode) {
-  bool hostPtrImported =
-      maybeImportUSM(hContext->getPlatform()->ZeDriverHandleExpTranslated,
-                     hContext->getZeHandle(), hostPtr, size);
+  if (hostPtr) {
+    // Host pointer provided - check if it's already USM or needs import
+    ZeStruct<ze_memory_allocation_properties_t> memProps;
+    auto ret = getMemoryAttrs(hContext->getZeHandle(), hostPtr, nullptr, &memProps);
+    
+    if (ret == UR_RESULT_SUCCESS && memProps.type != ZE_MEMORY_TYPE_UNKNOWN) {
+      // Already a USM allocation - just use it directly without import
+      this->ptr = usm_unique_ptr_t(hostPtr, [](void *) {
+        // Don't free - we don't own this memory
+      });
+    } else {
+      // Not USM - try to import it
+      bool hostPtrImported =
+          maybeImportUSM(hContext->getPlatform()->ZeDriverHandleExpTranslated,
+                         hContext->getZeHandle(), hostPtr, size);
+      
+      if (!hostPtrImported) {
+        // This should not happen if urMemBufferCreate logic is correct
+        throw UR_RESULT_ERROR_INVALID_VALUE;
+      }
 
-  if (hostPtrImported) {
-    this->ptr = usm_unique_ptr_t(hostPtr, [hContext](void *ptr) {
-      ZeUSMImport.doZeUSMRelease(
-          hContext->getPlatform()->ZeDriverHandleExpTranslated, ptr);
-    });
+      this->ptr = usm_unique_ptr_t(hostPtr, [hContext](void *ptr) {
+        ZeUSMImport.doZeUSMRelease(
+            hContext->getPlatform()->ZeDriverHandleExpTranslated, ptr);
+      });
+    }
   } else {
+    // No host pointer - allocate new USM host memory
     void *rawPtr;
     UR_CALL_THROWS(hContext->getDefaultUSMPool()->allocate(
         hContext, nullptr, nullptr, UR_USM_TYPE_HOST, size, &rawPtr));
@@ -77,11 +95,6 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
         UR_LOG(ERR, "Failed to free host memory: {}", ret);
       }
     });
-
-    if (hostPtr) {
-      std::memcpy(this->ptr.get(), hostPtr, size);
-      writeBackPtr = hostPtr;
-    }
   }
 }
 
@@ -98,9 +111,7 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
 }
 
 ur_integrated_buffer_handle_t::~ur_integrated_buffer_handle_t() {
-  if (writeBackPtr) {
-    std::memcpy(writeBackPtr, this->ptr.get(), size);
-  }
+  // No writeback needed - integrated buffers use zero-copy access
 }
 
 void *ur_integrated_buffer_handle_t::getDevicePtr(
@@ -113,18 +124,14 @@ void *ur_integrated_buffer_handle_t::getDevicePtr(
 void *ur_integrated_buffer_handle_t::mapHostPtr(
     ur_map_flags_t /*flags*/, size_t offset, size_t /*size*/,
     ze_command_list_handle_t /*cmdList*/, wait_list_view & /*waitListView*/) {
-  // TODO: if writeBackPtr is set, we should map to that pointer
-  // because that's what SYCL expects, SYCL will attempt to call free
-  // on the resulting pointer leading to double free with the current
-  // implementation. Investigate the SYCL implementation.
+  // For integrated devices, both device and host access the same memory
   return ur_cast<char *>(ptr.get()) + offset;
 }
 
 void ur_integrated_buffer_handle_t::unmapHostPtr(
     void * /*pMappedPtr*/, ze_command_list_handle_t /*cmdList*/,
     wait_list_view & /*waitListView*/) {
-  // TODO: if writeBackPtr is set, we should copy the data back
-  /* nop */
+  // No-op: integrated buffers use zero-copy, no synchronization needed
 }
 
 static v2::raii::command_list_unique_handle
@@ -410,19 +417,16 @@ void ur_shared_buffer_handle_t::unmapHostPtr(
   // nop
 }
 
-static bool useHostBuffer(ur_context_handle_t /* hContext */) {
+static bool useHostBuffer(ur_context_handle_t hContext) {
   // We treat integrated devices (physical memory shared with the CPU)
   // differently from discrete devices (those with distinct memories).
   // For integrated devices, allocating the buffer in the host memory
   // enables automatic access from the device, and makes copying
   // unnecessary in the map/unmap operations. This improves performance.
 
-  // TODO: fix integrated buffer implementation
-  return false;
-
-  // return hContext->getDevices().size() == 1 &&
-  //        hContext->getDevices()[0]->ZeDeviceProperties->flags &
-  //            ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
+  return hContext->getDevices().size() == 1 &&
+         hContext->getDevices()[0]->ZeDeviceProperties->flags &
+             ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
 }
 
 ur_mem_sub_buffer_t::ur_mem_sub_buffer_t(ur_mem_handle_t hParent, size_t offset,
@@ -566,6 +570,46 @@ ur_result_t urMemBufferCreate(ur_context_handle_t hContext,
   void *hostPtr = pProperties ? pProperties->pHost : nullptr;
   auto accessMode = ur_mem_buffer_t::getDeviceAccessMode(flags);
 
+  // For integrated devices, we can use zero-copy host buffers when:
+  // 1. No host pointer is provided (we'll allocate USM host memory)
+  // 2. Host pointer is already USM memory
+  // 3. Host pointer can be imported as USM
+  // Otherwise, fall back to discrete buffer (explicit copies).
+  if (useHostBuffer(hContext) && hostPtr) {
+    // Check what type of memory this pointer is
+    ZeStruct<ze_memory_allocation_properties_t> memProps;
+    auto ret = getMemoryAttrs(hContext->getZeHandle(), hostPtr, nullptr, &memProps);
+    
+    if (ret == UR_RESULT_SUCCESS) {
+      if (memProps.type != ZE_MEMORY_TYPE_UNKNOWN) {
+        // Already USM memory (host, device, or shared) - use integrated path
+        *phBuffer = ur_mem_handle_t_::create<ur_integrated_buffer_handle_t>(
+            hContext, hostPtr, size, accessMode);
+        return UR_RESULT_SUCCESS;
+      }
+      
+      // Memory type is UNKNOWN - try to import it
+      bool canImport =
+          maybeImportUSM(hContext->getPlatform()->ZeDriverHandleExpTranslated,
+                         hContext->getZeHandle(), hostPtr, size);
+      if (!canImport) {
+        // Cannot import: fall back to discrete buffer path
+        *phBuffer = ur_mem_handle_t_::create<ur_discrete_buffer_handle_t>(
+            hContext, hostPtr, size, accessMode);
+        return UR_RESULT_SUCCESS;
+      }
+      // Successfully imported: release it now, constructor will import again
+      ZeUSMImport.doZeUSMRelease(
+          hContext->getPlatform()->ZeDriverHandleExpTranslated, hostPtr);
+    } else {
+      // Cannot get memory attributes: fall back to discrete buffer
+      *phBuffer = ur_mem_handle_t_::create<ur_discrete_buffer_handle_t>(
+          hContext, hostPtr, size, accessMode);
+      return UR_RESULT_SUCCESS;
+    }
+  }
+
+  // Use integrated buffer path (no hostPtr, or hostPtr is USM/importable)
   if (useHostBuffer(hContext)) {
     *phBuffer = ur_mem_handle_t_::create<ur_integrated_buffer_handle_t>(
         hContext, hostPtr, size, accessMode);
