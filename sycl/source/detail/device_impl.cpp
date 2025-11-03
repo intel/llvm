@@ -9,6 +9,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/jit_compiler.hpp>
 #include <detail/platform_impl.hpp>
+#include <detail/scheduler/scheduler.hpp>
 #include <detail/ur_info_code.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
@@ -524,17 +525,7 @@ void device_impl::wait() const {
 }
 
 void device_impl::throwAsynchronous() {
-  std::lock_guard<std::mutex> Lock(MAsyncExceptionsMutex);
-  for (auto &ExceptionsEntryIt : MAsyncExceptions) {
-    exception_list Exceptions = std::move(ExceptionsEntryIt.second);
-    std::shared_ptr<queue_impl> Queue = ExceptionsEntryIt.first.lock();
-    if (Queue && Queue->getAsynchHandler()) {
-      Queue->getAsynchHandler()(std::move(Exceptions));
-    } else {
-      // If the queue is dead, use the default handler.
-      defaultAsyncHandler(std::move(Exceptions));
-    }
-  }
+  Scheduler::getInstance().flushAsyncExceptions();
 }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES

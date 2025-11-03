@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/internal/clc.h>
 #include <clc/integer/clc_abs_diff.h>
 #include <libspirv/spirv.h>
 

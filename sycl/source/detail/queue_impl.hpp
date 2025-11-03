@@ -255,7 +255,6 @@ public:
       // notification and destroy the trace event for this queue.
       destructorNotification();
 #endif
-      MDevice.unregisterQueue(weak_from_this());
       auto status =
           getAdapter().call_nocheck<UrApiKind::urQueueRelease>(MQueue);
       // If loader is already closed, it'll return a not-initialized status
@@ -297,6 +296,8 @@ public:
 #endif
 
   context_impl &getContextImpl() const { return *MContext; }
+
+  std::weak_ptr<context_impl> getContextImplWeakPtr() const { return MContext; }
 
   device_impl &getDeviceImpl() const { return MDevice; }
 
@@ -419,28 +420,12 @@ public:
     throw_asynchronous();
   }
 
-  /// Performs a blocking wait for the completion of all enqueued tasks in the
-  /// queue.
-  ///
   /// Synchronous errors will be reported through SYCL exceptions.
   /// Asynchronous errors will be passed to the async_handler passed to the
   /// queue on construction. If no async_handler was provided then
   /// asynchronous exceptions will be passed to the async_handler associated
   /// with the context if present, or the default async_handler otherwise.
-  void throw_asynchronous() {
-    exception_list Exceptions =
-        getDeviceImpl().flushAsyncExceptions(weak_from_this());
-    if (Exceptions.size() == 0)
-      return;
-
-    if (MAsyncHandler)
-      MAsyncHandler(std::move(Exceptions));
-    else if (const async_handler &CtxAsyncHandler =
-                 getContextImpl().get_async_handler())
-      CtxAsyncHandler(std::move(Exceptions));
-    else
-      defaultAsyncHandler(std::move(Exceptions));
-  }
+  void throw_asynchronous() { Scheduler::getInstance().flushAsyncExceptions(); }
 
   /// Creates UR properties array.
   ///

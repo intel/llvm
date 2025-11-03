@@ -134,6 +134,7 @@ on:
         type: string
         default: 'Minimal'
         required: False
+      # dry-run is passed only to compare.py (to not fail on regression), not to main.py (where such flag would omit all benchmark runs)
       benchmark_dry_run:
         description: |
           Whether or not to fail the workflow upon a regression.
@@ -329,7 +330,8 @@ jobs:
     - run: which clang++ sycl-ls
     - run: sycl-ls --verbose
     - run: SYCL_UR_TRACE=1 sycl-ls
-    - run: |
+    - name: Print IGC version
+      run: |
           if [ -f /usr/local/lib/igc/IGCTAG.txt ]; then
             cat /usr/local/lib/igc/IGCTAG.txt
           fi

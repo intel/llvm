@@ -213,7 +213,6 @@ void event_impl::initHostProfilingInfo() {
 
 void event_impl::setSubmittedQueue(queue_impl *SubmittedQueue) {
   MSubmittedQueue = SubmittedQueue->weak_from_this();
-  MSubmittedDevice = &SubmittedQueue->getDeviceImpl();
 }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -308,29 +307,7 @@ void event_impl::wait(bool *Success) {
 
 void event_impl::wait_and_throw() {
   wait();
-
-  if (std::shared_ptr<queue_impl> SubmittedQueue = MSubmittedQueue.lock()) {
-    SubmittedQueue->throw_asynchronous();
-    return;
-  }
-
-  // If the queue has died, we rely on finding its exceptions through the
-  // device.
-  if (MSubmittedDevice == nullptr)
-    return;
-
-  // If MSubmittedQueue has died, get flush any exceptions associated with it
-  // still, then user either the context async_handler or the default
-  // async_handler.
-  exception_list Exceptions =
-      MSubmittedDevice->flushAsyncExceptions(MSubmittedQueue);
-  if (Exceptions.size() == 0)
-    return;
-
-  if (MContext && MContext->get_async_handler())
-    MContext->get_async_handler()(std::move(Exceptions));
-  else
-    defaultAsyncHandler(std::move(Exceptions));
+  Scheduler::getInstance().flushAsyncExceptions();
 }
 
 void event_impl::checkProfilingPreconditions() const {

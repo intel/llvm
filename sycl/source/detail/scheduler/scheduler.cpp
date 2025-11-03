@@ -260,8 +260,7 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
       auto WorkerQueue = NewCmd->getEvent()->getWorkerQueue();
       assert(WorkerQueue &&
              "WorkerQueue for CopyBack command must be not null");
-      WorkerQueue->getDeviceImpl().reportAsyncException(
-          WorkerQueue, std::current_exception());
+      reportAsyncException(WorkerQueue, std::current_exception());
     }
   }
   EventImplPtr NewEvent = NewCmd->getEvent();
@@ -707,6 +706,45 @@ bool Scheduler::areEventsSafeForSchedulerBypass(events_range DepEvents,
     return Event.getHandle() != nullptr;
   });
 }
+
+void Scheduler::reportAsyncException(
+    const std::shared_ptr<queue_impl> &QueuePtr,
+    const std::exception_ptr &ExceptionPtr) {
+  std::lock_guard<std::mutex> Lock(MAsyncExceptionsMutex);
+  MAsyncExceptions[AsyncExceptionKey{QueuePtr,
+                                     QueuePtr->getContextImplWeakPtr()}]
+      .PushBack(ExceptionPtr);
+}
+
+void Scheduler::flushAsyncExceptions() {
+  decltype(MAsyncExceptions) AsyncExceptions;
+  {
+    std::lock_guard<std::mutex> Lock(MAsyncExceptionsMutex);
+    std::swap(AsyncExceptions, MAsyncExceptions);
+  }
+  for (auto &ExceptionsEntryIt : AsyncExceptions) {
+    exception_list Exceptions = std::move(ExceptionsEntryIt.second);
+
+    if (Exceptions.size() == 0)
+      continue;
+
+    std::shared_ptr<queue_impl> Queue = ExceptionsEntryIt.first.first.lock();
+    if (Queue && Queue->getAsynchHandler()) {
+      Queue->getAsynchHandler()(std::move(Exceptions));
+      continue;
+    }
+
+    std::shared_ptr<context_impl> Context =
+        ExceptionsEntryIt.first.second.lock();
+    if (Context && Context->get_async_handler()) {
+      Context->get_async_handler()(std::move(Exceptions));
+    } else {
+      // If the queue is dead, use the default handler.
+      defaultAsyncHandler(std::move(Exceptions));
+    }
+  }
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

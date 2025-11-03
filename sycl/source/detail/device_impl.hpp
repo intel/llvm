@@ -2271,31 +2271,6 @@ public:
     return {};
   }
 
-  /// Puts exception to the list of asynchronous ecxeptions.
-  ///
-  /// \param QueueWeakPtr is a weak pointer referring to the queue to report
-  ///   the asynchronous exceptions for.
-  /// \param ExceptionPtr is a pointer to exception to be put.
-  void reportAsyncException(std::weak_ptr<queue_impl> QueueWeakPtr,
-                            const std::exception_ptr &ExceptionPtr) {
-    std::lock_guard<std::mutex> Lock(MAsyncExceptionsMutex);
-    MAsyncExceptions[QueueWeakPtr].PushBack(ExceptionPtr);
-  }
-
-  /// Extracts all unconsumed asynchronous exceptions for a given queue.
-  ///
-  /// \param QueueWeakPtr is a weak pointer referring to the queue to extract
-  ///   unconsumed asynchronous exceptions for.
-  exception_list flushAsyncExceptions(std::weak_ptr<queue_impl> QueueWeakPtr) {
-    std::lock_guard<std::mutex> Lock(MAsyncExceptionsMutex);
-    auto ExceptionsEntryIt = MAsyncExceptions.find(QueueWeakPtr);
-    if (ExceptionsEntryIt == MAsyncExceptions.end())
-      return exception_list{};
-    exception_list Exceptions = std::move(ExceptionsEntryIt->second);
-    MAsyncExceptions.erase(ExceptionsEntryIt);
-    return Exceptions;
-  }
-
   /// Synchronizes with all queues on the device.
   void wait() const;
 
@@ -2328,13 +2303,6 @@ private:
   std::set<std::weak_ptr<queue_impl>,
            std::owner_less<std::weak_ptr<queue_impl>>>
       MQueues;
-
-  // Asynchronous exceptions are captured at device-level until flushed, either
-  // by queues, events or a synchronization on the device itself.
-  std::mutex MAsyncExceptionsMutex;
-  std::map<std::weak_ptr<queue_impl>, exception_list,
-           std::owner_less<std::weak_ptr<queue_impl>>>
-      MAsyncExceptions;
 
   // Order of caches matters! UR must come before SYCL info descriptors (because
   // get_info calls get_info_impl but the opposite never happens) and both
