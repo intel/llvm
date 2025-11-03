@@ -395,6 +395,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
 
   pDdiTable->pfnTimestampRecordingExp = nullptr;
   pDdiTable->pfnNativeCommandExp = nullptr;
+  pDdiTable->pfnKernelLaunchWithArgsExp = urEnqueueKernelLaunchWithArgsExp;
 
   return UR_RESULT_SUCCESS;
 }
