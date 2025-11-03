@@ -12,8 +12,12 @@
 #include <sycl/detail/compile_time_kernel_info.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/is_device_copyable.hpp>
+#include <sycl/detail/type_traits.hpp>
 #include <sycl/ext/intel/experimental/fp_control_kernel_properties.hpp>
 #include <sycl/ext/intel/experimental/kernel_execution_properties.hpp>
+#include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>
+#include <sycl/ext/oneapi/experimental/graph.hpp>
+#include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
 #include <sycl/ext/oneapi/experimental/virtual_functions.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/work_group_scratch_memory.hpp>
@@ -253,23 +257,130 @@ struct KernelWrapper<
   }
 }; // KernelWrapper struct
 
-struct KernelLaunchPropertyWrapper {
-  template <typename KernelName, typename PropertyProcessor,
-            typename KernelType>
-  static void parseProperties([[maybe_unused]] PropertyProcessor h,
-                              [[maybe_unused]] const KernelType &KernelFunc) {
-#ifndef __SYCL_DEVICE_ONLY__
-    // If there are properties provided by get method then process them.
-    if constexpr (ext::oneapi::experimental::detail::
-                      HasKernelPropertiesGetMethod<const KernelType &>::value) {
+// This namespace encapsulates everything related to parsing kernel launch
+// properties.
+inline namespace kernel_launch_properties_v1 {
 
-      h->template processProperties<
-          detail::CompileTimeKernelInfo<KernelName>.IsESIMD>(
-          KernelFunc.get(ext::oneapi::experimental::properties_tag{}));
-    }
-#endif
+template <typename key, typename = void> struct MarshalledProperty;
+
+// Generic implementation for runtime properties.
+template <typename PropertyTy>
+struct MarshalledProperty<
+    PropertyTy,
+    std::enable_if_t<!std::is_empty_v<PropertyTy> &&
+                     std::is_same_v<PropertyTy, typename PropertyTy::key_t>>> {
+  std::optional<PropertyTy> MProperty;
+
+  template <typename InputPropertyTy>
+  MarshalledProperty(const InputPropertyTy &Props) {
+    (void)Props;
+    if constexpr (InputPropertyTy::template has_property<PropertyTy>())
+      MProperty = Props.template get_property<PropertyTy>();
   }
-}; // KernelLaunchPropertyWrapper struct
+
+  MarshalledProperty() = default;
+};
+
+// Generic implementation for properties with non-template value_t.
+template <typename PropertyTy>
+struct MarshalledProperty<PropertyTy,
+                          std::void_t<typename PropertyTy::value_t>> {
+  bool MPresent = false;
+
+  template <typename InputPropertyTy>
+  MarshalledProperty(const InputPropertyTy &) {
+    using namespace sycl::ext::oneapi::experimental;
+    MPresent = InputPropertyTy::template has_property<
+        sycl::ext::oneapi::experimental::use_root_sync_key>();
+  }
+
+  MarshalledProperty() = default;
+};
+
+// Specialization for work group progress property.
+template <typename PropertyTy>
+struct MarshalledProperty<
+    PropertyTy,
+    std::enable_if_t<check_type_in_v<
+        PropertyTy, sycl::ext::oneapi::experimental::work_group_progress_key,
+        sycl::ext::oneapi::experimental::sub_group_progress_key,
+        sycl::ext::oneapi::experimental::work_item_progress_key>>> {
+
+  using forward_progress_guarantee =
+      sycl::ext::oneapi::experimental::forward_progress_guarantee;
+  using execution_scope = sycl::ext::oneapi::experimental::execution_scope;
+
+  std::optional<forward_progress_guarantee> MFPGuarantee;
+  std::optional<execution_scope> MFPCoordinationScope;
+
+  template <typename InputPropertyTy>
+  MarshalledProperty(const InputPropertyTy &Props) {
+    (void)Props;
+
+    if constexpr (InputPropertyTy::template has_property<PropertyTy>()) {
+      MFPGuarantee = Props.template get_property<PropertyTy>().guarantee;
+      MFPCoordinationScope =
+          Props.template get_property<PropertyTy>().coordinationScope;
+    }
+  }
+
+  MarshalledProperty() = default;
+};
+
+template <typename... keys> struct PropsHolder : MarshalledProperty<keys>... {
+  bool MEmpty = true;
+
+  template <typename PropertiesT,
+            class = typename std::enable_if_t<
+                ext::oneapi::experimental::is_property_list_v<PropertiesT>>>
+  PropsHolder(PropertiesT Props)
+      : MarshalledProperty<keys>(Props)...,
+        MEmpty(((!PropertiesT::template has_property<keys>() && ...))) {}
+
+  PropsHolder() = default;
+
+  constexpr bool isEmpty() const { return MEmpty; }
+
+  template <typename PropertyCastKey> constexpr auto get() const {
+    return static_cast<const MarshalledProperty<PropertyCastKey> *>(this);
+  }
+};
+
+using KernelPropertyHolderStructTy =
+    PropsHolder<sycl::ext::oneapi::experimental::work_group_scratch_size,
+                sycl::ext::intel::experimental::cache_config_key,
+                sycl::ext::oneapi::experimental::use_root_sync_key,
+                sycl::ext::oneapi::experimental::work_group_progress_key,
+                sycl::ext::oneapi::experimental::sub_group_progress_key,
+                sycl::ext::oneapi::experimental::work_item_progress_key,
+                sycl::ext::oneapi::experimental::cuda::cluster_size_key<1>,
+                sycl::ext::oneapi::experimental::cuda::cluster_size_key<2>,
+                sycl::ext::oneapi::experimental::cuda::cluster_size_key<3>>;
+
+/// Note: it is important that this function *does not* depend on kernel
+/// name or kernel type, because then it will be instantiated for every
+/// kernel, even though body of those instantiated functions could be almost
+/// the same, thus unnecessary increasing compilation time.
+template <bool IsESIMDKernel = false, typename PropertiesT,
+          class = typename std::enable_if_t<
+              ext::oneapi::experimental::is_property_list_v<PropertiesT>>>
+constexpr KernelPropertyHolderStructTy
+extractKernelProperties(PropertiesT Props) {
+  static_assert(
+      !PropertiesT::template has_property<
+          sycl::ext::intel::experimental::fp_control_key>() ||
+          (PropertiesT::template has_property<
+               sycl::ext::intel::experimental::fp_control_key>() &&
+           IsESIMDKernel),
+      "Floating point control property is supported for ESIMD kernels only.");
+  static_assert(
+      !PropertiesT::template has_property<
+          sycl::ext::oneapi::experimental::indirectly_callable_key>(),
+      "indirectly_callable property cannot be applied to SYCL kernels");
+
+  return KernelPropertyHolderStructTy(Props);
+}
+} // namespace kernel_launch_properties_v1
 
 } // namespace detail
 } // namespace _V1

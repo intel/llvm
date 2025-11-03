@@ -1627,13 +1627,7 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
     AsanSpirv->initializeCallbacks();
 
     // FIXME: W/A skip instrumentation if this module has ESIMD
-    bool HasESIMD = false;
-    for (auto &F : M) {
-      if (F.hasMetadata("sycl_explicit_simd")) {
-        HasESIMD = true;
-        break;
-      }
-    }
+    bool HasESIMD = hasESIMDKernel(M);
 
     // Make sure "__AsanKernelMetadata" always exists
     ExtendSpirKernelArgs(M, FAM, HasESIMD);

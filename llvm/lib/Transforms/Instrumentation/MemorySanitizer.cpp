@@ -800,6 +800,7 @@ public:
       : M(M), C(M.getContext()), DL(M.getDataLayout()) {
     const auto &TargetTriple = Triple(M.getTargetTriple());
     IsSPIRV = TargetTriple.isSPIROrSPIRV();
+    HasESIMD = hasESIMDKernel(M);
 
     IntptrTy = DL.getIntPtrType(C);
     Int32Ty = Type::getInt32Ty(C);
@@ -811,6 +812,8 @@ public:
 
   Constant *getOrCreateGlobalString(StringRef Name, StringRef Value,
                                     unsigned AddressSpace);
+
+  bool hasESIMD() { return HasESIMD; }
 
   static bool isSupportedBuiltIn(StringRef Name);
 
@@ -834,6 +837,7 @@ private:
   LLVMContext &C;
   const DataLayout &DL;
   bool IsSPIRV;
+  bool HasESIMD;
   Type *IntptrTy;
   Type *Int32Ty;
 
@@ -1242,34 +1246,35 @@ void MemorySanitizerOnSpirv::instrumentKernelsMetadata(int TrackOrigins) {
   //  uptr unmangled_kernel_name_size
   //  uptr sanitized_flags
   StructType *StructTy = StructType::get(IntptrTy, IntptrTy, IntptrTy);
-  for (Function &F : M) {
-    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
-      continue;
+  if (!HasESIMD)
+    for (Function &F : M) {
+      if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+        continue;
 
-    if (!F.hasFnAttribute(Attribute::SanitizeMemory) ||
-        F.hasFnAttribute(Attribute::DisableSanitizerInstrumentation))
-      continue;
+      if (!F.hasFnAttribute(Attribute::SanitizeMemory) ||
+          F.hasFnAttribute(Attribute::DisableSanitizerInstrumentation))
+        continue;
 
-    auto KernelName = F.getName();
-    KernelNamesBytes.append(KernelName.begin(), KernelName.end());
-    auto *KernelNameGV = getOrCreateGlobalString("__msan_kernel", KernelName,
-                                                 kSpirOffloadConstantAS);
+      auto KernelName = F.getName();
+      KernelNamesBytes.append(KernelName.begin(), KernelName.end());
+      auto *KernelNameGV = getOrCreateGlobalString("__msan_kernel", KernelName,
+                                                   kSpirOffloadConstantAS);
 
-    uintptr_t SanitizerFlags = 0;
-    SanitizerFlags |= ClSpirOffloadLocals ? SanitizedKernelFlags::CHECK_LOCALS
-                                          : SanitizedKernelFlags::NO_CHECK;
-    SanitizerFlags |= ClSpirOffloadPrivates
-                          ? SanitizedKernelFlags::CHECK_PRIVATES
-                          : SanitizedKernelFlags::NO_CHECK;
-    SanitizerFlags |= TrackOrigins != 0
-                          ? SanitizedKernelFlags::MSAN_TRACK_ORIGINS
-                          : SanitizedKernelFlags::NO_CHECK;
+      uintptr_t SanitizerFlags = 0;
+      SanitizerFlags |= ClSpirOffloadLocals ? SanitizedKernelFlags::CHECK_LOCALS
+                                            : SanitizedKernelFlags::NO_CHECK;
+      SanitizerFlags |= ClSpirOffloadPrivates
+                            ? SanitizedKernelFlags::CHECK_PRIVATES
+                            : SanitizedKernelFlags::NO_CHECK;
+      SanitizerFlags |= TrackOrigins != 0
+                            ? SanitizedKernelFlags::MSAN_TRACK_ORIGINS
+                            : SanitizedKernelFlags::NO_CHECK;
 
-    SpirKernelsMetadata.emplace_back(ConstantStruct::get(
-        StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
-        ConstantInt::get(IntptrTy, KernelName.size()),
-        ConstantInt::get(IntptrTy, SanitizerFlags)));
-  }
+      SpirKernelsMetadata.emplace_back(ConstantStruct::get(
+          StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
+          ConstantInt::get(IntptrTy, KernelName.size()),
+          ConstantInt::get(IntptrTy, SanitizerFlags)));
+    }
 
   // Create global variable to record spirv kernels' information
   ArrayType *ArrayTy = ArrayType::get(StructTy, SpirKernelsMetadata.size());
@@ -1361,6 +1366,9 @@ PreservedAnalyses MemorySanitizerPass::run(Module &M,
 
   MemorySanitizerOnSpirv MsanSpirv(M);
   Modified |= MsanSpirv.instrumentModule(Options.TrackOrigins);
+  // FIXME: W/A skip instrumentation if this module has ESIMD
+  if (MsanSpirv.hasESIMD())
+    return PreservedAnalyses::none();
 
   auto &FAM = AM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
   for (Function &F : M) {

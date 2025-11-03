@@ -167,6 +167,12 @@ std::vector<device> device_impl::create_sub_devices(
                       MPlatform.getOrMakeDeviceImpl(a_ur_device));
                   res.push_back(sycl_device);
                 });
+  // urDevicePartition returns devices with their reference counts
+  // incremented. Each device_impl wrapper increments the reference count and
+  // decrements it on destruction (shared ownership). So, we have to decrement
+  // the reference count once here to release temporary handles.
+  for (ur_device_handle_t &SubDevice : SubDevices)
+    Adapter.call<UrApiKind::urDeviceRelease>(SubDevice);
   return res;
 }
 

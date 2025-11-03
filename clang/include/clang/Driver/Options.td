@@ -7584,6 +7584,10 @@ let Visibility = [SYCLRTCOnlyOption] in {
   let Group = sycl_rtc_only_Group in {
     def auto_pch : Flag<["--"], "auto-pch">,
                    HelpText<"Enable Auto-PCH for SYCL RTC Compilation">;
+    def persistent_auto_pch_EQ
+        : Joined<["--"], "persistent-auto-pch=">,
+          HelpText<"Use Persistent Auto-PCH cache located at <dir> for SYCL "
+                   "RTC Compilation">;
   } // let Group = sycl_rtc_only_Group
 } // let Visibility = [SYCLRTCOnlyOption]
 

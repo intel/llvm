@@ -233,7 +233,35 @@ struct ur_command_list_manager {
                                const ur_event_handle_t *phEventWaitList,
                                ur_event_handle_t phEvent);
 
+  ur_result_t appendKernelLaunchWithArgsExp(
+      ur_kernel_handle_t hKernel, uint32_t workDim,
+      const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+      const size_t *pLocalWorkSize, uint32_t numArgs,
+      const ur_exp_kernel_arg_properties_t *pArgs,
+      uint32_t numPropsInLaunchPropList,
+      const ur_kernel_launch_property_t *launchPropList,
+      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+      ur_event_handle_t phEvent);
+
 private:
+  ur_result_t appendKernelLaunchWithArgsExpOld(
+      ur_kernel_handle_t hKernel, uint32_t workDim,
+      const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+      const size_t *pLocalWorkSize, uint32_t numArgs,
+      const ur_exp_kernel_arg_properties_t *pArgs,
+      uint32_t numPropsInLaunchPropList,
+      const ur_kernel_launch_property_t *launchPropList,
+      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+      ur_event_handle_t phEvent);
+
+  ur_result_t appendKernelLaunchWithArgsExpNew(
+      ur_kernel_handle_t hKernel, uint32_t workDim,
+      const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+      const size_t *pLocalWorkSize, uint32_t numArgs,
+      const ur_exp_kernel_arg_properties_t *pArgs, uint32_t numEventsInWaitList,
+      const ur_event_handle_t *phEventWaitList, ur_event_handle_t phEvent,
+      bool cooperativeKernelLaunchRequested);
+
   ur_result_t appendGenericCommandListsExp(
       uint32_t numCommandLists, ze_command_list_handle_t *phCommandLists,
       ur_event_handle_t phEvent, uint32_t numEventsInWaitList,
@@ -247,6 +275,14 @@ private:
                   ur_event_handle_t additionalWaitEvent = nullptr);
   ze_event_handle_t getSignalEvent(ur_event_handle_t hUserEvent,
                                    ur_command_t commandType);
+
+  ur_result_t appendKernelLaunchLocked(
+      ur_kernel_handle_t hKernel, ze_kernel_handle_t hZeKernel,
+      uint32_t workDim, const size_t *pGlobalWorkOffset,
+      const size_t *pGlobalWorkSize, const size_t *pLocalWorkSize,
+      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+      ur_event_handle_t phEvent, bool cooperative,
+      std::vector<void *> *pKMemObj = nullptr, void *pNext = nullptr);
 
   ur_result_t appendKernelLaunchUnlocked(
       ur_kernel_handle_t hKernel, uint32_t workDim,

@@ -143,5 +143,6 @@ target_link_libraries(${TARGET_NAME} PRIVATE
 
 target_include_directories(${TARGET_NAME} PRIVATE
     "${UR_OFFLOAD_INCLUDE_DIR}/offload"
+    "${UR_OFFLOAD_INCLUDE_DIR}/"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../"
 )
