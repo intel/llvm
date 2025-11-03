@@ -229,8 +229,7 @@ void put(handle &ipc_handle, const sycl::context &ctx)
 !====
 
 _Preconditions:_ `ipc_handle` is the IPC "handle" to USM device memory that was
-returned from a call to `get` either in this process or in some other process on
-the same system. The `put` function has not been previously called on the
+returned from a call to `get`. The `put` function has not been previously called on the
 handle.
 
 _Effects:_ Deallocates resources associated with the handle. These resources are
@@ -278,7 +277,7 @@ other process on the same system. That USM device memory is accessible on device
 
 _Returns:_ A pointer to the same USM device memory represented by `handle_data`.
 The returned pointer is associated with context `ctx`. It can be used wherever a
-USM device pointer for device `dev` and context `ctx` is expected, except it
+USM device pointer for device `dev` and context `ctx` are expected, except it
 cannot be passed to `sycl::free`. Instead, use the `close` function to free this
 memory pointer.
 
