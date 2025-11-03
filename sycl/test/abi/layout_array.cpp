@@ -8,7 +8,6 @@
 #include <sycl/id.hpp>
 #include <sycl/nd_item.hpp>
 #include <sycl/nd_range.hpp>
-#include <sycl/detail/nd_range_view.hpp>
 
 
 SYCL_EXTERNAL void id(sycl::id<2>) {}
@@ -69,15 +68,3 @@ SYCL_EXTERNAL void nd_range(sycl::nd_range<2>) {}
 // CHECK-NEXT: 32 |       size_t[2] common_array
 // CHECK-NEXT: | [sizeof=48, dsize=48, align=8,
 // CHECK-NEXT: |  nvsize=48, nvalign=8]
-
-//----------------------------
-
-SYCL_EXTERNAL void nd_range_view(sycl::detail::nd_range_view) {}
-// CHECK: 0 | class sycl::detail::nd_range_view
-// CHECK-NEXT: 0 |   const size_t * MGlobalSize
-// CHECK-NEXT: 8 |   const size_t * MLocalSize
-// CHECK-NEXT: 16 |  const size_t * MOffset
-// CHECK-NEXT: 24 |  _Bool MSetNumWorkGroups
-// CHECK-NEXT: 32 |  size_t MDims
-// CHECK-NEXT: | [sizeof=40, dsize=40, align=8,
-// CHECK-NEXT: |  nvsize=40, nvalign=8]
