@@ -222,7 +222,7 @@ class ComputeBench(Suite):
                     measure_completion_time,
                     use_events,
                     emulate_graphs,
-                    useHostTasks=0,
+                    useHostTasks=0
                 )
             )
             if runtime == RUNTIMES.SYCL:
@@ -236,7 +236,7 @@ class ComputeBench(Suite):
                         measure_completion_time,
                         use_events,
                         emulate_graphs,
-                        useHostTasks=0,
+                        useHostTasks=1,
                         profiler_type=PROFILERS.CPU_COUNTER,
                     )
                 )
@@ -447,6 +447,7 @@ class ComputeBenchmark(Benchmark):
 
     def parse_output(self, output: str) -> list[tuple[float, float]]:
         csv_file = io.StringIO(output)
+        log.debug(f"Raw CSV output: {output}")
         reader = csv.reader(csv_file)
         next(reader, None)
         results = []
@@ -454,6 +455,7 @@ class ComputeBenchmark(Benchmark):
             data_row = next(reader, None)
             if data_row is None:
                 break
+            print("Data row:", data_row)
             try:
                 mean = float(data_row[1])
                 median = float(data_row[2])
