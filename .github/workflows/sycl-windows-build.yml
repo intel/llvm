@@ -159,6 +159,7 @@ jobs:
       shell: bash
       run: |
         cmake --build build --target ${{ inputs.build_target }}
+    - run: build/bin/clang++ --version
     - name: check-llvm
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
       shell: bash

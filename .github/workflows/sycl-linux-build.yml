@@ -209,6 +209,7 @@ jobs:
       id: build
       # Emulate default value for manual dispatch as we've run out of available arguments.
       run: cmake --build $GITHUB_WORKSPACE/build --target ${{ inputs.build_target || 'sycl-toolchain' }}
+    - run: $GITHUB_WORKSPACE/build/bin/clang++ --version
     - name: check-llvm
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
       env:
