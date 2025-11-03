@@ -317,7 +317,7 @@ void launch_task(const sycl::queue &q, KernelType &&k,
   if constexpr (!(detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                            void>::value)) {
     detail::submit_kernel_direct_single_task(
-        q,  std::forward<KernelType>(k),
+        q, std::forward<KernelType>(k),
         ext::oneapi::experimental::empty_properties_t{}, codeLoc);
   } else {
     submit(q, [&](handler &h) { launch_task<KernelType>(h, k); }, codeLoc);

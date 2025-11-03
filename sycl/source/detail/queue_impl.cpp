@@ -576,9 +576,8 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
   KData.setNDRDesc(NDRDesc);
 
   // Validate and set kernel launch properties.
-  KData.validateAndSetKernelLaunchProperties(
-      Props, getCommandGraph() != nullptr /*HasGraph?*/,
-      getDeviceImpl() /*device_impl*/);
+  KData.validateAndSetKernelLaunchProperties(Props, hasCommandGraph(),
+                                             getDeviceImpl());
 
   auto SubmitKernelFunc = [&](detail::CG::StorageInitHelper &CGData,
                               bool SchedulerBypass) -> EventImplPtr {
