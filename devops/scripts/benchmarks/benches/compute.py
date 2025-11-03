@@ -222,7 +222,7 @@ class ComputeBench(Suite):
                     measure_completion_time,
                     use_events,
                     emulate_graphs,
-                    useHostTasks=0,
+                    useHostTasks=1 if runtime == RUNTIMES.SYCL else 0,
                 )
             )
             if runtime == RUNTIMES.SYCL:
@@ -236,7 +236,7 @@ class ComputeBench(Suite):
                         measure_completion_time,
                         use_events,
                         emulate_graphs,
-                        useHostTasks=0,
+                        useHostTasks=1,
                         profiler_type=PROFILERS.CPU_COUNTER,
                     )
                 )
