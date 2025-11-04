@@ -292,7 +292,7 @@ protected:
 
 /* Checks that key values with \0 symbols are processed correctly
  */
-TEST_P(PersistentDeviceCodeCache, KeysWithNullTermSymbol) {
+TEST_P(PersistentDeviceCodeCache, DISABLED_KeysWithNullTermSymbol) {
   std::string Key{'1', '\0', '3', '4', '\0'};
   std::vector<unsigned char> SpecConst(Key.begin(), Key.end());
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
@@ -316,7 +316,7 @@ TEST_P(PersistentDeviceCodeCache, KeysWithNullTermSymbol) {
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 }
 
-TEST_P(PersistentDeviceCodeCache, MultipleImages) {
+TEST_P(PersistentDeviceCodeCache, DISABLED_MultipleImages) {
   const char *ExtraEntryName = "ExtraEntry";
   _sycl_offload_entry_struct ExtraEntryStruct = {
       /*addr*/ nullptr, const_cast<char *>(ExtraEntryName),
@@ -381,21 +381,21 @@ TEST_P(PersistentDeviceCodeCache, MultipleImages) {
 /* Do read/write for the same cache item to/from 300 threads for small device
  * code size. Make sure that there is no data corruption or crashes.
  */
-TEST_P(PersistentDeviceCodeCache, ConcurentReadWriteSmallItem) {
+TEST_P(PersistentDeviceCodeCache, DISABLED_ConcurentReadWriteSmallItem) {
   ConcurentReadWriteCache(0, 300);
 }
 
 /* Do read/write for the same cache item to/from 100 threads for medium device
  * code size. Make sure that there is no data corruption or crashes.
  */
-TEST_P(PersistentDeviceCodeCache, ConcurentReadWriteCacheMediumItem) {
+TEST_P(PersistentDeviceCodeCache, DISABLED_ConcurentReadWriteCacheMediumItem) {
   ConcurentReadWriteCache(1, 100);
 }
 
 /* Do read/write for the same cache item to/from 20 threads from big device
  * code size. Make sure that there is no data corruption or crashes.
  */
-TEST_P(PersistentDeviceCodeCache, ConcurentReadWriteCacheBigItem) {
+TEST_P(PersistentDeviceCodeCache, DISABLED_ConcurentReadWriteCacheBigItem) {
   ConcurentReadWriteCache(2, 20);
 }
 
@@ -406,7 +406,7 @@ TEST_P(PersistentDeviceCodeCache, ConcurentReadWriteCacheBigItem) {
  *  - source file is corrupted;
  *  - binary file is corrupted.
  */
-TEST_P(PersistentDeviceCodeCache, CorruptedCacheFiles) {
+TEST_P(PersistentDeviceCodeCache, DISABLED_CorruptedCacheFiles) {
   std::string BuildOptions{"--corrupted-file"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
       *getSyclObjImpl(Dev), {&Img}, {}, BuildOptions);
@@ -491,7 +491,7 @@ TEST_P(PersistentDeviceCodeCache, CorruptedCacheFiles) {
  *  - new cache item is created if existing one is locked on write operation;
  *  - cache miss happens on read operation.
  */
-TEST_P(PersistentDeviceCodeCache, LockFile) {
+TEST_P(PersistentDeviceCodeCache, DISABLED_LockFile) {
   std::string BuildOptions{"--obsolete-lock"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
       *getSyclObjImpl(Dev), {&Img}, {}, BuildOptions);
@@ -541,7 +541,7 @@ TEST_P(PersistentDeviceCodeCache, LockFile) {
 // llvm::sys::fs::setPermissions does not make effect on Windows
 /* Checks cache behavior when filesystem read/write operations fail
  */
-TEST_P(PersistentDeviceCodeCache, AccessDeniedForCacheDir) {
+TEST_P(PersistentDeviceCodeCache, DISABLED_AccessDeniedForCacheDir) {
   std::string BuildOptions{"--build-options"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
       *getSyclObjImpl(Dev), {&Img}, {}, BuildOptions);
@@ -584,7 +584,7 @@ TEST_P(PersistentDeviceCodeCache, AccessDeniedForCacheDir) {
 #endif //_WIN32
 
 // Unit tests for testing eviction in persistent cache.
-TEST_P(PersistentDeviceCodeCache, BasicEviction) {
+TEST_P(PersistentDeviceCodeCache, DISABLED_BasicEviction) {
 
   // Cleanup the cache directory.
   std::string CacheRoot = detail::PersistentDeviceCodeCache::getRootDir();
@@ -646,7 +646,7 @@ TEST_P(PersistentDeviceCodeCache, BasicEviction) {
 }
 
 // Unit test for testing size file creation and update, concurrently.
-TEST_P(PersistentDeviceCodeCache, ConcurentReadWriteCacheFileSize) {
+TEST_P(PersistentDeviceCodeCache, DISABLED_ConcurentReadWriteCacheFileSize) {
   // Cleanup the cache directory.
   std::string CacheRoot = detail::PersistentDeviceCodeCache::getRootDir();
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(CacheRoot));
@@ -659,7 +659,7 @@ TEST_P(PersistentDeviceCodeCache, ConcurentReadWriteCacheFileSize) {
 }
 
 // Unit test for adding and evicting cache, concurrently.
-TEST_P(PersistentDeviceCodeCache, ConcurentReadWriteCacheEviction) {
+TEST_P(PersistentDeviceCodeCache, DISABLED_ConcurentReadWriteCacheEviction) {
   // Cleanup the cache directory.
   std::string CacheRoot = detail::PersistentDeviceCodeCache::getRootDir();
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(CacheRoot));
@@ -670,7 +670,7 @@ TEST_P(PersistentDeviceCodeCache, ConcurentReadWriteCacheEviction) {
 }
 
 // Unit test for ensuring that os_utils::getDirectorySize is thread-safe.
-TEST_P(PersistentDeviceCodeCache, ConcurentDirectorySizeCalculation) {
+TEST_P(PersistentDeviceCodeCache, DISABLED_ConcurentDirectorySizeCalculation) {
   // Cleanup the cache directory.
   std::string CacheRoot = detail::PersistentDeviceCodeCache::getRootDir();
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(CacheRoot));

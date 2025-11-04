@@ -157,8 +157,8 @@ endfunction()
 #
 # Will compile the list of files together to create two builds, with and without
 # the SYCL preview features enabled.
-# Produces two binaries, named `basename(test_name_prefix_non_preview)` and `basename(test_name_prefix_preview)`
+# Produces two binaries, named `basename(test_name_prefix_Non_Preview_Tests)` and `basename(test_name_prefix_Preview_Tests)`
 macro(add_sycl_unittest test_name_prefix link_variant)
-  add_sycl_unittest_internal(${test_name_prefix}_non_preview ${link_variant} FALSE ${ARGN})
-  add_sycl_unittest_internal(${test_name_prefix}_preview ${link_variant} TRUE ${ARGN})
+  add_sycl_unittest_internal(${test_name_prefix}_Non_Preview_Tests ${link_variant} FALSE ${ARGN})
+  add_sycl_unittest_internal(${test_name_prefix}_Preview_Tests ${link_variant} TRUE ${ARGN})
 endmacro()

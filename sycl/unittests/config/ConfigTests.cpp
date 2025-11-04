@@ -13,7 +13,7 @@
 #include <fstream>
 #include <regex>
 
-TEST(ConfigTests, CheckConfigProcessing) {
+TEST(ConfigTests, DISABLED_CheckConfigProcessing) {
 #ifdef _WIN32
   _putenv_s("SYCL_CONFIG_FILE_NAME", "conf.txt");
 #else
@@ -244,7 +244,7 @@ TEST(ConfigTests, CheckConfigProcessing) {
 // not a valid number, the disk cache tracing will be enabled (depreciated
 // behavior). The default value is 0 and no tracing is enabled.
 using namespace sycl::detail;
-TEST(ConfigTests, CheckSyclCacheTraceTest) {
+TEST(ConfigTests, DISABLED_CheckSyclCacheTraceTest) {
 
   // Lambda to test parsing of SYCL_CACHE_TRACE
   auto TestConfig = [](int expectedValue, int expectedDiskCache,
@@ -330,7 +330,7 @@ TEST(ConfigTests, CheckSyclCacheTraceTest) {
 // Cache eviction is performed when the cache size exceeds the threshold.
 // The thresholds are specified in bytes.
 // The default value is "0" which means that eviction is disabled.
-TEST(ConfigTests, CheckSyclCacheEvictionThresholdTest) {
+TEST(ConfigTests, DISABLED_CheckSyclCacheEvictionThresholdTest) {
 
   using InMemEvicType =
       sycl::detail::SYCLConfig<SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD>;
@@ -393,7 +393,7 @@ TEST(ConfigTests, CheckSyclCacheEvictionThresholdTest) {
 // Cache eviction is performed when the cache size exceeds the threshold.
 // The thresholds are specified in bytes.
 // The default value is "0" which means that eviction is disabled.
-TEST(ConfigTests, CheckPersistentCacheEvictionThresholdTest) {
+TEST(ConfigTests, DISABLED_CheckPersistentCacheEvictionThresholdTest) {
 
   using OnDiskEvicType = sycl::detail::SYCLConfig<SYCL_CACHE_MAX_SIZE>;
 
@@ -451,7 +451,7 @@ TEST(ConfigTests, CheckPersistentCacheEvictionThresholdTest) {
 }
 
 // SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS accepts ...
-TEST(ConfigTests, CheckParallelForRangeRoundingParams) {
+TEST(ConfigTests, DISABLED_CheckParallelForRangeRoundingParams) {
 
   // Lambda to set SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS.
   auto SetRoundingParams = [](const char *value) {

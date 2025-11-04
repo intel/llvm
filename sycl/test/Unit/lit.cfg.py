@@ -5,7 +5,6 @@
 import os
 import platform
 import subprocess
-import sys
 
 import lit.formats
 import lit.util
@@ -22,17 +21,7 @@ config.test_exec_root = os.path.join(config.sycl_obj_root, "unittests")
 config.test_source_root = config.test_exec_root
 
 # testFormat: The test format to use to interpret tests.
-config.test_format = lit.formats.GoogleTest(
-    config.llvm_build_mode, test_suffix="Tests_non_preview"
-)
-# Workaround, as lit.formats.GoogleTest's ctor takes only single string as test suffix
-# and does not support a list of test suffixes.
-test_suffix_preview = "Tests_preview"
-kIsWindows = sys.platform in ["win32", "cygwin"]
-if kIsWindows:
-    test_suffix_preview += ".exe"
-config.test_format.test_suffixes.add(test_suffix_preview)
-# End of workaround.
+config.test_format = lit.formats.GoogleTest(config.llvm_build_mode, "Tests")
 
 # Propagate the temp directory. Windows requires this because it uses \Windows\
 # if none of these are present.
