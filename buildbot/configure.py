@@ -180,6 +180,7 @@ def do_configure(args, passthrough_args):
     install_dir = os.path.join(abs_obj_dir, "install")
 
     llvm_enable_runtimes = "libcxx"
+    # Matches `libcxx`'s requirements/platform ABI:
     if platform.system() != "Windows":
         llvm_enable_runtimes += ";libcxxabi;libunwind"
     llvm_enable_runtimes += ";libc"

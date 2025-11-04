@@ -21,7 +21,7 @@ endif()
 
 set(SYCL_JIT_RESOURCE_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-install)
 
-set(SYCL_JIT_PREPARE_RESOURCE_COMMANDS)
+set(SYCL_JIT_PREPARE_RESOURCE_COMMANDS "")
 foreach(component IN LISTS SYCL_JIT_RESOURCE_INSTALL_COMPONENTS)
   list(APPEND SYCL_JIT_PREPARE_RESOURCE_COMMANDS
     COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR} --prefix ${SYCL_JIT_RESOURCE_INSTALL_DIR} --component "${component}"
@@ -45,8 +45,8 @@ add_custom_target(rtc-prepare-resources
   ${SYCL_JIT_RESOURCE_FILES}
 )
 
-set(SYCL_JIT_RUNTIME_RESOURCE_DEPS)
-set(SYCL_JIT_PREPARE_RUNTIME_RESOURCE_COMMANDS)
+set(SYCL_JIT_RUNTIME_RESOURCE_DEPS "")
+set(SYCL_JIT_PREPARE_RUNTIME_RESOURCE_COMMANDS "")
 
 if ("libcxx" IN_LIST LLVM_ENABLE_RUNTIMES)
   list(APPEND SYCL_JIT_RUNTIME_RESOURCE_DEPS runtimes-configure)
@@ -60,6 +60,9 @@ if ("libcxx" IN_LIST LLVM_ENABLE_RUNTIMES)
   list(APPEND SYCL_JIT_PREPARE_RUNTIME_RESOURCE_COMMANDS
     COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}/runtimes/runtimes-bins --target generate-cxx-headers
     COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR}/runtimes/runtimes-bins --prefix ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-install --component cxx-headers
+    # `<thread>` functionality isn't really supported on the device, just make
+    # it pass compilation. The easiest way to do that is to configure `libc++`
+    # to use "external threading API".
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-install/include/sycl-rtc-standalone
     COMMAND sed 's/_LIBCPP_HAS_THREAD_API_EXTERNAL 0/_LIBCPP_HAS_THREAD_API_EXTERNAL 1/' ${SYCL_JIT_CXX_CONFIG_SITE} > ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-install/include/sycl-rtc-standalone/__config_site
   )
@@ -67,7 +70,6 @@ endif()
 
 if ("libc" IN_LIST LLVM_ENABLE_RUNTIMES)
   list(APPEND SYCL_JIT_RUNTIME_RESOURCE_DEPS runtimes-configure)
-  # list(APPEND SYCL_JIT_RUNTIME_RESOURCE_DEPS libc)
 
   list(APPEND SYCL_JIT_PREPARE_RUNTIME_RESOURCE_COMMANDS
     COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}/runtimes/runtimes-bins --target generate-libc-headers
