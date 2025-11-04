@@ -2152,7 +2152,6 @@ public:
     throwIfGraphAssociated<ext::oneapi::experimental::detail::
                                UnsupportedGraphFeatures::sycl_reductions>();
 #endif
-
     detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
@@ -2173,7 +2172,6 @@ public:
     throwIfGraphAssociated<ext::oneapi::experimental::detail::
                                UnsupportedGraphFeatures::sycl_reductions>();
 #endif
-
     detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
@@ -2194,7 +2192,6 @@ public:
     throwIfGraphAssociated<ext::oneapi::experimental::detail::
                                UnsupportedGraphFeatures::sycl_reductions>();
 #endif
-
     detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
@@ -2269,9 +2266,6 @@ public:
     throwIfGraphAssociated<ext::oneapi::experimental::detail::
                                UnsupportedGraphFeatures::sycl_reductions>();
 #endif
-    std::cout << "4\n";
-    // static_assert(!std::is_same_v<PropertiesT, PropertiesT>); //property
-    // already missing!
     detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
