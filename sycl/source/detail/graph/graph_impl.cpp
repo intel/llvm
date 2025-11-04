@@ -1299,8 +1299,6 @@ void exec_graph_impl::duplicateNodes() {
 
   // Subgraph nodes need special handling, we extract all subgraph nodes and
   // merge them into the main node list
-
-  // TODO: need to look into perf regression now that we are using a vector instead of deque
   if (foundSubgraph) {
       for (auto NewNodeIt = NewNodes.rbegin(); NewNodeIt != NewNodes.rend();
         ++NewNodeIt) {
