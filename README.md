@@ -53,15 +53,8 @@ See available Dockerfiles to create containers with pre-built/pre-installed DPC+
 
 #### Releases
 
-Daily builds of the sycl branch on Linux are available at
-[releases](https://github.com/intel/llvm/releases).
-A few times a year, we publish [Release Notes](./sycl/ReleaseNotes.md) to
-highlight all important changes made in the project: features implemented and
-issues addressed. The corresponding builds can be found using
-[search](https://github.com/intel/llvm/releases?q=oneAPI+DPC%2B%2B+Compiler&expanded=true)
-in daily releases. None of the branches in the project are stable or rigorously
-tested for production quality control, so the quality of these releases is
-expected to be similar to the daily releases.
+See [dedicated documentation](./sycl/doc/Releases.md) about various releases
+that we provide.
 
 #### Build from sources
 

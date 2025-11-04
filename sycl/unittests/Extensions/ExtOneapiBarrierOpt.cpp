@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <detail/queue_impl.hpp>
 #include <gtest/gtest.h>
 #include <helpers/ScopedEnvVar.hpp>
 #include <helpers/UrMock.hpp>
@@ -39,11 +38,6 @@ protected:
 // Tets for https://github.com/intel/llvm/pull/12951
 TEST_F(ExtOneapiBarrierOptTest, EmptyEventTest) {
   sycl::queue q1{{sycl::property::queue::in_order()}};
-
-  // To avoid current optimizations for empty queues, we trick q1 into thinking
-  // that it isn't empty.
-  int dummyInt = 0;
-  q1.prefetch(&dummyInt, sizeof(int));
 
   mock::getCallbacks().set_after_callback(
       "urEnqueueEventsWaitWithBarrierExt",
