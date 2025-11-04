@@ -113,21 +113,23 @@ TEST_P(urEnqueueMemBufferCopyRectTestWithParam, Success) {
   // Zero destination buffer to begin with since the write may not cover the
   // whole buffer.
   const uint8_t zero = 0x0;
+  ur_event_handle_t FillEvent;
   ASSERT_SUCCESS(urEnqueueMemBufferFill(queue, dst_buffer, &zero, sizeof(zero),
                                         0, dst_buffer_size, 0, nullptr,
-                                        nullptr));
+                                        &FillEvent));
 
   // Enqueue the rectangular copy between the buffers.
+  ur_event_handle_t CopyEvent;
   ASSERT_SUCCESS(urEnqueueMemBufferCopyRect(
       queue, src_buffer, dst_buffer, src_buffer_origin, dst_buffer_origin,
       region, src_buffer_row_pitch, src_buffer_slice_pitch,
-      dst_buffer_row_pitch, dst_buffer_slice_pitch, 0, nullptr, nullptr));
+      dst_buffer_row_pitch, dst_buffer_slice_pitch, 1, &FillEvent, &CopyEvent));
 
   std::vector<uint8_t> output(dst_buffer_size, 0x0);
   ASSERT_SUCCESS(urEnqueueMemBufferRead(queue, dst_buffer,
                                         /* is_blocking */ true, 0,
-                                        dst_buffer_size, output.data(), 0,
-                                        nullptr, nullptr));
+                                        dst_buffer_size, output.data(), 1,
+                                        &CopyEvent, nullptr));
 
   // Do host side equivalent.
   std::vector<uint8_t> expected(dst_buffer_size, 0x0);
