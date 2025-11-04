@@ -32,5 +32,5 @@ int main() {
 }
 
 // CHECK:host acc destructor call
-// CHECK: <--- urEnqueueKernelLaunch
+// CHECK: <--- urEnqueueKernelLaunchWithArgsExp
 // CHECK:end of scope

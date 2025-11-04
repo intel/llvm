@@ -226,12 +226,11 @@ class SYCLToolchain {
           std::make_unique<llvm::raw_null_ostream>());
 
       // Create the compiler's actual diagnostics engine.
-      Compiler.createDiagnostics(Files->getVirtualFileSystem(), DiagConsumer,
-                                 /*ShouldOwnClient=*/false);
+      Compiler.createDiagnostics(DiagConsumer, /*ShouldOwnClient=*/false);
       if (!Compiler.hasDiagnostics())
         return false;
 
-      Compiler.createSourceManager(*Files);
+      Compiler.createSourceManager();
 
       const bool Success = Compiler.ExecuteAction(FEAction);
 

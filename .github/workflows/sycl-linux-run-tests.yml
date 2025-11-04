@@ -134,6 +134,7 @@ on:
         type: string
         default: 'Minimal'
         required: False
+      # dry-run is passed only to compare.py (to not fail on regression), not to main.py (where such flag would omit all benchmark runs)
       benchmark_dry_run:
         description: |
           Whether or not to fail the workflow upon a regression.
@@ -232,6 +233,9 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || inputs.skip_run == 'false'
     name: ${{ inputs.name }}
     runs-on: ${{ fromJSON(inputs.runner) }}
+    permissions:
+      contents: write
+      packages: read
     container:
       image: ${{ inputs.image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'}}
       options: ${{ inputs.image_options }}
@@ -329,7 +333,8 @@ jobs:
     - run: which clang++ sycl-ls
     - run: sycl-ls --verbose
     - run: SYCL_UR_TRACE=1 sycl-ls
-    - run: |
+    - name: Print IGC version
+      run: |
           if [ -f /usr/local/lib/igc/IGCTAG.txt ]; then
             cat /usr/local/lib/igc/IGCTAG.txt
           fi
@@ -374,4 +379,3 @@ jobs:
         build_ref: ${{ inputs.repo_ref }}
       env:
         RUNNER_TAG: ${{ inputs.runner }}
-        GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}
