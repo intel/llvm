@@ -178,4 +178,13 @@ struct ur_queue_t_ : ur_queue_extensions {
                           const ur_exp_enqueue_native_command_properties_t *,
                           uint32_t, const ur_event_handle_t *,
                           ur_event_handle_t *) = 0;
+  virtual ur_result_t queueBeginGraphCapteExp(void *) = 0;
+  virtual ur_result_t queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t,
+                                                  void *) = 0;
+  virtual ur_result_t queueEndGraphCapteExp(ur_exp_graph_handle_t *,
+                                            void *) = 0;
+  virtual ur_result_t queueAppendGraphExp(ur_exp_executable_graph_handle_t,
+                                          void *, ur_event_handle_t, uint32_t,
+                                          ur_event_handle_t *) = 0;
+  virtual ur_result_t queueIsGraphCapteEnabledExp(bool *) = 0;
 };

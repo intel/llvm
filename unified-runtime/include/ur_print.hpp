@@ -42,6 +42,9 @@ template <>
 struct is_handle<ur_exp_command_buffer_handle_t> : std::true_type {};
 template <>
 struct is_handle<ur_exp_command_buffer_command_handle_t> : std::true_type {};
+template <> struct is_handle<ur_exp_graph_handle_t> : std::true_type {};
+template <>
+struct is_handle<ur_exp_executable_graph_handle_t> : std::true_type {};
 template <typename T> inline constexpr bool is_handle_v = is_handle<T>::value;
 template <typename T>
 inline ur_result_t printPtr(std::ostream &os, const T *ptr);
@@ -1322,6 +1325,39 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP:
     os << "UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP";
     break;
+  case UR_FUNCTION_GRAPH_CREATE_EXP:
+    os << "UR_FUNCTION_GRAPH_CREATE_EXP";
+    break;
+  case UR_FUNCTION_QUEUE_BEGIN_GRAPH_CAPTURE_EXP:
+    os << "UR_FUNCTION_QUEUE_BEGIN_GRAPH_CAPTURE_EXP";
+    break;
+  case UR_FUNCTION_QUEUE_BEGIN_CAPTURE_INTO_GRAPH_EXP:
+    os << "UR_FUNCTION_QUEUE_BEGIN_CAPTURE_INTO_GRAPH_EXP";
+    break;
+  case UR_FUNCTION_QUEUE_END_GRAPH_CAPTURE_EXP:
+    os << "UR_FUNCTION_QUEUE_END_GRAPH_CAPTURE_EXP";
+    break;
+  case UR_FUNCTION_QUEUE_APPEND_GRAPH_EXP:
+    os << "UR_FUNCTION_QUEUE_APPEND_GRAPH_EXP";
+    break;
+  case UR_FUNCTION_GRAPH_DESTROY_EXP:
+    os << "UR_FUNCTION_GRAPH_DESTROY_EXP";
+    break;
+  case UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_DESTROY_EXP:
+    os << "UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_DESTROY_EXP";
+    break;
+  case UR_FUNCTION_QUEUE_IS_GRAPH_CAPTURE_ENABLED_EXP:
+    os << "UR_FUNCTION_QUEUE_IS_GRAPH_CAPTURE_ENABLED_EXP";
+    break;
+  case UR_FUNCTION_GRAPH_IS_EMPTY_EXP:
+    os << "UR_FUNCTION_GRAPH_IS_EMPTY_EXP";
+    break;
+  case UR_FUNCTION_GRAPH_DUMP_CONTENTS_EXP:
+    os << "UR_FUNCTION_GRAPH_DUMP_CONTENTS_EXP";
+    break;
+  case UR_FUNCTION_GRAPH_INSTANTIATE_GRAPH_EXP:
+    os << "UR_FUNCTION_GRAPH_INSTANTIATE_GRAPH_EXP";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -2065,6 +2101,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value) {
     break;
   case UR_RESULT_ERROR_INVALID_SPEC_ID:
     os << "UR_RESULT_ERROR_INVALID_SPEC_ID";
+    break;
+  case UR_RESULT_ERROR_INVALID_GRAPH:
+    os << "UR_RESULT_ERROR_INVALID_GRAPH";
     break;
   case UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP:
     os << "UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP";
@@ -15193,6 +15232,153 @@ operator<<(std::ostream &os,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_begin_graph_capture_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_queue_begin_graph_capture_exp_params_t
+        *params) {
+
+  os << ".hQueue = ";
+
+  ur::details::printPtr(os, *(params->phQueue));
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, *(params->ppNext));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_begin_capture_into_graph_exp_params_t
+/// type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_queue_begin_capture_into_graph_exp_params_t
+        *params) {
+
+  os << ".hQueue = ";
+
+  ur::details::printPtr(os, *(params->phQueue));
+
+  os << ", ";
+  os << ".hGraph = ";
+
+  ur::details::printPtr(os, *(params->phGraph));
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, *(params->ppNext));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_end_graph_capture_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_queue_end_graph_capture_exp_params_t
+               *params) {
+
+  os << ".hQueue = ";
+
+  ur::details::printPtr(os, *(params->phQueue));
+
+  os << ", ";
+  os << ".phGraph = ";
+
+  ur::details::printPtr(os, *(params->pphGraph));
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, *(params->ppNext));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_append_graph_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_queue_append_graph_exp_params_t *params) {
+
+  os << ".hQueue = ";
+
+  ur::details::printPtr(os, *(params->phQueue));
+
+  os << ", ";
+  os << ".hGraph = ";
+
+  ur::details::printPtr(os, *(params->phGraph));
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, *(params->ppNext));
+
+  os << ", ";
+  os << ".hSignalEvent = ";
+
+  ur::details::printPtr(os, *(params->phSignalEvent));
+
+  os << ", ";
+  os << ".numWaitEvents = ";
+
+  os << *(params->pnumWaitEvents);
+
+  os << ", ";
+  os << ".phWaitEvents = ";
+  ur::details::printPtr(
+      os, reinterpret_cast<const void *>(*(params->pphWaitEvents)));
+  if (*(params->pphWaitEvents) != NULL) {
+    os << " {";
+    for (size_t i = 0; i < *params->pnumWaitEvents; ++i) {
+      if (i != 0) {
+        os << ", ";
+      }
+
+      ur::details::printPtr(os, (*(params->pphWaitEvents))[i]);
+    }
+    os << "}";
+  }
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_is_graph_capture_enabled_exp_params_t
+/// type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_queue_is_graph_capture_enabled_exp_params_t
+        *params) {
+
+  os << ".hQueue = ";
+
+  ur::details::printPtr(os, *(params->phQueue));
+
+  os << ", ";
+  os << ".hResult = ";
+
+  ur::details::printPtr(os, *(params->phResult));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_sampler_create_params_t type
 /// @returns
 ///     std::ostream &
@@ -20830,6 +21016,134 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_graph_create_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_graph_create_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".phGraph = ";
+
+  ur::details::printPtr(os, *(params->pphGraph));
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, *(params->ppNext));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_graph_instantiate_graph_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_graph_instantiate_graph_exp_params_t
+               *params) {
+
+  os << ".hGraph = ";
+
+  ur::details::printPtr(os, *(params->phGraph));
+
+  os << ", ";
+  os << ".phExecGraph = ";
+
+  ur::details::printPtr(os, *(params->pphExecGraph));
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, *(params->ppNext));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_graph_destroy_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_graph_destroy_exp_params_t *params) {
+
+  os << ".hGraph = ";
+
+  ur::details::printPtr(os, *(params->phGraph));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_graph_executable_graph_destroy_exp_params_t
+/// type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_graph_executable_graph_destroy_exp_params_t
+        *params) {
+
+  os << ".hExecutableGraph = ";
+
+  ur::details::printPtr(os, *(params->phExecutableGraph));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_graph_is_empty_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_graph_is_empty_exp_params_t *params) {
+
+  os << ".hGraph = ";
+
+  ur::details::printPtr(os, *(params->phGraph));
+
+  os << ", ";
+  os << ".hResult = ";
+
+  ur::details::printPtr(os, *(params->phResult));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_graph_dump_contents_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_graph_dump_contents_exp_params_t *params) {
+
+  os << ".hGraph = ";
+
+  ur::details::printPtr(os, *(params->phGraph));
+
+  os << ", ";
+  os << ".filePath = ";
+
+  ur::details::printPtr(os, *(params->pfilePath));
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, *(params->ppNext));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_ipc_get_mem_handle_exp_params_t type
 /// @returns
 ///     std::ostream &
@@ -22033,6 +22347,21 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   case UR_FUNCTION_QUEUE_FLUSH: {
     os << (const struct ur_queue_flush_params_t *)params;
   } break;
+  case UR_FUNCTION_QUEUE_BEGIN_GRAPH_CAPTURE_EXP: {
+    os << (const struct ur_queue_begin_graph_capture_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_QUEUE_BEGIN_CAPTURE_INTO_GRAPH_EXP: {
+    os << (const struct ur_queue_begin_capture_into_graph_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_QUEUE_END_GRAPH_CAPTURE_EXP: {
+    os << (const struct ur_queue_end_graph_capture_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_QUEUE_APPEND_GRAPH_EXP: {
+    os << (const struct ur_queue_append_graph_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_QUEUE_IS_GRAPH_CAPTURE_ENABLED_EXP: {
+    os << (const struct ur_queue_is_graph_capture_enabled_exp_params_t *)params;
+  } break;
   case UR_FUNCTION_SAMPLER_CREATE: {
     os << (const struct ur_sampler_create_params_t *)params;
   } break;
@@ -22439,6 +22768,24 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   case UR_FUNCTION_COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP: {
     os << (const struct ur_command_buffer_get_native_handle_exp_params_t *)
             params;
+  } break;
+  case UR_FUNCTION_GRAPH_CREATE_EXP: {
+    os << (const struct ur_graph_create_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_GRAPH_INSTANTIATE_GRAPH_EXP: {
+    os << (const struct ur_graph_instantiate_graph_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_GRAPH_DESTROY_EXP: {
+    os << (const struct ur_graph_destroy_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_DESTROY_EXP: {
+    os << (const struct ur_graph_executable_graph_destroy_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_GRAPH_IS_EMPTY_EXP: {
+    os << (const struct ur_graph_is_empty_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_GRAPH_DUMP_CONTENTS_EXP: {
+    os << (const struct ur_graph_dump_contents_exp_params_t *)params;
   } break;
   case UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP: {
     os << (const struct ur_ipc_get_mem_handle_exp_params_t *)params;

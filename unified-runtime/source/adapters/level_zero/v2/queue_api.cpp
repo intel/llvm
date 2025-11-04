@@ -479,4 +479,40 @@ ur_result_t urEnqueueNativeCommandExp(
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
+ur_result_t urQueueBeginGraphCaptureExp(ur_queue_handle_t hQueue,
+                                        void *pNext) try {
+  return hQueue->get().queueBeginGraphCapteExp(pNext);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+ur_result_t urQueueBeginCaptureIntoGraphExp(ur_queue_handle_t hQueue,
+                                            ur_exp_graph_handle_t hGraph,
+                                            void *pNext) try {
+  return hQueue->get().queueBeginCapteIntoGraphExp(hGraph, pNext);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+ur_result_t urQueueEndGraphCaptureExp(ur_queue_handle_t hQueue,
+                                      ur_exp_graph_handle_t *phGraph,
+                                      void *pNext) try {
+  return hQueue->get().queueEndGraphCapteExp(phGraph, pNext);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+ur_result_t urQueueAppendGraphExp(ur_queue_handle_t hQueue,
+                                  ur_exp_executable_graph_handle_t hGraph,
+                                  void *pNext, ur_event_handle_t hSignalEvent,
+                                  uint32_t numWaitEvents,
+                                  ur_event_handle_t *phWaitEvents) try {
+  return hQueue->get().queueAppendGraphExp(hGraph, pNext, hSignalEvent,
+                                           numWaitEvents, phWaitEvents);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+ur_result_t urQueueIsGraphCaptureEnabledExp(ur_queue_handle_t hQueue,
+                                            bool *hResult) try {
+  return hQueue->get().queueIsGraphCapteEnabledExp(hResult);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
 } // namespace ur::level_zero

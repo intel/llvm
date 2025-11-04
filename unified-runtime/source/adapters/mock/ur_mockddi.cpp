@@ -12429,6 +12429,519 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
   return exceptionToResult(std::current_exception());
 }
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphCreateExp
+__urdlllocal ur_result_t UR_APICALL urGraphCreateExp(
+    /// [in] Handle of the context object.
+    ur_context_handle_t hContext,
+    /// [out][alloc] Pointer to the handle of the created graph object.
+    ur_exp_graph_handle_t *phGraph,
+    /// [out] Pointer to extension-specific structure.
+    void *pNext) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_graph_create_exp_params_t params = {&hContext, &phGraph, &pNext};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urGraphCreateExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urGraphCreateExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urGraphCreateExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urQueueBeginGraphCaptureExp
+__urdlllocal ur_result_t UR_APICALL urQueueBeginGraphCaptureExp(
+    /// [in] Handle of the queue on which to begin graph capture.
+    ur_queue_handle_t hQueue,
+    /// [in][optional] Pointer to extension-specific structure.
+    void *pNext) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_queue_begin_graph_capture_exp_params_t params = {&hQueue, &pNext};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urQueueBeginGraphCaptureExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urQueueBeginGraphCaptureExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urQueueBeginGraphCaptureExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urQueueBeginCaptureIntoGraphExp
+__urdlllocal ur_result_t UR_APICALL urQueueBeginCaptureIntoGraphExp(
+    /// [in] Handle of the queue on which to begin graph capture.
+    ur_queue_handle_t hQueue,
+    /// [in] Handle of the graph object to capture into.
+    ur_exp_graph_handle_t hGraph,
+    /// [in][optional] Pointer to extension-specific structure.
+    void *pNext) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_queue_begin_capture_into_graph_exp_params_t params = {&hQueue, &hGraph,
+                                                           &pNext};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urQueueBeginCaptureIntoGraphExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urQueueBeginCaptureIntoGraphExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urQueueBeginCaptureIntoGraphExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urQueueEndGraphCaptureExp
+__urdlllocal ur_result_t UR_APICALL urQueueEndGraphCaptureExp(
+    /// [in] Handle of the queue on which to end graph capture.
+    ur_queue_handle_t hQueue,
+    /// [out] Pointer to the handle of the recorded graph object. If
+    /// ::urQueueBeginCaptureIntoGraphExp was used to begin the capture, then
+    /// phGraph will contain the same graph that was passed to it.
+    ur_exp_graph_handle_t *phGraph,
+    /// [out][optional] Pointer to extension-specific structure.
+    void *pNext) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_queue_end_graph_capture_exp_params_t params = {&hQueue, &phGraph, &pNext};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urQueueEndGraphCaptureExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urQueueEndGraphCaptureExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urQueueEndGraphCaptureExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphInstantiateGraphExp
+__urdlllocal ur_result_t UR_APICALL urGraphInstantiateGraphExp(
+    /// [in] Handle of the recorded graph to instantiate.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] Pointer to the handle of the instantiated executable graph.
+    ur_exp_executable_graph_handle_t *phExecGraph,
+    /// [out][optional] Pointer to extension-specific structure.
+    void *pNext) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_graph_instantiate_graph_exp_params_t params = {&hGraph, &phExecGraph,
+                                                    &pNext};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urGraphInstantiateGraphExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urGraphInstantiateGraphExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urGraphInstantiateGraphExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urQueueAppendGraphExp
+__urdlllocal ur_result_t UR_APICALL urQueueAppendGraphExp(
+    /// [in] Handle of the queue to append the graph to.
+    ur_queue_handle_t hQueue,
+    /// [in] Handle of the executable graph to append.
+    ur_exp_executable_graph_handle_t hGraph,
+    /// [in][optional] Pointer to extension-specific structure.
+    void *pNext,
+    /// [in][optional] Event to be signaled on completion.
+    ur_event_handle_t hSignalEvent,
+    /// [in][optional] Number of events to wait on before executing.
+    uint32_t numWaitEvents,
+    /// [in][optional][range(0, numWaitEvents)] Handle of the events to wait
+    /// on before launching.
+    ur_event_handle_t *phWaitEvents) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_queue_append_graph_exp_params_t params = {
+      &hQueue, &hGraph, &pNext, &hSignalEvent, &numWaitEvents, &phWaitEvents};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urQueueAppendGraphExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urQueueAppendGraphExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urQueueAppendGraphExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphDestroyExp
+__urdlllocal ur_result_t UR_APICALL urGraphDestroyExp(
+    /// [in] Handle of the graph object to destroy.
+    ur_exp_graph_handle_t hGraph) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_graph_destroy_exp_params_t params = {&hGraph};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urGraphDestroyExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urGraphDestroyExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urGraphDestroyExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphExecutableGraphDestroyExp
+__urdlllocal ur_result_t UR_APICALL urGraphExecutableGraphDestroyExp(
+    /// [in] Handle of the executable graph object to destroy.
+    ur_exp_executable_graph_handle_t hExecutableGraph) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_graph_executable_graph_destroy_exp_params_t params = {&hExecutableGraph};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urGraphExecutableGraphDestroyExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urGraphExecutableGraphDestroyExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urGraphExecutableGraphDestroyExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urQueueIsGraphCaptureEnabledExp
+__urdlllocal ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
+    /// [in] Native queue to query.
+    ur_queue_handle_t hQueue,
+    /// [out] Pointer to a boolean where the result will be stored.
+    bool *hResult) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_queue_is_graph_capture_enabled_exp_params_t params = {&hQueue, &hResult};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urQueueIsGraphCaptureEnabledExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urQueueIsGraphCaptureEnabledExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urQueueIsGraphCaptureEnabledExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphIsEmptyExp
+__urdlllocal ur_result_t UR_APICALL urGraphIsEmptyExp(
+    /// [in] Handle of the graph to query.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] Pointer to a boolean where the result will be stored.
+    bool *hResult) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_graph_is_empty_exp_params_t params = {&hGraph, &hResult};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urGraphIsEmptyExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urGraphIsEmptyExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urGraphIsEmptyExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphDumpContentsExp
+__urdlllocal ur_result_t UR_APICALL urGraphDumpContentsExp(
+    /// [in] Handle of the graph to dump.
+    ur_exp_graph_handle_t hGraph,
+    /// [in] Path to the file to write the dumped graph contents.
+    const char *filePath,
+    /// [in][optional] Pointer to extension-specific structure.
+    void *pNext) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_graph_dump_contents_exp_params_t params = {&hGraph, &filePath, &pNext};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urGraphDumpContentsExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urGraphDumpContentsExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urGraphDumpContentsExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
 } // namespace driver
 
 extern "C" {
@@ -12854,6 +13367,45 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's GraphExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_graph_exp_dditable_t *pDdiTable) try {
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (driver::d_context.version < version)
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  pDdiTable->pfnCreateExp = driver::urGraphCreateExp;
+
+  pDdiTable->pfnInstantiateGraphExp = driver::urGraphInstantiateGraphExp;
+
+  pDdiTable->pfnDestroyExp = driver::urGraphDestroyExp;
+
+  pDdiTable->pfnExecutableGraphDestroyExp =
+      driver::urGraphExecutableGraphDestroyExp;
+
+  pDdiTable->pfnIsEmptyExp = driver::urGraphIsEmptyExp;
+
+  pDdiTable->pfnDumpContentsExp = driver::urGraphDumpContentsExp;
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's IPCExp table
 ///        with current process' addresses
 ///
@@ -13233,6 +13785,44 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueProcAddrTable(
   pDdiTable->pfnFinish = driver::urQueueFinish;
 
   pDdiTable->pfnFlush = driver::urQueueFlush;
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's QueueExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_queue_exp_dditable_t *pDdiTable) try {
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (driver::d_context.version < version)
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  pDdiTable->pfnBeginGraphCaptureExp = driver::urQueueBeginGraphCaptureExp;
+
+  pDdiTable->pfnBeginCaptureIntoGraphExp =
+      driver::urQueueBeginCaptureIntoGraphExp;
+
+  pDdiTable->pfnEndGraphCaptureExp = driver::urQueueEndGraphCaptureExp;
+
+  pDdiTable->pfnAppendGraphExp = driver::urQueueAppendGraphExp;
+
+  pDdiTable->pfnIsGraphCaptureEnabledExp =
+      driver::urQueueIsGraphCaptureEnabledExp;
 
   return result;
 } catch (...) {
