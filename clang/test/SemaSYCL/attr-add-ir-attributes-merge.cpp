@@ -96,12 +96,12 @@ struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr2", "Attr1", tr
 struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr3", false)]] GlobalVarStructRedecl4{};
 
 struct GlobalVarStructRedecl5;
-struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr1", "Attr2", 1, true)]] void GlobalVarStructRedecl5;
-struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr1", "Attr2", 1, true)]] void GlobalVarStructRedecl5;
-struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr2", "Attr1", true, 1)]] void GlobalVarStructRedecl5;
-struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr3", false)]] void GlobalVarStructRedecl5{};
+struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr1", "Attr2", 1, true)]] GlobalVarStructRedecl5;
+struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr1", "Attr2", 1, true)]] GlobalVarStructRedecl5;
+struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr2", "Attr1", true, 1)]] GlobalVarStructRedecl5;
+struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr3", false)]] GlobalVarStructRedecl5{};
 
-[[__sycl_detail__::add_ir_attributes_global_variable({"Attr3"}, "Attr1", "Attr2", 1, true)]] struct GlobalVarStructRedecl6;
+struct [[__sycl_detail__::add_ir_attributes_global_variable({"Attr3"}, "Attr1", "Attr2", 1, true)]] GlobalVarStructRedecl6;
 struct GlobalVarStructRedecl6{};
 
 struct
@@ -130,7 +130,7 @@ struct
 GlobalVarStructDecl3{};
 
 struct
-[[__sycl_detail__::add_ir_attributes_function({"Attr3"}, "Attr1", "Attr2", 1, true)]]
+[[__sycl_detail__::add_ir_attributes_global_variable({"Attr3"}, "Attr1", "Attr2", 1, true)]]
 GlobalVarStructDecl4{};
 
 struct
