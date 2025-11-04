@@ -312,7 +312,7 @@ void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
         LaunchConfigAccess(Config);
 
     detail::submit_kernel_direct_parallel_for<KernelName>(
-        std::move(Q), LaunchConfigAccess.getRange(), KernelObj,
+        std::move(Q), LaunchConfigAccess.getRange(), KernelObj, {},
         LaunchConfigAccess.getProperties());
   } else {
     submit(std::move(Q), [&](handler &CGH) {
