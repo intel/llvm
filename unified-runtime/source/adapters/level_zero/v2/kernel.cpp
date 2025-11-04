@@ -265,13 +265,36 @@ ur_result_t ur_kernel_handle_t_::setExecInfo(ur_kernel_exec_info_t propName,
   return UR_RESULT_SUCCESS;
 }
 
+// Compute a zePtr pointer for the given memory handle and store it in *pZePtr
+ur_result_t ur_kernel_handle_t_::computeZePtr(
+    ur_mem_handle_t hMem, ur_device_handle_t hDevice,
+    ur_mem_buffer_t::device_access_mode_t accessMode,
+    ze_command_list_handle_t zeCommandList, wait_list_view &waitListView,
+    void **pZePtr) {
+  UR_ASSERT(pZePtr, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  void *zePtr = nullptr;
+  if (hMem) {
+    if (!hMem->isImage()) {
+      auto hBuffer = hMem->getBuffer();
+      zePtr = hBuffer->getDevicePtr(hDevice, accessMode, 0, hBuffer->getSize(),
+                                    zeCommandList, waitListView);
+    } else {
+      auto hImage = static_cast<ur_mem_image_t *>(hMem->getImage());
+      zePtr = reinterpret_cast<void *>(hImage->getZeImage());
+    }
+  }
+
+  *pZePtr = zePtr;
+  return UR_RESULT_SUCCESS;
+}
+
 // Perform any required allocations and set the kernel arguments.
 ur_result_t ur_kernel_handle_t_::prepareForSubmission(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const size_t *pGlobalWorkOffset, uint32_t workDim, uint32_t groupSizeX,
     uint32_t groupSizeY, uint32_t groupSizeZ,
-    ze_command_list_handle_t commandList, wait_list_view &waitListView,
-    std::vector<void *> *kMemObj) {
+    ze_command_list_handle_t commandList, wait_list_view &waitListView) {
   auto &deviceKernelOpt = deviceKernels[deviceIndex(hDevice)];
   if (!deviceKernelOpt.has_value())
     return UR_RESULT_ERROR_INVALID_KERNEL;
@@ -288,34 +311,12 @@ ur_result_t ur_kernel_handle_t_::prepareForSubmission(
 
   for (auto &pending : pending_allocations) {
     void *zePtr = nullptr;
-    if (pending.hMem) {
-      if (!pending.hMem->isImage()) {
-        auto hBuffer = pending.hMem->getBuffer();
-        zePtr =
-            hBuffer->getDevicePtr(hDevice, pending.mode, 0, hBuffer->getSize(),
-                                  commandList, waitListView);
-      } else {
-        auto hImage = static_cast<ur_mem_image_t *>(pending.hMem->getImage());
-        zePtr = reinterpret_cast<void *>(hImage->getZeImage());
-      }
-    }
+    // Compute a zePtr pointer for the given memory handle and store it in zePtr
+    UR_CALL(computeZePtr(pending.hMem, hDevice, pending.mode, commandList,
+                         waitListView, &zePtr));
 
-    // kMemObj must be non-null in the path of
-    // zeCommandListAppendLaunchKernelWithArguments()
-    if (kMemObj) {
-      // zeCommandListAppendLaunchKernelWithArguments()
-      // (==CommandListCoreFamily<gfxCoreFamily>::appendLaunchKernelWithArguments())
-      // calls setArgumentValue(i, argSize, argValue) for all arguments on its
-      // own so do not call it here, but save the zePtr pointer in kMemObj
-      // for this future call.
-      if (pending.argIndex > kMemObj->size() - 1) {
-        return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
-      }
-      (*kMemObj)[pending.argIndex] = zePtr;
-    } else {
-      // Set the argument only on this device's kernel.
-      UR_CALL(deviceKernel.setArgPointer(pending.argIndex, zePtr));
-    }
+    // Set the argument only on this device's kernel.
+    UR_CALL(deviceKernel.setArgPointer(pending.argIndex, zePtr));
   }
   pending_allocations.clear();
 
