@@ -152,15 +152,12 @@ template <typename KernelName = sycl::detail::auto_name, typename KernelType>
 void single_task(queue Q, const KernelType &KernelObj,
                  const sycl::detail::code_location &CodeLoc =
                      sycl::detail::code_location::current()) {
-  // TODO The handler-less path does not support kernel function properties
-  // and kernel functions with the kernel_handler type argument yet.
-  if constexpr (!(ext::oneapi::experimental::detail::
-                      HasKernelPropertiesGetMethod<
-                          const KernelType &>::value) &&
-                !(detail::KernelLambdaHasKernelHandlerArgT<KernelType,
+  // TODO The handler-less path does not support kernel functions with the
+  // kernel_handler type argument yet.
+  if constexpr (!(detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                            void>::value)) {
     detail::submit_kernel_direct_single_task<KernelName>(
-        std::move(Q), empty_properties_t{}, KernelObj, {}, CodeLoc);
+        std::move(Q), KernelObj, {}, empty_properties_t{}, CodeLoc);
   } else {
     submit(
         std::move(Q),
@@ -271,17 +268,13 @@ template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename KernelType, typename... ReductionsT>
 void nd_launch(queue Q, nd_range<Dimensions> Range, const KernelType &KernelObj,
                ReductionsT &&...Reductions) {
-  // TODO The handler-less path does not support reductions, kernel
-  // function properties and kernel functions with the kernel_handler
-  // type argument yet.
+  // TODO The handler-less path does not support reductions, and
+  // kernel functions with the kernel_handler type argument yet.
   if constexpr (sizeof...(ReductionsT) == 0 &&
-                !(ext::oneapi::experimental::detail::
-                      HasKernelPropertiesGetMethod<
-                          const KernelType &>::value) &&
                 !(detail::KernelLambdaHasKernelHandlerArgT<
                     KernelType, sycl::nd_item<Dimensions>>::value)) {
-    detail::submit_kernel_direct_parallel_for<KernelName>(
-        std::move(Q), empty_properties_t{}, Range, KernelObj, {});
+    detail::submit_kernel_direct_parallel_for<KernelName>(std::move(Q), Range,
+                                                          KernelObj, {});
   } else {
     submit(std::move(Q), [&](handler &CGH) {
       nd_launch<KernelName>(CGH, Range, KernelObj,
@@ -308,13 +301,25 @@ template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename Properties, typename KernelType, typename... ReductionsT>
 void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
                const KernelType &KernelObj, ReductionsT &&...Reductions) {
-  // TODO This overload of the nd_launch function takes the kernel function
-  // properties, which are not yet supported for the handler-less path,
-  // so it only supports handler based submission for now
-  submit(std::move(Q), [&](handler &CGH) {
-    nd_launch<KernelName>(CGH, Config, KernelObj,
-                          std::forward<ReductionsT>(Reductions)...);
-  });
+  // TODO The handler-less path does not support reductions, and
+  // kernel functions with the kernel_handler type argument yet.
+  if constexpr (sizeof...(ReductionsT) == 0 &&
+                !(detail::KernelLambdaHasKernelHandlerArgT<
+                    KernelType, sycl::nd_item<Dimensions>>::value)) {
+
+    ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
+                                                          Properties>
+        LaunchConfigAccess(Config);
+
+    detail::submit_kernel_direct_parallel_for<KernelName>(
+        std::move(Q), LaunchConfigAccess.getRange(), KernelObj,
+        LaunchConfigAccess.getProperties());
+  } else {
+    submit(std::move(Q), [&](handler &CGH) {
+      nd_launch<KernelName>(CGH, Config, KernelObj,
+                            std::forward<ReductionsT>(Reductions)...);
+    });
+  }
 }
 
 template <int Dimensions, typename... ArgsT>

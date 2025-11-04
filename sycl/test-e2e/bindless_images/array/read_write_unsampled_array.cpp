@@ -4,6 +4,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/160893
+
 #include "../helpers/common.hpp"
 #include <iostream>
 #include <random>

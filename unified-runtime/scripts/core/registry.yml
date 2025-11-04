@@ -685,7 +685,13 @@ etors:
 - name: DEVICE_WAIT_EXP
   desc: Enumerator for $xDeviceWaitExp
   value: '293'
-max_id: '293'
+- name: PROGRAM_DYNAMIC_LINK_EXP
+  desc: Enumerator for $xProgramDynamicLinkExp
+  value: '294'
+- name: ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP
+  desc: Enumerator for $xEnqueueKernelLaunchWithArgsExp
+  value: '295'
+max_id: '295'
 ---
 type: enum
 desc: Defines structure types

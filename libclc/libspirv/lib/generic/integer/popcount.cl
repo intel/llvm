@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <libspirv/spirv.h>
 #include <clc/integer/clc_popcount.h>
+#include <libspirv/spirv.h>
 
 #define __CLC_FUNCTION __spirv_ocl_popcount
 #define __CLC_IMPL_FUNCTION(x) __clc_popcount
