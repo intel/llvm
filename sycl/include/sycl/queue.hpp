@@ -3466,7 +3466,8 @@ public:
                       KernelType, sycl::nd_item<Dims>>::value)) {
       return detail::submit_kernel_direct_parallel_for<KernelName, true>(
           *this, Range, Rest..., sycl::span<const event>(&DepEvent, 1),
-          ext::oneapi::experimental::empty_properties_t{}, TlsCodeLocCapture.query());
+          ext::oneapi::experimental::empty_properties_t{},
+          TlsCodeLocCapture.query());
     } else {
       return submit(
           [&](handler &CGH) {
@@ -3531,7 +3532,8 @@ public:
                   !(detail::KernelLambdaHasKernelHandlerArgT<
                       KernelType, sycl::nd_item<Dims>>::value)) {
       return detail::submit_kernel_direct_parallel_for<KernelName, true>(
-          *this, Range, Rest..., DepEvents, ext::oneapi::experimental::empty_properties_t{},
+          *this, Range, Rest..., DepEvents,
+          ext::oneapi::experimental::empty_properties_t{},
           TlsCodeLocCapture.query());
     } else {
       return submit(
