@@ -1,4 +1,4 @@
-/// Test that SYCL bitcode device libraries are properly separated for NVIDIA and AMD targets
+/// Test that SYCL bitcode device libraries are properly separated for NVIDIA and AMD targets.
 
 /// Check devicelib and libspirv are linked for nvptx
 // RUN: %clang -### -fsycl --offload-new-driver \
@@ -9,7 +9,7 @@
 // CHECK-NVPTX-BC: clang-linker-wrapper
 // CHECK-NVPTX-BC-SAME: "--bitcode-library=nvptx64-nvidia-cuda={{.*}}devicelib-nvptx64-nvidia-cuda.bc" "--bitcode-library=nvptx64-nvidia-cuda={{.*}}libspirv-nvptx64-nvidia-cuda.bc"
 
-/// Check devicelib is linked for amdgcn
+/// Check devicelib is linked for amdgcn.
 // RUN: %clang -### -fsycl --offload-new-driver \
 // RUN:   -fsycl-targets=amdgcn-amd-amdhsa \
 // RUN:   -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx900 \
@@ -19,7 +19,7 @@
 // CHECK-AMD-BC: clang-linker-wrapper
 // CHECK-AMD-BC-SAME: "--bitcode-library=amdgcn-amd-amdhsa={{.*}}devicelib-amdgcn-amd-amdhsa.bc"
 
-/// Check linking with multiple targets
+/// Check linking with multiple targets.
 // RUN: %clang -### -fsycl --offload-new-driver \
 // RUN:   -fsycl-targets=amdgcn-amd-amdhsa,nvptx64-nvidia-cuda \
 // RUN:   -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx900 \
@@ -30,7 +30,7 @@
 // CHECK-MULTI-TARGET: clang-linker-wrapper
 // CHECK-MULTI-TARGET-SAME: "--bitcode-library=amdgcn-amd-amdhsa={{.*}}devicelib-amdgcn-amd-amdhsa.bc" "--bitcode-library=nvptx64-nvidia-cuda={{.*}}devicelib-nvptx64-nvidia-cuda.bc" "--bitcode-library=nvptx64-nvidia-cuda={{.*}}libspirv-nvptx64-nvidia-cuda.bc"
 
-/// Test --bitcode-library with nvptx dummy libraries
+/// Test --bitcode-library with nvptx dummy libraries.
 // RUN: %clang -cc1 %s -triple nvptx64-nvidia-cuda -emit-llvm-bc -o %t.nvptx.devicelib.bc
 // RUN: %clang -cc1 %s -triple nvptx64-nvidia-cuda -emit-llvm-bc -o %t.nvptx.libspirv.bc
 // RUN: %clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda --offload-new-driver -c %s -o %t.nvptx.o -nocudalib
@@ -40,7 +40,7 @@
 
 // CHECK-WRAPPER-NVPTX: llvm-link{{.*}} {{.*}}.nvptx.devicelib.bc {{.*}}.nvptx.libspirv.bc
 
-/// Test --bitcode-library with amdgcn dummy library
+/// Test --bitcode-library with amdgcn dummy library.
 // RUN: %clang -cc1 %s -triple amdgcn-amd-amdhsa -emit-llvm-bc -o %t.amd.devicelib.bc
 // RUN: %clang++ -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx900 --offload-new-driver -c %s -o %t.amd.o -nogpulib
 // RUN: clang-linker-wrapper --bitcode-library=amdgcn-amd-amdhsa=%t.amd.devicelib.bc \
@@ -49,7 +49,7 @@
 
 // CHECK-WRAPPER-AMD: llvm-link{{.*}} {{.*}}.amd.devicelib.bc
 
-/// Test --bitcode-library with multi-target bc libraries
+/// Test --bitcode-library with multi-target bc libraries.
 // RUN: %clang++ -fsycl -fsycl-targets=amdgcn-amd-amdhsa,nvptx64-nvidia-cuda \
 // RUN:   -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx900 \
 // RUN:   --offload-new-driver -c %s -o %t.multi.o -nocudalib -nogpulib

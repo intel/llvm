@@ -11301,13 +11301,11 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       List += Arg.str();
     };
 
-    llvm::Triple TargetTriple;
     auto ToolChainRange = C.getOffloadToolChains<Action::OFK_SYCL>();
     for (auto &I :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       const ToolChain *TC = I.second;
-      TargetTriple = TC->getTriple();
-      SmallVector<std::string, 8> SYCLDeviceLibs;
+      llvm::Triple TargetTriple = TC->getTriple();
       bool IsSPIR = TargetTriple.isSPIROrSPIRV();
       bool IsSpirvAOT = TargetTriple.isSPIRAOT();
       bool UseJitLink =
@@ -11315,12 +11313,14 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
           Args.hasFlag(options::OPT_fsycl_device_lib_jit_link,
                        options::OPT_fno_sycl_device_lib_jit_link, false);
       bool UseAOTLink = IsSPIR && (IsSpirvAOT || !UseJitLink);
-      SYCLDeviceLibs = SYCL::getDeviceLibraries(C, TargetTriple, UseAOTLink);
+      SmallVector<std::string, 8> SYCLDeviceLibs =
+          SYCL::getDeviceLibraries(C, TargetTriple, UseAOTLink);
       for (const auto &AddLib : SYCLDeviceLibs) {
         if (llvm::sys::path::extension(AddLib) == ".bc") {
           SmallString<256> LibPath(DeviceLibDir);
           llvm::sys::path::append(LibPath, AddLib);
-          BCLibList.push_back((Twine(TC->getTriple().str()) + "=" + LibPath).str());
+          BCLibList.push_back(
+              (Twine(TC->getTriple().str()) + "=" + LibPath).str());
           continue;
         }
 
@@ -11330,7 +11330,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       if (TC->getTriple().isNVPTX())
         if (const char *LibSpirvFile = SYCLInstallation.findLibspirvPath(
                 TC->getTriple(), Args, *TC->getAuxTriple()))
-          BCLibList.push_back((Twine(TC->getTriple().str()) + "=" + LibSpirvFile).str());
+          BCLibList.push_back(
+              (Twine(TC->getTriple().str()) + "=" + LibSpirvFile).str());
     }
     // -sycl-device-libraries=<libs> provides a comma separate list of
     // libraries to add to the device linking step.
@@ -11340,7 +11341,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     if (BCLibList.size()) {
       for (const std::string &Lib : BCLibList)
-        CmdArgs.push_back(Args.MakeArgString(Twine("--bitcode-library=") + Lib));
+        CmdArgs.push_back(
+            Args.MakeArgString(Twine("--bitcode-library=") + Lib));
     }
 
     CmdArgs.push_back(Args.MakeArgString(
