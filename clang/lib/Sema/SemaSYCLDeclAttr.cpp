@@ -55,7 +55,7 @@ void SemaSYCL::handleKernelAttr(Decl *D, const ParsedAttr &AL) {
     return;
   }
 
-  handleSimpleAttribute<DeviceKernelAttr>(*this, D, AL);
+  handleSimpleAttribute<SYCLKernelAttr>(*this, D, AL);
 }
 
 // Returns a DupArgResult value; Same means the args have the same value,
