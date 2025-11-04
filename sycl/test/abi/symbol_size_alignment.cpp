@@ -6,6 +6,7 @@
 
 #include <sycl/accessor.hpp>
 #include <sycl/buffer.hpp>
+#include <sycl/detail/nd_range_view.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_event.hpp>
 #include <sycl/device_selector.hpp>
@@ -19,7 +20,6 @@
 #include <sycl/sampler.hpp>
 #include <sycl/stream.hpp>
 #include <sycl/vector.hpp>
-#include <sycl/detail/nd_range_view.hpp>
 
 using namespace sycl;
 
