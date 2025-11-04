@@ -57,6 +57,16 @@ def run_iterations(
                     break
 
             for bench_result in bench_results:
+                if bench_result.value == 0.0:
+                    if options.exit_on_failure:
+                        raise RuntimeError("Benchmark result is zero!")
+                    else:
+                        failure_label = f"{benchmark.name()} iteration {iter}"
+                        failures[failure_label] = "benchmark result is zero!"
+                        log.error(
+                            f"complete ({failure_label}: benchmark result is zero!)."
+                        )
+                        continue
                 log.info(
                     f"{benchmark.name()} complete ({bench_result.label}: {bench_result.value:.3f} {bench_result.unit})."
                 )
