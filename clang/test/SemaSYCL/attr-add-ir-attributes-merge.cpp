@@ -28,6 +28,16 @@ void FunctionRedecl4();
 [[__sycl_detail__::add_ir_attributes_function("Attr2", "Attr1", true, 1)]] void FunctionRedecl4();
 [[__sycl_detail__::add_ir_attributes_function("Attr3", false)]] void FunctionRedecl4(){};
 
+[[__sycl_detail__::add_ir_attributes_function({"Attr3"}, "Attr1", "Attr2", 1, true)]] void FunctionRedecl5();
+void FunctionRedecl5();
+
+void FunctionRedecl6();
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", "Attr2", 1, true)]] void FunctionRedecl6();
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", "Attr2", 1, true)]] void FunctionRedecl6();
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr2", "Attr1", true, 1)]] void FunctionRedecl6();
+[[__sycl_detail__::add_ir_attributes_function({"Attr3", "Attr1"}, "Attr1", "Attr2", 1, true)]] void FunctionRedecl6();
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr3", false)]] void FunctionRedecl6(){};
+
 [[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", 1, true)]]
 [[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", 1, true)]]
 [[__sycl_detail__::add_ir_attributes_function("Attr2", "Attr1", true, 1)]]  // expected-error {{attribute '__sycl_detail__::add_ir_attributes_function' is already applied with different arguments}}
@@ -49,6 +59,16 @@ void FunctionDecl2(){};
 [[__sycl_detail__::add_ir_attributes_function("Attr2", "Attr1", true, 1)]]
 [[__sycl_detail__::add_ir_attributes_function("Attr3", false)]]
 void FunctionDecl3(){};
+
+[[__sycl_detail__::add_ir_attributes_function({"Attr3"}, "Attr1", "Attr2", 1, true)]]
+void FunctionDecl4(){};
+
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", "Attr2", 1, true)]]
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", "Attr2", 1, true)]]
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr2", "Attr1", true, 1)]]
+[[__sycl_detail__::add_ir_attributes_function({"Attr3", "Attr1"}, "Attr1", "Attr2", 1, true)]]
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr3", false)]]
+void FunctionDecl5(){};
 
 struct GlobalVarStructRedecl1;
 struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr1", "Attr2", 1, true)]] GlobalVarStructRedecl1;  // expected-note {{conflicting attribute is here}}
@@ -75,6 +95,15 @@ struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr1", "Attr2", 1,
 struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr2", "Attr1", true, 1)]] GlobalVarStructRedecl4;
 struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr3", false)]] GlobalVarStructRedecl4{};
 
+struct GlobalVarStructRedecl5;
+struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr1", "Attr2", 1, true)]] void GlobalVarStructRedecl5;
+struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr1", "Attr2", 1, true)]] void GlobalVarStructRedecl5;
+struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr2", "Attr1", true, 1)]] void GlobalVarStructRedecl5;
+struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr3", false)]] void GlobalVarStructRedecl5{};
+
+[[__sycl_detail__::add_ir_attributes_global_variable({"Attr3"}, "Attr1", "Attr2", 1, true)]] struct GlobalVarStructRedecl6;
+struct GlobalVarStructRedecl6{};
+
 struct
 [[__sycl_detail__::add_ir_attributes_global_variable("Attr1", "Attr2", 1, true)]]
 [[__sycl_detail__::add_ir_attributes_global_variable("Attr1", "Attr2", 1, true)]]
@@ -99,6 +128,18 @@ struct
 [[__sycl_detail__::add_ir_attributes_global_variable("Attr2", "Attr1", true, 1)]]
 [[__sycl_detail__::add_ir_attributes_global_variable("Attr3", false)]]
 GlobalVarStructDecl3{};
+
+struct
+[[__sycl_detail__::add_ir_attributes_function({"Attr3"}, "Attr1", "Attr2", 1, true)]]
+GlobalVarStructDecl4{};
+
+struct
+[[__sycl_detail__::add_ir_attributes_global_variable({"Attr1", "Attr3"}, "Attr1", "Attr2", 1, true)]]
+[[__sycl_detail__::add_ir_attributes_global_variable({"Attr1", "Attr3"}, "Attr1", "Attr2", 1, true)]]
+[[__sycl_detail__::add_ir_attributes_global_variable({"Attr1", "Attr3"}, "Attr2", "Attr1", true, 1)]]
+[[__sycl_detail__::add_ir_attributes_global_variable({"Attr3", "Attr1"}, "Attr1", "Attr2", 1, true)]]
+[[__sycl_detail__::add_ir_attributes_global_variable({"Attr1", "Attr3"}, "Attr3", false)]]
+GlobalVarStructDecl5{};
 
 struct GlobalVarStructBase {};
 struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr1", "Attr2", 1, true)]] GlobalVarStructInherit1 : GlobalVarStructBase{};
@@ -129,5 +170,13 @@ struct __attribute__((sycl_special_class)) SpecialClassStruct2 {
     [[__sycl_detail__::add_ir_attributes_kernel_parameter("Attr1", "Attr2", 1, true)]]
     [[__sycl_detail__::add_ir_attributes_kernel_parameter("Attr2", "Attr1", true, 1)]]
     [[__sycl_detail__::add_ir_attributes_kernel_parameter("Attr3", false)]]
+    int x) {}
+};
+
+struct __attribute__((sycl_special_class)) SpecialClassStruct3 {
+  virtual void __init(
+    [[__sycl_detail__::add_ir_attributes_kernel_parameter({"Attr1", "Attr3"}, "Attr1", "Attr2", 1, true)]]
+    [[__sycl_detail__::add_ir_attributes_kernel_parameter({"Attr1", "Attr3"}, "Attr2", "Attr1", true, 1)]]
+    [[__sycl_detail__::add_ir_attributes_kernel_parameter({"Attr1", "Attr3"}, "Attr3", false)]]
     int x) {}
 };
