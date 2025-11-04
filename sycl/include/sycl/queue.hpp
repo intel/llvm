@@ -2860,15 +2860,10 @@ public:
 
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
 
-    // TODO The handler-less path does not support kernel
-    // function properties and kernel functions with the kernel_handler
-    // type argument yet.
-    if constexpr (
-        std::is_same_v<PropertiesT,
-                       ext::oneapi::experimental::empty_properties_t> &&
-        !(ext::oneapi::experimental::detail::HasKernelPropertiesGetMethod<
-            const KernelType &>::value) &&
-        !(detail::KernelLambdaHasKernelHandlerArgT<KernelType, void>::value)) {
+    // TODO The handler-less path does not support kernel functions
+    // with the kernel_handler type argument yet.
+    if constexpr (!(detail::KernelLambdaHasKernelHandlerArgT<KernelType,
+                                                             void>::value)) {
       return detail::submit_kernel_direct_single_task<KernelName, true>(
           *this, KernelFunc, sycl::span<const event>(&DepEvent, 1), Properties,
           TlsCodeLocCapture.query());
@@ -2926,12 +2921,10 @@ public:
 
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
 
-    if constexpr (
-        std::is_same_v<PropertiesT,
-                       ext::oneapi::experimental::empty_properties_t> &&
-        !(ext::oneapi::experimental::detail::HasKernelPropertiesGetMethod<
-            const KernelType &>::value) &&
-        !(detail::KernelLambdaHasKernelHandlerArgT<KernelType, void>::value)) {
+    // TODO The handler-less path does not support kernel functions
+    // with the kernel_handler type argument yet.
+    if constexpr (!(detail::KernelLambdaHasKernelHandlerArgT<KernelType,
+                                                             void>::value)) {
       return detail::submit_kernel_direct_single_task<KernelName, true>(
           *this, KernelFunc, DepEvents, Properties, TlsCodeLocCapture.query());
     } else {
@@ -3465,13 +3458,10 @@ public:
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     using KernelType = std::tuple_element_t<0, std::tuple<RestT...>>;
-    // TODO The handler-less path does not support reductions, kernel
-    // function properties and kernel functions with the kernel_handler
-    // type argument yet.
+
+    // TODO The handler-less path does not support reductions, and
+    // kernel functions with the kernel_handler type argument yet.
     if constexpr (sizeof...(RestT) == 1 &&
-                  !(ext::oneapi::experimental::detail::
-                        HasKernelPropertiesGetMethod<
-                            const KernelType &>::value) &&
                   !(detail::KernelLambdaHasKernelHandlerArgT<
                       KernelType, sycl::nd_item<Dims>>::value)) {
       return detail::submit_kernel_direct_parallel_for<KernelName, true>(
@@ -3536,13 +3526,9 @@ public:
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     using KernelType = std::tuple_element_t<0, std::tuple<RestT...>>;
 
-    // TODO The handler-less path does not support reductions, kernel
-    // function properties and kernel functions with the kernel_handler
-    // type argument yet.
+    // TODO The handler-less path does not support reductions, and
+    // kernel functions with the kernel_handler type argument yet.
     if constexpr (sizeof...(RestT) == 1 &&
-                  !(ext::oneapi::experimental::detail::
-                        HasKernelPropertiesGetMethod<
-                            const KernelType &>::value) &&
                   !(detail::KernelLambdaHasKernelHandlerArgT<
                       KernelType, sycl::nd_item<Dims>>::value)) {
       return detail::submit_kernel_direct_parallel_for<KernelName, true>(
