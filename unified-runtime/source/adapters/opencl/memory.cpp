@@ -208,6 +208,8 @@ cl_image_format mapURImageFormatToCL(const ur_image_format_t *PImageFormat) {
 
 cl_image_desc mapURImageDescToCL(const ur_image_desc_t *PImageDesc) {
   cl_image_desc CLImageDesc;
+  memset(&CLImageDesc, 0, sizeof(CLImageDesc));
+
   CLImageDesc.image_type = static_cast<cl_mem_object_type>(PImageDesc->type);
 
   switch (PImageDesc->type) {
@@ -239,8 +241,6 @@ cl_image_desc mapURImageDescToCL(const ur_image_desc_t *PImageDesc) {
   CLImageDesc.image_slice_pitch = PImageDesc->slicePitch;
   CLImageDesc.num_mip_levels = PImageDesc->numMipLevel;
   CLImageDesc.num_samples = PImageDesc->numSamples;
-  CLImageDesc.buffer = nullptr;
-  CLImageDesc.mem_object = nullptr;
 
   return CLImageDesc;
 }

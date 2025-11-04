@@ -268,10 +268,12 @@
 // RUN: llvm-offload-binary -o %t.out --image=file=%t.elf.o,kind=sycl,triple=spirv64-unknown-unknown,arch=generic
 // RUN: %clang -cc1 %s -triple x86_64-unknown-linux-gnu -emit-obj -o %t.o \
 // RUN:   -fembed-offload-object=%t.out
-// RUN: clang-linker-wrapper --print-wrapped-module --dry-run --host-triple=x86_64-unknown-linux-gnu \
-// RUN:   --linker-path=/usr/bin/ld %t.o -o a.out 2>&1 | FileCheck %s --check-prefixes=SYCL
-// RUN: clang-linker-wrapper --print-wrapped-module --dry-run --host-triple=x86_64-unknown-linux-gnu -r \
-// RUN:   --linker-path=/usr/bin/ld %t.o -o a.out 2>&1 | FileCheck %s --check-prefixes=SYCL
+// RUN: clang-linker-wrapper --print-wrapped-module --dry-run --host-triple=x86_64-unknown-linux-gnu -sycl-device-libraries=%t.o \
+// RUN:   --linker-path=/usr/bin/ld %t.o -o a.out 2>&1 | FileCheck %s --check-prefixes=SYCL-INTEL
+// RUN: clang-linker-wrapper --print-wrapped-module --dry-run --host-triple=x86_64-unknown-linux-gnu -r -sycl-device-libraries=%t.o \
+// RUN:   --linker-path=/usr/bin/ld %t.o -o a.out 2>&1 | FileCheck %s --check-prefixes=SYCL-INTEL
+
+// SYCL-INTEL: spirv-to-ir-wrapper
 
 //      SYCL: %__sycl.tgt_device_image = type { i16, i8, i8, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr }
 // SYCL-NEXT: %__sycl.tgt_bin_desc = type { i16, i16, ptr, ptr, ptr }

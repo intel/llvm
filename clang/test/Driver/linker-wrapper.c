@@ -54,7 +54,7 @@ __attribute__((visibility("protected"), used)) int x;
 // RUN: llvm-offload-binary -o %t.out \
 // RUN:   --image=file=%t.spirv.bc,kind=sycl,triple=spirv64-unknown-unknown,arch=generic
 // RUN: %clang -cc1 %s -triple x86_64-unknown-linux-gnu -emit-obj -o %t.o -fembed-offload-object=%t.out
-// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --dry-run \
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --dry-run -sycl-device-libraries=%t.out \
 // RUN:   --linker-path=/usr/bin/ld %t.o -o a.out 2>&1 | FileCheck %s --check-prefix=SPIRV-LINK-INTEL
 
 // TODO: Remove SPIRV-LINK-INTEL once migration to community flow is completed.

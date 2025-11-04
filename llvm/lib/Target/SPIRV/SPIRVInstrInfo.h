@@ -36,8 +36,7 @@ public:
   bool isTypeDeclInstr(const MachineInstr &MI) const;
   bool isDecorationInstr(const MachineInstr &MI) const;
   bool isAliasingInstr(const MachineInstr &MI) const;
-  bool canUseFastMathFlags(const MachineInstr &MI,
-                           bool KHRFloatControls2) const;
+  bool canUseFastMathFlags(const MachineInstr &MI) const;
   bool canUseNSW(const MachineInstr &MI) const;
   bool canUseNUW(const MachineInstr &MI) const;
 
