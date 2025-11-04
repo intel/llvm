@@ -1131,6 +1131,24 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpOld(
   return UR_RESULT_SUCCESS;
 }
 
+static void *computeZePtr(ur_mem_handle_t hMem, ur_device_handle_t hDevice,
+                          ur_mem_buffer_t::device_access_mode_t accessMode,
+                          ze_command_list_handle_t zeCommandList,
+                          wait_list_view &waitListView) {
+  void *zePtr = nullptr;
+  if (hMem) {
+    if (!hMem->isImage()) {
+      auto hBuffer = hMem->getBuffer();
+      zePtr = hBuffer->getDevicePtr(hDevice, accessMode, 0, hBuffer->getSize(),
+                                    zeCommandList, waitListView);
+    } else {
+      auto hImage = static_cast<ur_mem_image_t *>(hMem->getImage());
+      zePtr = reinterpret_cast<void *>(hImage->getZeImage());
+    }
+  }
+  return zePtr;
+}
+
 ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpNew(
     ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
@@ -1164,6 +1182,9 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpNew(
   hKernel->kernelMemObj.resize(numArgs, 0);
   hKernel->kernelArgs.resize(numArgs, 0);
 
+  wait_list_view waitListView =
+      getWaitListView(phEventWaitList, numEventsInWaitList);
+
   for (uint32_t argIndex = 0; argIndex < numArgs; argIndex++) {
     switch (pArgs[argIndex].type) {
     case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
@@ -1176,12 +1197,11 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpNew(
       hKernel->kernelArgs[argIndex] = (void *)&pArgs[argIndex].value.pointer;
       break;
     case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ:
-      // prepareForSubmission() will save zePtr in kernelMemObj[argIndex]
+      hKernel->kernelMemObj[argIndex] =
+          computeZePtr(pArgs[argIndex].value.memObjTuple.hMem, hDevice.get(),
+                       ur_mem_buffer_t::device_access_mode_t::read_write,
+                       getZeCommandList(), waitListView);
       hKernel->kernelArgs[argIndex] = &hKernel->kernelMemObj[argIndex];
-      UR_CALL(hKernel->addPendingMemoryAllocation(
-          {pArgs[argIndex].value.memObjTuple.hMem,
-           ur_mem_buffer_t::device_access_mode_t::read_write,
-           pArgs[argIndex].index}));
       break;
     case UR_EXP_KERNEL_ARG_TYPE_SAMPLER:
       hKernel->kernelArgs[argIndex] = &pArgs[argIndex].value.sampler->ZeSampler;
