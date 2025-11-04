@@ -263,15 +263,8 @@ template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename KernelType, typename... ReductionsT>
 void nd_launch(handler &CGH, nd_range<Dimensions> Range,
                const KernelType &KernelObj, ReductionsT &&...Reductions) {
-  if constexpr (ext::oneapi::experimental::detail::HasKernelPropertiesGetMethod<
-                    const KernelType &>::value) {
-    CGH.parallel_for<KernelName>(
-        Range, KernelObj.get(ext::oneapi::experimental::properties_tag{}),
-        std::forward<ReductionsT>(Reductions)..., KernelObj);
-  } else {
-    CGH.parallel_for<KernelName>(
-        Range, std::forward<ReductionsT>(Reductions)..., KernelObj);
-  }
+  CGH.parallel_for<KernelName>(Range, std::forward<ReductionsT>(Reductions)...,
+                               KernelObj);
 }
 
 template <typename KernelName = sycl::detail::auto_name, int Dimensions,

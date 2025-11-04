@@ -2152,6 +2152,7 @@ public:
     throwIfGraphAssociated<ext::oneapi::experimental::detail::
                                UnsupportedGraphFeatures::sycl_reductions>();
 #endif
+
     detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
@@ -2172,6 +2173,7 @@ public:
     throwIfGraphAssociated<ext::oneapi::experimental::detail::
                                UnsupportedGraphFeatures::sycl_reductions>();
 #endif
+
     detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
@@ -2192,6 +2194,7 @@ public:
     throwIfGraphAssociated<ext::oneapi::experimental::detail::
                                UnsupportedGraphFeatures::sycl_reductions>();
 #endif
+
     detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
@@ -2200,27 +2203,54 @@ public:
   std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value &&
                    (sizeof...(RestT) > 1)>
   parallel_for(range<1> Range, RestT &&...Rest) {
-    parallel_for<KernelName>(Range,
-                             ext::oneapi::experimental::empty_properties_t{},
-                             std::forward<RestT>(Rest)...);
+    const auto &KernelObj = (Rest, ...);
+    if constexpr (ext::oneapi::experimental::detail::
+                      HasKernelPropertiesGetMethod<
+                          decltype(KernelObj)>::value) {
+      parallel_for<KernelName>(
+          Range, KernelObj.get(ext::oneapi::experimental::properties_tag{}),
+          std::forward<RestT>(Rest)...);
+    } else {
+      parallel_for<KernelName>(Range,
+                               ext::oneapi::experimental::empty_properties_t{},
+                               std::forward<RestT>(Rest)...);
+    }
   }
 
   template <typename KernelName = detail::auto_name, typename... RestT>
   std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value &&
                    (sizeof...(RestT) > 1)>
   parallel_for(range<2> Range, RestT &&...Rest) {
-    parallel_for<KernelName>(Range,
-                             ext::oneapi::experimental::empty_properties_t{},
-                             std::forward<RestT>(Rest)...);
+    const auto &KernelObj = (Rest, ...);
+    if constexpr (ext::oneapi::experimental::detail::
+                      HasKernelPropertiesGetMethod<
+                          decltype(KernelObj)>::value) {
+      parallel_for<KernelName>(
+          Range, KernelObj.get(ext::oneapi::experimental::properties_tag{}),
+          std::forward<RestT>(Rest)...);
+    } else {
+      parallel_for<KernelName>(Range,
+                               ext::oneapi::experimental::empty_properties_t{},
+                               std::forward<RestT>(Rest)...);
+    }
   }
 
   template <typename KernelName = detail::auto_name, typename... RestT>
   std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value &&
                    (sizeof...(RestT) > 1)>
   parallel_for(range<3> Range, RestT &&...Rest) {
-    parallel_for<KernelName>(Range,
-                             ext::oneapi::experimental::empty_properties_t{},
-                             std::forward<RestT>(Rest)...);
+    const auto &KernelObj = (Rest, ...);
+    if constexpr (ext::oneapi::experimental::detail::
+                      HasKernelPropertiesGetMethod<
+                          decltype(KernelObj)>::value) {
+      parallel_for<KernelName>(
+          Range, KernelObj.get(ext::oneapi::experimental::properties_tag{}),
+          std::forward<RestT>(Rest)...);
+    } else {
+      parallel_for<KernelName>(Range,
+                               ext::oneapi::experimental::empty_properties_t{},
+                               std::forward<RestT>(Rest)...);
+    }
   }
 
   template <typename KernelName = detail::auto_name, int Dims,
@@ -2239,6 +2269,9 @@ public:
     throwIfGraphAssociated<ext::oneapi::experimental::detail::
                                UnsupportedGraphFeatures::sycl_reductions>();
 #endif
+    std::cout << "4\n";
+    // static_assert(!std::is_same_v<PropertiesT, PropertiesT>); //property
+    // already missing!
     detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
@@ -2247,9 +2280,18 @@ public:
             typename... RestT>
   std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
   parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
-    parallel_for<KernelName>(Range,
-                             ext::oneapi::experimental::empty_properties_t{},
-                             std::forward<RestT>(Rest)...);
+    const auto &KernelObj = (Rest, ...);
+    if constexpr (ext::oneapi::experimental::detail::
+                      HasKernelPropertiesGetMethod<
+                          decltype(KernelObj)>::value) {
+      parallel_for<KernelName>(
+          Range, KernelObj.get(ext::oneapi::experimental::properties_tag{}),
+          std::forward<RestT>(Rest)...);
+    } else {
+      parallel_for<KernelName>(Range,
+                               ext::oneapi::experimental::empty_properties_t{},
+                               std::forward<RestT>(Rest)...);
+    }
   }
 
   /// }@
