@@ -225,7 +225,7 @@ class ComputeBench(Suite):
                     useHostTasks = 1 if runtime == RUNTIMES.SYCL_PREVIEW or runtime == RUNTIMES.SYCL else 0
                 )
             )
-            if runtime == RUNTIMES.SYCL:
+            if runtime == RUNTIMES.SYCL or runtime == RUNTIMES.SYCL_PREVIEW:
                 # Create CPU count variant
                 benches.append(
                     GraphApiSubmitGraph(
