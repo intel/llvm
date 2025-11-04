@@ -10,7 +10,6 @@
 
 #include <detail/adapter_impl.hpp>
 #include <detail/helpers.hpp>
-#include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/host_profiling_info.hpp>
@@ -474,7 +473,6 @@ private:
 public:
   using Base::Base;
 };
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
