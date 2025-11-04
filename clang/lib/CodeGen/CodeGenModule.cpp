@@ -3620,14 +3620,12 @@ static void emitUsed(CodeGenModule &CGM, StringRef Name,
   if (List.empty())
     return;
 
-  llvm::PointerType *UnqualPtr =
-      llvm::PointerType::getUnqual(CGM.getLLVMContext());
-
   // For SYCL emit pointers in the default address space which is a superset of
   // other address spaces, so that casts from any other address spaces will be
   // valid.
+  llvm::PointerType *TargetType = CGM.Int8PtrTy;
   if (CGM.getLangOpts().SYCLIsDevice)
-    UnqualPtr = llvm::PointerType::get(
+    TargetType = llvm::PointerType::get(
         CGM.getLLVMContext(),
         CGM.getContext().getTargetAddressSpace(LangAS::Default));
 
@@ -3636,10 +3634,12 @@ static void emitUsed(CodeGenModule &CGM, StringRef Name,
   UsedArray.resize(List.size());
   for (unsigned i = 0, e = List.size(); i != e; ++i) {
     UsedArray[i] = llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(
-        cast<llvm::Constant>(&*List[i]), UnqualPtr);
+            cast<llvm::Constant>(&*List[i]), TargetType);
   }
 
-  llvm::ArrayType *ATy = llvm::ArrayType::get(UnqualPtr, UsedArray.size());
+  if (UsedArray.empty())
+    return;
+  llvm::ArrayType *ATy = llvm::ArrayType::get(TargetType, UsedArray.size());
 
   auto *GV = new llvm::GlobalVariable(
       CGM.getModule(), ATy, false, llvm::GlobalValue::AppendingLinkage,

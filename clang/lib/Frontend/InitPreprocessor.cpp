@@ -1583,6 +1583,9 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   if (LangOpts.PointerAuthIntrinsics)
     Builder.defineMacro("__PTRAUTH__");
 
+  if (CGOpts.Dwarf2CFIAsm)
+    Builder.defineMacro("__GCC_HAVE_DWARF2_CFI_ASM");
+
   // Get other target #defines.
   TI.getTargetDefines(LangOpts, Builder);
 }
