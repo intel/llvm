@@ -87,6 +87,17 @@ private:
   void *ptr;
 };
 
+struct host_allocation_desc_t {
+  host_allocation_desc_t(usm_unique_ptr_t ptr, size_t size, size_t offset,
+                         ur_map_flags_t flags)
+      : ptr(std::move(ptr)), size(size), offset(offset), flags(flags) {}
+
+  usm_unique_ptr_t ptr;
+  size_t size;
+  size_t offset;
+  ur_map_flags_t flags;
+};
+
 // Manages memory buffer for integrated GPU.
 // For integrated devices the buffer has been allocated in host memory
 // and can be accessed by the device without copying.
@@ -97,6 +108,8 @@ struct ur_integrated_buffer_handle_t : ur_mem_buffer_t {
   ur_integrated_buffer_handle_t(ur_context_handle_t hContext, void *hostPtr,
                                 size_t size, device_access_mode_t accessMode,
                                 bool ownHostPtr);
+
+  ~ur_integrated_buffer_handle_t();
 
   void *getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
                      size_t size, ze_command_list_handle_t cmdList,
@@ -109,17 +122,8 @@ struct ur_integrated_buffer_handle_t : ur_mem_buffer_t {
 
 private:
   usm_unique_ptr_t ptr;
-};
-
-struct host_allocation_desc_t {
-  host_allocation_desc_t(usm_unique_ptr_t ptr, size_t size, size_t offset,
-                         ur_map_flags_t flags)
-      : ptr(std::move(ptr)), size(size), offset(offset), flags(flags) {}
-
-  usm_unique_ptr_t ptr;
-  size_t size;
-  size_t offset;
-  ur_map_flags_t flags;
+  void *writeBackPtr = nullptr;
+  std::vector<host_allocation_desc_t> mappedRegions;
 };
 
 // Manages memory buffer for discrete GPU.

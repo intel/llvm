@@ -1112,6 +1112,7 @@ for full_name, sycl_device in zip(
     features.update(sg_size_features)
     features.update(architecture_feature)
     features.update(device_family)
+    features.update(aspects)
 
     be, dev = sycl_device.split(":")
     features.add(dev.replace("fpga", "accelerator"))
