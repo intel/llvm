@@ -147,19 +147,19 @@ jobs:
         IF NOT EXIST D:\github\_work\cache MKDIR D:\github\_work\cache
         IF NOT EXIST D:\github\_work\cache\${{inputs.build_cache_suffix}} MKDIR D:\github\_work\cache\${{inputs.build_cache_suffix}}
         python.exe src/buildbot/configure.py -o build ^
-          --ci-defaults --use-zstd ^
+          --ci-defaults --use-zstd %ARGS% ^
           "-DCMAKE_C_COMPILER=${{inputs.cxx}}" ^
           "-DCMAKE_CXX_COMPILER=${{inputs.cxx}}" ^
           "-DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%\install" ^
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache ^
           -DCMAKE_C_COMPILER_LAUNCHER=ccache ^
-          -DLLVM_INSTALL_UTILS=ON ^
-          %ARGS%
+          -DLLVM_INSTALL_UTILS=ON
     - name: Build
       id: build
       shell: bash
       run: |
         cmake --build build --target ${{ inputs.build_target }}
+    - run: build/bin/clang++ --version
     - name: check-llvm
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
       shell: bash

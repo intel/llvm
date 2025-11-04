@@ -44,6 +44,10 @@ add_custom_command(OUTPUT "${version_inc}"
                            "-DLLVM_FORCE_VC_REPOSITORY=${LLVM_FORCE_VC_REPOSITORY}"
                            -P "${generate_vcs_version_script}")
 
+if(SYCL_BUILD_INFO)
+  file(APPEND ${version_inc} "#define SYCL_BUILD_INFO \"${SYCL_BUILD_INFO}\"\n")
+endif()
+
 # Mark the generated header as being generated.
 set_source_files_properties("${version_inc}"
   PROPERTIES GENERATED TRUE

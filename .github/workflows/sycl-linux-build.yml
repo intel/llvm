@@ -201,15 +201,15 @@ jobs:
           -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build \
           -DCMAKE_INSTALL_PREFIX=$GITHUB_WORKSPACE/toolchain \
           -t Release \
-          --ci-defaults --use-zstd \
+          --ci-defaults --use-zstd ${{ inputs.build_configure_extra_args }} \
           -DCMAKE_C_COMPILER_LAUNCHER=ccache \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-          -DLLVM_INSTALL_UTILS=ON \
-          ${{ inputs.build_configure_extra_args }}
+          -DLLVM_INSTALL_UTILS=ON
     - name: Compile
       id: build
       # Emulate default value for manual dispatch as we've run out of available arguments.
       run: cmake --build $GITHUB_WORKSPACE/build --target ${{ inputs.build_target || 'sycl-toolchain' }}
+    - run: $GITHUB_WORKSPACE/build/bin/clang++ --version
     - name: check-llvm
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
       env:
