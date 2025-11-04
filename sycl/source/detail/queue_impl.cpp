@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/event_deps.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
@@ -639,7 +640,7 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
   if (ExternalEvent) {
     registerEventDependency<false>(
         getSyclObjImpl(*ExternalEvent), CGData.MEvents, this, getContextImpl(),
-        getDeviceImpl(), hasCommandGraph() ? getCommandGraph() : nullptr,
+        getDeviceImpl(), hasCommandGraph() ? getCommandGraph().get() : nullptr,
         detail::CGType::Kernel);
   }
 
@@ -650,14 +651,14 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
   if (isInOrder() && LastEvent) {
     registerEventDependency<false>(
         LastEvent, CGData.MEvents, this, getContextImpl(), getDeviceImpl(),
-        hasCommandGraph() ? getCommandGraph() : nullptr,
+        hasCommandGraph() ? getCommandGraph().get() : nullptr,
         detail::CGType::Kernel);
   }
 
   for (event e : DepEvents) {
     registerEventDependency<false>(
         getSyclObjImpl(e), CGData.MEvents, this, getContextImpl(),
-        getDeviceImpl(), hasCommandGraph() ? getCommandGraph() : nullptr,
+        getDeviceImpl(), hasCommandGraph() ? getCommandGraph().get() : nullptr,
         detail::CGType::Kernel);
   }
 

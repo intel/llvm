@@ -12,6 +12,7 @@
 
 #include <detail/buffer_impl.hpp>
 #include <detail/config.hpp>
+#include <detail/event_deps.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/graph/dynamic_impl.hpp>
 #include <detail/graph/graph_impl.hpp>
@@ -1673,7 +1674,8 @@ void handler::depends_on(const std::vector<event> &Events) {
 void handler::depends_on(const detail::EventImplPtr &EventImpl) {
   registerEventDependency(EventImpl, impl->CGData.MEvents,
                           impl->get_queue_or_null(), impl->get_context(),
-                          impl->get_device(), getCommandGraph(), getType());
+                          impl->get_device(), getCommandGraph().get(),
+                          getType());
 }
 
 void handler::depends_on(const std::vector<detail::EventImplPtr> &Events) {

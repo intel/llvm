@@ -475,15 +475,6 @@ public:
   using Base::Base;
 };
 
-template <bool LockQueue = true>
-void registerEventDependency(
-    const detail::EventImplPtr &EventToRegister,
-    std::vector<detail::EventImplPtr> &EventsRegistered,
-    detail::queue_impl *QueueImpl, const detail::context_impl &ContextImpl,
-    const detail::device_impl &DeviceImpl,
-    const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> &Graph,
-    sycl::detail::CGType CommandGroupType);
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
