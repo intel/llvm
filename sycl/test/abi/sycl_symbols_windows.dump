@@ -4360,7 +4360,7 @@
 ?modf_impl@detail@_V1@sycl@@YANNPEAN@Z
 ?name@SYCLCategory@detail@_V1@sycl@@UEBAPEBDXZ
 ?native_specialization_constant@kernel_bundle_plain@detail@_V1@sycl@@QEBA_NXZ
-?open@ipc_memory@experimental@oneapi@ext@_V1@sycl@@YAPEAXV?$span@$$CBW4byte@std@@$0?0@56@AEBVcontext@56@AEBVdevice@56@@Z
+?openIPCMemHandle@detail@_V1@sycl@@YAPEAXPEBW4byte@std@@_KAEBVcontext@23@AEBVdevice@23@@Z
 ?parallel_for@handler@_V1@sycl@@QEAAXV?$range@$00@23@Vkernel@23@@Z
 ?parallel_for@handler@_V1@sycl@@QEAAXV?$range@$01@23@Vkernel@23@@Z
 ?parallel_for@handler@_V1@sycl@@QEAAXV?$range@$02@23@Vkernel@23@@Z
