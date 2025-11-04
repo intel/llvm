@@ -48,6 +48,17 @@ int main(int argc, char **argv) {
            wGroup.parallel_for_work_item([&](sycl::h_item<1> index) {});
          }));
    }).wait();
+  // Also try an example of a work-group scope variable being used in work item
+  // scope
+  q.submit([&](sycl::handler &cgh) {
+     cgh.parallel_for_work_group(
+         sycl::range<1>{1}, sycl::range<1>{128}, ([=](sycl::group<1> wGroup) {
+           int data;
+           foo(wGroup);
+           wGroup.parallel_for_work_item(
+               [&](sycl::h_item<1> index) { data = 0; });
+         }));
+   }).wait();
 
   std::cout << "test passed" << std::endl;
   return 0;
