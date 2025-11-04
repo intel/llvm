@@ -2272,7 +2272,8 @@ public:
 
   template <typename KernelName = detail::auto_name, int Dims,
             typename... RestT>
-  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value &&
+                   (sizeof...(RestT) > 1)> // variant with reductions
   parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
     const auto &KernelObj = (Rest, ...);
     if constexpr (ext::oneapi::experimental::detail::
@@ -2286,6 +2287,16 @@ public:
                                ext::oneapi::experimental::empty_properties_t{},
                                std::forward<RestT>(Rest)...);
     }
+  }
+
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename... RestT>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value &&
+                   (sizeof...(RestT) == 1)> // variant without reductions
+  parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
+    parallel_for<KernelName>(Range,
+                             ext::oneapi::experimental::empty_properties_t{},
+                             std::forward<RestT>(Rest)...);
   }
 
   /// }@
