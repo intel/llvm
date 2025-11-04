@@ -930,6 +930,68 @@ ur_result_t urQueueFlush(
   return Queue->executeAllOpenCommandLists();
 }
 
+ur_result_t urQueueBeginGraphCaptureExp(ur_queue_handle_t hQueue, void *pNext) {
+  std::ignore = hQueue;
+  std::ignore = pNext;
+  UR_LOG_LEGACY(ERR,
+                logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+                "{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urQueueBeginCaptureIntoGraphExp(ur_queue_handle_t hQueue,
+                                            ur_exp_graph_handle_t hGraph,
+                                            void *pNext) {
+  std::ignore = hQueue;
+  std::ignore = hGraph;
+  std::ignore = pNext;
+  UR_LOG_LEGACY(ERR,
+                logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+                "{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urQueueEndGraphCaptureExp(ur_queue_handle_t hQueue,
+                                      ur_exp_graph_handle_t *phGraph,
+                                      void *pNext) {
+  std::ignore = hQueue;
+  std::ignore = pNext;
+  if (phGraph)
+    *phGraph = nullptr;
+  UR_LOG_LEGACY(ERR,
+                logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+                "{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urQueueAppendGraphExp(ur_queue_handle_t hQueue,
+                                  ur_exp_executable_graph_handle_t hGraph,
+                                  void *pNext, ur_event_handle_t hSignalEvent,
+                                  uint32_t numWaitEvents,
+                                  ur_event_handle_t *phWaitEvents) {
+  std::ignore = hQueue;
+  std::ignore = hGraph;
+  std::ignore = pNext;
+  std::ignore = hSignalEvent;
+  std::ignore = numWaitEvents;
+  std::ignore = phWaitEvents;
+  UR_LOG_LEGACY(ERR,
+                logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+                "{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urQueueIsGraphCaptureEnabledExp(ur_queue_handle_t hQueue,
+                                            bool *hResult) {
+  std::ignore = hQueue;
+  if (hResult)
+    *hResult = false;
+  UR_LOG_LEGACY(ERR,
+                logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+                "{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 } // namespace ur::level_zero
 
 // Configuration of the command-list batching.

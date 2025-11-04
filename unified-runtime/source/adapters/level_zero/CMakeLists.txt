@@ -52,6 +52,7 @@ if(UR_BUILD_ADAPTER_L0)
         ${CMAKE_CURRENT_SOURCE_DIR}/sampler.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/image.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/image_common.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/graph.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/kernel_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/memory_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/mutable_helpers.cpp
@@ -148,6 +149,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/physical_mem.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/program.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/kernel_helpers.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/graph.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/memory_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/mutable_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/usm_p2p.cpp
