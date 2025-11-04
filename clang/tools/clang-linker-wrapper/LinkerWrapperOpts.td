@@ -156,11 +156,6 @@ def sycl_device_lib_EQ : CommaJoined<["--", "-"], "sycl-device-libraries=">,
 def sycl_device_library_location_EQ : Joined<["--", "-"],
   "sycl-device-library-location=">, Flags<[WrapperOnlyOption]>,
   HelpText<"Location of SYCL device library files">;
-def sycl_bc_device_lib_EQ
-    : CommaJoined<["--", "-"], "sycl-bc-device-libraries=">,
-      Flags<[WrapperOnlyOption]>,
-      HelpText<"A comma separated list of bitcode device libraries that are "
-               "linked during SYCL device link.">;
 
 // Options for SYCL backends and linker options for shared libraries.
 def sycl_backend_compile_options_EQ :
