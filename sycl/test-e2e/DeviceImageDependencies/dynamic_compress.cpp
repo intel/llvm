@@ -3,6 +3,9 @@
 
 // REQUIRES: zstd
 
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20397
+
 // DEFINE: %{dynamic_lib_options} = -fsycl %fPIC %shared_lib -fsycl-allow-device-image-dependencies -I %S/Inputs %if windows %{-DMAKE_DLL %}
 // DEFINE: %{dynamic_lib_suffix} = %if windows %{dll%} %else %{so%}
 
@@ -28,8 +31,8 @@
 // RUN:   -fsycl-allow-device-image-dependencies -fsycl-device-code-split=per_kernel      \
 // RUN:   %S/Inputs/basic.cpp -o %t.out                                                   \
 // RUN:   %if windows                                                                     \
-// RUN:     %{%t.dir/libdevicecompress_a.lib%}                                                \
+// RUN:     %{%t.dir/libdevicecompress_a.lib %t.dir/libdevicecompress_b.lib %t.dir/libdevicecompress_c.lib %t.dir/libdevicecompress_d.lib%} \
 // RUN:   %else                                                                           \
 // RUN:     %{-L%t.dir -ldevicecompress_a -ldevicecompress_b -ldevicecompress_c -ldevicecompress_d -Wl,-rpath=%t.dir%}
 
-// RUN: %{run} %t.out
+// RUN: %if windows %{ cmd /c "set PATH=%t.dir;%PATH% && %{run} %t.out" %} %else %{ %{run} %t.out %}

@@ -171,9 +171,6 @@ produced by any queue (or its associated context) on this device.
 If so, they are passed to the appropriate async_handler as described in section
 4.13.1.3 "Priorities of async handlers" of the core SYCL specification.
 
-_Throws:_ A synchronous `exception` with the `errc::feature_not_supported`
-error code if the device does not have `aspect::ext_oneapi_device_wait`.
-
 '''
 
 

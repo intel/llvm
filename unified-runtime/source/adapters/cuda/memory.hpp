@@ -19,6 +19,7 @@
 #include "common/ur_ref_count.hpp"
 #include "context.hpp"
 #include "queue.hpp"
+#include <umf/ipc.h>
 
 ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t,
                                            const ur_device_handle_t);

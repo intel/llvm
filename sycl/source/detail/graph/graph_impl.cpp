@@ -925,7 +925,7 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
   duplicateNodes();
 
   if (auto PlaceholderQueuePtr = GraphImpl->getQueue()) {
-    MQueueImpl = PlaceholderQueuePtr;
+    MQueueImpl = std::move(PlaceholderQueuePtr);
   } else {
     MQueueImpl = sycl::detail::queue_impl::create(
         *sycl::detail::getSyclObjImpl(GraphImpl->getDevice()),

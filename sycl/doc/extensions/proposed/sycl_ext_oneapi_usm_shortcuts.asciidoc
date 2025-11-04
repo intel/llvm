@@ -71,16 +71,10 @@ specification.*
 
 == Overview
 
-This extension adds convenience overloads to the USM allocation, deallocation,
-and query functions, which do not require the caller to pass a device or
-context.
-The device is inferred from the default device selector, and the context is
-inferred from the platform containing that device.
-These shortcuts are similar to the default queue constructor, which also infers
-the device and context in the same way.
-We believe these shortcuts will make it easier for people migrating code from
-CUDA because the equivalent CUDA functions (`cudaMalloc`, `cudaMallocManaged`,
-and `cudaMallocHost`) also do not take a device or context parameter.
+This extension adds convenience overloads to the functions for USM device and
+USM shared allocations which do not take a context parameter.
+Since these allocations all take a device parameter, they infer the context by
+using the default context of the platform that contains the device.
 
 
 == Specification
@@ -88,12 +82,12 @@ and `cudaMallocHost`) also do not take a device or context parameter.
 === Feature test macro
 
 This extension provides a feature-test macro as described in the core SYCL
-specification.  An implementation supporting this extension must predefine the
-macro `SYCL_EXT_ONEAPI_USM_SHORTCUTS` to one of the values defined in the table
-below.  Applications can test for the existence of this macro to determine if
-the implementation supports this feature, or applications can test the macro's
-value to determine which of the extension's features the implementation
-supports.
+specification.
+An implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_USM_SHORTCUTS` to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's value
+to determine which of the extension's features the implementation supports.
 
 [%header,cols="1,5"]
 |===
@@ -115,7 +109,8 @@ This extension adds the following functions which allocate USM device memory.
 ----
 namespace sycl::ext::oneapi::experimental {
 
-void* malloc_device(size_t numBytes, const property_list& propList = {});
+void* malloc_device(size_t numBytes, const device& syclDevice,
+                    const property_list& propList = {});
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -124,9 +119,8 @@ _Effects_: Equivalent to:
 
 [source,c++,indent=2]
 ----
-sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
-return sycl::malloc_device(numBytes, d, ctxt, propList);
+sycl::context ctxt = syclDevice.get_platform().khr_get_default_context();
+return sycl::malloc_device(numBytes, syclDevice, ctxt, propList);
 ----
 
 '''
@@ -136,7 +130,8 @@ return sycl::malloc_device(numBytes, d, ctxt, propList);
 namespace sycl::ext::oneapi::experimental {
 
 template <typename T>
-T* malloc_device(size_t count, const property_list& propList = {});
+T* malloc_device(size_t count, const device& syclDevice,
+                 const property_list& propList = {});
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -145,9 +140,8 @@ _Effects_: Equivalent to:
 
 [source,c++,indent=2]
 ----
-sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
-return sycl::malloc_device<T>(count, d, ctxt, propList);
+sycl::context ctxt = syclDevice.get_platform().khr_get_default_context();
+return sycl::malloc_device<T>(count, syclDevice, ctxt, propList);
 ----
 
 '''
@@ -157,6 +151,7 @@ return sycl::malloc_device<T>(count, d, ctxt, propList);
 namespace sycl::ext::oneapi::experimental {
 
 void* aligned_alloc_device(size_t alignment, size_t numBytes,
+                           const device& syclDevice,
                            const property_list& propList = {});
 
 } // namespace sycl::ext::oneapi::experimental
@@ -166,9 +161,8 @@ _Effects_: Equivalent to:
 
 [source,c++,indent=2]
 ----
-sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
-return sycl::aligned_alloc_device(alignment, numBytes, d, ctxt, propList);
+sycl::context ctxt = syclDevice.get_platform().khr_get_default_context();
+return sycl::aligned_alloc_device(alignment, numBytes, syclDevice, ctxt, propList);
 ----
 
 '''
@@ -179,6 +173,7 @@ namespace sycl::ext::oneapi::experimental {
 
 template <typename T>
 T* aligned_alloc_device(size_t alignment, size_t count,
+                        const device& syclDevice,
                         const property_list& propList = {});
 
 } // namespace sycl::ext::oneapi::experimental
@@ -188,99 +183,8 @@ _Effects_: Equivalent to:
 
 [source,c++,indent=2]
 ----
-sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
-return sycl::aligned_alloc_device<T>(alignment, count, d, ctxt, propList);
-----
-
-'''
-
-=== New USM host allocation functions
-
-This extension adds the following functions which allocate USM host memory.
-
-'''
-
-[source,c++]
-----
-namespace sycl::ext::oneapi::experimental {
-
-void* malloc_host(size_t numBytes, const property_list& propList = {});
-
-} // namespace sycl::ext::oneapi::experimental
-----
-
-_Effects_: Equivalent to:
-
-[source,c++,indent=2]
-----
-sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
-return sycl::malloc_host(numBytes, ctxt, propList);
-----
-
-'''
-
-[source,c++]
-----
-namespace sycl::ext::oneapi::experimental {
-
-template <typename T>
-T* malloc_host(size_t count, const property_list& propList = {});
-
-} // namespace sycl::ext::oneapi::experimental
-----
-
-_Effects_: Equivalent to:
-
-[source,c++,indent=2]
-----
-sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
-return sycl::malloc_host<T>(count, ctxt, propList);
-----
-
-'''
-
-[source,c++]
-----
-namespace sycl::ext::oneapi::experimental {
-
-void* aligned_alloc_host(size_t alignment, size_t numBytes,
-                         const property_list& propList = {})
-
-} // namespace sycl::ext::oneapi::experimental
-----
-
-_Effects_: Equivalent to:
-
-[source,c++,indent=2]
-----
-sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
-return sycl::aligned_alloc_host(alignment, numBytes, ctxt, propList);
-----
-
-'''
-
-[source,c++]
-----
-namespace sycl::ext::oneapi::experimental {
-
-template <typename T>
-T* aligned_alloc_host(size_t alignment, size_t count,
-                      const property_list& propList = {});
-
-} // namespace sycl::ext::oneapi::experimental
-----
-
-_Effects_: Equivalent to:
-
-[source,c++,indent=2]
-----
-sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
-return sycl::aligned_alloc_host<T>(alignment, count, ctxt, propList);
+sycl::context ctxt = syclDevice.get_platform().khr_get_default_context();
+return sycl::aligned_alloc_device<T>(alignment, count, syclDevice, ctxt, propList);
 ----
 
 '''
@@ -295,7 +199,8 @@ This extension adds the following functions which allocate USM shared memory.
 ----
 namespace sycl::ext::oneapi::experimental {
 
-void* malloc_shared(size_t numBytes, const property_list& propList = {});
+void* malloc_shared(size_t numBytes, const device& syclDevice,
+                    const property_list& propList = {});
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -304,9 +209,8 @@ _Effects_: Equivalent to:
 
 [source,c++,indent=2]
 ----
-sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
-return sycl::malloc_shared(numBytes, d, ctxt, propList);
+sycl::context ctxt = syclDevice.get_platform().khr_get_default_context();
+return sycl::malloc_shared(numBytes, syclDevice, ctxt, propList);
 ----
 
 '''
@@ -316,7 +220,8 @@ return sycl::malloc_shared(numBytes, d, ctxt, propList);
 namespace sycl::ext::oneapi::experimental {
 
 template <typename T>
-T* malloc_shared(size_t count, const property_list& propList = {});
+T* malloc_shared(size_t count, const device& syclDevice,
+                 const property_list& propList = {});
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -325,9 +230,8 @@ _Effects_: Equivalent to:
 
 [source,c++,indent=2]
 ----
-sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
-return sycl::malloc_shared<T>(count, d, ctxt, propList);
+sycl::context ctxt = syclDevice.get_platform().khr_get_default_context();
+return sycl::malloc_shared<T>(count, syclDevice, ctxt, propList);
 ----
 
 '''
@@ -337,6 +241,7 @@ return sycl::malloc_shared<T>(count, d, ctxt, propList);
 namespace sycl::ext::oneapi::experimental {
 
 void* aligned_alloc_shared(size_t alignment, size_t numBytes,
+                           const device& syclDevice,
                            const property_list& propList = {});
 
 } // namespace sycl::ext::oneapi::experimental
@@ -346,9 +251,8 @@ _Effects_: Equivalent to:
 
 [source,c++,indent=2]
 ----
-sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
-return sycl::aligned_alloc_shared(alignment, numBytes, d, ctxt, propList);
+sycl::context ctxt = syclDevice.get_platform().khr_get_default_context();
+return sycl::aligned_alloc_shared(alignment, numBytes, syclDevice, ctxt, propList);
 ----
 
 '''
@@ -359,6 +263,7 @@ namespace sycl::ext::oneapi::experimental {
 
 template <typename T>
 T* aligned_alloc_shared(size_t alignment, size_t count,
+                        const device& syclDevice,
                         const property_list& propList = {});
 
 } // namespace sycl::ext::oneapi::experimental
@@ -368,16 +273,16 @@ _Effects_: Equivalent to:
 
 [source,c++,indent=2]
 ----
-sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
-return sycl::aligned_alloc_shared<T>(alignment, count, d, ctxt, propList);
+sycl::context ctxt = syclDevice.get_platform().khr_get_default_context();
+return sycl::aligned_alloc_shared<T>(alignment, count, syclDevice, ctxt, propList);
 ----
 
 '''
 
-=== New USM deallocation functions
+=== New USM parameterized allocation functions
 
-This extension adds the following functions which deallocate USM memory.
+This extension adds the following functions which allocate USM memory whose type
+is determined at runtime.
 
 '''
 
@@ -385,7 +290,8 @@ This extension adds the following functions which deallocate USM memory.
 ----
 namespace sycl::ext::oneapi::experimental {
 
-void free(void* ptr);
+void* malloc(size_t numBytes, const device& syclDevice, usm::alloc kind,
+             const property_list& propList = {});
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -394,35 +300,8 @@ _Effects_: Equivalent to:
 
 [source,c++,indent=2]
 ----
-sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
-sycl::free(ptr, ctxt);
-----
-
-'''
-
-=== New USM query functions
-
-This extension adds the following functions which query USM memory allocations.
-
-'''
-
-[source,c++]
-----
-namespace sycl::ext::oneapi::experimental {
-
-usm::alloc get_pointer_type(const void* ptr);
-
-} // namespace sycl::ext::oneapi::experimental
-----
-
-_Effects_: Equivalent to:
-
-[source,c++,indent=2]
-----
-sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
-return sycl::get_pointer_type(ptr, ctxt);
+sycl::context ctxt = syclDevice.get_platform().khr_get_default_context();
+return sycl::malloc(numBytes, syclDevice, ctxt, kind, propList);
 ----
 
 '''
@@ -431,7 +310,9 @@ return sycl::get_pointer_type(ptr, ctxt);
 ----
 namespace sycl::ext::oneapi::experimental {
 
-device get_pointer_device(const void* ptr);
+template <typename T>
+T* malloc(size_t count, const device& syclDevice, usm::alloc kind,
+          const property_list& propList = {});
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -440,9 +321,49 @@ _Effects_: Equivalent to:
 
 [source,c++,indent=2]
 ----
-sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
-return sycl::get_pointer_device(ptr, ctxt);
+sycl::context ctxt = syclDevice.get_platform().khr_get_default_context();
+return sycl::malloc_shared<T>(count, syclDevice, ctxt, kind, propList);
+----
+
+'''
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+void* aligned_alloc(size_t alignment, size_t numBytes, const device& syclDevice,
+                    usm::alloc kind, const property_list& propList = {});
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+_Effects_: Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::context ctxt = syclDevice.get_platform().khr_get_default_context();
+return sycl::aligned_alloc(alignment, numBytes, syclDevice, ctxt, kind, propList);
+----
+
+'''
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename T>
+T* aligned_alloc(size_t alignment, size_t count, const device& syclDevice,
+                 usm::alloc kind, const property_list& propList = {});
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+_Effects_: Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::context ctxt = syclDevice.get_platform().khr_get_default_context();
+return sycl::aligned_alloc<T>(alignment, count, syclDevice, ctxt, kind, propList);
 ----
 
 '''

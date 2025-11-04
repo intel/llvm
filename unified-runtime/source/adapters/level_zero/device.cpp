@@ -1306,6 +1306,8 @@ ur_result_t urDeviceGetInfo(
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
 #endif
   }
+  case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP:
+    return ReturnValue(true);
   case UR_DEVICE_INFO_ASYNC_BARRIER:
     return ReturnValue(false);
   case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT:
@@ -1317,6 +1319,10 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_DYNAMIC_LINK_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
     return ReturnValue(true);
@@ -1783,6 +1789,11 @@ ur_result_t urDeviceRelease(ur_device_handle_t Device) {
     }
   }
 
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urDeviceWaitExp(ur_device_handle_t Device) {
+  ZE2UR_CALL(zeDeviceSynchronize, (Device->ZeDevice));
   return UR_RESULT_SUCCESS;
 }
 } // namespace ur::level_zero
