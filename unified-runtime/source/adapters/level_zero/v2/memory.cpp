@@ -8,9 +8,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "memory.hpp"
 #include "../ur_interface_loader.hpp"
 #include "context.hpp"
+#include "memory.hpp"
 
 #include "../helpers/memory_helpers.hpp"
 #include "../image_common.hpp"
@@ -60,21 +60,19 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
   if (hostPtr) {
     // Host pointer provided - check if it's already USM or needs import
     ZeStruct<ze_memory_allocation_properties_t> memProps;
-    auto ret = getMemoryAttrs(hContext->getZeHandle(), hostPtr, nullptr, &memProps);
-    
+    auto ret =
+        getMemoryAttrs(hContext->getZeHandle(), hostPtr, nullptr, &memProps);
+
     if (ret == UR_RESULT_SUCCESS && memProps.type != ZE_MEMORY_TYPE_UNKNOWN) {
       // Already a USM allocation - just use it directly without import
-      this->ptr = usm_unique_ptr_t(hostPtr, [](void *) {
-        // Don't free - we don't own this memory
-      });
+      this->ptr = usm_unique_ptr_t(hostPtr, [](void *) {});
     } else {
       // Not USM - try to import it
       bool hostPtrImported =
           maybeImportUSM(hContext->getPlatform()->ZeDriverHandleExpTranslated,
                          hContext->getZeHandle(), hostPtr, size);
-      
+
       if (!hostPtrImported) {
-        // This should not happen if urMemBufferCreate logic is correct
         throw UR_RESULT_ERROR_INVALID_VALUE;
       }
 
@@ -108,10 +106,6 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
     }
     ZE_CALL_NOCHECK(zeMemFree, (hContext->getZeHandle(), ptr));
   });
-}
-
-ur_integrated_buffer_handle_t::~ur_integrated_buffer_handle_t() {
-  // No writeback needed - integrated buffers use zero-copy access
 }
 
 void *ur_integrated_buffer_handle_t::getDevicePtr(
@@ -578,8 +572,9 @@ ur_result_t urMemBufferCreate(ur_context_handle_t hContext,
   if (useHostBuffer(hContext) && hostPtr) {
     // Check what type of memory this pointer is
     ZeStruct<ze_memory_allocation_properties_t> memProps;
-    auto ret = getMemoryAttrs(hContext->getZeHandle(), hostPtr, nullptr, &memProps);
-    
+    auto ret =
+        getMemoryAttrs(hContext->getZeHandle(), hostPtr, nullptr, &memProps);
+
     if (ret == UR_RESULT_SUCCESS) {
       if (memProps.type != ZE_MEMORY_TYPE_UNKNOWN) {
         // Already USM memory (host, device, or shared) - use integrated path
@@ -587,7 +582,7 @@ ur_result_t urMemBufferCreate(ur_context_handle_t hContext,
             hContext, hostPtr, size, accessMode);
         return UR_RESULT_SUCCESS;
       }
-      
+
       // Memory type is UNKNOWN - try to import it
       bool canImport =
           maybeImportUSM(hContext->getPlatform()->ZeDriverHandleExpTranslated,

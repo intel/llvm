@@ -98,8 +98,6 @@ struct ur_integrated_buffer_handle_t : ur_mem_buffer_t {
                                 size_t size, device_access_mode_t accessMode,
                                 bool ownHostPtr);
 
-  ~ur_integrated_buffer_handle_t();
-
   void *getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
                      size_t size, ze_command_list_handle_t cmdList,
                      wait_list_view &waitListView) override;
