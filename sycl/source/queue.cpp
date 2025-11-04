@@ -475,18 +475,20 @@ event submit_kernel_direct_with_event_impl(
     const queue &Queue, detail::nd_range_view RangeView,
     detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
+    const detail::KernelPropertyHolderStructTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
   return getSyclObjImpl(Queue)->submit_kernel_direct_with_event(
-      RangeView, HostKernel, DeviceKernelInfo, CodeLoc, IsTopCodeLoc);
+      RangeView, HostKernel, DeviceKernelInfo, Props, CodeLoc, IsTopCodeLoc);
 }
 
 void submit_kernel_direct_without_event_impl(
     const queue &Queue, detail::nd_range_view RangeView,
     detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
+    const detail::KernelPropertyHolderStructTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
   getSyclObjImpl(Queue)->submit_kernel_direct_without_event(
-      RangeView, HostKernel, DeviceKernelInfo, CodeLoc, IsTopCodeLoc);
+      RangeView, HostKernel, DeviceKernelInfo, Props, CodeLoc, IsTopCodeLoc);
 }
 
 } // namespace _V1
