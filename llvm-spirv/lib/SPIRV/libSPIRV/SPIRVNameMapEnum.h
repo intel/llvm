@@ -709,6 +709,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityFloat8EXT, "Float8EXT");
   add(CapabilityFloat8CooperativeMatrixEXT, "Float8CooperativeMatrixEXT");
   add(internal::CapabilityPredicatedIOINTEL, "PredicatedIOINTEL");
+  add(internal::CapabilitySigmoidINTEL, "SigmoidINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
 
