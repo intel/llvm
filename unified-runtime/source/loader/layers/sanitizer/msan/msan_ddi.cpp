@@ -1933,7 +1933,7 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
 
   USMLaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue),
                            pGlobalWorkSize, pLocalWorkSize, pGlobalWorkOffset,
-                           3);
+                           workDim);
   UR_CALL(LaunchInfo.initialize());
 
   UR_CALL(getMsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
