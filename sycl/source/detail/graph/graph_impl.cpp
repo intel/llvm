@@ -19,6 +19,7 @@
 #include <detail/program_manager/program_manager.hpp> // ProgramManager
 #include <detail/queue_impl.hpp>                      // for queue_impl
 #include <detail/sycl_mem_obj_t.hpp>                  // for SYCLMemObjT
+#include <detail/ur.hpp>                              // for UR APIs
 #include <stack>                                      // for stack
 #include <sycl/detail/common.hpp>      // for tls_code_loc_t etc..
 #include <sycl/detail/kernel_desc.hpp> // for kernel_param_kind_t
@@ -315,6 +316,15 @@ graph_impl::graph_impl(const sycl::context &SyclContext,
   }
   if (PropList.has_property<property::graph::enable_native_recording>()) {
     MEnableNativeRecording = true;
+    // Create native UR graph when native recording is enabled
+    // Note: Native recording only works with immediate command lists,
+    // this is validated when recording begins
+    auto UrContext = sycl::detail::getSyclObjImpl(MContext)->getHandleRef();
+    ur_result_t Result = urGraphCreateExp(UrContext, &MNativeGraphHandle, nullptr);
+    if (Result != UR_RESULT_SUCCESS) {
+      throw sycl::exception(sycl::make_error_code(errc::runtime),
+                           "Failed to create native UR graph");
+    }
   }
 
   if (!SyclDevice.has(aspect::ext_oneapi_limited_graph) &&
@@ -333,6 +343,11 @@ graph_impl::~graph_impl() {
     clearQueues(false /*Needs lock*/);
     for (auto &MemObj : MMemObjs) {
       MemObj->markNoLongerBeingUsedInGraph();
+    }
+    // Clean up native UR graph if it was created
+    if (MNativeGraphHandle) {
+      urGraphDestroyExp(MNativeGraphHandle);
+      MNativeGraphHandle = nullptr;
     }
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~graph_impl", e);
@@ -574,7 +589,21 @@ void graph_impl::clearQueues(bool NeedsLock) {
 
   for (auto &Queue : SwappedQueues) {
     if (auto ValidQueue = Queue.lock(); ValidQueue) {
-      ValidQueue->setCommandGraph(nullptr);
+      if (MEnableNativeRecording && MNativeGraphHandle) {
+        // End native UR graph capture
+        auto UrQueue = ValidQueue->getHandleRef();
+        ur_exp_graph_handle_t CapturedGraph = nullptr;
+        ur_result_t Result = urQueueEndGraphCaptureExp(UrQueue, &CapturedGraph, nullptr);
+        if (Result != UR_RESULT_SUCCESS) {
+          throw sycl::exception(sycl::make_error_code(errc::runtime),
+                               "Failed to end native graph capture");
+        }
+        // CapturedGraph should be the same as MNativeGraphHandle
+      } else {
+        // Only call setCommandGraph for traditional recording
+        ValidQueue->setCommandGraph(nullptr);
+      }
+      AnyQueuesCleared = true;
     }
   }
 }
@@ -695,16 +724,82 @@ std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents(
 void graph_impl::beginRecordingUnlockedQueue(sycl::detail::queue_impl &Queue) {
   graph_impl::WriteLock Lock(MMutex);
   if (!Queue.hasCommandGraph()) {
-    Queue.setCommandGraphUnlocked(shared_from_this());
     addQueue(Queue);
+    
+    // Use native UR graph recording if enabled
+    if (MEnableNativeRecording && MNativeGraphHandle) {
+      // Native recording only works with immediate command lists
+      // Check if the queue is actually using immediate command lists
+      ur_queue_flags_t queueFlags = 0;
+      size_t retSize = 0;
+      auto UrQueue = Queue.getHandleRef();
+      ur_result_t Result = urQueueGetInfo(UrQueue, UR_QUEUE_INFO_FLAGS, 
+                                          sizeof(queueFlags), &queueFlags, &retSize);
+      if (Result != UR_RESULT_SUCCESS) {
+        throw sycl::exception(sycl::make_error_code(errc::runtime),
+                             "Failed to query queue flags");
+      }
+      
+      bool isImmediateQueue = (queueFlags & UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE) != 0;
+      bool isBatchedQueue = (queueFlags & UR_QUEUE_FLAG_SUBMISSION_BATCHED) != 0;
+      
+      if (isBatchedQueue || !isImmediateQueue) {
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                             "Native recording requires queues with immediate command lists. "
+                             "Either set ext::intel::property::queue::immediate_command_list on queue creation "
+                             "or use environment variable SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1.");
+      }
+      
+      Result = urQueueBeginCaptureIntoGraphExp(UrQueue, MNativeGraphHandle, nullptr);
+      if (Result != UR_RESULT_SUCCESS) {
+        throw sycl::exception(sycl::make_error_code(errc::runtime),
+                             "Failed to begin native graph capture");
+      }
+    } else {
+      // Only set command graph for non-native recording
+      Queue.setCommandGraphUnlocked(shared_from_this());
+    }
   }
 }
 
 void graph_impl::beginRecording(sycl::detail::queue_impl &Queue) {
   graph_impl::WriteLock Lock(MMutex);
   if (!Queue.hasCommandGraph()) {
-    Queue.setCommandGraph(shared_from_this());
     addQueue(Queue);
+    
+    // Use native UR graph recording if enabled
+    if (MEnableNativeRecording && MNativeGraphHandle) {
+      // Native recording only works with immediate command lists
+      // Check if the queue is actually using immediate command lists
+      ur_queue_flags_t queueFlags = 0;
+      size_t retSize = 0;
+      auto UrQueue = Queue.getHandleRef();
+      ur_result_t Result = urQueueGetInfo(UrQueue, UR_QUEUE_INFO_FLAGS, 
+                                          sizeof(queueFlags), &queueFlags, &retSize);
+      if (Result != UR_RESULT_SUCCESS) {
+        throw sycl::exception(sycl::make_error_code(errc::runtime),
+                             "Failed to query queue flags");
+      }
+      
+      bool isImmediateQueue = (queueFlags & UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE) != 0;
+      bool isBatchedQueue = (queueFlags & UR_QUEUE_FLAG_SUBMISSION_BATCHED) != 0;
+      
+      if (isBatchedQueue || !isImmediateQueue) {
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                             "Native recording requires queues with immediate command lists. "
+                             "Either set ext::intel::property::queue::immediate_command_list on queue creation "
+                             "or use environment variable SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1.");
+      }
+      
+      Result = urQueueBeginCaptureIntoGraphExp(UrQueue, MNativeGraphHandle, nullptr);
+      if (Result != UR_RESULT_SUCCESS) {
+        throw sycl::exception(sycl::make_error_code(errc::runtime),
+                             "Failed to begin native graph capture");
+      }
+    } else {
+      // Only set command graph for non-native recording
+      Queue.setCommandGraph(shared_from_this());
+    }
   }
 }
 
@@ -934,6 +1029,17 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
   // Copy nodes from GraphImpl and merge any subgraph nodes into this graph.
   duplicateNodes();
 
+  // Create native UR executable graph if the modifiable graph uses native recording
+  if (GraphImpl->MEnableNativeRecording && GraphImpl->MNativeGraphHandle) {
+    ur_result_t Result = urGraphInstantiateGraphExp(GraphImpl->MNativeGraphHandle, 
+                                                    &MNativeExecutableGraphHandle, 
+                                                    nullptr);
+    if (Result != UR_RESULT_SUCCESS) {
+      throw sycl::exception(sycl::make_error_code(errc::runtime),
+                           "Failed to instantiate native UR executable graph");
+    }
+  }
+
   if (auto PlaceholderQueuePtr = GraphImpl->getLastRecordedQueue()) {
     MQueueImpl = std::move(PlaceholderQueuePtr);
   } else {
@@ -951,6 +1057,12 @@ exec_graph_impl::~exec_graph_impl() {
     sycl::detail::adapter_impl &Adapter =
         sycl::detail::getSyclObjImpl(MContext)->getAdapter();
     MSchedule.clear();
+
+    // Clean up native UR executable graph if it was created
+    if (MNativeExecutableGraphHandle) {
+      urGraphExecutableGraphDestroyExp(MNativeExecutableGraphHandle);
+      MNativeExecutableGraphHandle = nullptr;
+    }
 
     // Clean up any graph-owned allocations that were allocated
     MGraphImpl->getMemPool().deallocateAndUnmapAll();
@@ -1211,6 +1323,40 @@ exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
                          sycl::detail::CG::StorageInitHelper CGData,
                          bool EventNeeded) {
   WriteLock Lock(MMutex);
+
+  // Use native UR graph execution if available
+  if (MNativeExecutableGraphHandle) {
+    auto UrQueue = Queue.getHandleRef();
+    
+    // Convert wait events to UR events
+    std::vector<ur_event_handle_t> UrWaitEvents;
+    for (auto &WaitEvent : CGData.MEvents) {
+      if (WaitEvent && WaitEvent->getHandleRef()) {
+        UrWaitEvents.push_back(WaitEvent->getHandleRef());
+      }
+    }
+    
+    ur_event_handle_t UrSignalEvent = nullptr;
+    ur_event_handle_t *UrSignalEventPtr = EventNeeded ? &UrSignalEvent : nullptr;
+    
+    ur_result_t Result = urQueueAppendGraphExp(
+        UrQueue, MNativeExecutableGraphHandle, nullptr, UrSignalEventPtr,
+        static_cast<uint32_t>(UrWaitEvents.size()),
+        UrWaitEvents.empty() ? nullptr : UrWaitEvents.data());
+        
+    if (Result != UR_RESULT_SUCCESS) {
+      throw sycl::exception(sycl::make_error_code(errc::runtime),
+                           "Failed to enqueue native UR executable graph");
+    }
+    
+    if (EventNeeded && UrSignalEvent) {
+      auto SignalEvent = std::make_shared<sycl::detail::event_impl>(UrSignalEvent, Queue.getContextImplPtr());
+      SignalEvent->setProfilingEnabled(MEnableProfiling);
+      return SignalEvent;
+    }
+    
+    return nullptr;
+  }
 
   cleanupExecutionEvents(MSchedulerDependencies);
   CGData.MEvents.insert(CGData.MEvents.end(), MSchedulerDependencies.begin(),
@@ -1975,12 +2121,41 @@ void modifiable_command_graph::end_recording() {
 
 void modifiable_command_graph::end_recording(queue &RecordingQueue) {
   queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(RecordingQueue);
-  if (QueueImpl.getCommandGraph() == impl) {
-    QueueImpl.setCommandGraph(nullptr);
+  
+  // Check if this queue is recording to this graph
+  bool IsRecordingToThisGraph = false;
+  
+  if (impl->MEnableNativeRecording) {
+    // For native recording, check if queue is in our recording queue list
     graph_impl::WriteLock Lock(impl->MMutex);
-    impl->removeQueue(QueueImpl);
+    auto QueueWeakPtr = QueueImpl.weak_from_this();
+    IsRecordingToThisGraph = impl->MRecordingQueues.count(QueueWeakPtr) > 0;
+    
+    if (IsRecordingToThisGraph) {
+      // End native UR graph capture
+      if (impl->MNativeGraphHandle) {
+        auto UrQueue = QueueImpl.getHandleRef();
+        ur_exp_graph_handle_t CapturedGraph = nullptr;
+        ur_result_t Result = urQueueEndGraphCaptureExp(UrQueue, &CapturedGraph, nullptr);
+        if (Result != UR_RESULT_SUCCESS) {
+          throw sycl::exception(sycl::make_error_code(errc::runtime),
+                               "Failed to end native graph capture");
+        }
+        // CapturedGraph should be the same as MNativeGraphHandle
+      }
+      impl->removeQueue(QueueImpl);
+    }
+  } else {
+    // Traditional recording path
+    if (QueueImpl.getCommandGraph() == impl) {
+      QueueImpl.setCommandGraph(nullptr);
+      graph_impl::WriteLock Lock(impl->MMutex);
+      impl->removeQueue(QueueImpl);
+      IsRecordingToThisGraph = true;
+    }
   }
-  if (QueueImpl.hasCommandGraph())
+  
+  if (QueueImpl.hasCommandGraph() && !IsRecordingToThisGraph)
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "end_recording called for a queue which is recording "
                           "to a different graph.");

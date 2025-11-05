@@ -23,6 +23,12 @@
 #include <shared_mutex> // for shared_mutex
 #include <vector>       // for vector
 
+// Forward declare UR types
+struct ur_exp_graph_handle_t_;
+using ur_exp_graph_handle_t = ur_exp_graph_handle_t_ *;
+struct ur_exp_executable_graph_handle_t_;
+using ur_exp_executable_graph_handle_t = ur_exp_executable_graph_handle_t_ *;
+
 // For testing of graph internals
 class GraphImplTest;
 
@@ -583,7 +589,15 @@ private:
 
   /// Controls whether native recording is enabled for improved performance.
   /// Set by the presence of the enable_native_recording property.
+  /// Note: Native recording only works with immediate command lists. Queues
+  /// must either be created with ext::intel::property::queue::immediate_command_list
+  /// or the global environment variable SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1
+  /// must be set.
   bool MEnableNativeRecording = false;
+
+  /// Native UR graph handle for native recording mode
+  /// Only valid when MEnableNativeRecording is true
+  ur_exp_graph_handle_t MNativeGraphHandle = nullptr;
 
   /// Mapping from queues to barrier nodes. For each queue the last barrier
   /// node recorded to the graph from the queue is stored.
@@ -949,6 +963,10 @@ private:
   bool MIsUpdatable;
   /// If true, the graph profiling is enabled.
   bool MEnableProfiling;
+
+  /// Native UR executable graph handle for native recording mode
+  /// Only valid when the original modifiable graph was created with native recording enabled
+  ur_exp_executable_graph_handle_t MNativeExecutableGraphHandle = nullptr;
 
   // Stores a cache of node ids from modifiable graph nodes to the companion
   // node(s) in this graph. Used for quick access when updating this graph.
