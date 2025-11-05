@@ -29,10 +29,10 @@ namespace detail {
 /// the queue will be switched to a recording mode (transitive queue
 /// recording feature).
 ///
-/// The LockQueue template argument defines, whether the queue lock
+/// The LockQueue template argument defines whether the queue lock
 /// should be acquired for the transition to a recording mode. It is
-/// set to false in cases, where the event dependencies are set directly
-/// in the command submission flow, where the lock is already aquired.
+/// set to false in cases where the event dependencies are set directly
+/// in the command submission flow and the lock is already acquired.
 ///
 /// \param EventImpl Event to register as a dependency
 /// \param EventsRegistered A list of already registered events, where

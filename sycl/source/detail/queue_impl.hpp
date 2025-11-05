@@ -368,8 +368,8 @@ public:
       const detail::KernelPropertyHolderStructTy &Props,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
     detail::EventImplPtr EventImpl = submit_kernel_direct_impl(
-        NDRDescT{Range}, HostKernel, DeviceKernelInfo, true, DepEvents, Props,
-        CodeLoc, IsTopCodeLoc);
+        NDRDescT{Range}, HostKernel, DeviceKernelInfo,
+        /*CallerNeedsEvent*/ true, DepEvents, Props, CodeLoc, IsTopCodeLoc);
     return createSyclObjFromImpl<event>(EventImpl);
   }
 
@@ -381,7 +381,8 @@ public:
       const detail::KernelPropertyHolderStructTy &Props,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
     submit_kernel_direct_impl(NDRDescT{Range}, HostKernel, DeviceKernelInfo,
-                              false, DepEvents, Props, CodeLoc, IsTopCodeLoc);
+                              /*CallerNeedsEvent*/ false, DepEvents, Props,
+                              CodeLoc, IsTopCodeLoc);
   }
 
   void submit_without_event(const detail::type_erased_cgfo_ty &CGF,

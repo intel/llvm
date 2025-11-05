@@ -249,7 +249,7 @@ template <typename KernelName = detail::auto_name, bool EventNeeded = false,
           typename KernelTypeUniversalRef, int Dims>
 auto submit_kernel_direct_parallel_for(
     const queue &Queue, const nd_range<Dims> &Range,
-    KernelTypeUniversalRef &&KernelFunc, sycl::span<const event> DepEvents,
+    KernelTypeUniversalRef &&KernelFunc, sycl::span<const event> DepEvents = {},
     const PropertiesT &Props = ext::oneapi::experimental::empty_properties_t{},
     const detail::code_location &CodeLoc = detail::code_location::current()) {
 
@@ -280,7 +280,7 @@ template <typename KernelName = detail::auto_name, bool EventNeeded = false,
           typename KernelTypeUniversalRef>
 auto submit_kernel_direct_single_task(
     const queue &Queue, KernelTypeUniversalRef &&KernelFunc,
-    sycl::span<const event> DepEvents,
+    sycl::span<const event> DepEvents = {},
     const PropertiesT &Props = ext::oneapi::experimental::empty_properties_t{},
     const detail::code_location &CodeLoc = detail::code_location::current()) {
 

@@ -643,7 +643,7 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
   // Sync with an external event
   std::optional<event> ExternalEvent = popExternalEvent();
   if (ExternalEvent) {
-    registerEventDependency<false>(
+    registerEventDependency</*LockQueue*/ false>(
         getSyclObjImpl(*ExternalEvent), CGData.MEvents, this, getContextImpl(),
         getDeviceImpl(), hasCommandGraph() ? getCommandGraph().get() : nullptr,
         detail::CGType::Kernel);
@@ -654,14 +654,14 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
   // Sync with the last event for in order queue
   EventImplPtr &LastEvent = Deps.LastEventPtr;
   if (isInOrder() && LastEvent) {
-    registerEventDependency<false>(
+    registerEventDependency</*LockQueue*/ false>(
         LastEvent, CGData.MEvents, this, getContextImpl(), getDeviceImpl(),
         hasCommandGraph() ? getCommandGraph().get() : nullptr,
         detail::CGType::Kernel);
   }
 
   for (event e : DepEvents) {
-    registerEventDependency<false>(
+    registerEventDependency</*LockQueue*/ false>(
         getSyclObjImpl(e), CGData.MEvents, this, getContextImpl(),
         getDeviceImpl(), hasCommandGraph() ? getCommandGraph().get() : nullptr,
         detail::CGType::Kernel);
