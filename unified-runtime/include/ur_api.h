@@ -487,6 +487,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_DEVICE_WAIT_EXP = 293,
   /// Enumerator for ::urProgramDynamicLinkExp
   UR_FUNCTION_PROGRAM_DYNAMIC_LINK_EXP = 294,
+  /// Enumerator for ::urEnqueueKernelLaunchWithArgsExp
+  UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP = 295,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -600,6 +602,8 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES = 0x3000,
   /// ::ur_exp_enqueue_ext_properties_t
   UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES = 0x4000,
+  /// ::ur_exp_kernel_arg_properties_t
+  UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES = 0x5000,
   /// @cond
   UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -12502,7 +12506,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pIPCMemHandleData`
+///         + `NULL == ppIPCMemHandleData`
 ///         + `NULL == pIPCMemHandleDataSizeRet`
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -12512,7 +12516,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urIPCGetMemHandleExp(
     /// [in] pointer to device USM memory
     void *pMem,
     /// [out][optional] a pointer to the IPC memory handle data
-    void *pIPCMemHandleData,
+    void **ppIPCMemHandleData,
     /// [out][optional] size of the resulting IPC memory handle data
     size_t *pIPCMemHandleDataSizeRet);
 
@@ -13120,6 +13124,166 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
     /// [out][optional] pointer to the actual size in bytes of the queried
     /// propName.
     size_t *pPropSizeRet);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
+// Intel 'oneAPI' Unified Runtime Experimental API for setting args at kernel
+// launch
+#if !defined(__GNUC__)
+#pragma region enqueue_kernel_launch_with_args_(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief What kind of kernel arg is this
+typedef enum ur_exp_kernel_arg_type_t {
+  /// Kernel arg is a value.
+  UR_EXP_KERNEL_ARG_TYPE_VALUE = 0,
+  /// Kernel arg is a pointer.
+  UR_EXP_KERNEL_ARG_TYPE_POINTER = 1,
+  /// Kernel arg is a memory object.
+  UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ = 2,
+  /// Kernel arg is a local allocation.
+  UR_EXP_KERNEL_ARG_TYPE_LOCAL = 3,
+  /// Kernel arg is a sampler.
+  UR_EXP_KERNEL_ARG_TYPE_SAMPLER = 4,
+  /// @cond
+  UR_EXP_KERNEL_ARG_TYPE_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_exp_kernel_arg_type_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Mem obj/properties tuple
+typedef struct ur_exp_kernel_arg_mem_obj_tuple_t {
+  /// [in] Handle of a memory object
+  ur_mem_handle_t hMem;
+  /// [in] Memory flags to associate with `hMem`. Allowed values are:
+  /// ::UR_MEM_FLAG_READ_WRITE, ::UR_MEM_FLAG_WRITE_ONLY,
+  /// ::UR_MEM_FLAG_READ_ONLY.
+  ur_mem_flags_t flags;
+
+} ur_exp_kernel_arg_mem_obj_tuple_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Typesafe container for a kernel argument value
+typedef union ur_exp_kernel_arg_value_t {
+  /// [in] argument value represented as matching arg type.
+  /// The data pointed to will be copied and therefore can be reused on return.
+  const void *value;
+  /// [in] Allocation obtained by USM allocation or virtual memory mapping
+  /// operation, or pointer to a literal value.
+  const void *pointer;
+  /// [in] Struct containing a memory object and associated flags.
+  ur_exp_kernel_arg_mem_obj_tuple_t memObjTuple;
+  /// [in] Handle of a sampler object.
+  ur_sampler_handle_t sampler;
+
+} ur_exp_kernel_arg_value_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Kernel arg properties
+typedef struct ur_exp_kernel_arg_properties_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES
+  ur_structure_type_t stype;
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
+  /// [in] type of the kernel arg
+  ur_exp_kernel_arg_type_t type;
+  /// [in] index of the kernel arg
+  uint32_t index;
+  /// [in] size of the kernel arg
+  size_t size;
+  /// [in][tagged_by(type)] Union containing the argument value.
+  ur_exp_kernel_arg_value_t value;
+
+} ur_exp_kernel_arg_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue a command to execute a kernel
+///
+/// @remarks
+///   _Analogues_
+///     - **clEnqueueNDRangeKernel**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///         + `NULL == hKernel`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGlobalWorkSize`
+///         + `launchPropList == NULL && numPropsInLaunchPropList > 0`
+///         + `pArgs == NULL && numArgs > 0`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `NULL != pArgs && ::UR_EXP_KERNEL_ARG_TYPE_SAMPLER < pArgs->type`
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
+///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
+///         + `pGlobalWorkSize[0] == 0 || pGlobalWorkSize[1] == 0 ||
+///         pGlobalWorkSize[2] == 0`
+///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
+///         + `pLocalWorkSize && (pLocalWorkSize[0] == 0 || pLocalWorkSize[1] ==
+///         0 || pLocalWorkSize[2] == 0)`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGS - "The kernel argument values
+///     have not been specified."
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///         + If any property in `launchPropList` isn't supported by the device.
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] number of dimensions, from 1 to 3, to specify the global and
+    /// work-group work-items
+    uint32_t workDim,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the offset used to calculate the global ID of a work-item
+    const size_t *pGlobalWorkOffset,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// number of global work-items in workDim that will execute the kernel
+    /// function
+    const size_t *pGlobalWorkSize,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the number of local work-items forming a work-group that will
+    /// execute the kernel function.
+    /// If nullptr, the runtime implementation will choose the work-group size.
+    const size_t *pLocalWorkSize,
+    /// [in] Number of entries in pArgs
+    uint32_t numArgs,
+    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
+    /// properties.
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    /// [in] size of the launch prop list
+    uint32_t numPropsInLaunchPropList,
+    /// [in][optional][range(0, numPropsInLaunchPropList)] pointer to a list
+    /// of launch properties
+    const ur_kernel_launch_property_t *launchPropList,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+    /// event.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular kernel execution instance. If phEventWaitList and phEvent
+    /// are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
+    ur_event_handle_t *phEvent);
 
 #if !defined(__GNUC__)
 #pragma endregion
@@ -14737,6 +14901,26 @@ typedef struct ur_enqueue_write_host_pipe_params_t {
 } ur_enqueue_write_host_pipe_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urEnqueueKernelLaunchWithArgsExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_enqueue_kernel_launch_with_args_exp_params_t {
+  ur_queue_handle_t *phQueue;
+  ur_kernel_handle_t *phKernel;
+  uint32_t *pworkDim;
+  const size_t **ppGlobalWorkOffset;
+  const size_t **ppGlobalWorkSize;
+  const size_t **ppLocalWorkSize;
+  uint32_t *pnumArgs;
+  const ur_exp_kernel_arg_properties_t **ppArgs;
+  uint32_t *pnumPropsInLaunchPropList;
+  const ur_kernel_launch_property_t **plaunchPropList;
+  uint32_t *pnumEventsInWaitList;
+  const ur_event_handle_t **pphEventWaitList;
+  ur_event_handle_t **pphEvent;
+} ur_enqueue_kernel_launch_with_args_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urEnqueueEventsWaitWithBarrierExt
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -15715,7 +15899,7 @@ typedef struct ur_command_buffer_get_native_handle_exp_params_t {
 typedef struct ur_ipc_get_mem_handle_exp_params_t {
   ur_context_handle_t *phContext;
   void **ppMem;
-  void **ppIPCMemHandleData;
+  void ***pppIPCMemHandleData;
   size_t **ppIPCMemHandleDataSizeRet;
 } ur_ipc_get_mem_handle_exp_params_t;
 

@@ -84,7 +84,7 @@ jobs:
 
       # download build artefact
       - name: Download toolchain
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: sycl_linux_default
       - name: Extract SYCL toolchain
@@ -144,6 +144,9 @@ jobs:
   E2E:
     needs: [build, detect_changes, compat_read_exclude]
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+    permissions:
+      contents: write
+      packages: read
     strategy:
       fail-fast: false
       matrix:
@@ -231,6 +234,9 @@ jobs:
 
   test-perf:
     needs: [build, detect_changes]
+    permissions:
+      contents: write
+      packages: read
     if: |
       always() && !cancelled()
       && needs.build.outputs.build_conclusion == 'success'

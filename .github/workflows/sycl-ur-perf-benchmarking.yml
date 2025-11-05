@@ -150,6 +150,9 @@ jobs:
   benchmark_dispatch:
     name: '[Dispatch] Benchmarks'
     needs: [ build_sycl_dispatch, sanitize_inputs_dispatch ]
+    permissions:
+      contents: write
+      packages: read
     if: always() && !cancelled() && needs.build_sycl_dispatch.outputs.build_conclusion == 'success'
     strategy:
       matrix:
@@ -160,7 +163,7 @@ jobs:
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     secrets: inherit
     with:
-      name: "Benchmarks (${{ matrix.runner }}, ${{ matrix.backend }}, preset: ${{ matrix.preset }})"
+      name: "Benchmarks (${{ matrix.runner }}, ${{ matrix.backend }}, preset: ${{ inputs.preset }})"
       runner: ${{ matrix.runner }}
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
@@ -193,6 +196,9 @@ jobs:
   benchmark_nightly:
     name: '[Nightly] Benchmarks'
     needs: [build_nightly]
+    permissions:
+      contents: write
+      packages: read
     if: always() && !cancelled() && needs.build_nightly.outputs.build_conclusion == 'success'
     strategy:
       fail-fast: false
@@ -234,13 +240,16 @@ jobs:
       build_image: "ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest"
       cc: clang
       cxx: clang++
-      changes: ${{ needs.detect_changes.outputs.filters }}
+      changes: '[]'
       toolchain_artifact: sycl_linux_default
 
   # TODO: When we have stable BMG runner(s), consider moving this job to that runner.
   test_benchmark_framework:
     name: '[PR] Benchmark suite testing'
     needs: [build_pr]
+    permissions:
+      contents: write
+      packages: read
     if: always() && !cancelled() && needs.build_pr.outputs.build_conclusion == 'success'
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
@@ -255,7 +264,7 @@ jobs:
       benchmark_dry_run: true
       benchmark_exit_on_failure: true
       repo_ref: ${{ github.sha }}
-      toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
-      toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
-      toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}
+      toolchain_artifact: ${{ needs.build_pr.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.build_pr.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.build_pr.outputs.toolchain_decompress_command }}
   # END benchmark framework builds and runs on PRs path

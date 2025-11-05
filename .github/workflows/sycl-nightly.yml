@@ -82,6 +82,9 @@ jobs:
 
   ubuntu2204_test:
     needs: [ubuntu2204_build]
+    permissions:
+      contents: write
+      packages: read
     if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
@@ -169,6 +172,9 @@ jobs:
 
   ubuntu2404_oneapi_test:
     needs: [ubuntu2404_oneapi_build]
+    permissions:
+      contents: write
+      packages: read
     if: ${{ always() && !cancelled() && needs.ubuntu2404_oneapi_build.outputs.build_conclusion == 'success' }}
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
@@ -230,6 +236,9 @@ jobs:
 
   cuda-run-tests:
     needs: [ubuntu2204_build, cuda-aws-start]
+    permissions:
+      contents: write
+      packages: read
     if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
@@ -254,6 +263,9 @@ jobs:
 
   build-sycl-cts-linux:
     needs: ubuntu2204_build
+    permissions:
+      contents: write
+      packages: read
     if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
@@ -270,6 +282,9 @@ jobs:
 
   run-sycl-cts-linux:
     needs: [ubuntu2204_build, build-sycl-cts-linux]
+    permissions:
+      contents: write
+      packages: read
     if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
@@ -346,14 +361,14 @@ jobs:
       contents: write
       id-token: write
     steps:
-    - uses: actions/download-artifact@v5
+    - uses: actions/download-artifact@v6
       with:
         name: sycl_linux_default
-    - uses: actions/download-artifact@v5
+    - uses: actions/download-artifact@v6
       with:
         name: sycl_windows_default
     - name: Sign with sigstore/cosign
-      uses: sigstore/gh-action-sigstore-python@v3.0.1
+      uses: sigstore/gh-action-sigstore-python@v3.1.0
       with:
         inputs: sycl_linux.tar.gz sycl_windows.tar.gz
     - name: Compute tag
@@ -366,7 +381,7 @@ jobs:
           echo "TAG=$(date +'%Y-%m-%d')-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
         fi
     - name: Upload binaries
-      uses: softprops/action-gh-release@v2.3.3
+      uses: softprops/action-gh-release@v2.4.1
       with:
         files: |
           sycl_linux.tar.gz
@@ -387,7 +402,7 @@ jobs:
     needs: ubuntu2204_build
     steps:
     - uses: actions/checkout@v5
-    - uses: actions/download-artifact@v5
+    - uses: actions/download-artifact@v6
       with:
         name: sycl_linux_default
         path: devops/

@@ -233,6 +233,9 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || inputs.skip_run == 'false'
     name: ${{ inputs.name }}
     runs-on: ${{ fromJSON(inputs.runner) }}
+    permissions:
+      contents: write
+      packages: read
     container:
       image: ${{ inputs.image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'}}
       options: ${{ inputs.image_options }}
@@ -275,7 +278,7 @@ jobs:
         rm env_before env_after
     - name: Download SYCL toolchain
       if: inputs.toolchain_artifact != '' && github.event_name != 'workflow_run'
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         name: ${{ inputs.toolchain_artifact }}
     - name: Download SYCL toolchain [workflow_run]
@@ -330,7 +333,8 @@ jobs:
     - run: which clang++ sycl-ls
     - run: sycl-ls --verbose
     - run: SYCL_UR_TRACE=1 sycl-ls
-    - run: |
+    - name: Print IGC version
+      run: |
           if [ -f /usr/local/lib/igc/IGCTAG.txt ]; then
             cat /usr/local/lib/igc/IGCTAG.txt
           fi
@@ -375,4 +379,3 @@ jobs:
         build_ref: ${{ inputs.repo_ref }}
       env:
         RUNNER_TAG: ${{ inputs.runner }}
-        GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}
