@@ -158,6 +158,9 @@ endfunction()
 # Will compile the list of files together to create two builds, with and without
 # the SYCL preview features enabled.
 # Produces two binaries, named `basename(test_name_prefix_Non_Preview_Tests)` and `basename(test_name_prefix_Preview_Tests)`
+# Note: in case of changing test names below, please also adjust the test suffix
+# in sycl/test/Unit/lit.cfg.py in the line which looks like this:
+#   `config.test_format = lit.formats.GoogleTest(config.llvm_build_mode, <...>)`
 macro(add_sycl_unittest test_name_prefix link_variant)
   add_sycl_unittest_internal(${test_name_prefix}_Non_Preview_Tests ${link_variant} FALSE ${ARGN})
   add_sycl_unittest_internal(${test_name_prefix}_Preview_Tests ${link_variant} TRUE ${ARGN})
