@@ -1862,22 +1862,26 @@ void ASTStmtReader::VisitBuiltinBitCastExpr(BuiltinBitCastExpr *E) {
 }
 
 void ASTStmtReader::VisitSYCLBuiltinNumFieldsExpr(SYCLBuiltinNumFieldsExpr *E) {
+  VisitExpr(E);
   E->setLocation(readSourceLocation());
   E->SourceTy = Record.readType();
 }
 
 void ASTStmtReader::VisitSYCLBuiltinFieldTypeExpr(SYCLBuiltinFieldTypeExpr *E) {
+  VisitExpr(E);
   E->setLocation(readSourceLocation());
   E->SourceTy = Record.readType();
   E->Index = Record.readExpr();
 }
 
 void ASTStmtReader::VisitSYCLBuiltinNumBasesExpr(SYCLBuiltinNumBasesExpr *E) {
+  VisitExpr(E);
   E->setLocation(readSourceLocation());
   E->SourceTy = Record.readType();
 }
 
 void ASTStmtReader::VisitSYCLBuiltinBaseTypeExpr(SYCLBuiltinBaseTypeExpr *E) {
+  VisitExpr(E);
   E->setLocation(readSourceLocation());
   E->SourceTy = Record.readType();
   E->Index = Record.readExpr();

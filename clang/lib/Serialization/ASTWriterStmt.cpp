@@ -1863,12 +1863,14 @@ void ASTStmtWriter::VisitBuiltinBitCastExpr(BuiltinBitCastExpr *E) {
 }
 
 void ASTStmtWriter::VisitSYCLBuiltinNumFieldsExpr(SYCLBuiltinNumFieldsExpr *E) {
+  VisitExpr(E);
   Record.AddSourceLocation(E->getLocation());
   Record.AddTypeRef(E->getSourceType());
   Code = serialization::EXPR_SYCL_BUILTIN_NUM_FIELDS;
 }
 
 void ASTStmtWriter::VisitSYCLBuiltinFieldTypeExpr(SYCLBuiltinFieldTypeExpr *E) {
+  VisitExpr(E);
   Record.AddSourceLocation(E->getLocation());
   Record.AddTypeRef(E->getSourceType());
   Record.AddStmt(E->getIndex());
@@ -1876,12 +1878,14 @@ void ASTStmtWriter::VisitSYCLBuiltinFieldTypeExpr(SYCLBuiltinFieldTypeExpr *E) {
 }
 
 void ASTStmtWriter::VisitSYCLBuiltinNumBasesExpr(SYCLBuiltinNumBasesExpr *E) {
+  VisitExpr(E);
   Record.AddSourceLocation(E->getLocation());
   Record.AddTypeRef(E->getSourceType());
   Code = serialization::EXPR_SYCL_BUILTIN_NUM_BASES;
 }
 
 void ASTStmtWriter::VisitSYCLBuiltinBaseTypeExpr(SYCLBuiltinBaseTypeExpr *E) {
+  VisitExpr(E);
   Record.AddSourceLocation(E->getLocation());
   Record.AddTypeRef(E->getSourceType());
   Record.AddStmt(E->getIndex());
