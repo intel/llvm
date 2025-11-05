@@ -23,13 +23,22 @@ jobs:
         git diff --exit-code -I "^# RUN" origin/sycl-rel-6_3:sycl/test/abi/sycl_symbols_linux.dump sycl/test/abi/sycl_symbols_linux-sycl-rel-6_3.dump
         git diff --exit-code -I "^# RUN" origin/sycl-rel-6_3:sycl/test/abi/sycl_symbols_windows.dump sycl/test/abi/sycl_symbols_windows-sycl-rel-6_3.dump
 
+  get_date:
+    runs-on: ubuntu-latest
+    outputs:
+      date: ${{ steps.get_date.outputs.date }}
+    steps:
+    - id: get_date
+      run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
   ubuntu2204_build:
+    needs: get_date
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl-linux-build.yml
     secrets: inherit
     with:
       build_cache_root: "/__w/"
-      build_configure_extra_args: '--hip --cuda -DSYCL_BUILD_INFO="Nightly"'
+      build_configure_extra_args: '--hip --cuda -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}"'
       build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
 
       retention-days: 90
@@ -183,6 +192,7 @@ jobs:
       toolchain_decompress_command: ${{ needs.ubuntu2404_oneapi_build.outputs.toolchain_decompress_command }}
 
   build-win:
+    needs: get_date
     uses: ./.github/workflows/sycl-windows-build.yml
     if: github.repository == 'intel/llvm'
     with:
@@ -191,7 +201,7 @@ jobs:
       # functionality, make sure Linux/Windows names follow the same pattern.
       toolchain_artifact_filename: sycl_windows.tar.gz
       # Disable the spirv-dis requirement as to not require SPIR-V Tools.
-      build_configure_extra_args: -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off -DSYCL_BUILD_INFO="Nightly"
+      build_configure_extra_args: -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}"
       build_target: all
 
   e2e-win:
