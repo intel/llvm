@@ -118,8 +118,8 @@ Accepted value for the _param_name_ parameter to *clGetDeviceInfo* to query the 
 
 [source]
 ----
-#define CL_DEVICE_INT16_ATOMIC_CAPABILITIES_INTEL   0xXXXX
-#define CL_DEVICE_BF16_ATOMIC_CAPABILITIES_INTEL    0xXXXX
+#define CL_DEVICE_INT16_ATOMIC_CAPABILITIES_INTEL   0x4258
+#define CL_DEVICE_BF16_ATOMIC_CAPABILITIES_INTEL    0x4259
 ----
 
 Bitfield type describing atomic operations that are supported by of an OpenCL device.
