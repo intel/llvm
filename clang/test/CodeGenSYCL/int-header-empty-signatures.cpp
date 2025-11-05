@@ -10,7 +10,7 @@
 // CHECK-NEXT:   ""
 // CHECK-NEXT: };
 
-// CHECK: static constexpr int kernel_args_sizes[] = {0, -1
+// CHECK: static constexpr unsigned kernel_args_sizes[] = {0, 0 
 
 // CHECK: static constexpr
 // CHECK-NEXT: const kernel_param_desc_t kernel_signatures[] = {

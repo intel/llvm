@@ -7052,13 +7052,13 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "  \"\",\n";
   O << "};\n\n";
 
-  O << "static constexpr int kernel_args_sizes[] = {";
+  O << "static constexpr unsigned kernel_args_sizes[] = {";
   for (unsigned I = 0; I < KernelDescs.size(); I++) {
     O << KernelDescs[I].Params.size() << ", ";
   }
   // Add a sentinel to avoid warning if the collection is empty
   // (similar to what we do for kernel_signatures below).
-  O << "-1, \n";
+  O << "0, \n";
   O << "};\n\n";
 
   O << "// array representing signatures of all kernels defined in the\n";
