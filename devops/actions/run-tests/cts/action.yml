@@ -9,10 +9,12 @@ inputs:
   cts_testing_mode:
     required: true
   sycl_cts_artifact:
-    require: false
+    required: false
   target_devices:
     required: true
   retention-days:
+    required: false
+  sycl_compiler:
     required: false
 
 runs:
@@ -56,7 +58,7 @@ runs:
         echo "::endgroup::"
       fi
 
-      cmake -GNinja -B./build-cts -S./khronos_sycl_cts -DCMAKE_CXX_COMPILER=$(which clang++) \
+      cmake -GNinja -B./build-cts -S./khronos_sycl_cts -DCMAKE_CXX_COMPILER="${{ inputs.sycl_compiler || '$(which clang++)'}}" \
       -DSYCL_IMPLEMENTATION=DPCPP \
       -DSYCL_CTS_EXCLUDE_TEST_CATEGORIES="$cts_exclude_filter" \
       -DSYCL_CTS_ENABLE_OPENCL_INTEROP_TESTS=OFF \
@@ -81,17 +83,36 @@ runs:
       retention-days: ${{ inputs.retention-days }}
 
   - name: Download SYCL-CTS binaries
-    if: inputs.cts_testing_mode == 'run-only'
+    if: |
+      inputs.cts_testing_mode == 'run-only'
+      && !(inputs.sycl_cts_artifact == 'in-container'
+           || inputs.sycl_cts_artifact == ''
+           || github.event_name == 'workflow_dispatch')
     uses: actions/download-artifact@v4
     with:
       name: ${{ inputs.sycl_cts_artifact }}
 
   - name: Extract SYCL-CTS binaries
-    if: inputs.cts_testing_mode == 'run-only'
+    if: |
+      inputs.cts_testing_mode == 'run-only'
+      && !(inputs.sycl_cts_artifact == 'in-container'
+           || inputs.sycl_cts_artifact == ''
+           || github.event_name == 'workflow_dispatch')
     shell: bash
     run: |
       mkdir -p build-cts/bin
       tar -I 'zstd' -xf sycl_cts_bin.tar.zst -C build-cts/bin
+
+  - name: Extract CTS tests from container image
+    if: |
+      inputs.cts_testing_mode == 'run-only'
+      && (inputs.sycl_cts_artifact == 'in-container'
+          || inputs.sycl_cts_artifact == ''
+          || github.event_name == 'workflow_dispatch')
+    shell: bash
+    run: |
+      mkdir -p build-cts/bin
+      tar -I 'zstd' -xf /sycl-prebuilt/sycl_cts_bin.tar.zst -C build-cts/bin
 
   - name: SYCL CTS List devices
     # Proceed with execution even if the 'build' step did not succeed.

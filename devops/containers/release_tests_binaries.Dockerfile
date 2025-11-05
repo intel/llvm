@@ -19,11 +19,13 @@ FROM $base_image@sha256:$base_tag
 ADD --chown=sycl:sycl toolchain.tar.zst /__w/llvm/llvm/toolchain
 ADD --chown=sycl:sycl e2e_binaries.tar.zst /__w/llvm/llvm/build-e2e
 ADD --chown=sycl:sycl e2e_sources.tar.zst /__w/llvm/llvm/llvm
+ADD --chown=sycl:sycl sycl_cts_bin.tar.zst /__w/llvm/llvm/build-cts
 
 # Since `/__w/llvm/llvm` above is overriden by GHA, need to provide the
 # following for using in CI:
 COPY e2e_binaries.tar.zst /sycl-prebuilt/
 COPY e2e_sources.tar.zst /sycl-prebuilt/
+COPY sycl_cts_bin.tar.zst /sycl-prebuilt/
 COPY toolchain.tar.zst /sycl-prebuilt/
 
 COPY scripts/drivers_entrypoint.sh /drivers_entrypoint.sh
