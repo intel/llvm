@@ -584,7 +584,7 @@ TEST_P(PersistentDeviceCodeCache, AccessDeniedForCacheDir) {
 #endif //_WIN32
 
 // Unit tests for testing eviction in persistent cache.
-TEST_P(PersistentDeviceCodeCache, DISABLED_BasicEviction) {
+TEST_P(PersistentDeviceCodeCache, BasicEviction) {
 
   // Cleanup the cache directory.
   std::string CacheRoot = detail::PersistentDeviceCodeCache::getRootDir();
