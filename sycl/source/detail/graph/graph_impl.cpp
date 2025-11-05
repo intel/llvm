@@ -690,6 +690,14 @@ std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents(
   return Events;
 }
 
+void graph_impl::beginRecordingUnlockedQueue(sycl::detail::queue_impl &Queue) {
+  graph_impl::WriteLock Lock(MMutex);
+  if (!Queue.hasCommandGraph()) {
+    Queue.setCommandGraphUnlocked(shared_from_this());
+    addQueue(Queue);
+  }
+}
+
 void graph_impl::beginRecording(sycl::detail::queue_impl &Queue) {
   graph_impl::WriteLock Lock(MMutex);
   if (!Queue.hasCommandGraph()) {

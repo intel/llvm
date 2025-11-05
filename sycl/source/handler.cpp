@@ -12,6 +12,7 @@
 
 #include <detail/buffer_impl.hpp>
 #include <detail/config.hpp>
+#include <detail/event_deps.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/graph/dynamic_impl.hpp>
 #include <detail/graph/graph_impl.hpp>
@@ -1680,69 +1681,10 @@ void handler::depends_on(const std::vector<event> &Events) {
 }
 
 void handler::depends_on(const detail::EventImplPtr &EventImpl) {
-  if (!EventImpl)
-    return;
-  if (EventImpl->isDiscarded()) {
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Queue operation cannot depend on discarded event.");
-  }
-
-  // Async alloc calls adapter immediately. Any explicit/implicit dependencies
-  // are handled at that point, including in order queue deps. Further calls to
-  // depends_on after an async alloc are explicitly disallowed.
-  if (getType() == CGType::AsyncAlloc) {
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Cannot submit a dependency after an asynchronous "
-                          "allocation has already been executed!");
-  }
-
-  auto EventGraph = EventImpl->getCommandGraph();
-  queue_impl *Queue = impl->get_queue_or_null();
-  if (Queue && EventGraph) {
-    auto QueueGraph = Queue->getCommandGraph();
-
-    if (&EventGraph->getContextImpl() != &impl->get_context()) {
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "Cannot submit to a queue with a dependency from a graph that is "
-          "associated with a different context.");
-    }
-
-    if (&EventGraph->getDeviceImpl() != &impl->get_device()) {
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "Cannot submit to a queue with a dependency from a graph that is "
-          "associated with a different device.");
-    }
-
-    if (QueueGraph && QueueGraph != EventGraph) {
-      throw sycl::exception(sycl::make_error_code(errc::invalid),
-                            "Cannot submit to a recording queue with a "
-                            "dependency from a different graph.");
-    }
-
-    // If the event dependency has a graph, that means that the queue that
-    // created it was in recording mode. If the current queue is not recording,
-    // we need to set it to recording (implements the transitive queue recording
-    // feature).
-    if (!QueueGraph) {
-      EventGraph->beginRecording(*Queue);
-    }
-  }
-
-  if (auto Graph = getCommandGraph(); Graph) {
-    if (EventGraph == nullptr) {
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "Graph nodes cannot depend on events from outside the graph.");
-    }
-    if (EventGraph != Graph) {
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "Graph nodes cannot depend on events from another graph.");
-    }
-  }
-  impl->CGData.MEvents.push_back(EventImpl);
+  registerEventDependency(EventImpl, impl->CGData.MEvents,
+                          impl->get_queue_or_null(), impl->get_context(),
+                          impl->get_device(), getCommandGraph().get(),
+                          getType());
 }
 
 void handler::depends_on(const std::vector<detail::EventImplPtr> &Events) {
