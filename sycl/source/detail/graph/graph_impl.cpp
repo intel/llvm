@@ -1300,8 +1300,8 @@ void exec_graph_impl::duplicateNodes() {
   // Subgraph nodes need special handling, we extract all subgraph nodes and
   // merge them into the main node list
   if (foundSubgraph) {
-      for (auto NewNodeIt = NewNodes.rbegin(); NewNodeIt != NewNodes.rend();
-        ++NewNodeIt) {
+    for (auto NewNodeIt = NewNodes.rbegin(); NewNodeIt != NewNodes.rend();
+         ++NewNodeIt) {
       auto NewNode = *NewNodeIt;
       if (NewNode->MNodeType != node_type::subgraph) {
         continue;
@@ -1316,8 +1316,8 @@ void exec_graph_impl::duplicateNodes() {
       for (node_impl &SubgraphNode : SubgraphNodes) {
         NewSubgraphNodes.push_back(std::make_shared<node_impl>(SubgraphNode));
         node_impl &NodeCopy = *NewSubgraphNodes.back();
-        // Associate the ID of the original subgraph node with all extracted node
-        // copies for future quick access.
+        // Associate the ID of the original subgraph node with all extracted
+        // node copies for future quick access.
         MIDCache.insert(std::make_pair(SubgraphNode.MID, &NodeCopy));
 
         SubgraphNodesMap.insert({&SubgraphNode, &NodeCopy});
@@ -1328,7 +1328,7 @@ void exec_graph_impl::duplicateNodes() {
       // Rebuild edges for new subgraph nodes
       auto OrigIt = SubgraphNodes.begin(), OrigEnd = SubgraphNodes.end();
       for (auto NewIt = NewSubgraphNodes.begin(); OrigIt != OrigEnd;
-          ++OrigIt, ++NewIt) {
+           ++OrigIt, ++NewIt) {
         node_impl &SubgraphNode = *OrigIt;
         node_impl &NodeCopy = **NewIt;
 
@@ -1374,9 +1374,9 @@ void exec_graph_impl::duplicateNodes() {
         auto &Predecessors = SuccNode.MPredecessors;
 
         // Remove the subgraph node from this nodes successors
-        Predecessors.erase(
-            std::remove(Predecessors.begin(), Predecessors.end(), NewNode.get()),
-            Predecessors.end());
+        Predecessors.erase(std::remove(Predecessors.begin(), Predecessors.end(),
+                                       NewNode.get()),
+                           Predecessors.end());
 
         // Add all Output nodes from the subgraph as predecessors for this node
         // instead
