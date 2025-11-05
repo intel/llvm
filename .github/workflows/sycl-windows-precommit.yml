@@ -80,4 +80,4 @@ jobs:
       target_devices: "level_zero:gpu"
       toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
       testing_mode: run-only
-      e2e_binaries_artifact: sycl_windows_e2ebin
+      binaries_artifact: sycl_windows_e2ebin

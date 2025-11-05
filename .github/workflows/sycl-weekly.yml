@@ -38,7 +38,7 @@ jobs:
       toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
       extra_cmake_args: -DDPCPP_FLAGS=-fsycl-use-spirv-backend-for-spirv-gen
-      sycl_cts_artifact: sycl_cts_bin
+      binaries_artifact: sycl_cts_bin
 
   run-sycl-cts:
     needs: [ubuntu2204_build, build-sycl-cts]
@@ -71,4 +71,4 @@ jobs:
       toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
-      sycl_cts_artifact: sycl_cts_bin
+      binaries_artifact: sycl_cts_bin

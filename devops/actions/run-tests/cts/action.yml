@@ -8,7 +8,7 @@ inputs:
     required: false
   testing_mode:
     required: true
-  sycl_cts_artifact:
+  binaries_artifact:
     require: false
   target_devices:
     required: true
@@ -76,7 +76,7 @@ runs:
     if: always() && !cancelled() && inputs.testing_mode == 'build-only'
     uses: actions/upload-artifact@v4
     with:
-      name: ${{ inputs.sycl_cts_artifact }}
+      name: ${{ inputs.binaries_artifact }}
       path: sycl_cts_bin.tar.zst
       retention-days: ${{ inputs.retention-days }}
 
@@ -84,7 +84,7 @@ runs:
     if: inputs.testing_mode == 'run-only'
     uses: actions/download-artifact@v4
     with:
-      name: ${{ inputs.sycl_cts_artifact }}
+      name: ${{ inputs.binaries_artifact }}
 
   - name: Extract SYCL-CTS binaries
     if: inputs.testing_mode == 'run-only'

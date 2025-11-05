@@ -67,15 +67,11 @@ on:
         default: 'full'
 
 
-      e2e_binaries_artifact:
+      binaries_artifact:
         type: string
         default: ''
         required: False
 
-      sycl_cts_artifact:
-        type: string
-        default: ''
-        required: False
       artifact_retention_days:
         description: 'E2E/SYCL-CTS binaries artifact retention period.'
         type: string
@@ -150,7 +146,7 @@ jobs:
       timeout-minutes: 60
       with:
         ref: ${{ inputs.tests_ref || inputs.repo_ref || github.sha }}
-        binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
+        binaries_artifact: ${{ inputs.binaries_artifact }}
         testing_mode: ${{ inputs.testing_mode }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
         target_devices: ${{ inputs.target_devices }}
@@ -165,7 +161,7 @@ jobs:
         ref: ${{ inputs.tests_ref || 'main' }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
         testing_mode: ${{ inputs.testing_mode }}
-        sycl_cts_artifact: ${{ inputs.sycl_cts_artifact }}
+        binaries_artifact: ${{ inputs.binaries_artifact }}
         target_devices: ${{ inputs.target_devices }}
         retention-days: ${{ inputs.artifact_retention_days }}
 

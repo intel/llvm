@@ -58,7 +58,7 @@ on:
         default: ''
         required: False
 
-      e2e_binaries_artifact:
+      binaries_artifact:
         description: |
           When set in modes other than `run-only` results in artifact upload.
           For `run-only` mode, if specified, means downloading pre-built
@@ -93,11 +93,6 @@ on:
       skip_run:
         type: string
         default: 'false'
-        required: False
-
-      sycl_cts_artifact:
-        type: string
-        default: ''
         required: False
 
       benchmark_upload_results:
@@ -243,7 +238,7 @@ jobs:
     - name: Reset Intel GPU
       uses: ./devops/actions/reset_gpu
     - name: Install drivers
-      if: inputs.e2e_binaries_artifact != 'in-container' && (inputs.install_igc_driver == 'true' || inputs.install_dev_igc_driver == 'true')
+      if: inputs.binaries_artifact != 'in-container' && (inputs.install_igc_driver == 'true' || inputs.install_dev_igc_driver == 'true')
       env:
         GITHUB_TOKEN: ${{ github.token }}
       run: |
@@ -337,7 +332,7 @@ jobs:
       timeout-minutes: 60
       with:
         ref: ${{ inputs.tests_ref || inputs.repo_ref || github.sha }}
-        binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
+        binaries_artifact: ${{ inputs.binaries_artifact }}
         testing_mode: ${{ inputs.testing_mode }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
         target_devices: ${{ inputs.target_devices }}
@@ -354,7 +349,7 @@ jobs:
         ref: ${{ inputs.tests_ref || 'main' }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
         testing_mode: ${{ inputs.testing_mode }}
-        sycl_cts_artifact: ${{ inputs.sycl_cts_artifact }}
+        binaries_artifact: ${{ inputs.binaries_artifact }}
         target_devices: ${{ inputs.target_devices }}
         retention-days: ${{ inputs.retention-days }}
 

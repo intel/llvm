@@ -278,7 +278,7 @@ jobs:
       toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
-      sycl_cts_artifact: sycl_cts_bin_linux
+      binaries_artifact: sycl_cts_bin_linux
 
   run-sycl-cts-linux:
     needs: [ubuntu2204_build, build-sycl-cts-linux]
@@ -311,7 +311,7 @@ jobs:
       toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
-      sycl_cts_artifact: sycl_cts_bin_linux
+      binaries_artifact: sycl_cts_bin_linux
 
   build-sycl-cts-win:
     needs: build-win
@@ -324,7 +324,7 @@ jobs:
       tests_selector: cts
       repo_ref: ${{ github.sha }}
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
-      sycl_cts_artifact: sycl_cts_bin_win
+      binaries_artifact: sycl_cts_bin_win
 
   run-sycl-cts-win:
     needs: [build-win, build-sycl-cts-win]
@@ -345,7 +345,7 @@ jobs:
       tests_selector: cts
       repo_ref: ${{ github.sha }}
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
-      sycl_cts_artifact: sycl_cts_bin_win
+      binaries_artifact: sycl_cts_bin_win
 
   # Verification example:
   # cosign-windows-amd64.exe verify-blob sycl_linux.tar.gz \

@@ -81,7 +81,7 @@ jobs:
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             extra_lit_opts: --param spirv-backend=True
-            e2e_binaries_artifact: e2e_bin_spirv_backend
+            binaries_artifact: e2e_bin_spirv_backend
             testing_mode: 'run-only'
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
@@ -99,7 +99,7 @@ jobs:
       toolchain_artifact_filename: ${{ needs.build-lin.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.build-lin.outputs.toolchain_decompress_command }}
 
-      e2e_binaries_artifact: ${{ matrix.e2e_binaries_artifact }}
+      binaries_artifact: ${{ matrix.binaries_artifact }}
       testing_mode: ${{ matrix.testing_mode || 'full' }}
 
       # Do not install drivers on AMD and CUDA runners.
