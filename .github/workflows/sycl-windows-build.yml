@@ -197,7 +197,7 @@ jobs:
         diff -Naur src/sycl/test/abi/sycl_symbols_windows.dump build/new_sycl_symbols_windows.dump || true
     - name: Upload new ABI symbols
       if: always() && !cancelled() && contains(inputs.changes, 'sycl')
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: sycl_windows_abi_symbols
         path: build/new_sycl_symbols_windows.dump
@@ -212,7 +212,7 @@ jobs:
       run: tar -czf ${{ inputs.toolchain_artifact_filename }} -C install .
     - name: Upload toolchain release
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: ${{ inputs.release_toolchain_artifact }}
         path: ${{ inputs.toolchain_artifact_filename }}
@@ -231,7 +231,7 @@ jobs:
         tar -czf ${{ inputs.toolchain_artifact_filename }} -C install .
     - name: Upload toolchain
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: sycl_windows_default
         path: ${{ inputs.toolchain_artifact_filename }}
