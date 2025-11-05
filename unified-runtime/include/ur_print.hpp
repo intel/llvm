@@ -223,6 +223,10 @@ template <>
 inline ur_result_t printTagged(std::ostream &os, const void *ptr,
                                ur_profiling_info_t value, size_t size);
 
+template <>
+inline ur_result_t printFlag<ur_kernel_launch_flag_t>(std::ostream &os,
+                                                      uint32_t flag);
+
 inline ur_result_t
 printUnion(std::ostream &os,
            const union ur_kernel_launch_property_value_t params,
@@ -523,6 +527,17 @@ operator<<(std::ostream &os,
            [[maybe_unused]] const struct ur_event_native_properties_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_execution_info_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_kernel_launch_flag_t value);
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_kernel_launch_ext_properties_t params);
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_kernel_launch_cluster_property_t params);
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_kernel_launch_workgroup_property_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_kernel_launch_property_id_t value);
 inline std::ostream &
@@ -1438,6 +1453,15 @@ inline std::ostream &operator<<(std::ostream &os,
   case UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES:
     os << "UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES";
     break;
+  case UR_STRUCTURE_TYPE_KERNEL_LAUNCH_EXT_PROPERTIES:
+    os << "UR_STRUCTURE_TYPE_KERNEL_LAUNCH_EXT_PROPERTIES";
+    break;
+  case UR_STRUCTURE_TYPE_KERNEL_LAUNCH_CLUSTER_PROPERTY:
+    os << "UR_STRUCTURE_TYPE_KERNEL_LAUNCH_CLUSTER_PROPERTY";
+    break;
+  case UR_STRUCTURE_TYPE_KERNEL_LAUNCH_WORKGROUP_PROPERTY:
+    os << "UR_STRUCTURE_TYPE_KERNEL_LAUNCH_WORKGROUP_PROPERTY";
+    break;
   case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC:
     os << "UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC";
     break;
@@ -1708,6 +1732,24 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
   case UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES: {
     const ur_physical_mem_properties_t *pstruct =
         (const ur_physical_mem_properties_t *)ptr;
+    printPtr(os, pstruct);
+  } break;
+
+  case UR_STRUCTURE_TYPE_KERNEL_LAUNCH_EXT_PROPERTIES: {
+    const ur_kernel_launch_ext_properties_t *pstruct =
+        (const ur_kernel_launch_ext_properties_t *)ptr;
+    printPtr(os, pstruct);
+  } break;
+
+  case UR_STRUCTURE_TYPE_KERNEL_LAUNCH_CLUSTER_PROPERTY: {
+    const ur_kernel_launch_cluster_property_t *pstruct =
+        (const ur_kernel_launch_cluster_property_t *)ptr;
+    printPtr(os, pstruct);
+  } break;
+
+  case UR_STRUCTURE_TYPE_KERNEL_LAUNCH_WORKGROUP_PROPERTY: {
+    const ur_kernel_launch_workgroup_property_t *pstruct =
+        (const ur_kernel_launch_workgroup_property_t *)ptr;
     printPtr(os, pstruct);
   } break;
 
@@ -11020,6 +11062,146 @@ inline std::ostream &operator<<(std::ostream &os,
   return os;
 }
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_kernel_launch_flag_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_kernel_launch_flag_t value) {
+  switch (value) {
+  case UR_KERNEL_LAUNCH_FLAG_COOPERATIVE:
+    os << "UR_KERNEL_LAUNCH_FLAG_COOPERATIVE";
+    break;
+  case UR_KERNEL_LAUNCH_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE:
+    os << "UR_KERNEL_LAUNCH_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE";
+    break;
+  default:
+    os << "unknown enumerator";
+    break;
+  }
+  return os;
+}
+
+namespace ur::details {
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_kernel_launch_flag_t flag
+template <>
+inline ur_result_t printFlag<ur_kernel_launch_flag_t>(std::ostream &os,
+                                                      uint32_t flag) {
+  uint32_t val = flag;
+  bool first = true;
+
+  if ((val & UR_KERNEL_LAUNCH_FLAG_COOPERATIVE) ==
+      (uint32_t)UR_KERNEL_LAUNCH_FLAG_COOPERATIVE) {
+    val ^= (uint32_t)UR_KERNEL_LAUNCH_FLAG_COOPERATIVE;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_KERNEL_LAUNCH_FLAG_COOPERATIVE;
+  }
+
+  if ((val & UR_KERNEL_LAUNCH_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE) ==
+      (uint32_t)UR_KERNEL_LAUNCH_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE) {
+    val ^= (uint32_t)UR_KERNEL_LAUNCH_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_KERNEL_LAUNCH_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE;
+  }
+  if (val != 0) {
+    std::bitset<32> bits(val);
+    if (!first) {
+      os << " | ";
+    }
+    os << "unknown bit flags " << bits;
+  } else if (first) {
+    os << "0";
+  }
+  return UR_RESULT_SUCCESS;
+}
+} // namespace ur::details
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_kernel_launch_ext_properties_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_kernel_launch_ext_properties_t params) {
+  os << "(struct ur_kernel_launch_ext_properties_t){";
+
+  os << ".stype = ";
+
+  os << (params.stype);
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, (params.pNext));
+
+  os << ", ";
+  os << ".flags = ";
+
+  ur::details::printFlag<ur_kernel_launch_flag_t>(os, (params.flags));
+
+  os << "}";
+  return os;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_kernel_launch_cluster_property_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_kernel_launch_cluster_property_t params) {
+  os << "(struct ur_kernel_launch_cluster_property_t){";
+
+  os << ".stype = ";
+
+  os << (params.stype);
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, (params.pNext));
+
+  os << ", ";
+  os << ".clusterDim = {";
+  ur::details::printArray<3>(os, params.clusterDim);
+  os << "}";
+
+  os << "}";
+  return os;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_kernel_launch_workgroup_property_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_kernel_launch_workgroup_property_t params) {
+  os << "(struct ur_kernel_launch_workgroup_property_t){";
+
+  os << ".stype = ";
+
+  os << (params.stype);
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, (params.pNext));
+
+  os << ", ";
+  os << ".workgroup_mem_size = ";
+
+  os << (params.workgroup_mem_size);
+
+  os << "}";
+  return os;
+}
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_kernel_launch_property_id_t type
 /// @returns
 ///     std::ostream &
@@ -15703,25 +15885,9 @@ inline std::ostream &operator<<(
   ur::details::printPtr(os, *(params->ppLocalWorkSize));
 
   os << ", ";
-  os << ".numPropsInLaunchPropList = ";
-
-  os << *(params->pnumPropsInLaunchPropList);
-
-  os << ", ";
   os << ".launchPropList = ";
-  ur::details::printPtr(
-      os, reinterpret_cast<const void *>(*(params->plaunchPropList)));
-  if (*(params->plaunchPropList) != NULL) {
-    os << " {";
-    for (size_t i = 0; i < *params->pnumPropsInLaunchPropList; ++i) {
-      if (i != 0) {
-        os << ", ";
-      }
 
-      os << (*(params->plaunchPropList))[i];
-    }
-    os << "}";
-  }
+  ur::details::printPtr(os, *(params->plaunchPropList));
 
   os << ", ";
   os << ".numEventsInWaitList = ";
@@ -17407,25 +17573,9 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
   }
 
   os << ", ";
-  os << ".numPropsInLaunchPropList = ";
-
-  os << *(params->pnumPropsInLaunchPropList);
-
-  os << ", ";
   os << ".launchPropList = ";
-  ur::details::printPtr(
-      os, reinterpret_cast<const void *>(*(params->plaunchPropList)));
-  if (*(params->plaunchPropList) != NULL) {
-    os << " {";
-    for (size_t i = 0; i < *params->pnumPropsInLaunchPropList; ++i) {
-      if (i != 0) {
-        os << ", ";
-      }
 
-      os << (*(params->plaunchPropList))[i];
-    }
-    os << "}";
-  }
+  ur::details::printPtr(os, *(params->plaunchPropList));
 
   os << ", ";
   os << ".numEventsInWaitList = ";

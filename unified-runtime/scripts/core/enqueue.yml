@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2021 Intel Corporation
+# Copyright (C) 2021-2025 Intel Corporation
 #
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
@@ -11,6 +11,52 @@
 type: header
 desc: "Intel $OneApi Unified Runtime APIs"
 ordinal: "10"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Kernel launch flags"
+name: $x_kernel_launch_flags_t
+etors:
+    - name: COOPERATIVE
+      value: "$X_BIT(0)"
+      desc: "Whether to launch a cooperative kernel."
+    - name: OPPORTUNISTIC_QUEUE_SERIALIZE
+      value: "$X_BIT(1)"
+      desc: "Whether to opportunistically execute kernel launches serially on a native queue"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Extended kernel launch properties"
+name: $x_kernel_launch_ext_properties_t
+base: $x_base_properties_t
+analogue:
+    - "**cuLaunchAttribute**"
+members:
+    - type: $x_kernel_launch_flags_t
+      name: flags
+      desc: "[in] Kernel launch flags. Allowed values are: $X_KERNEL_LAUNCH_FLAG_COOPERATIVE, $X_KERNEL_LAUNCH_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE."
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Kernel launch cluster property"
+name: $x_kernel_launch_cluster_property_t
+base: $x_base_properties_t
+analogue:
+    - "**CUlaunchAttributeValue**"
+members:
+    - type: uint32_t[3]
+      name: clusterDim
+      desc: "[in] dimensions of the cluster (units of work-group) (x, y, z). Each value must be a divisor of the corresponding global work-size dimension (in units of work-group)."
+      init: [0, 0, 0]
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Kernel launch work group memory property"
+name: $x_kernel_launch_workgroup_property_t
+base: $x_base_properties_t
+analogue:
+    - "**CUlaunchAttributeValue**"
+members:
+    - type: size_t
+      name: workgroup_mem_size
+      desc: "[in] non-zero value indicates the amount of work group memory to allocate in bytes"
+      init: 0
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Specifies a launch property id"
@@ -54,7 +100,7 @@ members:
       tag: $X_KERNEL_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE
 --- #--------------------------------------------------------------------------
 type: struct
-desc: "Kernel launch property"
+desc: "Kernel launch property (deprecated, use $x_kernel_launch_ext_properties_t instead)"
 name: $x_kernel_launch_property_t
 analogue:
     - "**cuLaunchAttribute**"
@@ -98,12 +144,9 @@ params:
       desc: |
             [in][optional] pointer to an array of workDim unsigned values that specify the number of local work-items forming a work-group that will execute the kernel function.
             If nullptr, the runtime implementation will choose the work-group size.
-    - type: uint32_t
-      name: numPropsInLaunchPropList
-      desc: "[in] size of the launch prop list"
-    - type: const $x_kernel_launch_property_t*
+    - type: const $x_kernel_launch_ext_properties_t*
       name: launchPropList
-      desc: "[in][optional][range(0, numPropsInLaunchPropList)] pointer to a list of launch properties"
+      desc: "[in][optional] pointer to a single linked list of launch properties"
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
@@ -134,7 +177,7 @@ returns:
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
         - "If any property in `launchPropList` isn't supported by the device."
     - $X_RESULT_ERROR_INVALID_NULL_POINTER:
-        - "`launchPropList == NULL && numPropsInLaunchPropList > 0`"
+        - "`launchPropList == NULL`"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Enqueue a command which waits a list of events to complete before it completes"

@@ -490,8 +490,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     const size_t *pLocalWorkSize, uint32_t numArgs,
     const ur_exp_kernel_arg_properties_t *pArgs,
-    uint32_t numPropsInLaunchPropList,
-    const ur_kernel_launch_property_t *launchPropList,
+    const ur_kernel_launch_ext_properties_t *launchPropList,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
   for (uint32_t i = 0; i < numArgs; i++) {
@@ -517,7 +516,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
   }
 
   return urEnqueueKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
-                               pGlobalWorkSize, pLocalWorkSize,
-                               numPropsInLaunchPropList, launchPropList,
+                               pGlobalWorkSize, pLocalWorkSize, launchPropList,
                                numEventsInWaitList, phEventWaitList, phEvent);
 }

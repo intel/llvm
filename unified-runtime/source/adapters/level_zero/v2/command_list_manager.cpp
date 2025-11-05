@@ -242,29 +242,34 @@ ur_result_t ur_command_list_manager::appendKernelLaunchUnlocked(
 ur_result_t ur_command_list_manager::appendKernelLaunch(
     ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numPropsInLaunchPropList,
-    const ur_kernel_launch_property_t *launchPropList,
+    const size_t *pLocalWorkSize,
+    const ur_kernel_launch_ext_properties_t *launchPropList,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendKernelLaunch");
 
-  for (uint32_t propIndex = 0; propIndex < numPropsInLaunchPropList;
-       propIndex++) {
-    if (launchPropList[propIndex].id ==
-            UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE &&
-        launchPropList[propIndex].value.cooperative) {
-      UR_CALL(appendKernelLaunchUnlocked(hKernel, workDim, pGlobalWorkOffset,
-                                         pGlobalWorkSize, pLocalWorkSize,
-                                         numEventsInWaitList, phEventWaitList,
-                                         phEvent, true /* cooperative */));
-      return UR_RESULT_SUCCESS;
-    }
-    if (launchPropList[propIndex].id != UR_KERNEL_LAUNCH_PROPERTY_ID_IGNORE &&
-        launchPropList[propIndex].id !=
-            UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE) {
+  ur_kernel_launch_ext_properties_t *_launchPropList =
+      const_cast<ur_kernel_launch_ext_properties_t *>(launchPropList);
+  if (_launchPropList->flags & UR_KERNEL_LAUNCH_FLAG_COOPERATIVE) {
+    UR_CALL(appendKernelLaunchUnlocked(
+        hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
+        numEventsInWaitList, phEventWaitList, phEvent, true /* cooperative */));
+    return UR_RESULT_SUCCESS;
+  }
+
+  if (_launchPropList->flags & ~UR_KERNEL_LAUNCH_FLAG_COOPERATIVE) {
+    // We don't support any other flags.
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  while (_launchPropList != nullptr) {
+    if (_launchPropList->stype !=
+        as_stype<ur_kernel_launch_ext_properties_t>()) {
       // We don't support any other properties.
       return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
+    _launchPropList = static_cast<ur_kernel_launch_ext_properties_t *>(
+        _launchPropList->pNext);
   }
 
   UR_CALL(appendKernelLaunchUnlocked(
@@ -1084,8 +1089,7 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpOld(
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     const size_t *pLocalWorkSize, uint32_t numArgs,
     const ur_exp_kernel_arg_properties_t *pArgs,
-    uint32_t numPropsInLaunchPropList,
-    const ur_kernel_launch_property_t *launchPropList,
+    const ur_kernel_launch_ext_properties_t *launchPropList,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t phEvent) {
   {
@@ -1125,8 +1129,7 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpOld(
   }
 
   UR_CALL(appendKernelLaunch(hKernel, workDim, pGlobalWorkOffset,
-                             pGlobalWorkSize, pLocalWorkSize,
-                             numPropsInLaunchPropList, launchPropList,
+                             pGlobalWorkSize, pLocalWorkSize, launchPropList,
                              numEventsInWaitList, phEventWaitList, phEvent));
 
   return UR_RESULT_SUCCESS;
@@ -1210,8 +1213,7 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExp(
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     const size_t *pLocalWorkSize, uint32_t numArgs,
     const ur_exp_kernel_arg_properties_t *pArgs,
-    uint32_t numPropsInLaunchPropList,
-    const ur_kernel_launch_property_t *launchPropList,
+    const ur_kernel_launch_ext_properties_t *launchPropList,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t phEvent) {
   TRACK_SCOPE_LATENCY(
@@ -1219,20 +1221,25 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExp(
 
   bool cooperativeKernelLaunchRequested = false;
 
-  for (uint32_t propIndex = 0; propIndex < numPropsInLaunchPropList;
-       propIndex++) {
-    switch (launchPropList[propIndex].id) {
-    case UR_KERNEL_LAUNCH_PROPERTY_ID_IGNORE:
-      break;
-    case UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE:
-      if (launchPropList[propIndex].value.cooperative) {
-        cooperativeKernelLaunchRequested = true;
-      }
-      break;
-    default:
+  ur_kernel_launch_ext_properties_t *_launchPropList =
+      const_cast<ur_kernel_launch_ext_properties_t *>(launchPropList);
+  if (_launchPropList->flags & ~UR_KERNEL_LAUNCH_FLAG_COOPERATIVE) {
+    // We don't support any other flags.
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  if (_launchPropList->flags & UR_KERNEL_LAUNCH_FLAG_COOPERATIVE) {
+    cooperativeKernelLaunchRequested = true;
+  }
+
+  while (_launchPropList != nullptr) {
+    if (_launchPropList->stype !=
+        as_stype<ur_kernel_launch_ext_properties_t>()) {
       // We don't support any other properties.
       return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
+    _launchPropList = static_cast<ur_kernel_launch_ext_properties_t *>(
+        _launchPropList->pNext);
   }
 
   ur_platform_handle_t hPlatform = hContext->getPlatform();
@@ -1256,8 +1263,8 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExp(
     // check it on its own since it is called also from enqueueKernelLaunch().
     return appendKernelLaunchWithArgsExpOld(
         hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
-        numArgs, pArgs, numPropsInLaunchPropList, launchPropList,
-        numEventsInWaitList, phEventWaitList, phEvent);
+        numArgs, pArgs, launchPropList, numEventsInWaitList, phEventWaitList,
+        phEvent);
   }
 
   return UR_RESULT_SUCCESS;

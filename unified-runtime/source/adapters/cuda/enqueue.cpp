@@ -454,29 +454,41 @@ enqueueKernelLaunch(ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel,
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numPropsInLaunchPropList,
-    const ur_kernel_launch_property_t *launchPropList,
+    const size_t *pLocalWorkSize,
+    const ur_kernel_launch_ext_properties_t *launchPropList,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
 
-  size_t WorkGroupMemory = [&]() -> size_t {
-    const ur_kernel_launch_property_t *WorkGroupMemoryProp = std::find_if(
-        launchPropList, launchPropList + numPropsInLaunchPropList,
-        [](const ur_kernel_launch_property_t &Prop) {
-          return Prop.id == UR_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY;
-        });
-    if (WorkGroupMemoryProp != launchPropList + numPropsInLaunchPropList)
-      return WorkGroupMemoryProp->value.workgroup_mem_size;
-    return 0;
-  }();
+  size_t WorkGroupMemory = 0;
+  uint32_t numProps = 0;
 
-  if (numPropsInLaunchPropList == 0 ||
-      (WorkGroupMemory && numPropsInLaunchPropList == 1)) {
+  ur_kernel_launch_ext_properties_t *_launchPropList =
+      const_cast<ur_kernel_launch_ext_properties_t *>(launchPropList);
+  while (_launchPropList != nullptr) {
+    if (_launchPropList->stype !=
+        as_stype<ur_kernel_launch_ext_properties_t>()) {
+      numProps++;
+    }
+    if (_launchPropList->stype ==
+        as_stype<ur_kernel_launch_workgroup_property_t>()) {
+      ur_kernel_launch_workgroup_property_t *WorkGroupMemoryProp =
+          reinterpret_cast<ur_kernel_launch_workgroup_property_t *>(
+              _launchPropList);
+      WorkGroupMemory = WorkGroupMemoryProp->workgroup_mem_size;
+      break;
+    }
+    _launchPropList = static_cast<ur_kernel_launch_ext_properties_t *>(
+        _launchPropList->pNext);
+  }
+
+  if (numProps == 0 ||
+      (WorkGroupMemory && numProps == 1 && launchPropList->flags == 0)) {
     return enqueueKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
                                pGlobalWorkSize, pLocalWorkSize,
                                numEventsInWaitList, phEventWaitList, phEvent,
                                WorkGroupMemory);
   }
+
 #if CUDA_VERSION >= 11080
   // Preconditions
   UR_ASSERT(hQueue->getDevice() == hKernel->getProgram()->getDevice(),
@@ -489,7 +501,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   }
 
   std::vector<CUlaunchAttribute> launch_attribute;
-  launch_attribute.reserve(numPropsInLaunchPropList);
+  launch_attribute.reserve(numProps);
 
   // Early exit for zero size kernel
   if (*pGlobalWorkSize == 0) {
@@ -508,29 +520,52 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   uint32_t LocalSize = hKernel->getLocalSize();
   CUfunction CuFunc = hKernel->get();
 
-  for (uint32_t i = 0; i < numPropsInLaunchPropList; i++) {
-    switch (launchPropList[i].id) {
-    case UR_KERNEL_LAUNCH_PROPERTY_ID_IGNORE: {
-      auto &attr = launch_attribute.emplace_back();
-      attr.id = CU_LAUNCH_ATTRIBUTE_IGNORE;
+  _launchPropList =
+      const_cast<ur_kernel_launch_ext_properties_t *>(launchPropList);
+
+  if (_launchPropList->flags & UR_KERNEL_LAUNCH_FLAG_COOPERATIVE) {
+    auto &attr = launch_attribute.emplace_back();
+    attr.id = CU_LAUNCH_ATTRIBUTE_COOPERATIVE;
+    attr.value.cooperative = 1;
+  }
+
+  if (_launchPropList->flags &
+      UR_KERNEL_LAUNCH_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE) {
+    auto &attr = launch_attribute.emplace_back();
+    attr.id = CU_LAUNCH_ATTRIBUTE_PROGRAMMATIC_STREAM_SERIALIZATION;
+    attr.value.programmaticStreamSerializationAllowed = 1;
+  }
+
+  if (_launchPropList->flags &
+      ~(UR_KERNEL_LAUNCH_FLAG_COOPERATIVE |
+        UR_KERNEL_LAUNCH_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE)) {
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
+  while (_launchPropList != nullptr) {
+    switch (_launchPropList->stype) {
+    case UR_STRUCTURE_TYPE_KERNEL_LAUNCH_EXT_PROPERTIES: {
       break;
     }
     case UR_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION: {
       auto &attr = launch_attribute.emplace_back();
       attr.id = CU_LAUNCH_ATTRIBUTE_CLUSTER_DIMENSION;
+      ur_kernel_launch_cluster_property_t *clusterProperty =
+          reinterpret_cast<ur_kernel_launch_cluster_property_t *>(
+              _launchPropList);
       // Note that cuda orders from right to left wrt SYCL dimensional order.
       if (workDim == 3) {
-        attr.value.clusterDim.x = launchPropList[i].value.clusterDim[2];
-        attr.value.clusterDim.y = launchPropList[i].value.clusterDim[1];
-        attr.value.clusterDim.z = launchPropList[i].value.clusterDim[0];
+        attr.value.clusterDim.x = clusterProperty->clusterDim[2];
+        attr.value.clusterDim.y = clusterProperty->clusterDim[1];
+        attr.value.clusterDim.z = clusterProperty->clusterDim[0];
       } else if (workDim == 2) {
-        attr.value.clusterDim.x = launchPropList[i].value.clusterDim[1];
-        attr.value.clusterDim.y = launchPropList[i].value.clusterDim[0];
-        attr.value.clusterDim.z = launchPropList[i].value.clusterDim[2];
+        attr.value.clusterDim.x = clusterProperty->clusterDim[1];
+        attr.value.clusterDim.y = clusterProperty->clusterDim[0];
+        attr.value.clusterDim.z = clusterProperty->clusterDim[2];
       } else {
-        attr.value.clusterDim.x = launchPropList[i].value.clusterDim[0];
-        attr.value.clusterDim.y = launchPropList[i].value.clusterDim[1];
-        attr.value.clusterDim.z = launchPropList[i].value.clusterDim[2];
+        attr.value.clusterDim.x = clusterProperty->clusterDim[0];
+        attr.value.clusterDim.y = clusterProperty->clusterDim[1];
+        attr.value.clusterDim.z = clusterProperty->clusterDim[2];
       }
 
       UR_CHECK_ERROR(cuFuncSetAttribute(
@@ -538,26 +573,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
       break;
     }
-    case UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE: {
-      auto &attr = launch_attribute.emplace_back();
-      attr.id = CU_LAUNCH_ATTRIBUTE_COOPERATIVE;
-      attr.value.cooperative = launchPropList[i].value.cooperative;
-      break;
-    }
-    case UR_KERNEL_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE: {
-      auto &attr = launch_attribute.emplace_back();
-      attr.id = CU_LAUNCH_ATTRIBUTE_PROGRAMMATIC_STREAM_SERIALIZATION;
-      attr.value.programmaticStreamSerializationAllowed =
-          launchPropList[i].value.opportunistic_queue_serialize;
-      break;
-    }
-    case UR_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY: {
+    case UR_STRUCTURE_TYPE_KERNEL_LAUNCH_WORKGROUP_PROPERTY: {
       break;
     }
     default: {
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
     }
     }
+    _launchPropList = static_cast<ur_kernel_launch_ext_properties_t *>(
+        _launchPropList->pNext);
   }
 
   // This might return UR_RESULT_ERROR_ADAPTER_SPECIFIC, which cannot be handled
@@ -633,13 +657,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 #endif // CUDA_VERSION >= 11080
 }
 
+// const ur_kernel_launch_ext_properties_t *launchPropList,
+
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     const size_t *pLocalWorkSize, uint32_t numArgs,
     const ur_exp_kernel_arg_properties_t *pArgs,
-    uint32_t numPropsInLaunchPropList,
-    const ur_kernel_launch_property_t *launchPropList,
+    const ur_kernel_launch_ext_properties_t *launchPropList,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
   try {
@@ -682,8 +707,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
     return Err;
   }
   return urEnqueueKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
-                               pGlobalWorkSize, pLocalWorkSize,
-                               numPropsInLaunchPropList, launchPropList,
+                               pGlobalWorkSize, pLocalWorkSize, launchPropList,
                                numEventsInWaitList, phEventWaitList, phEvent);
 }
 

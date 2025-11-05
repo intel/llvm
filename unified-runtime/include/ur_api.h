@@ -570,6 +570,12 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_USM_POOL_BUFFER_DESC = 36,
   /// ::ur_physical_mem_properties_t
   UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES = 37,
+  /// ::ur_kernel_launch_ext_properties_t
+  UR_STRUCTURE_TYPE_KERNEL_LAUNCH_EXT_PROPERTIES = 38,
+  /// ::ur_kernel_launch_cluster_property_t
+  UR_STRUCTURE_TYPE_KERNEL_LAUNCH_CLUSTER_PROPERTY = 40,
+  /// ::ur_kernel_launch_workgroup_property_t
+  UR_STRUCTURE_TYPE_KERNEL_LAUNCH_WORKGROUP_PROPERTY = 41,
   /// ::ur_exp_command_buffer_desc_t
   UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC = 0x1000,
   /// ::ur_exp_command_buffer_update_kernel_launch_desc_t
@@ -7750,6 +7756,79 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventSetCallback(
 #pragma region enqueue
 #endif
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Kernel launch flags
+typedef uint32_t ur_kernel_launch_flags_t;
+typedef enum ur_kernel_launch_flag_t {
+  /// Whether to launch a cooperative kernel.
+  UR_KERNEL_LAUNCH_FLAG_COOPERATIVE = UR_BIT(0),
+  /// Whether to opportunistically execute kernel launches serially on a
+  /// native queue
+  UR_KERNEL_LAUNCH_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE = UR_BIT(1),
+  /// @cond
+  UR_KERNEL_LAUNCH_FLAG_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_kernel_launch_flag_t;
+/// @brief Bit Mask for validating ur_kernel_launch_flags_t
+#define UR_KERNEL_LAUNCH_FLAGS_MASK 0xfffffffc
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Extended kernel launch properties
+///
+/// @remarks
+///   _Analogues_
+///     - **cuLaunchAttribute**
+typedef struct ur_kernel_launch_ext_properties_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_KERNEL_LAUNCH_EXT_PROPERTIES
+  ur_structure_type_t stype;
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
+  /// [in] Kernel launch flags. Allowed values are:
+  /// ::UR_KERNEL_LAUNCH_FLAG_COOPERATIVE,
+  /// ::UR_KERNEL_LAUNCH_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE.
+  ur_kernel_launch_flags_t flags;
+
+} ur_kernel_launch_ext_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Kernel launch cluster property
+///
+/// @remarks
+///   _Analogues_
+///     - **CUlaunchAttributeValue**
+typedef struct ur_kernel_launch_cluster_property_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_KERNEL_LAUNCH_CLUSTER_PROPERTY
+  ur_structure_type_t stype;
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
+  /// [in] dimensions of the cluster (units of work-group) (x, y, z). Each
+  /// value must be a divisor of the corresponding global work-size
+  /// dimension (in units of work-group).
+  uint32_t clusterDim[3];
+
+} ur_kernel_launch_cluster_property_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Kernel launch work group memory property
+///
+/// @remarks
+///   _Analogues_
+///     - **CUlaunchAttributeValue**
+typedef struct ur_kernel_launch_workgroup_property_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_KERNEL_LAUNCH_WORKGROUP_PROPERTY
+  ur_structure_type_t stype;
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
+  /// [in] non-zero value indicates the amount of work group memory to
+  /// allocate in bytes
+  size_t workgroup_mem_size;
+
+} ur_kernel_launch_workgroup_property_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Specifies a launch property id
 ///
 /// @remarks
@@ -7796,7 +7875,8 @@ typedef union ur_kernel_launch_property_value_t {
 } ur_kernel_launch_property_value_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Kernel launch property
+/// @brief Kernel launch property (deprecated, use
+///        ::ur_kernel_launch_ext_properties_t instead)
 ///
 /// @remarks
 ///   _Analogues_
@@ -7829,7 +7909,10 @@ typedef struct ur_kernel_launch_property_t {
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pGlobalWorkSize`
-///         + `launchPropList == NULL && numPropsInLaunchPropList > 0`
+///         + `launchPropList == NULL`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `NULL != launchPropList && ::UR_KERNEL_LAUNCH_FLAGS_MASK &
+///         launchPropList->flags`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
@@ -7866,11 +7949,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     /// execute the kernel function.
     /// If nullptr, the runtime implementation will choose the work-group size.
     const size_t *pLocalWorkSize,
-    /// [in] size of the launch prop list
-    uint32_t numPropsInLaunchPropList,
-    /// [in][optional][range(0, numPropsInLaunchPropList)] pointer to a list
-    /// of launch properties
-    const ur_kernel_launch_property_t *launchPropList,
+    /// [in][optional] pointer to a single linked list of launch properties
+    const ur_kernel_launch_ext_properties_t *launchPropList,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -13213,10 +13293,12 @@ typedef struct ur_exp_kernel_arg_properties_t {
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pGlobalWorkSize`
-///         + `launchPropList == NULL && numPropsInLaunchPropList > 0`
+///         + `launchPropList == NULL`
 ///         + `pArgs == NULL && numArgs > 0`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `NULL != pArgs && ::UR_EXP_KERNEL_ARG_TYPE_SAMPLER < pArgs->type`
+///         + `NULL != launchPropList && ::UR_KERNEL_LAUNCH_FLAGS_MASK &
+///         launchPropList->flags`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
@@ -13264,11 +13346,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
     /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
     /// properties.
     const ur_exp_kernel_arg_properties_t *pArgs,
-    /// [in] size of the launch prop list
-    uint32_t numPropsInLaunchPropList,
-    /// [in][optional][range(0, numPropsInLaunchPropList)] pointer to a list
-    /// of launch properties
-    const ur_kernel_launch_property_t *launchPropList,
+    /// [in][optional] pointer to a single linked list of launch properties
+    const ur_kernel_launch_ext_properties_t *launchPropList,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -14503,8 +14582,7 @@ typedef struct ur_enqueue_kernel_launch_params_t {
   const size_t **ppGlobalWorkOffset;
   const size_t **ppGlobalWorkSize;
   const size_t **ppLocalWorkSize;
-  uint32_t *pnumPropsInLaunchPropList;
-  const ur_kernel_launch_property_t **plaunchPropList;
+  const ur_kernel_launch_ext_properties_t **plaunchPropList;
   uint32_t *pnumEventsInWaitList;
   const ur_event_handle_t **pphEventWaitList;
   ur_event_handle_t **pphEvent;
@@ -14910,8 +14988,7 @@ typedef struct ur_enqueue_kernel_launch_with_args_exp_params_t {
   const size_t **ppLocalWorkSize;
   uint32_t *pnumArgs;
   const ur_exp_kernel_arg_properties_t **ppArgs;
-  uint32_t *pnumPropsInLaunchPropList;
-  const ur_kernel_launch_property_t **plaunchPropList;
+  const ur_kernel_launch_ext_properties_t **plaunchPropList;
   uint32_t *pnumEventsInWaitList;
   const ur_event_handle_t **pphEventWaitList;
   ur_event_handle_t **pphEvent;

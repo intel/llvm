@@ -2545,7 +2545,6 @@ static ur_result_t SetKernelParamsAndLaunch(
           Queue.getHandleRef(), Kernel, NDRDesc.Dims,
           HasOffset ? &NDRDesc.GlobalOffset[0] : nullptr,
           &NDRDesc.GlobalSize[0], LocalSize, UrArgs.size(), UrArgs.data(),
-          property_list.size(),
           property_list.empty() ? nullptr : property_list.data(),
           RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
           OutEventImpl ? &UREvent : nullptr);
