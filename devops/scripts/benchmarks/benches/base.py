@@ -278,20 +278,9 @@ class Benchmark(ABC):
         Pin compute benchmarks to a CPU cores set to ensure consistent results
         and non-zero CPU count measurements (e.g. avoid E-cores). Exactly 4 cores
         are pinned by default to satisfy multiple threads benchmarks. It is assumed
-        that they have the maximum, or at least the same, frequency.
+        that they have the maximum, or at least similar, frequency.
         """
-        get_core_frequency = (
-            lambda num: open(
-                f"/sys/devices/system/cpu/cpu{num}/cpufreq/cpuinfo_max_freq"
-            )
-            .read()
-            .strip()
-        )
         selected_cores = [str(core) for core in Process().cpu_affinity()[:4]]  # type: ignore
-        if len({get_core_frequency(core) for core in selected_cores}) > 1:
-            log.warning(
-                f"Selected cores for pinning have differing max frequencies: {selected_cores}"
-            )
         return ["taskset", "-c", ",".join(selected_cores)]
 
 
