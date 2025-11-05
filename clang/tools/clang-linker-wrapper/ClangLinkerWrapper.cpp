@@ -937,8 +937,8 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
 /// code.
 /// \p IsCPU is a bool used to distinguish whether the target is an Intel GPU or
 /// Intel CPU.
-/// \p BackendOptions is a string containing options that are going to be parsed
-/// and inserted in \p CmdArgs.
+/// \p BackendOptions is a string containing backend compilation options. For
+/// example, "-options -cl-opt-disable".
 static void addSYCLBackendOptions(const ArgList &Args,
                                   SmallVector<StringRef, 8> &CmdArgs,
                                   bool IsCPU, StringRef BackendOptions) {
@@ -1048,16 +1048,16 @@ static Expected<StringRef> runAOTCompileIntelGPU(StringRef InputFile,
 /// \p InputFile is the input SPIR-V file.
 /// \p Args encompasses all arguments required for linking and wrapping device
 /// code.
-/// \p CompileOptions are used for AOT compilation.
+/// \p BackendOptions are used for AOT compilation.
 static Expected<StringRef> runAOTCompile(StringRef InputFile,
                                          const ArgList &Args,
-                                         StringRef CompileOptions) {
+                                         StringRef BackendOptions) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   if (Triple.isSPIRAOT()) {
     if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen)
-      return runAOTCompileIntelGPU(InputFile, Args, CompileOptions);
+      return runAOTCompileIntelGPU(InputFile, Args, BackendOptions);
     if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
-      return runAOTCompileIntelCPU(InputFile, Args, CompileOptions);
+      return runAOTCompileIntelCPU(InputFile, Args, BackendOptions);
   }
   return createStringError(inconvertibleErrorCode(),
                            "Unsupported SYCL Triple and Arch");
@@ -1767,7 +1767,7 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
 
 Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
                                const ArgList &Args, bool IsSYCLKind = false,
-                               StringRef CompileOptions = StringRef()) {
+                               StringRef SYCLBackendOptions = StringRef()) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   switch (Triple.getArch()) {
   case Triple::nvptx:
@@ -1800,9 +1800,9 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
       bool NeedAOTCompile =
           (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
            Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64);
-      auto AOTFile = (NeedAOTCompile)
-                         ? sycl::runAOTCompile(*SPVFile, Args, CompileOptions)
-                         : *SPVFile;
+      auto AOTFile = (NeedAOTCompile) ? sycl::runAOTCompile(*SPVFile, Args,
+                                                            SYCLBackendOptions)
+                                      : *SPVFile;
       if (!AOTFile)
         return AOTFile.takeError();
       return NeedAOTCompile ? *AOTFile : *SPVFile;

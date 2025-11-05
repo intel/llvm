@@ -242,6 +242,7 @@
 // CHK-SYCLBIN-CMDS-NOT: "{{.*}}ld"
 
 // Check that clang-linker-wrapper errors out in case when it observes different compilation options encoded in images with the same triple and arch.
+// This case tests the case of multi-step compilation.
 // RUN: clang-offload-packager -o %t.packaged_1.fat "--image=file=%t.o,triple=spir64-unknown-unknown,arch=generic,kind=sycl,compile-opts=aaa,link-opts=bbb"
 // RUN: clang-offload-packager -o %t.packaged_2.fat "--image=file=%t.o,triple=spir64-unknown-unknown,arch=generic,kind=sycl,compile-opts=ccc,link-opts=ddd"
 //
@@ -250,7 +251,7 @@
 // RUN: not clang-linker-wrapper -host-triple=x86_64-unknown-linux-gnu -sycl-device-libraries=%t.devicelib.o \
 // RUN:                      %t.embeded.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s --check-prefix=COMPILE-LINK-OPTIONS-DO-NOT-MATCH
 
-// COMPILE-LINK-OPTIONS-DO-NOT-MATCH: error: compile and link options passed to the backend of the target device compiler must be identical for device images of the same target. Mismatched options:"
+// COMPILE-LINK-OPTIONS-DO-NOT-MATCH: error: compile and link options passed to the backend of the target device compiler must be identical for device images of the same target. Mismatched options:
 // COMPILE-LINK-OPTIONS-DO-NOT-MATCH-NEXT: Input[0]: compile_options: aaa, link_options: bbb
 // COMPILE-LINK-OPTIONS-DO-NOT-MATCH-NEXT: Input[1]: compile_options: ccc, link_options: ddd
 
@@ -271,7 +272,8 @@
 // RUN:                      -sycl-device-libraries=%t1.devicelib.o \
 // RUN:                      %t.aot.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s --check-prefix=CHECK-COMPILE-LINK-OPTS-AOT
 //
-// Check that compilation options are passed to ocloc and are not passed to offload wrapper.
+// Check that in AOT case backend options are passed to ocloc and are not passed to offload wrapper
+// because SYCL Runtime can't make any use of it in AOT case.
 // CHECK-COMPILE-LINK-OPTS-AOT: "{{.*}}ocloc"{{.*}} -device pvc ccc ccc -output
 // CHECK-COMPILE-LINK-OPTS-AOT: offload-wrapper: {{.*}} compile-opts: , link-opts:
 

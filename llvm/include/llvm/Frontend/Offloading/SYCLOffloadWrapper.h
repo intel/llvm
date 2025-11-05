@@ -58,7 +58,7 @@ struct SYCLImage {
   // Format of the image data - SPIRV, LLVMIR bitcode, etc
   SYCLBinaryImageFormat Format = SYCLBinaryImageFormat::BIF_None;
 
-  // Target/Compiler specific options that are will be used to compile and
+  // Target/Compiler specific options that will be used to compile and
   // link program at runtime in JIT scenario.
   std::string CompileOptions;
   std::string LinkOptions;
