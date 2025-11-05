@@ -468,16 +468,19 @@ event submit_kernel_direct_with_event_impl(
     const queue &Queue, const nd_range<Dims> &Range,
     detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
+    sycl::span<const event> DepEvents,
     const detail::KernelPropertyHolderStructTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
   return getSyclObjImpl(Queue)->submit_kernel_direct_with_event(
-      Range, HostKernel, DeviceKernelInfo, Props, CodeLoc, IsTopCodeLoc);
+      Range, HostKernel, DeviceKernelInfo, DepEvents, Props, CodeLoc,
+      IsTopCodeLoc);
 }
 
 template event __SYCL_EXPORT submit_kernel_direct_with_event_impl<1>(
     const queue &Queue, const nd_range<1> &Range,
     detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
+    sycl::span<const event> DepEvents,
     const detail::KernelPropertyHolderStructTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
@@ -485,6 +488,7 @@ template event __SYCL_EXPORT submit_kernel_direct_with_event_impl<2>(
     const queue &Queue, const nd_range<2> &Range,
     detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
+    sycl::span<const event> DepEvents,
     const detail::KernelPropertyHolderStructTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
@@ -492,6 +496,7 @@ template event __SYCL_EXPORT submit_kernel_direct_with_event_impl<3>(
     const queue &Queue, const nd_range<3> &Range,
     detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
+    sycl::span<const event> DepEvents,
     const detail::KernelPropertyHolderStructTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
@@ -500,16 +505,19 @@ void submit_kernel_direct_without_event_impl(
     const queue &Queue, const nd_range<Dims> &Range,
     detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
+    sycl::span<const event> DepEvents,
     const detail::KernelPropertyHolderStructTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
   getSyclObjImpl(Queue)->submit_kernel_direct_without_event(
-      Range, HostKernel, DeviceKernelInfo, Props, CodeLoc, IsTopCodeLoc);
+      Range, HostKernel, DeviceKernelInfo, DepEvents, Props, CodeLoc,
+      IsTopCodeLoc);
 }
 
 template void __SYCL_EXPORT submit_kernel_direct_without_event_impl<1>(
     const queue &Queue, const nd_range<1> &Range,
     detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
+    sycl::span<const event> DepEvents,
     const detail::KernelPropertyHolderStructTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
@@ -517,6 +525,7 @@ template void __SYCL_EXPORT submit_kernel_direct_without_event_impl<2>(
     const queue &Queue, const nd_range<2> &Range,
     detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
+    sycl::span<const event> DepEvents,
     const detail::KernelPropertyHolderStructTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
@@ -524,6 +533,7 @@ template void __SYCL_EXPORT submit_kernel_direct_without_event_impl<3>(
     const queue &Queue, const nd_range<3> &Range,
     detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
+    sycl::span<const event> DepEvents,
     const detail::KernelPropertyHolderStructTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
