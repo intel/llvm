@@ -2808,6 +2808,7 @@ public:
     // with the kernel_handler type argument yet.
     if constexpr (!(detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                              void>::value)) {
+      assert(false);
       return detail::submit_kernel_direct_single_task<KernelName, true>(
           *this, KernelFunc, {}, Properties, TlsCodeLocCapture.query());
     } else {
@@ -2864,6 +2865,7 @@ public:
     // with the kernel_handler type argument yet.
     if constexpr (!(detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                              void>::value)) {
+      assert(false);
       return detail::submit_kernel_direct_single_task<KernelName, true>(
           *this, KernelFunc, sycl::span<const event>(&DepEvent, 1), Properties,
           TlsCodeLocCapture.query());
@@ -2925,6 +2927,7 @@ public:
     // with the kernel_handler type argument yet.
     if constexpr (!(detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                              void>::value)) {
+      assert(false);
       return detail::submit_kernel_direct_single_task<KernelName, true>(
           *this, KernelFunc, DepEvents, Properties, TlsCodeLocCapture.query());
     } else {
@@ -3372,7 +3375,7 @@ public:
     if constexpr (sizeof...(RestT) == 1 &&
                   !(detail::KernelLambdaHasKernelHandlerArgT<
                       KernelType, sycl::nd_item<Dims>>::value)) {
-
+      assert(false);
       return detail::submit_kernel_direct_parallel_for<KernelName, true>(
           *this, Range, Rest..., {}, Properties, TlsCodeLocCapture.query());
     } else
@@ -3402,6 +3405,7 @@ public:
     if constexpr (sizeof...(RestT) == 1 &&
                   !(detail::KernelLambdaHasKernelHandlerArgT<
                       KernelType, sycl::nd_item<Dims>>::value)) {
+      assert(false);
       return detail::submit_kernel_direct_parallel_for<KernelName, true>(
           *this, Range, Rest..., {},
           ext::oneapi::experimental::empty_properties_t{},
@@ -3473,6 +3477,7 @@ public:
     if constexpr (sizeof...(RestT) == 1 &&
                   !(detail::KernelLambdaHasKernelHandlerArgT<
                       KernelType, sycl::nd_item<Dims>>::value)) {
+      assert(false);
       return detail::submit_kernel_direct_parallel_for<KernelName, true>(
           *this, Range, Rest..., sycl::span<const event>(&DepEvent, 1),
           ext::oneapi::experimental::empty_properties_t{},
@@ -3550,6 +3555,7 @@ public:
     if constexpr (sizeof...(RestT) == 1 &&
                   !(detail::KernelLambdaHasKernelHandlerArgT<
                       KernelType, sycl::nd_item<Dims>>::value)) {
+      assert(false);
       return detail::submit_kernel_direct_parallel_for<KernelName, true>(
           *this, Range, Rest..., DepEvents,
           ext::oneapi::experimental::empty_properties_t{},
