@@ -178,7 +178,7 @@ ur_result_t ur_command_list_manager::appendKernelLaunchLocked(
     ze_group_size_t groupSize = {WG[0], WG[1], WG[2]};
     ZE2UR_CALL(hContext->getPlatform()
                    ->ZeCommandListAppendLaunchKernelWithArgumentsExt
-                   .zeCommandListAppendLaunchKernelWithArguments,
+                   .zeCommandListAppendLaunchKernelWithArgumentsFunctionPtr,
                (getZeCommandList(), hZeKernel, zeThreadGroupDimensions,
                 groupSize, hKernel->kernelArgs.data(), pNext, zeSignalEvent,
                 waitListView.num, waitListView.handles));
