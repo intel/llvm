@@ -1006,7 +1006,6 @@ how to pass a kernel launch parameter.
 [source,c++]
 ----
 #include <sycl/sycl.hpp>
-namespace syclext = sycl::ext::oneapi;
 namespace syclexp = sycl::ext::oneapi::experimental;
 
 static constexpr size_t NUM = 1024;
