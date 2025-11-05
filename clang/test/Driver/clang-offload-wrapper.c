@@ -129,7 +129,7 @@
 // CHECK-IR: [[ENTBEGIN:@.+]] = external hidden constant [[ENTTY]]
 // CHECK-IR: [[ENTEND:@.+]] = external hidden constant [[ENTTY]]
 
-// CHECK-IR: [[DUMMY:@.+]] = hidden constant [0 x [[ENTTY]]] zeroinitializer, section "omp_offloading_entries"
+// CHECK-IR: [[DUMMY:@.+]] = hidden constant [0 x [[ENTTY]]] zeroinitializer, section "llvm_offload_entries"
 
 // CHECK-IR: [[OMP_BIN:@.+]] = internal unnamed_addr constant [[OMP_BINTY:\[[0-9]+ x i8\]]] c"Content of device file3{{.+}}"
 // CHECK-IR: [[OMP_INFO:@.+]] = internal local_unnamed_addr constant [2 x i64] [i64 ptrtoint (ptr [[OMP_BIN]] to i64), i64 24], section ".tgtimg", align 16

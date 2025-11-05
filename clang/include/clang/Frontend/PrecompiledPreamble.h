@@ -132,6 +132,8 @@ public:
                         IntrusiveRefCntPtr<llvm::vfs::FileSystem> &VFS,
                         llvm::MemoryBuffer *MainFileBuffer) const;
 
+  llvm::StringRef memoryContents() const;
+
 private:
   PrecompiledPreamble(std::unique_ptr<PCHStorage> Storage,
                       std::vector<char> PreambleBytes,

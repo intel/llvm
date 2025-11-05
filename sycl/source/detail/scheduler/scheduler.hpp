@@ -485,6 +485,18 @@ public:
   static bool areEventsSafeForSchedulerBypass(events_range DepEvents,
                                               context_impl &Context);
 
+  /// Puts exception to the list of asynchronous ecxeptions.
+  ///
+  /// \param QueuePtr is a pointer referring to the queue to report the
+  /// asynchronous exceptions for.
+  /// \param ExceptionPtr is a pointer to exception to be put.
+  void reportAsyncException(const std::shared_ptr<queue_impl> &QueuePtr,
+                            const std::exception_ptr &ExceptionPtr);
+
+  /// Reports all unconsumed asynchronous exceptions to either the queue's
+  /// async_handler, the context's async_handler or the default async_handler.
+  void flushAsyncExceptions();
+
 protected:
   using RWLockT = std::shared_timed_mutex;
   using ReadLockT = std::shared_lock<RWLockT>;
@@ -871,6 +883,23 @@ protected:
   std::unordered_map<EventImplPtr, std::vector<std::shared_ptr<const void>>>
       MAuxiliaryResources;
   std::mutex MAuxiliaryResourcesMutex;
+
+  // Asynchronous exceptions are captured at device-level until flushed, either
+  // by queues, events or a synchronization on the device itself.
+  std::mutex MAsyncExceptionsMutex;
+  using AsyncExceptionKey =
+      std::pair<std::weak_ptr<queue_impl>, std::weak_ptr<context_impl>>;
+  struct AsyncExceptionKeyOwnerLess {
+    bool operator()(const AsyncExceptionKey &LHS,
+                    const AsyncExceptionKey &RHS) const noexcept {
+      return std::owner_less<std::weak_ptr<queue_impl>>{}(LHS.first,
+                                                          RHS.first) ||
+             std::owner_less<std::weak_ptr<context_impl>>{}(LHS.second,
+                                                            RHS.second);
+    }
+  };
+  std::map<AsyncExceptionKey, exception_list, AsyncExceptionKeyOwnerLess>
+      MAsyncExceptions;
 
   friend class Command;
   friend class DispatchHostTask;

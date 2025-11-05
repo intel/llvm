@@ -514,7 +514,7 @@ EventImplPtr queue_impl::submit_command_to_graph(
     std::unique_ptr<detail::CG> CommandGroup, sycl::detail::CGType CGType,
     sycl::ext::oneapi::experimental::node_type UserFacingNodeType) {
   auto EventImpl = detail::event_impl::create_completed_host_event();
-  EventImpl->setSubmittedQueue(weak_from_this());
+  EventImpl->setSubmittedQueue(this);
   ext::oneapi::experimental::detail::node_impl *NodeImpl = nullptr;
 
   // GraphImpl is read and written in this scope so we lock this graph
@@ -567,17 +567,25 @@ EventImplPtr queue_impl::submit_command_to_graph(
 EventImplPtr queue_impl::submit_kernel_direct_impl(
     const NDRDescT &NDRDesc, detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo, bool CallerNeedsEvent,
+    const detail::KernelPropertyHolderStructTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
 
   KernelData KData;
 
   KData.setDeviceKernelInfoPtr(DeviceKernelInfo);
-  KData.setKernelFunc(HostKernel.getPtr());
   KData.setNDRDesc(NDRDesc);
+
+  // Validate and set kernel launch properties.
+  KData.validateAndSetKernelLaunchProperties(Props, hasCommandGraph(),
+                                             getDeviceImpl());
 
   auto SubmitKernelFunc = [&](detail::CG::StorageInitHelper &CGData,
                               bool SchedulerBypass) -> EventImplPtr {
     if (SchedulerBypass) {
+      // No need to copy/move the kernel function, so we set
+      // the function pointer to the original function
+      KData.setKernelFunc(HostKernel.getPtr());
+
       return submit_kernel_scheduler_bypass(KData, CGData.MEvents,
                                             CallerNeedsEvent, nullptr, nullptr,
                                             CodeLoc, IsTopCodeLoc);
@@ -588,6 +596,10 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
 
     std::shared_ptr<detail::HostKernelBase> HostKernelPtr =
         HostKernel.takeOrCopyOwnership();
+
+    // When the kernel function is stored for future use,
+    // set the function pointer to the stored function
+    KData.setKernelFunc(HostKernelPtr->getPtr());
 
     KData.extractArgsAndReqsFromLambda();
 
@@ -631,8 +643,10 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
     CGData.MEvents.push_back(getSyclObjImpl(*ExternalEvent));
   }
 
+  auto &Deps = hasCommandGraph() ? MExtGraphDeps : MDefaultGraphDeps;
+
   // Sync with the last event for in order queue
-  EventImplPtr &LastEvent = MDefaultGraphDeps.LastEventPtr;
+  EventImplPtr &LastEvent = Deps.LastEventPtr;
   if (isInOrder() && LastEvent) {
     CGData.MEvents.push_back(LastEvent);
   }
@@ -646,9 +660,8 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
           MissedCleanupRequests.clear();
         });
 
-    if (MDefaultGraphDeps.LastBarrier &&
-        !MDefaultGraphDeps.LastBarrier->isEnqueued()) {
-      CGData.MEvents.push_back(MDefaultGraphDeps.LastBarrier);
+    if (Deps.LastBarrier && !Deps.LastBarrier->isEnqueued()) {
+      CGData.MEvents.push_back(Deps.LastBarrier);
     }
   }
 
@@ -676,7 +689,7 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
 
   // Barrier and un-enqueued commands synchronization for out or order queue
   if (!isInOrder() && !EventImpl->isEnqueued()) {
-    MDefaultGraphDeps.UnenqueuedCmdEvents.push_back(EventImpl);
+    Deps.UnenqueuedCmdEvents.push_back(EventImpl);
   }
 
   return CallerNeedsEvent ? EventImpl : nullptr;

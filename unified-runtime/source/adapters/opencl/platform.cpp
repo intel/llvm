@@ -30,6 +30,50 @@ static cl_int mapURPlatformInfoToCL(ur_platform_info_t URPropName) {
   }
 }
 
+static bool isBannedOpenCLPlatform(cl_platform_id platform) {
+  size_t nameSize = 0;
+  cl_int res =
+      clGetPlatformInfo(platform, CL_PLATFORM_NAME, 0, nullptr, &nameSize);
+  if (res != CL_SUCCESS || nameSize == 0) {
+    return false;
+  }
+
+  std::string name(nameSize, '\0');
+  res = clGetPlatformInfo(platform, CL_PLATFORM_NAME, nameSize, name.data(),
+                          nullptr);
+  if (res != CL_SUCCESS) {
+    return false;
+  }
+
+  // The NVIDIA OpenCL platform is currently not compatible with DPC++
+  // since it is only 1.2 but gets selected by default in many systems.
+  // There is also no support on the PTX backend for OpenCL consumption.
+  //
+  // There is also no support for the AMD HSA backend for OpenCL consumption,
+  // as well as reported problems with device queries, so AMD OpenCL support
+  // is disabled as well.
+  bool isBanned =
+      name.find("NVIDIA CUDA") != std::string::npos ||
+      name.find("AMD Accelerated Parallel Processing") != std::string::npos;
+
+  return isBanned;
+}
+
+static bool isBannedOpenCLDevice(cl_device_id device) {
+  cl_device_type deviceType = 0;
+  cl_int res = clGetDeviceInfo(device, CL_DEVICE_TYPE, sizeof(cl_device_type),
+                               &deviceType, nullptr);
+  if (res != CL_SUCCESS) {
+    return false;
+  }
+
+  // Filter out FPGA accelerator devices as their usage with OpenCL adapter is
+  // deprecated
+  bool isBanned = (deviceType & CL_DEVICE_TYPE_ACCELERATOR) != 0;
+
+  return isBanned;
+}
+
 UR_DLLEXPORT ur_result_t UR_APICALL
 urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
                   size_t propSize, void *pPropValue, size_t *pSizeRet) {
@@ -102,14 +146,26 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
                              CLPlatforms.data(), nullptr);
       CL_RETURN_ON_FAILURE(Res);
 
-      try {
-        for (uint32_t i = 0; i < NumPlatforms; i++) {
-          auto URPlatform =
-              std::make_unique<ur_platform_handle_t_>(CLPlatforms[i]);
-          UR_RETURN_ON_FAILURE(URPlatform->InitDevices());
-          Adapter->URPlatforms.emplace_back(URPlatform.release());
+      // Filter out banned platforms
+      std::vector<cl_platform_id> FilteredPlatforms;
+      for (uint32_t i = 0; i < NumPlatforms; i++) {
+        if (!isBannedOpenCLPlatform(CLPlatforms[i])) {
+          FilteredPlatforms.push_back(CLPlatforms[i]);
         }
-        Adapter->NumPlatforms = NumPlatforms;
+      }
+
+      try {
+        for (auto &Platform : FilteredPlatforms) {
+          auto URPlatform = std::make_unique<ur_platform_handle_t_>(Platform);
+          UR_RETURN_ON_FAILURE(URPlatform->InitDevices());
+          // Only add platforms that have devices, especially in case all
+          // devices are banned
+          if (!URPlatform->Devices.empty()) {
+            Adapter->URPlatforms.emplace_back(URPlatform.release());
+          }
+        }
+        Adapter->NumPlatforms =
+            static_cast<uint32_t>(Adapter->URPlatforms.size());
       } catch (std::bad_alloc &) {
         return UR_RESULT_ERROR_OUT_OF_RESOURCES;
       } catch (...) {
@@ -217,11 +273,19 @@ ur_result_t ur_platform_handle_t_::InitDevices() {
 
     CL_RETURN_ON_FAILURE(Res);
 
+    // Filter out banned devices
+    std::vector<cl_device_id> FilteredDevices;
+    for (uint32_t i = 0; i < DeviceNum; i++) {
+      if (!isBannedOpenCLDevice(CLDevices[i])) {
+        FilteredDevices.push_back(CLDevices[i]);
+      }
+    }
+
     try {
-      Devices.resize(DeviceNum);
-      for (size_t i = 0; i < DeviceNum; i++) {
-        Devices[i] =
-            std::make_unique<ur_device_handle_t_>(CLDevices[i], this, nullptr);
+      Devices.resize(FilteredDevices.size());
+      for (size_t i = 0; i < FilteredDevices.size(); i++) {
+        Devices[i] = std::make_unique<ur_device_handle_t_>(FilteredDevices[i],
+                                                           this, nullptr);
       }
     } catch (std::bad_alloc &) {
       return UR_RESULT_ERROR_OUT_OF_RESOURCES;
