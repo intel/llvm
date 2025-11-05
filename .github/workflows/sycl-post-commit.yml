@@ -82,7 +82,7 @@ jobs:
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             extra_lit_opts: --param spirv-backend=True
             e2e_binaries_artifact: e2e_bin_spirv_backend
-            e2e_testing_mode: 'run-only'
+            testing_mode: 'run-only'
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}
@@ -100,7 +100,7 @@ jobs:
       toolchain_decompress_command: ${{ needs.build-lin.outputs.toolchain_decompress_command }}
 
       e2e_binaries_artifact: ${{ matrix.e2e_binaries_artifact }}
-      e2e_testing_mode: ${{ matrix.e2e_testing_mode || 'full' }}
+      testing_mode: ${{ matrix.testing_mode || 'full' }}
 
       # Do not install drivers on AMD and CUDA runners.
       install_igc_driver: >-

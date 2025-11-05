@@ -6,7 +6,7 @@ inputs:
     required: true
   extra_cmake_args:
     required: false
-  cts_testing_mode:
+  testing_mode:
     required: true
   sycl_cts_artifact:
     require: false
@@ -19,7 +19,7 @@ runs:
   using: "composite"
   steps:
   - name: Checkout SYCL CTS tests
-    if: inputs.cts_testing_mode != 'run-only'
+    if: inputs.testing_mode != 'run-only'
     uses: ./devops/actions/cached_checkout
     with:
       path: khronos_sycl_cts
@@ -27,12 +27,12 @@ runs:
       ref: ${{ inputs.ref }}
       cache_path: "/__w/repo_cache/"
   - name: SYCL CTS GIT submodules init
-    if: inputs.cts_testing_mode != 'run-only'
+    if: inputs.testing_mode != 'run-only'
     shell: bash
     run: |
       git -C khronos_sycl_cts submodule update --init
   - name: Build SYCL CTS tests
-    if: inputs.cts_testing_mode != 'run-only'
+    if: inputs.testing_mode != 'run-only'
     shell: bash
     env:
       CMAKE_EXTRA_ARGS: ${{ inputs.extra_cmake_args }}
@@ -40,7 +40,7 @@ runs:
       cts_exclude_filter=""
       # If CTS_TESTS_TO_BUILD is null - use filter
       if [ -z "$CTS_TESTS_TO_BUILD" ]; then
-        if [ "${{ contains(inputs.cts_testing_mode, 'build-only')  }}" = "true" ]; then
+        if [ "${{ contains(inputs.testing_mode, 'build-only')  }}" = "true" ]; then
           cts_exclude_filter=$PWD/sycl/cts_exclude_filter/compfails
         elif [ "${{ contains(inputs.target_devices, 'opencl:cpu')  }}" = "true" ]; then
           cts_exclude_filter=$PWD/sycl/cts_exclude_filter/LINUX_OCL_CPU
@@ -68,12 +68,12 @@ runs:
       ninja -C build-cts -k0 $( [ -n "$CTS_TESTS_TO_BUILD" ] && echo "$CTS_TESTS_TO_BUILD" || echo "test_conformance")
 
   - name: Pack SYCL-CTS binaries
-    if: always() && !cancelled() && inputs.cts_testing_mode == 'build-only'
+    if: always() && !cancelled() && inputs.testing_mode == 'build-only'
     shell: bash
     run: tar -I 'zstd -9' -cf sycl_cts_bin.tar.zst -C ./build-cts/bin .
 
   - name: Upload SYCL-CTS binaries
-    if: always() && !cancelled() && inputs.cts_testing_mode == 'build-only'
+    if: always() && !cancelled() && inputs.testing_mode == 'build-only'
     uses: actions/upload-artifact@v4
     with:
       name: ${{ inputs.sycl_cts_artifact }}
@@ -81,13 +81,13 @@ runs:
       retention-days: ${{ inputs.retention-days }}
 
   - name: Download SYCL-CTS binaries
-    if: inputs.cts_testing_mode == 'run-only'
+    if: inputs.testing_mode == 'run-only'
     uses: actions/download-artifact@v4
     with:
       name: ${{ inputs.sycl_cts_artifact }}
 
   - name: Extract SYCL-CTS binaries
-    if: inputs.cts_testing_mode == 'run-only'
+    if: inputs.testing_mode == 'run-only'
     shell: bash
     run: |
       mkdir -p build-cts/bin
@@ -95,7 +95,7 @@ runs:
 
   - name: SYCL CTS List devices
     # Proceed with execution even if the 'build' step did not succeed.
-    if: (always() && !cancelled()) && inputs.cts_testing_mode != 'build-only'
+    if: (always() && !cancelled()) && inputs.testing_mode != 'build-only'
     shell: bash
     env:
       ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
@@ -109,7 +109,7 @@ runs:
   # these files may differ from each other, so when there is a pre-built set of
   # tests, we need to filter it according to the filter-file.
   - name: Filter SYCL CTS test categories
-    if: inputs.cts_testing_mode == 'run-only'
+    if: inputs.testing_mode == 'run-only'
     shell: bash
     run: |
       cts_exclude_filter=""
@@ -129,7 +129,7 @@ runs:
 
   - name: Run SYCL CTS tests
     # Proceed with execution even if the previous two steps did not succeed.
-    if: (always() && !cancelled()) && inputs.cts_testing_mode != 'build-only'
+    if: (always() && !cancelled()) && inputs.testing_mode != 'build-only'
     env:
       ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
     # By-default GitHub actions execute the "run" shell script with -e option,

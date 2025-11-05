@@ -215,7 +215,7 @@ jobs:
       toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}
       e2e_binaries_artifact: ${{ matrix.e2e_binaries_artifact || 'e2e_bin' }}
-      e2e_testing_mode: 'run-only'
+      testing_mode: 'run-only'
 
       # Do not install drivers on AMD and CUDA runners.
       install_igc_driver: >-

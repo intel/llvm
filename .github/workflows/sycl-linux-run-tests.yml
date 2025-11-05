@@ -68,9 +68,9 @@ on:
         type: string
         default: ''
         required: False
-      e2e_testing_mode:
+      testing_mode:
         description: |
-          Testing mode to run E2E tests in, can be either `full`, `build-only`
+          Testing mode to run E2E/CTS tests in, can be either `full`, `build-only`
           or `run-only`.
         type: string
         default: 'full'
@@ -94,14 +94,6 @@ on:
         type: string
         default: 'false'
         required: False
-
-      cts_testing_mode:
-        description: |
-          Testing mode to run SYCL-CTS in, can be either `full`, `build-only`
-          or `run-only`. In `build-only` mode an artifact of the CTS binaries
-          will be uploaded.
-        type: string
-        default: 'full'
 
       sycl_cts_artifact:
         type: string
@@ -211,7 +203,7 @@ on:
           Extra options to be added to LIT_OPTS.
         default: ''
 
-      e2e_testing_mode:
+      testing_mode:
         type: choice
         options:
           - "full"
@@ -346,7 +338,7 @@ jobs:
       with:
         ref: ${{ inputs.tests_ref || inputs.repo_ref || github.sha }}
         binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
-        testing_mode: ${{ inputs.e2e_testing_mode }}
+        testing_mode: ${{ inputs.testing_mode }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
         target_devices: ${{ inputs.target_devices }}
         extra_lit_opts: ${{ inputs.extra_lit_opts }}
@@ -361,7 +353,7 @@ jobs:
       with:
         ref: ${{ inputs.tests_ref || 'main' }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
-        cts_testing_mode: ${{ inputs.cts_testing_mode }}
+        testing_mode: ${{ inputs.testing_mode }}
         sycl_cts_artifact: ${{ inputs.sycl_cts_artifact }}
         target_devices: ${{ inputs.target_devices }}
         retention-days: ${{ inputs.retention-days }}
