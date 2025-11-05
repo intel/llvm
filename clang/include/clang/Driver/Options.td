@@ -7567,7 +7567,7 @@ let Visibility = [SYCLRTCOnlyOption] in {
     def sycl_rtc_in_memory_fs_only
         : Flag<["--"], "sycl-rtc-in-memory-fs-only">,
           HelpText<"Disable real filesystem access for SYCL RTC compilation, "
-                   "debug/testing only">,
+                   "debugging/testing only">,
           Flags<[HelpHidden]>;
   } // let Group = sycl_rtc_only_Group
 } // let Visibility = [SYCLRTCOnlyOption]
