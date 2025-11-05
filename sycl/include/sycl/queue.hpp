@@ -2859,6 +2859,7 @@ public:
         "Use queue.submit() instead");
 
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    assert(false);
 
     // TODO The handler-less path does not support kernel functions
     // with the kernel_handler type argument yet.
@@ -2920,6 +2921,8 @@ public:
         "Use queue.submit() instead");
 
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+
+    assert(false);
 
     // TODO The handler-less path does not support kernel functions
     // with the kernel_handler type argument yet.
@@ -3458,6 +3461,7 @@ public:
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     using KernelType = std::tuple_element_t<0, std::tuple<RestT...>>;
+    assert(false);
 
     // TODO The handler-less path does not support reductions, and
     // kernel functions with the kernel_handler type argument yet.
@@ -3525,6 +3529,7 @@ public:
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     using KernelType = std::tuple_element_t<0, std::tuple<RestT...>>;
+    assert(false);
 
     // TODO The handler-less path does not support reductions, and
     // kernel functions with the kernel_handler type argument yet.
