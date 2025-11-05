@@ -364,6 +364,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
   auto ZeInitDriversResult = ZE_RESULT_ERROR_UNINITIALIZED;
   auto ZeInitResult = ZE_RESULT_ERROR_UNINITIALIZED;
   auto ZesResult = ZE_RESULT_ERROR_UNINITIALIZED;
+  auto SyclUrTrace = ur_getenv("SYCL_UR_TRACE");
 
 #ifdef UR_STATIC_LEVEL_ZERO
   // Given static linking of the L0 Loader, we must delay the loader's
@@ -377,7 +378,12 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
     setEnvVar("ZEL_LOADER_LOGGING_LEVEL", "trace");
     setEnvVar("ZEL_LOADER_LOG_CONSOLE", "1");
     setEnvVar("ZE_ENABLE_VALIDATION_LAYER", "1");
-  };
+  }
+#if defined(_WIN32)
+  else if (SyclUrTrace.has_value()) {
+    logger.setLegacySink(std::make_unique<ur_legacy_sink>());
+  }
+#endif
 
   if (UrL0Debug & UR_L0_DEBUG_VALIDATION) {
     setEnvVar("ZE_ENABLE_VALIDATION_LAYER", "1");
