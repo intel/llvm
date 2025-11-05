@@ -1,10 +1,10 @@
 :extension_name: SPV_INTEL_16bit_atomics
 :capability_name_int16_cmpxchg: AtomicInt16CompareExchangeINTEL
-:capability_token_int16_cmpxchg: XXXX
+:capability_token_int16_cmpxchg: 6260
 :capability_name_int16_atomics: Int16AtomicsINTEL
-:capability_token_int16_atomics: YYYY
+:capability_token_int16_atomics: 6261
 :capability_name_bf16_loadstore: AtomicBFloat16LoadStoreINTEL
-:capability_token_bf16_loadstore: ZZZZ
+:capability_token_bf16_loadstore: 6262
 :capability_name_bf16_add: AtomicBFloat16AddINTEL
 :capability_token_bf16_add: 6255
 :capability_name_bf16_minmax: AtomicBFloat16MinMaxINTEL
