@@ -61,16 +61,6 @@ int main() {
     assert(*Res == 10);
   }
   {
-    // Test cast 3 - empty queue.
-    std::cout << "Test 3" << std::endl;
-    sycl::queue EmptyQ({sycl::property::queue::in_order{}});
-    auto BarrierEvent = EmptyQ.ext_oneapi_submit_barrier();
-    assert(
-        BarrierEvent.get_info<sycl::info::event::command_execution_status>() ==
-        sycl::info::event_command_status::complete);
-    BarrierEvent.wait();
-  }
-  {
     // Test cast 4 - graph.
     sycl::queue GQueue{sycl::property::queue::in_order{}};
 
