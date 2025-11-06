@@ -223,24 +223,24 @@ class ComputeBench(Suite):
                     measure_completion_time,
                     use_events,
                     emulate_graphs,
-                    useHostTasks = 1 if runtime == RUNTIMES.SYCL_PREVIEW or runtime == RUNTIMES.SYCL else 0
+                    useHostTasks = 1
                 )
             )
-            if runtime == RUNTIMES.SYCL or runtime == RUNTIMES.SYCL_PREVIEW:
+            # if runtime == RUNTIMES.SYCL or runtime == RUNTIMES.SYCL_PREVIEW:
                 # Create CPU count variant
-                benches.append(
-                    GraphApiSubmitGraph(
-                        self,
-                        runtime,
-                        in_order_queue,
-                        num_kernels,
-                        measure_completion_time,
-                        use_events,
-                        emulate_graphs,
-                        useHostTasks=1,
-                        profiler_type=PROFILERS.CPU_COUNTER,
-                    )
+            benches.append(
+                GraphApiSubmitGraph(
+                    self,
+                    runtime,
+                    in_order_queue,
+                    num_kernels,
+                    measure_completion_time,
+                    use_events,
+                    emulate_graphs,
+                    useHostTasks=1,
+                    profiler_type=PROFILERS.CPU_COUNTER,
                 )
+            )
 
         # Add other benchmarks
         benches += [
