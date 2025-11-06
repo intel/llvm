@@ -524,6 +524,14 @@ public:
     }
   }
 
+  /// Get whether native recording is enabled for this graph.
+  /// @return True if native recording is enabled, false otherwise.
+  bool isNativeRecordingEnabled() const { return MEnableNativeRecording; }
+
+  /// Get the native UR graph handle for this graph.
+  /// @return Native UR graph handle, or nullptr if native recording is not enabled.
+  ur_exp_graph_handle_t getNativeGraphHandle() const { return MNativeGraphHandle; }
+
 private:
   template <typename... Ts> node_impl &createNode(Ts &&...Args) {
     MNodeStorage.push_back(
