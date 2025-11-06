@@ -18,6 +18,8 @@ add_clang_tool(clang-repl
 if(MSVC)
   set_target_properties(clang-repl PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS 1)
 
+  # Remove ,DATA in export symbols 4adce336f46235aa74c95a3664fe8150c640e4f5
+  # icx driver unable to pass the export symbol correctly to lld-linker.
   # RTTI/C++ symbols
   set(clang_repl_exports ${clang_repl_exports} ??_7type_info@@6B@
     ?__type_info_root_node@@3U__type_info_node@@A
@@ -50,7 +52,10 @@ if(MSVC)
   endif()
 
   # List to '/EXPORT:sym0 /EXPORT:sym1 /EXPORT:sym2 ...'
-  list(TRANSFORM clang_repl_exports PREPEND "LINKER:/EXPORT:")
+  # The 'SHELL' prefix tells CMake to use a space instead of comma as the
+  # separator between the driver and linker options, which we need since MSVC's
+  # linker uses `,DATA` as a suffix to indicate that data is being exported.
+  list(TRANSFORM clang_repl_exports PREPEND "LINKER:SHELL:/EXPORT:")
 
   set_property(TARGET clang-repl APPEND PROPERTY LINK_OPTIONS ${clang_repl_exports})
 

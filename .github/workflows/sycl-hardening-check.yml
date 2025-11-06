@@ -28,7 +28,7 @@ jobs:
         sudo apt install -y devscripts
 
     - name: Download SYCL toolchain
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v6
       with:
         name: ${{ inputs.sycl_linux_artifact }}
 
@@ -47,7 +47,7 @@ jobs:
             hardening-check "$file" | tee -a "./hardening-check.txt"
         done
 
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v5
       with:
         name: hardening-check
         path: hardening-check.txt
@@ -63,7 +63,7 @@ jobs:
         unzip "windows.x64.Release.zip" -d winchecksec
 
     - name: Download SYCL toolchain
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v6
       with:
         name: ${{ inputs.sycl_windows_artifact }}
 
@@ -84,7 +84,7 @@ jobs:
             ./winchecksec/build/Release/winchecksec.exe "$file" | tee -a "./winchecksec.txt"
         done
 
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v5
       with:
         name: winchecksec
         path: winchecksec.txt

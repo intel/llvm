@@ -8,10 +8,6 @@
 // XFAIL: spirv-backend && gpu
 // XFAIL-TRACKER: CMPLRLLVM-64705
 
-#include <cassert>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
 #include <sycl/detail/core.hpp>
 #include <sycl/sub_group.hpp>
 

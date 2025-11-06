@@ -11,6 +11,7 @@ option(SYCL_ADD_DEV_VERSION_POSTFIX "Adds -V postfix to version string" ON)
 option(SYCL_ENABLE_COVERAGE "Enables code coverage for runtime and unit tests" OFF)
 option(SYCL_ENABLE_STACK_PRINTING "Enables stack printing on crashes of SYCL applications" OFF)
 option(SYCL_LIB_WITH_DEBUG_SYMBOLS "Builds SYCL runtime libraries with debug symbols" OFF)
+option(SYCL_ENABLE_IPO "Builds SYCL runtime libraries with interprocedural optimization" OFF)
 
 if (NOT SYCL_COVERAGE_PATH)
   set(SYCL_COVERAGE_PATH "${CMAKE_CURRENT_BINARY_DIR}/profiles")
@@ -363,6 +364,13 @@ if (NOT WIN32)
     RENAME "libsycl.so.${SYCL_VERSION_STRING}-gdb.py"
     DESTINATION "lib${LLVM_LIBDIR_SUFFIX}/"
     COMPONENT sycl-headers-extras)
+  if (SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
+    install(FILES
+      "${CMAKE_CURRENT_SOURCE_DIR}/gdb/libsycl.so-gdb.py"
+      RENAME "libsycl-preview.so.${SYCL_VERSION_STRING}-gdb.py"
+      DESTINATION "lib${LLVM_LIBDIR_SUFFIX}/"
+      COMPONENT sycl-headers-extras)
+  endif()
 endif()
 
 if(SYCL_ENABLE_XPTI_TRACING AND
@@ -599,3 +607,19 @@ add_custom_target(deploy-sycl-toolchain
 add_subdirectory(doc)
 # SYCL End-to-End tests
 add_subdirectory(test-e2e)
+
+add_custom_target(install-sycl-test-utilities
+  COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target
+    utils/FileCheck/install
+    utils/count/install
+    utils/not/install
+    utils/lit/install
+    utils/llvm-lit/install
+    install-llvm-size
+    install-llvm-cov
+    install-llvm-profdata
+    install-compiler-rt
+  # This is required to perform the DeviceConfigFile consistency test, see
+  # sycl/test-e2e/Basic/device_config_file_consistency.cpp.
+  COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR} --component DeviceConfigFile
+)

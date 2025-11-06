@@ -253,7 +253,6 @@ public:
       // notification and destroy the trace event for this queue.
       destructorNotification();
 #endif
-      throw_asynchronous();
       auto status =
           getAdapter().call_nocheck<UrApiKind::urQueueRelease>(MQueue);
       // If loader is already closed, it'll return a not-initialized status
@@ -295,6 +294,8 @@ public:
 #endif
 
   context_impl &getContextImpl() const { return *MContext; }
+
+  std::weak_ptr<context_impl> getContextImplWeakPtr() const { return MContext; }
 
   device_impl &getDeviceImpl() const { return MDevice; }
 
@@ -359,12 +360,55 @@ public:
     return createSyclObjFromImpl<event>(ResEvent);
   }
 
+  template <int Dims>
+  event submit_kernel_direct_with_event(
+      const nd_range<Dims> &Range, detail::HostKernelRefBase &HostKernel,
+      detail::DeviceKernelInfo *DeviceKernelInfo,
+      sycl::span<const event> DepEvents,
+      const detail::KernelPropertyHolderStructTy &Props,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+    detail::EventImplPtr EventImpl = submit_kernel_direct_impl(
+        NDRDescT{Range}, HostKernel, DeviceKernelInfo,
+        /*CallerNeedsEvent*/ true, DepEvents, Props, CodeLoc, IsTopCodeLoc);
+    return createSyclObjFromImpl<event>(EventImpl);
+  }
+
+  template <int Dims>
+  void submit_kernel_direct_without_event(
+      const nd_range<Dims> &Range, detail::HostKernelRefBase &HostKernel,
+      detail::DeviceKernelInfo *DeviceKernelInfo,
+      sycl::span<const event> DepEvents,
+      const detail::KernelPropertyHolderStructTy &Props,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+    submit_kernel_direct_impl(NDRDescT{Range}, HostKernel, DeviceKernelInfo,
+                              /*CallerNeedsEvent*/ false, DepEvents, Props,
+                              CodeLoc, IsTopCodeLoc);
+  }
+
   void submit_without_event(const detail::type_erased_cgfo_ty &CGF,
                             const v1::SubmissionInfo &SubmitInfo,
                             const detail::code_location &Loc,
                             bool IsTopCodeLoc) {
     submit_impl(CGF, /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc, SubmitInfo);
   }
+
+  /// Submits a kernel using the scheduler bypass fast path
+  ///
+  /// \param KData is an object storing data related to the kernel.
+  /// \param DepEvents is a list of event dependencies.
+  /// \param EventNeeded should be true, if the resulting event is needed.
+  /// \param Kernel to be used, if kernel defined as a kernel object.
+  /// \param KernelBundleImpPtr to be used, if kernel bundle defined.
+  /// \param CodeLoc is the code location of the submit call.
+  /// \param IsTopCodeLoc is used to determine if the object is in a local
+  ///        scope or in the top level scope.
+  ///
+  /// \return a SYCL event representing submitted command or nullptr.
+  EventImplPtr submit_kernel_scheduler_bypass(
+      KernelData &KData, std::vector<detail::EventImplPtr> &DepEvents,
+      bool EventNeeded, detail::kernel_impl *KernelImplPtr,
+      detail::kernel_bundle_impl *KernelBundleImpPtr,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
   /// queue.
@@ -373,37 +417,18 @@ public:
   /// @param Loc is the code location of the submit call (default argument)
   void wait(const detail::code_location &Loc = {});
 
-  /// \return list of asynchronous exceptions occurred during execution.
-  exception_list getExceptionList() const { return MExceptions; }
-
   /// @param Loc is the code location of the submit call (default argument)
   void wait_and_throw(const detail::code_location &Loc = {}) {
     wait(Loc);
     throw_asynchronous();
   }
 
-  /// Performs a blocking wait for the completion of all enqueued tasks in the
-  /// queue.
-  ///
   /// Synchronous errors will be reported through SYCL exceptions.
   /// Asynchronous errors will be passed to the async_handler passed to the
   /// queue on construction. If no async_handler was provided then
-  /// asynchronous exceptions will be lost.
-  void throw_asynchronous() {
-    if (!MAsyncHandler)
-      return;
-
-    exception_list Exceptions;
-    {
-      std::lock_guard<std::mutex> Lock(MMutex);
-      std::swap(Exceptions, MExceptions);
-    }
-    // Unlock the mutex before calling user-provided handler to avoid
-    // potential deadlock if the same queue is somehow referenced in the
-    // handler.
-    if (Exceptions.size())
-      MAsyncHandler(std::move(Exceptions));
-  }
+  /// asynchronous exceptions will be passed to the async_handler associated
+  /// with the context if present, or the default async_handler otherwise.
+  void throw_asynchronous() { Scheduler::getInstance().flushAsyncExceptions(); }
 
   /// Creates UR properties array.
   ///
@@ -550,14 +575,6 @@ public:
   event mem_advise(const void *Ptr, size_t Length, ur_usm_advice_flags_t Advice,
                    const std::vector<event> &DepEvents, bool CallerNeedsEvent);
 
-  /// Puts exception to the list of asynchronous ecxeptions.
-  ///
-  /// \param ExceptionPtr is a pointer to exception to be put.
-  void reportAsyncException(const std::exception_ptr &ExceptionPtr) {
-    std::lock_guard<std::mutex> Lock(MMutex);
-    MExceptions.PushBack(ExceptionPtr);
-  }
-
   static ThreadPool &getThreadPool() {
     return GlobalHandler::instance().getHostTaskThreadPool();
   }
@@ -584,9 +601,8 @@ public:
                                const std::vector<event> &DepEvents,
                                bool CallerNeedsEvent);
 
-  void setCommandGraph(
+  void setCommandGraphUnlocked(
       std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
-    std::lock_guard<std::mutex> Lock(MMutex);
     MGraph = Graph;
     MExtGraphDeps.reset();
 
@@ -597,12 +613,24 @@ public:
     }
   }
 
+  void setCommandGraph(
+      std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
+    std::lock_guard<std::mutex> Lock(MMutex);
+    setCommandGraphUnlocked(Graph);
+  }
+
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
   getCommandGraph() const {
     return MGraph.lock();
   }
 
   bool hasCommandGraph() const { return !MGraph.expired(); }
+
+  EventImplPtr submit_command_to_graph(
+      ext::oneapi::experimental::detail::graph_impl &GraphImpl,
+      std::unique_ptr<detail::CG> CommandGroup, sycl::detail::CGType CGType,
+      sycl::ext::oneapi::experimental::node_type UserFacingNodeType =
+          ext::oneapi::experimental::node_type::empty);
 
   unsigned long long getQueueID() { return MQueueID; }
 
@@ -671,6 +699,11 @@ public:
     MInteropGraph = Graph;
   }
 #endif
+
+  /// Returns the async_handler associated with the queue.
+  const async_handler &getAsynchHandler() const noexcept {
+    return MAsyncHandler;
+  }
 
 protected:
   template <typename HandlerType = handler>
@@ -870,6 +903,30 @@ protected:
                                    bool IsTopCodeLoc,
                                    const v1::SubmissionInfo &SubmitInfo);
 
+  /// Performs kernel submission to the queue.
+  ///
+  /// \param NDRDesc is an NDRange descriptor
+  /// \param HostKernel stores the kernel lambda instance
+  /// \param DeviceKernelInfo is a structure aggregating kernel related data
+  /// \param CallerNeedsEvent is a boolean indicating whether the event is
+  ///        required by the user after the call.
+  /// \param CodeLoc is the code location of the submit call
+  /// \param IsTopCodeLoc Used to determine if the object is in a local
+  ///        scope or in the top level scope.
+  ///
+  /// \return a SYCL event representing submitted command group or nullptr.
+  EventImplPtr submit_kernel_direct_impl(
+      const NDRDescT &NDRDesc, detail::HostKernelRefBase &HostKernel,
+      detail::DeviceKernelInfo *DeviceKernelInfo, bool CallerNeedsEvent,
+      sycl::span<const event> DepEvents,
+      const detail::KernelPropertyHolderStructTy &Props,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+
+  template <typename SubmitCommandFuncType>
+  EventImplPtr submit_direct(bool CallerNeedsEvent,
+                             sycl::span<const event> DepEvents,
+                             SubmitCommandFuncType &SubmitCommandFunc);
+
   /// Helper function for submitting a memory operation with a handler.
   /// \param DepEvents is a vector of dependencies of the operation.
   /// \param HandlerFunc is a function that submits the operation with a
@@ -938,10 +995,6 @@ protected:
   /// These events are tracked, but not owned, by the queue.
   std::vector<std::weak_ptr<event_impl>> MEventsWeak;
 
-  /// Events without data dependencies (such as USM) need an owner,
-  /// additionally, USM operations are not added to the scheduler command graph,
-  /// queue is the only owner on the runtime side.
-  exception_list MExceptions;
   const async_handler MAsyncHandler;
   const property_list MPropList;
 

@@ -6,6 +6,9 @@
 // XFAIL: (opencl && gpu)
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/11364
 
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt
 //

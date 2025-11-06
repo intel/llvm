@@ -67,6 +67,8 @@ jobs:
               - devops/dependencies-igc-dev.json
             benchmarks:
               - 'devops/scripts/benchmarks/**'
+              - 'devops/actions/run-tests/benchmark/**'
+              - '.github/workflows/sycl-ur-perf-benchmarking.yml'
             perf-tests:
               - sycl/test-e2e/PerformanceTests/**
             esimd:
@@ -94,7 +96,7 @@ jobs:
 
       - name: Set output
         id: result
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             if (${{steps.changed_files.outputs.changed_file_cnt}} < 500) {

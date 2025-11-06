@@ -7,6 +7,9 @@
 // UNSUPPORTED: hip
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/15329
 //
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
+//
 // Tests static device_global access through device kernels.
 
 #include "common.hpp"

@@ -3,8 +3,11 @@
    ======================================== */
 :root {
     /* Core Color Palette - only used colors from scripts.js */
-    --color-red: rgb(255, 50, 80);
-    --color-orange: rgb(255, 145, 15);
+    /* Provide RGB component vars to allow reuse in rgba() backgrounds */
+    --color-red-rgb: 255, 50, 80;
+    --color-orange-rgb: 255, 145, 15;
+    --color-red: rgb(var(--color-red-rgb));
+    --color-orange: rgb(var(--color-orange-rgb));
     --color-yellow: rgb(255, 220, 0);
     --color-green: rgb(20, 200, 50);
     --color-blue: rgb(0, 130, 255);
@@ -24,12 +27,14 @@
     /* Backgrounds - consolidated similar grays */
     --bg-body: #f8f9fa;       /* Replaces bg-lighter, bg-light-gray */
     --bg-white: white;
+    --bg-hover: #f5f5f5; /* used for hover states (was fallback) */
     --bg-light: #e9ecef;      /* Replaces bg-disabled */
     --bg-summary: #dee2e6;
     --bg-summary-hover: #ced4da;
     --bg-info: #cfe2ff;
-    --bg-warning: rgba(255, 145, 15, 0.1);  /* Light orange background for warnings */
-    --bg-danger: rgba(255, 50, 80, 0.1);    /* Light red background for errors */
+    --bg-warning: rgba(var(--color-orange-rgb), 0.1);  /* Light orange background for warnings */
+    --bg-danger: rgba(var(--color-red-rgb), 0.1);       /* Light red background for errors */
+    background: var(--bg-white);
 
     /* Borders - simplified */
     --border-light: #ccc;
@@ -57,10 +62,10 @@ h1, h2 {
     font-weight: 500;
 }
 .chart-container {
-    background: white;
-    border-radius: 8px;
+    /* Removed direct literal 'white'; using themed hover background */
+    background: var(--bg-hover);
     padding: 24px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow-subtle);
     position: relative;
     display: flex;
     flex-direction: column;
@@ -168,7 +173,7 @@ details[open] summary::after {
 .run-selector button {
     padding: 8px 16px;
     background: var(--color-blue);
-    color: white;
+    color: var(--bg-white);
     border: none;
     border-radius: 4px;
     cursor: pointer;
@@ -205,6 +210,51 @@ details[open] summary::after {
 }
 .download-button:hover {
     color: var(--color-cyan);
+}
+
+.download-button:disabled {
+    color: var(--text-muted);
+    cursor: not-allowed;
+}
+
+.download-list {
+    position: absolute;
+    z-index: 1000;
+    background: var(--bg-white);
+    border: 1px solid var(--border-medium);
+    border-radius: 4px;
+    padding: 4px;
+    min-width: 200px;
+    max-width: 300px;
+    box-shadow: var(--shadow-dropdown);
+    font-size: 0.9rem;
+}
+
+/* Support both legacy .download-list-link and generic anchors inside list */
+.download-list a,
+.download-list-link {
+    display: block;
+    padding: 8px 12px;
+    text-decoration: none;
+    color: var(--text-dark);
+    border-radius: 2px;
+    font-size: 14px;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.download-list a:hover,
+.download-list a:focus,
+.download-list-link:hover,
+.download-list-link:focus {
+    background: var(--bg-light);
+    outline: none;
+}
+
+.chart-download-button {
+    margin-right: 8px;
 }
 .loading-indicator {
     text-align: center;
@@ -369,6 +419,48 @@ details[open] summary::after {
     cursor: help;
     font-size: 12px;
 }
+
+/* Flamegraph link area styles (used by scripts.js) */
+.chart-flamegraph-links {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 8px;
+    /* small margin below links to separate from any gray bar or footer */
+    margin-bottom: 6px;
+}
+.flamegraph-label {
+    color: var(--text-dark);
+    font-weight: 600;
+}
+.flamegraph-links-inline {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.flamegraph-link {
+    color: var(--text-warning);
+    text-decoration: none;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.flamegraph-link:hover {
+    text-decoration: underline;
+}
+.flame-icon {
+    font-size: 16px;
+    line-height: 1;
+    display: inline-block;
+}
+.flame-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 220px;
+    display: inline-block;
+}
 #tag-filters {
     display: flex;
     flex-wrap: wrap;
@@ -395,7 +487,7 @@ details[open] summary::after {
 .remove-tag {
     background: none;
     border: none;
-    color: white;
+    color: var(--bg-white);
     margin-left: 4px;
     cursor: pointer;
     font-size: 16px;
@@ -406,7 +498,7 @@ details[open] summary::after {
 }
 .platform {
     padding: 16px;
-    background: white;
+    background: var(--bg-white);
     border-radius: 8px;
     margin-top: 8px;
 }
@@ -496,9 +588,10 @@ details[open] summary::after {
 }
 
 .flamegraph-error {
-    background-color: var(--bg-warning);
-    border-color: var(--color-orange);
-    color: var(--text-warning);
+    /* Repurposed to use dedicated danger background */
+    background-color: var(--bg-danger);
+    border-color: var(--text-danger);
+    color: var(--text-danger);
 }
 
 /* ========================================
@@ -530,30 +623,63 @@ details[open] summary::after {
     border: 1px solid var(--border-medium);
     border-radius: 4px;
     display: block;
-    margin: 10px auto;
+    margin: 0 0 10px 0;
     transition: all 0.3s ease;
     box-sizing: border-box;
     overflow: hidden;
+    /* Ensure maximum width utilization */
+    max-width: none;
+    min-width: 0;
 }
 
-.flamegraph-iframe:first-child {
-    margin: 0 auto 10px auto;
+/* Flamegraph container styles - gives each flamegraph its own space */
+.flamegraph-container {
+    margin-bottom: 20px;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background-color: transparent;
+    width: 100%;
+    /* Ensure no width constraints */
+    max-width: none;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.flamegraph-container:last-child {
+    margin-bottom: 0;
+}
+
+.flamegraph-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-dark);
+    margin: 0 0 10px 0;
+    padding: 8px 12px;
+    background-color: var(--bg-light);
+    border-radius: 4px;
+    border-left: 4px solid var(--color-blue);
 }
 
 /* Ensure flamegraph containers have proper spacing and fit within container */
-.chart-container iframe {
-    margin-bottom: 10px;
+.chart-container .flamegraph-container {
+    margin-bottom: 20px;
+    width: 100%;
 }
 
-/* Handle multiple flamegraphs displayed vertically */
-.chart-content iframe[src*="flamegraphs"]:not(:last-child) {
-    margin-bottom: 15px;
-    border-bottom: 2px solid var(--bg-light);
+/* Reduce padding for chart containers that contain flamegraphs to maximize space */
+.chart-container.flamegraph-chart {
+    padding: 8px;
 }
 
-/* Add subtle visual separation between multiple flamegraphs */
-.chart-content iframe[src*="flamegraphs"]:not(:first-child) {
-    margin-top: 15px;
+/* Ensure chart content doesn't constrain flamegraphs */
+.chart-container.flamegraph-chart .chart-content {
+    padding: 0;
+}
+
+/* Handle multiple flamegraphs displayed vertically - now handled by container */
+.flamegraph-container:not(:last-child) {
+    margin-bottom: 20px;
 }
 
 /* Floating flamegraph download list */
@@ -562,8 +688,8 @@ details[open] summary::after {
     z-index: 1000;
     border: 1px solid var(--border-light);
     border-radius: 4px;
-    background-color: white;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+    background-color: var(--bg-white);
+    box-shadow: var(--shadow-dropdown);
     padding: 5px;
     margin-top: 5px;
 }

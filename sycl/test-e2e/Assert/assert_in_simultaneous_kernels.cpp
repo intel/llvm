@@ -5,6 +5,8 @@
 //
 // XFAIL: (opencl && gpu)
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/11364
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 //
 // Since this is a multi-threaded application enable memory tracking and
 // deferred release feature in the Level Zero adapter to avoid releasing memory

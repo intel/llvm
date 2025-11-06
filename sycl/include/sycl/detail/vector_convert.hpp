@@ -54,8 +54,7 @@
 
 #pragma once
 
-#include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
-#include <sycl/exception.hpp>                  // for errc
+#include <sycl/detail/generic_type_traits.hpp>
 
 #include <sycl/detail/memcpy.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
@@ -63,7 +62,8 @@
 #include <sycl/vector.hpp>
 
 #ifndef __SYCL_DEVICE_ONLY__
-#include <cfenv> // for fesetround, fegetround
+#include <cfenv>
+#include <sycl/exception.hpp>
 #endif
 
 #include <type_traits>

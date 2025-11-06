@@ -367,7 +367,7 @@ ldg(const T *ptr) {
   } else if constexpr (std::is_same_v<T, sycl::vec<half, 2>>) {
     typedef __fp16 h2 ATTRIBUTE_EXT_VEC_TYPE(2);
     auto rv = __nvvm_ldg_h2(reinterpret_cast<const h2 *>(ptr));
-    sycl::vec<half, 2> ret;
+    T ret;
     ret.x() = rv[0];
     ret.y() = rv[1];
     return ret;
@@ -376,7 +376,7 @@ ldg(const T *ptr) {
     h2 rv_2 = __nvvm_ldg_h2(reinterpret_cast<const h2 *>(ptr));
     auto rv = __nvvm_ldg_h(reinterpret_cast<const __fp16 *>(
         std::next(reinterpret_cast<const h2 *>(ptr))));
-    sycl::vec<half, 3> ret;
+    T ret;
     ret.x() = rv_2[0];
     ret.y() = rv_2[1];
     ret.z() = rv;
@@ -385,7 +385,7 @@ ldg(const T *ptr) {
     typedef __fp16 h2 ATTRIBUTE_EXT_VEC_TYPE(2);
     auto rv1 = __nvvm_ldg_h2(reinterpret_cast<const h2 *>(ptr));
     auto rv2 = __nvvm_ldg_h2(std::next(reinterpret_cast<const h2 *>(ptr)));
-    sycl::vec<half, 4> ret;
+    T ret;
     ret.x() = rv1[0];
     ret.y() = rv1[1];
     ret.z() = rv2[0];

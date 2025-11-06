@@ -318,11 +318,28 @@ Type *BuiltinCallHelper::getSPIRVType(
                       UseRealType);
 }
 
+/// Return true if we always need to emit a TargetExtType for the given type.
+static bool needsTargetExtTy(spv::Op TypeOpcode) {
+  switch (TypeOpcode) {
+  default:
+    return false;
+  case OpTypeImage:
+  case OpTypeSampledImage:
+  case OpTypeSampler:
+  case OpTypeDeviceEvent:
+  case OpTypeEvent:
+  case OpTypeQueue:
+  case OpTypeReserveId:
+  case OpTypePipe:
+    return true;
+  }
+}
+
 Type *BuiltinCallHelper::getSPIRVType(spv::Op TypeOpcode,
                                       StringRef InnerTypeName,
                                       ArrayRef<unsigned> Parameters,
                                       bool UseRealType) {
-  if (UseTargetTypes) {
+  if (UseTargetTypes || needsTargetExtTy(TypeOpcode)) {
     std::string BaseName = (Twine(kSPIRVTypeName::PrefixAndDelim) +
                             SPIRVOpaqueTypeOpCodeMap::rmap(TypeOpcode))
                                .str();

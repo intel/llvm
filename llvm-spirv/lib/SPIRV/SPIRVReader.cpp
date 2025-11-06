@@ -56,7 +56,7 @@
 #include "VectorComputeUtil.h"
 
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/BinaryFormat/Dwarf.h"
@@ -249,23 +249,6 @@ translateSEVMetadata(SPIRVValue *BV, llvm::LLVMContext &Context) {
   RetAttr = Attribute::get(Context, kVCMetadata::VCSingleElementVector,
                            std::to_string(IndirectLevelsOnElement));
   return RetAttr;
-}
-
-IntrinsicInst *SPIRVToLLVM::getLifetimeStartIntrinsic(Instruction *I) {
-  auto *II = dyn_cast<IntrinsicInst>(I);
-  if (II && II->getIntrinsicID() == Intrinsic::lifetime_start)
-    return II;
-  // Bitcast might be inserted during translation of OpLifetimeStart
-  auto *BC = dyn_cast<BitCastInst>(I);
-  if (BC) {
-    for (const auto &U : BC->users()) {
-      II = dyn_cast<IntrinsicInst>(U);
-      if (II && II->getIntrinsicID() == Intrinsic::lifetime_start)
-        return II;
-      ;
-    }
-  }
-  return nullptr;
 }
 
 SPIRVErrorLog &SPIRVToLLVM::getErrorLog() { return BM->getErrorLog(); }
@@ -831,7 +814,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
     // Create index group metadata nodes - one per each of the array
     // variables. Mark each GEP accessing a particular array variable
     // into a corresponding index group
-    std::map<unsigned, SmallSet<MDNode *, 4>> SafelenIdxGroupMap;
+    std::map<unsigned, SmallPtrSet<MDNode *, 4>> SafelenIdxGroupMap;
     // Whenever a kernel closure field access is pointed to instead of
     // an array/pointer variable, ensure that all GEPs to that memory
     // share the same index group by hashing the newly added index groups.
@@ -1876,43 +1859,18 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   case OpLifetimeStart: {
     SPIRVLifetimeStart *LTStart = static_cast<SPIRVLifetimeStart *>(BV);
     IRBuilder<> Builder(BB);
-    SPIRVWord Size = LTStart->getSize();
-    ConstantInt *S = nullptr;
     auto *Var = transValue(LTStart->getObject(), F, BB);
     Var = Var->stripPointerCasts();
-    if (Size)
-      S = Builder.getInt64(Size);
-    if (Size == 0) {
-      auto *Alloca = cast<AllocaInst>(Var);
-      if (Alloca->getAllocatedType()->isSized())
-        Size = M->getDataLayout().getTypeAllocSize(Alloca->getAllocatedType());
-      else
-        Size = static_cast<SPIRVWord>(-1);
-    }
-    CallInst *Start = Builder.CreateLifetimeStart(Var, S);
+    CallInst *Start = Builder.CreateLifetimeStart(Var);
     return mapValue(BV, Start);
   }
 
   case OpLifetimeStop: {
     SPIRVLifetimeStop *LTStop = static_cast<SPIRVLifetimeStop *>(BV);
     IRBuilder<> Builder(BB);
-    SPIRVWord Size = LTStop->getSize();
-    ConstantInt *S = nullptr;
     auto *Var = transValue(LTStop->getObject(), F, BB);
     Var = Var->stripPointerCasts();
-    if (Size)
-      S = Builder.getInt64(Size);
-    if (Size == 0) {
-      auto *Alloca = cast<AllocaInst>(Var);
-      if (Alloca->getAllocatedType()->isSized())
-        Size = M->getDataLayout().getTypeAllocSize(Alloca->getAllocatedType());
-      else
-        Size = static_cast<SPIRVWord>(-1);
-    }
-    for (const auto &I : Var->users())
-      if (auto *II = getLifetimeStartIntrinsic(dyn_cast<Instruction>(I)))
-        return mapValue(BV, Builder.CreateLifetimeEnd(II->getOperand(1), S));
-    return mapValue(BV, Builder.CreateLifetimeEnd(Var, S));
+    return mapValue(BV, Builder.CreateLifetimeEnd(Var));
   }
 
   case OpStore: {
@@ -2320,6 +2278,13 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
     auto *LI = Builder.CreateAlignedLoad(DstTy, SrcAI, SrcAI->getAlign());
     return mapValue(BV, LI);
+  }
+
+  case OpImage: {
+    auto *Inst = static_cast<SPIRVImage *>(BV);
+    SPIRVValue *SampledImage = Inst->getOperand(0);
+    auto *SampledInst = static_cast<SPIRVSampledImage *>(SampledImage);
+    return mapValue(BV, transValue(SampledInst->getOperand(0), F, BB));
   }
 
   case OpAccessChain:

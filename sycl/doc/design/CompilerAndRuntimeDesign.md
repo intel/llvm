@@ -250,7 +250,7 @@ the filetable to get a new filetable:
 construct a wrapper object which embeds all those files.
 
 Note that the graph does not change when more rows (clusters) or columns
-(e.g. a "manifest" file) are added to the table.
+ are added to the table.
 
 #### Enable SYCL offload
 

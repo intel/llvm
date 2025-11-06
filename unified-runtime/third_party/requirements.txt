@@ -22,7 +22,7 @@ pyparsing==2.4.5
 pytest>=7.0
 pytz==2019.3
 PyYAML==6.0.1
-requests==2.32.2
+requests==2.32.4
 rst2pdf==0.102
 six==1.13.0
 snowballstemmer==2.0.0
@@ -37,7 +37,7 @@ sphinxcontrib-qthelp==1.0.3
 sphinxcontrib-serializinghtml==1.1.5
 sphinxcontrib-websupport==1.2.4
 sphinx-rtd-theme==1.0.0
-urllib3==2.2.2
+urllib3==2.5.0
 dataclasses-json==0.6.7
 
 # Unified-runtime is formatted using black

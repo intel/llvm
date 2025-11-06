@@ -29,6 +29,8 @@
 //
 //
 // ===----------------------------------------------------------------------===//
+// UNSUPPORTED: target-nvidia,cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20109
 
 // UNSUPPORTED: target-amd || (windows && level_zero)
 

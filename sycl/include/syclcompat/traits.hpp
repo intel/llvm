@@ -32,6 +32,7 @@
 #include <sycl/nd_item.hpp>
 #include <sycl/nd_range.hpp>
 #include <sycl/range.hpp>
+#include <tuple>
 #include <type_traits>
 
 namespace [[deprecated("syclcompat is deprecated")]] syclcompat {

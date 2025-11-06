@@ -108,7 +108,13 @@ def compare_results(ref_records, records):
     missing_records = set(ref_records).difference(set(records))
     new_records = set(records).difference(set(ref_records))
 
-    return (missing_records, new_records)
+    is_order_incorrect = False
+    # If missing_records and new_records is null, check the order of symbols.
+    if not missing_records and not new_records:
+        if ref_records != records:
+            is_order_incorrect = True
+
+    return (missing_records, new_records, is_order_incorrect)
 
 
 # Dumps symbols from from binary at target_path and compares with a snapshot
@@ -129,8 +135,11 @@ def check_symbols(ref_path, target_path, ignore_new):
             ]
         )
         symbols = parse_readobj_output(readobj_out)
+        symbols.sort()
 
-        missing_symbols, new_symbols = compare_results(ref_symbols, symbols)
+        missing_symbols, new_symbols, is_order_incorrect = compare_results(
+            ref_symbols, symbols
+        )
 
         correct_return = True
         if missing_symbols:
@@ -155,6 +164,17 @@ def check_symbols(ref_path, target_path, ignore_new):
             )
             print("The following symbols are new to the object file:\n")
             print("\n".join(new_symbols))
+
+        if is_order_incorrect:
+            correct_return = False
+            print(
+                (
+                    "The order of ABI symbols is incorrect. While it is not a breaking "
+                    "change, please refrain from manually editing the ABI symbol dump file. "
+                    "Refer to sycl/doc/developer/ABIPolicyGuide.md for instructions on automatically "
+                    "updating the ABI symbol dump file."
+                )
+            )
 
         if not correct_return:
             sys.exit(-1)

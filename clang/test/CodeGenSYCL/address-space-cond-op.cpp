@@ -11,6 +11,7 @@ struct S {
 // CHECK-NEXT:    [[LHS_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // CHECK-NEXT:    [[COND_ADDR_ASCAST:%.*]] = addrspacecast ptr [[COND_ADDR]] to ptr addrspace(4)
 // CHECK-NEXT:    [[LHS_ADDR_ASCAST:%.*]] = addrspacecast ptr [[LHS_ADDR]] to ptr addrspace(4)
+// CHECK-NEXT:    [[AGG_RESULT_ASCAST:%.*]] = addrspacecast ptr [[AGG_RESULT:%.*]] to ptr addrspace(4)
 // CHECK-NEXT:    [[FROMBOOL:%.*]] = zext i1 [[COND:%.*]] to i8
 // CHECK-NEXT:    store i8 [[FROMBOOL]], ptr addrspace(4) [[COND_ADDR_ASCAST]], align 1
 // CHECK-NEXT:    store ptr addrspace(4) [[LHS:%.*]], ptr addrspace(4) [[LHS_ADDR_ASCAST]], align 8
@@ -25,7 +26,7 @@ struct S {
 // CHECK-NEXT:    br label [[COND_END]]
 // CHECK:       cond.end:
 // CHECK-NEXT:    [[COND_LVALUE:%.*]] = phi ptr addrspace(4) [ [[TMP1]], [[COND_TRUE]] ], [ [[RHS_ASCAST]], [[COND_FALSE]] ]
-// CHECK-NEXT:    call void @llvm.memcpy.p0.p4.i64(ptr align 2 [[AGG_RESULT:%.*]], ptr addrspace(4) align 2 [[COND_LVALUE]], i64 2, i1 false)
+// CHECK-NEXT:    call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 2 [[AGG_RESULT_ASCAST]], ptr addrspace(4) align 2 [[COND_LVALUE]], i64 2, i1 false)
 // CHECK-NEXT:    ret void
 //
 S foo(bool cond, S &lhs, S rhs) {

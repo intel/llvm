@@ -31,7 +31,7 @@ _CLC_DEF _CLC_OVERLOAD uint __clc_fabs(uint x) {
     return res;
 }
 
-#define FUNCTION __clc_fabs
+#define __CLC_FUNCTION __clc_fabs
 #define __CLC_SCALAR
 
 #define __CLC_GENTYPE ushort

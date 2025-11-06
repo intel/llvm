@@ -3019,6 +3019,8 @@ class SPIRVAtomicFAddEXTInst : public SPIRVAtomicInstBase {
 public:
   std::optional<ExtensionID> getRequiredExtension() const override {
     assert(hasType());
+    if (getType()->isTypeFloat(16, FPEncodingBFloat16KHR))
+      return ExtensionID::SPV_INTEL_shader_atomic_bfloat16;
     if (getType()->isTypeFloat(16))
       return ExtensionID::SPV_EXT_shader_atomic_float16_add;
     return ExtensionID::SPV_EXT_shader_atomic_float_add;
@@ -3026,6 +3028,8 @@ public:
 
   SPIRVCapVec getRequiredCapability() const override {
     assert(hasType());
+    if (getType()->isTypeFloat(16, FPEncodingBFloat16KHR))
+      return {internal::CapabilityAtomicBFloat16AddINTEL};
     if (getType()->isTypeFloat(16))
       return {CapabilityAtomicFloat16AddEXT};
     if (getType()->isTypeFloat(32))
@@ -3033,26 +3037,30 @@ public:
     if (getType()->isTypeFloat(64))
       return {CapabilityAtomicFloat64AddEXT};
     llvm_unreachable(
-        "AtomicFAddEXT can only be generated for f16, f32, f64 types");
+        "AtomicFAddEXT can only be generated for bf16, f16, f32, f64 types");
   }
 };
 
 class SPIRVAtomicFMinMaxEXTBase : public SPIRVAtomicInstBase {
 public:
   std::optional<ExtensionID> getRequiredExtension() const override {
+    if (getType()->isTypeFloat(16, FPEncodingBFloat16KHR))
+      return ExtensionID::SPV_INTEL_shader_atomic_bfloat16;
     return ExtensionID::SPV_EXT_shader_atomic_float_min_max;
   }
 
   SPIRVCapVec getRequiredCapability() const override {
     assert(hasType());
+    if (getType()->isTypeFloat(16, FPEncodingBFloat16KHR))
+      return {internal::CapabilityAtomicBFloat16MinMaxINTEL};
     if (getType()->isTypeFloat(16))
       return {CapabilityAtomicFloat16MinMaxEXT};
     if (getType()->isTypeFloat(32))
       return {CapabilityAtomicFloat32MinMaxEXT};
     if (getType()->isTypeFloat(64))
       return {CapabilityAtomicFloat64MinMaxEXT};
-    llvm_unreachable(
-        "AtomicF(Min|Max)EXT can only be generated for f16, f32, f64 types");
+    llvm_unreachable("AtomicF(Min|Max)EXT can only be generated for bf16, f16, "
+                     "f32, f64 types");
   }
 };
 
@@ -3105,6 +3113,7 @@ _SPIRV_OP(ImageSampleImplicitLod, true, 5, true)
 _SPIRV_OP(ImageSampleExplicitLod, true, 7, true, 2)
 _SPIRV_OP(ImageRead, true, 5, true, 2)
 _SPIRV_OP(ImageWrite, false, 4, true, 3)
+_SPIRV_OP(Image, true, 4)
 _SPIRV_OP(ImageQueryFormat, true, 4)
 _SPIRV_OP(ImageQueryOrder, true, 4)
 _SPIRV_OP(ImageQuerySizeLod, true, 5)
@@ -4470,5 +4479,22 @@ public:
 _SPIRV_OP(BitwiseFunction, true, 7)
 #undef _SPIRV_OP
 
+class SPIRVPredicatedIOINTELInst : public SPIRVInstTemplateBase {
+public:
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_predicated_io;
+  }
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(internal::CapabilityPredicatedIOINTEL);
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVPredicatedIOINTELInst,                        \
+                            internal::Op##x##INTEL, __VA_ARGS__>               \
+      SPIRV##x##INTEL;
+_SPIRV_OP(PredicatedLoad, true, 6, true)
+_SPIRV_OP(PredicatedStore, false, 4, true)
+#undef _SPIRV_OP
 } // namespace SPIRV
 #endif // SPIRV_LIBSPIRV_SPIRVINSTRUCTION_H

@@ -9,6 +9,7 @@ on:
     - sycl
     - sycl-rel-**
     # Do not run builds if changes are only in the following locations
+    # Note: benchmark-related paths are the same as in sycl-ur-perf-benchmarking.yml (to run there instead)
     paths-ignore:
     - '.github/ISSUE_TEMPLATE/**'
     - '.github/CODEOWNERS'
@@ -23,7 +24,8 @@ on:
     - '.github/workflows/sycl-nightly.yml'
     - '.github/workflows/sycl-rel-nightly.yml'
     - '.github/workflows/sycl-rel-nightly-launch.yml'
-    - '.github/workflows/trivy.yml'
+    - '.github/workflows/sycl-trivy.yml'
+    - '.github/workflows/sycl-coverity.yml'
     - 'devops/containers/**'
     - 'devops/actions/build_container/**'
     - 'unified-runtime/examples/**'
@@ -31,6 +33,9 @@ on:
     - 'unified-runtime/test/**'
     - 'unified-runtime/third_party/**'
     - 'unified-runtime/tools/**'
+    - 'devops/scripts/benchmarks/**'
+    - 'devops/actions/run-tests/benchmark/**'
+    - '.github/workflows/sycl-ur-perf-benchmarking.yml'
 
 concurrency:
   #  Cancel a currently running workflow from the same PR, branch or tag.
@@ -72,14 +77,14 @@ jobs:
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       options: -u 1001:1001
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           sparse-checkout: |
             devops/
 
       # download build artefact
       - name: Download toolchain
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: sycl_linux_default
       - name: Extract SYCL toolchain
@@ -92,8 +97,8 @@ jobs:
         uses: ./devops/actions/run-tests/e2e
         with:
           ref: ${{ inputs.ref || github.sha }}
-          testing_mode: build-only
-          target_devices: native_cpu
+          testing_mode: full
+          target_devices: native_cpu:cpu
           sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
           extra_lit_opts: --param sycl_build_targets="native_cpu"
           extra_cmake_args: -DSYCL_TEST_E2E_TARGETS="native_cpu:cpu" -DSYCL_TEST_E2E_STANDALONE=ON
@@ -122,7 +127,7 @@ jobs:
       FILTER_6_2: ${{ steps.result.outputs.FILTER_6_2 }}
       FILTER_6_3: ${{ steps.result.outputs.FILTER_6_3 }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         sparse-checkout: |
           devops/
@@ -139,6 +144,9 @@ jobs:
   E2E:
     needs: [build, detect_changes, compat_read_exclude]
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+    permissions:
+      contents: write
+      packages: read
     strategy:
       fail-fast: false
       matrix:
@@ -180,19 +188,19 @@ jobs:
             runner: '["Linux", "gen12"]'
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             extra_lit_opts: --param test-preview-mode=True
-            e2e_binaries_artifact: e2e_bin_preview
+            binaries_artifact: e2e_bin_preview
           - name: ABI compatibility / sycl-rel-6_2
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_2
             target_devices: level_zero:gpu
             extra_lit_opts: '--param test-preview-mode=False --filter-out "${{ needs.compat_read_exclude.outputs.FILTER_6_2 }}"'
-            e2e_binaries_artifact: 'in-container'
+            binaries_artifact: 'in-container'
           - name: ABI compatibility / sycl-rel-6_3
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_3
             target_devices: level_zero:gpu
             extra_lit_opts: '--param test-preview-mode=False --filter-out "${{ needs.compat_read_exclude.outputs.FILTER_6_3 }}"'
-            e2e_binaries_artifact: 'in-container'
+            binaries_artifact: 'in-container'
 
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
@@ -206,8 +214,8 @@ jobs:
       toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}
-      e2e_binaries_artifact: ${{ matrix.e2e_binaries_artifact || 'e2e_bin' }}
-      e2e_testing_mode: 'run-only'
+      binaries_artifact: ${{ matrix.binaries_artifact || 'e2e_bin' }}
+      testing_mode: 'run-only'
 
       # Do not install drivers on AMD and CUDA runners.
       install_igc_driver: >-
@@ -224,30 +232,11 @@ jobs:
       skip_run: ${{matrix.use_igc_dev && contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') || 'false'}}
       env: ${{ matrix.env || (contains(needs.detect_changes.outputs.filters, 'esimd') && '{}' || '{"LIT_FILTER_OUT":"ESIMD/"}') }}
 
-  test_benchmark_scripts:
-    needs: [build, detect_changes]
-    if: |
-      always() && !cancelled()
-      && needs.build.outputs.build_conclusion == 'success'
-      && contains(needs.detect_changes.outputs.filters, 'benchmarks')
-    uses: ./.github/workflows/sycl-linux-run-tests.yml
-    with:
-      name: Benchmark suite precommit testing
-      runner: '["PVC_PERF"]'
-      image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
-      image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-      target_devices: 'level_zero:gpu'
-      tests_selector: benchmarks
-      benchmark_upload_results: false
-      benchmark_preset: 'Minimal'
-      benchmark_dry_run: true
-      repo_ref: ${{ github.sha }}
-      toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
-      toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
-      toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}
-
   test-perf:
     needs: [build, detect_changes]
+    permissions:
+      contents: write
+      packages: read
     if: |
       always() && !cancelled()
       && needs.build.outputs.build_conclusion == 'success'

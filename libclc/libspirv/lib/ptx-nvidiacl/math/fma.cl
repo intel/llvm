@@ -10,31 +10,31 @@
 
 #include <libspirv/ptx-nvidiacl/libdevice.h>
 
-#define FUNCTION __spirv_ocl_fma
+#define __CLC_FUNCTION __spirv_ocl_fma
 
 extern int __clc_nvvm_reflect_arch();
 
-#define __FLOAT_ONLY
+#define __CLC_FLOAT_ONLY
 #define __CLC_MIN_VECSIZE 1
-#define __IMPL_FUNCTION __nv_fmaf
+#define __CLC_IMPL_FUNCTION __nv_fmaf
 #define __CLC_BODY <clc/shared/ternary_def_scalarize.inc>
 #include <clc/math/gentype.inc>
-#undef __IMPL_FUNCTION
+#undef __CLC_IMPL_FUNCTION
 #undef __CLC_MIN_VECSIZE
-#undef __FLOAT_ONLY
+#undef __CLC_FLOAT_ONLY
 
 #ifdef cl_khr_fp64
 
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
-#define __DOUBLE_ONLY
+#define __CLC_DOUBLE_ONLY
 #define __CLC_MIN_VECSIZE 1
-#define __IMPL_FUNCTION __nv_fma
+#define __CLC_IMPL_FUNCTION __nv_fma
 #define __CLC_BODY <clc/shared/ternary_def_scalarize.inc>
 #include <clc/math/gentype.inc>
-#undef __IMPL_FUNCTION
+#undef __CLC_IMPL_FUNCTION
 #undef __CLC_MIN_VECSIZE
-#undef __DOUBLE_ONLY
+#undef __CLC_DOUBLE_ONLY
 
 #endif
 
@@ -57,18 +57,18 @@ _CLC_DEF _CLC_OVERLOAD half2 __spirv_ocl_fma(half2 x, half2 y, half2 z) {
                  __spirv_ocl_fma(x.y, y.y, z.y));
 }
 
-#define __HALF_ONLY
+#define __CLC_HALF_ONLY
 #define __CLC_MIN_VECSIZE 3
 #define __CLC_BODY <clc/shared/ternary_def_scalarize.inc>
 #include <clc/math/gentype.inc>
-#undef __IMPL_FUNCTION
+#undef __CLC_IMPL_FUNCTION
 #undef __CLC_MIN_VECSIZE
-#undef __HALF_ONLY
+#undef __CLC_HALF_ONLY
 
 #endif
 
-#undef FUNCTION
-#define FUNCTION __clc_fma
+#undef __CLC_FUNCTION
+#define __CLC_FUNCTION __clc_fma
 
 // Requires at least sm_80
 _CLC_DEF _CLC_OVERLOAD ushort __clc_fma(ushort x, ushort y, ushort z) {

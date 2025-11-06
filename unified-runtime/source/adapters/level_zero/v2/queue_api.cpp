@@ -394,12 +394,14 @@ ur_result_t urBindlessImagesImageCopyExp(
     const ur_image_format_t *pSrcImageFormat,
     const ur_image_format_t *pDstImageFormat,
     ur_exp_image_copy_region_t *pCopyRegion,
-    ur_exp_image_copy_flags_t imageCopyFlags, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) try {
+    ur_exp_image_copy_flags_t imageCopyFlags,
+    ur_exp_image_copy_input_types_t imageCopyInputTypes,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) try {
   return hQueue->get().bindlessImagesImageCopyExp(
       pSrc, pDst, pSrcImageDesc, pDstImageDesc, pSrcImageFormat,
-      pDstImageFormat, pCopyRegion, imageCopyFlags, numEventsInWaitList,
-      phEventWaitList, phEvent);
+      pDstImageFormat, pCopyRegion, imageCopyFlags, imageCopyInputTypes,
+      numEventsInWaitList, phEventWaitList, phEvent);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
@@ -437,6 +439,22 @@ ur_result_t urEnqueueTimestampRecordingExp(
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) try {
   return hQueue->get().enqueueTimestampRecordingExp(
       blocking, numEventsInWaitList, phEventWaitList, phEvent);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+ur_result_t urEnqueueKernelLaunchWithArgsExp(
+    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    const size_t *pLocalWorkSize, uint32_t numArgs,
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    uint32_t numPropsInLaunchPropList,
+    const ur_kernel_launch_property_t *launchPropList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) try {
+  return hQueue->get().enqueueKernelLaunchWithArgsExp(
+      hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
+      numArgs, pArgs, numPropsInLaunchPropList, launchPropList,
+      numEventsInWaitList, phEventWaitList, phEvent);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }

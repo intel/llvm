@@ -10,19 +10,14 @@
 
 #include <sycl/aliases.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/is_device_copyable.hpp>
-#include <sycl/half_type.hpp>
-
-#include <array>
-#include <cstddef>
-#include <cstdint>
-#include <type_traits>
-#include <utility>
+#include <sycl/detail/fwd/half.hpp>
 
 namespace sycl {
 inline namespace _V1 {
 
 template <typename DataT, std::size_t N> class marray;
+
+template <typename T> struct is_device_copyable;
 
 namespace detail {
 

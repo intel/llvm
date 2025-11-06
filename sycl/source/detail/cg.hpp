@@ -494,6 +494,7 @@ class CGCopyImage : public CG {
   ur_image_format_t MSrcImageFormat;
   ur_image_format_t MDstImageFormat;
   ur_exp_image_copy_flags_t MImageCopyFlags;
+  ur_exp_image_copy_input_types_t MImageInputTypes;
   ur_rect_offset_t MSrcOffset;
   ur_rect_offset_t MDstOffset;
   ur_rect_region_t MCopyExtent;
@@ -503,14 +504,15 @@ public:
               ur_image_desc_t DstImageDesc, ur_image_format_t SrcImageFormat,
               ur_image_format_t DstImageFormat,
               ur_exp_image_copy_flags_t ImageCopyFlags,
+              ur_exp_image_copy_input_types_t ImageInputTypes,
               ur_rect_offset_t SrcOffset, ur_rect_offset_t DstOffset,
               ur_rect_region_t CopyExtent, CG::StorageInitHelper CGData,
               detail::code_location loc = {})
       : CG(CGType::CopyImage, std::move(CGData), std::move(loc)), MSrc(Src),
         MDst(Dst), MSrcImageDesc(SrcImageDesc), MDstImageDesc(DstImageDesc),
         MSrcImageFormat(SrcImageFormat), MDstImageFormat(DstImageFormat),
-        MImageCopyFlags(ImageCopyFlags), MSrcOffset(SrcOffset),
-        MDstOffset(DstOffset), MCopyExtent(CopyExtent) {}
+        MImageCopyFlags(ImageCopyFlags), MImageInputTypes(ImageInputTypes),
+        MSrcOffset(SrcOffset), MDstOffset(DstOffset), MCopyExtent(CopyExtent) {}
 
   void *getSrc() const { return MSrc; }
   void *getDst() const { return MDst; }
@@ -519,6 +521,9 @@ public:
   ur_image_format_t getSrcFormat() const { return MSrcImageFormat; }
   ur_image_format_t getDstFormat() const { return MDstImageFormat; }
   ur_exp_image_copy_flags_t getCopyFlags() const { return MImageCopyFlags; }
+  ur_exp_image_copy_input_types_t getCopyInputTypes() const {
+    return MImageInputTypes;
+  }
   ur_rect_offset_t getSrcOffset() const { return MSrcOffset; }
   ur_rect_offset_t getDstOffset() const { return MDstOffset; }
   ur_rect_region_t getCopyExtent() const { return MCopyExtent; }
