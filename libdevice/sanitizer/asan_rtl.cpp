@@ -131,6 +131,7 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as,
                                     launch_info->GlobalShadowLowerBound,
                                     launch_info->GlobalShadowUpperBound));
       SaveReport(ErrorType::OUT_OF_BOUNDS, MemoryType::GLOBAL, false, debug);
+      __devicelib_exit();
       return 0;
     }
 
@@ -219,6 +220,7 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as,
                                     launch_info->GlobalShadowLowerBound,
                                     launch_info->GlobalShadowUpperBound));
       SaveReport(ErrorType::OUT_OF_BOUNDS, MemoryType::GLOBAL, false, debug);
+      __devicelib_exit();
       return 0;
     }
 

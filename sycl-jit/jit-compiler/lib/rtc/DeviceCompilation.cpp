@@ -117,7 +117,7 @@ struct auto_pch_key {
   Error read(llvm::BinaryStreamReader &Reader) {
     (void)AutoPCHError::ID;
     auto ReadStr = [&](std::string &Out) -> Error {
-      std::string::size_type StrLen;
+      std::string::size_type StrLen = 0;
 
       if (auto Err = Reader.readInteger(StrLen))
         return Err;
@@ -226,12 +226,11 @@ class SYCLToolchain {
           std::make_unique<llvm::raw_null_ostream>());
 
       // Create the compiler's actual diagnostics engine.
-      Compiler.createDiagnostics(Files->getVirtualFileSystem(), DiagConsumer,
-                                 /*ShouldOwnClient=*/false);
+      Compiler.createDiagnostics(DiagConsumer, /*ShouldOwnClient=*/false);
       if (!Compiler.hasDiagnostics())
         return false;
 
-      Compiler.createSourceManager(*Files);
+      Compiler.createSourceManager();
 
       const bool Success = Compiler.ExecuteAction(FEAction);
 
@@ -435,19 +434,20 @@ class SYCLToolchain {
           return (void)UseCachedPreamble(PCHStorage);
         };
 
-        auto CacheOrErr =
+        llvm::Expected<llvm::FileCache> CacheOrErr =
             llvm::localCache("SYCL RTC Persistent Preambles", "syclrtc-tmp-",
                              PersistentPCHDir, CacheCallback);
 
         assert(CacheOrErr && "Don't see any code path returning Error");
-        auto AddStreamOrErr = (*CacheOrErr)(0, EncodedHash, "");
+        llvm::Expected<llvm::AddStreamFn> AddStreamOrErr =
+            (*CacheOrErr)(0, EncodedHash, "");
         if (!AddStreamOrErr) {
           // Not a hit, but we won't be able to store the data in the cache, so
           // no need to generate precompiled preamble.
           consumeError(AddStreamOrErr.takeError());
           return RunWithoutPCH();
         }
-        auto &AddStream = *AddStreamOrErr;
+        llvm::AddStreamFn &AddStream = *AddStreamOrErr;
         if (!AddStream) {
           // UseCachedPreamble was called by the cache after successfully
           // reading persistent auto-pch file.
@@ -468,9 +468,12 @@ class SYCLToolchain {
         // Any errors updating the persistent preambles cache won't affect
         // current compilation, so ignore any error below:
 
-        auto FileOrErr = AddStream(1, "");
-        if (!FileOrErr)
+        llvm::Expected<std::unique_ptr<llvm::CachedFileStream>> FileOrErr =
+            AddStream(1, "");
+        if (!FileOrErr) {
+          consumeError(FileOrErr.takeError());
           return Success;
+        }
 
         llvm::CachedFileStream *CFS = FileOrErr->get();
         raw_pwrite_stream &OS = *CFS->OS;
