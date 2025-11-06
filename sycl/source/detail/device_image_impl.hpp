@@ -326,10 +326,10 @@ public:
     updateSpecConstSymMap();
   }
 
-  device_image_impl(const std::string &Src, const context &Context,
+  device_image_impl(const std::string &Src, context Context,
                     devices_range Devices, syclex::source_language Lang,
                     include_pairs_t &&IncludePairsVec, private_tag)
-      : MBinImage(Src), MContext(Context),
+      : MBinImage(Src), MContext(std::move(Context)),
         MDevices(Devices.to<std::vector<device_impl *>>()),
         MState(bundle_state::ext_oneapi_source),
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
