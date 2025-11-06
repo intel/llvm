@@ -13413,8 +13413,9 @@ def err_sycl_add_ir_attribute_invalid_filter : Error<
   "initializer list in the first argument of %0 must contain only string "
   "literals">;
 def warn_sycl_old_and_new_kernel_attributes : Warning<
-  "kernel has both attribute %0 and kernel properties; conflicting properties "
-  "are ignored">, InGroup<IgnoredAttributes>;
+  "kernel has both attribute %0 and kernel properties; if the kernel "
+  "properties contains the property \"%1\" it will be ignored">,
+  InGroup<IgnoredAttributes>;
 def err_attribute_argument_is_not_valid : Error<
   "%0 attribute requires integer constant value 0 or 1">;
 
