@@ -977,7 +977,8 @@ static void addSYCLBackendOptions(const ArgList &Args,
 /// \p InputFile is the input SPIR-V file.
 /// \p Args encompasses all arguments required for linking and wrapping device
 /// code.
-/// \p BackendOptions are used for AOT compilation.
+/// \p BackendOptions is a string containing backend compilation options. For
+/// example, "-options -cl-opt-disable".
 static Expected<StringRef> runAOTCompileIntelCPU(StringRef InputFile,
                                                  const ArgList &Args,
                                                  StringRef BackendOptions) {
@@ -1009,7 +1010,8 @@ static Expected<StringRef> runAOTCompileIntelCPU(StringRef InputFile,
 /// \p InputFile is the input SPIR-V file.
 /// \p Args encompasses all arguments required for linking and wrapping device
 /// code.
-/// \p BackendOptions are used for AOT compilation.
+/// \p BackendOptions is a string containing backend compilation options. For
+/// example, "-options -cl-opt-disable".
 static Expected<StringRef> runAOTCompileIntelGPU(StringRef InputFile,
                                                  const ArgList &Args,
                                                  StringRef BackendOptions) {
@@ -1048,7 +1050,8 @@ static Expected<StringRef> runAOTCompileIntelGPU(StringRef InputFile,
 /// \p InputFile is the input SPIR-V file.
 /// \p Args encompasses all arguments required for linking and wrapping device
 /// code.
-/// \p BackendOptions are used for AOT compilation.
+/// \p BackendOptions is a string containing backend compilation options. For
+/// example, "-options -cl-opt-disable".
 static Expected<StringRef> runAOTCompile(StringRef InputFile,
                                          const ArgList &Args,
                                          StringRef BackendOptions) {
@@ -2236,7 +2239,7 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
 
       auto &SplitModules = *SplitModulesOrErr;
       const llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
-      bool isJIT = Triple.isSPIROrSPIRV() &&
+      bool IsJIT = Triple.isSPIROrSPIRV() &&
                    Triple.getSubArch() == llvm::Triple::NoSubArch;
       if ((Triple.isNVPTX() || Triple.isAMDGCN()) &&
           LinkerArgs.hasArg(OPT_sycl_embed_ir)) {
@@ -2285,7 +2288,7 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
           SplitModules[I].ModuleFilePath = *BundledFileOrErr;
         } else {
           SplitModules[I].ModuleFilePath = *ClangOutputOrErr;
-          if (isJIT) {
+          if (IsJIT) {
             SplitModules[I].CompileOptions = CompileLinkOptionsOrErr->first;
             SplitModules[I].LinkOptions = CompileLinkOptionsOrErr->second;
           }
