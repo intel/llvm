@@ -261,15 +261,45 @@ class SYCLToolchain {
       DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_offload_arch_EQ), CPU);
     }
 
+    // Reasons why this is done here and not in the clang driver:
+    //
+    //  1) Unlike libcxx, upstream libc is installed directly into
+    //     `<toolchain>/include` or `<toolchain>/<target>/include` together with
+    //     other compiler headers meaning we can't magically turn it on or off
+    //     (unless we introduce a dedicated VFS overlay just for libc).
+    //  2) Having multiple C libraries in include search paths is unsupported,
+    //     so in order to use LLVM libc we have to remove default system
+    //     includes. That in turn excludes (at the very least) CUDA/HIP SDKs, so
+    //     we want that behavior to be optional. That, in turn, means that
+    //     because of (1) we have to have non-standard libc install location (we
+    //     chose `<toolchain>/include/libc`) and that has no support in the
+    //     clang driver, so we have to add libc headers to system include
+    //     directories manually.
+    //  3) However, libcxx her search path must combe *before* libc includes,
+    //     but `-isystem` and similar options prepend the list of search paths.
+    //     As such, we can't just have the driver do part of the job and then
+    //     adjust the behavior via extra options, so we need to maintain
+    //     everything on our own.
+    //   4) We could do everything via custom code in the clang driver, but the
+    //      location of `include/libc` is controlled in this `sycl-jit` project
+    //      and it was slightly more convenient for me to implement it here, at
+    //      least for the downstream implementation.
+    //   5) Once we upstream SYCL support there will be a use-case to move libc
+    //      headers installation to a separate directory (similar to libcxx), at
+    //      that time we might have support for this in the clang driver
+    //      directly and would be able to avoid doing that here.
     if (UserArgList.hasArg(OPT_sycl_rtc_exp_redist_mode)) {
       DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_nostdlibinc));
       auto AddInc = [&](auto RelPath) {
         DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_isystem),
                          (getPrefix() + RelPath).str());
       };
+      // Must come before C/C++ headers as we're intercepting them in those
+      // wrappers:
       AddInc("include/sycl/stl_wrappers");
       // Contains modified `__config_site` for libc++, need to come earlier in
-      // the search path:
+      // the search path. Other headers there don't seem to require any specific
+      // priority/search path order.
       AddInc("include/sycl-rtc-standalone/");
 #if !defined(_WIN32)
       // AFAIK, it only contains original `__config_site` that we don't use (see
@@ -278,10 +308,19 @@ class SYCLToolchain {
       // off and thus we don't need it.
       AddInc("include/x86_64-unknown-linux-gnu/c++/v1");
 #endif
+      // libcxx headers, must come before libc headers:
       AddInc("include/c++/v1");
+       // libc headers, our (SYCL RTC) custom non-standard location:
       AddInc("include/libc");
+      // SYCL/SYCL-related headers actually, because `<sycl/sycl.hpp>` and not
+      // just `<sycl.hpp>`. Can be argued that actual installation layout should
+      // actually be `include/sycl/ur_api.h` and `include/sycl/sycl/sycl.hpp`
+      // but that's outside the SYCL RTC scope. I think any relative order in
+      // relation to libcxx/libc is allowed.
       AddInc("include/");
-      AddInc("include/lib/clang/22/include/");
+      // NOTE: `include/lib/clang/<version>/include/` is added automatically (we use
+      // `--nostdlibinc` and not `--nostdinc`).
+
       DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_D),
                        "_LIBCPP_REMOVE_TRANSITIVE_INCLUDES");
 #if defined(_WIN32)
