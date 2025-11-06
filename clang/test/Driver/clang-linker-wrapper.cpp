@@ -272,7 +272,7 @@
 //
 // Check that in AOT case backend options are passed to ocloc and are not passed to offload wrapper
 // because SYCL Runtime can't make any use of it in AOT case.
-// CHECK-COMPILE-LINK-OPTS-AOT: "{{.*}}ocloc"{{.*}} -device pvc ccc ccc -output
+// CHECK-COMPILE-LINK-OPTS-AOT: ocloc{{.*}} -device pvc ccc ccc -output
 // CHECK-COMPILE-LINK-OPTS-AOT: offload-wrapper: {{.*}} compile-opts: , link-opts:
 
 // TODO: The following check is turned off because clang-linker-wrapper doesn't support
@@ -284,7 +284,7 @@
 // rUN:                      %t.jit_and_aot.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s --check-prefix=CHECK-COMPILE-LINK-OPTS-JIT-AND-AOT
 
 // cHECK-COMPILE-LINK-OPTS-JIT-AND-AOT: offload-wrapper: {{.*}} compile-opts: aaa aaa, link-opts: bbb bbb
-// cHECK-COMPILE-LINK-OPTS-JIT-AND-AOT: "{{.*}}ocloc"{{.*}} -device pvc ccc ccc
+// cHECK-COMPILE-LINK-OPTS-JIT-AND-AOT: ocloc{{.*}} -device pvc ccc ccc
 // cHECK-COMPILE-LINK-OPTS-JIT-AND-AOT: offload-wrapper: {{.*}} compile-opts: , link-opts:
 
 // Check that missed triple in image causes an error.
