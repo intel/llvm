@@ -2128,8 +2128,7 @@ void modifiable_command_graph::end_recording(queue &RecordingQueue) {
   if (impl->isNativeRecordingEnabled()) {
     // For native recording, check if queue is in our recording queue list
     graph_impl::WriteLock Lock(impl->MMutex);
-    auto QueueWeakPtr = QueueImpl.weak_from_this();
-    IsRecordingToThisGraph = impl->MRecordingQueues.count(QueueWeakPtr) > 0;
+    IsRecordingToThisGraph = impl->isQueueRecording(QueueImpl);
     
     if (IsRecordingToThisGraph) {
       // End native UR graph capture
