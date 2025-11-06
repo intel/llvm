@@ -1301,7 +1301,7 @@ Value *AtomicExpandImpl::insertRMWLLSCLoop(
   // Atomic RMW expands to a Load-linked / Store-Conditional loop, because it is
   // hard to predict precise branch weigths we mark the branch as "unknown"
   // (50/50) to prevent misleading optimizations.
-  setExplicitlyUnknownBranchWeightsIfProfiled(*CondBr, DEBUG_TYPE, F);
+  setExplicitlyUnknownBranchWeightsIfProfiled(*CondBr, DEBUG_TYPE);
 
   Builder.SetInsertPoint(ExitBB, ExitBB->begin());
   return Loaded;
