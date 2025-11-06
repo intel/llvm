@@ -1,6 +1,6 @@
 /// Test that SYCL bitcode device libraries are properly separated for NVIDIA and AMD targets.
 
-/// Check devicelib and libspirv are linked for nvptx
+/// Check devicelib and libspirv are linked for nvptx.
 // RUN: %clang -### -fsycl --offload-new-driver \
 // RUN:   -fsycl-targets=nvptx64-nvidia-cuda \
 // RUN:   --cuda-path=%S/Inputs/CUDA_102/usr/local/cuda \
