@@ -1030,8 +1030,8 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
   duplicateNodes();
 
   // Create native UR executable graph if the modifiable graph uses native recording
-  if (GraphImpl->MEnableNativeRecording && GraphImpl->MNativeGraphHandle) {
-    ur_result_t Result = urGraphInstantiateGraphExp(GraphImpl->MNativeGraphHandle, 
+  if (GraphImpl->isNativeRecordingEnabled() && GraphImpl->getNativeGraphHandle()) {
+    ur_result_t Result = urGraphInstantiateGraphExp(GraphImpl->getNativeGraphHandle(), 
                                                     &MNativeExecutableGraphHandle, 
                                                     nullptr);
     if (Result != UR_RESULT_SUCCESS) {
@@ -2125,7 +2125,7 @@ void modifiable_command_graph::end_recording(queue &RecordingQueue) {
   // Check if this queue is recording to this graph
   bool IsRecordingToThisGraph = false;
   
-  if (impl->MEnableNativeRecording) {
+  if (impl->isNativeRecordingEnabled()) {
     // For native recording, check if queue is in our recording queue list
     graph_impl::WriteLock Lock(impl->MMutex);
     auto QueueWeakPtr = QueueImpl.weak_from_this();
@@ -2133,7 +2133,7 @@ void modifiable_command_graph::end_recording(queue &RecordingQueue) {
     
     if (IsRecordingToThisGraph) {
       // End native UR graph capture
-      if (impl->MNativeGraphHandle) {
+      if (impl->getNativeGraphHandle()) {
         auto UrQueue = QueueImpl.getHandleRef();
         ur_exp_graph_handle_t CapturedGraph = nullptr;
         ur_result_t Result = urQueueEndGraphCaptureExp(UrQueue, &CapturedGraph, nullptr);
