@@ -21,7 +21,7 @@
 #include <sycl/detail/id_queries_fit_in_int.hpp> // for checkValueRange
 #include <sycl/detail/info_desc_helpers.hpp>  // for is_queue_info_...
 #include <sycl/detail/kernel_desc.hpp>        // for KernelInfo
-#include <sycl/detail/nd_range_view.hpp>      // for nd_range_view
+#include <sycl/detail/nd_range_view.hpp>
 #include <sycl/detail/optional.hpp>
 #include <sycl/detail/owner_less_base.hpp> // for OwnerLessBase
 #include <sycl/device.hpp>                 // for device
