@@ -3158,9 +3158,9 @@ void SemaSYCL::checkSYCLAddIRAttributesFunctionAttrConflicts(Decl *D) {
            {D->getAttr<SYCLReqdWorkGroupSizeAttr>(),
             "sycl::ext::oneapi::experimental::work_group_size"},
            {D->getAttr<IntelReqdSubGroupSizeAttr>(),
-            "sycl::ext::oneapi::experimental::work_group_size_hint"},
-           {D->getAttr<SYCLWorkGroupSizeHintAttr>(),
             "sycl::ext::oneapi::experimental::sub_group_size"},
+           {D->getAttr<SYCLWorkGroupSizeHintAttr>(),
+            "sycl::ext::oneapi::experimental::work_group_size_hint"},
            {D->getAttr<SYCLDeviceHasAttr>(),
             "sycl::ext::oneapi::experimental::device_has"}})
     if (Attr)
