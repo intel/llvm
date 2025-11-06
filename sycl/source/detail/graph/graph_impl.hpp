@@ -532,6 +532,14 @@ public:
   /// @return Native UR graph handle, or nullptr if native recording is not enabled.
   ur_exp_graph_handle_t getNativeGraphHandle() const { return MNativeGraphHandle; }
 
+  /// Check if a queue is currently recording to this graph.
+  /// @param Queue The queue to check.
+  /// @return True if the queue is recording to this graph, false otherwise.
+  bool isQueueRecording(const sycl::detail::queue_impl &Queue) const {
+    auto QueueWeakPtr = Queue.weak_from_this();
+    return MRecordingQueues.count(QueueWeakPtr) > 0;
+  }
+
 private:
   template <typename... Ts> node_impl &createNode(Ts &&...Args) {
     MNodeStorage.push_back(
