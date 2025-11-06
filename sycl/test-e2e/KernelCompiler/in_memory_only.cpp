@@ -1,9 +1,7 @@
 // RUN: %{build} -o %t.out
 
-// RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{run} %t.out
-
 // Make sure that debug/test-only option `--sycl-rtc-in-memory-fs-only` works
-// RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{run} not %t.out --sycl-rtc-in-memory-fs-only | FileCheck %s --check-prefix CHECK-ERROR
+// RUN: %{run} not %t.out --sycl-rtc-in-memory-fs-only --sycl-rtc-use-system-includes | FileCheck %s --check-prefix CHECK-ERROR
 // CHECK-ERROR-LABEL:  Device compilation failed
 // CHECK-ERROR-NEXT:   Detailed information:
 // CHECK-ERROR:        	In file included from rtc_0.cpp:2:
@@ -14,12 +12,9 @@
 // CHECK-ERROR-NEXT:      14 | #include <type_traits>
 // CHECK-ERROR-NEXT:         |          ^~~~~~~~~~~~~
 
-// Now actually test the `--sycl-rtc-experimental-redist-mode` option:
-// RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{run} %t.out --sycl-rtc-experimental-redist-mode --sycl-rtc-in-memory-fs-only
-// RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{run} %t.out --sycl-rtc-experimental-redist-mode
-
-// XFAIL: target-native_cpu
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+// Extra check that our in-memory libcxx/libc headers can really work on a
+// system with no C/C++ toolchain:
+// RUN: %{run} %t.out --sycl-rtc-in-memory-fs-only
 
 // CUDA/HIP have SDK dependencies but exclude system includes so those aren't
 // satisfied.

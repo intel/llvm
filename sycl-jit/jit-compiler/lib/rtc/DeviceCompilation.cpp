@@ -261,7 +261,7 @@ class SYCLToolchain {
       DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_offload_arch_EQ), CPU);
     }
 
-    // Reasons why this is done here and not in the clang driver:
+    // Reasons why the following is done here and not in the clang driver:
     //
     //  1) Unlike libcxx, upstream libc is installed directly into
     //     `<toolchain>/include` or `<toolchain>/<target>/include` together with
@@ -288,7 +288,22 @@ class SYCLToolchain {
     //      headers installation to a separate directory (similar to libcxx), at
     //      that time we might have support for this in the clang driver
     //      directly and would be able to avoid doing that here.
-    if (UserArgList.hasArg(OPT_sycl_rtc_exp_redist_mode)) {
+
+    // Prefer using in-memory as that's friendlier for the end users of SYCL
+    // applications as that mode doesn't require any C/C++ toolchain to be
+    // installed on the system.
+    bool UseInMemoryCxxCHeaders = true;
+
+    // Unless explicitly told not to:
+    if (UserArgList.hasArg(OPT_sycl_rtc_use_system_includes))
+      UseInMemoryCxxCHeaders = false;
+
+    // CUDA/HIP need SDK headers that we can't distribute ourselves, so we have
+    // to use system includes as well:
+    if (Format == BinaryFormat::PTX || Format == BinaryFormat::AMDGCN)
+      UseInMemoryCxxCHeaders = false;
+
+    if (UseInMemoryCxxCHeaders) {
       DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_nostdlibinc));
       auto AddInc = [&](auto RelPath) {
         DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_isystem),
@@ -310,7 +325,7 @@ class SYCLToolchain {
 #endif
       // libcxx headers, must come before libc headers:
       AddInc("include/c++/v1");
-       // libc headers, our (SYCL RTC) custom non-standard location:
+      // libc headers, our (SYCL RTC) custom non-standard location:
       AddInc("include/libc");
       // SYCL/SYCL-related headers actually, because `<sycl/sycl.hpp>` and not
       // just `<sycl.hpp>`. Can be argued that actual installation layout should
@@ -318,8 +333,8 @@ class SYCLToolchain {
       // but that's outside the SYCL RTC scope. I think any relative order in
       // relation to libcxx/libc is allowed.
       AddInc("include/");
-      // NOTE: `include/lib/clang/<version>/include/` is added automatically (we use
-      // `--nostdlibinc` and not `--nostdinc`).
+      // NOTE: `include/lib/clang/<version>/include/` is added automatically (we
+      // use `--nostdlibinc` and not `--nostdinc`).
 
       DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_D),
                        "_LIBCPP_REMOVE_TRANSITIVE_INCLUDES");
