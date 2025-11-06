@@ -123,8 +123,10 @@ void SYCLInstallationDetector::getSYCLDeviceLibPath(
 
 void SYCLInstallationDetector::addSYCLIncludeArgs(
     const ArgList &DriverArgs, ArgStringList &CC1Args) const {
-  if (DriverArgs.hasArg(clang::driver::options::OPT_nobuiltininc))
+  namespace options = clang::driver::options;
+  if (DriverArgs.hasArg(options::OPT_nostdlibinc, options::OPT_nostdinc)) {
     return;
+  }
   // Add the SYCL header search locations in the specified order.
   //   ../include/sycl/stl_wrappers
   //   ../include
