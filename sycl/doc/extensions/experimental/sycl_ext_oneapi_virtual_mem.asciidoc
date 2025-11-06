@@ -296,7 +296,9 @@ for the device associated with this instance of `physical_mem`.
 If `mode` is `address_access_mode::read` or `address_access_mode::read_write`
 the returned pointer is accessible after the call as read-only or read-write
 respectively. Otherwise, it is considered inaccessible and accessing it will
-result in undefined behavior.
+result in undefined behavior. The accessibility applies to all devices in
+the context associated with this instance of `physical_mem` from which the
+physical memory is reachable.
 
 The returned pointer is equivalent to `reinterpret_cast<void *>(ptr)`.
 
@@ -351,7 +353,8 @@ Changes the access mode of a mapped virtual memory range specified by `ptr` and
 If `mode` is `address_access_mode::read` or `address_access_mode::read_write`
 `ptr` pointer is accessible after the call as read-only or read-write
 respectively. Otherwise, it is considered inaccessible and accessing it will
-result in undefined behavior.
+result in undefined behavior. The accessibility applies to all devices in
+`syclContext` from which the memory referenced by `ptr` is reachable.
 
 The virtual memory range specified by `ptr` and `numBytes` must be a sub-range
 of virtual memory ranges previously mapped to `physical_mem`. `ptr`
