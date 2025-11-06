@@ -1336,8 +1336,8 @@ exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
     // Convert wait events to UR events
     std::vector<ur_event_handle_t> UrWaitEvents;
     for (auto &WaitEvent : CGData.MEvents) {
-      if (WaitEvent && WaitEvent->getHandleRef()) {
-        UrWaitEvents.push_back(WaitEvent->getHandleRef());
+      if (WaitEvent && WaitEvent->getHandle()) {
+        UrWaitEvents.push_back(WaitEvent->getHandle());
       }
     }
     
