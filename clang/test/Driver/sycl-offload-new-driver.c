@@ -235,7 +235,8 @@
 // RUN:  | FileCheck -check-prefix=OCLOC_MULTI_ARCH %s
 // OCLOC_MULTI_ARCH: ocloc{{.*}}-device pvc,bdw
 
-// Verify for multiple targets with comma separated 
+// Verify for multiple targets with -Xsycl-target-backend= with commas in the values
+// are passed correctly to clang-offload-packager.
 // RUN: %clangxx -fsycl -### --offload-new-driver \
 // RUN:  -fsycl-targets=nvptx64-nvidia-cuda,amdgcn-amd-amdhsa,spir64_gen \
 // RUN:  -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx908,gfx1010 \
