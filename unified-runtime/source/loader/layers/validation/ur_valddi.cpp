@@ -10583,16 +10583,13 @@ __urdlllocal ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (ppMem == nullptr)
+    if (NULL == ppMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if ((hDevice == nullptr) || (hContext == nullptr))
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE < handleTypeToExport)
@@ -10638,16 +10635,13 @@ __urdlllocal ur_result_t UR_APICALL urMemoryExportFreeExportableMemoryExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (pMem == nullptr)
+    if (NULL == pMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if ((hDevice == nullptr) || (hContext == nullptr))
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
@@ -10688,16 +10682,13 @@ __urdlllocal ur_result_t UR_APICALL urMemoryExportExportMemoryHandleExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (pMemHandleRet == nullptr || pMem == nullptr)
+    if (NULL == pMemHandleRet || NULL == pMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if ((hDevice == nullptr) || (hContext == nullptr))
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE < handleTypeToExport)

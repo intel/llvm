@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/event_deps.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
@@ -567,6 +568,7 @@ EventImplPtr queue_impl::submit_command_to_graph(
 EventImplPtr queue_impl::submit_kernel_direct_impl(
     const NDRDescT &NDRDesc, detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo, bool CallerNeedsEvent,
+    sycl::span<const event> DepEvents,
     const detail::KernelPropertyHolderStructTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
 
@@ -624,12 +626,13 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
                                                   *this, true);
   };
 
-  return submit_direct(CallerNeedsEvent, SubmitKernelFunc);
+  return submit_direct(CallerNeedsEvent, DepEvents, SubmitKernelFunc);
 }
 
 template <typename SubmitCommandFuncType>
 detail::EventImplPtr
 queue_impl::submit_direct(bool CallerNeedsEvent,
+                          sycl::span<const event> DepEvents,
                           SubmitCommandFuncType &SubmitCommandFunc) {
   detail::CG::StorageInitHelper CGData;
   std::unique_lock<std::mutex> Lock(MMutex);
@@ -640,7 +643,10 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
   // Sync with an external event
   std::optional<event> ExternalEvent = popExternalEvent();
   if (ExternalEvent) {
-    CGData.MEvents.push_back(getSyclObjImpl(*ExternalEvent));
+    registerEventDependency</*LockQueue*/ false>(
+        getSyclObjImpl(*ExternalEvent), CGData.MEvents, this, getContextImpl(),
+        getDeviceImpl(), hasCommandGraph() ? getCommandGraph().get() : nullptr,
+        detail::CGType::Kernel);
   }
 
   auto &Deps = hasCommandGraph() ? MExtGraphDeps : MDefaultGraphDeps;
@@ -648,7 +654,17 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
   // Sync with the last event for in order queue
   EventImplPtr &LastEvent = Deps.LastEventPtr;
   if (isInOrder() && LastEvent) {
-    CGData.MEvents.push_back(LastEvent);
+    registerEventDependency</*LockQueue*/ false>(
+        LastEvent, CGData.MEvents, this, getContextImpl(), getDeviceImpl(),
+        hasCommandGraph() ? getCommandGraph().get() : nullptr,
+        detail::CGType::Kernel);
+  }
+
+  for (event e : DepEvents) {
+    registerEventDependency</*LockQueue*/ false>(
+        getSyclObjImpl(e), CGData.MEvents, this, getContextImpl(),
+        getDeviceImpl(), hasCommandGraph() ? getCommandGraph().get() : nullptr,
+        detail::CGType::Kernel);
   }
 
   // Barrier and un-enqueued commands synchronization for out or order queue

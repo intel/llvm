@@ -35,7 +35,14 @@ int main() {
   event ePrefetch = q.prefetch(z, sizeof(int), eCopy);                //
   q.single_task<class kernel>(ePrefetch, [=] { *z *= 2; }).wait();    // z = 2
 
-  int error = (*z != 2) ? 1 : 0;
+  event eFill2 = q.fill(x, 2, 1); // x = 2
+  event eFill3 = q.fill(y, 3, 1); // y = 3
+  q.single_task<class kernel2>({eFill2, eFill3}, [=] {
+     *x *= 2;
+     *y *= 2;
+   }).wait(); // x = 4, y = 6
+
+  int error = (*z != 2) || (*x != 4) || (*y != 6) ? 1 : 0;
   std::cout << (error ? "failed\n" : "passed\n");
 
   free(x, q);
