@@ -11248,10 +11248,11 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     }
 
     // -sycl-device-libraries=<comma separated list> contains a list of
-    // file names for fat object files that contain SYCL device library bitcode necessary for
-    // SYCL offloading that will be linked to the user's device code.
-    // clang-linker-wrapper uses the value provided to -sycl-device-library-location=<dir>
-    // to construct the full paths of the device libraries.
+    // file names for fat object files that contain SYCL device library bitcode
+    // necessary for SYCL offloading that will be linked to the user's device
+    // code. clang-linker-wrapper uses the value provided to
+    // -sycl-device-library-location=<dir> to construct the full paths of the
+    // device libraries.
 
     // On the other hand, --bitcode-library=<triple>=<path to bc file> specifies
     // one bitcode library to link in for a specific triple. Additionally, the
