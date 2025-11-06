@@ -5243,7 +5243,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       (JA.isHostOffloading(C.getActiveOffloadKinds()) &&
        Args.hasFlag(options::OPT_offload_new_driver,
                     options::OPT_no_offload_new_driver,
-                    C.isOffloadingHostKind(Action::OFK_Cuda)));
+                    C.isOffloadingHostKind(Action::OFK_Cuda) ||
+                        C.isOffloadingHostKind(Action::OFK_SYCL)));
 
   bool IsRDCMode =
       Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc, IsSYCL);
@@ -5930,9 +5931,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-emit-llvm-uselists");
 
     if (IsUsingLTO) {
-      bool IsUsingOffloadNewDriver =
-          Args.hasFlag(options::OPT_offload_new_driver,
-                       options::OPT_no_offload_new_driver, false);
+      bool IsUsingOffloadNewDriver = Args.hasFlag(
+          options::OPT_offload_new_driver, options::OPT_no_offload_new_driver,
+          C.isOffloadingHostKind(Action::OFK_SYCL));
       Arg *SYCLSplitMode =
           Args.getLastArg(options::OPT_fsycl_device_code_split_EQ);
       bool IsDeviceCodeSplitDisabled =
@@ -7510,7 +7511,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.append({"--offload-new-driver", "-foffload-via-llvm"});
   } else if (Args.hasFlag(options::OPT_offload_new_driver,
                           options::OPT_no_offload_new_driver,
-                          C.isOffloadingHostKind(Action::OFK_Cuda))) {
+                          C.isOffloadingHostKind(Action::OFK_Cuda) ||
+                              C.isOffloadingHostKind(Action::OFK_SYCL))) {
     CmdArgs.push_back("--offload-new-driver");
   }
 
@@ -11227,40 +11229,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // populated with device binaries for all target triples in the current
     // compilation flow.
 
-    // Create a comma separated list to pass along to the linker wrapper.
-    SmallString<256> LibList;
-    llvm::Triple TargetTriple;
-    auto ToolChainRange = C.getOffloadToolChains<Action::OFK_SYCL>();
-    for (auto &I :
-         llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
-      const ToolChain *TC = I.second;
-      // Note: For AMD targets, we do not pass any SYCL device libraries.
-      if (TC->getTriple().isSPIROrSPIRV() || TC->getTriple().isNVPTX()) {
-        TargetTriple = TC->getTriple();
-        SmallVector<std::string, 8> SYCLDeviceLibs;
-        bool IsSPIR = TargetTriple.isSPIROrSPIRV();
-        bool IsSpirvAOT = TargetTriple.isSPIRAOT();
-        bool UseJitLink =
-            IsSPIR &&
-            Args.hasFlag(options::OPT_fsycl_device_lib_jit_link,
-                         options::OPT_fno_sycl_device_lib_jit_link, false);
-        bool UseAOTLink = IsSPIR && (IsSpirvAOT || !UseJitLink);
-        SYCLDeviceLibs = SYCL::getDeviceLibraries(C, TargetTriple, UseAOTLink);
-        for (const auto &AddLib : SYCLDeviceLibs) {
-          if (LibList.size() > 0)
-            LibList += ",";
-          LibList += AddLib;
-        }
-      }
-    }
-    // -sycl-device-libraries=<libs> provides a comma separate list of
-    // libraries to add to the device linking step.
-    if (LibList.size())
-      CmdArgs.push_back(
-          Args.MakeArgString(Twine("-sycl-device-libraries=") + LibList));
-
-    // -sycl-device-library-location=<dir> provides the location in which the
-    // SYCL device libraries can be found.
     SmallString<128> DeviceLibDir(D.Dir);
     llvm::sys::path::append(DeviceLibDir, "..", "lib");
     // Check the library location candidates for the the libsycl-crt library
@@ -11283,6 +11251,66 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         break;
       }
     }
+
+    // Create a comma separated list to pass along to the linker wrapper.
+    SmallString<256> LibList;
+    SmallString<256> BCLibList;
+
+    // Lambda to append items to BCLibList with comma separation
+    auto appendToBCLibList = [&BCLibList](const llvm::Triple &Triple,
+                                          const Twine &Path) {
+      if (BCLibList.size() > 0)
+        BCLibList += ",";
+      BCLibList += (Twine(Triple.str()) + "=" + Path).str();
+    };
+
+    llvm::Triple TargetTriple;
+    auto ToolChainRange = C.getOffloadToolChains<Action::OFK_SYCL>();
+    for (auto &I :
+         llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
+      const ToolChain *TC = I.second;
+      TargetTriple = TC->getTriple();
+      SmallVector<std::string, 8> SYCLDeviceLibs;
+      bool IsSPIR = TargetTriple.isSPIROrSPIRV();
+      bool IsSpirvAOT = TargetTriple.isSPIRAOT();
+      bool UseJitLink =
+          IsSPIR &&
+          Args.hasFlag(options::OPT_fsycl_device_lib_jit_link,
+                       options::OPT_fno_sycl_device_lib_jit_link, false);
+      bool UseAOTLink = IsSPIR && (IsSpirvAOT || !UseJitLink);
+      SYCLDeviceLibs = SYCL::getDeviceLibraries(C, TargetTriple, UseAOTLink);
+      for (const auto &AddLib : SYCLDeviceLibs) {
+        if (llvm::sys::path::extension(AddLib) == ".bc") {
+          SmallString<256> LibPath(DeviceLibDir);
+          llvm::sys::path::append(LibPath, AddLib);
+          appendToBCLibList(TC->getTriple(), LibPath);
+          continue;
+        }
+
+        if (LibList.size() > 0)
+          LibList += ",";
+        LibList += AddLib;
+      }
+
+      if (TC->getTriple().isNVPTX()) {
+        if (const char *LibSpirvFile = SYCLInstallation.findLibspirvPath(
+                TC->getTriple(), Args, *TC->getAuxTriple())) {
+          appendToBCLibList(TC->getTriple(), LibSpirvFile);
+        }
+      }
+    }
+    // -sycl-device-libraries=<libs> provides a comma separate list of
+    // libraries to add to the device linking step.
+    if (LibList.size())
+      CmdArgs.push_back(
+          Args.MakeArgString(Twine("-sycl-device-libraries=") + LibList));
+
+    if (BCLibList.size())
+      CmdArgs.push_back(
+          Args.MakeArgString(Twine("-sycl-bc-device-libraries=") + BCLibList));
+
+    // -sycl-device-library-location=<dir> provides the location in which the
+    // SYCL device libraries can be found.
     CmdArgs.push_back(Args.MakeArgString(
         Twine("-sycl-device-library-location=") + DeviceLibDir));
 

@@ -2190,7 +2190,8 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
        TranslatedArgs->hasFlag(options::OPT_fopenmp_new_driver,
                                options::OPT_no_offload_new_driver, true)) ||
       TranslatedArgs->hasFlag(options::OPT_offload_new_driver,
-                              options::OPT_no_offload_new_driver, false))
+                              options::OPT_no_offload_new_driver,
+                              C->isOffloadingHostKind(Action::OFK_SYCL)))
     setUseNewOffloadingDriver();
 
   // Construct the list of abstract actions to perform for this compilation. On
@@ -7080,7 +7081,8 @@ void Driver::BuildDefaultActions(Compilation &C, DerivedArgList &Args,
                    options::OPT_fno_offload_via_llvm, false) ||
       Args.hasFlag(options::OPT_offload_new_driver,
                    options::OPT_no_offload_new_driver,
-                   C.isOffloadingHostKind(Action::OFK_Cuda));
+                   C.isOffloadingHostKind(Action::OFK_Cuda) ||
+                       C.isOffloadingHostKind(Action::OFK_SYCL));
 
   bool HIPNoRDC =
       C.isOffloadingHostKind(Action::OFK_HIP) &&
@@ -8207,9 +8209,11 @@ Action *Driver::ConstructPhaseAction(
                   (TargetDeviceOffloadKind == Action::OFK_None ||
                    offloadDeviceOnly() ||
                    (TargetDeviceOffloadKind == Action::OFK_HIP &&
-                    !Args.hasFlag(options::OPT_offload_new_driver,
-                                  options::OPT_no_offload_new_driver,
-                                  C.isOffloadingHostKind(Action::OFK_Cuda))))
+                    !Args.hasFlag(
+                        options::OPT_offload_new_driver,
+                        options::OPT_no_offload_new_driver,
+                        C.isOffloadingHostKind(Action::OFK_Cuda) ||
+                            C.isOffloadingHostKind(Action::OFK_SYCL))))
               ? types::TY_LLVM_IR
               : types::TY_LLVM_BC;
       return C.MakeAction<BackendJobAction>(Input, Output);
