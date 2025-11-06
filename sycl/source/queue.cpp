@@ -366,14 +366,6 @@ event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
                !EventImpl.hasCommandGraph();
       });
 
-  // If we have an empty in-order queue and no dependencies, we can just return
-  // a trivially finished event.
-  if (is_in_order() && !impl->hasCommandGraph() && !impl->MIsProfilingEnabled &&
-      AllEventsEmptyOrNop && ext_oneapi_empty()) {
-    return detail::createSyclObjFromImpl<event>(
-        detail::event_impl::create_default_event());
-  }
-
   if (WaitList.empty() || AllEventsEmptyOrNop)
     return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(); }, CodeLoc);
   else
@@ -475,20 +467,24 @@ event submit_kernel_direct_with_event_impl(
     const queue &Queue, detail::nd_range_view RangeView,
     detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
+    sycl::span<const event> DepEvents,
     const detail::KernelPropertyHolderStructTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
   return getSyclObjImpl(Queue)->submit_kernel_direct_with_event(
-      RangeView, HostKernel, DeviceKernelInfo, Props, CodeLoc, IsTopCodeLoc);
+      RangeView, HostKernel, DeviceKernelInfo, DepEvents, Props, CodeLoc,
+      IsTopCodeLoc);
 }
 
 void submit_kernel_direct_without_event_impl(
     const queue &Queue, detail::nd_range_view RangeView,
     detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
+    sycl::span<const event> DepEvents,
     const detail::KernelPropertyHolderStructTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
   getSyclObjImpl(Queue)->submit_kernel_direct_without_event(
-      RangeView, HostKernel, DeviceKernelInfo, Props, CodeLoc, IsTopCodeLoc);
+      RangeView, HostKernel, DeviceKernelInfo, DepEvents, Props, CodeLoc,
+      IsTopCodeLoc);
 }
 
 } // namespace _V1

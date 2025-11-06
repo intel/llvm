@@ -1769,7 +1769,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
   }
 
   LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue), pGlobalWorkSize,
-                        pLocalWorkSize, pGlobalWorkOffset, 3);
+                        pLocalWorkSize, pGlobalWorkOffset, workDim);
   UR_CALL(LaunchInfo.Data.syncToDevice(hQueue));
 
   UR_CALL(getAsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
