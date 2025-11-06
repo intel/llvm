@@ -577,6 +577,11 @@ void graph_impl::removeQueue(sycl::detail::queue_impl &RecordingQueue) {
   MRecordingQueues.erase(RecordingQueue.weak_from_this());
 }
 
+bool graph_impl::isQueueRecording(const sycl::detail::queue_impl &Queue) const {
+  auto QueueWeakPtr = Queue.weak_from_this();
+  return MRecordingQueues.count(QueueWeakPtr) > 0;
+}
+
 void graph_impl::clearQueues(bool NeedsLock) {
   graph_impl::RecQueuesStorage SwappedQueues;
   {
