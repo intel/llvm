@@ -2470,7 +2470,7 @@ static ur_result_t SetKernelParamsAndLaunch(
   }
 
   const std::optional<int> &ImplicitLocalArg =
-          DeviceKernelInfo.getImplicitLocalArgPos();
+      DeviceKernelInfo.getImplicitLocalArgPos();
   // Set the implicit local memory buffer to support
   // get_work_group_scratch_memory. This is for backend not supporting
   // CUDA-style local memory setting. Note that we may have -1 as a position,
