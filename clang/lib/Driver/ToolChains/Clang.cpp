@@ -10235,7 +10235,6 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
       File = C.getArgs().MakeArgString("@" + File);
 
     StringRef Arch;
-    std::string TransformedArch;
     if (OffloadAction->getOffloadingArch()) {
       if (TC->getTripleString() == "spir64_gen-unknown-unknown") {
         Arch = mapIntelGPUArchName(OffloadAction->getOffloadingArch());
@@ -10267,8 +10266,10 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
 
     // When compiling like -fsycl-targets=spir64_gen -Xsycl-target-backend
     // "-device pvc,bdw", the offloading arch will be "pvc,bdw", which
-    // contains a comma. We need to transform it to "arch=pvc,arch=bdw" when
-    // passing to clang-offload-packager.
+    // contains a comma. Because the comma is used to separate fields
+    // within the --image option, we cannot pass arch=pvc,bdw directly.
+    // Instead, we if we pass it like arch=pvc,arch=bdw when, then
+    // clang-offload-packager joins them back to arch=pvc,bdw.
     SmallVector<StringRef> Archs;
     Arch.split(Archs, ',');
     if (Archs.size() > 1) {
@@ -10298,6 +10299,10 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
           AL += " ";
           AL += A;
         }
+        // As mentioned earlier, we cannot pass a value with commas directly,
+        // but clang-offload-packager joins multiple occurrences of the same
+        // option separated by commas, so we split the value on
+        // all commas and pass them as separate arguments.
         for (StringRef Split : llvm::split(AL, ',')) {
           Parts.emplace_back(C.getArgs().MakeArgString(Twine(Opt) + Split));
         }

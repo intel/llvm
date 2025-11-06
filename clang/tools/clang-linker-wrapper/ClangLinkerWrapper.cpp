@@ -1457,9 +1457,8 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   if (ExtractedDeviceLibFiles.empty()) {
     // TODO: Add NVPTX when ready
     if (Triple.isSPIROrSPIRV())
-      return createStringError(
-          inconvertibleErrorCode(),
-          " SYCL device library file list cannot be empty.");
+      WithColor::warning(errs(), LinkerExecutable)
+          << "SYCL device library file is empty\n";
     return *LinkedFile;
   }
 

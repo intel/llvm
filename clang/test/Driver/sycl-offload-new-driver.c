@@ -213,13 +213,29 @@
 // ARCH_CHECK: clang-offload-packager{{.*}} "--image=file={{.*}}triple=spir64_gen-unknown-unknown,arch=bdw,kind=sycl{{.*}}"
 
 // Verify when a comma-separated list of architectures is provided in -device, they are
-// passed to clang-offload-packager correctly
+// passed to clang-offload-packager correctly.
 // RUN: %clangxx -fsycl -### -fsycl-targets=spir64_gen --offload-new-driver \
 // RUN:   -Xsycl-target-backend "-device pvc,bdw" %s 2>&1 \
+// RUN:   | FileCheck -check-prefix MULTI_ARCH %s
+// RUN: %clangxx -fsycl -### -fsycl-targets=spir64_gen --offload-new-driver \
+// RUN:   -Xsycl-target-backend=spir64_gen "-device pvc,bdw" %s 2>&1 \
+// RUN:   | FileCheck -check-prefix MULTI_ARCH %s
+// RUN: %clangxx -fsycl -### -fsycl-targets=spir64_gen --offload-new-driver \
+// RUN:   -Xs "-device pvc,bdw" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix MULTI_ARCH %s
 // MULTI_ARCH: clang-offload-packager{{.*}} "--image=file={{.*}}triple=spir64_gen-unknown-unknown,arch=pvc,arch=bdw,kind=sycl
 // MULTI_ARCH-SAME: compile-opts=-device_options pvc -ze-intel-enable-auto-large-GRF-mode -device pvc,compile-opts=bdw"
 
+// Verify that when an object produced by clang-offload-packager with multiple Intel GPU architectures
+// clang-linker-wrapper will call ocloc with -device listing all architectures.
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen --offload-new-driver \
+// RUN:  -Xsycl-target-backend=spir64_gen "-device pvc,bdw" -c %s -o %t_multiarch_test.o
+// RUN: clang-linker-wrapper --dry-run --linker-path=/usr/bin/ld \
+// RUN:  --host-triple=x86_64-unknown-linux-gnu %t_multiarch_test.o 2>&1 \
+// RUN:  | FileCheck -check-prefix=OCLOC_MULTI_ARCH %s
+// OCLOC_MULTI_ARCH: ocloc{{.*}}-device pvc,bdw
+
+// Verify for multiple targets with comma separated 
 // RUN: %clangxx -fsycl -### --offload-new-driver \
 // RUN:  -fsycl-targets=nvptx64-nvidia-cuda,amdgcn-amd-amdhsa,spir64_gen \
 // RUN:  -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx908,gfx1010 \
