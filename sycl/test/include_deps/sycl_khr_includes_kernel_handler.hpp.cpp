@@ -13,5 +13,4 @@
 // CHECK-NEXT: exception.hpp
 // CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: detail/string.hpp
-// CHECK-NEXT: stl_wrappers/cstdlib
 // CHECK-EMPTY:

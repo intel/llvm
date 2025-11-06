@@ -62,8 +62,8 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        # Oct 9, 2025
-        return "32805b4b6f8dafb4a97f21c4c85bb2f6963f8dbb"
+        # Oct 31, 2025
+        return "1d4f68f82a5fe8c404aa1126615da4a1b789e254"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -86,6 +86,7 @@ class ComputeBench(Suite):
             f"-DBUILD_SYCL=ON",
             f"-DSYCL_COMPILER_ROOT={options.sycl}",
             f"-DALLOW_WARNINGS=ON",
+            f"-DUSE_SYSTEM_LEVEL_ZERO=OFF",
             f"-DCMAKE_CXX_COMPILER=clang++",
             f"-DCMAKE_C_COMPILER=clang",
         ]
@@ -310,14 +311,14 @@ class ComputeBench(Suite):
 class ComputeBenchmark(Benchmark):
     def __init__(
         self,
-        bench,
-        name,
-        test,
+        suite: ComputeBench,
+        name: str,
+        test: str,
         runtime: RUNTIMES = None,
         profiler_type: PROFILERS = PROFILERS.TIMER,
     ):
-        super().__init__(bench)
-        self.bench = bench
+        super().__init__(suite)
+        self.suite = suite
         self.bench_name = name
         self.test = test
         self.runtime = runtime
@@ -333,7 +334,7 @@ class ComputeBenchmark(Benchmark):
     @property
     def benchmark_bin(self) -> Path:
         """Returns the path to the benchmark binary"""
-        return self.bench.project.build_dir / "bin" / self.bench_name
+        return self.suite.project.build_dir / "bin" / self.bench_name
 
     def cpu_count_str(self, separator: str = "") -> str:
         # Note: SYCL CI currently relies on this "CPU count" value.
@@ -439,8 +440,8 @@ class ComputeBenchmark(Benchmark):
                     command=command,
                     env=env_vars,
                     unit=unit,
-                    git_url=self.bench.git_url(),
-                    git_hash=self.bench.git_hash(),
+                    git_url=self.suite.git_url(),
+                    git_hash=self.suite.git_hash(),
                 )
             )
         return ret

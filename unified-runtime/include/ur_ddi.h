@@ -419,28 +419,34 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetProgramProcAddrTable_t)(
     ur_api_version_t, ur_program_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urProgramDynamicLinkExp
+typedef ur_result_t(UR_APICALL *ur_pfnProgramDynamicLinkExp_t)(
+    ur_context_handle_t, uint32_t, const ur_program_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urProgramBuildExp
 typedef ur_result_t(UR_APICALL *ur_pfnProgramBuildExp_t)(ur_program_handle_t,
                                                          uint32_t,
                                                          ur_device_handle_t *,
+                                                         ur_exp_program_flags_t,
                                                          const char *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urProgramCompileExp
-typedef ur_result_t(UR_APICALL *ur_pfnProgramCompileExp_t)(ur_program_handle_t,
-                                                           uint32_t,
-                                                           ur_device_handle_t *,
-                                                           const char *);
+typedef ur_result_t(UR_APICALL *ur_pfnProgramCompileExp_t)(
+    ur_program_handle_t, uint32_t, ur_device_handle_t *, ur_exp_program_flags_t,
+    const char *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urProgramLinkExp
 typedef ur_result_t(UR_APICALL *ur_pfnProgramLinkExp_t)(
-    ur_context_handle_t, uint32_t, ur_device_handle_t *, uint32_t,
-    const ur_program_handle_t *, const char *, ur_program_handle_t *);
+    ur_context_handle_t, uint32_t, ur_device_handle_t *, ur_exp_program_flags_t,
+    uint32_t, const ur_program_handle_t *, const char *, ur_program_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of ProgramExp functions pointers
 typedef struct ur_program_exp_dditable_t {
+  ur_pfnProgramDynamicLinkExp_t pfnDynamicLinkExp;
   ur_pfnProgramBuildExp_t pfnBuildExp;
   ur_pfnProgramCompileExp_t pfnCompileExp;
   ur_pfnProgramLinkExp_t pfnLinkExp;
@@ -1098,6 +1104,15 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetEnqueueProcAddrTable_t)(
     ur_api_version_t, ur_enqueue_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEnqueueKernelLaunchWithArgsExp
+typedef ur_result_t(UR_APICALL *ur_pfnEnqueueKernelLaunchWithArgsExp_t)(
+    ur_queue_handle_t, ur_kernel_handle_t, uint32_t, const size_t *,
+    const size_t *, const size_t *, uint32_t,
+    const ur_exp_kernel_arg_properties_t *, uint32_t,
+    const ur_kernel_launch_property_t *, uint32_t, const ur_event_handle_t *,
+    ur_event_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urEnqueueUSMDeviceAllocExp
 typedef ur_result_t(UR_APICALL *ur_pfnEnqueueUSMDeviceAllocExp_t)(
     ur_queue_handle_t, ur_usm_pool_handle_t, const size_t,
@@ -1147,6 +1162,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnEnqueueNativeCommandExp_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of EnqueueExp functions pointers
 typedef struct ur_enqueue_exp_dditable_t {
+  ur_pfnEnqueueKernelLaunchWithArgsExp_t pfnKernelLaunchWithArgsExp;
   ur_pfnEnqueueUSMDeviceAllocExp_t pfnUSMDeviceAllocExp;
   ur_pfnEnqueueUSMSharedAllocExp_t pfnUSMSharedAllocExp;
   ur_pfnEnqueueUSMHostAllocExp_t pfnUSMHostAllocExp;
@@ -1790,7 +1806,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetCommandBufferExpProcAddrTable_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urIPCGetMemHandleExp
 typedef ur_result_t(UR_APICALL *ur_pfnIPCGetMemHandleExp_t)(ur_context_handle_t,
-                                                            void *, void *,
+                                                            void *, void **,
                                                             size_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
