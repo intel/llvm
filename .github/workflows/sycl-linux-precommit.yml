@@ -84,7 +84,7 @@ jobs:
 
       # download build artefact
       - name: Download toolchain
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: sycl_linux_default
       - name: Extract SYCL toolchain
@@ -188,19 +188,19 @@ jobs:
             runner: '["Linux", "gen12"]'
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             extra_lit_opts: --param test-preview-mode=True
-            e2e_binaries_artifact: e2e_bin_preview
+            binaries_artifact: e2e_bin_preview
           - name: ABI compatibility / sycl-rel-6_2
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_2
             target_devices: level_zero:gpu
             extra_lit_opts: '--param test-preview-mode=False --filter-out "${{ needs.compat_read_exclude.outputs.FILTER_6_2 }}"'
-            e2e_binaries_artifact: 'in-container'
+            binaries_artifact: 'in-container'
           - name: ABI compatibility / sycl-rel-6_3
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_3
             target_devices: level_zero:gpu
             extra_lit_opts: '--param test-preview-mode=False --filter-out "${{ needs.compat_read_exclude.outputs.FILTER_6_3 }}"'
-            e2e_binaries_artifact: 'in-container'
+            binaries_artifact: 'in-container'
 
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
@@ -214,8 +214,8 @@ jobs:
       toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}
-      e2e_binaries_artifact: ${{ matrix.e2e_binaries_artifact || 'e2e_bin' }}
-      e2e_testing_mode: 'run-only'
+      binaries_artifact: ${{ matrix.binaries_artifact || 'e2e_bin' }}
+      testing_mode: 'run-only'
 
       # Do not install drivers on AMD and CUDA runners.
       install_igc_driver: >-

@@ -37,9 +37,6 @@ inputs:
     type: string
     required: False
 
-env:
-  BENCHMARK_RESULTS_BRANCH: "sycl-benchmark-ci-results"
-
 runs:
   # composite actions don't make use of 'name', so copy-paste names as a comment in the first line of each step
   using: "composite"
@@ -164,6 +161,14 @@ runs:
       sudo cmake --install build
 
       cd -
+  - name: Set env var for results branch
+    shell: bash
+    run: |
+        # Set env var for results branch
+        # Set BENCHMARK_RESULTS_BRANCH globally for all subsequent steps.
+        # This has to be done this way because of limits of composite actions.
+        BENCHMARK_RESULTS_BRANCH="sycl-benchmark-ci-results"
+        echo "BENCHMARK_RESULTS_BRANCH=$BENCHMARK_RESULTS_BRANCH" >> $GITHUB_ENV
   - name: Checkout results repo
     uses: actions/checkout@v5
     with:
