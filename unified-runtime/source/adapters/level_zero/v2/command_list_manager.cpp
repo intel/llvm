@@ -154,9 +154,9 @@ ur_command_list_manager::getSignalEvent(ur_event_handle_t hUserEvent,
 ur_result_t ur_command_list_manager::appendKernelLaunchLocked(
     ur_kernel_handle_t hKernel, ze_kernel_handle_t hZeKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t phEvent,
-    bool cooperative, std::vector<void *> *pKMemObj, void *pNext) {
+    const size_t *pLocalWorkSize, wait_list_view &waitListView,
+    ur_event_handle_t phEvent, bool cooperative, std::vector<void *> *pKMemObj,
+    void *pNext) {
 
   ze_group_count_t zeThreadGroupDimensions{1, 1, 1};
   uint32_t WG[3]{};
@@ -165,11 +165,10 @@ ur_result_t ur_command_list_manager::appendKernelLaunchLocked(
                                         pGlobalWorkSize, pLocalWorkSize));
 
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_KERNEL_LAUNCH);
-  auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
   UR_CALL(hKernel->prepareForSubmission(
       hContext.get(), hDevice.get(), pGlobalWorkOffset, workDim, WG[0], WG[1],
-      WG[2], getZeCommandList(), waitListView, pKMemObj));
+      WG[2], getZeCommandList(), waitListView));
 
   if (pKMemObj) {
     // zeCommandListAppendLaunchKernelWithArguments
@@ -231,11 +230,13 @@ ur_result_t ur_command_list_manager::appendKernelLaunchUnlocked(
 
   std::scoped_lock<ur_shared_mutex> Lock(hKernel->Mutex);
 
+  wait_list_view waitListView =
+      getWaitListView(phEventWaitList, numEventsInWaitList);
+
   // last arguments: pKMemObj == nullptr and pNext == nullptr
-  return appendKernelLaunchLocked(hKernel, hZeKernel, workDim,
-                                  pGlobalWorkOffset, pGlobalWorkSize,
-                                  pLocalWorkSize, numEventsInWaitList,
-                                  phEventWaitList, phEvent, cooperative);
+  return appendKernelLaunchLocked(
+      hKernel, hZeKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+      pLocalWorkSize, waitListView, phEvent, cooperative);
 }
 
 ur_result_t ur_command_list_manager::appendKernelLaunch(
@@ -1164,6 +1165,9 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpNew(
   hKernel->kernelMemObj.resize(numArgs, 0);
   hKernel->kernelArgs.resize(numArgs, 0);
 
+  wait_list_view waitListView =
+      getWaitListView(phEventWaitList, numEventsInWaitList);
+
   for (uint32_t argIndex = 0; argIndex < numArgs; argIndex++) {
     switch (pArgs[argIndex].type) {
     case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
@@ -1176,12 +1180,13 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpNew(
       hKernel->kernelArgs[argIndex] = (void *)&pArgs[argIndex].value.pointer;
       break;
     case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ:
-      // prepareForSubmission() will save zePtr in kernelMemObj[argIndex]
+      // compute zePtr for the given memory handle and store it in
+      // hKernel->kernelMemObj[argIndex]
+      UR_CALL(hKernel->computeZePtr(
+          pArgs[argIndex].value.memObjTuple.hMem, hDevice.get(),
+          ur_mem_buffer_t::device_access_mode_t::read_write, getZeCommandList(),
+          waitListView, &hKernel->kernelMemObj[argIndex]));
       hKernel->kernelArgs[argIndex] = &hKernel->kernelMemObj[argIndex];
-      UR_CALL(hKernel->addPendingMemoryAllocation(
-          {pArgs[argIndex].value.memObjTuple.hMem,
-           ur_mem_buffer_t::device_access_mode_t::read_write,
-           pArgs[argIndex].index}));
       break;
     case UR_EXP_KERNEL_ARG_TYPE_SAMPLER:
       hKernel->kernelArgs[argIndex] = &pArgs[argIndex].value.sampler->ZeSampler;
@@ -1193,8 +1198,8 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpNew(
 
   return appendKernelLaunchLocked(
       hKernel, hZeKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      pLocalWorkSize, numEventsInWaitList, phEventWaitList, phEvent,
-      cooperativeKernelLaunchRequested, &hKernel->kernelMemObj, pNext);
+      pLocalWorkSize, waitListView, phEvent, cooperativeKernelLaunchRequested,
+      &hKernel->kernelMemObj, pNext);
 }
 
 ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExp(
