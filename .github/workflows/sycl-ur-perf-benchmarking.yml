@@ -153,7 +153,7 @@ jobs:
     permissions:
       contents: write
       packages: read
-    if: always() && !cancelled() && needs.build_sycl_dispatch.outputs.build_conclusion == 'success'
+    if: ${{ !cancelled() && needs.build_sycl_dispatch.outputs.build_conclusion == 'success' }}
     strategy:
       matrix:
         include:
@@ -199,7 +199,7 @@ jobs:
     permissions:
       contents: write
       packages: read
-    if: always() && !cancelled() && needs.build_nightly.outputs.build_conclusion == 'success'
+    if: ${{ !cancelled() && needs.build_nightly.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
       matrix:
@@ -250,7 +250,7 @@ jobs:
     permissions:
       contents: write
       packages: read
-    if: always() && !cancelled() && needs.build_pr.outputs.build_conclusion == 'success'
+    if: ${{ !cancelled() && needs.build_pr.outputs.build_conclusion == 'success' }}
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: 'Framework test: PVC_PERF, L0, Minimal preset'
