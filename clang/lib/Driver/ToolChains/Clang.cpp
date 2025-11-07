@@ -10488,15 +10488,6 @@ static void getSPIRVBackendOpts(const llvm::opt::ArgList &TCArgs,
   ExtArg = ExtArg + DefaultExtArg + IntelExtArg + KHRExtArg;
   BackendArgs.push_back(TCArgs.MakeArgString(ExtArg));
 
-  //  // TODO: A list of SPIR-V extensions that are supported by the SPIR-V
-  //  backend
-  //  // is growing. Let's postpone the decision on which extensions to enable
-  //  until
-  //  // - the list is stable, and
-  //  // - we decide on a mapping of user requested extensions into backend's
-  //  ones.
-  //  // Meanwhile we enable all the SPIR-V backend extensions.
-  //  BackendArgs.push_back(TCArgs.MakeArgString("--spirv-ext=all"));
   //  // TODO:
   //  // - handle -Xspirv-translator option to avoid "argument unused during
   //  // compilation" error
