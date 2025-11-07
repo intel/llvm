@@ -44,7 +44,7 @@ params:
 returns:
     - $X_RESULT_SUCCESS
     - $X_RESULT_ERROR_INVALID_ARGUMENT
---- #------------------------------------------k--------------------------------
+--- #--------------------------------------------------------------------------
 type: function
 desc: "Begin graph capture on the specified immediate queue."
 class: $xQueue
