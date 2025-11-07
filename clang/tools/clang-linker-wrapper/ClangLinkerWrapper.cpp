@@ -723,14 +723,19 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
     return SYCLPostLinkPath.takeError();
 
   // Create a new file to write the output of sycl-post-link to.
+  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   auto TempFileOrErr =
       createOutputFile(sys::path::filename(ExecutableName), "table");
   if (!TempFileOrErr)
     return TempFileOrErr.takeError();
+  std::string OutputPathWithArch = TempFileOrErr->str();
+  StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
+  if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen && Arch.data()) {
+    std::string OutputPathWithArch = "intel_gpu_" + Arch.str() + "," + OutputPathWithArch;
+  }
 
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*SYCLPostLinkPath);
-  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   Arg *SYCLDeviceLibLoc = Args.getLastArg(OPT_sycl_device_library_location_EQ);
   if (SYCLDeviceLibLoc && !Triple.isSPIRAOT()) {
     std::string SYCLDeviceLibLocParam = SYCLDeviceLibLoc->getValue();
@@ -748,7 +753,7 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
   SYCLPostLinkOptions.split(CmdArgs, " ", /* MaxSplit = */ -1,
                             /* KeepEmpty = */ false);
   CmdArgs.push_back("-o");
-  CmdArgs.push_back(*TempFileOrErr);
+  CmdArgs.push_back(Args.MakeArgString(OutputPathWithArch));
   for (auto &File : InputFiles)
     CmdArgs.push_back(File);
   if (Error Err = executeCommands(*SYCLPostLinkPath, CmdArgs))
