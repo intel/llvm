@@ -4551,7 +4551,7 @@ protected:
   }
 };
 
-#define _SPIRV_OP(x, ...)                                                      \
+#define _SPIRV_OP(x)                                                      \
   typedef SPIRVFSigmoidINTELInstBase<internal::Op##x> SPIRV##x;
 _SPIRV_OP(FSigmoidINTEL)
 #undef _SPIRV_OP
