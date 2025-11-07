@@ -106,7 +106,7 @@ sycl::device get_current_device();
 ----
 !====
 
-_Returns:_ The current default device for the calling host thread. If 
+_Returns:_ The current device for the calling host thread. If 
 `set_current_device()` has not been called by this thread, returns the
 device selected by the default device selector.
 
@@ -128,7 +128,7 @@ void set_current_device(sycl::device dev);
 ----
 !====
 
-_Effects:_ Sets the current default device to `dev` for the calling host thread.
+_Effects:_ Sets the current device to `dev` for the calling host thread.
 
 _Preconditions:_ The function is called from a host thread, executing outside
 of a host task or an asynchronous error handler.
