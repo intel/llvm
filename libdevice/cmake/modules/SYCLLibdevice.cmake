@@ -111,7 +111,7 @@ set(spv_device_compile_opts -fsycl-device-only -fsycl-device-obj=spirv)
 set(bc_device_compile_opts -fsycl-device-only -fsycl-device-obj=llvmir)
 set(obj-new-offload_device_compile_opts -fsycl -c --offload-new-driver
   -foffload-lto=thin ${sycl_targets_opt})
-set(obj_device_compile_opts -fsycl -c ${sycl_targets_opt})
+set(obj_device_compile_opts -fsycl -c ${sycl_targets_opt} --no-offload-new-driver)
 
 # Compiles and installs a single device library.
 #
@@ -364,17 +364,17 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
                             -I${UR_SANITIZER_INCLUDE_DIR}
                             -I${CMAKE_CURRENT_SOURCE_DIR})
 
-  set(sanitizer_pvc_compile_opts_obj -fsycl -c
+  set(sanitizer_pvc_compile_opts_obj -fsycl -c --no-offload-new-driver
                                 ${sanitizer_generic_compile_opts}
                                 ${sycl_pvc_target_opt}
                                 -D__LIBDEVICE_PVC__)
 
-  set(sanitizer_cpu_compile_opts_obj -fsycl -c
+  set(sanitizer_cpu_compile_opts_obj -fsycl -c --no-offload-new-driver
                                 ${sanitizer_generic_compile_opts}
                                 ${sycl_cpu_target_opt}
                                 -D__LIBDEVICE_CPU__)
 
-  set(sanitizer_dg2_compile_opts_obj -fsycl -c
+  set(sanitizer_dg2_compile_opts_obj -fsycl -c --no-offload-new-driver
                                 ${sanitizer_generic_compile_opts}
                                 ${sycl_dg2_target_opt}
                                 -D__LIBDEVICE_DG2__)
@@ -706,7 +706,7 @@ endif()
 
 set(obj-new-offload_host_compile_opts ${imf_host_cxx_flags} --offload-new-driver
   -foffload-lto=thin)
-set(obj_host_compile_opts ${imf_host_cxx_flags})
+set(obj_host_compile_opts ${imf_host_cxx_flags} --no-offload-new-driver)
 
 foreach(datatype IN ITEMS fp32 fp64 bf16)
   string(TOUPPER ${datatype} upper_datatype)
