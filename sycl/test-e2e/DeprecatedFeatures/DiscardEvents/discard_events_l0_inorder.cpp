@@ -18,7 +18,7 @@
 // the discard_events property, if it doesn't pass then it's most likely a
 // general issue unrelated to discard_events.
 
-// XFAIL: linux && arch-intel_gpu_pvc && !igc-dev
+// XFAIL: linux && arch-intel_gpu_bmg_g21 && !igc-dev
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20601
 
 #include <cassert>
