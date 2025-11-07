@@ -161,6 +161,13 @@ runs:
       sudo cmake --install build
 
       cd -
+  # Linux tools installed during docker creation may not match the self-hosted
+  # kernel version, so we need to install the correct version here.
+  - name: Install perf in version matching the host kernel
+    shell: bash
+    run: |
+      sudo apt-get update
+      sudo apt-get install -y linux-tools-$(uname -r)
   - name: Set env var for results branch
     shell: bash
     run: |
