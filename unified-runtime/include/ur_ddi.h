@@ -1806,7 +1806,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetCommandBufferExpProcAddrTable_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urIPCGetMemHandleExp
 typedef ur_result_t(UR_APICALL *ur_pfnIPCGetMemHandleExp_t)(ur_context_handle_t,
-                                                            void *, void *,
+                                                            void *, void **,
                                                             size_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
