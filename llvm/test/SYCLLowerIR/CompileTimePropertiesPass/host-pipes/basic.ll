@@ -18,4 +18,4 @@ attributes #0 = { "sycl-host-pipe" "sycl-host-pipe-size"="4" "sycl-unique-id"="_
 
 ; Ensure that the generated metadata nodes are correct
 ; CHECK-IR-DAG: ![[#MN0]] = !{![[#MN1:]]}
-; CHECK-IR-DAG: ![[#MN1]] = !{i32 6147, i32 2, !"_ZN4sycl3_V13ext5intel12experimental9host_pipeI9H2DPipeIDiNS1_6oneapi12experimental10propertiesISt5tupleIJEEEEE6__pipeE"}
+; CHECK-IR-DAG: ![[#MN1]] = !{i32 6188, i32 3, !"_ZN4sycl3_V13ext5intel12experimental9host_pipeI9H2DPipeIDiNS1_6oneapi12experimental10propertiesISt5tupleIJEEEEE6__pipeE"}
