@@ -7,7 +7,10 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: target-spir
 
-// REQUIRES: aspect-ext_intel_matrix, gpu
+// XFAIL: linux && gpu-intel-dg2 && !igc-dev
+// XFAIL-TRACKER: aspect-ext_intel_matrix, gpu
+
+https://github.com/intel/llvm/issues/20595
 
 // RUN: %{build} -o %t_gpu_vnni.out %fp-model-precise -DSLM -DVNNI
 // RUN: %{run} %t_gpu_vnni.out
