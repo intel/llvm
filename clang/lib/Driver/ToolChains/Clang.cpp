@@ -10488,10 +10488,10 @@ static void getSPIRVBackendOpts(const llvm::opt::ArgList &TCArgs,
   ExtArg = ExtArg + DefaultExtArg + IntelExtArg + KHRExtArg;
   BackendArgs.push_back(TCArgs.MakeArgString(ExtArg));
 
-  //  // TODO:
-  //  // - handle -Xspirv-translator option to avoid "argument unused during
-  //  // compilation" error
-  //  // - handle --spirv-ext=+<extension> and --spirv-ext=-<extension> options
+  // TODO:
+  // - handle -Xspirv-translator option to avoid "argument unused during
+  // compilation" error
+  // - handle --spirv-ext=+<extension> and --spirv-ext=-<extension> options
 }
 
 // Utility function to gather all llvm-spirv options.
