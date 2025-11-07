@@ -65,7 +65,11 @@ public:
   void setFileLine(bool fileline) { add_fileline = fileline; }
   void setFlushLevel(ur_logger_level_t level) { this->flush_level = level; }
 
-  virtual ~Sink() = default;
+  ~Sink() {
+#if defined(_WIN32)
+    logger::isTearDowned = true;
+#endif
+  }
 
 protected:
   std::ostream *ostream;
