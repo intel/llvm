@@ -10453,9 +10453,9 @@ static void getSPIRVBackendOpts(const llvm::opt::ArgList &TCArgs,
   // --spirv-ext=-<extension>). We need to come up with a list of SPIR-V
   // extensions that are supported by the backend, but also by the driver. Below
   // is the first approach for such a list.
-  // FIXME: A priori, we wouldn't expect SPV_INTEL_variable_length_array and
+  // FIXME: A priori, we wouldn't expect
   // SPV_EXT_relaxed_printf_string_address_space to be required, but without
-  // them, some SYCL E2E tests fail. Let's keep them until we figure out what's
+  // it, some SYCL E2E tests fail. Let's keep it until we figure out what's
   // the problem.
   std::string ExtArg("-spirv-ext=");
   std::string DefaultExtArg = "+SPV_EXT_relaxed_printf_string_address_space"
