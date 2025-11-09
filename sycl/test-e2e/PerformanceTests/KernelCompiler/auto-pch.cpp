@@ -102,4 +102,5 @@ int main(int argc, char **argv) {
   run({"sycl/multi_ptr.hpp"});
   run({"sycl/builtins.hpp"});
   run({"sycl/ext/oneapi/matrix/matrix.hpp"});
+  run({"sycl/sycl.hpp"});
 }

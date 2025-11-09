@@ -10443,12 +10443,48 @@ static void getSPIRVBackendOpts(const llvm::opt::ArgList &TCArgs,
       TCArgs.MakeArgString("--avoid-spirv-capabilities=Shader"));
   BackendArgs.push_back(
       TCArgs.MakeArgString("--translator-compatibility-mode"));
-  // TODO: A list of SPIR-V extensions that are supported by the SPIR-V backend
-  // is growing. Let's postpone the decision on which extensions to enable until
-  // - the list is stable, and
-  // - we decide on a mapping of user requested extensions into backend's ones.
-  // Meanwhile we enable all the SPIR-V backend extensions.
-  BackendArgs.push_back(TCArgs.MakeArgString("--spirv-ext=all"));
+
+  // SPIR-V backend recently started to support extensions not supported by
+  // drivers (e.g. SPV_KHR_float_controls2). At the same time, SPIR-V backend
+  // doesn't support the syntax for disabling specific extensions (i.e.
+  // --spirv-ext=-<extension>). We need to come up with a list of SPIR-V
+  // extensions that are supported by the backend, but also by the driver. Below
+  // is the first approach for such a list.
+  // FIXME: A priori, we wouldn't expect
+  // SPV_EXT_relaxed_printf_string_address_space to be required, but without
+  // it, some SYCL E2E tests fail. Let's keep it until we figure out what's
+  // the problem.
+  std::string ExtArg("-spirv-ext=");
+  std::string DefaultExtArg = "+SPV_EXT_relaxed_printf_string_address_space"
+                              ",+SPV_EXT_shader_atomic_float16_add"
+                              ",+SPV_EXT_shader_atomic_float_add"
+                              ",+SPV_EXT_shader_atomic_float_min_max";
+  std::string IntelExtArg = ",+SPV_INTEL_2d_block_io"
+                            ",+SPV_INTEL_arbitrary_precision_integers"
+                            ",+SPV_INTEL_bfloat16_conversion"
+                            ",+SPV_INTEL_bindless_images"
+                            ",+SPV_INTEL_cache_controls"
+                            ",+SPV_INTEL_float_controls2"
+                            ",+SPV_INTEL_fp_max_error"
+                            ",+SPV_INTEL_function_pointers"
+                            ",+SPV_INTEL_inline_assembly"
+                            ",+SPV_INTEL_joint_matrix"
+                            ",+SPV_INTEL_long_composites"
+                            ",+SPV_INTEL_subgroups"
+                            ",+SPV_INTEL_tensor_float32_conversion"
+                            ",+SPV_INTEL_variable_length_array";
+  std::string KHRExtArg = ",+SPV_KHR_16bit_storage"
+                          ",+SPV_KHR_cooperative_matrix"
+                          ",+SPV_KHR_expect_assume"
+                          ",+SPV_KHR_float_controls"
+                          ",+SPV_KHR_linkonce_odr"
+                          ",+SPV_KHR_no_integer_wrap_decoration"
+                          ",+SPV_KHR_non_semantic_info"
+                          ",+SPV_KHR_shader_clock"
+                          ",+SPV_KHR_uniform_group_instructions";
+  ExtArg = ExtArg + DefaultExtArg + IntelExtArg + KHRExtArg;
+  BackendArgs.push_back(TCArgs.MakeArgString(ExtArg));
+
   // TODO:
   // - handle -Xspirv-translator option to avoid "argument unused during
   // compilation" error
@@ -11228,43 +11264,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     if (Args.hasArg(options::OPT_fsycl_link_EQ))
       CmdArgs.push_back(Args.MakeArgString("--sycl-device-link"));
 
-    // -sycl-device-libraries=<comma separated list> contains all of the SYCL
-    // device specific libraries that are needed. This generic list will be
-    // populated with device binaries for all target triples in the current
-    // compilation flow.
-
-    // Create a comma separated list to pass along to the linker wrapper.
-    SmallString<256> LibList;
-    llvm::Triple TargetTriple;
-    auto ToolChainRange = C.getOffloadToolChains<Action::OFK_SYCL>();
-    for (auto &I :
-         llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
-      const ToolChain *TC = I.second;
-      // Note: For AMD targets, we do not pass any SYCL device libraries.
-      if (TC->getTriple().isSPIROrSPIRV() || TC->getTriple().isNVPTX()) {
-        TargetTriple = TC->getTriple();
-        SmallVector<std::string, 8> SYCLDeviceLibs;
-        bool IsSPIR = TargetTriple.isSPIROrSPIRV();
-        bool IsSpirvAOT = TargetTriple.isSPIRAOT();
-        bool UseJitLink =
-            IsSPIR &&
-            Args.hasFlag(options::OPT_fsycl_device_lib_jit_link,
-                         options::OPT_fno_sycl_device_lib_jit_link, false);
-        bool UseAOTLink = IsSPIR && (IsSpirvAOT || !UseJitLink);
-        SYCLDeviceLibs = SYCL::getDeviceLibraries(C, TargetTriple, UseAOTLink);
-        for (const auto &AddLib : SYCLDeviceLibs) {
-          if (LibList.size() > 0)
-            LibList += ",";
-          LibList += AddLib;
-        }
-      }
-    }
-    // -sycl-device-libraries=<libs> provides a comma separate list of
-    // libraries to add to the device linking step.
-    if (LibList.size())
-      CmdArgs.push_back(
-          Args.MakeArgString(Twine("-sycl-device-libraries=") + LibList));
-
     // -sycl-device-library-location=<dir> provides the location in which the
     // SYCL device libraries can be found.
     SmallString<128> DeviceLibDir(D.Dir);
@@ -11289,6 +11288,68 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         break;
       }
     }
+
+    // -sycl-device-libraries=<comma separated list> contains a list of
+    // file names for fat object files that contain SYCL device library bitcode
+    // necessary for SYCL offloading that will be linked to the user's device
+    // code. clang-linker-wrapper uses the value provided to
+    // -sycl-device-library-location=<dir> to construct the full paths of the
+    // device libraries.
+
+    // On the other hand, --bitcode-library=<triple>=<path to bc file> specifies
+    // one bitcode library to link in for a specific triple. Additionally, the
+    // path is *not* relative to the -sycl-device-library-location - the full
+    // path must be provided.
+    SmallString<256> LibList;
+    SmallVector<std::string, 4> BCLibList;
+
+    auto appendToList = [](SmallString<256> &List, const Twine &Arg) {
+      if (List.size() > 0)
+        List += ",";
+      List += Arg.str();
+    };
+
+    auto ToolChainRange = C.getOffloadToolChains<Action::OFK_SYCL>();
+    for (const auto &[Kind, TC] :
+         llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
+      llvm::Triple TargetTriple = TC->getTriple();
+      bool IsSPIR = TargetTriple.isSPIROrSPIRV();
+      bool IsSpirAOT = TargetTriple.isSPIRAOT();
+      bool UseJitLink =
+          IsSPIR &&
+          Args.hasFlag(options::OPT_fsycl_device_lib_jit_link,
+                       options::OPT_fno_sycl_device_lib_jit_link, false);
+      bool UseAOTLink = IsSPIR && (IsSpirAOT || !UseJitLink);
+      SmallVector<std::string, 8> SYCLDeviceLibs =
+          SYCL::getDeviceLibraries(C, TargetTriple, UseAOTLink);
+      for (const auto &AddLib : SYCLDeviceLibs) {
+        if (llvm::sys::path::extension(AddLib) == ".bc") {
+          SmallString<256> LibPath(DeviceLibDir);
+          llvm::sys::path::append(LibPath, AddLib);
+          BCLibList.push_back(
+              (Twine(TC->getTriple().str()) + "=" + LibPath).str());
+          continue;
+        }
+
+        appendToList(LibList, AddLib);
+      }
+
+      if (TC->getTriple().isNVPTX())
+        if (const char *LibSpirvFile = SYCLInstallation.findLibspirvPath(
+                TC->getTriple(), Args, *TC->getAuxTriple()))
+          BCLibList.push_back(
+              (Twine(TC->getTriple().str()) + "=" + LibSpirvFile).str());
+    }
+
+    if (LibList.size())
+      CmdArgs.push_back(
+          Args.MakeArgString(Twine("-sycl-device-libraries=") + LibList));
+
+    if (BCLibList.size())
+      for (const std::string &Lib : BCLibList)
+        CmdArgs.push_back(
+            Args.MakeArgString(Twine("--bitcode-library=") + Lib));
+
     CmdArgs.push_back(Args.MakeArgString(
         Twine("-sycl-device-library-location=") + DeviceLibDir));
 
