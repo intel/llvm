@@ -10497,11 +10497,10 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
 
   // Disable all the extensions by default
   std::string ExtArg("-spirv-ext=-all");
-  std::string DefaultExtArg =
+  ExtArg +=
       ",+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max"
       ",+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls"
-      ",+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr";
-  std::string INTELExtArg =
+      ",+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr"
       ",+SPV_INTEL_subgroups,+SPV_INTEL_media_block_io"
       ",+SPV_INTEL_device_side_avc_motion_estimation"
       ",+SPV_INTEL_fpga_loop_controls,+SPV_INTEL_unstructured_loop_controls"
@@ -10524,19 +10523,18 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
       ",+SPV_INTEL_fpga_latency_control"
       ",+SPV_KHR_shader_clock"
       ",+SPV_INTEL_bindless_images"
-      ",+SPV_INTEL_task_sequence";
-  ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
-  ExtArg += ",+SPV_INTEL_bfloat16_conversion"
-            ",+SPV_INTEL_joint_matrix"
-            ",+SPV_INTEL_hw_thread_queries"
-            ",+SPV_KHR_uniform_group_instructions"
-            ",+SPV_INTEL_masked_gather_scatter"
-            ",+SPV_INTEL_tensor_float32_conversion"
-            ",+SPV_INTEL_optnone"
-            ",+SPV_KHR_non_semantic_info"
-            ",+SPV_KHR_cooperative_matrix"
-            ",+SPV_EXT_shader_atomic_float16_add"
-            ",+SPV_INTEL_fp_max_error";
+      ",+SPV_INTEL_task_sequence"
+      ",+SPV_INTEL_bfloat16_conversion"
+      ",+SPV_INTEL_joint_matrix"
+      ",+SPV_INTEL_hw_thread_queries"
+      ",+SPV_KHR_uniform_group_instructions"
+      ",+SPV_INTEL_masked_gather_scatter"
+      ",+SPV_INTEL_tensor_float32_conversion"
+      ",+SPV_INTEL_optnone"
+      ",+SPV_KHR_non_semantic_info"
+      ",+SPV_KHR_cooperative_matrix"
+      ",+SPV_EXT_shader_atomic_float16_add"
+      ",+SPV_INTEL_fp_max_error";
 
   TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
 }
