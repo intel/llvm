@@ -248,6 +248,26 @@ static InstrSignature instrToSignature(const MachineInstr &MI,
   Register DefReg;
   InstrSignature Signature{MI.getOpcode()};
   for (unsigned i = 0; i < MI.getNumOperands(); ++i) {
+<<<<<<< HEAD
+=======
+    // The only decorations that can be applied more than once to a given <id>
+    // or structure member are FuncParamAttr (38), UserSemantic (5635),
+    // CacheControlLoadINTEL (6442), and CacheControlStoreINTEL (6443). For all
+    // the rest of decorations, we will only add to the signature the Opcode,
+    // the id to which it applies, and the decoration id, disregarding any
+    // decoration flags. This will ensure that any subsequent decoration with
+    // the same id will be deemed as a duplicate. Then, at the call site, we
+    // will be able to handle duplicates in the best way.
+    unsigned Opcode = MI.getOpcode();
+    if ((Opcode == SPIRV::OpDecorate) && i >= 2) {
+      unsigned DecorationID = MI.getOperand(1).getImm();
+      if (DecorationID != SPIRV::Decoration::FuncParamAttr &&
+          DecorationID != SPIRV::Decoration::UserSemantic &&
+          DecorationID != SPIRV::Decoration::CacheControlLoadINTEL &&
+          DecorationID != SPIRV::Decoration::CacheControlStoreINTEL)
+        continue;
+    }
+>>>>>>> 2681497d1b3ddceabdb58edff932053270705f10
     const MachineOperand &MO = MI.getOperand(i);
     size_t h;
     if (MO.isReg()) {

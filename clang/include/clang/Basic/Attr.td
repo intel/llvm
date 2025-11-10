@@ -1110,7 +1110,7 @@ def AVRSignal : InheritableAttr, TargetSpecificAttr<TargetAVR> {
 }
 
 def AsmLabel : InheritableAttr {
-  let Spellings = [CustomKeyword<"asm">, CustomKeyword<"__asm__">];
+  let Spellings = [CustomKeyword<"asm">, CustomKeyword<"__asm">, CustomKeyword<"__asm__">];
   let Args = [
       // Label specifies the mangled name for the decl.
       StringArgument<"Label">, ];
