@@ -350,7 +350,7 @@ jobs:
   nightly_build_upload:
     name: Nightly Build Upload
     if: ${{ github.ref_name == 'sycl' }}
-    needs: [ubuntu2204_build, build-win]
+    needs: [get_date, ubuntu2204_build, build-win]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -370,10 +370,10 @@ jobs:
       id: tag
       run: |
         if [ "${{ github.event_name == 'schedule' }}" == "true" ]; then
-          echo "TAG=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
+          echo "TAG=${{ needs.get_date.outputs.date }}" >> "$GITHUB_OUTPUT"
         else
           # TODO: Use date of the commit?
-          echo "TAG=$(date +'%Y-%m-%d')-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "TAG=${{ needs.get_date.outputs.date }}-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
         fi
     - name: Upload binaries
       uses: softprops/action-gh-release@v2.3.3
