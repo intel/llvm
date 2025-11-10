@@ -71,8 +71,6 @@ device memory while relocating the corresponding memory.
 
 == Specification
 
-:peer_access: ../supported/sycl_ext_oneapi_peer_access.asciidoc
-
 === Feature test macro
 
 This extension provides a feature-test macro as described in the core SYCL
@@ -302,9 +300,9 @@ result in undefined behavior.
 
 If other devices in the context associated with this instance of `physical_mem`
 have enabled peer-to-peer access with the device associated with this instance
-of `physical_mem` via {peer_access}[sycl_ext_oneapi_peer_access], those other
-devices also have access to this mapped memory, and the access mode applies to
-accesses from those devices also.
+of `physical_mem` via link:../supported/sycl_ext_oneapi_peer_access.asciidoc[
+sycl_ext_oneapi_peer_access], those other devices also have access to this
+mapped memory, and the access mode applies to accesses from those devices also.
 
 The returned pointer is equivalent to `reinterpret_cast<void *>(ptr)`.
 
@@ -363,9 +361,9 @@ result in undefined behavior.
 
 If other devices in `syclContext` have enabled peer-to-peer access with the
 device on which the memory referenced by `ptr` resides via
-{peer_access}[sycl_ext_oneapi_peer_access], those other devices also have access
-to this mapped memory, and the access mode applies to accesses from those
-devices also.
+link:../supported/sycl_ext_oneapi_peer_access.asciidoc[
+sycl_ext_oneapi_peer_access], those other devices also have access to this
+mapped memory, and the access mode applies to accesses from those devices also.
 
 The virtual memory range specified by `ptr` and `numBytes` must be a sub-range
 of virtual memory ranges previously mapped to `physical_mem`. `ptr`
