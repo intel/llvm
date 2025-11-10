@@ -377,7 +377,7 @@ the `physical_mem` the range is mapped to and `numBytes` must be a multiple of
 the minimum memory granularity of the device associated with the `physical_mem`
 the range is mapped to.
 
-|`void unmap(const void *ptr, size_t numBytes, const device &syclDevice, const context &syclContext)` |
+|`void unmap(const void *ptr, size_t numBytes, const context &syclContext)` |
 Unmaps the range specified by `ptr` and `numBytes`. The range must have been
 mapped through a call to `physical_mem::map()` prior to calling this. The range
 must not be a proper sub-range of a previously mapped range. `syclContext` must

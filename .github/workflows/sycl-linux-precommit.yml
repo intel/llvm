@@ -9,6 +9,7 @@ on:
     - sycl
     - sycl-rel-**
     # Do not run builds if changes are only in the following locations
+    # Note: benchmark-related paths are the same as in sycl-ur-perf-benchmarking.yml (to run there instead)
     paths-ignore:
     - '.github/ISSUE_TEMPLATE/**'
     - '.github/CODEOWNERS'
@@ -32,6 +33,9 @@ on:
     - 'unified-runtime/test/**'
     - 'unified-runtime/third_party/**'
     - 'unified-runtime/tools/**'
+    - 'devops/scripts/benchmarks/**'
+    - 'devops/actions/run-tests/benchmark/**'
+    - '.github/workflows/sycl-ur-perf-benchmarking.yml'
 
 concurrency:
   #  Cancel a currently running workflow from the same PR, branch or tag.
@@ -80,7 +84,7 @@ jobs:
 
       # download build artefact
       - name: Download toolchain
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: sycl_linux_default
       - name: Extract SYCL toolchain
@@ -140,6 +144,9 @@ jobs:
   E2E:
     needs: [build, detect_changes, compat_read_exclude]
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+    permissions:
+      contents: write
+      packages: read
     strategy:
       fail-fast: false
       matrix:
@@ -181,19 +188,23 @@ jobs:
             runner: '["Linux", "gen12"]'
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             extra_lit_opts: --param test-preview-mode=True
-            e2e_binaries_artifact: e2e_bin_preview
+            binaries_artifact: e2e_bin_preview
+
+          # We're in an ABI-breaking window, so these don't make sense for now.
           - name: ABI compatibility / sycl-rel-6_2
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_2
             target_devices: level_zero:gpu
             extra_lit_opts: '--param test-preview-mode=False --filter-out "${{ needs.compat_read_exclude.outputs.FILTER_6_2 }}"'
-            e2e_binaries_artifact: 'in-container'
+            binaries_artifact: 'in-container'
+            skip_run: true
           - name: ABI compatibility / sycl-rel-6_3
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_3
             target_devices: level_zero:gpu
             extra_lit_opts: '--param test-preview-mode=False --filter-out "${{ needs.compat_read_exclude.outputs.FILTER_6_3 }}"'
-            e2e_binaries_artifact: 'in-container'
+            binaries_artifact: 'in-container'
+            skip_run: true
 
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
@@ -207,8 +218,8 @@ jobs:
       toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}
-      e2e_binaries_artifact: ${{ matrix.e2e_binaries_artifact || 'e2e_bin' }}
-      e2e_testing_mode: 'run-only'
+      binaries_artifact: ${{ matrix.binaries_artifact || 'e2e_bin' }}
+      testing_mode: 'run-only'
 
       # Do not install drivers on AMD and CUDA runners.
       install_igc_driver: >-
@@ -222,34 +233,14 @@ jobs:
         (contains(needs.detect_changes.outputs.filters, 'devigccfg') || contains(needs.detect_changes.outputs.filters, 'drivers')) ||
         'false' }}
       # Run only if the PR does not have the 'ci-no-devigc' label.
-      skip_run: ${{matrix.use_igc_dev && contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') || 'false'}}
+      skip_run: ${{matrix.use_igc_dev && contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') || matrix.skip_run || 'false'}}
       env: ${{ matrix.env || (contains(needs.detect_changes.outputs.filters, 'esimd') && '{}' || '{"LIT_FILTER_OUT":"ESIMD/"}') }}
-
-  test_benchmark_scripts:
-    needs: [build, detect_changes]
-    if: |
-      always() && !cancelled()
-      && needs.build.outputs.build_conclusion == 'success'
-      && contains(needs.detect_changes.outputs.filters, 'benchmarks')
-    uses: ./.github/workflows/sycl-linux-run-tests.yml
-    with:
-      name: Benchmark suite precommit testing
-      runner: '["PVC_PERF"]'
-      image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
-      image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-      target_devices: 'level_zero:gpu'
-      tests_selector: benchmarks
-      benchmark_upload_results: false
-      benchmark_preset: 'Minimal'
-      benchmark_dry_run: true
-      benchmark_exit_on_failure: true
-      repo_ref: ${{ github.sha }}
-      toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
-      toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
-      toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}
 
   test-perf:
     needs: [build, detect_changes]
+    permissions:
+      contents: write
+      packages: read
     if: |
       always() && !cancelled()
       && needs.build.outputs.build_conclusion == 'success'
