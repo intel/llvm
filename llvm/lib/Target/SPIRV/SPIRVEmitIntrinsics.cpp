@@ -765,6 +765,8 @@ Type *SPIRVEmitIntrinsics::deduceElementTypeHelper(
     Type *RefTy = deduceElementTypeHelper(Ref->getPointerOperand(), Visited,
                                           UnknownElemTypeI8);
     maybeAssignPtrType(Ty, I, RefTy, UnknownElemTypeI8);
+  } else if (auto *Ref = dyn_cast<IntToPtrInst>(I)) {
+    maybeAssignPtrType(Ty, I, Ref->getDestTy(), UnknownElemTypeI8);
   } else if (auto *Ref = dyn_cast<BitCastInst>(I)) {
     if (Type *Src = Ref->getSrcTy(), *Dest = Ref->getDestTy();
         isPointerTy(Src) && isPointerTy(Dest))
@@ -2147,7 +2149,9 @@ void SPIRVEmitIntrinsics::insertAssignTypeIntrs(Instruction *I,
   for (const auto &Op : I->operands()) {
     if (isa<ConstantPointerNull>(Op) || isa<UndefValue>(Op) ||
         // Check GetElementPtrConstantExpr case.
-        (isa<ConstantExpr>(Op) && isa<GEPOperator>(Op))) {
+        (isa<ConstantExpr>(Op) &&
+         (isa<GEPOperator>(Op) ||
+          (cast<ConstantExpr>(Op)->getOpcode() == CastInst::IntToPtr)))) {
       setInsertPointSkippingPhis(B, I);
       Type *OpTy = Op->getType();
       if (isa<UndefValue>(Op) && OpTy->isAggregateType()) {
