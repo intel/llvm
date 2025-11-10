@@ -177,7 +177,7 @@ TEST(ParseAllowListTests, CheckAllValidBackendNameValuesAreProcessed) {
 TEST(ParseAllowListTests, CheckAllValidDeviceTypeValuesAreProcessed) {
   std::string AllowList;
   for (const auto &SyclDeviceType :
-       sycl::detail::getSyclDeviceTypeMap<true /*Enable 'acc'*/>()) {
+       sycl::detail::getSyclDeviceTypeMap()) {
     if (!AllowList.empty())
       AllowList += "|";
     AllowList += "DeviceType:" + SyclDeviceType.first;
@@ -186,8 +186,7 @@ TEST(ParseAllowListTests, CheckAllValidDeviceTypeValuesAreProcessed) {
       sycl::detail::parseAllowList(AllowList);
   sycl::detail::AllowListParsedT ExpectedValue{
       {{"DeviceType", "host"}}, {{"DeviceType", "cpu"}},
-      {{"DeviceType", "gpu"}},  {{"DeviceType", "acc"}},
-      {{"DeviceType", "fpga"}}, {{"DeviceType", "*"}}};
+      {{"DeviceType", "gpu"}}, {{"DeviceType", "*"}}};
   EXPECT_EQ(ExpectedValue, ActualValue);
 }
 
