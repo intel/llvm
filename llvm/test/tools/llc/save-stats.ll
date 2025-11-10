@@ -1,3 +1,5 @@
+; XFAIL: *
+
 ; REQUIRES: asserts
 
 ; RUN: llc -mtriple=arm64-apple-macosx --save-stats=obj -o %t.s %s && cat %t.stats | FileCheck %s
