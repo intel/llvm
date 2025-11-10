@@ -2196,8 +2196,13 @@ public:
                                                std::forward<RestT>(Rest)...);
   }
 
+  template <typename T>
+  constexpr inline decltype(auto) forwarding_helper(T &&t) {
+    return std::forward<T>(t);
+  }
+
   template <typename... RestT> auto property_deduction_helper(RestT &&...Rest) {
-    const auto &KernelObj = (std::forward<RestT>(Rest), ...);
+    const auto &KernelObj = (forwarding_helper(Rest), ...);
     if constexpr (ext::oneapi::experimental::detail::
                       HasKernelPropertiesGetMethod<
                           decltype(KernelObj)>::value) {
