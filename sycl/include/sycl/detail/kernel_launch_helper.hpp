@@ -57,12 +57,14 @@ struct GetMergedKernelProperties<
 struct KernelWrapperHelperFuncs {
 
 #ifdef SYCL_LANGUAGE_VERSION
+#define __SYCL_ENTRY_POINT_ATTR__(KernelName) [[clang::sycl_kernel_entry_point(KernelName)]]
 #ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
 #define __SYCL_KERNEL_ATTR__ [[clang::sycl_kernel_entry_point(KernelName)]]
 #else
 #define __SYCL_KERNEL_ATTR__ [[clang::sycl_kernel]]
 #endif // __INTEL_SYCL_USE_INTEGRATION_HEADERS
 #else
+#define __SYCL_ENTRY_POINT_ATTR__(KernelName)
 #define __SYCL_KERNEL_ATTR__
 #endif // SYCL_LANGUAGE_VERSION
 

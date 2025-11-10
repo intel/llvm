@@ -13,6 +13,11 @@
 // RUN: -aux-triple x86_64-pc-windows-msvc -triple spir64-unknown--unknown \
 // RUN: %s -o - | FileCheck %s --check-prefix=MSVC
 
+// A launcher function definition required for host code synthesis to silence
+// complains.
+template <typename KernelName, typename... Tys>
+void sycl_enqueue_kernel_launch(const char *, Tys &&...Args) {}
+
 namespace QL {
   auto dg1 = [] { return 1; };
   inline auto dg_inline1 = [] { return 1; };

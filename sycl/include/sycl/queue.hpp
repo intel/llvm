@@ -2828,8 +2828,8 @@ public:
   event single_task(
       const KernelType &KernelFunc,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return single_task<KernelName, KernelType>(
-        ext::oneapi::experimental::empty_properties_t{}, KernelFunc, CodeLoc);
+    (void)CodeLoc;
+    return single_task_impl<KernelName>(KernelFunc);
   }
 
   /// single_task version with a kernel represented as a lambda.
@@ -3966,6 +3966,70 @@ private:
     ProcessSubmitProperties(Props, SI);
     submit_without_event_impl(CGF, SI, TlsCodeLocCapture.query(),
                               TlsCodeLocCapture.isToplevel());
+  }
+
+  event remembered_event;
+  void set_std_layout_arg(int, const char *, size_t);
+  void remember_kernel_single_task(const char *);
+  void enqueue_remembered_kernel();
+  void remember_range(range<3> R);
+  void remember_range(range<2> R);
+  void remember_range(range<1> R);
+
+  template <typename T> void setArgHelper(int ArgIndex, T &&Arg) {
+    set_std_layout_arg(ArgIndex, reinterpret_cast<const char *>(&Arg), sizeof(T));
+  }
+
+  void setArgsHelper(int) {}
+
+  template <typename T, typename... Ts>
+  void setArgsHelper(int ArgIndex, T &&Arg, Ts &&...Args) {
+    setArgHelper(ArgIndex, std::forward<T>(Arg));
+    setArgsHelper(++ArgIndex, std::forward<Ts>(Args)...);
+  }
+
+  template <typename, typename... Args>
+  void sycl_enqueue_kernel_launch(const char *KernelName, Args... args) {
+    remember_kernel_single_task(KernelName);
+    setArgsHelper(0, args...);
+    enqueue_remembered_kernel();
+    // get kernel
+    // call set_args
+    // call enqueue
+  }
+
+  template <typename KernelName, typename KernelType>
+  __SYCL_ENTRY_POINT_ATTR__(KernelName)
+  void __kernel_single_task(const KernelType KernelFunc) {
+    KernelFunc();
+  }
+
+  template <typename KernelName, typename IterIndexTy, typename KernelType>
+  __SYCL_ENTRY_POINT_ATTR__(KernelName)
+  void __kernel_parallel_for(const KernelType KernelFunc) {
+    // Builder is only defined for device
+#ifdef __SYCL_DEVICE_ONLY__
+    KernelFunc(detail::Builder::getElement(detail::declptr<IterIndexTy>()));
+#endif
+    (void)KernelFunc;
+  }
+
+  /// special overload that does not accept properties or reductions (to
+  /// simplify a prototype)
+  template <typename KernelName, typename KernelFunctor>
+  event single_task_impl(KernelFunctor &&Functor) {
+    remember_range({1, 1, 1});
+    __kernel_single_task<KernelName>(Functor);
+    return remembered_event;
+  }
+
+  template <typename KernelName, int Dims, typename KernelFunctor>
+  event parallel_for_impl(range<Dims> R, KernelFunctor &&Functor) {
+    // save range to impl for parallel for
+    using KernelObjectArgTy = item<Dims>;
+    remember_range(R);
+    __kernel_parallel_for<KernelName, KernelObjectArgTy>(Functor);
+    return remembered_event;
   }
 
   /// parallel_for_impl with a kernel represented as a lambda + range that

@@ -17,6 +17,7 @@
 
 #include <cstring>
 #include <utility>
+#include <iostream>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 #include <detail/xpti_registry.hpp>
@@ -1154,6 +1155,78 @@ void queue_impl::verifyProps(const property_list &Props) const {
   };
   detail::PropertyValidator::checkPropsAndThrow(Props, CheckDataLessProperties,
                                                 CheckPropertiesWithData);
+}
+
+void queue_impl::remember_range(range<3> R) {
+ this->RememberedNDRDesc = NDRDescT(R);
+}
+void queue_impl::remember_range(range<2> R) {
+ this->RememberedNDRDesc = NDRDescT(R);
+}
+void queue_impl::remember_range(range<1> R) {
+ this->RememberedNDRDesc = NDRDescT(R);
+}
+
+void queue_impl::remember_kernel_single_task(const char *KernelName) {
+
+  DeviceKernelInfo Info;
+  Info.Name = KernelName;
+  Info.init(KernelName);
+  std::cout << KernelName << std::endl;
+  FastKernelCacheValPtr KernelCacheVal =
+      detail::ProgramManager::getInstance().getOrCreateKernel(
+          getContextImpl(), getDeviceImpl(), Info,
+          RememberedNDRDesc);
+  UrKernel = KernelCacheVal->MKernelHandle;
+}
+void queue_impl::set_std_layout_arg(int ArgIndex, const char *ArgPtr, size_t ArgSize) {
+  adapter_impl &Adapter = getAdapter();
+  Adapter.call<UrApiKind::urKernelSetArgValue>(UrKernel, ArgIndex, ArgSize,
+                                               /*wtf*/nullptr, ArgPtr);
+}
+EventImplPtr queue_impl::enqueue_remembered_kernel() {
+  adapter_impl &Adapter = getAdapter();
+  NDRDescT NDRDesc = RememberedNDRDesc ;
+  // COPY-PASTE from commands.cpp ON
+  // Remember this information before the range dimensions are reversed
+  const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
+
+  ReverseRangeDimensionsForKernel(NDRDesc);
+
+  size_t RequiredWGSize[3] = {0, 0, 0};
+  size_t *LocalSize = nullptr;
+
+  if (HasLocalSize)
+    LocalSize = &NDRDesc.LocalSize[0];
+  else {
+    Adapter.call<UrApiKind::urKernelGetGroupInfo>(
+        UrKernel, getDeviceImpl().getHandleRef(),
+        UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
+        RequiredWGSize,
+        /* pPropSizeRet = */ nullptr);
+
+    const bool EnforcedLocalSize =
+        (RequiredWGSize[0] != 0 || RequiredWGSize[1] != 0 ||
+         RequiredWGSize[2] != 0);
+    if (EnforcedLocalSize)
+      LocalSize = RequiredWGSize;
+  }
+  // COPY-PASTE from commands.cpp OFF
+  std::vector<ur_kernel_launch_property_t> property_list;
+  auto ResEvent = detail::event_impl::create_device_event(*this);
+  ur_event_handle_t UREvent = nullptr;
+  ur_result_t Error = Adapter.call_nocheck<UrApiKind::urEnqueueKernelLaunch>(
+      getHandleRef(), UrKernel, NDRDesc.Dims,
+      /*HasOffset ? &NDRDesc.GlobalOffset[0] : nullptr*/
+      nullptr, &NDRDesc.GlobalSize[0], LocalSize, property_list.size(),
+      property_list.empty() ? nullptr : property_list.data(),
+      /*RawEvents.size()*/ 0,
+      /*RawEvents.empty() ? nullptr : &RawEvents[0]*/ nullptr,
+      &UREvent);
+  if (Error == UR_RESULT_SUCCESS) {
+    ResEvent->setHandle(UREvent);
+  }
+  return ResEvent;
 }
 
 } // namespace detail
