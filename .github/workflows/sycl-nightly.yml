@@ -215,6 +215,10 @@ jobs:
             runner: '["Windows", "gen12"]'
             target_devices: level_zero:gpu
 
+          - name: Intel L0 Arc GPU
+            runner: '["Windows", arc"]'
+            target_devices: level_zero:gpu
+
           - name: Intel L0 Battlemage GPU
             runner: '["Windows", "bmg"]'
             target_devices: level_zero:gpu
