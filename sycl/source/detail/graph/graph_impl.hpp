@@ -529,13 +529,16 @@ public:
   bool isNativeRecordingEnabled() const { return MEnableNativeRecording; }
 
   /// Get the native UR graph handle for this graph.
-  /// @return Native UR graph handle, or nullptr if native recording is not enabled.
-  ur_exp_graph_handle_t getNativeGraphHandle() const { return MNativeGraphHandle; }
+  /// @return Native UR graph handle, or nullptr if native recording is not
+  /// enabled.
+  ur_exp_graph_handle_t getNativeGraphHandle() const {
+    return MNativeGraphHandle;
+  }
 
   /// Check if a queue is currently recording to this graph.
   /// @param Queue The queue to check.
   /// @return True if the queue is recording to this graph, false otherwise.
-  bool isQueueRecording(const sycl::detail::queue_impl &Queue) const;
+  bool isQueueRecording(sycl::detail::queue_impl &Queue);
 
 private:
   template <typename... Ts> node_impl &createNode(Ts &&...Args) {
@@ -603,9 +606,10 @@ private:
   /// Controls whether native recording is enabled for improved performance.
   /// Set by the presence of the enable_native_recording property.
   /// Note: Native recording only works with immediate command lists. Queues
-  /// must either be created with ext::intel::property::queue::immediate_command_list
-  /// or the global environment variable SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1
-  /// must be set.
+  /// must either be created with
+  /// ext::intel::property::queue::immediate_command_list or the global
+  /// environment variable SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 must
+  /// be set.
   bool MEnableNativeRecording = false;
 
   /// Native UR graph handle for native recording mode
@@ -978,7 +982,8 @@ private:
   bool MEnableProfiling;
 
   /// Native UR executable graph handle for native recording mode
-  /// Only valid when the original modifiable graph was created with native recording enabled
+  /// Only valid when the original modifiable graph was created with native
+  /// recording enabled
   ur_exp_executable_graph_handle_t MNativeExecutableGraphHandle = nullptr;
 
   // Stores a cache of node ids from modifiable graph nodes to the companion
