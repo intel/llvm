@@ -20,7 +20,6 @@
 #include <clang/Driver/CudaInstallationDetector.h>
 #include <clang/Driver/Driver.h>
 #include <clang/Driver/LazyDetector.h>
-#include <clang/Driver/Options.h>
 #include <clang/Driver/RocmInstallationDetector.h>
 #include <clang/Driver/ToolChain.h>
 #include <clang/Frontend/ChainedDiagnosticConsumer.h>
@@ -30,6 +29,7 @@
 #include <clang/Frontend/TextDiagnosticBuffer.h>
 #include <clang/Frontend/TextDiagnosticPrinter.h>
 #include <clang/Frontend/Utils.h>
+#include <clang/Options/Options.h>
 #include <clang/Tooling/CompilationDatabase.h>
 #include <clang/Tooling/Tooling.h>
 
@@ -62,7 +62,7 @@
 using namespace clang;
 using namespace clang::tooling;
 using namespace clang::driver;
-using namespace clang::driver::options;
+using namespace clang::options;
 using namespace llvm;
 using namespace llvm::opt;
 using namespace llvm::sycl;
