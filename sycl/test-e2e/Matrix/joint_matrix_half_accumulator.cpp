@@ -15,8 +15,11 @@
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27868, win: 101.5181
 
-// XFAIL: gpu && (!igc-dev || gpu-intel-dg2)
+// XFAIL: gpu-intel-dg2
 // XFAIL-TRACKER: GSD-10112
+
+// XFAIL: linux && arch-intel_gpu_bmg_g21 && !igc-dev
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20594
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

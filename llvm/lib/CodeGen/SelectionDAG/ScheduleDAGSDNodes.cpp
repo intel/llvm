@@ -136,7 +136,7 @@ static void CheckForPhysRegDependency(SDNode *Def, SDNode *User, unsigned Op,
   if (PhysReg) {
     const TargetRegisterClass *RC =
         TRI->getMinimalPhysRegClass(Reg, Def->getSimpleValueType(ResNo));
-    Cost = RC->getCopyCost();
+    Cost = RC->expensiveOrImpossibleToCopy() ? -1 : RC->getCopyCost();
   }
 }
 
@@ -888,7 +888,8 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
     }
 
     if (MI->isCandidateForAdditionalCallInfo()) {
-      if (DAG->getTarget().Options.EmitCallSiteInfo)
+      if (DAG->getTarget().Options.EmitCallSiteInfo ||
+          DAG->getTarget().Options.EmitCallGraphSection)
         MF.addCallSiteInfo(MI, DAG->getCallSiteInfo(Node));
 
       if (auto CalledGlobal = DAG->getCalledGlobal(Node))

@@ -11,6 +11,7 @@ option(SYCL_ADD_DEV_VERSION_POSTFIX "Adds -V postfix to version string" ON)
 option(SYCL_ENABLE_COVERAGE "Enables code coverage for runtime and unit tests" OFF)
 option(SYCL_ENABLE_STACK_PRINTING "Enables stack printing on crashes of SYCL applications" OFF)
 option(SYCL_LIB_WITH_DEBUG_SYMBOLS "Builds SYCL runtime libraries with debug symbols" OFF)
+option(SYCL_ENABLE_IPO "Builds SYCL runtime libraries with interprocedural optimization" OFF)
 
 if (NOT SYCL_COVERAGE_PATH)
   set(SYCL_COVERAGE_PATH "${CMAKE_CURRENT_BINARY_DIR}/profiles")
@@ -190,7 +191,33 @@ set(SYCL_EXT_ONEAPI_BACKEND_HIP ${LLVM_HAS_AMDGPU_TARGET})
 # Configure SYCL version macro
 set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(sycl_src_dir ${CMAKE_CURRENT_SOURCE_DIR}/source)
-string(TIMESTAMP __SYCL_COMPILER_VERSION "%Y%m%d")
+
+if(NOT DEFINED SYCL_COMPILER_VERSION)
+  find_package(Git QUIET)
+  if(GIT_FOUND)
+    # Get the date of the latest commit
+    execute_process(
+      COMMAND ${GIT_EXECUTABLE} log -1 --format=%cd --date=format:%Y%m%d
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+      RESULT_VARIABLE GIT_RESULT
+      OUTPUT_VARIABLE GIT_DATE
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+
+    if(GIT_RESULT EQUAL 0 AND GIT_DATE)
+      set(SYCL_COMPILER_VERSION "${GIT_DATE}")
+    endif()
+  endif()
+
+  if(NOT DEFINED SYCL_COMPILER_VERSION)
+    message(WARNING "No value for SYCL_COMPILER_VERSION passed and couldn't determine timestamp of last commit, falling back to current timestamp.")
+    string(TIMESTAMP SYCL_COMPILER_VERSION "%Y%m%d")
+  endif()
+endif()
+
+set(__SYCL_COMPILER_VERSION "${SYCL_COMPILER_VERSION}")
+message(STATUS "SYCL Compiler Version: ${__SYCL_COMPILER_VERSION}")
+
 configure_file("source/version.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/version.hpp")
 configure_file("source/feature_test.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/feature_test.hpp")
 
@@ -337,6 +364,13 @@ if (NOT WIN32)
     RENAME "libsycl.so.${SYCL_VERSION_STRING}-gdb.py"
     DESTINATION "lib${LLVM_LIBDIR_SUFFIX}/"
     COMPONENT sycl-headers-extras)
+  if (SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
+    install(FILES
+      "${CMAKE_CURRENT_SOURCE_DIR}/gdb/libsycl.so-gdb.py"
+      RENAME "libsycl-preview.so.${SYCL_VERSION_STRING}-gdb.py"
+      DESTINATION "lib${LLVM_LIBDIR_SUFFIX}/"
+      COMPONENT sycl-headers-extras)
+  endif()
 endif()
 
 if(SYCL_ENABLE_XPTI_TRACING AND
@@ -573,3 +607,19 @@ add_custom_target(deploy-sycl-toolchain
 add_subdirectory(doc)
 # SYCL End-to-End tests
 add_subdirectory(test-e2e)
+
+add_custom_target(install-sycl-test-utilities
+  COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target
+    utils/FileCheck/install
+    utils/count/install
+    utils/not/install
+    utils/lit/install
+    utils/llvm-lit/install
+    install-llvm-size
+    install-llvm-cov
+    install-llvm-profdata
+    install-compiler-rt
+  # This is required to perform the DeviceConfigFile consistency test, see
+  # sycl/test-e2e/Basic/device_config_file_consistency.cpp.
+  COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR} --component DeviceConfigFile
+)

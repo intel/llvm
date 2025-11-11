@@ -37,7 +37,7 @@ inline std::ostream &operator<<(std::ostream &out, const Result &result) {
   }                                                                            \
   (void)0
 
-#define UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(ret)                                 \
+#define UUR_ASSERT_RESULT_OR_UNSUPPORTED(result, ret)                          \
   do {                                                                         \
     auto status = ret;                                                         \
     if (status == UR_RESULT_ERROR_UNSUPPORTED_FEATURE ||                       \
@@ -45,9 +45,12 @@ inline std::ostream &operator<<(std::ostream &out, const Result &result) {
         status == UR_RESULT_ERROR_COMPILER_NOT_AVAILABLE) {                    \
       GTEST_SKIP();                                                            \
     } else {                                                                   \
-      ASSERT_EQ(status, UR_RESULT_SUCCESS);                                    \
+      ASSERT_EQ(status, result);                                               \
     }                                                                          \
   } while (0)
+
+#define UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(ret)                                 \
+  UUR_ASSERT_RESULT_OR_UNSUPPORTED(UR_RESULT_SUCCESS, ret)
 
 inline bool stringPropertyIsValid(const char *property,
                                   const size_t property_size) {

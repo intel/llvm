@@ -180,7 +180,8 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
                                      unsigned int /*minor_version*/,
                                      const char * /*version_str*/,
                                      const char *StreamName) {
-  if (std::string_view(StreamName) == "ur.call" &&
+  if ((std::string_view(StreamName) == "ur.call" ||
+       std::string_view(StreamName) == "ur.call.debug") &&
       std::getenv("SYCL_TRACE_UR_ENABLE")) {
     urPrintersInit();
     uint16_t StreamID = xptiRegisterStream(StreamName);
@@ -215,7 +216,8 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
     }
 #endif
   }
-  if (std::string_view(StreamName) == "sycl" &&
+  if ((std::string_view(StreamName) == "sycl" ||
+       std::string_view(StreamName) == "sycl.debug") &&
       std::getenv("SYCL_TRACE_API_ENABLE")) {
     syclPrintersInit();
     uint16_t StreamID = xptiRegisterStream(StreamName);
@@ -236,7 +238,8 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
 }
 
 XPTI_CALLBACK_API void xptiTraceFinish(const char *StreamName) {
-  if (std::string_view(StreamName) == "ur.call" &&
+  if ((std::string_view(StreamName) == "ur.call" ||
+       std::string_view(StreamName) == "ur.call.debug") &&
       std::getenv("SYCL_TRACE_UR_ENABLE"))
     urPrintersFinish();
 #ifdef SYCL_HAS_LEVEL_ZERO
@@ -254,10 +257,12 @@ XPTI_CALLBACK_API void xptiTraceFinish(const char *StreamName) {
     cudaCollectorLibrary.clear();
   }
 #endif
-  if (std::string_view(StreamName) == "sycl" &&
-      std::getenv("SYCL_TRACE_API_ENABLE"))
+  if ((std::string_view(StreamName) == "sycl" ||
+       std::string_view(StreamName) == "sycl.debug") &&
+      std::getenv("SYCL_TRACE_API_ENABLE")) {
     syclPrintersFinish();
-  if (std::getenv("SYCL_TRACE_VERIFICATION_ENABLE")) {
-    vPrintersFinish();
+    if (std::getenv("SYCL_TRACE_VERIFICATION_ENABLE")) {
+      vPrintersFinish();
+    }
   }
 }

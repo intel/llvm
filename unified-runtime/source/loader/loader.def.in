@@ -69,6 +69,7 @@ EXPORTS
 	urDeviceRelease
 	urDeviceRetain
 	urDeviceSelectBinary
+	urDeviceWaitExp
 	urEnqueueCommandBufferExp
 	urEnqueueDeviceGlobalVariableRead
 	urEnqueueDeviceGlobalVariableWrite
@@ -76,6 +77,7 @@ EXPORTS
 	urEnqueueEventsWaitWithBarrier
 	urEnqueueEventsWaitWithBarrierExt
 	urEnqueueKernelLaunch
+	urEnqueueKernelLaunchWithArgsExp
 	urEnqueueMemBufferCopy
 	urEnqueueMemBufferCopyRect
 	urEnqueueMemBufferFill
@@ -114,10 +116,12 @@ EXPORTS
 	urGetBindlessImagesExpProcAddrTable
 	urGetCommandBufferExpProcAddrTable
 	urGetContextProcAddrTable
+	urGetDeviceExpProcAddrTable
 	urGetDeviceProcAddrTable
 	urGetEnqueueExpProcAddrTable
 	urGetEnqueueProcAddrTable
 	urGetEventProcAddrTable
+	urGetIPCExpProcAddrTable
 	urGetKernelProcAddrTable
 	urGetMemProcAddrTable
 	urGetMemoryExportExpProcAddrTable
@@ -131,6 +135,10 @@ EXPORTS
 	urGetUSMProcAddrTable
 	urGetUsmP2PExpProcAddrTable
 	urGetVirtualMemProcAddrTable
+	urIPCCloseMemHandleExp
+	urIPCGetMemHandleExp
+	urIPCOpenMemHandleExp
+	urIPCPutMemHandleExp
 	urKernelCreate
 	urKernelCreateWithNativeHandle
 	urKernelGetGroupInfo
@@ -281,6 +289,7 @@ EXPORTS
 	urPrintDeviceThrottleReasonsFlags
 	urPrintDeviceType
 	urPrintDeviceUsmAccessCapabilityFlags
+	urPrintDeviceWaitExpParams
 	urPrintEnqueueCommandBufferExpParams
 	urPrintEnqueueDeviceGlobalVariableReadParams
 	urPrintEnqueueDeviceGlobalVariableWriteParams
@@ -288,6 +297,7 @@ EXPORTS
 	urPrintEnqueueEventsWaitWithBarrierExtParams
 	urPrintEnqueueEventsWaitWithBarrierParams
 	urPrintEnqueueKernelLaunchParams
+	urPrintEnqueueKernelLaunchWithArgsExpParams
 	urPrintEnqueueMemBufferCopyParams
 	urPrintEnqueueMemBufferCopyRectParams
 	urPrintEnqueueMemBufferFillParams
@@ -346,9 +356,14 @@ EXPORTS
 	urPrintExpExternalSemaphoreType
 	urPrintExpFileDescriptor
 	urPrintExpImageCopyFlags
+	urPrintExpImageCopyInputTypes
 	urPrintExpImageCopyRegion
 	urPrintExpImageMemType
+	urPrintExpKernelArgMemObjTuple
+	urPrintExpKernelArgProperties
+	urPrintExpKernelArgType
 	urPrintExpPeerInfo
+	urPrintExpProgramFlags
 	urPrintExpSamplerAddrModes
 	urPrintExpSamplerCubemapFilterMode
 	urPrintExpSamplerCubemapProperties
@@ -361,6 +376,10 @@ EXPORTS
 	urPrintImageDesc
 	urPrintImageFormat
 	urPrintImageInfo
+	urPrintIpcCloseMemHandleExpParams
+	urPrintIpcGetMemHandleExpParams
+	urPrintIpcOpenMemHandleExpParams
+	urPrintIpcPutMemHandleExpParams
 	urPrintKernelArgLocalProperties
 	urPrintKernelArgMemObjProperties
 	urPrintKernelArgPointerProperties
@@ -450,6 +469,7 @@ EXPORTS
 	urPrintProgramCreateWithBinaryParams
 	urPrintProgramCreateWithIlParams
 	urPrintProgramCreateWithNativeHandleParams
+	urPrintProgramDynamicLinkExpParams
 	urPrintProgramGetBuildInfoParams
 	urPrintProgramGetFunctionPointerParams
 	urPrintProgramGetGlobalVariablePointerParams
@@ -551,6 +571,7 @@ EXPORTS
 	urProgramCreateWithBinary
 	urProgramCreateWithIL
 	urProgramCreateWithNativeHandle
+	urProgramDynamicLinkExp
 	urProgramGetBuildInfo
 	urProgramGetFunctionPointer
 	urProgramGetGlobalVariablePointer

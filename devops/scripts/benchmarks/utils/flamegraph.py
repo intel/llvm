@@ -3,14 +3,18 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import os
 import shutil
 from pathlib import Path
 
 from options import options
-from utils.utils import run, git_clone, prune_old_files, remove_by_prefix
+from utils.utils import (
+    run,
+    prune_old_files,
+    remove_by_prefix,
+    sanitize_filename,
+)
 from utils.logger import log
-
+from git_project import GitProject
 from datetime import datetime, timezone
 
 
@@ -29,18 +33,17 @@ class FlameGraph:
         )
 
         log.info("Downloading FlameGraph...")
-        repo_dir = git_clone(
-            options.workdir,
-            "flamegraph-repo",
+        self.project = GitProject(
             "https://github.com/brendangregg/FlameGraph.git",
             "41fee1f99f9276008b7cd112fca19dc3ea84ac32",
+            Path(options.workdir),
+            "flamegraph",
         )
         log.info("FlameGraph tools ready.")
-        self.repo_dir = Path(repo_dir)
 
         if options.results_directory_override:
             self.flamegraphs_dir = (
-                Path(options.results_directory_override) / "flamegraphs"
+                Path(options.results_directory_override) / "results" / "flamegraphs"
             )
         else:
             self.flamegraphs_dir = Path(options.workdir) / "results" / "flamegraphs"
@@ -64,10 +67,12 @@ class FlameGraph:
         """
         if not shutil.which("perf"):
             raise FileNotFoundError(
-                "perf command not found. Please install linux-tools or perf package."
+                "perf command not found. Please install linux-tools-$(uname -r) or perf package."
             )
 
-        dir_name = f"{suite_name}__{bench_name}"
+        sanitized_suite_name = sanitize_filename(suite_name)
+        sanitized_bench_name = sanitize_filename(bench_name)
+        dir_name = f"{sanitized_suite_name}__{sanitized_bench_name}"
         bench_dir = self.flamegraphs_dir / dir_name
         bench_dir.mkdir(parents=True, exist_ok=True)
 
@@ -106,13 +111,18 @@ class FlameGraph:
             perf_data_path.stem.replace(".perf", "") + ".svg"
         )
         folded_file = perf_data_path.with_suffix(".folded")
-
         try:
             self._convert_perf_to_folded(perf_data_path, folded_file)
             self._generate_svg(folded_file, svg_file, bench_name)
 
-            log.debug(f"Generated flamegraph: {svg_file}")
+            log.info(f"FlameGraph SVG created: {svg_file.resolve()}")
             self._create_immediate_symlink(svg_file)
+
+            # Clean up the original perf data file after successful SVG generation
+            if perf_data_path.exists():
+                perf_data_path.unlink()
+                log.debug(f"Removed original perf data file: {perf_data_path}")
+
             prune_old_files(str(perf_data_path.parent))
             return str(svg_file)
         except Exception as e:
@@ -130,7 +140,7 @@ class FlameGraph:
         """Step 1: Convert perf script to folded format using a pipeline."""
         log.debug(f"Converting perf data to folded format: {folded_file}")
         perf_script_cmd = ["perf", "script", "-i", str(perf_data_file)]
-        stackcollapse_cmd = [str(self.repo_dir / "stackcollapse-perf.pl")]
+        stackcollapse_cmd = [str(self.project.src_dir / "stackcollapse-perf.pl")]
 
         try:
             # Run perf script and capture its output
@@ -150,7 +160,7 @@ class FlameGraph:
         """Step 2: Generate flamegraph SVG from a folded file."""
         log.debug(f"Generating flamegraph SVG: {svg_file}")
         flamegraph_cmd = [
-            str(self.repo_dir / "flamegraph.pl"),
+            str(self.project.src_dir / "flamegraph.pl"),
             "--title",
             f"{options.save_name} - {bench_name}",
             "--width",

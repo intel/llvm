@@ -9,6 +9,13 @@ Matrix/joint_matrix_bf16_fill_k_cache_runtime_dim.cpp
 # See GSD-11097.
 Assert/assert_in_kernels.cpp
 
+# https://github.com/intel/llvm/pull/20159 prevents returning last event as an
+# optimization for submitting barrier to an empty IOQ. However, the test
+# actually checks whether last event is returned or not, so it needs to be
+# updated to match the new behavior. ext_oneapi_submit_barrier spec doesn't
+# require last event to be returned, so this is not an ABI break.
+InorderQueue/in_order_ext_oneapi_submit_barrier.cpp
+
 # Likely OK, but need author to provide justification, get approval/confirmation
 # from someone:
 
@@ -35,3 +42,6 @@ Basic/device_config_file_consistency.cpp
 AddressSanitizer/*
 MemorySanitizer/*
 ThreadSanitizer/*
+
+# Upstreaming of SYCL llvm/llvm-project@65d730b4a5aae changed IMG_SYCLBIN enum value
+SYCLBIN/*

@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# The actual version of this script is build_zstd.sh.
+# This one is needed for jenkins precommit to pass, since jenkins still uses the
+# old name. Will be removed when Jenkins is updated.
+
 # Script to build and install zstd 1.5.6 on Ubuntu 24, with -fPIC flag.
 # The default installation of zstd on Ubuntu 24 does not have -fPIC flag
 # enabled, which is required for building DPC++ in shared libraries mode.

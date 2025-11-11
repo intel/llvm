@@ -421,6 +421,42 @@ void SPIRVRegularizeLLVMBase::cleanupConversionToNonStdIntegers(Module *M) {
   }
 }
 
+void SPIRVRegularizeLLVMBase::replacePrivateConstGlobalsWithAllocas(Module *M) {
+  SmallVector<GlobalVariable *> GlobalsToRemove;
+  for (auto &GV : M->globals()) {
+
+    if (!GV.isConstant() || !GV.hasInternalLinkage() ||
+        !(GV.getAddressSpace() == SPIRAS_Private) || !GV.hasInitializer() ||
+        GV.getName().starts_with("llvm.compiler.used") ||
+        GV.getName().starts_with("llvm.used"))
+      continue;
+
+    SmallVector<User *> Users(GV.users());
+    // TODO: Handle other llvm::User types, for example, constant expressions.
+    if (llvm::any_of(Users, [](User *U) { return !isa<Instruction>(U); }))
+      continue;
+
+    DenseMap<Function *, AllocaInst *> LocalCopies;
+    for (User *U : Users) {
+      Instruction *Inst = cast<Instruction>(U);
+      Function *F = Inst->getFunction();
+      AllocaInst *&AI = LocalCopies[F];
+      if (!AI) {
+        IRBuilder<> Builder(&*F->getEntryBlock().getFirstInsertionPt());
+        AI = Builder.CreateAlloca(GV.getValueType(), nullptr, GV.getName());
+        if (GV.getAlign())
+          AI->setAlignment(GV.getAlign().value());
+        Builder.CreateStore(GV.getInitializer(), AI);
+      }
+      Inst->replaceUsesOfWith(&GV, AI);
+    }
+    GlobalsToRemove.push_back(&GV);
+  }
+
+  for (GlobalVariable *GV : GlobalsToRemove)
+    GV->eraseFromParent();
+}
+
 bool SPIRVRegularizeLLVMBase::runRegularizeLLVM(Module &Module) {
   M = &Module;
   Ctx = &M->getContext();
@@ -582,6 +618,7 @@ bool SPIRVRegularizeLLVMBase::regularize() {
   addKernelEntryPoint(M);
   expandSYCLTypeUsing(M);
   cleanupConversionToNonStdIntegers(M);
+  replacePrivateConstGlobalsWithAllocas(M);
 
   // Kernels called by other kernels
   std::vector<Function *> CalledKernels;

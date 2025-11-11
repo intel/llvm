@@ -163,7 +163,6 @@ class CGDebugInfo {
   /// This is a storage for names that are constructed on demand. For
   /// example, C++ destructors, C++ operators etc..
   llvm::BumpPtrAllocator DebugInfoNames;
-  StringRef CWDName;
 
   llvm::DenseMap<const char *, llvm::TrackingMDRef> DIFileCache;
   llvm::DenseMap<const FunctionDecl *, llvm::TrackingMDRef> SPCache;
@@ -403,6 +402,7 @@ private:
   void CollectRecordFields(const RecordDecl *Decl, llvm::DIFile *F,
                            SmallVectorImpl<llvm::Metadata *> &E,
                            llvm::DICompositeType *RecordTy);
+  llvm::StringRef GetLambdaCaptureName(const LambdaCapture &Capture);
 
   /// If the C++ class has vtable info then insert appropriate debug
   /// info entry in EltTys vector.
@@ -905,6 +905,10 @@ private:
       std::memcpy(Data + A.size(), B.data(), B.size());
     return StringRef(Data, A.size() + B.size());
   }
+
+  /// If one exists, returns the linkage name of the specified \
+  /// (non-null) \c Method. Returns empty string otherwise.
+  llvm::StringRef GetMethodLinkageName(const CXXMethodDecl *Method) const;
 };
 
 /// A scoped helper to set the current debug location to the specified
@@ -983,6 +987,8 @@ public:
   ApplyInlineDebugLocation(CodeGenFunction &CGF, GlobalDecl InlinedFn);
   /// Restore everything back to the original state.
   ~ApplyInlineDebugLocation();
+  ApplyInlineDebugLocation(const ApplyInlineDebugLocation &) = delete;
+  ApplyInlineDebugLocation &operator=(ApplyInlineDebugLocation &) = delete;
 };
 
 bool noSystemDebugInfo(const Decl *D, const CodeGenModule &CGM);
@@ -995,6 +1001,8 @@ public:
                          ArrayRef<SanitizerKind::SanitizerOrdinal> Ordinals,
                          SanitizerHandler Handler);
   ~SanitizerDebugLocation();
+  SanitizerDebugLocation(const SanitizerDebugLocation &) = delete;
+  SanitizerDebugLocation &operator=(SanitizerDebugLocation &) = delete;
 };
 
 } // namespace CodeGen

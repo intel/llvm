@@ -30,28 +30,27 @@ TEST_P(urProgramBuildTest, InvalidNullHandleProgram) {
 }
 
 TEST_P(urProgramBuildTest, BuildFailure) {
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{});
+  // The build failure we are testing for happens at SYCL compile time on
+  // AMD and Nvidia, so no binary exists to check for a build failure
+  ur_backend_t backend;
+  ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
+                                   sizeof(ur_backend_t), &backend, nullptr));
+  if (backend == UR_BACKEND_HIP || backend == UR_BACKEND_CUDA ||
+      backend == UR_BACKEND_OFFLOAD) {
+    GTEST_SKIP()
+        << "Build failure test not supported on AMD/Nvidia/Offload yet";
+  }
+  // TODO: This seems to fail on opencl/device combination used in the Github
+  // runners (`2023.16.12.0.12_195853.xmain-hotfix`). It segfaults, so we just
+  // skip the test so other tests can run
+  if (backend == UR_BACKEND_OPENCL) {
+    GTEST_SKIP() << "Skipping opencl build failure test - segfaults on CI";
+  }
 
   ur_program_handle_t program = nullptr;
   std::shared_ptr<std::vector<char>> il_binary;
   UUR_RETURN_ON_FATAL_FAILURE(uur::KernelsEnvironment::instance->LoadSource(
       "build_failure", platform, il_binary));
-  if (!il_binary) {
-    // The build failure we are testing for happens at SYCL compile time on
-    // AMD and Nvidia, so no binary exists to check for a build failure
-    GTEST_SKIP() << "Build failure test not supported on AMD/Nvidia yet";
-    return;
-  }
-
-  // TODO: This seems to fail on opencl/device combination used in the Github
-  // runners (`2023.16.12.0.12_195853.xmain-hotfix`). It segfaults, so we just
-  // skip the test so other tests can run
-  ur_backend_t backend;
-  ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
-                                   sizeof(ur_backend_t), &backend, nullptr));
-  if (backend == UR_BACKEND_OPENCL) {
-    GTEST_SKIP() << "Skipping opencl build failure test - segfaults on CI";
-  }
 
   ASSERT_EQ_RESULT(UR_RESULT_SUCCESS,
                    urProgramCreateWithIL(context, il_binary->data(),

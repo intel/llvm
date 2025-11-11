@@ -21,6 +21,8 @@
 #include <sycl/kernel_bundle.hpp> // for kernel_bundle_impl
 
 #include <detail/device_kernel_info.hpp>
+#include <detail/kernel_arg_desc.hpp>
+#include <detail/ndrange_desc.hpp>
 
 #include <assert.h> // for assert
 #include <memory>   // for shared_ptr, unique_ptr
@@ -48,114 +50,6 @@ using EventImplPtr = std::shared_ptr<event_impl>;
 class stream_impl;
 class queue_impl;
 class kernel_bundle_impl;
-
-// The structure represents kernel argument.
-class ArgDesc {
-public:
-  ArgDesc(sycl::detail::kernel_param_kind_t Type, void *Ptr, int Size,
-          int Index)
-      : MType(Type), MPtr(Ptr), MSize(Size), MIndex(Index) {}
-
-  sycl::detail::kernel_param_kind_t MType;
-  void *MPtr;
-  int MSize;
-  int MIndex;
-};
-
-// The structure represents NDRange - global, local sizes, global offset and
-// number of dimensions.
-
-// TODO: A lot of tests rely on particular values to be set for dimensions that
-// are not used. To clarify, for example, if a 2D kernel is invoked, in
-// NDRDescT, the value of index 2 in GlobalSize must be set to either 1 or 0
-// depending on which constructor is used for no clear reason.
-// Instead, only sensible defaults should be used and tests should be updated
-// to reflect this.
-class NDRDescT {
-
-public:
-  NDRDescT() = default;
-  NDRDescT(const NDRDescT &Desc) = default;
-  NDRDescT(NDRDescT &&Desc) = default;
-
-  template <int Dims_>
-  NDRDescT(sycl::range<Dims_> N, bool SetNumWorkGroups) : Dims{size_t(Dims_)} {
-    if (SetNumWorkGroups) {
-      for (size_t I = 0; I < Dims_; ++I) {
-        NumWorkGroups[I] = N[I];
-      }
-    } else {
-      for (size_t I = 0; I < Dims_; ++I) {
-        GlobalSize[I] = N[I];
-      }
-
-      for (int I = Dims_; I < 3; ++I) {
-        GlobalSize[I] = 1;
-      }
-    }
-  }
-
-  template <int Dims_>
-  NDRDescT(sycl::range<Dims_> NumWorkItems, sycl::range<Dims_> LocalSizes,
-           sycl::id<Dims_> Offset)
-      : Dims{size_t(Dims_)} {
-    for (size_t I = 0; I < Dims_; ++I) {
-      GlobalSize[I] = NumWorkItems[I];
-      LocalSize[I] = LocalSizes[I];
-      GlobalOffset[I] = Offset[I];
-    }
-
-    for (int I = Dims_; I < 3; ++I) {
-      LocalSize[I] = LocalSizes[0] ? 1 : 0;
-    }
-
-    for (int I = Dims_; I < 3; ++I) {
-      GlobalSize[I] = 1;
-    }
-  }
-
-  template <int Dims_>
-  NDRDescT(sycl::range<Dims_> NumWorkItems, sycl::id<Dims_> Offset)
-      : Dims{size_t(Dims_)} {
-    for (size_t I = 0; I < Dims_; ++I) {
-      GlobalSize[I] = NumWorkItems[I];
-      GlobalOffset[I] = Offset[I];
-    }
-  }
-
-  template <int Dims_>
-  NDRDescT(sycl::nd_range<Dims_> ExecutionRange)
-      : NDRDescT(ExecutionRange.get_global_range(),
-                 ExecutionRange.get_local_range(),
-                 ExecutionRange.get_offset()) {}
-
-  template <int Dims_>
-  NDRDescT(sycl::range<Dims_> Range)
-      : NDRDescT(Range, /*SetNumWorkGroups=*/false) {}
-
-  template <int Dims_> void setClusterDimensions(sycl::range<Dims_> N) {
-    if (this->Dims != size_t(Dims_)) {
-      throw std::runtime_error(
-          "Dimensionality of cluster, global and local ranges must be same");
-    }
-
-    for (int I = 0; I < Dims_; ++I)
-      ClusterDimensions[I] = N[I];
-  }
-
-  NDRDescT &operator=(const NDRDescT &Desc) = default;
-  NDRDescT &operator=(NDRDescT &&Desc) = default;
-
-  std::array<size_t, 3> GlobalSize{0, 0, 0};
-  std::array<size_t, 3> LocalSize{0, 0, 0};
-  std::array<size_t, 3> GlobalOffset{0, 0, 0};
-  /// Number of workgroups, used to record the number of workgroups from the
-  /// simplest form of parallel_for_work_group. If set, all other fields must be
-  /// zero
-  std::array<size_t, 3> NumWorkGroups{0, 0, 0};
-  std::array<size_t, 3> ClusterDimensions{1, 1, 1};
-  size_t Dims = 0;
-};
 
 /// Base class for all types of command groups.
 class CG {
@@ -600,6 +494,7 @@ class CGCopyImage : public CG {
   ur_image_format_t MSrcImageFormat;
   ur_image_format_t MDstImageFormat;
   ur_exp_image_copy_flags_t MImageCopyFlags;
+  ur_exp_image_copy_input_types_t MImageInputTypes;
   ur_rect_offset_t MSrcOffset;
   ur_rect_offset_t MDstOffset;
   ur_rect_region_t MCopyExtent;
@@ -609,14 +504,15 @@ public:
               ur_image_desc_t DstImageDesc, ur_image_format_t SrcImageFormat,
               ur_image_format_t DstImageFormat,
               ur_exp_image_copy_flags_t ImageCopyFlags,
+              ur_exp_image_copy_input_types_t ImageInputTypes,
               ur_rect_offset_t SrcOffset, ur_rect_offset_t DstOffset,
               ur_rect_region_t CopyExtent, CG::StorageInitHelper CGData,
               detail::code_location loc = {})
       : CG(CGType::CopyImage, std::move(CGData), std::move(loc)), MSrc(Src),
         MDst(Dst), MSrcImageDesc(SrcImageDesc), MDstImageDesc(DstImageDesc),
         MSrcImageFormat(SrcImageFormat), MDstImageFormat(DstImageFormat),
-        MImageCopyFlags(ImageCopyFlags), MSrcOffset(SrcOffset),
-        MDstOffset(DstOffset), MCopyExtent(CopyExtent) {}
+        MImageCopyFlags(ImageCopyFlags), MImageInputTypes(ImageInputTypes),
+        MSrcOffset(SrcOffset), MDstOffset(DstOffset), MCopyExtent(CopyExtent) {}
 
   void *getSrc() const { return MSrc; }
   void *getDst() const { return MDst; }
@@ -625,6 +521,9 @@ public:
   ur_image_format_t getSrcFormat() const { return MSrcImageFormat; }
   ur_image_format_t getDstFormat() const { return MDstImageFormat; }
   ur_exp_image_copy_flags_t getCopyFlags() const { return MImageCopyFlags; }
+  ur_exp_image_copy_input_types_t getCopyInputTypes() const {
+    return MImageInputTypes;
+  }
   ur_rect_offset_t getSrcOffset() const { return MSrcOffset; }
   ur_rect_offset_t getDstOffset() const { return MDstOffset; }
   ur_rect_region_t getCopyExtent() const { return MCopyExtent; }

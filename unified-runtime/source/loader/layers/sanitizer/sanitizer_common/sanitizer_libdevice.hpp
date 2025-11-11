@@ -21,9 +21,6 @@ namespace ur_sanitizer_layer {
 
 enum class DeviceType : uint32_t { UNKNOWN = 0, CPU, GPU_PVC, GPU_DG2 };
 
-// Try to use a larger ID number to avoid conflict with user ID.
-#define SPEC_CONSTANT_DEVICE_TYPE_ID (INT32_MAX - 1)
-
 inline const char *ToString(DeviceType Type) {
   switch (Type) {
   case DeviceType::UNKNOWN:
@@ -68,16 +65,24 @@ inline const char *ToString(ErrorType ErrorType) {
   }
 }
 
-enum class MemoryType : int32_t {
-  UNKNOWN,
-  USM_DEVICE,
-  USM_HOST,
-  USM_SHARED,
-  LOCAL,
-  PRIVATE,
-  MEM_BUFFER,
-  DEVICE_GLOBAL,
+// clang-format off
+// We treat "GLOBAL/LOCAL/PRIVATE/CONSTANT/GENERIC" as address space mask as well,
+// So it's easy to check that USM_XXX is also in global memory, and we can also
+// mark an address is a generic & global & usm_device address
+enum MemoryType : uint32_t {
+  UNKNOWN       = 0x000000'00,
+  GLOBAL        = 0x000001'00,
+  USM_DEVICE    = 0x000001'01,
+  USM_HOST      = 0x000001'02,
+  USM_SHARED    = 0x000001'03,
+  MEM_BUFFER    = 0x000001'04,
+  DEVICE_GLOBAL = 0x000001'05,
+  LOCAL         = 0x000002'00,
+  PRIVATE       = 0x000004'00,
+  CONSTANT      = 0x000008'00,
+  GENERIC       = 0x000010'00,
 };
+// clang-format on
 
 inline const char *ToString(MemoryType MemoryType) {
   switch (MemoryType) {

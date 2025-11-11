@@ -46,7 +46,7 @@ NativeCPUTargetInfo::NativeCPUTargetInfo(const llvm::Triple &Triple,
     : TargetInfo(Triple) {
   AddrSpaceMap = &NativeCPUASMap;
   UseAddrSpaceMapMangling = true;
-  HasLegalHalfType = true;
+  HasFastHalfType = true;
   HasFloat16 = true;
 
   llvm::Triple HostTriple([&] {

@@ -17,6 +17,8 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Error.h"
 
+#include <memory>
+
 namespace llvm {
 namespace sycl {
 
@@ -54,8 +56,8 @@ bool lowerESIMDConstructs(llvm::module_split::ModuleDesc &MD,
 /// \p Modified value indicates whether the Module has been modified.
 /// \p SplitOccurred value indicates whether split has occurred before or during
 /// function's invocation.
-Expected<SmallVector<module_split::ModuleDesc, 2>>
-handleESIMD(llvm::module_split::ModuleDesc MDesc,
+Expected<SmallVector<std::unique_ptr<module_split::ModuleDesc>, 2>>
+handleESIMD(std::unique_ptr<llvm::module_split::ModuleDesc> MDesc,
             const ESIMDProcessingOptions &Options, bool &Modified,
             bool &SplitOccurred);
 

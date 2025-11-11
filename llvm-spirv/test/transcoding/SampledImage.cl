@@ -42,45 +42,45 @@ void sample_kernel_int(image2d_t input, float2 coords, global int4 *results, sam
 // CHECK-SPIRV: Function {{.*}} [[sample_kernel_float]]
 // CHECK-SPIRV: FunctionParameter {{.*}} [[InputImage:[0-9]+]]
 // CHECK-SPIRV: FunctionParameter [[TypeSampler]] [[argSampl:[0-9]+]]
-// CHECK-LLVM: define spir_kernel void @sample_kernel_float(ptr addrspace(1) %input, <2 x float> %coords, ptr addrspace(1) align 16 captures(none) %results, ptr addrspace(2) %argSampl)
+// CHECK-LLVM: define spir_kernel void @sample_kernel_float(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) %input, <2 x float> %coords, ptr addrspace(1) align 16 captures(none) %results, target("spirv.Sampler") %argSampl)
 
 // CHECK-SPIRV: SampledImage [[SampledImageTy]] [[SampledImage1:[0-9]+]] [[InputImage]] [[ConstSampler1]]
 // CHECK-SPIRV: ImageSampleExplicitLod {{[0-9]+}} {{[0-9]+}} [[SampledImage1]]
-// CHECK-LLVM:  call spir_func <4 x float> @_Z11read_imagef14ocl_image2d_ro11ocl_samplerDv2_f(ptr addrspace(1) %input, ptr addrspace(2) %0, <2 x float> %coords)
+// CHECK-LLVM:  call spir_func <4 x float> @_Z11read_imagef14ocl_image2d_ro11ocl_samplerDv2_f(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) %input, target("spirv.Sampler") %0, <2 x float> %coords)
 // CHECK-SPV-IR: call spir_func target("spirv.SampledImage", void, 1, 0, 0, 0, 0, 0, 0) @_Z20__spirv_SampledImagePU3AS133__spirv_Image__void_1_0_0_0_0_0_0PU3AS215__spirv_Sampler(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) %input, target("spirv.Sampler") %0)
 // CHECK-SPV-IR: call spir_func <4 x float> @_Z38__spirv_ImageSampleExplicitLod_Rfloat4PU3AS140__spirv_SampledImage__void_1_0_0_0_0_0_0Dv2_fif(target("spirv.SampledImage", void, 1, 0, 0, 0, 0, 0, 0) %TempSampledImage, <2 x float> %coords, i32 2, float 0.000000e+00)
 
 // CHECK-SPIRV: SampledImage [[SampledImageTy]] [[SampledImage2:[0-9]+]] [[InputImage]] [[argSampl]]
 // CHECK-SPIRV: ImageSampleExplicitLod {{[0-9]+}} {{[0-9]+}} [[SampledImage2]]
-// CHECK-LLVM:   call spir_func <4 x float> @_Z11read_imagef14ocl_image2d_ro11ocl_samplerDv2_f(ptr addrspace(1) %input, ptr addrspace(2) %argSampl, <2 x float> %coords)
+// CHECK-LLVM:   call spir_func <4 x float> @_Z11read_imagef14ocl_image2d_ro11ocl_samplerDv2_f(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) %input, target("spirv.Sampler") %argSampl, <2 x float> %coords)
 // CHECK-SPV-IR: call spir_func target("spirv.SampledImage", void, 1, 0, 0, 0, 0, 0, 0) @_Z20__spirv_SampledImagePU3AS133__spirv_Image__void_1_0_0_0_0_0_0PU3AS215__spirv_Sampler(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) %input, target("spirv.Sampler") %argSampl)
 // CHECK-SPV-IR: call spir_func <4 x float> @_Z38__spirv_ImageSampleExplicitLod_Rfloat4PU3AS140__spirv_SampledImage__void_1_0_0_0_0_0_0Dv2_fif(target("spirv.SampledImage", void, 1, 0, 0, 0, 0, 0, 0) %TempSampledImage4, <2 x float> %coords, i32 2, float 0.000000e+00)
 
 // CHECK-SPIRV: SampledImage [[SampledImageTy]] [[SampledImage3:[0-9]+]] [[InputImage]] [[ConstSampler2]]
 // CHECK-SPIRV: ImageSampleExplicitLod {{[0-9]+}} {{[0-9]+}} [[SampledImage3]]
-// CHECK-LLVM: call spir_func <4 x float> @_Z11read_imagef14ocl_image2d_ro11ocl_samplerDv2_f(ptr addrspace(1) %input, ptr addrspace(2) %{{[0-9]+}}, <2 x float> %coords)
+// CHECK-LLVM: call spir_func <4 x float> @_Z11read_imagef14ocl_image2d_ro11ocl_samplerDv2_f(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) %input, target("spirv.Sampler") %{{[0-9]+}}, <2 x float> %coords)
 // CHECK-SPV-IR: call spir_func target("spirv.SampledImage", void, 1, 0, 0, 0, 0, 0, 0) @_Z20__spirv_SampledImagePU3AS133__spirv_Image__void_1_0_0_0_0_0_0PU3AS215__spirv_Sampler(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) %input, target("spirv.Sampler") %1)
 // CHECK-SPV-IR: call spir_func <4 x float> @_Z38__spirv_ImageSampleExplicitLod_Rfloat4PU3AS140__spirv_SampledImage__void_1_0_0_0_0_0_0Dv2_fif(target("spirv.SampledImage", void, 1, 0, 0, 0, 0, 0, 0) %TempSampledImage6, <2 x float> %coords, i32 2, float 0.000000e+00)
 
 // CHECK-SPIRV: Function {{.*}} [[sample_kernel_int]]
 // CHECK-SPIRV: FunctionParameter {{.*}} [[InputImage:[0-9]+]]
 // CHECK-SPIRV: FunctionParameter [[TypeSampler]] [[argSampl:[0-9]+]]
-// CHECK-LLVM: define spir_kernel void @sample_kernel_int(ptr addrspace(1) %input, <2 x float> %coords, ptr addrspace(1) align 16 captures(none) %results, ptr addrspace(2) %argSampl)
+// CHECK-LLVM: define spir_kernel void @sample_kernel_int(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) %input, <2 x float> %coords, ptr addrspace(1) align 16 captures(none) %results, target("spirv.Sampler") %argSampl)
 
 // CHECK-SPIRV: SampledImage [[SampledImageTy]] [[SampledImage4:[0-9]+]] [[InputImage]] [[ConstSampler3]]
 // CHECK-SPIRV: ImageSampleExplicitLod {{[0-9]+}} {{[0-9]+}} [[SampledImage4]]
-// CHECK-LLVM: call spir_func <4 x i32> @_Z11read_imagei14ocl_image2d_ro11ocl_samplerDv2_f(ptr addrspace(1) %input, ptr addrspace(2) %0, <2 x float> %coords)
+// CHECK-LLVM: call spir_func <4 x i32> @_Z11read_imagei14ocl_image2d_ro11ocl_samplerDv2_f(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) %input, target("spirv.Sampler") %0, <2 x float> %coords)
 // CHECK-SPV-IR: call spir_func target("spirv.SampledImage", void, 1, 0, 0, 0, 0, 0, 0) @_Z20__spirv_SampledImagePU3AS133__spirv_Image__void_1_0_0_0_0_0_0PU3AS215__spirv_Sampler(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) %input, target("spirv.Sampler") %0)
 // CHECK-SPV-IR: call spir_func <4 x i32> @_Z36__spirv_ImageSampleExplicitLod_Rint4PU3AS140__spirv_SampledImage__void_1_0_0_0_0_0_0Dv2_fif(target("spirv.SampledImage", void, 1, 0, 0, 0, 0, 0, 0) %TempSampledImage, <2 x float> %coords, i32 2, float 0.000000e+00)
 
 // CHECK-SPIRV: SampledImage [[SampledImageTy]] [[SampledImage5:[0-9]+]] [[InputImage]] [[argSampl]]
 // CHECK-SPIRV: ImageSampleExplicitLod {{[0-9]+}} {{[0-9]+}} [[SampledImage5]]
-// CHECK-LLVM: call spir_func <4 x i32> @_Z11read_imagei14ocl_image2d_ro11ocl_samplerDv2_f(ptr addrspace(1) %input, ptr addrspace(2) %argSampl, <2 x float> %coords)
+// CHECK-LLVM: call spir_func <4 x i32> @_Z11read_imagei14ocl_image2d_ro11ocl_samplerDv2_f(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) %input, target("spirv.Sampler") %argSampl, <2 x float> %coords)
 // CHECK-SPV-IR: call spir_func target("spirv.SampledImage", void, 1, 0, 0, 0, 0, 0, 0) @_Z20__spirv_SampledImagePU3AS133__spirv_Image__void_1_0_0_0_0_0_0PU3AS215__spirv_Sampler(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) %input, target("spirv.Sampler") %argSampl)
 // CHECK-SPV-IR: call spir_func <4 x i32> @_Z36__spirv_ImageSampleExplicitLod_Rint4PU3AS140__spirv_SampledImage__void_1_0_0_0_0_0_0Dv2_fif(target("spirv.SampledImage", void, 1, 0, 0, 0, 0, 0, 0) %TempSampledImage4, <2 x float> %coords, i32 2, float 0.000000e+00)
 
 // CHECK-SPIRV: SampledImage [[SampledImageTy]] [[SampledImage6:[0-9]+]] [[InputImage]] [[ConstSampler4]]
 // CHECK-SPIRV: ImageSampleExplicitLod {{[0-9]+}} {{[0-9]+}} [[SampledImage6]]
-// CHECK-LLVM: call spir_func <4 x i32> @_Z11read_imagei14ocl_image2d_ro11ocl_samplerDv2_f(ptr addrspace(1) %input, ptr addrspace(2) %1, <2 x float> %coords)
+// CHECK-LLVM: call spir_func <4 x i32> @_Z11read_imagei14ocl_image2d_ro11ocl_samplerDv2_f(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) %input, target("spirv.Sampler") %1, <2 x float> %coords)
 // CHECK-SPV-IR: call spir_func target("spirv.SampledImage", void, 1, 0, 0, 0, 0, 0, 0) @_Z20__spirv_SampledImagePU3AS133__spirv_Image__void_1_0_0_0_0_0_0PU3AS215__spirv_Sampler(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) %input, target("spirv.Sampler") %1)
 // CHECK-SPV-IR: call spir_func <4 x i32> @_Z36__spirv_ImageSampleExplicitLod_Rint4PU3AS140__spirv_SampledImage__void_1_0_0_0_0_0_0Dv2_fif(target("spirv.SampledImage", void, 1, 0, 0, 0, 0, 0, 0) %TempSampledImage6, <2 x float> %coords, i32 2, float 0.000000e+00)

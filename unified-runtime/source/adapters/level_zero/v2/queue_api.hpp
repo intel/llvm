@@ -147,8 +147,9 @@ struct ur_queue_t_ {
   virtual ur_result_t bindlessImagesImageCopyExp(
       const void *, void *, const ur_image_desc_t *, const ur_image_desc_t *,
       const ur_image_format_t *, const ur_image_format_t *,
-      ur_exp_image_copy_region_t *, ur_exp_image_copy_flags_t, uint32_t,
-      const ur_event_handle_t *, ur_event_handle_t *) = 0;
+      ur_exp_image_copy_region_t *, ur_exp_image_copy_flags_t,
+      ur_exp_image_copy_input_types_t, uint32_t, const ur_event_handle_t *,
+      ur_event_handle_t *) = 0;
   virtual ur_result_t bindlessImagesWaitExternalSemaphoreExp(
       ur_exp_external_semaphore_handle_t, bool, uint64_t, uint32_t,
       const ur_event_handle_t *, ur_event_handle_t *) = 0;
@@ -162,6 +163,11 @@ struct ur_queue_t_ {
   virtual ur_result_t enqueueTimestampRecordingExp(bool, uint32_t,
                                                    const ur_event_handle_t *,
                                                    ur_event_handle_t *) = 0;
+  virtual ur_result_t enqueueKernelLaunchWithArgsExp(
+      ur_kernel_handle_t, uint32_t, const size_t *, const size_t *,
+      const size_t *, uint32_t, const ur_exp_kernel_arg_properties_t *,
+      uint32_t, const ur_kernel_launch_property_t *, uint32_t,
+      const ur_event_handle_t *, ur_event_handle_t *) = 0;
   virtual ur_result_t
   enqueueEventsWaitWithBarrierExt(const ur_exp_enqueue_ext_properties_t *,
                                   uint32_t, const ur_event_handle_t *,

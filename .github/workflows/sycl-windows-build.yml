@@ -111,7 +111,7 @@ jobs:
         $exitCode = $LASTEXITCODE
         Remove-Item -Path "windows_detect_hung_tests.ps1"
         exit $exitCode
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         sparse-checkout: |
           devops/actions
@@ -147,7 +147,7 @@ jobs:
         IF NOT EXIST D:\github\_work\cache MKDIR D:\github\_work\cache
         IF NOT EXIST D:\github\_work\cache\${{inputs.build_cache_suffix}} MKDIR D:\github\_work\cache\${{inputs.build_cache_suffix}}
         python.exe src/buildbot/configure.py -o build ^
-          --ci-defaults %ARGS% ^
+          --ci-defaults --use-zstd %ARGS% ^
           "-DCMAKE_C_COMPILER=${{inputs.cxx}}" ^
           "-DCMAKE_CXX_COMPILER=${{inputs.cxx}}" ^
           "-DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%\install" ^
@@ -197,7 +197,7 @@ jobs:
         diff -Naur src/sycl/test/abi/sycl_symbols_windows.dump build/new_sycl_symbols_windows.dump || true
     - name: Upload new ABI symbols
       if: always() && !cancelled() && contains(inputs.changes, 'sycl')
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: sycl_windows_abi_symbols
         path: build/new_sycl_symbols_windows.dump
@@ -212,7 +212,7 @@ jobs:
       run: tar -czf ${{ inputs.toolchain_artifact_filename }} -C install .
     - name: Upload toolchain release
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: ${{ inputs.release_toolchain_artifact }}
         path: ${{ inputs.toolchain_artifact_filename }}
@@ -221,17 +221,9 @@ jobs:
     - name: Install utilities
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       shell: bash
-      # TODO replace utility installation with a single CMake target
       run: |
-        cmake --build build --target utils/FileCheck/install
-        cmake --build build --target utils/count/install
-        cmake --build build --target utils/not/install
-        cmake --build build --target utils/lit/install
-        cmake --build build --target utils/llvm-lit/install
-        cmake --build build --target install-llvm-size
-        cmake --build build --target install-llvm-cov
-        cmake --build build --target install-llvm-profdata
-        cmake --build build --target install-compiler-rt
+        cmake --build $GITHUB_WORKSPACE/build --target install-sycl-test-utilities
+
     - name: Pack toolchain
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       shell: bash
@@ -239,7 +231,7 @@ jobs:
         tar -czf ${{ inputs.toolchain_artifact_filename }} -C install .
     - name: Upload toolchain
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: sycl_windows_default
         path: ${{ inputs.toolchain_artifact_filename }}

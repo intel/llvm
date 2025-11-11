@@ -45,13 +45,13 @@ jobs:
       packages: write
     if: always()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           sparse-checkout: |
             devops/
 
       - name: Checkout E2E tests
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref || github.sha }}
           path: llvm
@@ -63,12 +63,12 @@ jobs:
           tar -I 'zstd -9' -cf devops/e2e_sources.tar.zst -C ./llvm .
 
       - name: Download toolchain
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: toolchain
           path: devops/
       - name: Download E2E binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: e2e_bin
           path: devops/
@@ -99,7 +99,7 @@ jobs:
       image: ghcr.io/${{ github.repository }}/sycl_prebuilt_tests:${{ inputs.ref || github.ref_name }}
       options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           sparse-checkout: |
             devops

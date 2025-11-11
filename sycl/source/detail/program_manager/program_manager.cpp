@@ -164,7 +164,7 @@ static bool isDeviceBinaryTypeSupported(context_impl &ContextImpl,
 [[maybe_unused]] auto VecToString = [](auto &Vec) -> std::string {
   std::ostringstream Out;
   Out << "{";
-  for (auto Elem : Vec)
+  for (const auto &Elem : Vec)
     Out << Elem << " ";
   Out << "}";
   return Out.str();
@@ -1302,7 +1302,7 @@ static ur_result_t doCompile(adapter_impl &Adapter, ur_program_handle_t Program,
   // Try to compile with given devices, fall back to compiling with the program
   // context if unsupported by the adapter
   auto Result = Adapter.call_nocheck<UrApiKind::urProgramCompileExp>(
-      Program, NumDevs, Devs, Opts);
+      Program, NumDevs, Devs, ur_exp_program_flags_t{}, Opts);
   if (Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
     return Adapter.call_nocheck<UrApiKind::urProgramCompile>(Ctx, Program,
                                                              Opts);
@@ -1723,7 +1723,8 @@ Managed<ur_program_handle_t> ProgramManager::build(
                                      ? CompileOptions
                                      : (CompileOptions + " " + LinkOptions);
     ur_result_t Error = Adapter.call_nocheck<UrApiKind::urProgramBuildExp>(
-        Program, Devices.size(), Devices.data(), Options.c_str());
+        Program, Devices.size(), Devices.data(), ur_exp_program_flags_t{},
+        Options.c_str());
     if (Error == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
       Error = Adapter.call_nocheck<UrApiKind::urProgramBuild>(
           Context.getHandleRef(), Program, Options.c_str());
@@ -1759,8 +1760,8 @@ Managed<ur_program_handle_t> ProgramManager::build(
   auto doLink = [&] {
     auto Res = Adapter.call_nocheck<UrApiKind::urProgramLinkExp>(
         Context.getHandleRef(), Devices.size(), Devices.data(),
-        LinkPrograms.size(), LinkPrograms.data(), LinkOptions.c_str(),
-        &LinkedProg);
+        ur_exp_program_flags_t{}, LinkPrograms.size(), LinkPrograms.data(),
+        LinkOptions.c_str(), &LinkedProg);
     if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
       Res = Adapter.call_nocheck<UrApiKind::urProgramLink>(
           Context.getHandleRef(), LinkPrograms.size(), LinkPrograms.data(),
@@ -2417,10 +2418,20 @@ void ProgramManager::registerKernelGlobalInfo(
   if (m_FreeFunctionKernelGlobalInfo.empty())
     m_FreeFunctionKernelGlobalInfo = std::move(GlobalInfoToCopy);
   else {
-    for (auto &GlobalInfo : GlobalInfoToCopy) {
+    for (auto &GlobalInfo : GlobalInfoToCopy)
       m_FreeFunctionKernelGlobalInfo.insert(GlobalInfo);
-    }
   }
+}
+
+// Remove entries from m_FreeFunctionKernelGlobalInfo that matches
+// the ones in GlobalInfoToCopy. This function is called when a shared
+// library consisting of SYCL kernels is unloaded.
+void ProgramManager::unRegisterKernelGlobalInfo(
+    std::unordered_map<std::string_view, unsigned> &&GlobalInfoToCopy) {
+  std::lock_guard<std::mutex> Guard(MNativeProgramsMutex);
+
+  for (const auto &GlobalInfo : GlobalInfoToCopy)
+    m_FreeFunctionKernelGlobalInfo.erase(GlobalInfo.first);
 }
 
 std::optional<unsigned>
@@ -3001,8 +3012,8 @@ ProgramManager::link(const std::vector<device_image_plain> &Imgs,
   auto doLink = [&] {
     auto Res = Adapter.call_nocheck<UrApiKind::urProgramLinkExp>(
         ContextImpl.getHandleRef(), URDevices.size(), URDevices.data(),
-        URPrograms.size(), URPrograms.data(), LinkOptionsStr.c_str(),
-        &LinkedProg);
+        ur_exp_program_flags_t{}, URPrograms.size(), URPrograms.data(),
+        LinkOptionsStr.c_str(), &LinkedProg);
     if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
       Res = Adapter.call_nocheck<UrApiKind::urProgramLink>(
           ContextImpl.getHandleRef(), URPrograms.size(), URPrograms.data(),
@@ -3867,7 +3878,7 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
   return ((ArchName == CompileTarget) ||
           (CompileTarget == "spir64_x86_64" &&
            (ArchName == "x86_64" || ArchName == "intel_cpu_spr" ||
-            ArchName == "intel_cpu_gnr")));
+            ArchName == "intel_cpu_gnr" || ArchName == "intel_cpu_dmr")));
 }
 
 } // namespace detail

@@ -31,30 +31,16 @@
 #error "SYCL device compiler is built without ext_vector_type support"
 #endif
 
-#include <sycl/access/access.hpp>             // for decorated, address_space
-#include <sycl/aliases.hpp>                   // for half, cl_char, cl_int
-#include <sycl/detail/common.hpp>             // for ArrayCreator
-#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
-#include <sycl/detail/fwd/accessor.hpp>
-#include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
-#include <sycl/detail/memcpy.hpp>              // for memcpy
 #include <sycl/detail/named_swizzles_mixin.hpp>
-#include <sycl/detail/type_traits.hpp> // for is_floating_point
 #include <sycl/detail/vector_arith.hpp>
-#include <sycl/half_type.hpp> // for StorageT, half, Vec16...
 
-#include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/fwd/accessor.hpp>
+#include <sycl/detail/fwd/half.hpp>
+#include <sycl/detail/memcpy.hpp>
 
-#include <algorithm>   // for std::min
-#include <array>       // for array
-#include <cassert>     // for assert
-#include <cstddef>     // for size_t, NULL, byte
-#include <cstdint>     // for uint8_t, int16_t, int...
-#include <functional>  // for divides, multiplies
-#include <iterator>    // for pair
-#include <ostream>     // for operator<<, basic_ost...
-#include <type_traits> // for enable_if_t, is_same
-#include <utility>     // for index_sequence, make_...
+#include <algorithm>
+#include <functional>
 
 namespace sycl {
 
@@ -63,6 +49,9 @@ namespace sycl {
 enum class rounding_mode { automatic = 0, rte = 1, rtz = 2, rtp = 3, rtn = 4 };
 
 inline namespace _V1 {
+namespace ext::oneapi {
+class bfloat16;
+}
 
 struct elem {
   static constexpr int x = 0;
@@ -512,8 +501,7 @@ class __SYCL_EBO vec :
 #endif
       bool, /*->*/ std::uint8_t,                            //
       sycl::half, /*->*/ sycl::detail::half_impl::StorageT, //
-      sycl::ext::oneapi::bfloat16,
-      /*->*/ sycl::ext::oneapi::bfloat16::Bfloat16StorageT, //
+      sycl::ext::oneapi::bfloat16, /*->*/ uint16_t,         //
       char, /*->*/ detail::ConvertToOpenCLType_t<char>,     //
       DataT, /*->*/ DataT                                   //
       >::type;

@@ -162,4 +162,13 @@ struct ur_platform_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter>,
                                            ze_device_handle_t, size_t, size_t,
                                            unsigned int, size_t *);
   } ZeMemGetPitchFor2dImageExt;
+
+  struct ZeCommandListAppendLaunchKernelWithArgumentsExtension {
+    bool Supported = false;
+    bool DriverSupportsCooperativeKernelLaunchWithArgs = false;
+    ze_result_t (*zeCommandListAppendLaunchKernelWithArgumentsFunctionPtr)(
+        ze_command_list_handle_t, ze_kernel_handle_t, const ze_group_count_t,
+        const ze_group_size_t, void **, const void *, ze_event_handle_t,
+        uint32_t, ze_event_handle_t *);
+  } ZeCommandListAppendLaunchKernelWithArgumentsExt;
 };

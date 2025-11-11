@@ -28,7 +28,7 @@ permissions: read-all
 jobs:
   build_and_push_images:
     if: github.repository == 'intel/llvm'
-    name: Build and Push Docker Images
+    name: "Containers"
     runs-on: ubuntu-latest
     permissions:
       packages: write
@@ -73,7 +73,7 @@ jobs:
               base_tag=latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 2
       - name: Build and Push Container

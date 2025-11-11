@@ -1,8 +1,8 @@
-// RUN: %{build} -o %t2.out
-// RUN: %{run} %t2.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
-// UNSUPPORTED: run-mode && arch-intel_gpu_pvc && !igc-dev
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19585
+// XFAIL: run-mode && linux && arch-intel_gpu_pvc && level_zero_v2_adapter
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19585
 
 //==------------- buffer_full_copy.cpp - SYCL buffer basic test ------------==//
 //

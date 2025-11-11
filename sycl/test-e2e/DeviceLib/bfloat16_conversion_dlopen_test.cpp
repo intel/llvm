@@ -14,14 +14,16 @@
 // library is dlclosed and the device images are removed.
 
 // REQUIRES: linux
+// RUN: rm -rf %t.dir; mkdir -p %t.dir
+// RUN: %{build} -DBUILD_LIB -fPIC -shared -o %t.dir/lib%basename_t.so
 
-// RUN: %{build} -DBUILD_LIB -fPIC -shared -o %T/lib%basename_t.so
-
-// RUN: %{build} -DFNAME=%basename_t -ldl -Wl,-rpath=%T -o %t1.out
+// RUN: %{build} -DFNAME=%basename_t -ldl -Wl,-rpath=%t.dir -o %t1.out
 
 // RUN: %{run} %t1.out
 
 // UNSUPPORTED: target-nvidia || target-amd
 // UNSUPPORTED-INTENDED: bfloat16 device library is not used on AMD and Nvidia.
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
 
 #include "bfloat16_conversion_dlopen_test.hpp"

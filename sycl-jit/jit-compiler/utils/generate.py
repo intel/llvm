@@ -28,8 +28,8 @@ def main():
             """
 #include <Resource.h>
 
-namespace jit_compiler {
-const std::pair<std::string_view, std::string_view> ToolchainFiles[] = {"""
+namespace jit_compiler::resource {
+const resource_file ToolchainFiles[] = {"""
         )
 
         def process_file(file_path):
@@ -41,7 +41,7 @@ const std::pair<std::string_view, std::string_view> ToolchainFiles[] = {"""
     static const char data[] = {{
     #embed "{file_path}" if_empty(0)
         , 0}};
-    return std::string_view(data, std::size(data) - 1);
+    return resource_string_view{{data}};
     }}()
 }},"""
             )
@@ -52,23 +52,15 @@ const std::pair<std::string_view, std::string_view> ToolchainFiles[] = {"""
                     file_path = os.path.join(root, file)
                     process_file(file_path)
 
-        process_dir(os.path.join(args.toolchain_dir, "include/"))
-        process_dir(os.path.join(args.toolchain_dir, "lib/clang/"))
-        process_dir(os.path.join(args.toolchain_dir, "lib/clc/"))
-
-        for file in glob.iglob(
-            "*.bc", root_dir=os.path.join(args.toolchain_dir, "lib")
-        ):
-            file_path = os.path.join(args.toolchain_dir, "lib", file)
-            process_file(file_path)
+        process_dir(args.toolchain_dir)
 
         out.write(
             f"""
 }};
 
-size_t NumToolchainFiles = std::size(ToolchainFiles);
-std::string_view ToolchainPrefix = "{args.prefix}";
-}} // namespace jit_compiler
+unsigned long long NumToolchainFiles = size(ToolchainFiles);
+resource_string_view ToolchainPrefix{{"{args.prefix}"}};
+}} // namespace jit_compiler::resource
 """
         )
 

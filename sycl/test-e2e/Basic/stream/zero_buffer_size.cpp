@@ -4,6 +4,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: target-nvidia,cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20109
+
 #include <sycl/detail/core.hpp>
 #include <sycl/stream.hpp>
 

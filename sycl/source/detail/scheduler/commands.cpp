@@ -359,12 +359,14 @@ class DispatchHostTask {
         AdapterWithEvents.first->call<UrApiKind::urEventWait>(RawEvents.size(),
                                                               RawEvents.data());
       } catch (const sycl::exception &) {
-        MThisCmd->MEvent->getSubmittedQueue()->reportAsyncException(
-            std::current_exception());
+        auto QueuePtr = MThisCmd->MEvent->getSubmittedQueue();
+        Scheduler::getInstance().reportAsyncException(QueuePtr,
+                                                      std::current_exception());
         return false;
       } catch (...) {
-        MThisCmd->MEvent->getSubmittedQueue()->reportAsyncException(
-            std::current_exception());
+        auto QueuePtr = MThisCmd->MEvent->getSubmittedQueue();
+        Scheduler::getInstance().reportAsyncException(QueuePtr,
+                                                      std::current_exception());
         return false;
       }
     }
@@ -407,10 +409,12 @@ public:
           make_error_code(errc::runtime),
           std::string("Couldn't wait for host-task's dependencies")));
 
-      MThisCmd->MEvent->getSubmittedQueue()->reportAsyncException(EPtr);
+      auto QueuePtr = MThisCmd->MEvent->getSubmittedQueue();
+      auto &SchedulerInst = Scheduler::getInstance();
+      SchedulerInst.reportAsyncException(QueuePtr, EPtr);
       // reset host-task's lambda and quit
       HostTask.MHostTask.reset();
-      Scheduler::getInstance().NotifyHostTaskCompletion(MThisCmd);
+      SchedulerInst.NotifyHostTaskCompletion(MThisCmd);
       return;
     }
 
@@ -469,8 +473,8 @@ public:
         }
       }
 #endif
-      MThisCmd->MEvent->getSubmittedQueue()->reportAsyncException(
-          CurrentException);
+      auto QueuePtr = MThisCmd->MEvent->getSubmittedQueue();
+      Scheduler::getInstance().reportAsyncException(QueuePtr, CurrentException);
     }
 
     HostTask.MHostTask.reset();
@@ -487,8 +491,8 @@ public:
       Scheduler::getInstance().NotifyHostTaskCompletion(MThisCmd);
     } catch (...) {
       auto CurrentException = std::current_exception();
-      MThisCmd->MEvent->getSubmittedQueue()->reportAsyncException(
-          CurrentException);
+      auto QueuePtr = MThisCmd->MEvent->getSubmittedQueue();
+      Scheduler::getInstance().reportAsyncException(QueuePtr, CurrentException);
     }
   }
 };
@@ -563,7 +567,8 @@ Command::Command(
       MCommandBuffer(CommandBuffer), MSyncPointDeps(SyncPoints) {
   MWorkerQueue = MQueue;
   MEvent->setWorkerQueue(MWorkerQueue);
-  MEvent->setSubmittedQueue(MWorkerQueue);
+  if (Queue)
+    MEvent->setSubmittedQueue(Queue);
   MEvent->setCommand(this);
   if (MQueue)
     MEvent->setContextImpl(MQueue->getContextImpl());
@@ -575,7 +580,7 @@ Command::Command(
     return;
   // Obtain the stream ID so all commands can emit traces to that stream;
   // copying it to the member variable to avoid ABI breakage
-  MStreamID = detail::GSYCLStreamID;
+  MStreamID = getActiveXPTIStreamID();
 #endif
 }
 
@@ -614,16 +619,16 @@ void Command::emitEdgeEventForCommandDependence(
   std::string TypeString = SH.nameWithAddressString(Prefix, AddressStr);
   // Create an edge with the dependent buffer address for which a command
   // object has been created as one of the properties of the edge
-  xpti::payload_t Payload(TypeString.c_str(), MAddress);
-  uint64_t EdgeInstanceNo;
-  xpti_td *EdgeEvent =
-      xptiMakeEvent(TypeString.c_str(), &Payload, xpti::trace_graph_event,
-                    xpti_at::active, &EdgeInstanceNo);
-  if (EdgeEvent) {
+  uint64_t EdgeInstanceNo = xptiGetUniqueId();
+  xpti_tracepoint_t *Event =
+      xptiCreateTracepoint(TypeString.c_str(), nullptr, 0, 0, MAddress);
+  if (Event) {
+    xpti_td *EdgeEvent = Event->event_ref();
     xpti_td *SrcEvent = static_cast<xpti_td *>(Cmd->MTraceEvent);
     xpti_td *TgtEvent = static_cast<xpti_td *>(MTraceEvent);
     EdgeEvent->source_id = SrcEvent->unique_id;
     EdgeEvent->target_id = TgtEvent->unique_id;
+    // We allow this metadata to be set as it describes the edge.
     if (IsCommand) {
       xpti::addMetadata(EdgeEvent, "access_mode",
                         static_cast<int>(AccMode.value()));
@@ -670,29 +675,33 @@ void Command::emitEdgeEventForEventDependence(Command *Cmd,
     std::string NodeName = SH.nameWithAddressString("virtual_node", AddressStr);
 
     // Node name is "virtual_node[<event_addr>]"
-    xpti::payload_t VNPayload(NodeName.c_str(), MAddress);
-    uint64_t VNodeInstanceNo;
-    xpti_td *NodeEvent =
-        xptiMakeEvent(NodeName.c_str(), &VNPayload, xpti::trace_graph_event,
-                      xpti_at::active, &VNodeInstanceNo);
-    // Emit the virtual node first
-    xpti::addMetadata(NodeEvent, "kernel_name", NodeName);
-    xptiNotifySubscribers(MStreamID, xpti::trace_node_create,
-                          detail::GSYCLGraphEvent, NodeEvent, VNodeInstanceNo,
-                          nullptr);
+    xpti_tracepoint_t *NEvent =
+        xptiCreateTracepoint(NodeName.c_str(), nullptr, 0, 0, MAddress);
+    uint64_t VNodeInstanceNo = xptiGetUniqueId();
+    xpti_td *NodeEvent = NEvent ? NEvent->event_ref() : nullptr;
+    if (NodeEvent) {
+      // We allow this metadata to be set as the node is a virtual node without
+      // an actual name.
+      xpti::addMetadata(NodeEvent, "kernel_name", NodeName);
+
+      xptiNotifySubscribers(MStreamID, xpti::trace_node_create,
+                            detail::GSYCLGraphEvent, NodeEvent, VNodeInstanceNo,
+                            nullptr);
+    }
     // Create a new event for the edge
     std::string EdgeName = SH.nameWithAddressString("Event", AddressStr);
-    xpti::payload_t EdgePayload(EdgeName.c_str(), MAddress);
-    uint64_t EdgeInstanceNo;
-    xpti_td *EdgeEvent =
-        xptiMakeEvent(EdgeName.c_str(), &EdgePayload, xpti::trace_graph_event,
-                      xpti_at::active, &EdgeInstanceNo);
+    xpti_tracepoint_t *EEvent =
+        xptiCreateTracepoint(EdgeName.c_str(), nullptr, 0, 0, MAddress);
+    uint64_t EdgeInstanceNo = xptiGetUniqueId();
+    xpti_td *EdgeEvent = EEvent ? EEvent->event_ref() : nullptr;
     if (EdgeEvent && NodeEvent) {
       // Source node represents the event and this event needs to be completed
       // before target node can execute
       xpti_td *TgtEvent = static_cast<xpti_td *>(MTraceEvent);
       EdgeEvent->source_id = NodeEvent->unique_id;
       EdgeEvent->target_id = TgtEvent->unique_id;
+      // We allow this metadata to be set as an edge without the event address
+      // will be less useful.
       xpti::addMetadata(EdgeEvent, "event",
                         reinterpret_cast<size_t>(UrEventAddr));
       xptiNotifySubscribers(MStreamID, xpti::trace_edge_create,
@@ -719,11 +728,10 @@ uint64_t Command::makeTraceEventProlog(void *MAddress) {
   std::string CommandString =
       SH.nameWithAddressString(MCommandName, MAddressString);
 
-  xpti::payload_t p(CommandString.c_str(), MAddress);
-  xpti_td *CmdTraceEvent =
-      xptiMakeEvent(CommandString.c_str(), &p, xpti::trace_graph_event,
-                    xpti_at::active, &CommandInstanceNo);
-  MInstanceID = CommandInstanceNo;
+  xpti_tracepoint_t *Event =
+      xptiCreateTracepoint(CommandString.c_str(), nullptr, 0, 0, MAddress);
+  xpti_td *CmdTraceEvent = Event ? Event->event_ref() : nullptr;
+  MInstanceID = xptiGetUniqueId();
   if (CmdTraceEvent) {
     MTraceEvent = (void *)CmdTraceEvent;
     // If we are seeing this event again, then the instance ID will be greater
@@ -734,7 +742,7 @@ uint64_t Command::makeTraceEventProlog(void *MAddress) {
     // maintaining data integrity.
   }
 #endif
-  return CommandInstanceNo;
+  return MInstanceID;
 }
 
 void Command::makeTraceEventEpilog() {
@@ -973,14 +981,15 @@ void Command::resolveReleaseDependencies(std::set<Command *> &DepList) {
       // Create an edge with the dependent buffer address being one of the
       // properties of the edge
       xpti::payload_t p(TypeString.c_str(), MAddress);
-      uint64_t EdgeInstanceNo;
-      xpti_td *EdgeEvent =
-          xptiMakeEvent(TypeString.c_str(), &p, xpti::trace_graph_event,
-                        xpti_at::active, &EdgeInstanceNo);
+      uint64_t EdgeInstanceNo = xptiGetUniqueId();
+      xpti_tracepoint_t *Event =
+          xptiCreateTracepoint(TypeString.c_str(), nullptr, 0, 0, MAddress);
+      xpti_td *EdgeEvent = Event ? Event->event_ref() : nullptr;
       if (EdgeEvent) {
         xpti_td *SrcTraceEvent = static_cast<xpti_td *>(Item->MTraceEvent);
         EdgeEvent->target_id = TgtTraceEvent->unique_id;
         EdgeEvent->source_id = SrcTraceEvent->unique_id;
+        // We will ensure this is always added.
         xpti::addMetadata(EdgeEvent, "memory_object",
                           reinterpret_cast<size_t>(MAddress));
         xptiNotifySubscribers(MStreamID, xpti::trace_edge_create,
@@ -1049,6 +1058,7 @@ void AllocaCommandBase::emitInstrumentationData() {
   if (MTraceEvent) {
     xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
     addDeviceMetadata(TE, MQueue);
+    // Memory-object is used frequently, so it is always added.
     xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
     // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
     // as this data is mutable and the metadata is supposed to be invariant
@@ -1506,8 +1516,8 @@ MemCpyCommand::MemCpyCommand(const Requirement &SrcReq,
                              queue_impl *SrcQueue, queue_impl *DstQueue)
     : Command(CommandType::COPY_MEMORY, DstQueue),
       MSrcQueue(SrcQueue ? SrcQueue->shared_from_this() : nullptr),
-      MSrcReq(std::move(SrcReq)), MSrcAllocaCmd(SrcAllocaCmd),
-      MDstReq(std::move(DstReq)), MDstAllocaCmd(DstAllocaCmd) {
+      MSrcReq(SrcReq), MSrcAllocaCmd(SrcAllocaCmd), MDstReq(DstReq),
+      MDstAllocaCmd(DstAllocaCmd) {
   if (MSrcQueue) {
     MEvent->setContextImpl(MSrcQueue->getContextImpl());
   }
@@ -1953,7 +1963,7 @@ ExecCGCommand::ExecCGCommand(
     assert(SubmitQueue &&
            "Host task command group must have a valid submit queue");
 
-    MEvent->setSubmittedQueue(SubmitQueue->weak_from_this());
+    MEvent->setSubmittedQueue(SubmitQueue);
     // Initialize host profiling info if the queue has profiling enabled.
     if (SubmitQueue->MIsProfilingEnabled)
       MEvent->initHostProfilingInfo();
@@ -1965,10 +1975,11 @@ ExecCGCommand::ExecCGCommand(
 }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-std::string instrumentationGetKernelName(
-    const std::shared_ptr<detail::kernel_impl> &SyclKernel,
-    const std::string_view FunctionName, const std::string_view SyclKernelName,
-    void *&Address, std::optional<bool> &FromSource) {
+std::string instrumentationGetKernelName(const kernel_impl *SyclKernel,
+                                         const std::string_view FunctionName,
+                                         const std::string_view SyclKernelName,
+                                         void *&Address,
+                                         std::optional<bool> &FromSource) {
   std::string KernelName;
   if (SyclKernel && SyclKernel->isCreatedFromSource()) {
     FromSource = true;
@@ -1985,8 +1996,8 @@ std::string instrumentationGetKernelName(
 void instrumentationAddExtraKernelMetadata(
     xpti_td *&CmdTraceEvent, const NDRDescT &NDRDesc,
     detail::kernel_bundle_impl *KernelBundleImplPtr,
-    DeviceKernelInfo &DeviceKernelInfo,
-    const std::shared_ptr<detail::kernel_impl> &SyclKernel, queue_impl *Queue,
+    DeviceKernelInfo &DeviceKernelInfo, const kernel_impl *SyclKernel,
+    queue_impl *Queue,
     std::vector<ArgDesc> &CGArgs) // CGArgs are not const since they could be
                                   // sorted in this function
 {
@@ -2032,42 +2043,29 @@ void instrumentationAddExtraKernelMetadata(
   }
 }
 
-void instrumentationFillCommonData(const std::string &KernelName,
-                                   const std::string &FuncName,
-                                   const std::string &FileName, uint64_t Line,
-                                   uint64_t Column, const void *const Address,
-                                   queue_impl *Queue,
-                                   std::optional<bool> &FromSource,
-                                   uint64_t &OutInstanceID,
-                                   xpti_td *&OutTraceEvent) {
+void instrumentationFillCommonData(
+    xpti::stream_id_t StreamID, const std::string &KernelName,
+    const std::string &FuncName, const std::string &FileName, uint64_t Line,
+    uint64_t Column, const void *const Address, queue_impl *Queue,
+    std::optional<bool> &FromSource, uint64_t &OutInstanceID,
+    xpti_td *&OutTraceEvent) {
   //  Get source file, line number information from the CommandGroup object
   //  and create payload using name, address, and source info
-  //
-  //  On Windows, since the support for builtin functions is not available in
-  //  MSVC, the MFileName, MLine will be set to nullptr and "0" respectively.
-  //  Handle this condition explicitly here.
-  bool HasSourceInfo = false;
-  xpti::payload_t Payload;
-  if (!FileName.empty()) {
-    // File name has a valid string
-    Payload =
-        xpti::payload_t(FuncName.empty() ? KernelName.data() : FuncName.data(),
-                        FileName.data(), Line, Column, Address);
-    HasSourceInfo = true;
-  } else if (Address) {
-    // We have a valid function name and an address
-    Payload = xpti::payload_t(KernelName.data(), Address);
+  bool HasSourceInfo = !FileName.empty();
+  xpti_tracepoint_t *Event;
+  void *AddressToUse = const_cast<void *>(Address);
+  if (HasSourceInfo) {
+    const auto &Name = FuncName.empty() ? KernelName : FuncName;
+    Event = xptiCreateTracepoint(Name.c_str(), FileName.c_str(), Line, Column,
+                                 AddressToUse);
   } else {
-    // In any case, we will have a valid function name and we'll use that to
-    // create the hash
-    Payload = xpti::payload_t(KernelName.data());
+    Event =
+        xptiCreateTracepoint(KernelName.data(), nullptr, 0, 0, AddressToUse);
   }
 
-  uint64_t CGKernelInstanceNo;
+  uint64_t CGKernelInstanceNo = xptiGetUniqueId();
   // Create event using the payload
-  xpti_td *CmdTraceEvent =
-      xptiMakeEvent("ExecCG", &Payload, xpti::trace_graph_event,
-                    xpti::trace_activity_type_t::active, &CGKernelInstanceNo);
+  xpti_td *CmdTraceEvent = Event ? Event->event_ref() : nullptr;
   if (CmdTraceEvent) {
     OutInstanceID = CGKernelInstanceNo;
     OutTraceEvent = CmdTraceEvent;
@@ -2076,15 +2074,19 @@ void instrumentationFillCommonData(const std::string &KernelName,
     if (!KernelName.empty()) {
       xpti::addMetadata(CmdTraceEvent, "kernel_name", KernelName);
     }
-    if (FromSource.has_value()) {
-      xpti::addMetadata(CmdTraceEvent, "from_source", FromSource.value());
-    }
-    if (HasSourceInfo) {
-      xpti::addMetadata(CmdTraceEvent, "sym_function_name", KernelName);
-      xpti::addMetadata(CmdTraceEvent, "sym_source_file_name", FileName);
-      xpti::addMetadata(CmdTraceEvent, "sym_line_no", static_cast<int>(Line));
-      xpti::addMetadata(CmdTraceEvent, "sym_column_no",
-                        static_cast<int>(Column));
+    // We limit the metadata to only include the kernel name and device
+    // information by default.
+    if (detail::isDebugStream(StreamID)) {
+      if (FromSource.has_value()) {
+        xpti::addMetadata(CmdTraceEvent, "from_source", FromSource.value());
+      }
+      if (HasSourceInfo) {
+        xpti::addMetadata(CmdTraceEvent, "sym_function_name", KernelName);
+        xpti::addMetadata(CmdTraceEvent, "sym_source_file_name", FileName);
+        xpti::addMetadata(CmdTraceEvent, "sym_line_no", static_cast<int>(Line));
+        xpti::addMetadata(CmdTraceEvent, "sym_column_no",
+                          static_cast<int>(Column));
+      }
     }
     // We no longer set the 'queue_id' in the metadata structure as it is a
     // mutable value and multiple threads using the same queue created at the
@@ -2095,8 +2097,7 @@ void instrumentationFillCommonData(const std::string &KernelName,
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
-    xpti::stream_id_t StreamID,
-    const std::shared_ptr<detail::kernel_impl> &SyclKernel,
+    xpti::stream_id_t StreamID, const kernel_impl *SyclKernel,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc,
     DeviceKernelInfo &DeviceKernelInfo, queue_impl *Queue,
     const NDRDescT &NDRDesc, detail::kernel_bundle_impl *KernelBundleImplPtr,
@@ -2124,7 +2125,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
                              ? CodeLoc.functionName()
                              : std::string();
 
-  instrumentationFillCommonData(KernelName, FuncName, FileName,
+  instrumentationFillCommonData(StreamID, KernelName, FuncName, FileName,
                                 CodeLoc.lineNumber(), CodeLoc.columnNumber(),
                                 Address, Queue, FromSource, InstanceID,
                                 CmdTraceEvent);
@@ -2136,10 +2137,13 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     if (Queue)
       xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
                                    getQueueID(Queue));
-    instrumentationAddExtraKernelMetadata(CmdTraceEvent, NDRDesc,
-                                          KernelBundleImplPtr, DeviceKernelInfo,
-                                          SyclKernel, Queue, CGArgs);
-
+    // Add the additional metadata only if the debug information is subscribed
+    // to; in this case, it is the kernel and its parameters.
+    if (detail::isDebugStream(StreamID)) {
+      instrumentationAddExtraKernelMetadata(
+          CmdTraceEvent, NDRDesc, KernelBundleImplPtr, DeviceKernelInfo,
+          SyclKernel, Queue, CGArgs);
+    }
     xptiNotifySubscribers(
         StreamID, NotificationTraceType, detail::GSYCLGraphEvent, CmdTraceEvent,
         InstanceID,
@@ -2164,7 +2168,7 @@ void ExecCGCommand::emitInstrumentationData() {
     auto KernelCG =
         reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
     KernelName = instrumentationGetKernelName(
-        KernelCG->MSyclKernel, MCommandGroup->MFunctionName,
+        KernelCG->MSyclKernel.get(), MCommandGroup->MFunctionName,
         KernelCG->getKernelName(), MAddress, FromSource);
   } break;
   default:
@@ -2179,10 +2183,10 @@ void ExecCGCommand::emitInstrumentationData() {
     FuncName = MCommandGroup->MFunctionName;
 
   xpti_td *CmdTraceEvent = nullptr;
-  instrumentationFillCommonData(KernelName, FuncName, MCommandGroup->MFileName,
-                                MCommandGroup->MLine, MCommandGroup->MColumn,
-                                MAddress, MQueue.get(), FromSource, MInstanceID,
-                                CmdTraceEvent);
+  instrumentationFillCommonData(MStreamID, KernelName, FuncName,
+                                MCommandGroup->MFileName, MCommandGroup->MLine,
+                                MCommandGroup->MColumn, MAddress, MQueue.get(),
+                                FromSource, MInstanceID, CmdTraceEvent);
 
   if (CmdTraceEvent) {
     xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
@@ -2193,8 +2197,8 @@ void ExecCGCommand::emitInstrumentationData() {
           reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
       instrumentationAddExtraKernelMetadata(
           CmdTraceEvent, KernelCG->MNDRDesc, KernelCG->getKernelBundle().get(),
-          KernelCG->MDeviceKernelInfo, KernelCG->MSyclKernel, MQueue.get(),
-          KernelCG->MArgs);
+          KernelCG->MDeviceKernelInfo, KernelCG->MSyclKernel.get(),
+          MQueue.get(), KernelCG->MArgs);
     }
 
     xptiNotifySubscribers(
@@ -2304,9 +2308,256 @@ ur_mem_flags_t AccessModeToUr(access::mode AccessorMode) {
   }
 }
 
+// Gets UR argument struct for a given kernel and device based on the argument
+// type. Refactored from SetKernelParamsAndLaunch to allow it to be used in
+// the graphs extension (LaunchWithArgs for graphs is planned future work).
+static void GetUrArgsBasedOnType(
+    device_image_impl *DeviceImageImpl,
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
+    context_impl &ContextImpl, detail::ArgDesc &Arg, size_t NextTrueIndex,
+    std::vector<ur_exp_kernel_arg_properties_t> &UrArgs) {
+  // UrArg.size == 0 indicates uninitialized structure
+  ur_exp_kernel_arg_properties_t UrArg = {
+      UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+      nullptr,
+      UR_EXP_KERNEL_ARG_TYPE_VALUE,
+      static_cast<uint32_t>(NextTrueIndex),
+      0,
+      {}};
+  switch (Arg.MType) {
+  case kernel_param_kind_t::kind_dynamic_work_group_memory:
+    break;
+  case kernel_param_kind_t::kind_work_group_memory:
+    break;
+  case kernel_param_kind_t::kind_stream:
+    break;
+  case kernel_param_kind_t::kind_dynamic_accessor:
+  case kernel_param_kind_t::kind_accessor: {
+    Requirement *Req = (Requirement *)(Arg.MPtr);
+
+    // getMemAllocationFunc is nullptr when there are no requirements. However,
+    // we may pass default constructed accessors to a command, which don't add
+    // requirements. In such case, getMemAllocationFunc is nullptr, but it's a
+    // valid case, so we need to properly handle it.
+    ur_mem_handle_t MemArg =
+        getMemAllocationFunc
+            ? reinterpret_cast<ur_mem_handle_t>(getMemAllocationFunc(Req))
+            : nullptr;
+    ur_exp_kernel_arg_value_t Value = {};
+    Value.memObjTuple = {MemArg, AccessModeToUr(Req->MAccessMode)};
+    UrArg.type = UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ;
+    UrArg.size = sizeof(MemArg);
+    UrArg.value = Value;
+    break;
+  }
+  case kernel_param_kind_t::kind_std_layout: {
+    ur_exp_kernel_arg_type_t Type;
+    if (Arg.MPtr) {
+      Type = UR_EXP_KERNEL_ARG_TYPE_VALUE;
+    } else {
+      Type = UR_EXP_KERNEL_ARG_TYPE_LOCAL;
+    }
+    ur_exp_kernel_arg_value_t Value = {};
+    Value.value = {Arg.MPtr};
+    UrArg.type = Type;
+    UrArg.size = static_cast<size_t>(Arg.MSize);
+    UrArg.value = Value;
+    break;
+  }
+  case kernel_param_kind_t::kind_sampler: {
+    sampler *SamplerPtr = (sampler *)Arg.MPtr;
+    ur_exp_kernel_arg_value_t Value = {};
+    Value.sampler = (ur_sampler_handle_t)detail::getSyclObjImpl(*SamplerPtr)
+                        ->getOrCreateSampler(ContextImpl);
+    UrArg.type = UR_EXP_KERNEL_ARG_TYPE_SAMPLER;
+    UrArg.size = sizeof(ur_sampler_handle_t);
+    UrArg.value = Value;
+    break;
+  }
+  case kernel_param_kind_t::kind_pointer: {
+    ur_exp_kernel_arg_value_t Value = {};
+    // We need to de-rerence to get the actual USM allocation - that's the
+    // pointer UR is expecting.
+    Value.pointer = *static_cast<void *const *>(Arg.MPtr);
+    UrArg.type = UR_EXP_KERNEL_ARG_TYPE_POINTER;
+    UrArg.size = sizeof(Arg.MPtr);
+    UrArg.value = Value;
+    break;
+  }
+  case kernel_param_kind_t::kind_specialization_constants_buffer: {
+    assert(DeviceImageImpl != nullptr);
+    ur_mem_handle_t SpecConstsBuffer =
+        DeviceImageImpl->get_spec_const_buffer_ref();
+    ur_exp_kernel_arg_value_t Value = {};
+    Value.memObjTuple = {SpecConstsBuffer, UR_MEM_FLAG_READ_ONLY};
+    UrArg.type = UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ;
+    UrArg.size = sizeof(SpecConstsBuffer);
+    UrArg.value = Value;
+    break;
+  }
+  case kernel_param_kind_t::kind_invalid:
+    throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                          "Invalid kernel param kind " +
+                              codeToString(UR_RESULT_ERROR_INVALID_VALUE));
+    break;
+  }
+
+  if (UrArg.size) {
+    UrArgs.push_back(UrArg);
+  }
+}
+
+static ur_result_t SetKernelParamsAndLaunch(
+    queue_impl &Queue, std::vector<ArgDesc> &Args,
+    device_image_impl *DeviceImageImpl, ur_kernel_handle_t Kernel,
+    NDRDescT &NDRDesc, std::vector<ur_event_handle_t> &RawEvents,
+    detail::event_impl *OutEventImpl, const KernelArgMask *EliminatedArgMask,
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
+    bool IsCooperative, bool KernelUsesClusterLaunch,
+    uint32_t WorkGroupMemorySize, const RTDeviceBinaryImage *BinImage,
+    DeviceKernelInfo &DeviceKernelInfo, void *KernelFuncPtr = nullptr) {
+  adapter_impl &Adapter = Queue.getAdapter();
+
+  if (SYCLConfig<SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
+    std::vector<unsigned char> Empty;
+    Kernel = Scheduler::getInstance().completeSpecConstMaterialization(
+        Queue, BinImage, DeviceKernelInfo.Name,
+        DeviceImageImpl ? DeviceImageImpl->get_spec_const_blob_ref() : Empty);
+  }
+
+  // just a performance optimization - avoid heap allocations
+  static thread_local std::vector<ur_exp_kernel_arg_properties_t> UrArgs;
+  UrArgs.clear();
+  UrArgs.reserve(Args.size());
+
+  if (KernelFuncPtr && !DeviceKernelInfo.HasSpecialCaptures) {
+    auto setFunc = [KernelFuncPtr](const detail::kernel_param_desc_t &ParamDesc,
+                                   size_t NextTrueIndex) {
+      const void *ArgPtr = (const char *)KernelFuncPtr + ParamDesc.offset;
+      switch (ParamDesc.kind) {
+      case kernel_param_kind_t::kind_std_layout: {
+        int Size = ParamDesc.info;
+        ur_exp_kernel_arg_value_t Value = {};
+        Value.value = ArgPtr;
+        UrArgs.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES, nullptr,
+                          UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                          static_cast<uint32_t>(NextTrueIndex),
+                          static_cast<size_t>(Size), Value});
+        break;
+      }
+      case kernel_param_kind_t::kind_pointer: {
+        ur_exp_kernel_arg_value_t Value = {};
+        Value.pointer = *static_cast<const void *const *>(ArgPtr);
+        UrArgs.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES, nullptr,
+                          UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                          static_cast<uint32_t>(NextTrueIndex),
+                          sizeof(Value.pointer), Value});
+        break;
+      }
+      default:
+        throw std::runtime_error("Direct kernel argument copy failed.");
+      }
+    };
+    applyFuncOnFilteredArgs(EliminatedArgMask, DeviceKernelInfo.NumParams,
+                            DeviceKernelInfo.ParamDescGetter, setFunc);
+  } else {
+    auto setFunc = [&DeviceImageImpl, &getMemAllocationFunc,
+                    &Queue](detail::ArgDesc &Arg, size_t NextTrueIndex) {
+      GetUrArgsBasedOnType(DeviceImageImpl, getMemAllocationFunc,
+                           Queue.getContextImpl(), Arg, NextTrueIndex, UrArgs);
+    };
+    applyFuncOnFilteredArgs(EliminatedArgMask, Args, setFunc);
+  }
+
+  std::optional<int> ImplicitLocalArg =
+      ProgramManager::getInstance().kernelImplicitLocalArgPos(
+          DeviceKernelInfo.Name);
+  // Set the implicit local memory buffer to support
+  // get_work_group_scratch_memory. This is for backend not supporting
+  // CUDA-style local memory setting. Note that we may have -1 as a position,
+  // this indicates the buffer is actually unused and was elided.
+  if (ImplicitLocalArg.has_value() && ImplicitLocalArg.value() != -1) {
+    UrArgs.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                      nullptr,
+                      UR_EXP_KERNEL_ARG_TYPE_LOCAL,
+                      static_cast<uint32_t>(ImplicitLocalArg.value()),
+                      WorkGroupMemorySize,
+                      {nullptr}});
+  }
+
+  adjustNDRangePerKernel(NDRDesc, Kernel, Queue.getDeviceImpl());
+
+  // Remember this information before the range dimensions are reversed
+  const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
+
+  ReverseRangeDimensionsForKernel(NDRDesc);
+
+  size_t RequiredWGSize[3] = {0, 0, 0};
+  size_t *LocalSize = nullptr;
+
+  if (HasLocalSize)
+    LocalSize = &NDRDesc.LocalSize[0];
+  else {
+    Adapter.call<UrApiKind::urKernelGetGroupInfo>(
+        Kernel, Queue.getDeviceImpl().getHandleRef(),
+        UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
+        RequiredWGSize,
+        /* pPropSizeRet = */ nullptr);
+
+    const bool EnforcedLocalSize =
+        (RequiredWGSize[0] != 0 || RequiredWGSize[1] != 0 ||
+         RequiredWGSize[2] != 0);
+    if (EnforcedLocalSize)
+      LocalSize = RequiredWGSize;
+  }
+  const bool HasOffset = NDRDesc.GlobalOffset[0] != 0 ||
+                         NDRDesc.GlobalOffset[1] != 0 ||
+                         NDRDesc.GlobalOffset[2] != 0;
+
+  std::vector<ur_kernel_launch_property_t> property_list;
+
+  if (KernelUsesClusterLaunch) {
+    ur_kernel_launch_property_value_t launch_property_value_cluster_range;
+    launch_property_value_cluster_range.clusterDim[0] =
+        NDRDesc.ClusterDimensions[0];
+    launch_property_value_cluster_range.clusterDim[1] =
+        NDRDesc.ClusterDimensions[1];
+    launch_property_value_cluster_range.clusterDim[2] =
+        NDRDesc.ClusterDimensions[2];
+
+    property_list.push_back({UR_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION,
+                             launch_property_value_cluster_range});
+  }
+  if (IsCooperative) {
+    ur_kernel_launch_property_value_t launch_property_value_cooperative;
+    launch_property_value_cooperative.cooperative = 1;
+    property_list.push_back({UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE,
+                             launch_property_value_cooperative});
+  }
+  // If there is no implicit arg, let the driver handle it via a property
+  if (WorkGroupMemorySize && !ImplicitLocalArg.has_value()) {
+    property_list.push_back({UR_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY,
+                             {{WorkGroupMemorySize}}});
+  }
+  ur_event_handle_t UREvent = nullptr;
+  ur_result_t Error =
+      Adapter.call_nocheck<UrApiKind::urEnqueueKernelLaunchWithArgsExp>(
+          Queue.getHandleRef(), Kernel, NDRDesc.Dims,
+          HasOffset ? &NDRDesc.GlobalOffset[0] : nullptr,
+          &NDRDesc.GlobalSize[0], LocalSize, UrArgs.size(), UrArgs.data(),
+          property_list.size(),
+          property_list.empty() ? nullptr : property_list.data(),
+          RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
+          OutEventImpl ? &UREvent : nullptr);
+  if (Error == UR_RESULT_SUCCESS && OutEventImpl) {
+    OutEventImpl->setHandle(UREvent);
+  }
+
+  return Error;
+}
+
 // Sets arguments for a given kernel and device based on the argument type.
-// Refactored from SetKernelParamsAndLaunch to allow it to be used in the graphs
-// extension.
+// This is a legacy path which the graphs extension still uses.
 static void SetArgBasedOnType(
     adapter_impl &Adapter, ur_kernel_handle_t Kernel,
     device_image_impl *DeviceImageImpl,
@@ -2385,137 +2636,6 @@ static void SetArgBasedOnType(
                               codeToString(UR_RESULT_ERROR_INVALID_VALUE));
     break;
   }
-}
-
-static ur_result_t SetKernelParamsAndLaunch(
-    queue_impl &Queue, std::vector<ArgDesc> &Args,
-    device_image_impl *DeviceImageImpl, ur_kernel_handle_t Kernel,
-    NDRDescT &NDRDesc, std::vector<ur_event_handle_t> &RawEvents,
-    detail::event_impl *OutEventImpl, const KernelArgMask *EliminatedArgMask,
-    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    bool IsCooperative, bool KernelUsesClusterLaunch,
-    uint32_t WorkGroupMemorySize, const RTDeviceBinaryImage *BinImage,
-    DeviceKernelInfo &DeviceKernelInfo, void *KernelFuncPtr = nullptr) {
-  adapter_impl &Adapter = Queue.getAdapter();
-
-  if (SYCLConfig<SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
-    std::vector<unsigned char> Empty;
-    Kernel = Scheduler::getInstance().completeSpecConstMaterialization(
-        Queue, BinImage, DeviceKernelInfo.Name,
-        DeviceImageImpl ? DeviceImageImpl->get_spec_const_blob_ref() : Empty);
-  }
-
-  if (KernelFuncPtr && !DeviceKernelInfo.HasSpecialCaptures) {
-    auto setFunc = [&Adapter, Kernel,
-                    KernelFuncPtr](const detail::kernel_param_desc_t &ParamDesc,
-                                   size_t NextTrueIndex) {
-      const void *ArgPtr = (const char *)KernelFuncPtr + ParamDesc.offset;
-      switch (ParamDesc.kind) {
-      case kernel_param_kind_t::kind_std_layout: {
-        int Size = ParamDesc.info;
-        Adapter.call<UrApiKind::urKernelSetArgValue>(Kernel, NextTrueIndex,
-                                                     Size, nullptr, ArgPtr);
-        break;
-      }
-      case kernel_param_kind_t::kind_pointer: {
-        const void *Ptr = *static_cast<const void *const *>(ArgPtr);
-        Adapter.call<UrApiKind::urKernelSetArgPointer>(Kernel, NextTrueIndex,
-                                                       nullptr, Ptr);
-        break;
-      }
-      default:
-        throw std::runtime_error("Direct kernel argument copy failed.");
-      }
-    };
-    applyFuncOnFilteredArgs(EliminatedArgMask, DeviceKernelInfo.NumParams,
-                            DeviceKernelInfo.ParamDescGetter, setFunc);
-  } else {
-    auto setFunc = [&Adapter, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
-                    &Queue](detail::ArgDesc &Arg, size_t NextTrueIndex) {
-      SetArgBasedOnType(Adapter, Kernel, DeviceImageImpl, getMemAllocationFunc,
-                        Queue.getContextImpl(), Arg, NextTrueIndex);
-    };
-    applyFuncOnFilteredArgs(EliminatedArgMask, Args, setFunc);
-  }
-
-  const std::optional<int> &ImplicitLocalArg =
-      DeviceKernelInfo.getImplicitLocalArgPos();
-  // Set the implicit local memory buffer to support
-  // get_work_group_scratch_memory. This is for backend not supporting
-  // CUDA-style local memory setting. Note that we may have -1 as a position,
-  // this indicates the buffer is actually unused and was elided.
-  if (ImplicitLocalArg.has_value() && ImplicitLocalArg.value() != -1) {
-    Adapter.call<UrApiKind::urKernelSetArgLocal>(
-        Kernel, ImplicitLocalArg.value(), WorkGroupMemorySize, nullptr);
-  }
-
-  adjustNDRangePerKernel(NDRDesc, Kernel, Queue.getDeviceImpl());
-
-  // Remember this information before the range dimensions are reversed
-  const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
-
-  ReverseRangeDimensionsForKernel(NDRDesc);
-
-  size_t RequiredWGSize[3] = {0, 0, 0};
-  size_t *LocalSize = nullptr;
-
-  if (HasLocalSize)
-    LocalSize = &NDRDesc.LocalSize[0];
-  else {
-    Adapter.call<UrApiKind::urKernelGetGroupInfo>(
-        Kernel, Queue.getDeviceImpl().getHandleRef(),
-        UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
-        RequiredWGSize,
-        /* pPropSizeRet = */ nullptr);
-
-    const bool EnforcedLocalSize =
-        (RequiredWGSize[0] != 0 || RequiredWGSize[1] != 0 ||
-         RequiredWGSize[2] != 0);
-    if (EnforcedLocalSize)
-      LocalSize = RequiredWGSize;
-  }
-  const bool HasOffset = NDRDesc.GlobalOffset[0] != 0 ||
-                         NDRDesc.GlobalOffset[1] != 0 ||
-                         NDRDesc.GlobalOffset[2] != 0;
-
-  std::vector<ur_kernel_launch_property_t> property_list;
-
-  if (KernelUsesClusterLaunch) {
-    ur_kernel_launch_property_value_t launch_property_value_cluster_range;
-    launch_property_value_cluster_range.clusterDim[0] =
-        NDRDesc.ClusterDimensions[0];
-    launch_property_value_cluster_range.clusterDim[1] =
-        NDRDesc.ClusterDimensions[1];
-    launch_property_value_cluster_range.clusterDim[2] =
-        NDRDesc.ClusterDimensions[2];
-
-    property_list.push_back({UR_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION,
-                             launch_property_value_cluster_range});
-  }
-  if (IsCooperative) {
-    ur_kernel_launch_property_value_t launch_property_value_cooperative;
-    launch_property_value_cooperative.cooperative = 1;
-    property_list.push_back({UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE,
-                             launch_property_value_cooperative});
-  }
-  // If there is no implicit arg, let the driver handle it via a property
-  if (WorkGroupMemorySize && !ImplicitLocalArg.has_value()) {
-    property_list.push_back({UR_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY,
-                             {{WorkGroupMemorySize}}});
-  }
-  ur_event_handle_t UREvent = nullptr;
-  ur_result_t Error = Adapter.call_nocheck<UrApiKind::urEnqueueKernelLaunch>(
-      Queue.getHandleRef(), Kernel, NDRDesc.Dims,
-      HasOffset ? &NDRDesc.GlobalOffset[0] : nullptr, &NDRDesc.GlobalSize[0],
-      LocalSize, property_list.size(),
-      property_list.empty() ? nullptr : property_list.data(), RawEvents.size(),
-      RawEvents.empty() ? nullptr : &RawEvents[0],
-      OutEventImpl ? &UREvent : nullptr);
-  if (Error == UR_RESULT_SUCCESS && OutEventImpl) {
-    OutEventImpl->setHandle(UREvent);
-  }
-
-  return Error;
 }
 
 static std::tuple<ur_kernel_handle_t, device_image_impl *,
@@ -2611,6 +2731,10 @@ ur_result_t enqueueImpCommandBufferKernel(
   size_t RequiredWGSize[3] = {0, 0, 0};
   size_t *LocalSize = nullptr;
 
+  const bool HasOffset = NDRDesc.GlobalOffset[0] != 0 &&
+                         (NDRDesc.Dims < 2 || NDRDesc.GlobalOffset[1] != 0) &&
+                         (NDRDesc.Dims < 3 || NDRDesc.GlobalOffset[2] != 0);
+
   if (HasLocalSize)
     LocalSize = &NDRDesc.LocalSize[0];
   else {
@@ -2621,8 +2745,9 @@ ur_result_t enqueueImpCommandBufferKernel(
         /* pPropSizeRet = */ nullptr);
 
     const bool EnforcedLocalSize =
-        (RequiredWGSize[0] != 0 || RequiredWGSize[1] != 0 ||
-         RequiredWGSize[2] != 0);
+        (RequiredWGSize[0] != 0 &&
+         (NDRDesc.Dims < 2 || RequiredWGSize[1] != 0) &&
+         (NDRDesc.Dims < 3 || RequiredWGSize[2] != 0));
     if (EnforcedLocalSize)
       LocalSize = RequiredWGSize;
   }
@@ -2638,7 +2763,8 @@ ur_result_t enqueueImpCommandBufferKernel(
 
   ur_result_t Res =
       Adapter.call_nocheck<UrApiKind::urCommandBufferAppendKernelLaunchExp>(
-          CommandBuffer, UrKernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
+          CommandBuffer, UrKernel, NDRDesc.Dims,
+          HasOffset ? &NDRDesc.GlobalOffset[0] : nullptr,
           &NDRDesc.GlobalSize[0], LocalSize, AltUrKernels.size(),
           AltUrKernels.size() ? AltUrKernels.data() : nullptr,
           SyncPoints.size(), SyncPoints.size() ? SyncPoints.data() : nullptr, 0,
@@ -3665,8 +3791,9 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             MemoryManager::copy_image_bindless, *MQueue, Copy->getSrc(),
             Copy->getDst(), Copy->getSrcDesc(), Copy->getDstDesc(),
             Copy->getSrcFormat(), Copy->getDstFormat(), Copy->getCopyFlags(),
-            Copy->getSrcOffset(), Copy->getDstOffset(), Copy->getCopyExtent(),
-            std::move(RawEvents), Event);
+            Copy->getCopyInputTypes(), Copy->getSrcOffset(),
+            Copy->getDstOffset(), Copy->getCopyExtent(), std::move(RawEvents),
+            Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 

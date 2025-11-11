@@ -7,6 +7,9 @@
 // RUN: %if cuda %{ %{run} %t.out %}
 // RUN: %if cpu %{ env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s %}
 
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -227,7 +230,7 @@ int main() {
     // CHECK-SAME: .hKernel = [[KERNEL_HANDLE]]
     // CHECK-SAME:-> UR_RESULT_SUCCESS;
     //
-    // CHECK:<--- urEnqueueKernelLaunch(
+    // CHECK:<--- urEnqueueKernelLaunchWithArgsExp(
     // CHECK-SAME: .hKernel = [[KERNEL_HANDLE]]
     //
     // CHECK:<--- urKernelRelease(

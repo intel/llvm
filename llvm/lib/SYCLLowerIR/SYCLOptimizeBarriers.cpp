@@ -931,7 +931,7 @@ static bool isAtKernelExit(const BarrierDesc &BD,
     return true;
 
   // Otherwise it is redundant only if it is the last inst.
-  return BD.CI->getNextNonDebugInstruction() == Term;
+  return BD.CI->getNextNode() == Term;
 }
 
 // Remove barriers that appear at the very beginning or end of a kernel

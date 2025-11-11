@@ -235,8 +235,66 @@ public:
 #endif
 };
 
+// the class keeps reference to a lambda allocated externally on stack
+class HostKernelRefBase : public HostKernelBase {
+public:
+  HostKernelRefBase() = default;
+  HostKernelRefBase(const HostKernelRefBase &) = delete;
+  HostKernelRefBase &operator=(const HostKernelRefBase &) = delete;
+
+  virtual std::unique_ptr<HostKernelBase> takeOrCopyOwnership() const = 0;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // The kernels that are passed via HostKernelRefBase are instantiated along
+  // ctor call with GetInstantiateKernelOnHostPtr().
+  void InstantiateKernelOnHost() override {}
+#endif
+};
+
+// Primary template for movable objects.
+template <class KernelType, class KernelTypeUniversalRef, class KernelArgType,
+          int Dims>
+class HostKernelRef : public HostKernelRefBase {
+  KernelType &&MKernel;
+
+public:
+  HostKernelRef(KernelType &&Kernel) : MKernel(std::move(Kernel)) {}
+  HostKernelRef(const KernelType &Kernel) = delete;
+
+  virtual char *getPtr() override { return reinterpret_cast<char *>(&MKernel); }
+  virtual std::unique_ptr<HostKernelBase> takeOrCopyOwnership() const override {
+    std::unique_ptr<HostKernelBase> Kernel;
+    Kernel.reset(
+        new HostKernel<KernelType, KernelArgType, Dims>(std::move(MKernel)));
+    return Kernel;
+  }
+
+  ~HostKernelRef() noexcept override = default;
+};
+
+// Specialization for copyable objects.
+template <class KernelType, class KernelTypeUniversalRef, class KernelArgType,
+          int Dims>
+class HostKernelRef<KernelType, KernelTypeUniversalRef &, KernelArgType, Dims>
+    : public HostKernelRefBase {
+  const KernelType &MKernel;
+
+public:
+  HostKernelRef(const KernelType &Kernel) : MKernel(Kernel) {}
+
+  virtual char *getPtr() override {
+    return const_cast<char *>(reinterpret_cast<const char *>(&MKernel));
+  }
+  virtual std::unique_ptr<HostKernelBase> takeOrCopyOwnership() const override {
+    std::unique_ptr<HostKernelBase> Kernel;
+    Kernel.reset(new HostKernel<KernelType, KernelArgType, Dims>(MKernel));
+    return Kernel;
+  }
+
+  ~HostKernelRef() noexcept override = default;
+};
+
 // This function is needed for host-side compilation to keep kernels
-// instantitated. This is important for debuggers to be able to associate
+// instantiated. This is important for debuggers to be able to associate
 // kernel code instructions with source code lines.
 template <class KernelType, class KernelArgType, int Dims>
 constexpr void *GetInstantiateKernelOnHostPtr() {

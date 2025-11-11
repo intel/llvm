@@ -9,7 +9,7 @@
 #include <clc/math/clc_cos.h>
 #include <libspirv/spirv.h>
 
-#define FUNCTION __spirv_ocl_cos
-#define __IMPL_FUNCTION(x) __clc_cos
+#define __CLC_FUNCTION __spirv_ocl_cos
+#define __CLC_IMPL_FUNCTION(x) __clc_cos
 #define __CLC_BODY <clc/shared/unary_def.inc>
 #include <clc/math/gentype.inc>

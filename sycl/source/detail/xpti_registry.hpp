@@ -40,6 +40,11 @@ constexpr const char *GVerStr = SYCL_VERSION_STR;
 
 /// We define all the streams used the instrumentation framework here
 inline constexpr const char *SYCL_STREAM_NAME = "sycl";
+// We will use "sycl.debug" stream name as an indicator of needing debugging
+// information; in this case, the tool will have to subscribe to the sycl.debug
+// stream to get additional debug metadata, but the metadata will still be sent
+// through the regular streams.
+inline constexpr const char *SYCL_DEBUG_STREAM_NAME = "sycl.debug";
 inline constexpr auto SYCL_MEM_ALLOC_STREAM_NAME =
     "sycl.experimental.mem_alloc";
 // Stream name being used to notify about buffer objects.
@@ -53,6 +58,7 @@ extern uint8_t GBufferStreamID;
 extern uint8_t GImageStreamID;
 extern uint8_t GMemAllocStreamID;
 extern uint8_t GSYCLStreamID;
+extern uint8_t GSYCLDebugStreamID;
 extern uint8_t GUrApiStreamID;
 
 extern xpti::trace_event_data_t *GMemAllocEvent;
@@ -62,6 +68,22 @@ extern xpti::trace_event_data_t *GApiEvent;
 
 // We will pick a global constant so that the pointer in TLS never goes stale
 inline constexpr auto XPTI_QUEUE_INSTANCE_ID_KEY = "queue_id";
+
+// Helper to check if xpti stream is debug.
+inline bool isDebugStream(xpti::stream_id_t StreamID) {
+  return StreamID == detail::GSYCLDebugStreamID;
+}
+
+inline uint8_t getActiveXPTIStreamID() {
+  return xptiCheckTraceEnabled(detail::GSYCLDebugStreamID)
+             ? detail::GSYCLDebugStreamID
+             : detail::GSYCLStreamID;
+}
+
+inline bool anyTraceEnabled(uint16_t TraceType) {
+  return xptiCheckTraceEnabled(detail::GSYCLDebugStreamID, TraceType) ||
+         xptiCheckTraceEnabled(detail::GSYCLStreamID, TraceType);
+}
 #endif
 
 class XPTIRegistry {
@@ -79,6 +101,10 @@ public:
       // SYCL events
       detail::GSYCLStreamID =
           this->initializeStream(SYCL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
+      // Register the SYCL Debug event stream; tools subscribing to this stream
+      // will receive additional metadata in the regular "sycl" stream.
+      detail::GSYCLDebugStreamID = this->initializeStream(
+          SYCL_DEBUG_STREAM_NAME, GMajVer, GMinVer, GVerStr);
       // SYCL buffer events
       detail::GBufferStreamID = this->initializeStream(
           SYCL_BUFFER_STREAM_NAME, GMajVer, GMinVer, GVerStr);
@@ -98,8 +124,9 @@ public:
       if (detail::GSYCLGraphEvent) {
         // The graph event is a global event and will be used as the parent for
         // all nodes (command groups, memory allocations, etc)
-        xptiNotifySubscribers(detail::GSYCLStreamID, xpti::trace_graph_create,
-                              nullptr, detail::GSYCLGraphEvent,
+        xptiNotifySubscribers(detail::getActiveXPTIStreamID(),
+                              xpti::trace_graph_create, nullptr,
+                              detail::GSYCLGraphEvent,
                               detail::GSYCLGraphEvent->instance_id, nullptr);
       }
       auto MemAllocEventTP =

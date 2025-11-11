@@ -10,8 +10,6 @@
 
 #include <sycl/ext/oneapi/properties/property.hpp>
 
-#include <type_traits> // for enable_if_t
-
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {

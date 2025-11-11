@@ -89,8 +89,7 @@
 // CHECK-NEXT:    store ptr addrspace(4) addrspacecast (ptr addrspace(1) @.str.1 to ptr addrspace(4)), ptr addrspace(4) [[SELECT_STR_TRIVIAL2_ASCAST]], align 8
 // CHECK-NEXT:    ret void
 //
-__attribute__((sycl_device)) void test() {
-
+[[clang::sycl_external]] void test() {
   static const int foo = 0x42;
 
 

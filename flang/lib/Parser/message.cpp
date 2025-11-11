@@ -21,6 +21,10 @@
 
 namespace Fortran::parser {
 
+// The nextCh parser emits this, and Message::GetProvenanceRange() looks for it.
+const MessageFixedText MessageFixedText::endOfFileMessage{
+    "end of file"_err_en_US};
+
 llvm::raw_ostream &operator<<(llvm::raw_ostream &o, const MessageFixedText &t) {
   std::size_t n{t.text().size()};
   for (std::size_t j{0}; j < n; ++j) {
@@ -232,7 +236,20 @@ std::optional<ProvenanceRange> Message::GetProvenanceRange(
     const AllCookedSources &allCooked) const {
   return common::visit(
       common::visitors{
-          [&](CharBlock cb) { return allCooked.GetProvenanceRange(cb); },
+          [&](CharBlock cb) -> std::optional<ProvenanceRange> {
+            if (auto pr{allCooked.GetProvenanceRange(cb)}) {
+              return pr;
+            } else if (const auto *fixed{std::get_if<MessageFixedText>(&text_)};
+                fixed &&
+                fixed->text() == MessageFixedText::endOfFileMessage.text() &&
+                cb.begin() && cb.size() == 1) {
+              // Failure from "nextCh" due to reaching EOF.  Back up one byte
+              // to the terminal newline so that the output looks better.
+              return allCooked.GetProvenanceRange(CharBlock{cb.begin() - 1, 1});
+            } else {
+              return std::nullopt;
+            }
+          },
           [](const ProvenanceRange &pr) { return std::make_optional(pr); },
       },
       location_);
@@ -453,7 +470,7 @@ void Messages::ResolveProvenances(const AllCookedSources &allCooked) {
 
 void Messages::Emit(llvm::raw_ostream &o, const AllCookedSources &allCooked,
     bool echoSourceLines, const common::LanguageFeatureControl *hintFlagPtr,
-    std::size_t maxErrorsToEmit) const {
+    std::size_t maxErrorsToEmit, bool warningsAreErrors) const {
   std::vector<const Message *> sorted;
   for (const auto &msg : messages_) {
     sorted.push_back(&msg);
@@ -469,7 +486,7 @@ void Messages::Emit(llvm::raw_ostream &o, const AllCookedSources &allCooked,
     }
     msg->Emit(o, allCooked, echoSourceLines, hintFlagPtr);
     lastMsg = msg;
-    if (msg->IsFatal()) {
+    if (warningsAreErrors || msg->IsFatal()) {
       ++errorsEmitted;
     }
     // If maxErrorsToEmit is 0, emit all errors, otherwise break after
@@ -491,7 +508,18 @@ void Messages::AttachTo(Message &msg, std::optional<Severity> severity) {
   messages_.clear();
 }
 
-bool Messages::AnyFatalError() const {
+bool Messages::AnyFatalError(bool warningsAreErrors) const {
+  // Short-circuit in the most common case.
+  if (messages_.empty()) {
+    return false;
+  }
+  // If warnings are errors and there are warnings or errors, this is fatal.
+  // This preserves the compiler's current behavior of treating any non-fatal
+  // message as a warning. We may want to refine this in the future.
+  if (warningsAreErrors) {
+    return true;
+  }
+  // Otherwise, check the message buffer for fatal errors.
   for (const auto &msg : messages_) {
     if (msg.IsFatal()) {
       return true;

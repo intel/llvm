@@ -80,7 +80,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
     // Subbuffers should not free their parents
     if (!BufferImpl->Parent) {
       // TODO: Handle registered host memory
-      OL_RETURN_ON_ERR(olMemFree(BufferImpl->Ptr));
+      if (hMem->IsNativeHandleOwned) {
+        OL_RETURN_ON_ERR(olMemFree(BufferImpl->Ptr));
+      }
     } else {
       return urMemRelease(BufferImpl->Parent);
     }
@@ -141,4 +143,90 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
   *phMem = URMemObj.release();
 
   return urMemRetain(hBuffer);
+}
+
+// Liboffload has no equivalent to buffers. Buffers are implemented as USM
+UR_APIEXPORT ur_result_t UR_APICALL urMemGetNativeHandle(
+    ur_mem_handle_t hMem, ur_device_handle_t, ur_native_handle_t *phNativeMem) {
+  *phNativeMem = reinterpret_cast<ur_native_handle_t>(hMem->AsBufferMem()->Ptr);
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
+    ur_native_handle_t hNativeMem, ur_context_handle_t hContext,
+    const ur_mem_native_properties_t *pProperties, ur_mem_handle_t *phMem) {
+  void *Ptr = reinterpret_cast<void *>(hNativeMem);
+  ol_device_handle_t Device;
+  OL_RETURN_ON_ERR(
+      olGetMemInfo(Ptr, OL_MEM_INFO_DEVICE, sizeof(Device), &Device));
+  void *Base;
+  OL_RETURN_ON_ERR(olGetMemInfo(Ptr, OL_MEM_INFO_BASE, sizeof(Base), &Base));
+
+  // Check that this pointer is valid
+  if (Base != Ptr || Device != hContext->Device->OffloadDevice) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  size_t Size;
+  OL_RETURN_ON_ERR(olGetMemInfo(Ptr, OL_MEM_INFO_SIZE, sizeof(Size), &Size));
+
+  ol_alloc_type_t Type;
+  OL_RETURN_ON_ERR(olGetMemInfo(Ptr, OL_MEM_INFO_TYPE, sizeof(Type), &Type));
+
+  *phMem = new ur_mem_handle_t_{/*Context=*/hContext,
+                                /*Parent=*/nullptr,
+                                /*MemFlags=*/UR_MEM_FLAG_READ_WRITE,
+                                /*Mode=*/
+                                (Type == OL_ALLOC_TYPE_HOST
+                                     ? BufferMem::AllocMode::AllocHostPtr
+                                     : BufferMem::AllocMode::Default),
+                                /*Ptr=*/Ptr,
+                                /*HostPtr=*/nullptr,
+                                /*Size=*/Size};
+  (*phMem)->IsNativeHandleOwned =
+      pProperties ? pProperties->isNativeHandleOwned : false;
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urMemImageCreate(ur_context_handle_t, ur_mem_flags_t, const ur_image_format_t *,
+                 const ur_image_desc_t *, void *, ur_mem_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
+    ur_native_handle_t, ur_context_handle_t, const ur_image_format_t *,
+    const ur_image_desc_t *, const ur_mem_native_properties_t *,
+    ur_mem_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(ur_mem_handle_t,
+                                                      ur_image_info_t, size_t,
+                                                      void *, size_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urIPCGetMemHandleExp(ur_context_handle_t,
+                                                         void *, void **,
+                                                         size_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urIPCPutMemHandleExp(ur_context_handle_t,
+                                                         void *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urIPCOpenMemHandleExp(ur_context_handle_t,
+                                                          ur_device_handle_t,
+                                                          void *, size_t,
+                                                          void **) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urIPCCloseMemHandleExp(ur_context_handle_t,
+                                                           void *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

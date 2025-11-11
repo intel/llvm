@@ -1,8 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s
 
-// UNSUPPORTED: run-mode && arch-intel_gpu_pvc && !igc-dev
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19585
+// XFAIL: run-mode && linux && arch-intel_gpu_pvc && level_zero_v2_adapter
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19585
 
 // This test merely checks the use of the correct UR call. Its sister test
 // fill_accessor.cpp thoroughly checks the workings of the .fill() call.
@@ -63,7 +63,7 @@ void testFill_Buffer2D() {
       auto acc2D =
           buffer_2D.get_access<sycl::access::mode::write>(cgh, {8, 12}, {2, 2});
       // "ranged accessor" will have to be handled by custom kernel:
-      // urEnqueueKernelLaunch
+      // urEnqueueKernelLaunchWithArgsExp
       cgh.fill(acc2D, float{4});
     });
     q.wait();
@@ -94,7 +94,7 @@ void testFill_Buffer3D() {
       auto acc3D = buffer_3D.get_access<sycl::access::mode::write>(
           cgh, {4, 8, 12}, {3, 3, 3});
       // "ranged accessor" will have to be handled by custom kernel:
-      // urEnqueueKernelLaunch
+      // urEnqueueKernelLaunchWithArgsExp
       cgh.fill(acc3D, float{6});
     });
     q.wait();
@@ -139,12 +139,12 @@ int main() {
 // CHECK: start testFill_Buffer2D
 // CHECK: <--- urEnqueueMemBufferFill
 // CHECK: start testFill_Buffer2D -- OFFSET
-// CHECK: <--- urEnqueueKernelLaunch
+// CHECK: <--- urEnqueueKernelLaunchWithArgsExp
 
 // CHECK: start testFill_Buffer3D
 // CHECK: <--- urEnqueueMemBufferFill
 // CHECK: start testFill_Buffer3D -- OFFSET
-// CHECK: <--- urEnqueueKernelLaunch
+// CHECK: <--- urEnqueueKernelLaunchWithArgsExp
 
 // CHECK: start testFill_ZeroDim
 // CHECK: <--- urEnqueueMemBufferFill

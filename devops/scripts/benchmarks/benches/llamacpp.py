@@ -5,19 +5,21 @@
 
 import csv
 import io
+import os
 from pathlib import Path
-from utils.utils import download, git_clone
+
+from utils.utils import download
 from .base import Benchmark, Suite, TracingType
 from utils.result import Result
-from utils.utils import run, create_build_path
 from options import options
 from utils.oneapi import get_oneapi
-import os
+from git_project import GitProject
+from utils.logger import log
 
 
 class LlamaCppBench(Suite):
-    def __init__(self, directory):
-        self.directory = directory
+    def __init__(self):
+        self.project = None
 
     def name(self) -> str:
         return "llama.cpp bench"
@@ -32,18 +34,19 @@ class LlamaCppBench(Suite):
         if options.sycl is None:
             return
 
-        repo_path = git_clone(
-            self.directory,
-            "llamacpp-repo",
-            self.git_url(),
-            self.git_hash(),
-        )
+        if self.project is None:
+            self.project = GitProject(
+                self.git_url(),
+                self.git_hash(),
+                Path(options.workdir),
+                "llamacpp",
+            )
 
-        self.models_dir = os.path.join(self.directory, "models")
-        Path(self.models_dir).mkdir(parents=True, exist_ok=True)
+        models_dir = Path(options.workdir, "llamacpp-models")
+        models_dir.mkdir(parents=True, exist_ok=True)
 
         self.model = download(
-            self.models_dir,
+            models_dir,
             "https://huggingface.co/ggml-org/DeepSeek-R1-Distill-Qwen-1.5B-Q4_0-GGUF/resolve/main/deepseek-r1-distill-qwen-1.5b-q4_0.gguf",
             "deepseek-r1-distill-qwen-1.5b-q4_0.gguf",
             checksum="791f6091059b653a24924b9f2b9c3141c8f892ae13fff15725f77a2bf7f9b1b6b71c85718f1e9c0f26c2549aba44d191",
@@ -51,13 +54,11 @@ class LlamaCppBench(Suite):
 
         self.oneapi = get_oneapi()
 
-        self.build_path = create_build_path(self.directory, "llamacpp-build")
+        if not self.project.needs_rebuild():
+            log.info(f"Rebuilding {self.project.name} skipped")
+            return
 
-        configure_command = [
-            "cmake",
-            f"-B {self.build_path}",
-            f"-S {repo_path}",
-            f"-DCMAKE_BUILD_TYPE=Release",
+        extra_args = [
             f"-DGGML_SYCL=ON",
             f"-DCMAKE_C_COMPILER=clang",
             f"-DCMAKE_CXX_COMPILER=clang++",
@@ -67,23 +68,21 @@ class LlamaCppBench(Suite):
             f"-DSYCL_COMPILER=ON",
             f"-DMKL_DIR={self.oneapi.mkl_cmake()}",
         ]
-
-        run(configure_command, add_sycl=True)
-
-        run(
-            f"cmake --build {self.build_path} -j {options.build_jobs}",
-            add_sycl=True,
-            ld_library=self.oneapi.ld_libraries(),
-        )
+        self.project.configure(extra_args, add_sycl=True)
+        self.project.build(add_sycl=True, ld_library=self.oneapi.ld_libraries())
 
     def benchmarks(self) -> list[Benchmark]:
         return [LlamaBench(self)]
 
 
 class LlamaBench(Benchmark):
-    def __init__(self, bench):
-        super().__init__(bench.directory, bench)
-        self.bench = bench
+    def __init__(self, suite: LlamaCppBench):
+        super().__init__(suite)
+        self.suite = suite
+
+    @property
+    def benchmark_bin(self) -> Path:
+        return self.suite.project.build_dir / "bin" / "llama-bench"
 
     def enabled(self):
         if options.sycl is None:
@@ -91,9 +90,6 @@ class LlamaBench(Benchmark):
         if options.ur_adapter == "cuda" or options.ur_adapter == "hip":
             return False
         return True
-
-    def setup(self):
-        self.benchmark_bin = os.path.join(self.bench.build_path, "bin", "llama-bench")
 
     def model(self):
         return "DeepSeek-R1-Distill-Qwen-1.5B-Q4_0.gguf"
@@ -122,7 +118,7 @@ class LlamaBench(Benchmark):
         force_trace: bool = False,
     ) -> list[Result]:
         command = [
-            f"{self.benchmark_bin}",
+            str(self.benchmark_bin),
             "--output",
             "csv",
             "-n",
@@ -142,13 +138,13 @@ class LlamaBench(Benchmark):
             "--mmap",
             "0",
             "--model",
-            f"{self.bench.model}",
+            f"{self.suite.model}",
         ]
 
         result = self.run_bench(
             command,
             env_vars,
-            ld_library=self.bench.oneapi.ld_libraries(),
+            ld_library=self.suite.oneapi.ld_libraries(),
             run_trace=run_trace,
             force_trace=force_trace,
         )
@@ -164,8 +160,8 @@ class LlamaBench(Benchmark):
                     command=command,
                     env=env_vars,
                     unit="token/s",
-                    git_url=self.bench.git_url(),
-                    git_hash=self.bench.git_hash(),
+                    git_url=self.suite.git_url(),
+                    git_hash=self.suite.git_hash(),
                 )
             )
         return results

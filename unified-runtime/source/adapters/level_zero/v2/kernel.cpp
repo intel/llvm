@@ -33,6 +33,17 @@ ur_single_device_kernel_t::ur_single_device_kernel_t(ur_device_handle_t hDevice,
       };
 }
 
+ur_result_t ur_single_device_kernel_t::setArgValue(uint32_t argIndex,
+                                                   size_t argSize,
+                                                   const void *pArgValue) {
+  return setArgValueOnZeKernel(hKernel.get(), argIndex, argSize, pArgValue);
+}
+
+ur_result_t ur_single_device_kernel_t::setArgPointer(uint32_t argIndex,
+                                                     const void *pArgValue) {
+  return setArgValue(argIndex, sizeof(void *), &pArgValue);
+}
+
 ur_result_t ur_single_device_kernel_t::release() {
   hKernel.reset();
   return UR_RESULT_SUCCESS;
@@ -84,6 +95,7 @@ ur_kernel_handle_t_::ur_kernel_handle_t_(
   ze_kernel_handle_t zeKernel = ur_cast<ze_kernel_handle_t>(hNativeKernel);
 
   if (!zeKernel) {
+    UR_DFAILURE("could not create kernel");
     throw UR_RESULT_ERROR_INVALID_KERNEL;
   }
 
@@ -123,19 +135,19 @@ void ur_kernel_handle_t_::completeInitialization() {
   assert(nonEmptyKernelIt != deviceKernels.end());
   nonEmptyKernel = &nonEmptyKernelIt->value();
 
-  zeCommonProperties.Compute = [kernel = nonEmptyKernel](
-                                   common_properties_t &props) {
-    size_t size = 0;
-    ZE_CALL_NOCHECK(zeKernelGetName, (kernel->hKernel.get(), &size, nullptr));
-    props.name.resize(size);
-    ZE_CALL_NOCHECK(zeKernelGetName,
-                    (kernel->hKernel.get(), &size, props.name.data()));
-    props.numKernelArgs = kernel->zeKernelProperties->numKernelArgs;
-  };
+  size_t size = 0;
+  ZE_CALL_NOCHECK(zeKernelGetName,
+                  (nonEmptyKernel->hKernel.get(), &size, nullptr));
+  zeCommonProperties.name.resize(size);
+  ZE_CALL_NOCHECK(zeKernelGetName, (nonEmptyKernel->hKernel.get(), &size,
+                                    zeCommonProperties.name.data()));
+  zeCommonProperties.numKernelArgs =
+      nonEmptyKernel->zeKernelProperties->numKernelArgs;
 }
 
 size_t ur_kernel_handle_t_::deviceIndex(ur_device_handle_t hDevice) const {
   if (!hDevice) {
+    UR_DFAILURE("invalid handle:" << hDevice);
     throw UR_RESULT_ERROR_INVALID_DEVICE;
   }
 
@@ -145,6 +157,7 @@ size_t ur_kernel_handle_t_::deviceIndex(ur_device_handle_t hDevice) const {
   }
 
   if (!deviceKernels[hDevice->Id.value()].has_value()) {
+    UR_DFAILURE("invalid device:" << hDevice << ", not found in deviceKernels");
     throw UR_RESULT_ERROR_INVALID_DEVICE;
   }
 
@@ -171,7 +184,7 @@ ur_kernel_handle_t_::getZeHandle(ur_device_handle_t hDevice) {
 
 ur_kernel_handle_t_::common_properties_t
 ur_kernel_handle_t_::getCommonProperties() const {
-  return zeCommonProperties.get();
+  return zeCommonProperties;
 }
 
 const ze_kernel_properties_t &
@@ -184,20 +197,7 @@ ur_result_t ur_kernel_handle_t_::setArgValue(
     uint32_t argIndex, size_t argSize,
     const ur_kernel_arg_value_properties_t * /*pProperties*/,
     const void *pArgValue) {
-
-  // OpenCL: "the arg_value pointer can be NULL or point to a NULL value
-  // in which case a NULL value will be used as the value for the argument
-  // declared as a pointer to global or constant memory in the kernel"
-  //
-  // We don't know the type of the argument but it seems that the only time
-  // SYCL RT would send a pointer to NULL in 'arg_value' is when the argument
-  // is a NULL pointer. Treat a pointer to NULL in 'arg_value' as a NULL.
-  if (argSize == sizeof(void *) && pArgValue &&
-      *(void **)(const_cast<void *>(pArgValue)) == nullptr) {
-    pArgValue = nullptr;
-  }
-
-  if (argIndex > zeCommonProperties->numKernelArgs - 1) {
+  if (argIndex > zeCommonProperties.numKernelArgs - 1) {
     return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
   }
 
@@ -206,15 +206,8 @@ ur_result_t ur_kernel_handle_t_::setArgValue(
       continue;
     }
 
-    auto zeResult = ZE_CALL_NOCHECK(zeKernelSetArgumentValue,
-                                    (singleDeviceKernel.value().hKernel.get(),
-                                     argIndex, argSize, pArgValue));
-
-    if (zeResult == ZE_RESULT_ERROR_INVALID_ARGUMENT) {
-      return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE;
-    } else if (zeResult != ZE_RESULT_SUCCESS) {
-      return ze2urResult(zeResult);
-    }
+    UR_CALL(setArgValueOnZeKernel(singleDeviceKernel.value().hKernel.get(),
+                                  argIndex, argSize, pArgValue));
   }
   return UR_RESULT_SUCCESS;
 }
@@ -272,13 +265,41 @@ ur_result_t ur_kernel_handle_t_::setExecInfo(ur_kernel_exec_info_t propName,
   return UR_RESULT_SUCCESS;
 }
 
+// Compute a zePtr pointer for the given memory handle and store it in *pZePtr
+ur_result_t ur_kernel_handle_t_::computeZePtr(
+    ur_mem_handle_t hMem, ur_device_handle_t hDevice,
+    ur_mem_buffer_t::device_access_mode_t accessMode,
+    ze_command_list_handle_t zeCommandList, wait_list_view &waitListView,
+    void **pZePtr) {
+  UR_ASSERT(pZePtr, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  void *zePtr = nullptr;
+  if (hMem) {
+    if (!hMem->isImage()) {
+      auto hBuffer = hMem->getBuffer();
+      zePtr = hBuffer->getDevicePtr(hDevice, accessMode, 0, hBuffer->getSize(),
+                                    zeCommandList, waitListView);
+    } else {
+      auto hImage = static_cast<ur_mem_image_t *>(hMem->getImage());
+      zePtr = reinterpret_cast<void *>(hImage->getZeImage());
+    }
+  }
+
+  *pZePtr = zePtr;
+  return UR_RESULT_SUCCESS;
+}
+
 // Perform any required allocations and set the kernel arguments.
 ur_result_t ur_kernel_handle_t_::prepareForSubmission(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const size_t *pGlobalWorkOffset, uint32_t workDim, uint32_t groupSizeX,
     uint32_t groupSizeY, uint32_t groupSizeZ,
     ze_command_list_handle_t commandList, wait_list_view &waitListView) {
-  auto hZeKernel = getZeHandle(hDevice);
+  auto &deviceKernelOpt = deviceKernels[deviceIndex(hDevice)];
+  if (!deviceKernelOpt.has_value())
+    return UR_RESULT_ERROR_INVALID_KERNEL;
+  auto &deviceKernel = deviceKernelOpt.value();
+  auto hZeKernel = deviceKernel.hKernel.get();
 
   if (pGlobalWorkOffset != NULL) {
     UR_CALL(
@@ -290,31 +311,43 @@ ur_result_t ur_kernel_handle_t_::prepareForSubmission(
 
   for (auto &pending : pending_allocations) {
     void *zePtr = nullptr;
-    if (pending.hMem) {
-      if (!pending.hMem->isImage()) {
-        auto hBuffer = pending.hMem->getBuffer();
-        zePtr =
-            hBuffer->getDevicePtr(hDevice, pending.mode, 0, hBuffer->getSize(),
-                                  commandList, waitListView);
-      } else {
-        auto hImage = static_cast<ur_mem_image_t *>(pending.hMem->getImage());
-        zePtr = reinterpret_cast<void *>(hImage->getZeImage());
-      }
-    }
-    UR_CALL(setArgPointer(pending.argIndex, nullptr, zePtr));
+    // Compute a zePtr pointer for the given memory handle and store it in zePtr
+    UR_CALL(computeZePtr(pending.hMem, hDevice, pending.mode, commandList,
+                         waitListView, &zePtr));
+
+    // Set the argument only on this device's kernel.
+    UR_CALL(deviceKernel.setArgPointer(pending.argIndex, zePtr));
   }
   pending_allocations.clear();
+
+  // Apply any pending raw pointer arguments (USM pointers) for this device.
+  for (auto &pending : pending_pointer_args) {
+    UR_CALL(deviceKernel.setArgPointer(pending.argIndex, pending.ptrArgValue));
+  }
+  pending_pointer_args.clear();
 
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_kernel_handle_t_::addPendingMemoryAllocation(
     pending_memory_allocation_t allocation) {
-  if (allocation.argIndex > zeCommonProperties->numKernelArgs - 1) {
+  if (allocation.argIndex > zeCommonProperties.numKernelArgs - 1) {
     return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
   }
 
   pending_allocations.push_back(allocation);
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t
+ur_kernel_handle_t_::addPendingPointerArgument(uint32_t argIndex,
+                                               const void *pArgValue) {
+  if (argIndex > zeCommonProperties.numKernelArgs - 1) {
+    return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
+  }
+
+  pending_pointer_args.push_back({argIndex, pArgValue});
 
   return UR_RESULT_SUCCESS;
 }
@@ -405,31 +438,31 @@ ur_result_t urKernelSetArgPointer(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
     const ur_kernel_arg_pointer_properties_t
-        *pProperties, ///< [in][optional] argument properties
+        * /*pProperties*/, ///< [in][optional] argument properties
     const void
         *pArgValue ///< [in] argument value represented as matching arg type.
     ) try {
   TRACK_SCOPE_LATENCY("urKernelSetArgPointer");
 
   std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
-  return hKernel->setArgPointer(argIndex, pProperties, pArgValue);
+  // Store the raw pointer value and defer setting the
+  // argument until we know the device where kernel is being submitted.
+  return hKernel->addPendingPointerArgument(argIndex, pArgValue);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
-static ur_mem_buffer_t::device_access_mode_t memAccessFromKernelProperties(
-    const ur_kernel_arg_mem_obj_properties_t *pProperties) {
-  if (pProperties) {
-    switch (pProperties->memoryAccess) {
-    case UR_MEM_FLAG_READ_WRITE:
-      return ur_mem_buffer_t::device_access_mode_t::read_write;
-    case UR_MEM_FLAG_WRITE_ONLY:
-      return ur_mem_buffer_t::device_access_mode_t::write_only;
-    case UR_MEM_FLAG_READ_ONLY:
-      return ur_mem_buffer_t::device_access_mode_t::read_only;
-    default:
-      return ur_mem_buffer_t::device_access_mode_t::read_write;
-    }
+static ur_mem_buffer_t::device_access_mode_t
+memAccessFromMemFlags(const ur_mem_flags_t &Flags) {
+  switch (Flags) {
+  case UR_MEM_FLAG_READ_WRITE:
+    return ur_mem_buffer_t::device_access_mode_t::read_write;
+  case UR_MEM_FLAG_WRITE_ONLY:
+    return ur_mem_buffer_t::device_access_mode_t::write_only;
+  case UR_MEM_FLAG_READ_ONLY:
+    return ur_mem_buffer_t::device_access_mode_t::read_only;
+  default:
+    break;
   }
   return ur_mem_buffer_t::device_access_mode_t::read_write;
 }
@@ -443,7 +476,9 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
   std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
 
   UR_CALL(hKernel->addPendingMemoryAllocation(
-      {hArgValue, memAccessFromKernelProperties(pProperties), argIndex}));
+      {hArgValue,
+       memAccessFromMemFlags(pProperties ? pProperties->memoryAccess : 0),
+       argIndex}));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {

@@ -107,14 +107,20 @@ static void cuptiCallback(void *UserData, CUpti_CallbackDomain,
     uint8_t CallStreamID = xptiRegisterStream(CUDA_CALL_STREAM_NAME);
     uint8_t DebugStreamID = xptiRegisterStream(CUDA_DEBUG_STREAM_NAME);
 
-    xptiNotifySubscribers(CallStreamID, TraceType, Ctx->CallEvent, nullptr,
-                          CallCorrelationID, FuncName);
+    // Only notify if there are subscribers.
+    if (xptiCheckTraceEnabled(CallStreamID, TraceType)) {
+      xptiNotifySubscribers(CallStreamID, TraceType, Ctx->CallEvent, nullptr,
+                            CallCorrelationID, FuncName);
+    }
 
-    xpti::function_with_args_t Payload{
-        FuncID, FuncName, const_cast<void *>(CBInfo->functionParams),
-        CBInfo->functionReturnValue, CBInfo->context};
-    xptiNotifySubscribers(DebugStreamID, TraceTypeArgs, Ctx->DebugEvent,
-                          nullptr, DebugCorrelationID, &Payload);
+    // Prepare the payload and notify subscribers if there are subscribers.
+    if (xptiCheckTraceEnabled(DebugStreamID, TraceTypeArgs)) {
+      xpti::function_with_args_t Payload{
+          FuncID, FuncName, const_cast<void *>(CBInfo->functionParams),
+          CBInfo->functionReturnValue, CBInfo->context};
+      xptiNotifySubscribers(DebugStreamID, TraceTypeArgs, Ctx->DebugEvent,
+                            nullptr, DebugCorrelationID, &Payload);
+    }
   }
 }
 #endif
@@ -193,16 +199,13 @@ void enableCUDATracing(cuda_tracing_context_t_ *Ctx) {
   xptiRegisterStream(CUDA_DEBUG_STREAM_NAME);
   xptiInitialize(CUDA_DEBUG_STREAM_NAME, GMajVer, GMinVer, GVerStr);
 
-  uint64_t Dummy;
-  xpti::payload_t CUDAPayload("CUDA Plugin Layer");
-  Ctx->CallEvent =
-      xptiMakeEvent("CUDA Plugin Layer", &CUDAPayload,
-                    xpti::trace_algorithm_event, xpti_at::active, &Dummy);
-
-  xpti::payload_t CUDADebugPayload("CUDA Plugin Debug Layer");
+  auto CudaCallEvent =
+      xptiCreateTracepoint("CUDA Plugin Layer", nullptr, 0, 0, nullptr);
+  auto CudaCallDebugEvent =
+      xptiCreateTracepoint("CUDA Plugin Debug Layer", nullptr, 0, 0, nullptr);
+  Ctx->CallEvent = CudaCallEvent ? CudaCallEvent->event_ref() : nullptr;
   Ctx->DebugEvent =
-      xptiMakeEvent("CUDA Plugin Debug Layer", &CUDADebugPayload,
-                    xpti::trace_algorithm_event, xpti_at::active, &Dummy);
+      CudaCallDebugEvent ? CudaCallDebugEvent->event_ref() : nullptr;
 
   Ctx->Cupti.Subscribe(&Ctx->Subscriber, cuptiCallback, Ctx);
   Ctx->Cupti.EnableDomain(1, Ctx->Subscriber, CUPTI_CB_DOMAIN_DRIVER_API);

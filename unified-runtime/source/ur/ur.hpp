@@ -29,7 +29,9 @@
 #include "logger/ur_logger.hpp"
 #include "ur_util.hpp"
 
-// Helper for one-liner validation
+// Helper for one-liner validation. Not really an assertion. To be renamed.
+// For assertion that abort program use UR_DASSERT or UR_FASSERT from
+// ur_logger.hpp
 #define UR_ASSERT(condition, error)                                            \
   if (!(condition))                                                            \
     return error;

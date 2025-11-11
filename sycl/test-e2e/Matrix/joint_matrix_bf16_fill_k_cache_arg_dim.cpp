@@ -13,10 +13,8 @@
 
 // -ffp-model=precise is added to not depend on compiler defaults.
 
-// Waiting for the commit in IGC to be pulled into the driver to resolve the
-// test.
 // XFAIL: run-mode && arch-intel_gpu_pvc
-// XFAIL-TRACKER: GSD-10510, GSD-11681
+// XFAIL-TRACKER: GSD-10510, GSD-11778
 
 #include "common.hpp"
 #include "joint_matrix_bf16_fill_k_cache_impl.hpp"
