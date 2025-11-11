@@ -11305,15 +11305,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     for (const auto &[Kind, TC] :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       llvm::Triple TargetTriple = TC->getTriple();
-      bool IsSPIR = TargetTriple.isSPIROrSPIRV();
       bool IsSpirAOT = TargetTriple.isSPIRAOT();
-      bool UseJitLink =
-          IsSPIR &&
-          Args.hasFlag(options::OPT_fsycl_device_lib_jit_link,
-                       options::OPT_fno_sycl_device_lib_jit_link, false);
-      bool UseAOTLink = IsSPIR && (IsSpirAOT || !UseJitLink);
       SmallVector<std::string, 8> SYCLDeviceLibs =
-          SYCL::getDeviceLibraries(C, TargetTriple, UseAOTLink);
+          SYCL::getDeviceLibraries(C, TargetTriple, IsSpirAOT);
       for (const auto &AddLib : SYCLDeviceLibs) {
         if (llvm::sys::path::extension(AddLib) == ".bc") {
           SmallString<256> LibPath(DeviceLibDir);
