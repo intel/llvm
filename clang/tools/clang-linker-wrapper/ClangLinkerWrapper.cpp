@@ -937,6 +937,7 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
 /// Intel CPU.
 /// \p BackendOptions is a string containing backend compilation options. For
 /// example, "-options -cl-opt-disable".
+/// TODO: rework this function.
 static void addSYCLBackendOptions(const ArgList &Args,
                                   SmallVector<StringRef, 8> &CmdArgs,
                                   bool IsCPU, StringRef BackendOptions) {
@@ -963,11 +964,6 @@ static void addSYCLBackendOptions(const ArgList &Args,
       CmdArgs.push_back(Args.MakeArgString(Replace));
     }
   }
-
-  StringRef OptTool = (IsCPU) ? Args.getLastArgValue(OPT_cpu_tool_arg_EQ)
-                              : Args.getLastArgValue(OPT_gpu_tool_arg_EQ);
-  OptTool.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-  return;
 }
 
 /// Run AOT compilation for Intel CPU.

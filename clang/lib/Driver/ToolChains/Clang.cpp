@@ -11420,56 +11420,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(
           Args.MakeArgString("-sycl-allow-device-image-dependencies"));
 
-    // Formulate and add any offload-wrapper and AOT specific options. These
-    // are additional options passed in via -Xsycl-target-linker and
-    // -Xsycl-target-backend.
-    const toolchains::SYCLToolChain &SYCLTC =
-        static_cast<const toolchains::SYCLToolChain &>(getToolChain());
-    // Only store compile/link opts in the image descriptor for the SPIR-V
-    // target.  For AOT, pass along the addition options via GPU or CPU
-    // specific clang-linker-wrapper options.
     const ArgList &Args =
         C.getArgsForToolChain(nullptr, StringRef(), Action::OFK_SYCL);
-    for (auto &ToolChainMember :
-         llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
-      const ToolChain *TC = ToolChainMember.second;
-      bool IsJIT = false;
-      StringRef WrapperOption;
-      StringRef WrapperLinkOption;
-      if (TC->getTriple().isSPIROrSPIRV()) {
-        if (TC->getTriple().getSubArch() == llvm::Triple::NoSubArch) {
-          IsJIT = true;
-          WrapperOption = "--sycl-backend-compile-options=";
-        }
-        if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen)
-          WrapperOption = "--gpu-tool-arg=";
-        if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
-          WrapperOption = "--cpu-tool-arg=";
-      } else
-        continue;
-      ArgStringList BuildArgs;
-      SmallString<128> BackendOptString;
-      SmallString<128> LinkOptString;
-      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
-      for (const auto &A : BuildArgs)
-        appendOption(BackendOptString, A);
-
-      BuildArgs.clear();
-      SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);
-      for (const auto &A : BuildArgs) {
-        if (IsJIT)
-          appendOption(LinkOptString, A);
-        else
-          // For AOT, combine the Backend and Linker strings into one.
-          appendOption(BackendOptString, A);
-      }
-      if (!BackendOptString.empty())
-        CmdArgs.push_back(
-            Args.MakeArgString(Twine(WrapperOption) + BackendOptString));
-      if (!LinkOptString.empty())
-        CmdArgs.push_back(
-            Args.MakeArgString("--sycl-target-link-options=" + LinkOptString));
-    }
     // Add option to enable creating of the .syclbin file.
     if (Arg *A = Args.getLastArg(options::OPT_fsyclbin_EQ))
       CmdArgs.push_back(
