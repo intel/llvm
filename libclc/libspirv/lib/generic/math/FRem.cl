@@ -9,5 +9,8 @@
 #include <clc/math/clc_fmod.h>
 #include <libspirv/spirv.h>
 
-#define __CLC_BODY <FRem.inc>
+#define __CLC_FUNCTION __spirv_FRem
+#define __CLC_IMPL_FUNCTION(x) __clc_fmod
+#define __CLC_BODY <clc/shared/binary_def.inc>
+
 #include <clc/math/gentype.inc>
