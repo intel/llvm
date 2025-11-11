@@ -25,6 +25,7 @@
 namespace llvm {
 
 template <typename T> class ArrayRef;
+enum class VectorLibrary;
 
 /// Describes a possible implementation of a floating point builtin operation.
 struct AltMathDesc {
@@ -173,25 +174,6 @@ class TargetLibraryInfoImpl {
                                        const Module &M) const;
 
 public:
-  /// List of known vector-functions libraries.
-  ///
-  /// The vector-functions library defines, which functions are vectorizable
-  /// and with which factor. The library can be specified by either frontend,
-  /// or a commandline option, and then used by
-  /// addVectorizableFunctionsFromVecLib for filling up the tables of
-  /// vectorizable functions.
-  enum VectorLibrary {
-    NoLibrary,        // Don't use any vector library.
-    Accelerate,       // Use Accelerate framework.
-    DarwinLibSystemM, // Use Darwin's libsystem_m.
-    LIBMVEC,          // GLIBC Vector Math library.
-    MASSV,            // IBM MASS vector library.
-    SVML,             // Intel short vector math library.
-    SLEEFGNUABI, // SLEEF - SIMD Library for Evaluating Elementary Functions.
-    ArmPL,       // Arm Performance Libraries.
-    AMDLIBM      // AMD Math Vector library.
-  };
-
   /// List of known alternate math libraries.
   ///
   /// The alternate math library provides a set of functions that can ve used
