@@ -184,8 +184,6 @@ sycl::unittest::MockDeviceImage generateImage(const std::string &ImageId,
 
   PropSet.insert(__SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS,
                  createVFPropertySet(VirtualFunctions));
-  setKernelUsesAssert(std::vector<std::string>{KernelNames.begin()[0]},
-                      PropSet);
 
   PropSet.insert(__SYCL_PROPERTY_SET_SYCL_IMPLICIT_LOCAL_ARG,
                  createPropertySet(ImplicitLocalArg));
