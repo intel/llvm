@@ -1794,14 +1794,6 @@ Managed<ur_program_handle_t> ProgramManager::build(
   return LinkedProg;
 }
 
-void ProgramManager::cacheKernelUsesAssertInfo(const RTDeviceBinaryImage &Img) {
-  const RTDeviceBinaryImage::PropertyRange &AssertUsedRange =
-      Img.getAssertUsed();
-  if (AssertUsedRange.isAvailable())
-    for (const auto &Prop : AssertUsedRange)
-      m_KernelUsesAssert.insert(Prop->Name);
-}
-
 void ProgramManager::cacheKernelImplicitLocalArg(
     const RTDeviceBinaryImage &Img) {
   const RTDeviceBinaryImage::PropertyRange &ImplicitLocalArgRange =
@@ -2044,8 +2036,6 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
     m_KernelNameRefCount[name]++;
   }
 
-  cacheKernelUsesAssertInfo(*Img);
-
   // check if kernel uses sanitizer
   {
     sycl_device_binary_property SanProp = Img->getProperty("sanUsed");
@@ -2116,12 +2106,11 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
 }
 
 template <typename MultimapT, typename KeyT, typename ValT>
-void removeFromMultimapByVal(MultimapT &Map, const KeyT &Key, const ValT &Val,
-                             bool AssertContains = true) {
+void removeFromMultimapByVal(MultimapT &Map, const KeyT &Key, const ValT &Val) {
   auto [RangeBegin, RangeEnd] = Map.equal_range(Key);
   auto It = std::find_if(RangeBegin, RangeEnd,
                          [&](const auto &Pair) { return Pair.second == Val; });
-  if (!AssertContains && It == RangeEnd)
+  if (It == RangeEnd)
     return;
   assert(It != RangeEnd);
   Map.erase(It);
@@ -2233,7 +2222,6 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
       if (--RefCount == 0) {
         // TODO aggregate all these maps into a single one since their entries
         // share lifetime.
-        m_KernelUsesAssert.erase(Name);
         m_KernelImplicitLocalArgPos.erase(Name);
         m_DeviceKernelInfoMap.erase(Name);
         m_KernelNameRefCount.erase(RefCountIt);
@@ -2249,8 +2237,7 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
     // unmap loop)
     for (const sycl_device_binary_property &ESProp :
          Img->getExportedSymbols()) {
-      removeFromMultimapByVal(m_ExportedSymbolImages, ESProp->Name, Img,
-                              /*AssertContains*/ false);
+      removeFromMultimapByVal(m_ExportedSymbolImages, ESProp->Name, Img);
     }
 
     m_DeviceImages.erase(DevImgIt);
