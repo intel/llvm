@@ -56,7 +56,6 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
                (void *)DI->Handle, (void *)Context);
       DI->Shadow = ShadowMemory;
       CI->DeviceList.emplace_back(hDevice);
-      CI->AllocInfosMap[hDevice];
     }
   }
   return UR_RESULT_SUCCESS;
@@ -1623,6 +1622,30 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
   return result;
 }
 
+__urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] name of the execution attribute
+    ur_kernel_exec_info_t propName,
+    /// [in] size in byte the attribute value
+    size_t propSize,
+    /// [in][optional] pointer to execution info properties.
+    const ur_kernel_exec_info_properties_t *pProperties,
+    /// [in][typename(propName, propSize)] pointer to memory location holding
+    /// the property value.
+    const void *pPropValue) {
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urKernelSetExecInfo");
+
+  UR_CALL(getContext()->urDdiTable.Kernel.pfnSetExecInfo(
+      hKernel, propName, propSize, pProperties, pPropValue));
+  auto &KI = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
+  if (propName == UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS) {
+    KI.IsIndirectAccess = *ur_cast<const bool *>(pPropValue);
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urDeviceGetInfo
 __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
@@ -1928,6 +1951,7 @@ __urdlllocal ur_result_t UR_APICALL urGetKernelProcAddrTable(
   pDdiTable->pfnSetArgMemObj = ur_sanitizer_layer::asan::urKernelSetArgMemObj;
   pDdiTable->pfnSetArgLocal = ur_sanitizer_layer::asan::urKernelSetArgLocal;
   pDdiTable->pfnSetArgPointer = ur_sanitizer_layer::asan::urKernelSetArgPointer;
+  pDdiTable->pfnSetExecInfo = ur_sanitizer_layer::asan::urKernelSetExecInfo;
 
   return result;
 }

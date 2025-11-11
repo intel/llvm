@@ -143,10 +143,11 @@ ur_result_t AsanInterceptor::allocateMemory(ur_context_handle_t Context,
   AI->print();
 
   // For updating shadow memory
-  if (Device) { // Device/Shared USM
-    ContextInfo->insertAllocInfo({Device}, AI);
+  if (DeviceInfo) { // Device/Shared USM
+    DeviceInfo->insertAllocInfo(AI);
   } else { // Host USM
-    ContextInfo->insertAllocInfo(ContextInfo->DeviceList, AI);
+    for (const auto &Device : ContextInfo->DeviceList)
+      getDeviceInfo(Device)->insertAllocInfo(AI);
   }
 
   // For memory release
@@ -212,9 +213,10 @@ ur_result_t AsanInterceptor::releaseMemory(ur_context_handle_t Context,
   AllocInfo->ReleaseStack = GetCurrentBacktrace();
 
   if (AllocInfo->Type == AllocType::HOST_USM) {
-    ContextInfo->insertAllocInfo(ContextInfo->DeviceList, AllocInfo);
+    for (const auto &Device : ContextInfo->DeviceList)
+      getDeviceInfo(Device)->insertAllocInfo(AllocInfo);
   } else {
-    ContextInfo->insertAllocInfo({AllocInfo->Device}, AllocInfo);
+    getDeviceInfo(AllocInfo->Device)->insertAllocInfo(AllocInfo);
   }
 
   // If quarantine is disabled, USM is freed immediately
@@ -279,7 +281,7 @@ ur_result_t AsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
       (void)ArgPointer;
     }
   }
-  UR_CALL(updateShadowMemory(ContextInfo, DeviceInfo, InternalQueue));
+  UR_CALL(updateShadowMemory(DeviceInfo, InternalQueue));
 
   UR_CALL(prepareLaunch(ContextInfo, DeviceInfo, InternalQueue, Kernel,
                         LaunchInfo));
@@ -423,16 +425,14 @@ AsanInterceptor::enqueueAllocInfo(std::shared_ptr<DeviceInfo> &DeviceInfo,
 }
 
 ur_result_t
-AsanInterceptor::updateShadowMemory(std::shared_ptr<ContextInfo> &ContextInfo,
-                                    std::shared_ptr<DeviceInfo> &DeviceInfo,
+AsanInterceptor::updateShadowMemory(std::shared_ptr<DeviceInfo> &DeviceInfo,
                                     ur_queue_handle_t Queue) {
-  auto &AllocInfos = ContextInfo->AllocInfosMap[DeviceInfo->Handle];
-  std::scoped_lock<ur_shared_mutex> Guard(AllocInfos.Mutex);
+  std::scoped_lock<ur_shared_mutex> Guard(DeviceInfo->AllocInfos.Mutex);
 
-  for (auto &AI : AllocInfos.List) {
+  for (auto &AI : DeviceInfo->AllocInfos.List) {
     UR_CALL(enqueueAllocInfo(DeviceInfo, Queue, AI));
   }
-  AllocInfos.List.clear();
+  DeviceInfo->AllocInfos.List.clear();
 
   return UR_RESULT_SUCCESS;
 }
@@ -585,7 +585,7 @@ AsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
                     GetCurrentBacktrace(),
                     {}});
 
-      ContextInfo->insertAllocInfo({Device}, AI);
+      getDeviceInfo(Device)->insertAllocInfo(AI);
       ProgramInfo->AllocInfoForGlobals.emplace(AI);
 
       std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
@@ -754,7 +754,7 @@ ur_result_t AsanInterceptor::prepareLaunch(
         continue;
       }
       if (auto ValidateResult = ValidateUSMPointer(
-              ContextInfo->Handle, DeviceInfo->Handle, (uptr)Ptr)) {
+              Kernel, ContextInfo->Handle, DeviceInfo->Handle, (uptr)Ptr)) {
         ReportInvalidKernelArgument(Kernel, ArgIndex, (uptr)Ptr, ValidateResult,
                                     PtrPair.second);
         if (ValidateResult.Type != ValidateUSMResult::MAYBE_HOST_POINTER) {
