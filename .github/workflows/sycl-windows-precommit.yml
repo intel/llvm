@@ -51,7 +51,7 @@ jobs:
   build:
     needs: [detect_changes]
     if: |
-      always() && success()
+      success()
       && github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
@@ -62,8 +62,7 @@ jobs:
     needs: build
     # Continue if build was successful.
     if: |
-      always()
-      && !cancelled()
+      !cancelled()
       && needs.build.outputs.build_conclusion == 'success'
     strategy:
       fail-fast: false
