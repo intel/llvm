@@ -190,7 +190,7 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
         return {Error};
       return {Result};
     } else {
-      ur_ret_t Result;
+      ur_ret_t Result{};
       ur_result_t Error = getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
           getHandleRef(), Desc, sizeof(Result), &Result, nullptr);
       if (Error == UR_RESULT_SUCCESS)
@@ -220,7 +220,7 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
             getHandleRef(), Desc, ResultSize, Result.data(), nullptr);
         return Result;
       } else {
-        ur_ret_t Result;
+        ur_ret_t Result{};
         getAdapter().call<UrApiKind::urDeviceGetInfo>(
             getHandleRef(), Desc, sizeof(Result), &Result, nullptr);
         return Result;

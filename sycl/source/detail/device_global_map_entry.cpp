@@ -18,23 +18,28 @@ inline namespace _V1 {
 namespace detail {
 
 DeviceGlobalUSMMem::~DeviceGlobalUSMMem() {
-  // removeAssociatedResources is expected to have cleaned up both the pointer
-  // and the event. When asserts are enabled the values are set, so we check
-  // these here.
-  auto ContextImplPtr = MAllocatingContext.lock();
-  if (ContextImplPtr) {
-    if (MPtr != nullptr) {
-      detail::usm::freeInternal(MPtr, ContextImplPtr.get());
-      MPtr = nullptr;
+  try {
+    // removeAssociatedResources is expected to have cleaned up both the pointer
+    // and the event. When asserts are enabled the values are set, so we check
+    // these here.
+    auto ContextImplPtr = MAllocatingContext.lock();
+    if (ContextImplPtr) {
+      if (MPtr != nullptr) {
+        detail::usm::freeInternal(MPtr, ContextImplPtr.get());
+        MPtr = nullptr;
+      }
+      if (MInitEvent != nullptr) {
+        ContextImplPtr->getAdapter().call<UrApiKind::urEventRelease>(
+            MInitEvent);
+        MInitEvent = nullptr;
+      }
     }
-    if (MInitEvent != nullptr) {
-      ContextImplPtr->getAdapter().call<UrApiKind::urEventRelease>(MInitEvent);
-      MInitEvent = nullptr;
-    }
-  }
 
-  assert(MPtr == nullptr && "MPtr has not been cleaned up.");
-  assert(MInitEvent == nullptr && "MInitEvent has not been cleaned up.");
+    assert(MPtr == nullptr && "MPtr has not been cleaned up.");
+    assert(MInitEvent == nullptr && "MInitEvent has not been cleaned up.");
+  } catch (std::exception &e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~DeviceGlobalUSMMem", e);
+  }
 }
 
 OwnedUrEvent DeviceGlobalUSMMem::getInitEvent(adapter_impl &Adapter) {
@@ -80,7 +85,7 @@ DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(queue_impl &QueueImpl) {
   // Initialize here and save the event.
   {
     std::lock_guard<std::mutex> Lock(NewAlloc.MInitEventMutex);
-    ur_event_handle_t InitEvent;
+    ur_event_handle_t InitEvent = nullptr;
     if (MDeviceGlobalPtr) {
       // C++ guarantees members appear in memory in the order they are declared,
       // so since the member variable that contains the initial contents of the

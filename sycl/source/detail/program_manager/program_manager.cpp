@@ -693,6 +693,10 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
     throw exception(make_error_code(errc::feature_not_supported),
                     "Cannot resolve external symbols, linking is unsupported "
                     "for the backend");
+
+  // Access to m_ExportedSymbolImages must be guarded by m_KernelIDsMutex.
+  std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+
   while (!WorkList.empty()) {
     std::string Symbol = WorkList.front();
     WorkList.pop();

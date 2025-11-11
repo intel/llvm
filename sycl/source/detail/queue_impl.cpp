@@ -422,7 +422,7 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 }
 
 EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
-    KernelData &KData, std::vector<detail::EventImplPtr> &DepEvents,
+    KernelData &KData, const std::vector<detail::EventImplPtr> &DepEvents,
     bool EventNeeded, detail::kernel_impl *KernelImplPtr,
     detail::kernel_bundle_impl *KernelBundleImpPtr,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
@@ -500,8 +500,7 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
     ResultEvent->setEnqueued();
     // connect returned event with dependent events
     if (!isInOrder()) {
-      // DepEvents is not used anymore, so can move.
-      ResultEvent->getPreparedDepsEvents() = std::move(DepEvents);
+      ResultEvent->getPreparedDepsEvents() = DepEvents;
       // ResultEvent is local for current thread, no need to lock.
       ResultEvent->cleanDepEventsThroughOneLevelUnlocked();
     }
@@ -581,7 +580,7 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
   KData.validateAndSetKernelLaunchProperties(Props, hasCommandGraph(),
                                              getDeviceImpl());
 
-  auto SubmitKernelFunc = [&](detail::CG::StorageInitHelper &CGData,
+  auto SubmitKernelFunc = [&](detail::CG::StorageInitHelper &&CGData,
                               bool SchedulerBypass) -> EventImplPtr {
     if (SchedulerBypass) {
       // No need to copy/move the kernel function, so we set
@@ -609,12 +608,11 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
         KData.getNDRDesc(), std::move(HostKernelPtr),
         nullptr, // Kernel
         nullptr, // KernelBundle
-        std::move(CGData), std::move(KData).getArgs(),
-        *KData.getDeviceKernelInfoPtr(), std::move(StreamStorage),
-        std::move(AuxiliaryResources), detail::CGType::Kernel,
-        KData.getKernelCacheConfig(), KData.isCooperative(),
-        KData.usesClusterLaunch(), KData.getKernelWorkGroupMemorySize(),
-        CodeLoc));
+        std::move(CGData), KData.getArgs(), *KData.getDeviceKernelInfoPtr(),
+        std::move(StreamStorage), std::move(AuxiliaryResources),
+        detail::CGType::Kernel, KData.getKernelCacheConfig(),
+        KData.isCooperative(), KData.usesClusterLaunch(),
+        KData.getKernelWorkGroupMemorySize(), CodeLoc));
     CommandGroup->MIsTopCodeLoc = IsTopCodeLoc;
 
     if (auto GraphImpl = getCommandGraph(); GraphImpl) {
@@ -693,7 +691,8 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
   MNoLastEventMode.store(isInOrder() && SchedulerBypass,
                          std::memory_order_relaxed);
 
-  EventImplPtr EventImpl = SubmitCommandFunc(CGData, SchedulerBypass);
+  EventImplPtr EventImpl =
+      SubmitCommandFunc(std::move(CGData), SchedulerBypass);
 
   // Sync with the last event for in order queue. For scheduler-bypass flow,
   // the ordering is done at the layers below the SYCL runtime,
@@ -708,7 +707,7 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
     Deps.UnenqueuedCmdEvents.push_back(EventImpl);
   }
 
-  return CallerNeedsEvent ? EventImpl : nullptr;
+  return CallerNeedsEvent ? std::move(EventImpl) : nullptr;
 }
 
 template <typename HandlerFuncT>

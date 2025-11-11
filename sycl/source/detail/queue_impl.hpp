@@ -405,7 +405,7 @@ public:
   ///
   /// \return a SYCL event representing submitted command or nullptr.
   EventImplPtr submit_kernel_scheduler_bypass(
-      KernelData &KData, std::vector<detail::EventImplPtr> &DepEvents,
+      KernelData &KData, const std::vector<detail::EventImplPtr> &DepEvents,
       bool EventNeeded, detail::kernel_impl *KernelImplPtr,
       detail::kernel_bundle_impl *KernelBundleImpPtr,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc);
@@ -602,7 +602,8 @@ public:
                                bool CallerNeedsEvent);
 
   void setCommandGraphUnlocked(
-      std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
+      const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+          &Graph) {
     MGraph = Graph;
     MExtGraphDeps.reset();
 
@@ -614,7 +615,8 @@ public:
   }
 
   void setCommandGraph(
-      std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
+      const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+          &Graph) {
     std::lock_guard<std::mutex> Lock(MMutex);
     setCommandGraphUnlocked(Graph);
   }
