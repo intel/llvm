@@ -6115,10 +6115,10 @@ def : Flag<["-"], "nocudainc">, Alias<no_offload_inc>;
 def no_offloadlib
     : Flag<["--"], "no-offloadlib">,
       MarshallingInfoFlag<LangOpts<"NoGPULib">>,
-      Visibility<[ClangOption, CC1Option, CLOption, FlangOption, FC1Option]>,
+      Visibility<[ClangOption, CLOption, CC1Option, FlangOption, FC1Option]>,
       HelpText<"Do not link device library for CUDA/HIP/SYCL device compilation">;
 def offloadlib : Flag<["--"], "offloadlib">,
-                 Visibility<[ClangOption, CC1Option, CLOption, FlangOption, FC1Option]>,
+                 Visibility<[ClangOption, CLOption, CC1Option, FlangOption, FC1Option]>,
                  HelpText<"Link device libraries for GPU device compilation">;
 def : Flag<["-"], "nogpulib">,
       Alias<no_offloadlib>,
@@ -7330,23 +7330,6 @@ def fsycl_dead_args_optimization : Flag<["-"], "fsycl-dead-args-optimization">,
   HelpText<"Enables elimination of DPC++ dead kernel arguments">;
 def fno_sycl_dead_args_optimization : Flag<["-"], "fno-sycl-dead-args-optimization">,
   HelpText<"Disables elimination of DPC++ dead kernel arguments">;
-def fsycl_device_lib_EQ : CommaJoined<["-"], "fsycl-device-lib=">,
-  Flags<[Deprecated]>,
-  Values<"libc,libm-fp32,libm-fp64,libimf-fp32,libimf-fp64,libimf-bf16,all">,
-  HelpText<"Control inclusion of device libraries into device binary linkage. "
-           "Valid arguments are libc, libm-fp32, libm-fp64, libimf-fp32, "
-           "libimf-fp64, libimf-bf16, all. (deprecated)">;
-def fno_sycl_device_lib_EQ : CommaJoined<["-"], "fno-sycl-device-lib=">,
-  Flags<[Deprecated]>,
-  Values<"libc, libm-fp32, libm-fp64, all">,
-  HelpText<"Control exclusion of device libraries from device binary linkage. "
-           "Valid arguments are libc, libm-fp32, libm-fp64, all. (deprecated)">;
-def fsycl_device_lib_jit_link : Flag<["-"], "fsycl-device-lib-jit-link">,
-  Flags<[Deprecated]>,
-  HelpText<"Enables sycl device library jit link. (deprecated)">;
-def fno_sycl_device_lib_jit_link : Flag<["-"], "fno-sycl-device-lib-jit-link">,
-  Flags<[Deprecated]>,
-  HelpText<"Disables sycl device library jit link. (deprecated)">;
 def fsycl_fp32_prec_sqrt : Flag<["-"], "fsycl-fp32-prec-sqrt">,
   Alias<foffload_fp32_prec_sqrt>, Flags<[Deprecated]>,
   Visibility<[ClangOption, CC1Option]>, HelpText<"SYCL only. Specify that "

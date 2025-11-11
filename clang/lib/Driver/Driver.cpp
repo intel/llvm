@@ -5505,13 +5505,8 @@ class OffloadingActionBuilder final {
         bool SYCLDeviceLibLinked = false;
         Action *NativeCPULib = nullptr;
         if (IsSPIR || IsNVPTX || IsAMDGCN || IsNativeCPU) {
-          bool UseJitLink =
-              IsSPIR &&
-              Args.hasFlag(options::OPT_fsycl_device_lib_jit_link,
-                           options::OPT_fno_sycl_device_lib_jit_link, false);
-          bool UseAOTLink = IsSPIR && (IsSpirvAOT || !UseJitLink);
           SYCLDeviceLibLinked = addSYCLDeviceLibs(
-              TC, SYCLDeviceLibs, UseAOTLink,
+              TC, SYCLDeviceLibs, IsSpirvAOT,
               C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment(),
               IsNativeCPU, NativeCPULib, BoundArch);
         }
