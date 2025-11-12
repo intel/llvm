@@ -495,7 +495,8 @@ public:
                                              SPIRVId TheMatrix,
                                              SPIRVBasicBlock *BB) = 0;
   virtual SPIRVInstruction *addUnaryInst(Op, SPIRVType *, SPIRVValue *,
-                                         SPIRVBasicBlock *) = 0;
+                                         SPIRVBasicBlock *,
+                                         SPIRVInstruction * = nullptr) = 0;
   virtual SPIRVInstruction *addVariable(SPIRVType *, SPIRVType *, bool,
                                         SPIRVLinkageTypeKind, SPIRVValue *,
                                         const std::string &,
