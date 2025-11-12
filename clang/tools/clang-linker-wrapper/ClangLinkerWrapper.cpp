@@ -734,8 +734,9 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
   StringRef IsGPUTool = Args.getLastArgValue(OPT_gpu_tool_arg_EQ);
+
   if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen && !Arch.empty() &&
-      IsGPUTool.empty())
+      IsGPUTool.empty() && Arch != "*")
     OutputPathWithArch = "intel_gpu_" + Arch.str() + "," + OutputPathWithArch;
   else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
     OutputPathWithArch = "spir64_x86_64," + OutputPathWithArch;

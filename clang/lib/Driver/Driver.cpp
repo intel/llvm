@@ -7640,7 +7640,7 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
         if (StringRef(TargetArgs[i]) == "-device") {
           StringRef Arch;
           Arch = TargetArgs[i + 1];
-          if (!Arch.empty() && Arch != "*")
+          if (!Arch.empty())
             Archs.insert(Arch);
           break;
         }
