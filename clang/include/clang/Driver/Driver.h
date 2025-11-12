@@ -622,17 +622,6 @@ public:
     return true;
   }
 
-  /// @}
-  /// @name Helper Methods
-  /// @{
-
-  /// Utility function to parse all devices passed via -fsycl-targets.
-  /// Return 'true' for JIT, AOT Intel CPU/GPUs and NVidia/AMD targets.
-  /// Otherwise return 'false'.
-  bool
-  GetUseNewOffloadDriverForSYCLOffload(Compilation &C,
-                                       const llvm::opt::ArgList &Args) const;
-
   /// getSYCLDeviceTriple - Returns the SYCL device triple for the
   /// specified subarch
   // TODO: Additional Arg input parameter is for diagnostic output information
