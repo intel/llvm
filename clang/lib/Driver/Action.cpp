@@ -47,7 +47,7 @@ const char *Action::getClassName(ActionClass AC) {
   case OffloadPackagerJobClass:
     return "llvm-offload-binary";
   case OffloadPackagerExtractJobClass:
-    return "clang-offload-packager-extract";
+    return "llvm-offload-binary-extract";
   case OffloadDepsJobClass:
     return "clang-offload-deps";
   case SPIRVTranslatorJobClass:
