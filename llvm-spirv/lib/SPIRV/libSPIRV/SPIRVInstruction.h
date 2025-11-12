@@ -4498,7 +4498,7 @@ _SPIRV_OP(PredicatedStore, false, 4, true)
 #undef _SPIRV_OP
 
 template <Op OC> class SPIRVFSigmoidINTELInstBase : public SPIRVUnaryInst<OC> {
-protected:
+public:
   SPIRVCapVec getRequiredCapability() const override {
     return getVec(internal::CapabilitySigmoidINTEL);
   }
@@ -4554,6 +4554,27 @@ protected:
 #define _SPIRV_OP(x)                                                           \
   typedef SPIRVFSigmoidINTELInstBase<internal::Op##x> SPIRV##x;
 _SPIRV_OP(FSigmoidINTEL)
+#undef _SPIRV_OP
+
+class SPIRVFPConversionINTELInstBase : public SPIRVInstTemplateBase {
+public:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(internal::CapabilityFloatConversionsINTEL);
+  }
+
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_fp_conversions;
+  }
+};
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVFPConversionINTELInstBase,                    \
+                            internal::Op##x##INTEL, __VA_ARGS__>               \
+      SPIRV##x##INTEL;
+_SPIRV_OP(ClampConvertFToF, true, 4, false)
+_SPIRV_OP(ClampConvertFToS, true, 4, false)
+_SPIRV_OP(StochasticRoundFToF, true, 5, true)
+_SPIRV_OP(ClampStochasticRoundFToF, true, 5, true)
+_SPIRV_OP(ClampStochasticRoundFToS, true, 5, true)
 #undef _SPIRV_OP
 } // namespace SPIRV
 #endif // SPIRV_LIBSPIRV_SPIRVINSTRUCTION_H

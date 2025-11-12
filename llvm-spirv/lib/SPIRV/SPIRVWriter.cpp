@@ -936,9 +936,10 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
       // Proper checks for the required extensions will be done during TypeFloat
       // generation.
       if (!BM->isAllowedToUseExtension(ExtensionID::SPV_EXT_float8) &&
-          !BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_int4)) {
+          !BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_int4) &&
+          !BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_float4)) {
         std::string ErrorStr =
-            "One of the following extensions: SPV_EXT_float8, "
+            "One of the following extensions: SPV_EXT_float8, SPV_INTEL_float4"
             "SPV_INTEL_int4 should be enabled to process "
             "conversion builtins";
         getErrorLog().checkError(false, SPIRVEC_RequiresExtension, F, ErrorStr);
@@ -5582,6 +5583,49 @@ SPIRVValue *LLVMToSPIRVBase::transCallInst(CallInst *CI, SPIRVBasicBlock *BB) {
   return transDirectCallInst(CI, BB);
 }
 
+// Helper function to process mini-float or int4 types for FP conversions.
+// Processes type width, packing, and creates the appropriate SPIRV type.
+// Returns the SPIRV type and outputs vector size information.
+static SPIRVType *
+processMiniFPOrInt4Type(Type *LLVMTy, FPEncodingWrap Encoding,
+                        std::function<Type *(Type *)> GetScalarTy,
+                        SPIRVModule *BM, unsigned &OutVecSize) {
+  Type *ScalarTy = GetScalarTy(LLVMTy);
+  unsigned TyWidth = cast<IntegerType>(ScalarTy)->getBitWidth();
+  unsigned VecSize = 0;
+
+  if (TyWidth == 32) {
+    // Int4 or FP4 packed in 32-bit integer, change type and vector size.
+    assert((Encoding == FPEncodingWrap::E2M1 ||
+            Encoding == FPEncodingWrap::Integer) &&
+           "Unknown FP encoding");
+    assert(!isLLVMCooperativeMatrixType(LLVMTy) &&
+           "FP4 and Int4 matrices must not be packed");
+    VecSize = 8;
+    TyWidth = 4;
+  } else if (TyWidth == 8 && (Encoding == FPEncodingWrap::E2M1 ||
+                              Encoding == FPEncodingWrap::Integer)) {
+    assert(!isLLVMCooperativeMatrixType(LLVMTy) &&
+           "FP4 and Int4 matrices must not be packed");
+    // Int4 or FP4 packed in 8-bit integer, change type and vector size.
+    VecSize = 2;
+    TyWidth = 4;
+  } else {
+    if (LLVMTy->isVectorTy())
+      VecSize = cast<VectorType>(LLVMTy)->getElementCount().getFixedValue();
+  }
+
+  SPIRVType *Ty;
+  if (Encoding == FPEncodingWrap::Integer) {
+    Ty = BM->addIntegerType(TyWidth);
+  } else {
+    Ty = BM->addFloatType(TyWidth, Encoding);
+  }
+
+  OutVecSize = VecSize;
+  return Ty;
+}
+
 SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
                                                  SPIRVBasicBlock *BB) {
   SPIRVExtInstSetKind ExtSetKind = SPIRVEIS_Count;
@@ -5605,7 +5649,7 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
     // Logic of the code below is described in
     // docs/SPIRVMiniFloatsRepresentationInLLVM.rst
     // A quick recap of the document:
-    // For FP8 types (which don't have appropriate counterparts in LLVM)
+    // For FP4 and FP8 types (which don't have appropriate counterparts in LLVM)
     // the translator expect to see external function calls with __builtin_spirv
     // prefix, names of the functions encode the used in the conversion
     // FP types and will be used by the translator for proper TypeFloat values
@@ -5643,42 +5687,17 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
 
       SPIRVValue *SrcOp = transValue(Src, BB);
 
-      // TODO: unify SrcTy and DstTy processing into a single routine.
       if (!SrcTy) {
-        // Src type is 'mini' float or int4
-        Type *SrcScalarTy = GetScalarTy(LLVMSrcTy);
-        unsigned SrcTyWidth = cast<IntegerType>(SrcScalarTy)->getBitWidth();
+        // Src type is 'mini' float or int4.
         unsigned SrcVecSize = 0;
-        if (SrcTyWidth == 32) {
-          // Int4 packed in 32-bit integer, change Src type and vector size
-          assert(FPDesc.SrcEncoding == FPEncodingWrap::Integer &&
-                 "Unknown FP encoding");
-          assert(!isLLVMCooperativeMatrixType(LLVMSrcTy) &&
-                 "Int4 matrices must not be packed");
-          SrcVecSize = 8;
-          SrcTyWidth = 4;
-        } else if (SrcTyWidth == 8 &&
-                   FPDesc.SrcEncoding == FPEncodingWrap::Integer) {
-          assert(!isLLVMCooperativeMatrixType(LLVMSrcTy) &&
-                 "Int4 matrices must not be packed");
-          // Int4 packed in 8-bit integer, change Src type and vector size
-          SrcVecSize = 2;
-          SrcTyWidth = 4;
-        } else {
-          if (LLVMSrcTy->isVectorTy())
-            SrcVecSize =
-                cast<VectorType>(LLVMSrcTy)->getElementCount().getFixedValue();
-        }
-        if (FPDesc.SrcEncoding == FPEncodingWrap::Integer) {
-          SrcTy = BM->addIntegerType(SrcTyWidth);
-        } else {
-          SrcTy = BM->addFloatType(SrcTyWidth, FPDesc.SrcEncoding);
-        }
+        SrcTy = processMiniFPOrInt4Type(LLVMSrcTy, FPDesc.SrcEncoding,
+                                        GetScalarTy, BM, SrcVecSize);
+
         if (SrcVecSize > 0)
           SrcTy = BM->addVectorType(SrcTy, SrcVecSize);
 
         if (isLLVMCooperativeMatrixType(LLVMSrcTy)) {
-          // Create FP8 matrix with a new type and insert a bitcast.
+          // Create FP4/FP8 matrix with a new type and insert a bitcast.
           SrcTy = BM->addCooperativeMatrixKHRType(
               SrcTy,
               static_cast<SPIRVTypeCooperativeMatrixKHR *>(transType(LLVMSrcTy))
@@ -5686,41 +5705,15 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
           SrcOp = BM->addUnaryInst(OpBitcast, SrcTy, SrcOp, BB);
         } else if (FPDesc.SrcEncoding != FPEncodingWrap::Integer ||
                    (SrcTy->isTypeVector() && !LLVMSrcTy->isVectorTy())) {
-          // Create bitcast for FP8 and packed Int4.
+          // Create bitcast for FP4, FP8 and packed Int4.
           SrcOp = BM->addUnaryInst(OpBitcast, SrcTy, SrcOp, BB);
         }
       }
       if (!DstTy) {
-        // Dst type is 'mini' float or int4
-        Type *DstScalarTy = GetScalarTy(LLVMDstTy);
-        unsigned DstTyWidth = cast<IntegerType>(DstScalarTy)->getBitWidth();
+        // Dst type is 'mini' float or int4.
         unsigned DstVecSize = 0;
-        if (DstTyWidth == 32) {
-          // Int4 packed in 32-bit integer, change Dst type and vector size
-          assert(FPDesc.DstEncoding == FPEncodingWrap::Integer &&
-                 "Unknown FP encoding");
-          assert(!isLLVMCooperativeMatrixType(LLVMDstTy) &&
-                 "Int4 matrices must not be packed");
-          DstVecSize = 8;
-          DstTyWidth = 4;
-        } else if (DstTyWidth == 8 &&
-                   FPDesc.DstEncoding == FPEncodingWrap::Integer) {
-          assert(!isLLVMCooperativeMatrixType(LLVMDstTy) &&
-                 "Int4 matrices must not be packed");
-          // Int4 packed in 8-bit integer, change Dst type and vector size
-          DstVecSize = 2;
-          DstTyWidth = 4;
-        } else {
-          // Currently unused in SYCL
-          if (LLVMDstTy->isVectorTy())
-            DstVecSize =
-                cast<VectorType>(LLVMDstTy)->getElementCount().getFixedValue();
-        }
-        if (FPDesc.DstEncoding == FPEncodingWrap::Integer) {
-          DstTy = BM->addIntegerType(DstTyWidth);
-        } else {
-          DstTy = BM->addFloatType(DstTyWidth, FPDesc.DstEncoding);
-        }
+        DstTy = processMiniFPOrInt4Type(LLVMDstTy, FPDesc.DstEncoding,
+                                        GetScalarTy, BM, DstVecSize);
 
         if (isLLVMCooperativeMatrixType(LLVMDstTy))
           // Create FP8 matrix with a new type.

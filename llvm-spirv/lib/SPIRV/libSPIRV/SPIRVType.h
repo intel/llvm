@@ -240,6 +240,8 @@ public:
     if (isTypeFloat(8, FPEncodingFloat8E4M3EXT) ||
         isTypeFloat(8, FPEncodingFloat8E5M2EXT))
       return ExtensionID::SPV_EXT_float8;
+    if (isTypeFloat(4, internal::FPEncodingFloat4E2M1INTEL))
+      return ExtensionID::SPV_INTEL_float4;
     return {};
   }
 
@@ -258,6 +260,8 @@ public:
     } else if (isTypeFloat(8, FPEncodingFloat8E4M3EXT) ||
                isTypeFloat(8, FPEncodingFloat8E5M2EXT)) {
       CV.push_back(CapabilityFloat8EXT);
+    } else if (isTypeFloat(4, internal::FPEncodingFloat4E2M1INTEL)) {
+      CV.push_back(internal::CapabilityFloat4E2M1INTEL);
     }
     return CV;
   }
@@ -281,14 +285,16 @@ protected:
 
   void validate() const override {
     SPIRVEntry::validate();
-    assert(
-        (BitWidth == 8 || BitWidth == 16 || BitWidth == 32 || BitWidth == 64) &&
-        "Invalid bit width");
+    assert((BitWidth == 4 || BitWidth == 8 || BitWidth == 16 ||
+            BitWidth == 32 || BitWidth == 64) &&
+           "Invalid bit width");
     assert(
         (FloatingPointEncoding == FPEncodingMax ||
          (BitWidth == 16 && FloatingPointEncoding == FPEncodingBFloat16KHR) ||
          (BitWidth == 8 && FloatingPointEncoding == FPEncodingFloat8E4M3EXT) ||
-         (BitWidth == 8 && FloatingPointEncoding == FPEncodingFloat8E5M2EXT)) &&
+         (BitWidth == 8 && FloatingPointEncoding == FPEncodingFloat8E5M2EXT) ||
+         (BitWidth == 4 &&
+          FloatingPointEncoding == internal::FPEncodingFloat4E2M1INTEL)) &&
         "Invalid floating point encoding");
   }
 
@@ -1263,6 +1269,8 @@ public:
     else if (CompType->isTypeFloat(8, FPEncodingFloat8E4M3EXT) ||
              CompType->isTypeFloat(8, FPEncodingFloat8E5M2EXT))
       CV.push_back(CapabilityFloat8CooperativeMatrixEXT);
+    else if (CompType->isTypeFloat(4, internal::FPEncodingFloat4E2M1INTEL))
+      CV.push_back(internal::CapabilityFloat4E2M1CooperativeMatrixINTEL);
     return CV;
   }
 
