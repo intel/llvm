@@ -188,8 +188,8 @@ public:
   /// @param RecordingQueue Queue to remove from set.
   void removeQueue(sycl::detail::queue_impl &RecordingQueue);
 
-  /// Sets all queues cleared back to the executing state.
-  ///
+  /// Remove all queues which are recording to this graph, also sets all queues
+  /// cleared back to the executing state.
   void clearQueues(bool NeedsLock);
 
   /// Associate a sycl event with a node in the graph.
