@@ -229,7 +229,7 @@ runs:
 
       echo "::endgroup::"
       echo "::group::sycl_ls"
-      sycl-ls
+      sycl-ls --verbose
       echo "::endgroup::"
       echo "::group::run_benchmarks"
 
