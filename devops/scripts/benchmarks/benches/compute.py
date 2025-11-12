@@ -270,6 +270,52 @@ class ComputeBench(Suite):
                 )
             )
 
+        record_and_replay_params = product([0, 1], [0, 1])
+        for emulate, instantiate in record_and_replay_params:
+
+            def createRrBench(variant_name: str, **kwargs):
+                return RecordAndReplay(
+                    self,
+                    RUNTIMES.LEVEL_ZERO,
+                    variant_name,
+                    PROFILERS.TIMER,
+                    mRec=1,
+                    mInst=instantiate,
+                    mDest=0,
+                    emulate=emulate,
+                    **kwargs,
+                )
+
+            benches += [
+                createRrBench(
+                    "large",
+                    nForksInLvl=2,
+                    nLvls=4,
+                    nCmdSetsInLvl=10,
+                    nInstantiations=10,
+                    nAppendKern=10,
+                    nAppendCopy=1,
+                ),
+                createRrBench(
+                    "medium",
+                    nForksInLvl=1,
+                    nLvls=1,
+                    nCmdSetsInLvl=10,
+                    nInstantiations=10,
+                    nAppendKern=10,
+                    nAppendCopy=10,
+                ),
+                createRrBench(
+                    "short",
+                    nForksInLvl=1,
+                    nLvls=4,
+                    nCmdSetsInLvl=1,
+                    nInstantiations=0,
+                    nAppendKern=1,
+                    nAppendCopy=0,
+                ),
+            ]
+
         # Add UR-specific benchmarks
         benches += [
             # TODO: multithread_benchmark_ur fails with segfault
@@ -646,6 +692,49 @@ class ExecImmediateCopyQueue(ComputeBenchmark):
             "--withCopyOffload=0",
             f"--profilerType={self.profiler_type.value}",
         ]
+
+
+class RecordAndReplay(ComputeBenchmark):
+    def __init__(
+        self, suite, runtime: RUNTIMES, variant_name: str, profiler_type, **kwargs
+    ):
+        self.variant_name = variant_name
+        self.rr_params = kwargs
+        self.iterations_regular = 1000
+        self.iterations_trace = 10
+        super().__init__(
+            suite,
+            f"record_and_replay_benchmark_{runtime.value}",
+            "RecordGraph",
+            runtime,
+            profiler_type,
+        )
+
+    def explicit_group(self):
+        return f"{self.test} {self.variant_name}"
+
+    def display_name(self) -> str:
+        return f"{self.explicit_group()}_{self.runtime.value}"
+
+    def name(self):
+        ret = []
+        for k, v in self.rr_params.items():
+            if k[0] == "n":  # numeric parameter
+                ret.append(f"{k[1:]} {v}")
+            elif k[0] == "m":
+                if v != 0:  # measure parameter
+                    ret.append(f"{k[1:]}")
+            else:  # boolean parameter
+                if v != 0:
+                    ret.append(k)
+        ret.sort()
+        return self.bench_name + " " + ", ".join(ret)
+
+    def get_tags(self):
+        return ["L0"]
+
+    def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
+        return [f"--{k}={v}" for k, v in self.rr_params.items()]
 
 
 class QueueInOrderMemcpy(ComputeBenchmark):
