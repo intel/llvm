@@ -260,6 +260,12 @@ public:
   void registerKernelGlobalInfo(
       std::unordered_map<std::string_view, unsigned> &&GlobalInfoToCopy);
 
+  // The function removes kernel global descriptors from the
+  // kernel global map when a shared library consisting of SYCL kernels
+  // is unloaded.
+  void unRegisterKernelGlobalInfo(
+      std::unordered_map<std::string_view, unsigned> &&GlobalInfoToCopy);
+
   // The function returns a pointer to the kernel global desc identified by
   // the unique ID from the kernel global map.
   std::optional<unsigned> getKernelGlobalInfoDesc(const char *UniqueId);

@@ -34,10 +34,7 @@
 // CHECK-NEXT: vector.hpp
 // CHECK-NEXT: detail/named_swizzles_mixin.hpp
 // CHECK-NEXT: detail/vector_arith.hpp
-// CHECK-NEXT: stl_wrappers/cstdlib
 // CHECK-NEXT: detail/common.hpp
-// CHECK-NEXT: stl_wrappers/cassert
-// CHECK-NEXT: stl_wrappers/assert.h
 // CHECK-NEXT: detail/fwd/accessor.hpp
 // CHECK-NEXT: marray.hpp
 // CHECK-NEXT: multi_ptr.hpp

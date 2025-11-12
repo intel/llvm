@@ -115,7 +115,7 @@ std::pair<const char *, size_t> getImageInOffloadBinary(const char *Data,
       reinterpret_cast<const OffloadBinaryEntryType *>(Data +
                                                        Header->EntryOffset);
 
-  if (Entry->ImageKind != /*IMG_SYCLBIN*/ 6)
+  if (Entry->ImageKind != /*IMG_SYCLBIN*/ 7)
     throw sycl::exception(make_error_code(errc::invalid),
                           "Unexpected image type.");
 

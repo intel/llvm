@@ -688,7 +688,10 @@ etors:
 - name: PROGRAM_DYNAMIC_LINK_EXP
   desc: Enumerator for $xProgramDynamicLinkExp
   value: '294'
-max_id: '294'
+- name: ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP
+  desc: Enumerator for $xEnqueueKernelLaunchWithArgsExp
+  value: '295'
+max_id: '295'
 ---
 type: enum
 desc: Defines structure types
