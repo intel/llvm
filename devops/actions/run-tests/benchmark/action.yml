@@ -113,10 +113,12 @@ runs:
   # modified output the entire sycl build dir as an artifact, in which the
   # intermediate files required can be stitched together from the build files.
   # However, this is not exactly "clean" or "fun to maintain"...
-  - name: Build LLVM
+  - name: Build Unified Runtime
     shell: bash
     run: |
-      echo "::group::checkout_llvm"
+      # Build Unified Runtime
+      echo "::group::checkout_llvm_ur"
+
       # Sparse-checkout UR at build ref:
       git clone --depth 1 --no-checkout https://github.com/intel/llvm ur
       cd ur
@@ -124,10 +126,10 @@ runs:
       git sparse-checkout set unified-runtime
       git fetch origin ${{ inputs.build_ref }}
       git checkout FETCH_HEAD
-      echo "::endgroup::"
-      echo "::group::configure_llvm"
 
-      # Configure UR
+      echo "::endgroup::"
+      echo "::group::configure_llvm_ur"
+
       mkdir build install
       cmake -DCMAKE_BUILD_TYPE=Release \
         -Sunified-runtime \
@@ -138,7 +140,7 @@ runs:
         -DUR_BUILD_ADAPTER_L0_V2=ON
 
       echo "::endgroup::"
-      echo "::group::build_and_install_llvm"
+      echo "::group::build_and_install_llvm_ur"
 
       cmake --build build -j "$(nproc)" 
       cmake --install build
@@ -151,6 +153,7 @@ runs:
   - name: Install perf in version matching the host kernel
     shell: bash
     run: |
+      # Install perf in version matching the host kernel
       echo "::group::install_linux_tools"
       sudo apt-get update
       sudo apt-get install -y linux-tools-$(uname -r)
@@ -175,8 +178,8 @@ runs:
       SAVE_PREFIX: ${{ inputs.save_name }}
     shell: bash
     run: |
-      # TODO generate summary + display helpful message here
-      export CMPLR_ROOT=./toolchain
+      # Build and run benchmarks
+
       echo "::group::install_python_deps"
       echo "Installing python dependencies..."
       # Using --break-system-packages because:
@@ -186,9 +189,11 @@ runs:
       # - apt is unable to install anything due to unresolved dpkg dependencies,
       #   as a result of how the sycl nightly images are created
       pip install --user --break-system-packages -r ./devops/scripts/benchmarks/requirements.txt
-      echo "::endgroup::"
-      echo "::group::sycl_ls"
 
+      echo "::endgroup::"
+      echo "::group::establish_parameters_and_vars"
+
+      export CMPLR_ROOT=./toolchain
       # By default, the benchmark scripts forceload level_zero
       FORCELOAD_ADAPTER="${ONEAPI_DEVICE_SELECTOR%%:*}"
       echo "Adapter: $FORCELOAD_ADAPTER"
@@ -222,6 +227,8 @@ runs:
       # docker images are built nightly. 
       export COMPUTE_RUNTIME_TAG_CACHE="$(cat ./devops/dependencies.json | jq -r .linux.compute_runtime.github_tag)"
 
+      echo "::endgroup::"
+      echo "::group::sycl_ls"
       sycl-ls
       echo "::endgroup::"
       echo "::group::run_benchmarks"
@@ -259,7 +266,11 @@ runs:
 
       echo "::endgroup::"
       
-      LLVM_BENCHMARKS_UNIT_TESTING=1 COMPUTE_BENCHMARKS_BUILD_PATH=$WORKDIR/compute-benchmarks-build python3 ./devops/scripts/benchmarks/tests/test_integration.py
+      # Run integration tests
+      # NOTE: Each integration test prints its own group name as part of test script
+      export LLVM_BENCHMARKS_UNIT_TESTING=1
+      export COMPUTE_BENCHMARKS_BUILD_PATH=$WORKDIR/compute-benchmarks-build
+      python3 ./devops/scripts/benchmarks/tests/test_integration.py
 
   - name: Cache changes and upload github summary
     if: always()
