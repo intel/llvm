@@ -78,6 +78,17 @@ on:
           - 'level_zero:gpu'
           - 'level_zero_v2:gpu'
 
+concurrency:
+  # Cancel a currently running workflow for:
+  # - the same PR
+  # - manual dispatch if pr_no or commit_hash is repeated, and the runner & backend are the same
+  # - scheduled runs if they overlap in time
+  group: >-
+    ${{ github.workflow }}-${{ github.event_name }}-
+      ${{ github.event.pull_request.number || inputs.pr_no || inputs.commit_hash || github.ref }}-
+      ${{ inputs.runner }}-${{ inputs.backend }}
+  cancel-in-progress: true
+
 permissions: read-all
 
 jobs:
@@ -153,7 +164,7 @@ jobs:
     permissions:
       contents: write
       packages: read
-    if: always() && !cancelled() && needs.build_sycl_dispatch.outputs.build_conclusion == 'success'
+    if: ${{ !cancelled() && needs.build_sycl_dispatch.outputs.build_conclusion == 'success' }}
     strategy:
       matrix:
         include:
@@ -199,7 +210,7 @@ jobs:
     permissions:
       contents: write
       packages: read
-    if: always() && !cancelled() && needs.build_nightly.outputs.build_conclusion == 'success'
+    if: ${{ !cancelled() && needs.build_nightly.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
       matrix:
@@ -227,30 +238,14 @@ jobs:
       toolchain_decompress_command: ${{ needs.build_nightly.outputs.toolchain_decompress_command }}
   # END nightly benchmarking path
 
-  # Benchmark framework builds and runs on PRs path:
-  build_pr:
-    name: '[PR] Build SYCL'
-    if: github.event_name == 'pull_request'
-    uses: ./.github/workflows/sycl-linux-build.yml
-    with:
-      build_ref: ${{ github.sha }}
-      build_cache_root: "/__w/"
-      build_cache_suffix: "default"
-      # Docker image has last nightly pre-installed and added to the PATH
-      build_image: "ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest"
-      cc: clang
-      cxx: clang++
-      changes: '[]'
-      toolchain_artifact: sycl_linux_default
-
+  # BEGIN benchmark framework builds and runs on PRs path
   # TODO: When we have stable BMG runner(s), consider moving this job to that runner.
   test_benchmark_framework:
     name: '[PR] Benchmark suite testing'
-    needs: [build_pr]
     permissions:
       contents: write
       packages: read
-    if: always() && !cancelled() && needs.build_pr.outputs.build_conclusion == 'success'
+    if: github.event_name == 'pull_request'
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: 'Framework test: PVC_PERF, L0, Minimal preset'

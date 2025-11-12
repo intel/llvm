@@ -113,10 +113,10 @@ runs:
   # modified output the entire sycl build dir as an artifact, in which the
   # intermediate files required can be stitched together from the build files.
   # However, this is not exactly "clean" or "fun to maintain"...
-  - name: Build Unified Runtime
+  - name: Build LLVM
     shell: bash
     run: |
-      # Build Unified Runtime
+      echo "::group::checkout_llvm"
       # Sparse-checkout UR at build ref:
       git clone --depth 1 --no-checkout https://github.com/intel/llvm ur
       cd ur
@@ -124,6 +124,8 @@ runs:
       git sparse-checkout set unified-runtime
       git fetch origin ${{ inputs.build_ref }}
       git checkout FETCH_HEAD
+      echo "::endgroup::"
+      echo "::group::configure_llvm"
 
       # Configure UR
       mkdir build install
@@ -135,32 +137,50 @@ runs:
         -DUR_BUILD_ADAPTER_L0=ON \
         -DUR_BUILD_ADAPTER_L0_V2=ON
 
-      # Build and install UR
+      echo "::endgroup::"
+      echo "::group::build_and_install_llvm"
+
       cmake --build build -j "$(nproc)" 
       cmake --install build
 
       cd -
+
+      echo "::endgroup::"
   # Install level zero v1.25.2
   # This is to have the latest level zero required by Compute Benchmarks
   # Remove this w/a once the sycl nightly images are updated to have level zero v1.25.2
   - name: Install level zero v1.25.2
     shell: bash
     run: |
-      # Install level zero v1.25.2
+      echo "::group::checkout_level_zero"
       # Checkout Level Zero at build ref:
       wget https://github.com/oneapi-src/level-zero/archive/refs/tags/v1.25.2.tar.gz -O level-zero-v1.25.2.tar.gz
       tar -xvf level-zero-v1.25.2.tar.gz
       cd level-zero-1.25.2
 
-      # Configure Level Zero
+      echo "::endgroup::"
+      echo "::group::configure_level_zero"
+      
       cmake -DCMAKE_BUILD_TYPE=Release \
         -Bbuild
 
-      # Build and install Level Zero
+      echo "::endgroup::"
+      echo "::group::build_and_install_level_zero"
+      
       cmake --build build -j "$(nproc)"
       sudo cmake --install build
 
       cd -
+      echo "::endgroup::"
+  # Linux tools installed during docker creation may not match the self-hosted
+  # kernel version, so we need to install the correct version here.
+  - name: Install perf in version matching the host kernel
+    shell: bash
+    run: |
+      echo "::group::install_linux_tools"
+      sudo apt-get update
+      sudo apt-get install -y linux-tools-$(uname -r)
+      echo "::endgroup::"
   - name: Set env var for results branch
     shell: bash
     run: |
@@ -181,10 +201,10 @@ runs:
       SAVE_PREFIX: ${{ inputs.save_name }}
     shell: bash
     run: |
-      # Build and run benchmarks
       # TODO generate summary + display helpful message here
       export CMPLR_ROOT=./toolchain
-      echo "-----"
+      echo "::group::install_python_deps"
+      echo "Installing python dependencies..."
       # Using --break-system-packages because:
       # - venv is not installed
       # - unable to install anything via pip, as python packages in the docker
@@ -192,7 +212,8 @@ runs:
       # - apt is unable to install anything due to unresolved dpkg dependencies,
       #   as a result of how the sycl nightly images are created
       pip install --user --break-system-packages -r ./devops/scripts/benchmarks/requirements.txt
-      echo "-----"
+      echo "::endgroup::"
+      echo "::group::sycl_ls"
 
       # By default, the benchmark scripts forceload level_zero
       FORCELOAD_ADAPTER="${ONEAPI_DEVICE_SELECTOR%%:*}"
@@ -228,7 +249,8 @@ runs:
       export COMPUTE_RUNTIME_TAG_CACHE="$(cat ./devops/dependencies.json | jq -r .linux.compute_runtime.github_tag)"
 
       sycl-ls
-      echo "-----"
+      echo "::endgroup::"
+      echo "::group::run_benchmarks"
 
       WORKDIR="$(realpath ./llvm_test_workdir)"
       if [ -n "$WORKDIR" ] && [ -d "$WORKDIR" ] && [[ "$WORKDIR" == *llvm_test_workdir* ]]; then rm -rf "$WORKDIR" ; fi
@@ -247,7 +269,8 @@ runs:
         ${{ inputs.exit_on_failure == 'true' && '--exit-on-failure --iterations 1' || '' }}
       # TODO: add back: "--flamegraph inclusive" once works properly
 
-      echo "-----"
+      echo "::endgroup::"
+      echo "::group::compare_results"
       python3 ./devops/scripts/benchmarks/compare.py to_hist \
         --avg-type EWMA \
         --cutoff "$(date -u -d '7 days ago' +'%Y%m%d_%H%M%S')" \
@@ -260,7 +283,9 @@ runs:
         --produce-github-summary \
         ${{ inputs.dry_run == 'true' && '--dry-run' || '' }} \
 
-      echo "-----"
+      echo "::endgroup::"
+      
+      LLVM_BENCHMARKS_UNIT_TESTING=1 COMPUTE_BENCHMARKS_BUILD_PATH=$WORKDIR/compute-benchmarks-build python3 ./devops/scripts/benchmarks/tests/test_integration.py
 
   - name: Cache changes and upload github summary
     if: always()
