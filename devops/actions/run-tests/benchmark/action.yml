@@ -2,7 +2,8 @@ name: 'Run benchmarks'
 
 # This action assumes the following prerequisites:
 #
-# - SYCL is placed in ./toolchain -- TODO change this
+# - SYCL is accessible in the system (nightly image provides it within /opt/sycl),
+#   or SYCL is placed in ./toolchain (TODO: change this??). The second option has higher priority.
 # - /devops has been checked out in ./devops.
 # - env.GITHUB_TOKEN was properly set, because according to Github, that's
 #   apparently the recommended way to pass a secret into a github action:

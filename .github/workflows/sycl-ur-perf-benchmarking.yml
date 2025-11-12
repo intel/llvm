@@ -259,7 +259,4 @@ jobs:
       benchmark_dry_run: true
       benchmark_exit_on_failure: true
       repo_ref: ${{ github.sha }}
-      toolchain_artifact: ${{ needs.build_pr.outputs.toolchain_artifact }}
-      toolchain_artifact_filename: ${{ needs.build_pr.outputs.toolchain_artifact_filename }}
-      toolchain_decompress_command: ${{ needs.build_pr.outputs.toolchain_decompress_command }}
   # END benchmark framework builds and runs on PRs path
