@@ -28,10 +28,8 @@ from utils.compute_runtime import *
 from utils.validate import Validate
 from utils.detect_versions import DetectVersion
 from utils.logger import log, initialize_logger
+from utils.workdir_version import INTERNAL_WORKDIR_VERSION
 from presets import enabled_suites, presets
-
-# Update this if you are changing the layout of the results files
-INTERNAL_WORKDIR_VERSION = "2.0"
 
 
 def run_iterations(
