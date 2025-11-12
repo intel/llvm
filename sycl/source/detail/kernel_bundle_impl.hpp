@@ -268,10 +268,10 @@ public:
   }
 
   // Matches sycl::link
-  kernel_bundle_impl(
-      const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
-      devices_range Devs, const property_list &PropList, bool FastLink,
-      private_tag)
+  kernel_bundle_impl(sycl::span<const kernel_bundle<bundle_state::object>,
+                                sycl::dynamic_extent> &ObjectBundles,
+                     devices_range Devs, const property_list &PropList,
+                     bool FastLink, private_tag)
       : MDevices(Devs.to<std::vector<device_impl *>>()),
         MState(bundle_state::executable) {
     if (MDevices.empty())

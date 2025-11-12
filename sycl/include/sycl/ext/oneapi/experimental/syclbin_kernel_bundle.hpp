@@ -28,9 +28,35 @@ inline namespace _V1 {
 
 namespace detail {
 __SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
-link_impl(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
-          const std::vector<device> &Devs, bool FastLink);
+link_impl(const kernel_bundle<bundle_state::object> *ObjectBundles,
+          size_t NumObjectBundles, const std::vector<device> &Devs,
+          bool FastLink);
+
+template <
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t,
+    typename = std::enable_if_t<
+        ext::oneapi::experimental::detail::all_are_properties_of_v<
+            ext::oneapi::experimental::detail::link_props, PropertyListT>>>
+kernel_bundle<bundle_state::executable>
+link_common(const kernel_bundle<bundle_state::object> *ObjectBundles,
+            size_t NumObjectBundles, const std::vector<device> &Devs,
+            PropertyListT Props = {}) {
+  std::vector<device> UniqueDevices = removeDuplicateDevices(Devs);
+
+  bool UseFastLink = [&]() {
+    if constexpr (Props.template has_property<
+                      ext::oneapi::experimental::fast_link>())
+      return Props.template get_property<ext::oneapi::experimental::fast_link>()
+          .value;
+    return false;
+  }();
+
+  KernelBundleImplPtr Impl =
+      link_impl(ObjectBundles, NumObjectBundles, UniqueDevices, UseFastLink);
+  return createSyclObjFromImpl<kernel_bundle<bundle_state::executable>>(
+      std::move(Impl));
 }
+} // namespace detail
 
 namespace ext::oneapi::experimental {
 
@@ -91,19 +117,8 @@ template <typename PropertyListT = empty_properties_t,
 kernel_bundle<bundle_state::executable>
 link(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
      const std::vector<device> &Devs, PropertyListT Props = {}) {
-  std::vector<device> UniqueDevices =
-      sycl::detail::removeDuplicateDevices(Devs);
-
-  bool UseFastLink = [&]() {
-    if constexpr (Props.template has_property<fast_link>())
-      return Props.template get_property<fast_link>().value;
-    return false;
-  }();
-
-  sycl::detail::KernelBundleImplPtr Impl =
-      sycl::detail::link_impl(ObjectBundles, UniqueDevices, UseFastLink);
-  return detail::createSyclObjFromImpl<
-      kernel_bundle<sycl::bundle_state::executable>>(std::move(Impl));
+  return sycl::detail::link_common(ObjectBundles.data(), ObjectBundles.size(),
+                                   Devs, Props);
 }
 
 template <typename PropertyListT = empty_properties_t,
@@ -112,8 +127,7 @@ template <typename PropertyListT = empty_properties_t,
 kernel_bundle<bundle_state::executable>
 link(const kernel_bundle<bundle_state::object> &ObjectBundle,
      const std::vector<device> &Devs, PropertyListT Props = {}) {
-  return link(std::vector<kernel_bundle<bundle_state::object>>{ObjectBundle},
-              Devs, Props);
+  return sycl::detail::link_common(&ObjectBundle, 1, Devs, Props);
 }
 
 template <typename PropertyListT = empty_properties_t,
