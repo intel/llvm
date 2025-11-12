@@ -622,6 +622,10 @@ public:
     return true;
   }
 
+  /// @}
+  /// @name Helper Methods
+  /// @{
+
   /// getSYCLDeviceTriple - Returns the SYCL device triple for the
   /// specified subarch
   // TODO: Additional Arg input parameter is for diagnostic output information
