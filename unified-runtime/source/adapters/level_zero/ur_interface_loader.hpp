@@ -858,9 +858,9 @@ urGraphInstantiateGraphExp(ur_exp_graph_handle_t hGraph,
                            void *pNext);
 ur_result_t urQueueAppendGraphExp(ur_queue_handle_t hQueue,
                                   ur_exp_executable_graph_handle_t hGraph,
-                                  void *pNext, ur_event_handle_t hSignalEvent,
+                                  ur_event_handle_t hSignalEvent,
                                   uint32_t numWaitEvents,
-                                  ur_event_handle_t *phWaitEvents);
+                                  ur_event_handle_t *phWaitEvents, void *pNext);
 ur_result_t urGraphDestroyExp(ur_exp_graph_handle_t hGraph);
 ur_result_t urGraphExecutableGraphDestroyExp(
     ur_exp_executable_graph_handle_t hExecutableGraph);

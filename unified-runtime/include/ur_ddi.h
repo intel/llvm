@@ -701,8 +701,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnQueueEndGraphCaptureExp_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urQueueAppendGraphExp
 typedef ur_result_t(UR_APICALL *ur_pfnQueueAppendGraphExp_t)(
-    ur_queue_handle_t, ur_exp_executable_graph_handle_t, void *,
-    ur_event_handle_t, uint32_t, ur_event_handle_t *);
+    ur_queue_handle_t, ur_exp_executable_graph_handle_t, ur_event_handle_t,
+    uint32_t, ur_event_handle_t *, void *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urQueueIsGraphCaptureEnabledExp

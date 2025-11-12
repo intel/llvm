@@ -126,9 +126,6 @@ params:
   - type: $x_exp_executable_graph_handle_t
     name: hGraph
     desc: "[in] Handle of the executable graph to append."
-  - type: void*
-    name: pNext
-    desc: "[in][optional] Pointer to extension-specific structure."
   - type: $x_event_handle_t
     name: hSignalEvent
     desc: "[in][optional] Event to be signaled on completion."
@@ -138,6 +135,9 @@ params:
   - type: $x_event_handle_t*
     name: phWaitEvents
     desc: "[in][optional][range(0, numWaitEvents)] Handle of the events to wait on before launching."
+  - type: void*
+    name: pNext
+    desc: "[out][optional] Pointer to extension-specific structure."
 returns:
   - $X_RESULT_SUCCESS
   - $X_RESULT_ERROR_INVALID_ARGUMENT
@@ -209,7 +209,7 @@ params:
       desc: "[in] Path to the file to write the dumped graph contents."
     - type: void*
       name: pNext
-      desc: "[in][optional] Pointer to extension-specific structure."
+      desc: "[out][optional] Pointer to extension-specific structure."
 returns:
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY

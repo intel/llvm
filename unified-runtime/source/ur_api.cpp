@@ -9730,15 +9730,15 @@ ur_result_t UR_APICALL urQueueAppendGraphExp(
     ur_queue_handle_t hQueue,
     /// [in] Handle of the executable graph to append.
     ur_exp_executable_graph_handle_t hGraph,
-    /// [in][optional] Pointer to extension-specific structure.
-    void *pNext,
     /// [in][optional] Event to be signaled on completion.
     ur_event_handle_t hSignalEvent,
     /// [in][optional] Number of events to wait on before executing.
     uint32_t numWaitEvents,
     /// [in][optional][range(0, numWaitEvents)] Handle of the events to wait
     /// on before launching.
-    ur_event_handle_t *phWaitEvents) {
+    ur_event_handle_t *phWaitEvents,
+    /// [out][optional] Pointer to extension-specific structure.
+    void *pNext) {
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
 }
