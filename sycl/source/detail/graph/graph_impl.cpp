@@ -1266,6 +1266,11 @@ exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
 }
 
 void exec_graph_impl::duplicateNodes() {
+  if (MGraphImpl->IsLinearRecorded()) {
+    MNodeStorage = MGraphImpl->MNodeStorage;
+    return;
+  }
+
   // Map of original modifiable nodes (keys) to new duplicated nodes (values)
   std::unordered_map<node_impl *, node_impl *> NodesMap;
   nodes_range ModifiableNodes{MGraphImpl->MNodeStorage};
@@ -1974,6 +1979,7 @@ void modifiable_command_graph::begin_recording(
 }
 
 void modifiable_command_graph::end_recording() {
+  impl->endRecording();
   impl->clearQueues(true /*Needs lock*/);
 }
 
