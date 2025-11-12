@@ -565,7 +565,7 @@ void graph_impl::removeQueue(sycl::detail::queue_impl &RecordingQueue) {
 }
 
 void graph_impl::endRecording() {
-  if(MRecordingQueues.size() == 1) {
+  if (MRecordingQueues.size() == 1) {
     MIsLinearRecorded = MRecordingQueues.begin()->lock()->isInOrder();
   }
 }
