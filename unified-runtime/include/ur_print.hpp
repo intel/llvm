@@ -15323,11 +15323,6 @@ inline std::ostream &operator<<(
   ur::details::printPtr(os, *(params->phGraph));
 
   os << ", ";
-  os << ".pNext = ";
-
-  ur::details::printStruct(os, *(params->ppNext));
-
-  os << ", ";
   os << ".hSignalEvent = ";
 
   ur::details::printPtr(os, *(params->phSignalEvent));
@@ -15352,6 +15347,11 @@ inline std::ostream &operator<<(
     }
     os << "}";
   }
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, *(params->ppNext));
 
   return os;
 }

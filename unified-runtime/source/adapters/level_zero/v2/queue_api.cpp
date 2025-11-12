@@ -501,11 +501,12 @@ ur_result_t urQueueEndGraphCaptureExp(ur_queue_handle_t hQueue,
 }
 ur_result_t urQueueAppendGraphExp(ur_queue_handle_t hQueue,
                                   ur_exp_executable_graph_handle_t hGraph,
-                                  void *pNext, ur_event_handle_t hSignalEvent,
+                                  ur_event_handle_t hSignalEvent,
                                   uint32_t numWaitEvents,
-                                  ur_event_handle_t *phWaitEvents) try {
-  return hQueue->get().queueAppendGraphExp(hGraph, pNext, hSignalEvent,
-                                           numWaitEvents, phWaitEvents);
+                                  ur_event_handle_t *phWaitEvents,
+                                  void *pNext) try {
+  return hQueue->get().queueAppendGraphExp(hGraph, hSignalEvent, numWaitEvents,
+                                           phWaitEvents, pNext);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }

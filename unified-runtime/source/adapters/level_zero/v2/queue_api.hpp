@@ -184,7 +184,7 @@ struct ur_queue_t_ : ur_queue_extensions {
   virtual ur_result_t queueEndGraphCapteExp(ur_exp_graph_handle_t *,
                                             void *) = 0;
   virtual ur_result_t queueAppendGraphExp(ur_exp_executable_graph_handle_t,
-                                          void *, ur_event_handle_t, uint32_t,
-                                          ur_event_handle_t *) = 0;
+                                          ur_event_handle_t, uint32_t,
+                                          ur_event_handle_t *, void *) = 0;
   virtual ur_result_t queueIsGraphCapteEnabledExp(bool *) = 0;
 };
