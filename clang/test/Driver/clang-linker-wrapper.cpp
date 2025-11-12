@@ -241,8 +241,8 @@
 
 // Check that clang-linker-wrapper errors out in case when it observes different compilation options encoded in images with the same triple and arch.
 // This case tests the case of multi-step compilation.
-// RUN: clang-offload-packager -o %t.packaged_1.fat "--image=file=%t.o,triple=spir64-unknown-unknown,arch=generic,kind=sycl,compile-opts=aaa,link-opts=bbb"
-// RUN: clang-offload-packager -o %t.packaged_2.fat "--image=file=%t.o,triple=spir64-unknown-unknown,arch=generic,kind=sycl,compile-opts=ccc,link-opts=ddd"
+// RUN: llvm-offload-binary -o %t.packaged_1.fat "--image=file=%t.o,triple=spir64-unknown-unknown,arch=generic,kind=sycl,compile-opts=aaa,link-opts=bbb"
+// RUN: llvm-offload-binary -o %t.packaged_2.fat "--image=file=%t.o,triple=spir64-unknown-unknown,arch=generic,kind=sycl,compile-opts=ccc,link-opts=ddd"
 //
 // RUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.embeded.o -fembed-offload-object=%t.packaged_1.fat -fembed-offload-object=%t.packaged_2.fat
 //
@@ -255,8 +255,8 @@
 
 // Check that clang-linker-wrapper recognizes compile/link options and passes them
 // over into offload wrapper and ocloc.
-// RUN: clang-offload-packager -o %t.packaged_jit.fat "--image=file=%t.o,triple=spir64-unknown-unknown,arch=generic,kind=sycl,compile-opts=aaa aaa,link-opts=bbb bbb"
-// RUN: clang-offload-packager -o %t.packaged_aot.fat "--image=file=%t.o,triple=spir64_gen-unknown-unknown,arch=pvc,kind=sycl,compile-opts=ccc ccc,link-opts=ddd ddd"
+// RUN: llvm-offload-binary -o %t.packaged_jit.fat "--image=file=%t.o,triple=spir64-unknown-unknown,arch=generic,kind=sycl,compile-opts=aaa aaa,link-opts=bbb bbb"
+// RUN: llvm-offload-binary -o %t.packaged_aot.fat "--image=file=%t.o,triple=spir64_gen-unknown-unknown,arch=pvc,kind=sycl,compile-opts=ccc ccc,link-opts=ddd ddd"
 //
 // RUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.jit.o -fembed-offload-object=%t.packaged_jit.fat
 // RUN: clang-linker-wrapper --verbose --dry-run -host-triple=x86_64-unknown-linux-gnu \
@@ -288,7 +288,7 @@
 // cHECK-COMPILE-LINK-OPTS-JIT-AND-AOT: offload-wrapper: {{.*}} compile-opts: , link-opts:
 
 // Check that missed triple in image causes an error.
-// RUN: clang-offload-packager -o %t.without_triple.fat "--image=file=%t.o,triple=,arch=pvc,kind=sycl"
+// RUN: llvm-offload-binary -o %t.without_triple.fat "--image=file=%t.o,triple=,arch=pvc,kind=sycl"
 // RUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.without_triple.o -fembed-offload-object=%t.without_triple.fat
 // RUN: not clang-linker-wrapper --verbose --dry-run -host-triple=x86_64-unknown-linux-gnu \
 // RUN:                      -sycl-device-libraries=%t1.devicelib.o \
