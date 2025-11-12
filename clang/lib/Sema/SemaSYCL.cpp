@@ -7058,7 +7058,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   }
   // Add a sentinel to avoid warning if the collection is empty
   // (similar to what we do for kernel_signatures below).
-  O << "0, \n";
+  O << std::numeric_limits<uint32_t>::max() <<", \n";
   O << "};\n\n";
 
   O << "// array representing signatures of all kernels defined in the\n";
