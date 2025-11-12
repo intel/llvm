@@ -27,8 +27,8 @@ class LlamaCppBench(Suite):
         return "https://github.com/ggerganov/llama.cpp"
 
     def git_hash(self) -> str:
-        # 24 Oct, 2025
-        return "5a91109a5d7dab5d7adc40bedb397ede99a705b1"
+        # 12 Nov, 2025
+        return "78010a0d52ad03cd469448df89101579b225582c"
 
     def setup(self) -> None:
         if options.sycl is None:
