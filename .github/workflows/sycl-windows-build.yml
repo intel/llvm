@@ -120,7 +120,7 @@ jobs:
         arch: amd64
     - name: Setup oneAPI env
       uses: ./devops/actions/setup_windows_oneapi_env
-      if: ${{ always() && !cancelled() && inputs.cxx == 'icx' }}
+      if: ${{ !cancelled() && inputs.cxx == 'icx' }}
     - name: Set env
       run: |
         git config --system core.longpaths true
@@ -160,91 +160,91 @@ jobs:
       run: |
         cmake --build build --target ${{ inputs.build_target }}
     - name: check-llvm
-      if: always() && !cancelled() && contains(inputs.changes, 'llvm')
+      if: ${{ !cancelled() && contains(inputs.changes, 'llvm') }}
       shell: bash
       run: |      
         cmake --build build --target check-llvm
     - name: check-clang
-      if: always() && !cancelled() && contains(inputs.changes, 'clang')
+      if: ${{ !cancelled() && contains(inputs.changes, 'clang') }}
       run: |
         cmake --build build --target check-clang
     - name: check-sycl
-      if: always() && !cancelled() && contains(inputs.changes, 'sycl')
+      if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
       shell: bash
       run: |        
          cmake --build build --target check-sycl
     - name: check-sycl-unittests
-      if: always() && !cancelled() && contains(inputs.changes, 'sycl')
+      if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
       run: |
         cmake --build build --target check-sycl-unittests
     - name: check-llvm-spirv
-      if: always() && !cancelled() && contains(inputs.changes, 'llvm_spirv')
+      if: ${{ !cancelled() && contains(inputs.changes, 'llvm_spirv') }}
       run: |
         cmake --build build --target check-llvm-spirv
     - name: check-xptifw
-      if: always() && !cancelled() && contains(inputs.changes, 'xptifw')
+      if: ${{ !cancelled() && contains(inputs.changes, 'xptifw') }}
       run: |
         cmake --build build --target check-xptifw
     - name: check-libdevice
-      if: always() && !cancelled() && contains(inputs.changes, 'sycl')
+      if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
       run: |
         cmake --build build --target check-libdevice
     - name: Generate/diff new ABI symbols
-      if: always() && !cancelled() && contains(inputs.changes, 'sycl')
+      if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
       shell: bash
       run: |
         LLVM_BIN_PATH="build/bin" python.exe src/sycl/tools/abi_check.py --mode dump_symbols --output build/new_sycl_symbols_windows.dump build/bin/sycl?.dll
         diff -Naur src/sycl/test/abi/sycl_symbols_windows.dump build/new_sycl_symbols_windows.dump || true
     - name: Upload new ABI symbols
-      if: always() && !cancelled() && contains(inputs.changes, 'sycl')
-      uses: actions/upload-artifact@v4
+      if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
+      uses: actions/upload-artifact@v5
       with:
         name: sycl_windows_abi_symbols
         path: build/new_sycl_symbols_windows.dump
         retention-days: ${{ inputs.retention-days }}
     - name: Install sycl-toolchain
-      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
       run: |
         cmake --build build --target deploy-sycl-toolchain
 
     - name: Pack toolchain release
-      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
       run: tar -czf ${{ inputs.toolchain_artifact_filename }} -C install .
     - name: Upload toolchain release
-      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
-      uses: actions/upload-artifact@v4
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
+      uses: actions/upload-artifact@v5
       with:
         name: ${{ inputs.release_toolchain_artifact }}
         path: ${{ inputs.toolchain_artifact_filename }}
         retention-days: ${{ inputs.retention-days }}
 
     - name: Install utilities
-      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
       shell: bash
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target install-sycl-test-utilities
 
     - name: Pack toolchain
-      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
       shell: bash
       run: |
         tar -czf ${{ inputs.toolchain_artifact_filename }} -C install .
     - name: Upload toolchain
-      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
-      uses: actions/upload-artifact@v4
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
+      uses: actions/upload-artifact@v5
       with:
         name: sycl_windows_default
         path: ${{ inputs.toolchain_artifact_filename }}
         retention-days: ${{ inputs.retention-days }}
 
     - name: Setup SYCL toolchain
-      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
       run: |
         echo "PATH=$env:GITHUB_WORKSPACE\\install\\bin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         echo "LIB=$env:GITHUB_WORKSPACE\\install\\lib;$env:LIB" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
     - name: Build E2E tests
-      if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
+      if: ${{ inputs.e2e_binaries_artifact && !cancelled() && steps.build.conclusion == 'success' }}
       uses: ./devops/actions/run-tests/windows/e2e
       with:
         ref: ${{ inputs.ref || github.sha }}
