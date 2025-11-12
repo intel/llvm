@@ -564,6 +564,12 @@ void graph_impl::removeQueue(sycl::detail::queue_impl &RecordingQueue) {
   MRecordingQueues.erase(RecordingQueue.weak_from_this());
 }
 
+void graph_impl::endRecording() {
+  if(MRecordingQueues.size() == 1) {
+    MIsLinearRecorded = MRecordingQueues.begin()->lock()->isInOrder();
+  }
+}
+
 bool graph_impl::clearQueues() {
   bool AnyQueuesCleared = false;
   for (auto &Queue : MRecordingQueues) {
@@ -1262,6 +1268,11 @@ exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
 }
 
 void exec_graph_impl::duplicateNodes() {
+  if (MGraphImpl->IsLinearRecorded()) {
+    MNodeStorage = MGraphImpl->MNodeStorage;
+    return;
+  }
+
   // Map of original modifiable nodes (keys) to new duplicated nodes (values)
   std::map<node_impl *, node_impl *> NodesMap;
 
@@ -1965,6 +1976,7 @@ void modifiable_command_graph::begin_recording(
 
 void modifiable_command_graph::end_recording() {
   graph_impl::WriteLock Lock(impl->MMutex);
+  impl->endRecording();
   impl->clearQueues();
 }
 
