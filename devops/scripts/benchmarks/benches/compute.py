@@ -78,8 +78,8 @@ class ComputeBench(Suite):
                 use_installdir=False,
             )
 
-        if not self.project.needs_rebuild():
-            log.info(f"Rebuilding {self.project.name} skipped")
+        if not self._project.needs_rebuild():
+            log.info(f"Rebuilding {self._project.name} skipped")
             return
 
         extra_args = [
@@ -697,10 +697,10 @@ class RecordAndReplay(ComputeBenchmark):
     def __init__(
         self, suite, runtime: RUNTIMES, variant_name: str, profiler_type, **kwargs
     ):
-        self.variant_name = variant_name
-        self.rr_params = kwargs
-        self.iterations_regular = 1000
-        self.iterations_trace = 10
+        self._variant_name = variant_name
+        self._rr_params = kwargs
+        self._iterations_regular = 1000
+        self._iterations_trace = 10
         super().__init__(
             suite,
             f"record_and_replay_benchmark_{runtime.value}",
@@ -709,15 +709,9 @@ class RecordAndReplay(ComputeBenchmark):
             profiler_type,
         )
 
-    def explicit_group(self):
-        return f"{self.test} {self.variant_name}"
-
-    def display_name(self) -> str:
-        return f"{self.explicit_group()}_{self.runtime.value}"
-
     def name(self):
         ret = []
-        for k, v in self.rr_params.items():
+        for k, v in self._rr_params.items():
             if k[0] == "n":  # numeric parameter
                 ret.append(f"{k[1:]} {v}")
             elif k[0] == "m":
@@ -727,13 +721,19 @@ class RecordAndReplay(ComputeBenchmark):
                 if v != 0:
                     ret.append(k)
         ret.sort()
-        return self.bench_name + " " + ", ".join(ret)
+        return self._bench_name + " " + ", ".join(ret)
+
+    def display_name(self) -> str:
+        return f"{self.explicit_group()}_{self._runtime.value}"
+
+    def explicit_group(self):
+        return f"{self._test} {self._variant_name}"
 
     def get_tags(self):
         return ["L0"]
 
-    def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        return [f"--{k}={v}" for k, v in self.rr_params.items()]
+    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
+        return [f"--{k}={v}" for k, v in self._rr_params.items()]
 
 
 class QueueInOrderMemcpy(ComputeBenchmark):
