@@ -464,7 +464,7 @@ void queue::ext_oneapi_set_external_event(const event &external_event) {
 const property_list &queue::getPropList() const { return impl->getPropList(); }
 
 event submit_kernel_direct_with_event_impl(
-    const queue &Queue, detail::nd_range_view RangeView,
+    const queue &Queue, const detail::nd_range_view &RangeView,
     detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     sycl::span<const event> DepEvents,
@@ -476,7 +476,7 @@ event submit_kernel_direct_with_event_impl(
 }
 
 void submit_kernel_direct_without_event_impl(
-    const queue &Queue, detail::nd_range_view RangeView,
+    const queue &Queue, const detail::nd_range_view &RangeView,
     detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     sycl::span<const event> DepEvents,

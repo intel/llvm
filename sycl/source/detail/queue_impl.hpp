@@ -361,7 +361,8 @@ public:
   }
 
   event submit_kernel_direct_with_event(
-      detail::nd_range_view RangeView, detail::HostKernelRefBase &HostKernel,
+      const detail::nd_range_view &RangeView,
+      detail::HostKernelRefBase &HostKernel,
       detail::DeviceKernelInfo *DeviceKernelInfo,
       sycl::span<const event> DepEvents,
       const detail::KernelPropertyHolderStructTy &Props,
@@ -373,7 +374,8 @@ public:
   }
 
   void submit_kernel_direct_without_event(
-      detail::nd_range_view RangeView, detail::HostKernelRefBase &HostKernel,
+      const detail::nd_range_view &RangeView,
+      detail::HostKernelRefBase &HostKernel,
       detail::DeviceKernelInfo *DeviceKernelInfo,
       sycl::span<const event> DepEvents,
       const detail::KernelPropertyHolderStructTy &Props,

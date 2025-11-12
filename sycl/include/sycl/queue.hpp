@@ -66,7 +66,7 @@ auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
 
 event __SYCL_EXPORT submit_kernel_direct_with_event_impl(
-    const queue &Queue, detail::nd_range_view RangeView,
+    const queue &Queue, const detail::nd_range_view &RangeView,
     detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     sycl::span<const event> DepEvents,
@@ -74,7 +74,7 @@ event __SYCL_EXPORT submit_kernel_direct_with_event_impl(
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
 void __SYCL_EXPORT submit_kernel_direct_without_event_impl(
-    const queue &Queue, detail::nd_range_view RangeView,
+    const queue &Queue, const detail::nd_range_view &RangeView,
     detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     sycl::span<const event> DepEvents,
