@@ -146,32 +146,6 @@ runs:
       cd -
 
       echo "::endgroup::"
-  # Install level zero v1.25.2
-  # This is to have the latest level zero required by Compute Benchmarks
-  # Remove this w/a once the sycl nightly images are updated to have level zero v1.25.2
-  - name: Install level zero v1.25.2
-    shell: bash
-    run: |
-      echo "::group::checkout_level_zero"
-      # Checkout Level Zero at build ref:
-      wget https://github.com/oneapi-src/level-zero/archive/refs/tags/v1.25.2.tar.gz -O level-zero-v1.25.2.tar.gz
-      tar -xvf level-zero-v1.25.2.tar.gz
-      cd level-zero-1.25.2
-
-      echo "::endgroup::"
-      echo "::group::configure_level_zero"
-      
-      cmake -DCMAKE_BUILD_TYPE=Release \
-        -Bbuild
-
-      echo "::endgroup::"
-      echo "::group::build_and_install_level_zero"
-      
-      cmake --build build -j "$(nproc)"
-      sudo cmake --install build
-
-      cd -
-      echo "::endgroup::"
   # Linux tools installed during docker creation may not match the self-hosted
   # kernel version, so we need to install the correct version here.
   - name: Install perf in version matching the host kernel
