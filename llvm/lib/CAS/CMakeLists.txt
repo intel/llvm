@@ -1,10 +1,13 @@
-
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   # We append -fno-lifetime-dse in HandleLLVMOptions.cmake
   # append("-fno-lifetime-dse" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
   # But it is causing link failure with llvm::StdThreadPool::asyncEnqueue
   string(REPLACE "-fno-lifetime-dse" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 endif ()
+
+if (UNIX AND "${CMAKE_SYSTEM_NAME}" MATCHES "AIX")
+  set(additional_libs bsd)
+endif()
 
 add_llvm_component_library(LLVMCAS
   ActionCache.cpp
@@ -28,6 +31,7 @@ add_llvm_component_library(LLVMCAS
 
   LINK_LIBS
   ${LLVM_PTHREAD_LIB}
+  ${additional_libs}
 
   LINK_COMPONENTS
   Support
