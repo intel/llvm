@@ -1591,7 +1591,6 @@ bool Driver::GetUseNewOffloadDriverForSYCLOffload(Compilation &C,
   return true;
 }
 
-
 bool Driver::readConfigFile(StringRef FileName,
                             llvm::cl::ExpansionContext &ExpCtx) {
   // Try opening the given file.
@@ -7641,7 +7640,7 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
         if (StringRef(TargetArgs[i]) == "-device") {
           StringRef Arch;
           Arch = TargetArgs[i + 1];
-          if (!Arch.empty())
+          if (!Arch.empty() && Arch != "*")
             Archs.insert(Arch);
           break;
         }

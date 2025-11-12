@@ -729,12 +729,13 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
     return TempFileOrErr.takeError();
   std::string OutputPathWithArch = TempFileOrErr->str();
 
-  // Enable the driver to invoke sycl-post-link with the device architecture when 
-  // Intel GPU targets are passed in -fsycl-targets.
+  // Enable the driver to invoke sycl-post-link with the device architecture
+  // when Intel GPU targets are passed in -fsycl-targets.
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
   StringRef IsGPUTool = Args.getLastArgValue(OPT_gpu_tool_arg_EQ);
-  if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen && !Arch.empty() && IsGPUTool.empty())
+  if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen && !Arch.empty() &&
+      IsGPUTool.empty())
     OutputPathWithArch = "intel_gpu_" + Arch.str() + "," + OutputPathWithArch;
   else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
     OutputPathWithArch = "spir64_x86_64," + OutputPathWithArch;

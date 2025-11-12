@@ -64,9 +64,8 @@ int main() {
   nfail += test<Increment<long>>(q);
   nfail += test<Increment<float>>(q);
 
-  if (q.get_device().has(aspect::fp64)) {
+  if (q.get_device().has(aspect::fp64))
     nfail += test<Increment<double>>(q);
-  }
 
   nfail += test<IntCastThenIncrement<double>>(q);
 
