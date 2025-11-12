@@ -37,7 +37,7 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 10 specification.
+This extension is written against the SYCL 2020 revision 11 specification.
 All references below to the "core SYCL specification" or to section numbers in
 the SYCL specification refer to that revision.
 
@@ -225,16 +225,18 @@ to events onto a queue.
 ----
 namespace sycl::ext::oneapi::experimental {
 
-void enqueue_event_wait(queue q, const std::vector<event>& evts);
+void enqueue_wait_event(queue q, const event& evt);
+void enqueue_wait_events(queue q, const std::vector<event>& evts);
 
 } // namespace sycl::ext::oneapi::experimental
 ----
 
 _Effects:_ Enqueues a special barrier to `q` with the following semantic.
 Any commands submitted to the queue after this barrier cannot begin execution
-until all commands associated with `evts` have completed.
+until all commands associated with `evt` or `evts` have completed.
 
-_Remarks:_ The events in `evts` do _not_ need to have the same context as `q`.
+_Remarks:_ The event `evt` and the events in `evts` do _not_ need to have the
+same context as `q`.
 
 '''
 
@@ -242,7 +244,7 @@ _Remarks:_ The events in `evts` do _not_ need to have the same context as `q`.
 ----
 namespace sycl::ext::oneapi::experimental {
 
-void enqueue_event_signal(queue q, event& evt);
+void enqueue_signal_event(queue q, event& evt);
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -266,7 +268,7 @@ The event's timestamp information is also set if the queue `q` was created with
 the `property::queue::enable_profiling` property or if the event `e` was created
 with the `ext::oneapi::experimental::enable_profiling` property.
 The event's `info::event_profiling::command_submit` timestamp reflects the time
-at which `enqueue_event_signal` is called.
+at which `enqueue_signal_event` is called.
 The event's `info::event_profiling::command_end` timestamp reflects the time at
 which the event enters the "complete" state.
 The event's `info::event_profiling::command_start` timestamp reflects the time
@@ -305,12 +307,12 @@ If an event _E_ is used as a command dependency for some command _C_ (e.g. via
 `handler::depends_on`), the dependency is captured at the point when _C_ is
 submitted.
 It is legal to reassociated the event _E_ to a new command via
-`enqueue_event_signal` even before command _C_ completes.
+`enqueue_signal_event` even before command _C_ completes.
 Doing so does _not_ change the dependency for command _C_.
 
 If another host thread is blocked waiting for event _E_ to complete via
 `event:wait` or `event::wait_and_throw` when event _E_ is reassociated with a
-new command via `enqueue_event_signal`, the behavior of the `event:wait` or
+new command via `enqueue_signal_event`, the behavior of the `event:wait` or
 `event::wait_and_throw` call is undefined.
 
 
@@ -332,15 +334,15 @@ int main() {
 
   // Launch a kernel on `q1` and then signal an event when the kernel completes.
   syclex::parallel_for(q1, {N}, [=](sycl::item<> it) { /* ... */ });
-  syclex::enqueue_event_signal(q1, e);
+  syclex::enqueue_signal_event(q1, e);
 
   // Add a dependency on `q2` which waits for the kernel on `q1` to complete.
   // Then launch a kernel on `q2`.
-  syclex::enqueue_event_wait(q2, {e});
+  syclex::enqueue_wait_event(q2, e);
   syclex::parallel_for(q2, {N}, [=](sycl::item<> it) { /* ... */ });
 
   // Reassociate the same event with the kernel on `q2`.
-  syclex::enqueue_event_signal(q2, e);
+  syclex::enqueue_signal_event(q2, e);
 
   // Wait for both commands to complete.
   e.wait();
@@ -372,10 +374,10 @@ int main() {
   sycl::event start = syclex::make_event(syclex::enable_profiling{true});
   sycl::event end = syclex::make_event(syclex::enable_profiling{true});
 
-  syclex::enqueue_event_signal(q, start);
+  syclex::enqueue_signal_event(q, start);
   sycl::parallel_for(q, {N}, [=](auto i) { /* first kernel */ });
   sycl::parallel_for(q, {N}, [=](auto i) { /* second kernel */ });
-  syclex::enqueue_event_signal(q, end);
+  syclex::enqueue_signal_event(q, end);
 
   q.wait();
 
@@ -400,9 +402,9 @@ using counter-based events:
   `ZE_EVENT_POOL_FLAG_KERNEL_TIMESTAMP` flag.
 * Platforms on the Level Zero backend can return `true` for the
   `event_profiling` information descriptor.
-* The `enqueue_event_wait` function maps to `zeCommandListAppendWaitOnEvents`.
-* The `enqueue_event_signal` function maps to `zeCommandListAppendSignalEvent`.
-* The SYCL `event` passed to `enqueue_event_signal` will contain a
+* The `enqueue_wait_event` function maps to `zeCommandListAppendWaitOnEvents`.
+* The `enqueue_signal_event` function maps to `zeCommandListAppendSignalEvent`.
+* The SYCL `event` passed to `enqueue_signal_event` will contain a
   `ze_event_handle_t`.
   Each call to `zeCommandListAppendSignalEvent` can pass this same
   `ze_event_handle_t`, thus reusing the backend event across many calls.
@@ -412,7 +414,7 @@ _E_ cannot be passed to `zeCommandListAppendSignalEvent` until all previous
 "signal" operations on _E_ have completed and all previous commands using _E_
 as a "wait event" (i.e. dependency) have completed.
 To compensate for this, the runtime can track the lifetime of the backend event.
-If the backend event associated with `enqueue_event_signal` is still in use,
+If the backend event associated with `enqueue_signal_event` is still in use,
 the runtime can disassociate that backend event from the SYCL event, and
 allocate a new backend event.
 
@@ -427,20 +429,20 @@ event when a command is submitted, rather than taking an event as input.
 * Platforms on the OpenCL backend are expected to return `false` for the
   `event_profiling` information descriptor, unless we create some OpenCL
   extension that makes this possible.
-* The `enqueue_event_wait` function maps to either `clEnqueueMarkerWithWaitList`
+* The `enqueue_wait_event` function maps to either `clEnqueueMarkerWithWaitList`
   (for in-order queues) or to `clEnqueueBarrierWithWaitList` (for out-of-order
   queues).
   In either case, the output `event` parameter should be NULL.
   It would also be legal to call `clEnqueueBarrierWithWaitList` for both
   in-order and out-of-order queues.
-* The `enqueue_event_signal` function also maps to either
+* The `enqueue_signal_event` function also maps to either
   `clEnqueueMarkerWithWaitList` or `clEnqueueBarrierWithWaitList`, but in this
   case the input `event_wait_list` parameter is empty and the output `event`
   parameter is non-NULL.
   These OpenCL functions return an output `cl_event`, and the SYCL runtime will
   store this in the SYCL `event`.
 * Because OpenCL is unable to reuse a `cl_event`, subsequent calls to
-  `enqueue_event_signal` first check to see if there is a `cl_event` from a
+  `enqueue_signal_event` first check to see if there is a `cl_event` from a
   previous call attached to the SYCL `event`.
   If so, the `cl_event` is released before calling `clEnqueueMarkerWithWaitList`
   or `clEnqueueBarrierWithWaitList`.
@@ -451,9 +453,9 @@ Because host tasks are executed by the SYCL runtime, there can be cases where
 a command _C_ is submitted at the SYCL level, but the command remains pending
 inside the SYCL runtime until a host task completes.
 (E.g. when command _C_ has a dependency on the host task.)
-As a result, there may be cases when `enqueue_event_signal` must also leave the
+As a result, there may be cases when `enqueue_signal_event` must also leave the
 "event signal" operation pending in the SYCL runtime, or when
-`enqueue_event_wait` must leave the "event wait" operation pending in the SYCL
+`enqueue_wait_event` must leave the "event wait" operation pending in the SYCL
 runtime.
 In these cases, we expect that a backend event may not be associated with the
 SYCL event until the pending operations are resolved in the runtime library.
