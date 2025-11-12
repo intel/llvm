@@ -8698,6 +8698,45 @@ ur_result_t UR_APICALL urDeviceWaitExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Creates dynamic links between exported and imported symbols in one or
+///        more programs.
+///
+/// @details
+///     - The application may call this function from simultaneous threads.
+///     - Following a successful call to this entry point the programs in
+///       `phPrograms` will have all external symbols resolved and kernels
+///       inside these programs would be ready for use.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phPrograms`
+///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
+///         + If one of the programs in `phPrograms` isn't a valid program
+///         object.
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `count == 0`
+///     - ::UR_RESULT_ERROR_PROGRAM_LINK_FAILURE
+///         + If an error occurred while linking `phPrograms`.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no means to support the operation.
+ur_result_t UR_APICALL urProgramDynamicLinkExp(
+    /// [in] handle of the context instance.
+    ur_context_handle_t hContext,
+    /// [in] number of program handles in `phPrograms`.
+    uint32_t count,
+    /// [in][range(0, count)] pointer to array of program handles.
+    const ur_program_handle_t *phPrograms) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue a command for recording the device timestamp
 ///
 /// @returns
@@ -8754,7 +8793,7 @@ ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pIPCMemHandleData`
+///         + `NULL == ppIPCMemHandleData`
 ///         + `NULL == pIPCMemHandleDataSizeRet`
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -8764,7 +8803,7 @@ ur_result_t UR_APICALL urIPCGetMemHandleExp(
     /// [in] pointer to device USM memory
     void *pMem,
     /// [out][optional] a pointer to the IPC memory handle data
-    void *pIPCMemHandleData,
+    void **ppIPCMemHandleData,
     /// [out][optional] size of the resulting IPC memory handle data
     size_t *pIPCMemHandleDataSizeRet) {
   ur_result_t result = UR_RESULT_SUCCESS;
@@ -8868,14 +8907,11 @@ ur_result_t UR_APICALL urIPCCloseMemHandleExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
-///         + `(hDevice == nullptr) || (hContext == nullptr)`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE <
 ///         handleTypeToExport`
-///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
-///     - ::UR_RESULT_ERROR_INVALID_DEVICE
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `ppMem == nullptr`
+///         + `NULL == ppMem`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT
 ///         + `alignment != 0 && ((alignment & (alignment-1)) != 0)`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
@@ -8884,6 +8920,8 @@ ur_result_t UR_APICALL urIPCCloseMemHandleExp(
 ///         + `size == 0`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_SIZE
 ///         + `size` is greater than ::UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE.
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
 ///     -
 ///     ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE:DEVICE_INFO_MEMORY_EXPORT_LINEAR_MEMORY_EXPORT_SUPPORT_EXP
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
@@ -8917,11 +8955,10 @@ ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
-///         + `(hDevice == nullptr) || (hContext == nullptr)`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `pMem == nullptr`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
@@ -8952,14 +8989,13 @@ ur_result_t UR_APICALL urMemoryExportFreeExportableMemoryExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
-///         + `(hDevice == nullptr) || (hContext == nullptr)`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE <
 ///         handleTypeToExport`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pMemHandleRet || NULL == pMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `pMemHandleRet == nullptr || pMem == nullptr`
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
@@ -9002,6 +9038,8 @@ ur_result_t UR_APICALL urMemoryExportExportMemoryHandleExp(
 ///         + `NULL == hProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phDevices`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_PROGRAM_FLAGS_MASK & flags`
 ///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
 ///         + If `hProgram` isn't a valid program object.
 ///     - ::UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE
@@ -9013,6 +9051,8 @@ ur_result_t UR_APICALL urProgramBuildExp(
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) {
   ur_result_t result = UR_RESULT_SUCCESS;
@@ -9041,6 +9081,8 @@ ur_result_t UR_APICALL urProgramBuildExp(
 ///         + `NULL == hProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phDevices`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_PROGRAM_FLAGS_MASK & flags`
 ///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
 ///         + If `hProgram` isn't a valid program object.
 ///     - ::UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE
@@ -9052,6 +9094,8 @@ ur_result_t UR_APICALL urProgramCompileExp(
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) {
   ur_result_t result = UR_RESULT_SUCCESS;
@@ -9088,6 +9132,8 @@ ur_result_t UR_APICALL urProgramCompileExp(
 ///         + `NULL == phDevices`
 ///         + `NULL == phPrograms`
 ///         + `NULL == phProgram`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_PROGRAM_FLAGS_MASK & flags`
 ///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
 ///         + If one of the programs in `phPrograms` isn't a valid program
 ///         object.
@@ -9102,6 +9148,8 @@ ur_result_t UR_APICALL urProgramLinkExp(
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
     /// [in] number of program handles in `phPrograms`.
     uint32_t count,
     /// [in][range(0, count)] pointer to array of program handles.
@@ -9340,6 +9388,95 @@ ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
     /// [out][optional] pointer to the actual size in bytes of the queried
     /// propName.
     size_t *pPropSizeRet) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue a command to execute a kernel
+///
+/// @remarks
+///   _Analogues_
+///     - **clEnqueueNDRangeKernel**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///         + `NULL == hKernel`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGlobalWorkSize`
+///         + `launchPropList == NULL && numPropsInLaunchPropList > 0`
+///         + `pArgs == NULL && numArgs > 0`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `NULL != pArgs && ::UR_EXP_KERNEL_ARG_TYPE_SAMPLER < pArgs->type`
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
+///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
+///         + `pGlobalWorkSize[0] == 0 || pGlobalWorkSize[1] == 0 ||
+///         pGlobalWorkSize[2] == 0`
+///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
+///         + `pLocalWorkSize && (pLocalWorkSize[0] == 0 || pLocalWorkSize[1] ==
+///         0 || pLocalWorkSize[2] == 0)`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGS - "The kernel argument values
+///     have not been specified."
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///         + If any property in `launchPropList` isn't supported by the device.
+ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] number of dimensions, from 1 to 3, to specify the global and
+    /// work-group work-items
+    uint32_t workDim,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the offset used to calculate the global ID of a work-item
+    const size_t *pGlobalWorkOffset,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// number of global work-items in workDim that will execute the kernel
+    /// function
+    const size_t *pGlobalWorkSize,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the number of local work-items forming a work-group that will
+    /// execute the kernel function.
+    /// If nullptr, the runtime implementation will choose the work-group size.
+    const size_t *pLocalWorkSize,
+    /// [in] Number of entries in pArgs
+    uint32_t numArgs,
+    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
+    /// properties.
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    /// [in] size of the launch prop list
+    uint32_t numPropsInLaunchPropList,
+    /// [in][optional][range(0, numPropsInLaunchPropList)] pointer to a list
+    /// of launch properties
+    const ur_kernel_launch_property_t *launchPropList,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+    /// event.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular kernel execution instance. If phEventWaitList and phEvent
+    /// are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
+    ur_event_handle_t *phEvent) {
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
 }

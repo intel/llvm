@@ -1537,6 +1537,20 @@ void SemaSYCL::addSYCLAddIRAttributesFunctionAttr(
   if (evaluateAddIRAttributesArgs(Attr->args_begin(), Attr->args_size(), *this,
                                   CI))
     return;
+
+  // There could be multiple of the same attribute applied to the same
+  // declaration. If so, we want to merge them.
+  // If there are still dependent expressions in the attribute, we delay merging
+  // till after instantiation.
+  if (!hasDependentExpr(Attr->args_begin(), Attr->args_size()) &&
+      D->hasAttr<SYCLAddIRAttributesFunctionAttr>()) {
+    Attr = mergeSYCLAddIRAttributesFunctionAttr(D, *Attr);
+
+    // If null is returned, the attribute did not change after merge and we can
+    // exit.
+    if (!Attr)
+      return;
+  }
   D->addAttr(Attr);
 
   // There are compile-time SYCL properties which we would like to turn into
@@ -1574,6 +1588,20 @@ void SemaSYCL::addSYCLAddIRAttributesKernelParameterAttr(
   if (evaluateAddIRAttributesArgs(Attr->args_begin(), Attr->args_size(), *this,
                                   CI))
     return;
+
+  // There could be multiple of the same attribute applied to the same argument.
+  // If so, we want to merge them.
+  // If there are still dependent expressions in the attribute, we delay merging
+  // till after instantiation.
+  if (!hasDependentExpr(Attr->args_begin(), Attr->args_size()) &&
+      D->hasAttr<SYCLAddIRAttributesKernelParameterAttr>()) {
+    Attr = mergeSYCLAddIRAttributesKernelParameterAttr(D, *Attr);
+
+    // If null is returned, the attribute did not change after merge and we can
+    // exit.
+    if (!Attr)
+      return;
+  }
   D->addAttr(Attr);
 }
 
@@ -1585,6 +1613,20 @@ void SemaSYCL::addSYCLAddIRAttributesGlobalVariableAttr(
   if (evaluateAddIRAttributesArgs(Attr->args_begin(), Attr->args_size(), *this,
                                   CI))
     return;
+
+  // There could be multiple of the same attribute applied to the same global
+  // variable. If so, we want to merge them.
+  // If there are still dependent expressions in the attribute, we delay merging
+  // till after instantiation.
+  if (!hasDependentExpr(Attr->args_begin(), Attr->args_size()) &&
+      D->hasAttr<SYCLAddIRAttributesGlobalVariableAttr>()) {
+    Attr = mergeSYCLAddIRAttributesGlobalVariableAttr(D, *Attr);
+
+    // If null is returned, the attribute did not change after merge and we can
+    // exit.
+    if (!Attr)
+      return;
+  }
   D->addAttr(Attr);
 }
 
@@ -2559,14 +2601,19 @@ void SemaSYCL::handleSYCLAddIRAttributesFunctionAttr(Decl *D,
   addSYCLAddIRAttributesFunctionAttr(D, A, Args);
 }
 
-static bool hasSameSYCLAddIRAttributes(
+static bool hasConflictingSYCLAddIRAttributes(
     const SmallVector<std::pair<std::string, std::string>, 4> &LAttrs,
     const SmallVector<std::pair<std::string, std::string>, 4> &RAttrs) {
-  std::set<std::pair<std::string, std::string>> LNameValSet{LAttrs.begin(),
-                                                            LAttrs.end()};
-  std::set<std::pair<std::string, std::string>> RNameValSet{RAttrs.begin(),
-                                                            RAttrs.end()};
-  return LNameValSet == RNameValSet;
+  std::unordered_map<std::string, std::string> LNameValMap;
+  for (const std::pair<std::string, std::string> &NameValuePair : LAttrs)
+    LNameValMap[NameValuePair.first] = NameValuePair.second;
+
+  return std::any_of(
+      RAttrs.begin(), RAttrs.end(),
+      [&](const std::pair<std::string, std::string> &NameValuePair) {
+        auto It = LNameValMap.find(NameValuePair.first);
+        return It != LNameValMap.end() && NameValuePair.second != It->second;
+      });
 }
 
 template <typename AddIRAttrT>
@@ -2574,15 +2621,19 @@ static bool checkSYCLAddIRAttributesMergeability(const AddIRAttrT &NewAttr,
                                                  const AddIRAttrT &ExistingAttr,
                                                  SemaSYCL &S) {
   ASTContext &Context = S.getASTContext();
-  // If there are no dependent argument expressions and the filters or the
-  // attributes are different, then fail due to differing duplicates.
-  if (!S.hasDependentExpr(NewAttr.args_begin(), NewAttr.args_size()) &&
-      !S.hasDependentExpr(ExistingAttr.args_begin(),
-                          ExistingAttr.args_size()) &&
-      (NewAttr.getAttributeFilter() != ExistingAttr.getAttributeFilter() ||
-       !hasSameSYCLAddIRAttributes(
-           NewAttr.getAttributeNameValuePairs(Context),
-           ExistingAttr.getAttributeNameValuePairs(Context)))) {
+
+  // If there are dependent argument expressions, then merging cannot be done
+  // yet. In that case, it is deferred till after instantiation.
+  if (S.hasDependentExpr(NewAttr.args_begin(), NewAttr.args_size()) ||
+      S.hasDependentExpr(ExistingAttr.args_begin(), ExistingAttr.args_size()))
+    return true;
+
+  // If the filters differ or the attributes are conflicting, then fail due to
+  // differing duplicates.
+  if (NewAttr.getAttributeFilter() != ExistingAttr.getAttributeFilter() ||
+      hasConflictingSYCLAddIRAttributes(
+          NewAttr.getAttributeNameValuePairs(Context),
+          ExistingAttr.getAttributeNameValuePairs(Context))) {
     S.Diag(ExistingAttr.getLoc(), diag::err_duplicate_attribute) << &NewAttr;
     S.Diag(NewAttr.getLoc(), diag::note_conflicting_attribute);
     return true;
@@ -2590,12 +2641,58 @@ static bool checkSYCLAddIRAttributesMergeability(const AddIRAttrT &NewAttr,
   return false;
 }
 
+template <typename AddIRAttrT>
+static AddIRAttrT *getMergedSYCLAddIRAttribute(const AddIRAttrT &Attr1,
+                                               const AddIRAttrT &Attr2,
+                                               SemaSYCL &S) {
+  ASTContext &Context = S.getASTContext();
+  bool AttrHasFilterList = Attr1.hasFilterList();
+
+  // Get the vectors of name-value-pairs here so we can create string references
+  // to them for the map.
+  llvm::SmallVector<std::pair<std::string, std::string>, 4> Attr1NVPairs =
+      Attr1.getAttributeNameValuePairs(Context);
+  llvm::SmallVector<std::pair<std::string, std::string>, 4> Attr2NVPairs =
+      Attr2.getAttributeNameValuePairs(Context);
+
+  // Collect all the unique attribute names and their corresponding values. This
+  // relies on the uniqueness having been confirmed first and that the
+  // attributes appear in the same order as in the name-value-pairs.
+  llvm::SmallMapVector<StringRef, std::pair<Expr *, Expr *>, 4> AttrExprByName;
+  for (const auto &[Attr, NVPairs] : {std::make_pair(Attr1, Attr1NVPairs),
+                                      std::make_pair(Attr2, Attr2NVPairs)}) {
+    for (size_t I = 0; I < NVPairs.size(); ++I) {
+      AttrExprByName[NVPairs[I].first] = std::make_pair(
+          (Attr.args_begin() + AttrHasFilterList)[I],
+          (Attr.args_begin() + AttrHasFilterList + (Attr.args_size() / 2))[I]);
+    }
+  }
+
+  // Create a list of new arguments, starting with the filter if present.
+  llvm::SmallVector<Expr *, 4> NewArgs;
+  NewArgs.resize(AttrExprByName.size() * 2 + AttrHasFilterList);
+  if (AttrHasFilterList)
+    NewArgs[0] = *Attr1.args_begin();
+
+  // Then insert all the unique attributes found previously.
+  for (size_t I = 0; I < AttrExprByName.size(); ++I) {
+    const std::pair<Expr *, Expr *> &Exprs = AttrExprByName.begin()[I].second;
+    NewArgs[I + AttrHasFilterList] = Exprs.first;
+    NewArgs[I + AttrExprByName.size() + AttrHasFilterList] = Exprs.second;
+  }
+
+  return AddIRAttrT::Create(Context, NewArgs.data(), NewArgs.size(), Attr1);
+}
+
 SYCLAddIRAttributesFunctionAttr *SemaSYCL::mergeSYCLAddIRAttributesFunctionAttr(
     Decl *D, const SYCLAddIRAttributesFunctionAttr &A) {
   if (const auto *ExistingAttr =
           D->getAttr<SYCLAddIRAttributesFunctionAttr>()) {
-    checkSYCLAddIRAttributesMergeability(A, *ExistingAttr, *this);
-    return nullptr;
+    if (checkSYCLAddIRAttributesMergeability(A, *ExistingAttr, *this))
+      return nullptr;
+
+    D->dropAttr<SYCLAddIRAttributesFunctionAttr>();
+    return getMergedSYCLAddIRAttribute(A, *ExistingAttr, *this);
   }
   ASTContext &Context = getASTContext();
   return A.clone(Context);
@@ -2618,8 +2715,11 @@ SemaSYCL::mergeSYCLAddIRAttributesKernelParameterAttr(
     Decl *D, const SYCLAddIRAttributesKernelParameterAttr &A) {
   if (const auto *ExistingAttr =
           D->getAttr<SYCLAddIRAttributesKernelParameterAttr>()) {
-    checkSYCLAddIRAttributesMergeability(A, *ExistingAttr, *this);
-    return nullptr;
+    if (checkSYCLAddIRAttributesMergeability(A, *ExistingAttr, *this))
+      return nullptr;
+
+    D->dropAttr<SYCLAddIRAttributesKernelParameterAttr>();
+    return getMergedSYCLAddIRAttribute(A, *ExistingAttr, *this);
   }
   ASTContext &Context = getASTContext();
   return A.clone(Context);
@@ -2642,8 +2742,11 @@ SemaSYCL::mergeSYCLAddIRAttributesGlobalVariableAttr(
     Decl *D, const SYCLAddIRAttributesGlobalVariableAttr &A) {
   if (const auto *ExistingAttr =
           D->getAttr<SYCLAddIRAttributesGlobalVariableAttr>()) {
-    checkSYCLAddIRAttributesMergeability(A, *ExistingAttr, *this);
-    return nullptr;
+    if (checkSYCLAddIRAttributesMergeability(A, *ExistingAttr, *this))
+      return nullptr;
+
+    D->dropAttr<SYCLAddIRAttributesGlobalVariableAttr>();
+    return getMergedSYCLAddIRAttribute(A, *ExistingAttr, *this);
   }
   ASTContext &Context = getASTContext();
   return A.clone(Context);

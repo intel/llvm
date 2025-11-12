@@ -731,16 +731,6 @@ RenderDebugEnablingArgs(const ArgList &Args, ArgStringList &CmdArgs,
   }
 }
 
-static bool checkDebugInfoOption(const Arg *A, const ArgList &Args,
-                                 const Driver &D, const ToolChain &TC) {
-  assert(A && "Expected non-nullptr argument.");
-  if (TC.supportsDebugInfoOption(A))
-    return true;
-  D.Diag(diag::warn_drv_unsupported_debug_info_opt_for_target)
-      << A->getAsString(Args) << TC.getTripleString();
-  return false;
-}
-
 static void RenderDebugInfoCompressionArgs(const ArgList &Args,
                                            ArgStringList &CmdArgs,
                                            const Driver &D,
@@ -1187,26 +1177,15 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
   if (!Args.hasArg(options::OPT_nostdinc) &&
       Args.hasFlag(options::OPT_offload_inc, options::OPT_no_offload_inc,
                    true) &&
-      !Args.hasArg(options::OPT_nobuiltininc)) {
-    // Without an offloading language we will include these headers directly.
-    // Offloading languages will instead only use the declarations stored in
-    // the resource directory at clang/lib/Headers/llvm_libc_wrappers.
-    if (getToolChain().getTriple().isGPU() &&
-        C.getActiveOffloadKinds() == Action::OFK_None) {
-      SmallString<128> P(llvm::sys::path::parent_path(D.Dir));
-      llvm::sys::path::append(P, "include");
-      llvm::sys::path::append(P, getToolChain().getTripleString());
-      CmdArgs.push_back("-internal-isystem");
-      CmdArgs.push_back(Args.MakeArgString(P));
-    } else if (C.getActiveOffloadKinds() == Action::OFK_OpenMP) {
-      // TODO: CUDA / HIP include their own headers for some common functions
-      // implemented here. We'll need to clean those up so they do not conflict.
-      SmallString<128> P(D.ResourceDir);
-      llvm::sys::path::append(P, "include");
-      llvm::sys::path::append(P, "llvm_libc_wrappers");
-      CmdArgs.push_back("-internal-isystem");
-      CmdArgs.push_back(Args.MakeArgString(P));
-    }
+      !Args.hasArg(options::OPT_nobuiltininc) &&
+      (C.getActiveOffloadKinds() == Action::OFK_OpenMP)) {
+    // TODO: CUDA / HIP include their own headers for some common functions
+    // implemented here. We'll need to clean those up so they do not conflict.
+    SmallString<128> P(D.ResourceDir);
+    llvm::sys::path::append(P, "include");
+    llvm::sys::path::append(P, "llvm_libc_wrappers");
+    CmdArgs.push_back("-internal-isystem");
+    CmdArgs.push_back(Args.MakeArgString(P));
   }
 
   // Add system include arguments for all targets but IAMCU.
@@ -1448,6 +1427,11 @@ static void handlePAuthABI(const ArgList &DriverArgs, ArgStringList &CC1Args) {
           options::OPT_fno_ptrauth_vtable_pointer_type_discrimination))
     CC1Args.push_back("-fptrauth-vtable-pointer-type-discrimination");
 
+  if (!DriverArgs.hasArg(
+          options::OPT_fptrauth_type_info_vtable_pointer_discrimination,
+          options::OPT_fno_ptrauth_type_info_vtable_pointer_discrimination))
+    CC1Args.push_back("-fptrauth-type-info-vtable-pointer-discrimination");
+
   if (!DriverArgs.hasArg(options::OPT_fptrauth_indirect_gotos,
                          options::OPT_fno_ptrauth_indirect_gotos))
     CC1Args.push_back("-fptrauth-indirect-gotos");
@@ -1455,6 +1439,15 @@ static void handlePAuthABI(const ArgList &DriverArgs, ArgStringList &CC1Args) {
   if (!DriverArgs.hasArg(options::OPT_fptrauth_init_fini,
                          options::OPT_fno_ptrauth_init_fini))
     CC1Args.push_back("-fptrauth-init-fini");
+
+  if (!DriverArgs.hasArg(
+          options::OPT_fptrauth_init_fini_address_discrimination,
+          options::OPT_fno_ptrauth_init_fini_address_discrimination))
+    CC1Args.push_back("-fptrauth-init-fini-address-discrimination");
+
+  if (!DriverArgs.hasArg(options::OPT_faarch64_jump_table_hardening,
+                         options::OPT_fno_aarch64_jump_table_hardening))
+    CC1Args.push_back("-faarch64-jump-table-hardening");
 }
 
 static void CollectARMPACBTIOptions(const ToolChain &TC, const ArgList &Args,
@@ -2808,42 +2801,6 @@ static void CollectArgsForIntegratedAssembler(Compilation &C,
   }
 }
 
-static void EmitComplexRangeDiag(const Driver &D, StringRef LastOpt,
-                                 LangOptions::ComplexRangeKind Range,
-                                 StringRef NewOpt,
-                                 LangOptions::ComplexRangeKind NewRange) {
-  //  Do not emit a warning if NewOpt overrides LastOpt in the following cases.
-  //
-  // | LastOpt               | NewOpt                |
-  // |-----------------------|-----------------------|
-  // | -fcx-limited-range    | -fno-cx-limited-range |
-  // | -fno-cx-limited-range | -fcx-limited-range    |
-  // | -fcx-fortran-rules    | -fno-cx-fortran-rules |
-  // | -fno-cx-fortran-rules | -fcx-fortran-rules    |
-  // | -ffast-math           | -fno-fast-math        |
-  // | -ffp-model=           | -ffast-math           |
-  // | -ffp-model=           | -fno-fast-math        |
-  // | -ffp-model=           | -ffp-model=           |
-  // | -fcomplex-arithmetic= | -fcomplex-arithmetic= |
-  if (LastOpt == NewOpt || NewOpt.empty() || LastOpt.empty() ||
-      (LastOpt == "-fcx-limited-range" && NewOpt == "-fno-cx-limited-range") ||
-      (LastOpt == "-fno-cx-limited-range" && NewOpt == "-fcx-limited-range") ||
-      (LastOpt == "-fcx-fortran-rules" && NewOpt == "-fno-cx-fortran-rules") ||
-      (LastOpt == "-fno-cx-fortran-rules" && NewOpt == "-fcx-fortran-rules") ||
-      (LastOpt == "-ffast-math" && NewOpt == "-fno-fast-math") ||
-      (LastOpt.starts_with("-ffp-model=") && NewOpt == "-ffast-math") ||
-      (LastOpt.starts_with("-ffp-model=") && NewOpt == "-fno-fast-math") ||
-      (LastOpt.starts_with("-ffp-model=") &&
-       NewOpt.starts_with("-ffp-model=")) ||
-      (LastOpt.starts_with("-fcomplex-arithmetic=") &&
-       NewOpt.starts_with("-fcomplex-arithmetic=")))
-    return;
-
-  D.Diag(clang::diag::warn_drv_overriding_complex_range)
-      << LastOpt << NewOpt << complexRangeKindToStr(Range)
-      << complexRangeKindToStr(NewRange);
-}
-
 static void EmitAccuracyDiag(const Driver &D, const JobAction &JA,
                              StringRef AccuracValStr, StringRef TargetPrecStr) {
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
@@ -2924,27 +2881,19 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   StringRef LastComplexRangeOption;
   bool IsFp32PrecDivSqrtAllowed = JA.isDeviceOffloading(Action::OFK_SYCL);
 
-  auto setComplexRange = [&](StringRef NewOption,
-                             LangOptions::ComplexRangeKind NewRange) {
-    // Warn if user overrides the previously set complex number
-    // multiplication/division option.
-    if (Range != LangOptions::ComplexRangeKind::CX_None && Range != NewRange)
-      EmitComplexRangeDiag(D, LastComplexRangeOption, Range, NewOption,
-                           NewRange);
-    LastComplexRangeOption = NewOption;
-    Range = NewRange;
-  };
-
   // Lambda to set fast-math options. This is also used by -ffp-model=fast
   auto applyFastMath = [&](bool Aggressive, StringRef CallerOption) {
     if (Aggressive) {
       HonorINFs = false;
       HonorNaNs = false;
-      setComplexRange(CallerOption, LangOptions::ComplexRangeKind::CX_Basic);
+      setComplexRange(D, CallerOption, LangOptions::ComplexRangeKind::CX_Basic,
+                      LastComplexRangeOption, Range);
     } else {
       HonorINFs = true;
       HonorNaNs = true;
-      setComplexRange(CallerOption, LangOptions::ComplexRangeKind::CX_Promoted);
+      setComplexRange(D, CallerOption,
+                      LangOptions::ComplexRangeKind::CX_Promoted,
+                      LastComplexRangeOption, Range);
     }
     MathErrno = false;
     AssociativeMath = true;
@@ -3038,18 +2987,24 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       // Skip claim, as we didn't use the option.
       continue;
     case options::OPT_fcx_limited_range:
-      setComplexRange(A->getSpelling(),
-                      LangOptions::ComplexRangeKind::CX_Basic);
+      setComplexRange(D, A->getSpelling(),
+                      LangOptions::ComplexRangeKind::CX_Basic,
+                      LastComplexRangeOption, Range);
       break;
     case options::OPT_fno_cx_limited_range:
-      setComplexRange(A->getSpelling(), LangOptions::ComplexRangeKind::CX_Full);
+      setComplexRange(D, A->getSpelling(),
+                      LangOptions::ComplexRangeKind::CX_Full,
+                      LastComplexRangeOption, Range);
       break;
     case options::OPT_fcx_fortran_rules:
-      setComplexRange(A->getSpelling(),
-                      LangOptions::ComplexRangeKind::CX_Improved);
+      setComplexRange(D, A->getSpelling(),
+                      LangOptions::ComplexRangeKind::CX_Improved,
+                      LastComplexRangeOption, Range);
       break;
     case options::OPT_fno_cx_fortran_rules:
-      setComplexRange(A->getSpelling(), LangOptions::ComplexRangeKind::CX_Full);
+      setComplexRange(D, A->getSpelling(),
+                      LangOptions::ComplexRangeKind::CX_Full,
+                      LastComplexRangeOption, Range);
       break;
     case options::OPT_fcomplex_arithmetic_EQ: {
       LangOptions::ComplexRangeKind RangeVal;
@@ -3067,7 +3022,8 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
             << A->getSpelling() << Val;
         break;
       }
-      setComplexRange(Args.MakeArgString(A->getSpelling() + Val), RangeVal);
+      setComplexRange(D, Args.MakeArgString(A->getSpelling() + Val), RangeVal,
+                      LastComplexRangeOption, Range);
       break;
     }
     case options::OPT_ffp_accuracy_EQ: {
@@ -3122,8 +3078,9 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
         FPModel = Val;
         FPContract = "on";
         LastFpContractOverrideOption = "-ffp-model=precise";
-        setComplexRange(Args.MakeArgString(A->getSpelling() + Val),
-                        LangOptions::ComplexRangeKind::CX_Full);
+        setComplexRange(D, Args.MakeArgString(A->getSpelling() + Val),
+                        LangOptions::ComplexRangeKind::CX_Full,
+                        LastComplexRangeOption, Range);
       } else if (Val == "strict") {
         StrictFPModel = true;
         FPExceptionBehavior = "strict";
@@ -3132,8 +3089,9 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
         LastFpContractOverrideOption = "-ffp-model=strict";
         TrappingMath = true;
         RoundingFPMath = true;
-        setComplexRange(Args.MakeArgString(A->getSpelling() + Val),
-                        LangOptions::ComplexRangeKind::CX_Full);
+        setComplexRange(D, Args.MakeArgString(A->getSpelling() + Val),
+                        LangOptions::ComplexRangeKind::CX_Full,
+                        LastComplexRangeOption, Range);
       } else
         D.Diag(diag::err_drv_unsupported_option_argument)
             << A->getSpelling() << Val;
@@ -3346,8 +3304,9 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       SignedZeros = true;
       restoreFPContractState();
       if (Range != LangOptions::ComplexRangeKind::CX_Full)
-        setComplexRange(A->getSpelling(),
-                        LangOptions::ComplexRangeKind::CX_None);
+        setComplexRange(D, A->getSpelling(),
+                        LangOptions::ComplexRangeKind::CX_None,
+                        LastComplexRangeOption, Range);
       else
         Range = LangOptions::ComplexRangeKind::CX_None;
       LastComplexRangeOption = "";
@@ -4208,15 +4167,24 @@ static bool RenderModulesOptions(Compilation &C, const Driver &D,
   // module fragment.
   CmdArgs.push_back("-fskip-odr-check-in-gmf");
 
-  if (!Args.hasArg(options::OPT_fno_modules_reduced_bmi) &&
-      (Input.getType() == driver::types::TY_CXXModule ||
-       Input.getType() == driver::types::TY_PP_CXXModule) &&
-      !Args.hasArg(options::OPT__precompile)) {
-    CmdArgs.push_back("-fmodules-reduced-bmi");
+  if (Input.getType() == driver::types::TY_CXXModule ||
+      Input.getType() == driver::types::TY_PP_CXXModule) {
+    if (!Args.hasArg(options::OPT_fno_modules_reduced_bmi))
+      CmdArgs.push_back("-fmodules-reduced-bmi");
 
     if (Args.hasArg(options::OPT_fmodule_output_EQ))
       Args.AddLastArg(CmdArgs, options::OPT_fmodule_output_EQ);
-    else
+    else if (!Args.hasArg(options::OPT__precompile) ||
+             Args.hasArg(options::OPT_fmodule_output))
+      // If --precompile is specified, we will always generate a module file if
+      // we're compiling an importable module unit. This is fine even if the
+      // compilation process won't reach the point of generating the module file
+      // (e.g., in the preprocessing mode), since the attached flag
+      // '-fmodule-output' is useless.
+      //
+      // But if '--precompile' is specified, it might be annoying to always
+      // generate the module file as '--precompile' will generate the module
+      // file anyway.
       CmdArgs.push_back(Args.MakeArgString(
           "-fmodule-output=" +
           getCXX20NamedModuleOutputPath(Args, Input.getBaseInput())));
@@ -4484,27 +4452,6 @@ static void RenderDiagnosticsOptions(const Driver &D, const ArgList &Args,
   Args.addLastArg(CmdArgs, options::OPT_warning_suppression_mappings_EQ);
 }
 
-DwarfFissionKind tools::getDebugFissionKind(const Driver &D,
-                                            const ArgList &Args, Arg *&Arg) {
-  Arg = Args.getLastArg(options::OPT_gsplit_dwarf, options::OPT_gsplit_dwarf_EQ,
-                        options::OPT_gno_split_dwarf);
-  if (!Arg || Arg->getOption().matches(options::OPT_gno_split_dwarf))
-    return DwarfFissionKind::None;
-
-  if (Arg->getOption().matches(options::OPT_gsplit_dwarf))
-    return DwarfFissionKind::Split;
-
-  StringRef Value = Arg->getValue();
-  if (Value == "split")
-    return DwarfFissionKind::Split;
-  if (Value == "single")
-    return DwarfFissionKind::Single;
-
-  D.Diag(diag::err_drv_unsupported_option_argument)
-      << Arg->getSpelling() << Arg->getValue();
-  return DwarfFissionKind::None;
-}
-
 static void renderDwarfFormat(const Driver &D, const llvm::Triple &T,
                               const ArgList &Args, ArgStringList &CmdArgs,
                               unsigned DwarfVersion) {
@@ -4564,6 +4511,13 @@ renderDebugOptions(const ToolChain &TC, const Driver &D, const llvm::Triple &T,
   // object file generation and no IR generation, -gN should not be needed. So
   // allow -gsplit-dwarf with either -gN or IR input.
   if (IRInput || Args.hasArg(options::OPT_g_Group)) {
+    // FIXME: -gsplit-dwarf on AIX is currently unimplemented.
+    if (TC.getTriple().isOSAIX() && Args.hasArg(options::OPT_gsplit_dwarf)) {
+      D.Diag(diag::err_drv_unsupported_opt_for_target)
+          << Args.getLastArg(options::OPT_gsplit_dwarf)->getSpelling()
+          << TC.getTriple().str();
+      return;
+    }
     Arg *SplitDWARFArg;
     DwarfFission = getDebugFissionKind(D, Args, SplitDWARFArg);
     if (DwarfFission != DwarfFissionKind::None &&
@@ -7706,6 +7660,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                   options::OPT_fno_unroll_loops);
   Args.AddLastArg(CmdArgs, options::OPT_floop_interchange,
                   options::OPT_fno_loop_interchange);
+  Args.addOptInFlag(CmdArgs, options::OPT_fexperimental_loop_fusion,
+                    options::OPT_fno_experimental_loop_fusion);
 
   Args.AddLastArg(CmdArgs, options::OPT_fstrict_flex_arrays_EQ);
 
@@ -10490,12 +10446,48 @@ static void getSPIRVBackendOpts(const llvm::opt::ArgList &TCArgs,
       TCArgs.MakeArgString("--avoid-spirv-capabilities=Shader"));
   BackendArgs.push_back(
       TCArgs.MakeArgString("--translator-compatibility-mode"));
-  // TODO: A list of SPIR-V extensions that are supported by the SPIR-V backend
-  // is growing. Let's postpone the decision on which extensions to enable until
-  // - the list is stable, and
-  // - we decide on a mapping of user requested extensions into backend's ones.
-  // Meanwhile we enable all the SPIR-V backend extensions.
-  BackendArgs.push_back(TCArgs.MakeArgString("--spirv-ext=all"));
+
+  // SPIR-V backend recently started to support extensions not supported by
+  // drivers (e.g. SPV_KHR_float_controls2). At the same time, SPIR-V backend
+  // doesn't support the syntax for disabling specific extensions (i.e.
+  // --spirv-ext=-<extension>). We need to come up with a list of SPIR-V
+  // extensions that are supported by the backend, but also by the driver. Below
+  // is the first approach for such a list.
+  // FIXME: A priori, we wouldn't expect
+  // SPV_EXT_relaxed_printf_string_address_space to be required, but without
+  // it, some SYCL E2E tests fail. Let's keep it until we figure out what's
+  // the problem.
+  std::string ExtArg("-spirv-ext=");
+  std::string DefaultExtArg = "+SPV_EXT_relaxed_printf_string_address_space"
+                              ",+SPV_EXT_shader_atomic_float16_add"
+                              ",+SPV_EXT_shader_atomic_float_add"
+                              ",+SPV_EXT_shader_atomic_float_min_max";
+  std::string IntelExtArg = ",+SPV_INTEL_2d_block_io"
+                            ",+SPV_INTEL_arbitrary_precision_integers"
+                            ",+SPV_INTEL_bfloat16_conversion"
+                            ",+SPV_INTEL_bindless_images"
+                            ",+SPV_INTEL_cache_controls"
+                            ",+SPV_INTEL_float_controls2"
+                            ",+SPV_INTEL_fp_max_error"
+                            ",+SPV_INTEL_function_pointers"
+                            ",+SPV_INTEL_inline_assembly"
+                            ",+SPV_INTEL_joint_matrix"
+                            ",+SPV_INTEL_long_composites"
+                            ",+SPV_INTEL_subgroups"
+                            ",+SPV_INTEL_tensor_float32_conversion"
+                            ",+SPV_INTEL_variable_length_array";
+  std::string KHRExtArg = ",+SPV_KHR_16bit_storage"
+                          ",+SPV_KHR_cooperative_matrix"
+                          ",+SPV_KHR_expect_assume"
+                          ",+SPV_KHR_float_controls"
+                          ",+SPV_KHR_linkonce_odr"
+                          ",+SPV_KHR_no_integer_wrap_decoration"
+                          ",+SPV_KHR_non_semantic_info"
+                          ",+SPV_KHR_shader_clock"
+                          ",+SPV_KHR_uniform_group_instructions";
+  ExtArg = ExtArg + DefaultExtArg + IntelExtArg + KHRExtArg;
+  BackendArgs.push_back(TCArgs.MakeArgString(ExtArg));
+
   // TODO:
   // - handle -Xspirv-translator option to avoid "argument unused during
   // compilation" error
@@ -10541,11 +10533,10 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
 
   // Disable all the extensions by default
   std::string ExtArg("-spirv-ext=-all");
-  std::string DefaultExtArg =
+  ExtArg +=
       ",+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max"
       ",+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls"
-      ",+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr";
-  std::string INTELExtArg =
+      ",+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr"
       ",+SPV_INTEL_subgroups,+SPV_INTEL_media_block_io"
       ",+SPV_INTEL_device_side_avc_motion_estimation"
       ",+SPV_INTEL_fpga_loop_controls,+SPV_INTEL_unstructured_loop_controls"
@@ -10568,19 +10559,18 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
       ",+SPV_INTEL_fpga_latency_control"
       ",+SPV_KHR_shader_clock"
       ",+SPV_INTEL_bindless_images"
-      ",+SPV_INTEL_task_sequence";
-  ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
-  ExtArg += ",+SPV_INTEL_bfloat16_conversion"
-            ",+SPV_INTEL_joint_matrix"
-            ",+SPV_INTEL_hw_thread_queries"
-            ",+SPV_KHR_uniform_group_instructions"
-            ",+SPV_INTEL_masked_gather_scatter"
-            ",+SPV_INTEL_tensor_float32_conversion"
-            ",+SPV_INTEL_optnone"
-            ",+SPV_KHR_non_semantic_info"
-            ",+SPV_KHR_cooperative_matrix"
-            ",+SPV_EXT_shader_atomic_float16_add"
-            ",+SPV_INTEL_fp_max_error";
+      ",+SPV_INTEL_task_sequence"
+      ",+SPV_INTEL_bfloat16_conversion"
+      ",+SPV_INTEL_joint_matrix"
+      ",+SPV_INTEL_hw_thread_queries"
+      ",+SPV_KHR_uniform_group_instructions"
+      ",+SPV_INTEL_masked_gather_scatter"
+      ",+SPV_INTEL_tensor_float32_conversion"
+      ",+SPV_INTEL_optnone"
+      ",+SPV_KHR_non_semantic_info"
+      ",+SPV_KHR_cooperative_matrix"
+      ",+SPV_EXT_shader_atomic_float16_add"
+      ",+SPV_INTEL_fp_max_error";
 
   TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
 }
@@ -11266,43 +11256,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     if (Args.hasArg(options::OPT_fsycl_link_EQ))
       CmdArgs.push_back(Args.MakeArgString("--sycl-device-link"));
 
-    // -sycl-device-libraries=<comma separated list> contains all of the SYCL
-    // device specific libraries that are needed. This generic list will be
-    // populated with device binaries for all target triples in the current
-    // compilation flow.
-
-    // Create a comma separated list to pass along to the linker wrapper.
-    SmallString<256> LibList;
-    llvm::Triple TargetTriple;
-    auto ToolChainRange = C.getOffloadToolChains<Action::OFK_SYCL>();
-    for (auto &I :
-         llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
-      const ToolChain *TC = I.second;
-      // Note: For AMD targets, we do not pass any SYCL device libraries.
-      if (TC->getTriple().isSPIROrSPIRV() || TC->getTriple().isNVPTX()) {
-        TargetTriple = TC->getTriple();
-        SmallVector<std::string, 8> SYCLDeviceLibs;
-        bool IsSPIR = TargetTriple.isSPIROrSPIRV();
-        bool IsSpirvAOT = TargetTriple.isSPIRAOT();
-        bool UseJitLink =
-            IsSPIR &&
-            Args.hasFlag(options::OPT_fsycl_device_lib_jit_link,
-                         options::OPT_fno_sycl_device_lib_jit_link, false);
-        bool UseAOTLink = IsSPIR && (IsSpirvAOT || !UseJitLink);
-        SYCLDeviceLibs = SYCL::getDeviceLibraries(C, TargetTriple, UseAOTLink);
-        for (const auto &AddLib : SYCLDeviceLibs) {
-          if (LibList.size() > 0)
-            LibList += ",";
-          LibList += AddLib;
-        }
-      }
-    }
-    // -sycl-device-libraries=<libs> provides a comma separate list of
-    // libraries to add to the device linking step.
-    if (LibList.size())
-      CmdArgs.push_back(
-          Args.MakeArgString(Twine("-sycl-device-libraries=") + LibList));
-
     // -sycl-device-library-location=<dir> provides the location in which the
     // SYCL device libraries can be found.
     SmallString<128> DeviceLibDir(D.Dir);
@@ -11327,6 +11280,62 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         break;
       }
     }
+
+    // -sycl-device-libraries=<comma separated list> contains a list of
+    // file names for fat object files that contain SYCL device library bitcode
+    // necessary for SYCL offloading that will be linked to the user's device
+    // code. clang-linker-wrapper uses the value provided to
+    // -sycl-device-library-location=<dir> to construct the full paths of the
+    // device libraries.
+
+    // On the other hand, --bitcode-library=<triple>=<path to bc file> specifies
+    // one bitcode library to link in for a specific triple. Additionally, the
+    // path is *not* relative to the -sycl-device-library-location - the full
+    // path must be provided.
+    SmallString<256> LibList;
+    SmallVector<std::string, 4> BCLibList;
+
+    auto appendToList = [](SmallString<256> &List, const Twine &Arg) {
+      if (List.size() > 0)
+        List += ",";
+      List += Arg.str();
+    };
+
+    auto ToolChainRange = C.getOffloadToolChains<Action::OFK_SYCL>();
+    for (const auto &[Kind, TC] :
+         llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
+      llvm::Triple TargetTriple = TC->getTriple();
+      bool IsSpirAOT = TargetTriple.isSPIRAOT();
+      SmallVector<std::string, 8> SYCLDeviceLibs =
+          SYCL::getDeviceLibraries(C, TargetTriple, IsSpirAOT);
+      for (const auto &AddLib : SYCLDeviceLibs) {
+        if (llvm::sys::path::extension(AddLib) == ".bc") {
+          SmallString<256> LibPath(DeviceLibDir);
+          llvm::sys::path::append(LibPath, AddLib);
+          BCLibList.push_back(
+              (Twine(TC->getTriple().str()) + "=" + LibPath).str());
+          continue;
+        }
+
+        appendToList(LibList, AddLib);
+      }
+
+      if (TC->getTriple().isNVPTX())
+        if (const char *LibSpirvFile = SYCLInstallation.findLibspirvPath(
+                TC->getTriple(), Args, *TC->getAuxTriple()))
+          BCLibList.push_back(
+              (Twine(TC->getTriple().str()) + "=" + LibSpirvFile).str());
+    }
+
+    if (LibList.size())
+      CmdArgs.push_back(
+          Args.MakeArgString(Twine("-sycl-device-libraries=") + LibList));
+
+    if (BCLibList.size())
+      for (const std::string &Lib : BCLibList)
+        CmdArgs.push_back(
+            Args.MakeArgString(Twine("--bitcode-library=") + Lib));
+
     CmdArgs.push_back(Args.MakeArgString(
         Twine("-sycl-device-library-location=") + DeviceLibDir));
 

@@ -11,8 +11,10 @@
 #include "command_list_manager.hpp"
 #include "../helpers/kernel_helpers.hpp"
 #include "../helpers/memory_helpers.hpp"
+#include "../sampler.hpp"
 #include "../ur_interface_loader.hpp"
 #include "command_buffer.hpp"
+#include "common.hpp"
 #include "context.hpp"
 #include "kernel.hpp"
 #include "memory.hpp"
@@ -148,21 +150,13 @@ ur_command_list_manager::getSignalEvent(ur_event_handle_t hUserEvent,
   }
 }
 
-ur_result_t ur_command_list_manager::appendKernelLaunchUnlocked(
-    ur_kernel_handle_t hKernel, uint32_t workDim,
+// must be called with hKernel->Mutex held
+ur_result_t ur_command_list_manager::appendKernelLaunchLocked(
+    ur_kernel_handle_t hKernel, ze_kernel_handle_t hZeKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t phEvent,
-    bool cooperative) {
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hKernel->getProgramHandle(), UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
-  UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
-  UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
-
-  ze_kernel_handle_t hZeKernel = hKernel->getZeHandle(hDevice.get());
-
-  std::scoped_lock<ur_shared_mutex> Lock(hKernel->Mutex);
+    const size_t *pLocalWorkSize, wait_list_view &waitListView,
+    ur_event_handle_t phEvent, bool cooperative, std::vector<void *> *pKMemObj,
+    void *pNext) {
 
   ze_group_count_t zeThreadGroupDimensions{1, 1, 1};
   uint32_t WG[3]{};
@@ -171,19 +165,31 @@ ur_result_t ur_command_list_manager::appendKernelLaunchUnlocked(
                                         pGlobalWorkSize, pLocalWorkSize));
 
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_KERNEL_LAUNCH);
-  auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
   UR_CALL(hKernel->prepareForSubmission(
       hContext.get(), hDevice.get(), pGlobalWorkOffset, workDim, WG[0], WG[1],
       WG[2], getZeCommandList(), waitListView));
 
-  if (cooperative) {
+  if (pKMemObj) {
+    // zeCommandListAppendLaunchKernelWithArguments
+    TRACK_SCOPE_LATENCY("ur_command_list_manager::"
+                        "zeCommandListAppendLaunchKernelWithArguments");
+    ze_group_size_t groupSize = {WG[0], WG[1], WG[2]};
+    ZE2UR_CALL(hContext->getPlatform()
+                   ->ZeCommandListAppendLaunchKernelWithArgumentsExt
+                   .zeCommandListAppendLaunchKernelWithArgumentsFunctionPtr,
+               (getZeCommandList(), hZeKernel, zeThreadGroupDimensions,
+                groupSize, hKernel->kernelArgs.data(), pNext, zeSignalEvent,
+                waitListView.num, waitListView.handles));
+  } else if (cooperative) {
+    // zeCommandListAppendLaunchCooperativeKernel
     TRACK_SCOPE_LATENCY("ur_command_list_manager::"
                         "zeCommandListAppendLaunchCooperativeKernel");
     ZE2UR_CALL(zeCommandListAppendLaunchCooperativeKernel,
                (getZeCommandList(), hZeKernel, &zeThreadGroupDimensions,
                 zeSignalEvent, waitListView.num, waitListView.handles));
   } else {
+    // zeCommandListAppendLaunchKernel
     TRACK_SCOPE_LATENCY("ur_command_list_manager::"
                         "zeCommandListAppendLaunchKernel");
     ZE2UR_CALL(zeCommandListAppendLaunchKernel,
@@ -196,6 +202,41 @@ ur_result_t ur_command_list_manager::appendKernelLaunchUnlocked(
   postSubmit(hZeKernel, pGlobalWorkOffset);
 
   return UR_RESULT_SUCCESS;
+}
+
+static ur_result_t kernelLaunchChecks(ur_kernel_handle_t hKernel,
+                                      uint32_t workDim) {
+  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hKernel->getProgramHandle(), UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+  UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t ur_command_list_manager::appendKernelLaunchUnlocked(
+    ur_kernel_handle_t hKernel, uint32_t workDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t phEvent,
+    bool cooperative) {
+
+  ur_result_t checkResult = kernelLaunchChecks(hKernel, workDim);
+  if (checkResult != UR_RESULT_SUCCESS) {
+    return checkResult;
+  }
+
+  ze_kernel_handle_t hZeKernel = hKernel->getZeHandle(hDevice.get());
+
+  std::scoped_lock<ur_shared_mutex> Lock(hKernel->Mutex);
+
+  wait_list_view waitListView =
+      getWaitListView(phEventWaitList, numEventsInWaitList);
+
+  // last arguments: pKMemObj == nullptr and pNext == nullptr
+  return appendKernelLaunchLocked(
+      hKernel, hZeKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+      pLocalWorkSize, waitListView, phEvent, cooperative);
 }
 
 ur_result_t ur_command_list_manager::appendKernelLaunch(
@@ -1035,5 +1076,189 @@ ur_result_t ur_command_list_manager::releaseSubmittedKernels() {
     UR_CALL(hKernel->release());
   }
   submittedKernels.clear();
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpOld(
+    ur_kernel_handle_t hKernel, uint32_t workDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    const size_t *pLocalWorkSize, uint32_t numArgs,
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    uint32_t numPropsInLaunchPropList,
+    const ur_kernel_launch_property_t *launchPropList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t phEvent) {
+  {
+    std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
+    for (uint32_t argIndex = 0; argIndex < numArgs; argIndex++) {
+      switch (pArgs[argIndex].type) {
+      case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
+        UR_CALL(hKernel->setArgValue(pArgs[argIndex].index,
+                                     pArgs[argIndex].size, nullptr, nullptr));
+        break;
+      case UR_EXP_KERNEL_ARG_TYPE_VALUE:
+        UR_CALL(hKernel->setArgValue(pArgs[argIndex].index,
+                                     pArgs[argIndex].size, nullptr,
+                                     pArgs[argIndex].value.value));
+        break;
+      case UR_EXP_KERNEL_ARG_TYPE_POINTER:
+        UR_CALL(hKernel->setArgPointer(pArgs[argIndex].index, nullptr,
+                                       pArgs[argIndex].value.pointer));
+        break;
+      case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ:
+        // TODO: import helper for converting ur flags to internal equivalent
+        UR_CALL(hKernel->addPendingMemoryAllocation(
+            {pArgs[argIndex].value.memObjTuple.hMem,
+             ur_mem_buffer_t::device_access_mode_t::read_write,
+             pArgs[argIndex].index}));
+        break;
+      case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
+        UR_CALL(
+            hKernel->setArgValue(argIndex, sizeof(void *), nullptr,
+                                 &pArgs[argIndex].value.sampler->ZeSampler));
+        break;
+      }
+      default:
+        return UR_RESULT_ERROR_INVALID_ENUMERATION;
+      }
+    }
+  }
+
+  UR_CALL(appendKernelLaunch(hKernel, workDim, pGlobalWorkOffset,
+                             pGlobalWorkSize, pLocalWorkSize,
+                             numPropsInLaunchPropList, launchPropList,
+                             numEventsInWaitList, phEventWaitList, phEvent));
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpNew(
+    ur_kernel_handle_t hKernel, uint32_t workDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    const size_t *pLocalWorkSize, uint32_t numArgs,
+    const ur_exp_kernel_arg_properties_t *pArgs, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t phEvent,
+    bool cooperativeKernelLaunchRequested) {
+
+  ur_result_t checkResult = kernelLaunchChecks(hKernel, workDim);
+  if (checkResult != UR_RESULT_SUCCESS) {
+    return checkResult;
+  }
+
+  // It is needed in case of UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE
+  // to launch the cooperative kernel.
+  ZeStruct<ze_command_list_append_launch_kernel_param_cooperative_desc_t>
+      cooperativeDesc;
+  cooperativeDesc.isCooperative = static_cast<ze_bool_t>(true);
+
+  void *pNext = nullptr;
+  if (cooperativeKernelLaunchRequested) {
+    pNext = &cooperativeDesc;
+  }
+
+  ze_kernel_handle_t hZeKernel = hKernel->getZeHandle(hDevice.get());
+
+  std::scoped_lock<ur_shared_mutex> Lock(hKernel->Mutex);
+
+  // kernelMemObj contains kernel memory objects that
+  // UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ kernelArgs pointers point to
+  hKernel->kernelMemObj.resize(numArgs, 0);
+  hKernel->kernelArgs.resize(numArgs, 0);
+
+  wait_list_view waitListView =
+      getWaitListView(phEventWaitList, numEventsInWaitList);
+
+  for (uint32_t argIndex = 0; argIndex < numArgs; argIndex++) {
+    switch (pArgs[argIndex].type) {
+    case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
+      hKernel->kernelArgs[argIndex] =
+          reinterpret_cast<void *>(const_cast<size_t *>(&pArgs[argIndex].size));
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_VALUE:
+      hKernel->kernelArgs[argIndex] =
+          const_cast<void *>(pArgs[argIndex].value.value);
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_POINTER:
+      hKernel->kernelArgs[argIndex] = reinterpret_cast<void *>(
+          const_cast<void **>(&pArgs[argIndex].value.pointer));
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ:
+      // compute zePtr for the given memory handle and store it in
+      // hKernel->kernelMemObj[argIndex]
+      UR_CALL(hKernel->computeZePtr(
+          pArgs[argIndex].value.memObjTuple.hMem, hDevice.get(),
+          ur_mem_buffer_t::device_access_mode_t::read_write, getZeCommandList(),
+          waitListView, &hKernel->kernelMemObj[argIndex]));
+      hKernel->kernelArgs[argIndex] = &hKernel->kernelMemObj[argIndex];
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_SAMPLER:
+      hKernel->kernelArgs[argIndex] = &pArgs[argIndex].value.sampler->ZeSampler;
+      break;
+    default:
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+    }
+  }
+
+  return appendKernelLaunchLocked(
+      hKernel, hZeKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+      pLocalWorkSize, waitListView, phEvent, cooperativeKernelLaunchRequested,
+      &hKernel->kernelMemObj, pNext);
+}
+
+ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExp(
+    ur_kernel_handle_t hKernel, uint32_t workDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    const size_t *pLocalWorkSize, uint32_t numArgs,
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    uint32_t numPropsInLaunchPropList,
+    const ur_kernel_launch_property_t *launchPropList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t phEvent) {
+  TRACK_SCOPE_LATENCY(
+      "ur_queue_immediate_in_order_t::enqueueKernelLaunchWithArgsExp");
+
+  bool cooperativeKernelLaunchRequested = false;
+
+  for (uint32_t propIndex = 0; propIndex < numPropsInLaunchPropList;
+       propIndex++) {
+    switch (launchPropList[propIndex].id) {
+    case UR_KERNEL_LAUNCH_PROPERTY_ID_IGNORE:
+      break;
+    case UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE:
+      if (launchPropList[propIndex].value.cooperative) {
+        cooperativeKernelLaunchRequested = true;
+      }
+      break;
+    default:
+      // We don't support any other properties.
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+  }
+
+  ur_platform_handle_t hPlatform = hContext->getPlatform();
+  bool KernelWithArgsSupported =
+      hPlatform->ZeCommandListAppendLaunchKernelWithArgumentsExt.Supported;
+  bool CooperativeCompatible =
+      hPlatform->ZeCommandListAppendLaunchKernelWithArgumentsExt
+          .DriverSupportsCooperativeKernelLaunchWithArgs;
+  bool RunNewPath =
+      KernelWithArgsSupported &&
+      (!cooperativeKernelLaunchRequested ||
+       (cooperativeKernelLaunchRequested && CooperativeCompatible));
+  if (RunNewPath) {
+    return appendKernelLaunchWithArgsExpNew(
+        hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
+        numArgs, pArgs, numEventsInWaitList, phEventWaitList, phEvent,
+        cooperativeKernelLaunchRequested);
+  } else {
+    // We cannot pass cooperativeKernelLaunchRequested to
+    // appendKernelLaunchWithArgsExpOld() because appendKernelLaunch() must
+    // check it on its own since it is called also from enqueueKernelLaunch().
+    return appendKernelLaunchWithArgsExpOld(
+        hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
+        numArgs, pArgs, numPropsInLaunchPropList, launchPropList,
+        numEventsInWaitList, phEventWaitList, phEvent);
+  }
+
   return UR_RESULT_SUCCESS;
 }

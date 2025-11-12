@@ -14,6 +14,7 @@ from pathlib import Path
 from git_project import GitProject
 from options import options
 from utils.result import BenchmarkMetadata, Result
+from utils.logger import log
 
 from .base import Benchmark, Suite, TracingType
 from .compute_metadata import ComputeMetadataGenerator
@@ -74,13 +75,18 @@ class ComputeBench(Suite):
                 self.git_hash(),
                 Path(options.workdir),
                 "compute-benchmarks",
-                force_rebuild=True,
+                use_installdir=False,
             )
+
+        if not self.project.needs_rebuild():
+            log.info(f"Rebuilding {self.project.name} skipped")
+            return
 
         extra_args = [
             f"-DBUILD_SYCL=ON",
             f"-DSYCL_COMPILER_ROOT={options.sycl}",
             f"-DALLOW_WARNINGS=ON",
+            f"-DUSE_SYSTEM_LEVEL_ZERO=OFF",
             f"-DCMAKE_CXX_COMPILER=clang++",
             f"-DCMAKE_C_COMPILER=clang",
         ]
@@ -96,7 +102,7 @@ class ComputeBench(Suite):
                 f"-Dunified-runtime_DIR={options.ur}/lib/cmake/unified-runtime",
             ]
 
-        self.project.configure(extra_args, install_prefix=False, add_sycl=True)
+        self.project.configure(extra_args, add_sycl=True)
         self.project.build(add_sycl=True)
 
     def additional_metadata(self) -> dict[str, BenchmarkMetadata]:
@@ -264,14 +270,61 @@ class ComputeBench(Suite):
                 )
             )
 
+        record_and_replay_params = product([0, 1], [0, 1])
+        for emulate, instantiate in record_and_replay_params:
+
+            def createRrBench(variant_name: str, **kwargs):
+                return RecordAndReplay(
+                    self,
+                    RUNTIMES.LEVEL_ZERO,
+                    variant_name,
+                    PROFILERS.TIMER,
+                    mRec=1,
+                    mInst=instantiate,
+                    mDest=0,
+                    emulate=emulate,
+                    **kwargs,
+                )
+
+            benches += [
+                createRrBench(
+                    "large",
+                    nForksInLvl=2,
+                    nLvls=4,
+                    nCmdSetsInLvl=10,
+                    nInstantiations=10,
+                    nAppendKern=10,
+                    nAppendCopy=1,
+                ),
+                createRrBench(
+                    "medium",
+                    nForksInLvl=1,
+                    nLvls=1,
+                    nCmdSetsInLvl=10,
+                    nInstantiations=10,
+                    nAppendKern=10,
+                    nAppendCopy=10,
+                ),
+                createRrBench(
+                    "short",
+                    nForksInLvl=1,
+                    nLvls=4,
+                    nCmdSetsInLvl=1,
+                    nInstantiations=0,
+                    nAppendKern=1,
+                    nAppendCopy=0,
+                ),
+            ]
+
         # Add UR-specific benchmarks
         benches += [
-            MemcpyExecute(self, RUNTIMES.UR, 400, 1, 102400, 10, 1, 1, 1, 1, 0),
-            MemcpyExecute(self, RUNTIMES.UR, 400, 1, 102400, 10, 0, 1, 1, 1, 0),
-            MemcpyExecute(self, RUNTIMES.UR, 100, 4, 102400, 10, 1, 1, 0, 1, 0),
-            MemcpyExecute(self, RUNTIMES.UR, 100, 4, 102400, 10, 1, 1, 0, 0, 0),
-            MemcpyExecute(self, RUNTIMES.UR, 4096, 4, 1024, 10, 0, 1, 0, 1, 0),
-            MemcpyExecute(self, RUNTIMES.UR, 4096, 4, 1024, 10, 0, 1, 0, 1, 1),
+            # TODO: multithread_benchmark_ur fails with segfault
+            # MemcpyExecute(self, RUNTIMES.UR, 400, 1, 102400, 10, 1, 1, 1, 1, 0),
+            # MemcpyExecute(self, RUNTIMES.UR, 400, 1, 102400, 10, 0, 1, 1, 1, 0),
+            # MemcpyExecute(self, RUNTIMES.UR, 100, 4, 102400, 10, 1, 1, 0, 1, 0),
+            # MemcpyExecute(self, RUNTIMES.UR, 100, 4, 102400, 10, 1, 1, 0, 0, 0),
+            # MemcpyExecute(self, RUNTIMES.UR, 4096, 4, 1024, 10, 0, 1, 0, 1, 0),
+            # MemcpyExecute(self, RUNTIMES.UR, 4096, 4, 1024, 10, 0, 1, 0, 1, 1),
             UsmMemoryAllocation(self, RUNTIMES.UR, "Device", 256, "Both"),
             UsmMemoryAllocation(self, RUNTIMES.UR, "Device", 256 * 1024, "Both"),
             UsmBatchMemoryAllocation(self, RUNTIMES.UR, "Device", 128, 256, "Both"),
@@ -304,14 +357,14 @@ class ComputeBench(Suite):
 class ComputeBenchmark(Benchmark):
     def __init__(
         self,
-        bench,
-        name,
-        test,
+        suite: ComputeBench,
+        name: str,
+        test: str,
         runtime: RUNTIMES = None,
         profiler_type: PROFILERS = PROFILERS.TIMER,
     ):
-        super().__init__(bench)
-        self.bench = bench
+        super().__init__(suite)
+        self.suite = suite
         self.bench_name = name
         self.test = test
         self.runtime = runtime
@@ -327,7 +380,7 @@ class ComputeBenchmark(Benchmark):
     @property
     def benchmark_bin(self) -> Path:
         """Returns the path to the benchmark binary"""
-        return self.bench.project.build_dir / "bin" / self.bench_name
+        return self.suite.project.build_dir / "bin" / self.bench_name
 
     def cpu_count_str(self, separator: str = "") -> str:
         # Note: SYCL CI currently relies on this "CPU count" value.
@@ -342,11 +395,12 @@ class ComputeBenchmark(Benchmark):
 
     def get_iters(self, run_trace: TracingType):
         """Returns the number of iterations to run for the given tracing type."""
-        return (
-            self.iterations_trace
-            if run_trace != TracingType.NONE
-            else self.iterations_regular
-        )
+        if options.exit_on_failure:
+            # we are just testing that the benchmark runs successfully
+            return 3
+        if run_trace == TracingType.NONE:
+            return self.iterations_regular
+        return self.iterations_trace
 
     def supported_runtimes(self) -> list[RUNTIMES]:
         """Base runtimes supported by this benchmark, can be overridden."""
@@ -432,8 +486,8 @@ class ComputeBenchmark(Benchmark):
                     command=command,
                     env=env_vars,
                     unit=unit,
-                    git_url=self.bench.git_url(),
-                    git_hash=self.bench.git_hash(),
+                    git_url=self.suite.git_url(),
+                    git_hash=self.suite.git_hash(),
                 )
             )
         return ret
@@ -640,6 +694,49 @@ class ExecImmediateCopyQueue(ComputeBenchmark):
         ]
 
 
+class RecordAndReplay(ComputeBenchmark):
+    def __init__(
+        self, suite, runtime: RUNTIMES, variant_name: str, profiler_type, **kwargs
+    ):
+        self.variant_name = variant_name
+        self.rr_params = kwargs
+        self.iterations_regular = 1000
+        self.iterations_trace = 10
+        super().__init__(
+            suite,
+            f"record_and_replay_benchmark_{runtime.value}",
+            "RecordGraph",
+            runtime,
+            profiler_type,
+        )
+
+    def explicit_group(self):
+        return f"{self.test} {self.variant_name}"
+
+    def display_name(self) -> str:
+        return f"{self.explicit_group()}_{self.runtime.value}"
+
+    def name(self):
+        ret = []
+        for k, v in self.rr_params.items():
+            if k[0] == "n":  # numeric parameter
+                ret.append(f"{k[1:]} {v}")
+            elif k[0] == "m":
+                if v != 0:  # measure parameter
+                    ret.append(f"{k[1:]}")
+            else:  # boolean parameter
+                if v != 0:
+                    ret.append(k)
+        ret.sort()
+        return self.bench_name + " " + ", ".join(ret)
+
+    def get_tags(self):
+        return ["L0"]
+
+    def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
+        return [f"--{k}={v}" for k, v in self.rr_params.items()]
+
+
 class QueueInOrderMemcpy(ComputeBenchmark):
     def __init__(self, bench, isCopyOnly, source, destination, size, profiler_type):
         self.isCopyOnly = isCopyOnly
@@ -764,6 +861,7 @@ class StreamMemory(ComputeBenchmark):
             "--contents=Zeros",
             "--multiplier=1",
             "--vectorSize=1",
+            "--lws=256",
         ]
 
 

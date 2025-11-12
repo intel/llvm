@@ -123,17 +123,17 @@
 /// preprocessor and another one joining the device linking outputs to the host
 /// action.  The same graph should be generated when no -fsycl-targets is used
 /// The same phase graph will be used with -fsycl-device-obj=llvmir
-// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
+// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASES %s
-// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
+// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASES %s
-// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-device-obj=spirv -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
+// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-device-obj=spirv -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASES %s
-// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fsycl-device-obj=spirv -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
+// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fsycl-device-obj=spirv -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASES %s
-// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-device-obj=llvmir -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
+// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-device-obj=llvmir -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASES %s
-// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fsycl-device-obj=llvmir -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
+// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fsycl-device-obj=llvmir -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASES %s
 // CHK-PHASES: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
 // CHK-PHASES: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -161,9 +161,9 @@
 /// preprocessor and another one joining the device linking outputs to the host
 /// action.  The same graph should be generated when no -fsycl-targets is used
 /// The same phase graph will be used with -fsycl-device-obj=llvmir
-// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spirv64-unknown-unknown -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
+// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spirv64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES-2,CHK-PHASES-DEFAULT-MODE-2 %s
-// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fsycl-targets=spirv64-unknown-unknown -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
+// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fsycl-targets=spirv64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES-2,CHK-PHASES-CL-MODE-2 %s
 // CHK-PHASES-2: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
 // CHK-PHASES-2: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -197,7 +197,7 @@
 
 /// Check the phases also add a library to make sure it is treated as input by
 /// the device.
-// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -lsomelib -fsycl --no-offload-new-driver -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
+// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -lsomelib -fsycl --no-offload-new-driver -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASES-LIB %s
 // CHK-PHASES-LIB: 0: input, "somelib", object, (host-sycl)
 // CHK-PHASES-LIB: 1: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
@@ -229,7 +229,7 @@
 
 /// Check the phases when using and multiple source files
 // RUN:   echo " " > %t.c
-// RUN:   %clang -ccc-print-phases -lsomelib -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s %t.c 2>&1 \
+// RUN:   %clang -ccc-print-phases -lsomelib -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s %t.c 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASES-FILES %s
 // CHK-PHASES-FILES: 0: input, "somelib", object, (host-sycl)
 // CHK-PHASES-FILES: 1: input, "[[INPUT1:.+\.c]]", c++, (host-sycl)
@@ -280,13 +280,13 @@
 
 /// Check separate compilation with offloading - unbundling actions
 // RUN:   touch %t.o
-// RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -o %t.out -lsomelib -fsycl-targets=spir64-unknown-unknown %t.o 2>&1 \
+// RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib -o %t.out -lsomelib -fsycl-targets=spir64-unknown-unknown %t.o 2>&1 \
 // RUN:   | FileCheck -DINPUT=%t.o -check-prefix=CHK-UBACTIONS %s
-// RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -o %t.out -lsomelib -fsycl-targets=spir64 %t.o 2>&1 \
+// RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib -o %t.out -lsomelib -fsycl-targets=spir64 %t.o 2>&1 \
 // RUN:   | FileCheck -DINPUT=%t.o -check-prefix=CHK-UBACTIONS %s
 // RUN:   mkdir -p %t_dir
 // RUN:   touch %t_dir/dummy
-// RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -o %t.out -lsomelib -fsycl-targets=spir64-unknown-unknown %t_dir/dummy 2>&1 \
+// RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib -o %t.out -lsomelib -fsycl-targets=spir64-unknown-unknown %t_dir/dummy 2>&1 \
 // RUN:   | FileCheck -DINPUT=%t_dir/dummy -check-prefix=CHK-UBACTIONS %s
 // CHK-UBACTIONS: 0: input, "somelib", object, (host-sycl)
 // CHK-UBACTIONS: 1: input, "[[INPUT]]", object, (host-sycl)
@@ -305,7 +305,7 @@
 
 /// Check separate compilation with offloading - unbundling with source
 // RUN:   touch %t.o
-// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -lsomelib -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %t.o -fsycl-targets=spir64-unknown-unknown %s 2>&1 \
+// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -lsomelib -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib %t.o -fsycl-targets=spir64-unknown-unknown %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-UBUACTIONS %s
 // CHK-UBUACTIONS: 0: input, "somelib", object, (host-sycl)
 // CHK-UBUACTIONS: 1: input, "[[INPUT1:.+\.o]]", object, (host-sycl)
@@ -355,9 +355,9 @@
 
 /// Check -fsycl-link behaviors unbundle
 // RUN:   touch %t.o
-// RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -o %t.out -fsycl-link -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %t.o 2>&1 \
+// RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -o %t.out -fsycl-link -fno-sycl-instrument-device-code --no-offloadlib %t.o 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK-UB %s
-// RUN:   %clang_cl -### -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -o %t.out -fsycl-link -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %t.o 2>&1 \
+// RUN:   %clang_cl -### -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -o %t.out -fsycl-link -fno-sycl-instrument-device-code --no-offloadlib %t.o 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK-UB %s
 // CHK-LINK-UB: 0: input, "[[INPUT:.+\.o]]", object
 // CHK-LINK-UB: 1: clang-offload-unbundler, {0}, object
@@ -375,11 +375,11 @@
 /// Check -fsycl-link tool calls
 // RUN:   %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -o %t.out \
 // RUN:            -fsycl-targets=spir64_gen -fsycl-link \
-// RUN:            -fno-sycl-device-lib=all %t.o 2>&1 \
+// RUN:            --no-offloadlib %t.o 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-FSYCL-LINK-UB,CHK-FSYCL-LINK-UB-LIN %s
 // RUN:   %clang_cl -### --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -o %t.out \
 // RUN:            -fsycl-targets=spir64_gen -fsycl-link \
-// RUN:            -fno-sycl-device-lib=all %t.o 2>&1 \
+// RUN:            --no-offloadlib %t.o 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-FSYCL-LINK-UB,CHK-FSYCL-LINK-UB-WIN %s
 // CHK-FSYCL-LINK-UB: clang-offload-bundler{{.*}} "-type=o" "-targets=host{{.*}},sycl-spir64_gen-unknown-unknown" "-input=[[INPUT:.+\.o]]" "-output={{.*}}" "-output=[[DEVICE_O:.+]]" "-unbundle"
 // CHK-FSYCL-LINK-UB: spirv-to-ir-wrapper{{.*}} "[[DEVICE_O]]" "-o" "[[DEVICE_BC:.+\.bc]]"
@@ -396,11 +396,11 @@
 /// Check -fsycl-link AOT unbundle
 // RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu \
 // RUN:     -fsycl --no-offload-new-driver -o %t.out -fsycl-link -fno-sycl-instrument-device-code \
-// RUN:     -fsycl-targets=spir64_gen -fno-sycl-device-lib=all %t.o 2>&1 \
+// RUN:     -fsycl-targets=spir64_gen --no-offloadlib %t.o 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK-AOT-UB %s
 // RUN:   %clang_cl -### -ccc-print-phases --target=x86_64-pc-windows-msvc \
 // RUN:     -fsycl --no-offload-new-driver -o %t.out -fsycl-link -fno-sycl-instrument-device-code \
-// RUN:     -fsycl-targets=spir64_gen -fno-sycl-device-lib=all %t.o 2>&1 \
+// RUN:     -fsycl-targets=spir64_gen --no-offloadlib %t.o 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK-AOT-UB %s
 // CHK-LINK-AOT-UB: 0: input, "[[INPUT:.+\.o]]", object
 // CHK-LINK-AOT-UB: 1: clang-offload-unbundler, {0}, object
@@ -420,12 +420,12 @@
 // RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu \
 // RUN:     -fsycl --no-offload-new-driver -o %t.out -fsycl-link -fno-sycl-instrument-device-code \
 // RUN:     -fsycl-targets=spir64_gen,spir64 \
-// RUN:     -fno-sycl-device-lib=all %t.o 2>&1 \
+// RUN:     --no-offloadlib %t.o 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK-AOT-JIT-UB %s
 // RUN:   %clang_cl -### -ccc-print-phases --target=x86_64-pc-windows-msvc \
 // RUN:     -fsycl --no-offload-new-driver -o %t.out -fsycl-link -fno-sycl-instrument-device-code \
 // RUN:     -fsycl-targets=spir64_gen,spir64 \
-// RUN:     -fno-sycl-device-lib=all %t.o 2>&1 \
+// RUN:     --no-offloadlib %t.o 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK-AOT-JIT-UB %s
 // CHK-LINK-AOT-JIT-UB: 0: input, "[[INPUT:.+\.o]]", object
 // CHK-LINK-AOT-JIT-UB: 1: clang-offload-unbundler, {0}, object
@@ -451,9 +451,9 @@
 /// ###########################################################################
 
 /// Check -fsycl-link behaviors from source
-// RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -o %t.out -fsycl-link -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
+// RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -o %t.out -fsycl-link -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK %s
-// RUN:   %clang_cl -### -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -o %t.out -fsycl-link -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
+// RUN:   %clang_cl -### -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -o %t.out -fsycl-link -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK %s
 // CHK-LINK: 0: input, "[[INPUT:.+\.c]]", c++, (device-sycl)
 // CHK-LINK: 1: preprocessor, {0}, c++-cpp-output, (device-sycl)
@@ -603,7 +603,7 @@
 /// ###########################################################################
 
 /// Verify that triple-boundarch pairs are correct with multi-targetting
-// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all \
+// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib \
 // RUN:    -fsycl-targets=nvptx64-nvidia-cuda,spir64 -ccc-print-phases --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
 // RUN:    -fsycl-libspirv-path=%S/Inputs/SYCL/share/clc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG-BOUND-ARCH %s
@@ -621,28 +621,27 @@
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 11: compiler, {10}, ir, (device-sycl, sm_50)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 12: linker, {11}, ir, (device-sycl, sm_50)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 13: input, "{{.*}}libspirv-nvptx64{{.*}}", ir, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 14: input, "{{.*}}libdevice{{.*}}", ir, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 15: linker, {12, 13, 14}, ir, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 16: sycl-post-link, {15}, ir, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 17: file-table-tform, {16}, ir, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 18: backend, {17}, assembler, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 19: assembler, {18}, object, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 20: linker, {18, 19}, cuda-fatbin, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 21: foreach, {17, 20}, cuda-fatbin, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 22: file-table-tform, {16, 21}, tempfiletable, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 23: clang-offload-wrapper, {22}, object, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 24: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {23}, object
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 25: linker, {4}, ir, (device-sycl)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 26: sycl-post-link, {25}, tempfiletable, (device-sycl)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 27: file-table-tform, {26}, tempfilelist, (device-sycl)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 28: llvm-spirv, {27}, tempfilelist, (device-sycl)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 29: file-table-tform, {26, 28}, tempfiletable, (device-sycl)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 30: clang-offload-wrapper, {29}, object, (device-sycl)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 31: offload, "device-sycl (spir64-unknown-unknown)" {30}, object
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 32: linker, {8, 24, 31}, image, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 14: linker, {12, 13}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 15: sycl-post-link, {14}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 16: file-table-tform, {15}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 17: backend, {16}, assembler, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 18: assembler, {17}, object, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 19: linker, {17, 18}, cuda-fatbin, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 20: foreach, {16, 19}, cuda-fatbin, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 21: file-table-tform, {15, 20}, tempfiletable, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 22: clang-offload-wrapper, {21}, object, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 23: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {22}, object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 24: linker, {4}, ir, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 25: sycl-post-link, {24}, tempfiletable, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 26: file-table-tform, {25}, tempfilelist, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 27: llvm-spirv, {26}, tempfilelist, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 28: file-table-tform, {25, 27}, tempfiletable, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 29: clang-offload-wrapper, {28}, object, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 30: offload, "device-sycl (spir64-unknown-unknown)" {29}, object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 31: linker, {8, 23, 30}, image, (host-sycl)
 
 // RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl \
-// RUN:    -fno-sycl-instrument-device-code -fno-sycl-device-lib=all \
+// RUN:    -fno-sycl-instrument-device-code --no-offloadlib \
 // RUN:    -fsycl-targets=nvptx64-nvidia-cuda,spir64_gen \
 // RUN:    --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
 // RUN:    -fsycl-libspirv-path=%S/Inputs/SYCL/share/clc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
@@ -663,30 +662,29 @@
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 11: compiler, {10}, ir, (device-sycl, sm_50)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 12: linker, {11}, ir, (device-sycl, sm_50)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 13: input, "{{.*}}libspirv-nvptx64{{.*}}", ir, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 14: input, "{{.*}}libdevice{{.*}}", ir, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 15: linker, {12, 13, 14}, ir, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 16: sycl-post-link, {15}, ir, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 17: file-table-tform, {16}, ir, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 18: backend, {17}, assembler, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 19: assembler, {18}, object, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 20: linker, {18, 19}, cuda-fatbin, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 21: foreach, {17, 20}, cuda-fatbin, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 22: file-table-tform, {16, 21}, tempfiletable, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 23: clang-offload-wrapper, {22}, object, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 24: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {23}, object
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 25: linker, {4}, ir, (device-sycl)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 26: sycl-post-link, {25}, tempfiletable, (device-sycl)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 27: file-table-tform, {26}, tempfilelist, (device-sycl)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 28: llvm-spirv, {27}, tempfilelist, (device-sycl)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 29: backend-compiler, {28}, image, (device-sycl)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 30: file-table-tform, {26, 29}, tempfiletable, (device-sycl)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 31: clang-offload-wrapper, {30}, object, (device-sycl)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 32: offload, "device-sycl (spir64_gen-unknown-unknown)" {31}, object
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 33: linker, {8, 24, 32}, image, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 14: linker, {12, 13}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 15: sycl-post-link, {14}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 16: file-table-tform, {15}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 17: backend, {16}, assembler, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 18: assembler, {17}, object, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 19: linker, {17, 18}, cuda-fatbin, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 20: foreach, {16, 19}, cuda-fatbin, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 21: file-table-tform, {15, 20}, tempfiletable, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 22: clang-offload-wrapper, {21}, object, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 23: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {22}, object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 24: linker, {4}, ir, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 25: sycl-post-link, {24}, tempfiletable, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 26: file-table-tform, {25}, tempfilelist, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 27: llvm-spirv, {26}, tempfilelist, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 28: backend-compiler, {27}, image, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 29: file-table-tform, {25, 28}, tempfiletable, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 30: clang-offload-wrapper, {29}, object, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 31: offload, "device-sycl (spir64_gen-unknown-unknown)" {30}, object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 32: linker, {8, 23, 31}, image, (host-sycl)
 
 /// Check the behaviour however with swapped -fsycl-targets
 // RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver \
-// RUN:    -fno-sycl-instrument-device-code -fno-sycl-device-lib=all \
+// RUN:    -fno-sycl-instrument-device-code --no-offloadlib \
 // RUN:    --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
 // RUN:    -fsycl-libspirv-path=%S/Inputs/SYCL/share/clc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
 // RUN:    -fsycl-targets=spir64,nvptx64-nvidia-cuda -ccc-print-phases %s 2>&1 \
@@ -712,24 +710,23 @@
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 18: offload, "device-sycl (spir64-unknown-unknown)" {17}, object
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 19: linker, {4}, ir, (device-sycl, sm_50)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 20: input, "{{.*}}libspirv-nvptx64{{.*}}", ir, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 21: input, "{{.*}}libdevice{{.*}}", ir, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 22: linker, {19, 20, 21}, ir, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 23: sycl-post-link, {22}, ir, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 24: file-table-tform, {23}, ir, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 25: backend, {24}, assembler, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 26: assembler, {25}, object, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 27: linker, {25, 26}, cuda-fatbin, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 28: foreach, {24, 27}, cuda-fatbin, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 29: file-table-tform, {23, 28}, tempfiletable, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 30: clang-offload-wrapper, {29}, object, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 31: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {30}, object
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 32: linker, {8, 18, 31}, image, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 21: linker, {19, 20}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 22: sycl-post-link, {21}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 23: file-table-tform, {22}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 24: backend, {23}, assembler, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 25: assembler, {24}, object, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 26: linker, {24, 25}, cuda-fatbin, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 27: foreach, {23, 26}, cuda-fatbin, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 28: file-table-tform, {22, 27}, tempfiletable, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 29: clang-offload-wrapper, {28}, object, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 30: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {29}, object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 31: linker, {8, 18, 30}, image, (host-sycl)
 
 /// ###########################################################################
 
 // Check if valid bound arch behaviour occurs when compiling for spir-v,nvidia-gpu, and amd-gpu
 // RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver \
-// RUN:    -fno-sycl-instrument-device-code -fno-sycl-device-lib=all \
+// RUN:    -fno-sycl-instrument-device-code --no-offloadlib \
 // RUN:    --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
 // RUN:    -fsycl-libspirv-path=%S/Inputs/SYCL/share/clc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
 // RUN:    -fsycl-targets=spir64,nvptx64-nvidia-cuda,amdgcn-amd-amdhsa \
@@ -760,29 +757,28 @@
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 21: compiler, {20}, ir, (device-sycl, sm_75)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 22: linker, {21}, ir, (device-sycl, sm_75)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 23: input, "{{.*}}libspirv-nvptx64{{.*}}", ir, (device-sycl, sm_75)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 24: input, "{{.*}}libdevice{{.*}}", ir, (device-sycl, sm_75)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 25: linker, {22, 23, 24}, ir, (device-sycl, sm_75)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 26: sycl-post-link, {25}, ir, (device-sycl, sm_75)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 27: file-table-tform, {26}, ir, (device-sycl, sm_75)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 28: backend, {27}, assembler, (device-sycl, sm_75)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 29: assembler, {28}, object, (device-sycl, sm_75)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 30: linker, {28, 29}, cuda-fatbin, (device-sycl, sm_75)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 31: foreach, {27, 30}, cuda-fatbin, (device-sycl, sm_75)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 32: file-table-tform, {26, 31}, tempfiletable, (device-sycl, sm_75)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 33: clang-offload-wrapper, {32}, object, (device-sycl, sm_75)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 34: offload, "device-sycl (nvptx64-nvidia-cuda:sm_75)" {33}, object
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 35: linker, {4}, ir, (device-sycl, gfx908)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 36: sycl-post-link, {35}, ir, (device-sycl, gfx908)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 37: file-table-tform, {36}, ir, (device-sycl, gfx908)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 38: backend, {37}, assembler, (device-sycl, gfx908)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 39: assembler, {38}, object, (device-sycl, gfx908)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 40: linker, {39}, image, (device-sycl, gfx908)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 41: linker, {40}, hip-fatbin, (device-sycl, gfx908)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 42: foreach, {37, 41}, hip-fatbin, (device-sycl, gfx908)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 43: file-table-tform, {36, 42}, tempfiletable, (device-sycl, gfx908)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 44: clang-offload-wrapper, {43}, object, (device-sycl, gfx908)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 45: offload, "device-sycl (amdgcn-amd-amdhsa:gfx908)" {44}, object
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 46: linker, {8, 18, 34, 45}, image, (host-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 24: linker, {22, 23}, ir, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 25: sycl-post-link, {24}, ir, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 26: file-table-tform, {25}, ir, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 27: backend, {26}, assembler, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 28: assembler, {27}, object, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 29: linker, {27, 28}, cuda-fatbin, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 30: foreach, {26, 29}, cuda-fatbin, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 31: file-table-tform, {25, 30}, tempfiletable, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 32: clang-offload-wrapper, {31}, object, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 33: offload, "device-sycl (nvptx64-nvidia-cuda:sm_75)" {32}, object
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 34: linker, {4}, ir, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 35: sycl-post-link, {34}, ir, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 36: file-table-tform, {35}, ir, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 37: backend, {36}, assembler, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 38: assembler, {37}, object, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 39: linker, {38}, image, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 40: linker, {39}, hip-fatbin, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 41: foreach, {36, 40}, hip-fatbin, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 42: file-table-tform, {35, 41}, tempfiletable, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 43: clang-offload-wrapper, {42}, object, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 44: offload, "device-sycl (amdgcn-amd-amdhsa:gfx908)" {43}, object
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 45: linker, {8, 18, 33, 44}, image, (host-sycl)
 
 /// -fsycl --no-offload-new-driver with /Fo testing
 // RUN: %clang_cl -fsycl --no-offload-new-driver /Fosomefile.obj -c %s -### 2>&1 \
@@ -794,9 +790,9 @@
 /// passing of a library should not trigger the unbundler
 // RUN: touch %t.a
 // RUN: touch %t.lib
-// RUN: %clang -ccc-print-phases -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %t.a %s 2>&1 \
+// RUN: %clang -ccc-print-phases -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib %t.a %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=LIB-UNBUNDLE-CHECK %s
-// RUN: %clang_cl -ccc-print-phases -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %t.lib %s 2>&1 \
+// RUN: %clang_cl -ccc-print-phases -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib %t.lib %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=LIB-UNBUNDLE-CHECK %s
 // LIB-UNBUNDLE-CHECK-NOT: clang-offload-unbundler
 
