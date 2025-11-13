@@ -7,7 +7,7 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
-; CHECK-SPIRV-DAG: Name [[#Fun:]] "kernel"
+; CHECK-SPIRV-DAG: EntryPoint [[#]] [[#Fun:]] "kernel"
 ; CHECK-SPIRV-DAG: Decorate [[#Param:]] FuncParamAttr 2
 ; CHECK-SPIRV-DAG: TypeUntypedPointerKHR [[#UntypedPtrTy:]] 7
 ; CHECK-SPIRV-DAG: TypeStruct [[#StructTy:]]
