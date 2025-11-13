@@ -2154,7 +2154,7 @@ public:
   }
 
   // Note: the following trivial identity function is used to avoid the issue
-  // that line "const auto &KernelObj = (Rest, ...);"" in
+  // that line "const auto &KernelObj = (Rest, ...);" in
   // property_deduction_helper may result in a "left operand of comma operator
   // has no effect" error for certain compiler(s)
   template <typename T> constexpr inline T identity_func(T t) { return t; }
