@@ -409,7 +409,7 @@ using counter-based events:
   Each call to `zeCommandListAppendSignalEvent` can pass this same
   `ze_event_handle_t`, thus reusing the backend event across many calls.
 
-However, standard events to not directly map because a standard Level Zero event
+However, standard events do not directly map because a standard Level Zero event
 _E_ cannot be passed to `zeCommandListAppendSignalEvent` until all previous
 "signal" operations on _E_ have completed and all previous commands using _E_
 as a "wait event" (i.e. dependency) have completed.
@@ -417,6 +417,31 @@ To compensate for this, the runtime can track the lifetime of the backend event.
 If the backend event associated with `enqueue_signal_event` is still in use,
 the runtime can disassociate that backend event from the SYCL event, and
 allocate a new backend event.
+
+A counter-based event, however, cannot be used to signal a command in an
+out-of-order queue.
+Therefore, the implementation currently uses standard events for out-of-order
+queues and counter-based events for in-order queues.
+This presents a problem for the `make_event` function because we do not know
+whether the event will be used with an in-order vs. an out-of-order queue at the
+point when it is created.
+One option is to require the application to pass a property to `make_event`
+telling whether the event will be used to signal an in-order vs. an out-of-order
+queue.
+Doing this is less convenient for the user, though.
+Instead, `make_event` can always create a counter-based event when the backend
+is Level Zero.
+If the application later uses the SYCL event to signal a command from an
+out-of-order queue, the implementation can release the backend counter-based
+event and allocate a standard-event instead.
+This optimizes for the case of in-order queues and adds a bit of overhead to
+the case when the queue is out-of-order.
+However, this is consistent with our strategy to favor in-order queues as the
+optimal path.
+Alternatively, `make_event` could simply not allocate any backend event,
+delaying this until the first time the event is used to signal a command.
+At that point, we do know whether the event will signal an out-of-order vs. an
+in order queue, so we can create the right type of backend event.
 
 === Mapping on OpenCL
 
