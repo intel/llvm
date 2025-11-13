@@ -357,12 +357,11 @@ public:
   // Produces set of device images by convering input device images to object
   // the executable state
   std::vector<device_image_plain>
-  link(sycl::span<const device_image_plain, dynamic_extent> Imgs,
-       devices_range Devs, const property_list &PropList,
-       bool AllowUnresolvedSymbols = false);
+  link(sycl::span<const device_image_plain> Imgs, devices_range Devs,
+       const property_list &PropList, bool AllowUnresolvedSymbols = false);
 
   // Dynamically links images in executable state.
-  void dynamicLink(sycl::span<const device_image_plain, dynamic_extent> Imgs);
+  void dynamicLink(sycl::span<const device_image_plain> Imgs);
 
   // Produces new device image by converting input device image to the
   // executable state

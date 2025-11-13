@@ -61,6 +61,8 @@ inline bool checkAllDevicesHaveAspect(devices_range Devices, aspect Aspect) {
                      [&Aspect](device_impl &Dev) { return Dev.has(Aspect); });
 }
 
+// Creates a link graph where the edges represent the relationship between
+// imported and exported symbols in the provided images.
 inline LinkGraph<device_image_plain>
 CreateLinkGraph(const std::vector<device_image_plain> &DevImages) {
   // Create a map between exported symbols and their indices in the device
@@ -340,7 +342,8 @@ public:
         std::set<device_image_impl *> DevImagesSet;
         for (const kernel_bundle<bundle_state::object> &ObjectBundle :
              ObjectBundles) {
-          auto &ObjectBundleImpl = getSyclObjImpl(ObjectBundle);
+          const std::shared_ptr<detail::kernel_bundle_impl> &ObjectBundleImpl =
+              getSyclObjImpl(ObjectBundle);
 
           // Firstly find all suitable AOT binaries, if the object bundle was
           // made from SYCLBIN.
@@ -402,9 +405,10 @@ public:
         }
 
         DevImages.reserve(DevImages.size() + DevImagesSet.size());
-        for (auto It = DevImagesSet.begin(); It != DevImagesSet.end();)
-          DevImages.push_back(createSyclObjFromImpl<device_image_plain>(
-              *DevImagesSet.extract(It++).value()));
+        for (auto It = std::make_move_iterator(DevImagesSet.begin()),
+                  End = std::make_move_iterator(DevImagesSet.end());
+             It != End; ++It)
+          DevImages.push_back(createSyclObjFromImpl<device_image_plain>(**It));
 
         // Check for conflicting kernels in RTC kernel bundles.
         ThrowIfConflictingKernels(DevImages);
@@ -519,8 +523,8 @@ public:
 
       const std::vector<device_image_plain> &AllDevImgs =
           DeviceImageWithDeps->getAll();
-      sycl::span<const device_image_plain, dynamic_extent> AllDevImgsSpan(
-          AllDevImgs.data(), AllDevImgs.size());
+      sycl::span<const device_image_plain> AllDevImgsSpan(AllDevImgs.data(),
+                                                          AllDevImgs.size());
       std::vector<device_image_plain> LinkedResults =
           detail::ProgramManager::getInstance().link(AllDevImgsSpan, MDevices,
                                                      PropList);
@@ -1214,7 +1218,8 @@ private:
 
     std::vector<const RTDeviceBinaryImage *> Result;
     for (auto &SYCLBIN : MSYCLBINs) {
-      auto NativeBinImgs = SYCLBIN->getNativeBinaryImages(Dev);
+      std::vector<const RTDeviceBinaryImage *> NativeBinImgs =
+          SYCLBIN->getNativeBinaryImages(Dev);
       Result.insert(Result.end(), NativeBinImgs.begin(), NativeBinImgs.end());
     }
 

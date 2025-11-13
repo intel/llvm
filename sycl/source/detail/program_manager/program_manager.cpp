@@ -2919,7 +2919,7 @@ ProgramManager::compile(const DevImgPlainWithDeps &ImgWithDeps,
 // Returns a merged device binary image, new set of kernel IDs and new
 // specialization constant data.
 static const RTDeviceBinaryImage *
-mergeImageData(sycl::span<const device_image_plain, dynamic_extent> Imgs,
+mergeImageData(sycl::span<const device_image_plain> Imgs,
                std::vector<kernel_id> &KernelIDs,
                std::vector<unsigned char> &NewSpecConstBlob,
                device_image_impl::SpecConstMapT &NewSpecConstMap,
@@ -2980,7 +2980,7 @@ mergeImageData(sycl::span<const device_image_plain, dynamic_extent> Imgs,
 }
 
 std::vector<device_image_plain>
-ProgramManager::link(sycl::span<const device_image_plain, dynamic_extent> Imgs,
+ProgramManager::link(sycl::span<const device_image_plain> Imgs,
                      devices_range Devs, const property_list &PropList,
                      bool AllowUnresolvedSymbols) {
   {
@@ -3100,8 +3100,7 @@ ProgramManager::link(sycl::span<const device_image_plain, dynamic_extent> Imgs,
       std::move(MergedImageStorage)))};
 }
 
-void ProgramManager::dynamicLink(
-    sycl::span<const device_image_plain, dynamic_extent> Imgs) {
+void ProgramManager::dynamicLink(sycl::span<const device_image_plain> Imgs) {
   if (Imgs.empty())
     return;
 
@@ -3111,10 +3110,10 @@ void ProgramManager::dynamicLink(
     URPrograms.push_back(getSyclObjImpl(Img)->get_ur_program());
 
   device_image_impl &FirstImgImpl = *getSyclObjImpl(Imgs[0]);
-  context_impl &ContextImpl = *getSyclObjImpl(FirstImgImpl.get_context());
-  adapter_impl &Adapter = ContextImpl.getAdapter();
-  Adapter.call<UrApiKind::urProgramDynamicLinkExp>(
-      ContextImpl.getHandleRef(), URPrograms.size(), URPrograms.data());
+  auto [URCtx, Adapter] =
+      get_ur_handles(*getSyclObjImpl(FirstImgImpl.get_context()));
+  Adapter->call<UrApiKind::urProgramDynamicLinkExp>(URCtx, URPrograms.size(),
+                                                    URPrograms.data());
 }
 
 // The function duplicates most of the code from existing getBuiltPIProgram.
