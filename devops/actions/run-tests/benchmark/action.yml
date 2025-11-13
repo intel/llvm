@@ -231,6 +231,9 @@ runs:
       WORKDIR="$(realpath ./llvm_test_workdir)"
       if [ -n "$WORKDIR" ] && [ -d "$WORKDIR" ] && [[ "$WORKDIR" == *llvm_test_workdir* ]]; then rm -rf "$WORKDIR" ; fi
 
+      # Clean up potentially existing, old summary file
+      [ -f "github_summary.md" ] && rm github_summary.md
+
       numactl --cpunodebind "$NUMA_NODE" --membind "$NUMA_NODE" \
       ./devops/scripts/benchmarks/main.py "$WORKDIR" \
         --sycl "$(realpath ./toolchain)" \
@@ -243,6 +246,7 @@ runs:
         --preset "$PRESET" \
         --timestamp-override "$SAVE_TIMESTAMP" \
         --detect-version sycl,compute_runtime \
+        --produce-github-summary \
         ${{ inputs.exit_on_failure == 'true' && '--exit-on-failure --iterations 1' || '' }}
       # TODO: add back: "--flamegraph inclusive" once works properly
 
