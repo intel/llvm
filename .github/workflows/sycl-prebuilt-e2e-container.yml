@@ -94,7 +94,7 @@ jobs:
     name: Run E2E tests with SYCL RT they were built with
     runs-on: [Linux, pvc]
     needs: [docker, build]
-    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
     container:
       image: ghcr.io/${{ github.repository }}/sycl_prebuilt_tests:${{ inputs.ref || github.ref_name }}
       options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN

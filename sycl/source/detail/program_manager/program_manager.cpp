@@ -3878,7 +3878,7 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
   return ((ArchName == CompileTarget) ||
           (CompileTarget == "spir64_x86_64" &&
            (ArchName == "x86_64" || ArchName == "intel_cpu_spr" ||
-            ArchName == "intel_cpu_gnr")));
+            ArchName == "intel_cpu_gnr" || ArchName == "intel_cpu_dmr")));
 }
 
 } // namespace detail
