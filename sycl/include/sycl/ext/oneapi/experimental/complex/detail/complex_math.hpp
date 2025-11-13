@@ -493,22 +493,20 @@ template <class _Tp>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
     typename std::enable_if_t<is_genfloat<_Tp>::value, complex<_Tp>>
     tanh(const complex<_Tp> &__x) {
-  if (sycl::isinf(__x.real())) {
-    if (!sycl::isfinite(__x.imag()))
-      return complex<_Tp>(sycl::copysign(_Tp(1), __x.real()), _Tp(0));
+  if (sycl::isinf(__x.real()))
     return complex<_Tp>(sycl::copysign(_Tp(1), __x.real()),
-                        sycl::copysign(_Tp(0), sycl::sin(_Tp(2) * __x.imag())));
-  }
+                        sycl::copysign(_Tp(0), sycl::isfinite(__x.imag())
+                                                   ? sin(_Tp(2) * __x.imag())
+                                                   : _Tp(1)));
   if (sycl::isnan(__x.real()) && __x.imag() == 0)
     return __x;
-  _Tp __2r(_Tp(2) * __x.real());
-  _Tp __2i(_Tp(2) * __x.imag());
-  _Tp __d(sycl::cosh(__2r) + sycl::cos(__2i));
-  _Tp __2rsh(sycl::sinh(__2r));
-  if (sycl::isinf(__2rsh) && sycl::isinf(__d))
-    return complex<_Tp>(__2rsh > _Tp(0) ? _Tp(1) : _Tp(-1),
-                        __2i > _Tp(0) ? _Tp(0) : _Tp(-0.));
-  return complex<_Tp>(__2rsh / __d, sycl::sin(__2i) / __d);
+  complex<_Tp> sinh_x = sinh(__x);
+  complex<_Tp> cosh_x = cosh(__x);
+  if (sycl::isinf(sinh_x.real()) && sycl::isinf(cosh_x.real()))
+    return complex<_Tp>(sinh_x.real() * cosh_x.real() > _Tp(0) ? _Tp(1)
+                                                               : _Tp(-1),
+                        __x.imag() > _Tp(0) ? _Tp(0) : _Tp(-0.));
+  return sinh_x / cosh_x;
 }
 
 // asin
