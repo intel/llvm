@@ -51,7 +51,7 @@ jobs:
   build:
     name: Self build
     needs: [detect_changes]
-    if: always() && success()
+    if: success()
     uses: ./.github/workflows/sycl-linux-build.yml
     with:
       build_ref: ${{ github.sha }}
@@ -70,7 +70,7 @@ jobs:
   # Build and run native cpu e2e tests separately as cannot currently
   # build all the e2e tests
   build_run_native_cpu_e2e_tests:
-    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}  
+    if: ${{ !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
     runs-on: [Linux, build]
     needs: [build]
     container:
@@ -109,7 +109,7 @@ jobs:
   # The idea is to ensure that the code works with both CUDA versions.
   build_ubuntu2204:
     needs: [detect_changes]
-    if: always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur_cuda_adapter')
+    if: ${{ !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur_cuda_adapter') }}
     uses: ./.github/workflows/sycl-linux-build.yml
     with:
       build_ref: ${{ github.sha }}
@@ -143,7 +143,7 @@ jobs:
 
   E2E:
     needs: [build, detect_changes, compat_read_exclude]
-    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
     permissions:
       contents: write
       packages: read
@@ -242,7 +242,7 @@ jobs:
       contents: write
       packages: read
     if: |
-      always() && !cancelled()
+      !cancelled()
       && needs.build.outputs.build_conclusion == 'success'
       && (contains(github.event.pull_request.labels.*.name, 'run-perf-tests')
           || contains(needs.detect_changes.outputs.filters, 'perf-tests'))

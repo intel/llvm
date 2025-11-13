@@ -5,8 +5,8 @@ name: SYCL Run Benchmarks
 
 on:
   schedule:
-    # 3 hours ahead of SYCL nightly
-    - cron: '0 0 * * *'
+    # 2 hours after SYCL nightly
+    - cron: '0 5 * * *'
   # Run on pull requests only when a benchmark-related files were changed.
   pull_request:
     # These paths are exactly the same as in sycl-linux/windows-precommit.yml (to ignore over there)
@@ -164,7 +164,7 @@ jobs:
     permissions:
       contents: write
       packages: read
-    if: always() && !cancelled() && needs.build_sycl_dispatch.outputs.build_conclusion == 'success'
+    if: ${{ !cancelled() && needs.build_sycl_dispatch.outputs.build_conclusion == 'success' }}
     strategy:
       matrix:
         include:
@@ -210,7 +210,7 @@ jobs:
     permissions:
       contents: write
       packages: read
-    if: always() && !cancelled() && needs.build_nightly.outputs.build_conclusion == 'success'
+    if: ${{ !cancelled() && needs.build_nightly.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
       matrix:
@@ -238,30 +238,14 @@ jobs:
       toolchain_decompress_command: ${{ needs.build_nightly.outputs.toolchain_decompress_command }}
   # END nightly benchmarking path
 
-  # Benchmark framework builds and runs on PRs path:
-  build_pr:
-    name: '[PR] Build SYCL'
-    if: github.event_name == 'pull_request'
-    uses: ./.github/workflows/sycl-linux-build.yml
-    with:
-      build_ref: ${{ github.sha }}
-      build_cache_root: "/__w/"
-      build_cache_suffix: "default"
-      # Docker image has last nightly pre-installed and added to the PATH
-      build_image: "ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest"
-      cc: clang
-      cxx: clang++
-      changes: '[]'
-      toolchain_artifact: sycl_linux_default
-
+  # BEGIN benchmark framework builds and runs on PRs path
   # TODO: When we have stable BMG runner(s), consider moving this job to that runner.
   test_benchmark_framework:
     name: '[PR] Benchmark suite testing'
-    needs: [build_pr]
     permissions:
       contents: write
       packages: read
-    if: always() && !cancelled() && needs.build_pr.outputs.build_conclusion == 'success'
+    if: github.event_name == 'pull_request'
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: 'Framework test: PVC_PERF, L0, Minimal preset'
@@ -275,7 +259,4 @@ jobs:
       benchmark_dry_run: true
       benchmark_exit_on_failure: true
       repo_ref: ${{ github.sha }}
-      toolchain_artifact: ${{ needs.build_pr.outputs.toolchain_artifact }}
-      toolchain_artifact_filename: ${{ needs.build_pr.outputs.toolchain_artifact_filename }}
-      toolchain_decompress_command: ${{ needs.build_pr.outputs.toolchain_decompress_command }}
   # END benchmark framework builds and runs on PRs path

@@ -548,9 +548,9 @@ void SPIRVModuleAnalysis::collectFuncNames(MachineInstr &MI,
   if (MI.getOpcode() == SPIRV::OpDecorate) {
     // If it's got Import linkage.
     auto Dec = MI.getOperand(1).getImm();
-    if (Dec == static_cast<unsigned>(SPIRV::Decoration::LinkageAttributes)) {
+    if (Dec == SPIRV::Decoration::LinkageAttributes) {
       auto Lnk = MI.getOperand(MI.getNumOperands() - 1).getImm();
-      if (Lnk == static_cast<unsigned>(SPIRV::LinkageType::Import)) {
+      if (Lnk == SPIRV::LinkageType::Import) {
         // Map imported function name to function ID register.
         const Function *ImportedFunc =
             F->getParent()->getFunction(getStringImm(MI, 2));
@@ -636,7 +636,7 @@ static void collectOtherInstr(MachineInstr &MI, SPIRV::ModuleAnalysisInfo &MAI,
 void SPIRVModuleAnalysis::processOtherInstrs(const Module &M) {
   InstrTraces IS;
   for (auto F = M.begin(), E = M.end(); F != E; ++F) {
-    if ((*F).isDeclaration())
+    if (F->isDeclaration())
       continue;
     MachineFunction *MF = MMI->getMachineFunction(*F);
     assert(MF);
@@ -1201,6 +1201,23 @@ void addOpAccessChainReqs(const MachineInstr &Instr,
     return;
   }
 
+  bool IsNonUniform =
+      hasNonUniformDecoration(Instr.getOperand(0).getReg(), MRI);
+
+  auto FirstIndexReg = Instr.getOperand(3).getReg();
+  bool FirstIndexIsConstant =
+      Subtarget.getInstrInfo()->isConstantInstr(*MRI.getVRegDef(FirstIndexReg));
+
+  if (StorageClass == SPIRV::StorageClass::StorageClass::StorageBuffer) {
+    if (IsNonUniform)
+      Handler.addRequirements(
+          SPIRV::Capability::StorageBufferArrayNonUniformIndexingEXT);
+    else if (!FirstIndexIsConstant)
+      Handler.addRequirements(
+          SPIRV::Capability::StorageBufferArrayDynamicIndexing);
+    return;
+  }
+
   Register PointeeTypeReg = ResTypeInst->getOperand(2).getReg();
   MachineInstr *PointeeType = MRI.getUniqueVRegDef(PointeeTypeReg);
   if (PointeeType->getOpcode() != SPIRV::OpTypeImage &&
@@ -1209,27 +1226,25 @@ void addOpAccessChainReqs(const MachineInstr &Instr,
     return;
   }
 
-  bool IsNonUniform =
-      hasNonUniformDecoration(Instr.getOperand(0).getReg(), MRI);
   if (isUniformTexelBuffer(PointeeType)) {
     if (IsNonUniform)
       Handler.addRequirements(
           SPIRV::Capability::UniformTexelBufferArrayNonUniformIndexingEXT);
-    else
+    else if (!FirstIndexIsConstant)
       Handler.addRequirements(
           SPIRV::Capability::UniformTexelBufferArrayDynamicIndexingEXT);
   } else if (isInputAttachment(PointeeType)) {
     if (IsNonUniform)
       Handler.addRequirements(
           SPIRV::Capability::InputAttachmentArrayNonUniformIndexingEXT);
-    else
+    else if (!FirstIndexIsConstant)
       Handler.addRequirements(
           SPIRV::Capability::InputAttachmentArrayDynamicIndexingEXT);
   } else if (isStorageTexelBuffer(PointeeType)) {
     if (IsNonUniform)
       Handler.addRequirements(
           SPIRV::Capability::StorageTexelBufferArrayNonUniformIndexingEXT);
-    else
+    else if (!FirstIndexIsConstant)
       Handler.addRequirements(
           SPIRV::Capability::StorageTexelBufferArrayDynamicIndexingEXT);
   } else if (isSampledImage(PointeeType) ||
@@ -1238,14 +1253,14 @@ void addOpAccessChainReqs(const MachineInstr &Instr,
     if (IsNonUniform)
       Handler.addRequirements(
           SPIRV::Capability::SampledImageArrayNonUniformIndexingEXT);
-    else
+    else if (!FirstIndexIsConstant)
       Handler.addRequirements(
           SPIRV::Capability::SampledImageArrayDynamicIndexing);
   } else if (isStorageImage(PointeeType)) {
     if (IsNonUniform)
       Handler.addRequirements(
           SPIRV::Capability::StorageImageArrayNonUniformIndexingEXT);
-    else
+    else if (!FirstIndexIsConstant)
       Handler.addRequirements(
           SPIRV::Capability::StorageImageArrayDynamicIndexing);
   }
@@ -2036,6 +2051,17 @@ void addInstrRequirements(const MachineInstr &MI,
     // TODO: Add UntypedPointersKHR when implemented.
     break;
   }
+  case SPIRV::OpPredicatedLoadINTEL:
+  case SPIRV::OpPredicatedStoreINTEL: {
+    if (!ST.canUseExtension(SPIRV::Extension::SPV_INTEL_predicated_io))
+      report_fatal_error(
+          "OpPredicated[Load/Store]INTEL instructions require "
+          "the following SPIR-V extension: SPV_INTEL_predicated_io",
+          false);
+    Reqs.addExtension(SPIRV::Extension::SPV_INTEL_predicated_io);
+    Reqs.addCapability(SPIRV::Capability::PredicatedIOINTEL);
+    break;
+  }
 
   default:
     break;
@@ -2144,6 +2170,9 @@ static void collectReqs(const Module &M, SPIRV::ModuleAnalysisInfo &MAI,
       MAI.Reqs.getAndAddRequirements(
           SPIRV::OperandCategory::ExecutionModeOperand,
           SPIRV::ExecutionMode::LocalSize, ST);
+    }
+    if (F.getFnAttribute("enable-maximal-reconvergence").getValueAsBool()) {
+      MAI.Reqs.addExtension(SPIRV::Extension::SPV_KHR_maximal_reconvergence);
     }
     if (F.getMetadata("work_group_size_hint"))
       MAI.Reqs.getAndAddRequirements(

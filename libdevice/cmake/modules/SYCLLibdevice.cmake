@@ -340,7 +340,7 @@ endfunction()
 # For cross builds, we also need native versions of the tools.
 set(sycl-compiler_deps
   sycl-compiler ${clang_target} ${append-file_target}
-  ${clang-offload-bundler_target} ${clang-offload-packager_target}
+  ${clang-offload-bundler_target} ${llvm-offload-binary_target}
   ${file-table-tform_target} ${llvm-foreach_target} ${llvm-spirv_target}
   ${sycl-post-link_target})
 set(crt_obj_deps wrapper.h device.h spirv_vars.h ${sycl-compiler_deps})

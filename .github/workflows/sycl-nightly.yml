@@ -85,7 +85,7 @@ jobs:
     permissions:
       contents: write
       packages: read
-    if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
       matrix:
@@ -175,7 +175,7 @@ jobs:
     permissions:
       contents: write
       packages: read
-    if: ${{ always() && !cancelled() && needs.ubuntu2404_oneapi_build.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.ubuntu2404_oneapi_build.outputs.build_conclusion == 'success' }}
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: Intel PVC L0 oneAPI
@@ -204,8 +204,7 @@ jobs:
     needs: build-win
     # Continue if build was successful.
     if: |
-      always()
-      && !cancelled()
+      !cancelled()
       && needs.build-win.outputs.build_conclusion == 'success'
     strategy:
       fail-fast: false
@@ -232,7 +231,7 @@ jobs:
 
   cuda-aws-start:
     needs: [ubuntu2204_build]
-    if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     uses: ./.github/workflows/sycl-aws.yml
     secrets: inherit
     with:
@@ -243,7 +242,7 @@ jobs:
     permissions:
       contents: write
       packages: read
-    if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: CUDA E2E
@@ -259,7 +258,7 @@ jobs:
 
   cuda-aws-stop:
     needs: [cuda-aws-start, cuda-run-tests]
-    if: always() && ${{ needs.cuda-aws-start.result != 'skipped' }}
+    if: ${{ needs.cuda-aws-start.result != 'skipped' }}
     uses: ./.github/workflows/sycl-aws.yml
     secrets: inherit
     with:
@@ -270,7 +269,7 @@ jobs:
     permissions:
       contents: write
       packages: read
-    if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: Build SYCL-CTS for Linux
@@ -289,7 +288,7 @@ jobs:
     permissions:
       contents: write
       packages: read
-    if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
       matrix:
@@ -319,7 +318,7 @@ jobs:
 
   build-sycl-cts-win:
     needs: build-win
-    if: ${{ always() && !cancelled() && needs.build-win.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.build-win.outputs.build_conclusion == 'success' }}
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: Build SYCL-CTS for Windows
@@ -332,7 +331,7 @@ jobs:
 
   run-sycl-cts-win:
     needs: [build-win, build-sycl-cts-win]
-    if: ${{ always() && !cancelled() && needs.build-win.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.build-win.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
       matrix:
