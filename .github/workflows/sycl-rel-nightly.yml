@@ -2,17 +2,37 @@ name: SYCL Release Branch Nightly
 
 on:
   workflow_dispatch:
+    inputs:
+      sycl_build_info:
 
 permissions: read-all
 
 jobs:
+  get_build_info:
+    runs-on: ubuntu-latest
+    outputs:
+      info: ${{ steps.get_info.outputs.info }}
+    steps:
+    # TODO: version detection can be automated, e.g. by using branch name.
+    - id: get_info
+      run: |
+        if [ -n "${{ inputs.sycl_build_info }}" ]; then
+          echo "info=${{ inputs.sycl_build_info }}" >> $GITHUB_OUTPUT
+        else
+          date=$(date +'%Y-%m-%d')
+          version="6.3.0"
+          info="Nightly $date $version pre-release"
+          echo "info=$info" >> $GITHUB_OUTPUT
+        fi
+
   ubuntu2204_build:
+    needs: get_build_info
     uses: ./.github/workflows/sycl-linux-build.yml
     secrets: inherit
     with:
       build_cache_root: "/__w/"
       build_artifact_suffix: default
-      build_configure_extra_args: '-DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_INSTALL_LIBDIR=lib --disable-jit --no-assertions --add_security_flags=sanitize --hip --cuda'
+      build_configure_extra_args: '-DSYCL_BUILD_INFO="${{ needs.get_build_info.outputs.info }}" -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_INSTALL_LIBDIR=lib --disable-jit --no-assertions --add_security_flags=sanitize --hip --cuda'
       build_image: ghcr.io/intel/llvm/release_build:latest
       pack_release: 'true'
 
@@ -78,9 +98,10 @@ jobs:
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
 
   build-win:
+    needs: get_build_info
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
-      build_configure_extra_args: '-DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off -DCMAKE_POSITION_INDEPENDENT_CODE=ON --disable-jit --no-assertions --add_security_flags=sanitize'
+      build_configure_extra_args: '-DSYCL_BUILD_INFO="${{ needs.get_build_info.outputs.info }}" -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off -DCMAKE_POSITION_INDEPENDENT_CODE=ON --disable-jit --no-assertions --add_security_flags=sanitize'
       pack_release: 'true'
 
       # We upload both Linux/Windows build via Github's "Releases"
