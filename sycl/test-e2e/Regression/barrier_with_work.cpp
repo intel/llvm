@@ -6,6 +6,9 @@
 // UNSUPPORTED: target-native_cpu
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
 //
+// UNSUPPORTED: linux && (gpu-intel-dg2 || arch-intel_gpu_bmg_g21 || arch-intel_gpu_pvc) && !igc-dev
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20600
+//
 // Tests that barriers block all following execution on queues with active work.
 // For L0 we currently need to set
 // SYCL_PI_LEVEL_ZERO_USE_MULTIPLE_COMMANDLIST_BARRIERS to enable fix on certain

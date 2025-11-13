@@ -563,202 +563,12 @@ addSYCLDeviceSanitizerLibs(const Compilation &C, bool IsSpirvAOT,
 }
 #endif
 
-// Get the list of SYCL device libraries to link with user's device image if
-// some deprecated options are used including: -f[no-]sycl-device-lib=xxx,
-// -f[no-]sycl-device-lib-jit-link.
-// TODO: remove getDeviceLibrariesLegacy when we remove deprecated options
-// related to sycl device library link.
-static SmallVector<std::string, 8>
-getDeviceLibrariesLegacy(const Compilation &C, const llvm::Triple &TargetTriple,
-                         bool IsSpirvAOT) {
-  SmallVector<std::string, 8> LibraryList;
-  const llvm::opt::ArgList &Args = C.getArgs();
-
-  // For NVPTX and AMDGCN we only use one single bitcode library and ignore
-  // manually specified SYCL device libraries.
-  // For NativeCPU, only native_utils devicelib is used.
-  bool UseSingleLib = TargetTriple.isNVPTX() || TargetTriple.isAMDGCN() ||
-                      TargetTriple.isNativeCPU();
-  bool IgnoreSingleLib = false;
-
-  struct DeviceLibOptInfo {
-    StringRef DeviceLibName;
-    StringRef DeviceLibOption;
-  };
-
-  enum { JIT = 0, AOT_CPU, AOT_DG2, AOT_PVC };
-
-  // Currently, all SYCL device libraries will be linked by default.
-  llvm::StringMap<bool> DeviceLibLinkInfo = {
-      {"libc", true},          {"libm-fp32", true},   {"libm-fp64", true},
-      {"libimf-fp32", true},   {"libimf-fp64", true}, {"libimf-bf16", true},
-      {"libm-bfloat16", true}, {"internal", true}};
-
-  // If -fno-sycl-device-lib is specified, its values will be used to exclude
-  // linkage of libraries specified by DeviceLibLinkInfo. Linkage of "internal"
-  // libraries cannot be affected via -fno-sycl-device-lib.
-  bool ExcludeDeviceLibs = false;
-
-  if (Arg *A = Args.getLastArg(options::OPT_fsycl_device_lib_EQ,
-                               options::OPT_fno_sycl_device_lib_EQ)) {
-    if (A->getValues().size() == 0)
-      C.getDriver().Diag(diag::warn_drv_empty_joined_argument)
-          << A->getAsString(Args);
-    else {
-      if (A->getOption().matches(options::OPT_fno_sycl_device_lib_EQ))
-        ExcludeDeviceLibs = true;
-
-      // When single libraries are ignored and a subset of library names
-      // not containing the value "all" is specified by -fno-sycl-device-lib,
-      // print an unused argument warning.
-      bool PrintUnusedExcludeWarning = false;
-
-      for (StringRef Val : A->getValues()) {
-        if (Val == "all") {
-          PrintUnusedExcludeWarning = false;
-
-          // Make sure that internal libraries are still linked against
-          // when -fno-sycl-device-lib contains "all" and single libraries
-          // should be ignored. For NativeCPU, the native_cpu utils library
-          // is always linked without '-only-needed' flag.
-          IgnoreSingleLib =
-              UseSingleLib && ExcludeDeviceLibs && !TargetTriple.isNativeCPU();
-
-          for (const auto &K : DeviceLibLinkInfo.keys())
-            DeviceLibLinkInfo[K] = (K == "internal") || !ExcludeDeviceLibs;
-          break;
-        }
-        auto LinkInfoIter = DeviceLibLinkInfo.find(Val);
-        if (LinkInfoIter == DeviceLibLinkInfo.end() || Val == "internal") {
-          // TODO: Move the diagnostic to the SYCL section of
-          // Driver::CreateOffloadingDeviceToolChains() to minimize code
-          // duplication.
-          C.getDriver().Diag(diag::err_drv_unsupported_option_argument)
-              << A->getSpelling() << Val;
-        }
-        DeviceLibLinkInfo[Val] = !ExcludeDeviceLibs;
-        PrintUnusedExcludeWarning = UseSingleLib && ExcludeDeviceLibs;
-      }
-      if (PrintUnusedExcludeWarning)
-        C.getDriver().Diag(diag::warn_drv_unused_argument) << A->getSpelling();
-    }
-  }
-
-  if (TargetTriple.isNVPTX() && !IgnoreSingleLib)
-    LibraryList.push_back(
-        Args.MakeArgString("devicelib-nvptx64-nvidia-cuda.bc"));
-
-  if (TargetTriple.isAMDGCN() && !IgnoreSingleLib)
-    LibraryList.push_back(Args.MakeArgString("devicelib-amdgcn-amd-amdhsa.bc"));
-
-  if (TargetTriple.isNativeCPU() && !IgnoreSingleLib)
-    LibraryList.push_back(Args.MakeArgString("libsycl-nativecpu_utils.bc"));
-
-  if (UseSingleLib)
-    return LibraryList;
-
-  using SYCLDeviceLibsList = SmallVector<DeviceLibOptInfo, 5>;
-
-  const SYCLDeviceLibsList SYCLDeviceWrapperLibs = {
-      {"libsycl-crt", "libc"},
-      {"libsycl-complex", "libm-fp32"},
-      {"libsycl-complex-fp64", "libm-fp64"},
-      {"libsycl-cmath", "libm-fp32"},
-      {"libsycl-cmath-fp64", "libm-fp64"},
-#if defined(_WIN32)
-      {"libsycl-msvc-math", "libm-fp32"},
-#endif
-      {"libsycl-imf", "libimf-fp32"},
-      {"libsycl-imf-fp64", "libimf-fp64"},
-      {"libsycl-imf-bf16", "libimf-bf16"}};
-  // For AOT compilation, we need to link sycl_device_fallback_libs as
-  // default too.
-  const SYCLDeviceLibsList SYCLDeviceFallbackLibs = {
-      {"libsycl-fallback-cassert", "libc"},
-      {"libsycl-fallback-cstring", "libc"},
-      {"libsycl-fallback-complex", "libm-fp32"},
-      {"libsycl-fallback-complex-fp64", "libm-fp64"},
-      {"libsycl-fallback-cmath", "libm-fp32"},
-      {"libsycl-fallback-cmath-fp64", "libm-fp64"},
-      {"libsycl-fallback-imf", "libimf-fp32"},
-      {"libsycl-fallback-imf-fp64", "libimf-fp64"},
-      {"libsycl-fallback-imf-bf16", "libimf-bf16"}};
-  const SYCLDeviceLibsList SYCLDeviceBfloat16FallbackLib = {
-      {"libsycl-fallback-bfloat16", "libm-bfloat16"}};
-  const SYCLDeviceLibsList SYCLDeviceBfloat16NativeLib = {
-      {"libsycl-native-bfloat16", "libm-bfloat16"}};
-  // ITT annotation libraries are linked in separately whenever the device
-  // code instrumentation is enabled.
-  const SYCLDeviceLibsList SYCLDeviceAnnotationLibs = {
-      {"libsycl-itt-user-wrappers", "internal"},
-      {"libsycl-itt-compiler-wrappers", "internal"},
-      {"libsycl-itt-stubs", "internal"}};
-  const SYCLDeviceLibsList SYCLNativeCpuDeviceLibs = {
-      {"libsycl-nativecpu_utils", "internal"}};
-
-  bool IsWindowsMSVCEnv =
-      C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
-  bool IsNewOffload = C.getDriver().getUseNewOffloadingDriver();
-  StringRef LibSuffix = ".bc";
-  if (IsNewOffload)
-    // For new offload model, we use packaged .bc files.
-    LibSuffix = IsWindowsMSVCEnv ? ".new.obj" : ".new.o";
-  auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {
-    for (const DeviceLibOptInfo &Lib : LibsList) {
-      if (!DeviceLibLinkInfo[Lib.DeviceLibOption])
-        continue;
-      SmallString<128> LibName(Lib.DeviceLibName);
-      llvm::sys::path::replace_extension(LibName, LibSuffix);
-      LibraryList.push_back(Args.MakeArgString(LibName));
-    }
-  };
-
-  addLibraries(SYCLDeviceWrapperLibs);
-  if (IsSpirvAOT)
-    addLibraries(SYCLDeviceFallbackLibs);
-
-  bool NativeBfloatLibs;
-  bool NeedBfloatLibs = selectBfloatLibs(TargetTriple, C, NativeBfloatLibs);
-  if (NeedBfloatLibs) {
-    // Add native or fallback bfloat16 library.
-    if (NativeBfloatLibs)
-      addLibraries(SYCLDeviceBfloat16NativeLib);
-    else
-      addLibraries(SYCLDeviceBfloat16FallbackLib);
-  }
-
-  // Link in ITT annotations library unless fsycl-no-instrument-device-code
-  // is specified. This ensures that we are ABI-compatible with the
-  // instrumented device code, which was the default not so long ago.
-  if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
-                   options::OPT_fno_sycl_instrument_device_code, true))
-    addLibraries(SYCLDeviceAnnotationLibs);
-
-  // Currently, device sanitizer support is required by some developers on
-  // Linux platform only, so compiler only provides device sanitizer libraries
-  // on Linux platform.
-#if !defined(_WIN32)
-  addSYCLDeviceSanitizerLibs(C, IsSpirvAOT, LibSuffix, LibraryList);
-#endif
-
-  if (TargetTriple.isNativeCPU())
-    addLibraries(SYCLNativeCpuDeviceLibs);
-
-  return LibraryList;
-}
-
 // Get the list of SYCL device libraries to link with user's device image.
 SmallVector<std::string, 8>
 SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
                          bool IsSpirvAOT) {
   SmallVector<std::string, 8> LibraryList;
   const llvm::opt::ArgList &Args = C.getArgs();
-  if (Args.getLastArg(options::OPT_fsycl_device_lib_EQ,
-                      options::OPT_fno_sycl_device_lib_EQ) ||
-      Args.getLastArg(options::OPT_fsycl_device_lib_jit_link,
-                      options::OPT_fno_sycl_device_lib_jit_link))
-    return getDeviceLibrariesLegacy(C, TargetTriple, IsSpirvAOT);
-
   bool NoOffloadLib =
       !Args.hasFlag(options::OPT_offloadlib, options::OPT_no_offloadlib, true);
   if (TargetTriple.isNVPTX()) {
@@ -794,7 +604,6 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
                                              "libsycl-imf",
                                              "libsycl-imf-fp64",
                                              "libsycl-imf-bf16",
-                                             "libsycl-fallback-cassert",
                                              "libsycl-fallback-cstring",
                                              "libsycl-fallback-complex",
                                              "libsycl-fallback-complex-fp64",
@@ -976,7 +785,6 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
     "itt-compiler-wrappers",
     "itt-stubs",
     "itt-user-wrappers",
-    "fallback-cassert",
     "fallback-cstring",
     "fallback-cmath",
     "fallback-cmath-fp64",

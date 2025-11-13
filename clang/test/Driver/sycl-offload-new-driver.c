@@ -17,7 +17,7 @@
 // OFFLOAD-NEW_DRIVER: 12: backend, {11}, assembler, (device-sycl)
 // OFFLOAD-NEW_DRIVER: 13: assembler, {12}, object, (device-sycl)
 // OFFLOAD-NEW_DRIVER: 14: offload, "device-sycl (spir64-unknown-unknown)" {13}, object
-// OFFLOAD-NEW_DRIVER: 15: clang-offload-packager, {8, 14}, image, (device-sycl)
+// OFFLOAD-NEW_DRIVER: 15: llvm-offload-binary, {8, 14}, image, (device-sycl)
 // OFFLOAD-NEW_DRIVER: 16: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (x86_64-unknown-linux-gnu)" {15}, ir
 // OFFLOAD-NEW_DRIVER: 17: backend, {16}, assembler, (host-sycl)
 // OFFLOAD-NEW_DRIVER: 18: assembler, {17}, object, (host-sycl)
@@ -26,7 +26,7 @@
 /// Check the toolflow for SYCL compilation using new offload model
 // RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64 --offload-new-driver %s 2>&1 | FileCheck -check-prefix=CHK-FLOW %s
 // CHK-FLOW: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown" "-aux-triple" "x86_64-unknown-linux-gnu" "-fsycl-is-device" {{.*}} "-fsycl-int-header=[[HEADER:.*]].h" "-fsycl-int-footer=[[FOOTER:.*]].h" {{.*}} "--offload-new-driver" {{.*}} "-o" "[[CC1DEVOUT:.*]]" "-x" "c++" "[[INPUT:.*]]"
-// CHK-FLOW-NEXT: clang-offload-packager{{.*}} "-o" "[[PACKOUT:.*]]" "--image=file=[[CC1DEVOUT]],triple=spir64-unknown-unknown,arch=generic,kind=sycl{{.*}}"
+// CHK-FLOW-NEXT: llvm-offload-binary{{.*}} "-o" "[[PACKOUT:.*]]" "--image=file=[[CC1DEVOUT]],triple=spir64-unknown-unknown,arch=generic,kind=sycl{{.*}}"
 // CHK-FLOW-NEXT: clang{{.*}} "-cc1" "-triple" "x86_64-unknown-linux-gnu"{{.*}} "-fsycl-is-host"{{.*}} "-include-internal-header" "[[HEADER]].h" "-dependency-filter" "[[HEADER]].h" {{.*}} "-include-internal-footer" "[[FOOTER]].h" "-dependency-filter" "[[FOOTER]].h"{{.*}} "--offload-new-driver" {{.*}} "-fembed-offload-object=[[PACKOUT]]" {{.*}} "-o" "[[CC1FINALOUT:.*]]" "-x" "c++" "[[INPUT]]"
 // CHK-FLOW-NEXT: clang-linker-wrapper{{.*}} "--host-triple=x86_64-unknown-linux-gnu"{{.*}} "--linker-path={{.*}}/ld" {{.*}} "[[CC1FINALOUT]]"
 
@@ -34,7 +34,7 @@
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
 // RUN:          --sysroot=%S/Inputs/SYCL -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS %s
-// WRAPPER_OPTIONS: clang-linker-wrapper{{.*}} "-sycl-device-libraries=libsycl-crt.new.o,libsycl-complex.new.o,libsycl-complex-fp64.new.o,libsycl-cmath.new.o,libsycl-cmath-fp64.new.o,libsycl-imf.new.o,libsycl-imf-fp64.new.o,libsycl-imf-bf16.new.o,libsycl-fallback-cassert.new.o,libsycl-fallback-cstring.new.o,libsycl-fallback-complex.new.o,libsycl-fallback-complex-fp64.new.o,libsycl-fallback-cmath.new.o,libsycl-fallback-cmath-fp64.new.o,libsycl-fallback-imf.new.o,libsycl-fallback-imf-fp64.new.o,libsycl-fallback-imf-bf16.new.o,libsycl-itt-user-wrappers.new.o,libsycl-itt-compiler-wrappers.new.o,libsycl-itt-stubs.new.o"
+// WRAPPER_OPTIONS: clang-linker-wrapper{{.*}} "-sycl-device-libraries=libsycl-crt.new.o,libsycl-complex.new.o,libsycl-complex-fp64.new.o,libsycl-cmath.new.o,libsycl-cmath-fp64.new.o,libsycl-imf.new.o,libsycl-imf-fp64.new.o,libsycl-imf-bf16.new.o,libsycl-fallback-cstring.new.o,libsycl-fallback-complex.new.o,libsycl-fallback-complex-fp64.new.o,libsycl-fallback-cmath.new.o,libsycl-fallback-cmath-fp64.new.o,libsycl-fallback-imf.new.o,libsycl-fallback-imf-fp64.new.o,libsycl-fallback-imf-bf16.new.o,libsycl-itt-user-wrappers.new.o,libsycl-itt-compiler-wrappers.new.o,libsycl-itt-stubs.new.o"
 // WRAPPER_OPTIONS-SAME: "-sycl-device-library-location={{.*}}/lib"
 
 /// Verify phases used to generate SPIR-V instead of LLVM-IR
@@ -102,7 +102,7 @@
 // RUN:              -DTRIPLE=nvptx64-nvidia-cuda -DARCH=sm_50 %s
 // CHK_ARCH: clang{{.*}} "-triple" "[[TRIPLE]]"
 // CHK_ARCH-SAME: "-fsycl-is-device" {{.*}} "--offload-new-driver"{{.*}} "-o" "[[CC1DEVOUT:.+\.bc]]"
-// CHK_ARCH-NEXT: clang-offload-packager{{.*}} "--image=file=[[CC1DEVOUT]],triple=[[TRIPLE]],arch=[[ARCH]]{{.*}},kind=sycl{{.*}}"
+// CHK_ARCH-NEXT: llvm-offload-binary{{.*}} "--image=file=[[CC1DEVOUT]],triple=[[TRIPLE]],arch=[[ARCH]]{{.*}},kind=sycl{{.*}}"
 
 // Verify offload-packager option values
 // RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl \
@@ -113,7 +113,7 @@
 // RUN:          -Xsycl-target-linker=intel_gpu_pvc -spir64_gen-link-opt \
 // RUN:          --offload-new-driver %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHK_PACKAGER_OPTS %s
-// CHK_PACKAGER_OPTS: clang-offload-packager{{.*}} "-o"
+// CHK_PACKAGER_OPTS: llvm-offload-binary{{.*}} "-o"
 // CHK_PACKAGER_OPTS-SAME: {{.*}}triple=spir64-unknown-unknown,arch=generic,kind=sycl,compile-opts={{.*}}-spir64-opt,link-opts=-spir64-link-opt
 // CHK_PACKAGER_OPTS-SAME: {{.*}}triple=spir64_gen-unknown-unknown,arch=pvc,kind=sycl,compile-opts={{.*}}-spir64_gen-opt,link-opts=-spir64_gen-link-opt
 
@@ -136,7 +136,7 @@
 // MULT_TARG_PHASES: 10: compiler, {9}, ir, (device-sycl, pvc)
 // MULT_TARG_PHASES: 11: backend, {10}, ir, (device-sycl, pvc)
 // MULT_TARG_PHASES: 12: offload, "device-sycl (spir64_gen-unknown-unknown:pvc)" {11}, ir
-// MULT_TARG_PHASES: 13: clang-offload-packager, {7, 12}, image, (device-sycl)
+// MULT_TARG_PHASES: 13: llvm-offload-binary, {7, 12}, image, (device-sycl)
 // MULT_TARG_PHASES: 14: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (x86_64-unknown-linux-gnu)" {13}, ir
 // MULT_TARG_PHASES: 15: backend, {14}, assembler, (host-sycl)
 // MULT_TARG_PHASES: 16: assembler, {15}, object, (host-sycl)
@@ -169,12 +169,12 @@
 // RUN:          -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx600 \
 // RUN:          %s 2>&1 \
 // RUN:   | FileCheck -check-prefix AMD_ARCH %s
-// AMD_ARCH: clang-offload-packager{{.*}} "--image=file={{.*}},triple=amdgcn-amd-amdhsa,arch=gfx600,kind=sycl,compile-opts=--offload-arch=gfx600"
+// AMD_ARCH: llvm-offload-binary{{.*}} "--image=file={{.*}},triple=amdgcn-amd-amdhsa,arch=gfx600,kind=sycl,compile-opts=--offload-arch=gfx600"
 
 // RUN: %clangxx -fsycl -### -fsycl-targets=nvptx64-nvidia-cuda \
 // RUN:          -fno-sycl-libspirv -nocudalib --offload-new-driver %s 2>&1 \
 // RUN:   | FileCheck -check-prefix NVPTX_DEF_ARCH %s
-// NVPTX_DEF_ARCH: clang-offload-packager{{.*}} "--image=file={{.*}},triple=nvptx64-nvidia-cuda,arch=sm_50,kind=sycl"
+// NVPTX_DEF_ARCH: llvm-offload-binary{{.*}} "--image=file={{.*}},triple=nvptx64-nvidia-cuda,arch=sm_50,kind=sycl"
 
 /// check for -sycl-embed-ir transmission to clang-linker-wrapper tool
 // RUN: %clangxx -fsycl -### -fsycl-targets=nvptx64-nvidia-cuda \
@@ -188,7 +188,7 @@
 // RUN: %clangxx -fsycl -### -fsycl-targets=spir64_gen --offload-new-driver \
 // RUN:   -Xsycl-target-backend=spir64_gen "-device pvc,bdw" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix COMMA_FILE %s
-// COMMA_FILE: clang-offload-packager{{.*}} "--image=file={{.*}}pvc@bdw{{.*}},triple=spir64_gen-unknown-unknown,arch=pvc,bdw,kind=sycl,compile-opts=-device_options pvc -ze-intel-enable-auto-large-GRF-mode"
+// COMMA_FILE: llvm-offload-binary{{.*}} "--image=file={{.*}}pvc@bdw{{.*}},triple=spir64_gen-unknown-unknown,arch=pvc,bdw,kind=sycl,compile-opts=-device_options pvc -ze-intel-enable-auto-large-GRF-mode"
 
 /// Verify the arch value for the packager is populated with different
 /// scenarios for spir64_gen
@@ -210,7 +210,7 @@
 // RUN: %clang_cl -fsycl -### -fsycl-targets=intel_gpu_bdw \
 // RUN: --offload-new-driver %s 2>&1 \
 // RUN:   | FileCheck -check-prefix ARCH_CHECK %s
-// ARCH_CHECK: clang-offload-packager{{.*}} "--image=file={{.*}}triple=spir64_gen-unknown-unknown,arch=bdw,kind=sycl{{.*}}"
+// ARCH_CHECK: llvm-offload-binary{{.*}} "--image=file={{.*}}triple=spir64_gen-unknown-unknown,arch=bdw,kind=sycl{{.*}}"
 
 /// Verify that --cuda-path is passed to clang-linker-wrapper for SYCL offload
 // RUN: %clangxx -fsycl -### -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-libspirv \

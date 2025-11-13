@@ -1,15 +1,15 @@
 {
   "linux": {
     "compute_runtime": {
-      "github_tag": "25.35.35096.9",
-      "version": "25.35.35096.9",
-      "url": "https://github.com/intel/compute-runtime/releases/tag/25.35.35096.9",
+      "github_tag": "25.40.35563.4",
+      "version": "25.40.35563.4",
+      "url": "https://github.com/intel/compute-runtime/releases/tag/25.40.35563.4",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "igc": {
-      "github_tag": "v2.18.5",
-      "version": "v2.18.5",
-      "url": "https://github.com/intel/intel-graphics-compiler/releases/tag/v2.18.5",
+      "github_tag": "v2.20.3",
+      "version": "v2.20.3",
+      "url": "https://github.com/intel/intel-graphics-compiler/releases/tag/v2.20.3",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "cm": {
@@ -19,21 +19,21 @@
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "level_zero": {
-      "github_tag": "v1.25.2",
-      "version": "v1.25.2",
-      "url": "https://github.com/oneapi-src/level-zero/releases/tag/v1.25.2",
+      "github_tag": "v1.26.0",
+      "version": "v1.26.0",
+      "url": "https://github.com/oneapi-src/level-zero/releases/tag/v1.26.0",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "tbb": {
-      "github_tag": "v2022.2.0",
-      "version": "2022.2.0",
-      "url": "https://github.com/uxlfoundation/oneTBB/releases/download/v2022.2.0/oneapi-tbb-2022.2.0-lin.tgz",
+      "github_tag": "v2022.3.0",
+      "version": "2022.3.0",
+      "url": "https://github.com/uxlfoundation/oneTBB/releases/download/v2022.3.0/oneapi-tbb-2022.3.0-lin.tgz",
       "root": "{DEPS_ROOT}/tbb/lin"
     },
     "oclcpu": {
-      "github_tag": "2025-WW27",
-      "version": "2025.20.6.0.04_224945",
-      "url": "https://github.com/intel/llvm/releases/download/2025-WW27/oclcpuexp-2025.20.6.0.04_224945_rel.tar.gz",
+      "github_tag": "2025-WW45",
+      "version": "2025.21.10.0.10_160000",
+      "url": "https://github.com/intel/llvm/releases/download/2025-WW45/oclcpuexp-2025.21.10.0.10_160000_rel.tar.gz",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclcpu"
     }
   },
@@ -44,15 +44,15 @@
       "root": ""
     },
     "tbb": {
-      "github_tag": "v2022.2.0",
-      "version": "2022.2.0",
-      "url": "https://github.com/uxlfoundation/oneTBB/releases/download/v2022.2.0/oneapi-tbb-2022.2.0-win.zip",
+      "github_tag": "v2022.3.0",
+      "version": "2022.3.0",
+      "url": "https://github.com/uxlfoundation/oneTBB/releases/download/v2022.3.0/oneapi-tbb-2022.3.0-win.zip",
       "root": "{DEPS_ROOT}/tbb/win"
     },
     "oclcpu": {
-      "github_tag": "2025-WW27",
-      "version": "2025.20.6.0.04_224945",
-      "url": "https://github.com/intel/llvm/releases/download/2025-WW27/win-oclcpuexp-2025.20.6.0.04_224945_rel.zip",
+      "github_tag": "2025-WW45",
+      "version": "2025.21.10.0.10_160000",
+      "url": "https://github.com/intel/llvm/releases/download/2025-WW45/win-oclcpuexp-2025.21.10.0.10_160000_rel.zip",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclcpu"
     }
   }
