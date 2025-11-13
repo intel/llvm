@@ -137,10 +137,13 @@ def process_results(
             stddev_threshold_override
             if stddev_threshold_override is not None
             else options.stddev_threshold
-        ) * mean_value
+        )
+        threshold_scaled = threshold * mean_value
 
-        if stddev > threshold:
-            log.warning(f"stddev {stddev} above the threshold {threshold} for {label}")
+        if stddev > threshold_scaled:
+            log.warning(
+                f"stddev {stddev} above the threshold {threshold_scaled} ({threshold} times {mean_value}) for {label}"
+            )
             valid_results = False
 
         rlist.sort(key=lambda res: res.value)
@@ -228,6 +231,10 @@ def main(directory, additional_env_vars, compare_names, filter):
             benchmark for benchmark in s.benchmarks() if benchmark.enabled()
         ]
         if filter:
+            # log.info(f"all benchmarks:\n" + "\n".join([b.name() for b in suite_benchmarks]))
+            log.debug(
+                f"Filtering {len(suite_benchmarks)} benchmarks in {s.name()} suite for {filter.pattern}"
+            )
             suite_benchmarks = [
                 benchmark
                 for benchmark in suite_benchmarks
@@ -713,6 +720,7 @@ if __name__ == "__main__":
     options.dry_run = args.dry_run
     options.umf = args.umf
     options.iterations_stddev = args.iterations_stddev
+    options.stddev_threshold = args.stddev_threshold
     options.build_igc = args.build_igc
     options.current_run_name = args.relative_perf
     options.cudnn_directory = args.cudnn_directory
