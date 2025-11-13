@@ -476,6 +476,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     }
 
     while (_launchPropList != nullptr) {
+      // In case of the ur_kernel_launch_ext_properties_t type
+      // the properties are stored in the 'flags' field
+      // so we have already counted them above.
       if (_launchPropList->stype !=
           as_stype<ur_kernel_launch_ext_properties_t>()) {
         numPropsInLaunchPropList++;
@@ -486,7 +489,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
             reinterpret_cast<ur_kernel_launch_workgroup_property_t *>(
                 _launchPropList);
         WorkGroupMemory = WorkGroupMemoryProp->workgroup_mem_size;
-        break;
       }
       _launchPropList = static_cast<ur_kernel_launch_ext_properties_t *>(
           _launchPropList->pNext);
