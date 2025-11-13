@@ -58,6 +58,37 @@ const ext::oneapi::experimental::event_mode_enum &
 SubmissionInfo::EventMode() const {
   return impl->MEventMode;
 }
+
+void GetRangeRoundingSettings(size_t &MinFactor, size_t &GoodFactor,
+                              size_t &MinRange) {
+  SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS>::GetSettings(
+      MinFactor, GoodFactor, MinRange);
+}
+
+std::tuple<std::array<size_t, 3>, bool>
+getMaxWorkGroups_v2(const device &Device) {
+  std::array<size_t, 3> UrResult = {};
+  auto &DeviceImpl = getSyclObjImpl(Device);
+
+  auto Ret = DeviceImpl->getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
+      DeviceImpl->getHandleRef(),
+      UrInfoCode<
+          ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
+      sizeof(UrResult), &UrResult, nullptr);
+  if (Ret == UR_RESULT_SUCCESS) {
+    return {UrResult, true};
+  }
+  return {std::array<size_t, 3>{0, 0, 0}, false};
+}
+
+bool DisableRangeRounding() {
+  return SYCLConfig<SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING>::get();
+}
+
+bool RangeRoundingTrace() {
+  return SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE>::get();
+}
+
 } // namespace detail
 
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
