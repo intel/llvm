@@ -444,6 +444,21 @@ struct ConflictingProperties<max_linear_work_group_size_key, Properties> {
   }();
 };
 
+template <typename... RestT>
+auto RetrieveGetMethodPropertiesOrEmpty(RestT &&...Rest) {
+  // Note: the following trivial identity lambda is used to avoid the issue
+  // that line "const auto &KernelObj = (Rest, ...);" may result in a "left
+  // operand of comma operator has no effect" error for certain compiler(s)
+  auto Identity = [](const auto &x) -> decltype(auto) { return x; };
+  const auto &KernelObj = (Identity(Rest), ...);
+  if constexpr (ext::oneapi::experimental::detail::HasKernelPropertiesGetMethod<
+                    decltype(KernelObj)>::value) {
+    return KernelObj.get(ext::oneapi::experimental::properties_tag{});
+  } else {
+    return ext::oneapi::experimental::empty_properties_t{};
+  }
+}
+
 } // namespace detail
 } // namespace ext::oneapi::experimental
 } // namespace _V1
