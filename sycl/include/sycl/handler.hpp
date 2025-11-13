@@ -2153,13 +2153,14 @@ public:
                                                std::forward<RestT>(Rest)...);
   }
 
-  template <typename T>
-  constexpr inline decltype(auto) forwarding_helper(T &&t) {
-    return std::forward<T>(t);
-  }
+  // Note: the following trivial identity function is used to avoid the issue
+  // that line "const auto &KernelObj = (Rest, ...);"" in
+  // property_deduction_helper may result in a "left operand of comma operator
+  // has no effect" error for certain compiler(s)
+  template <typename T> constexpr inline T identity_func(T t) { return t; }
 
   template <typename... RestT> auto property_deduction_helper(RestT &&...Rest) {
-    const auto &KernelObj = (forwarding_helper(Rest), ...);
+    const auto &KernelObj = (identity_func(Rest), ...);
     if constexpr (ext::oneapi::experimental::detail::
                       HasKernelPropertiesGetMethod<
                           decltype(KernelObj)>::value) {
