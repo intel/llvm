@@ -1266,7 +1266,7 @@ exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
 }
 
 void exec_graph_impl::duplicateNodes() {
-  if (MGraphImpl->IsLinearRecorded()) {
+  if (MGraphImpl->isLinearRecorded() && !MGraphImpl->hasSubGraph()) {
     MNodeStorage = MGraphImpl->MNodeStorage;
     return;
   }
