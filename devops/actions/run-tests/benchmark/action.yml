@@ -2,7 +2,8 @@ name: 'Run benchmarks'
 
 # This action assumes the following prerequisites:
 #
-# - SYCL is placed in ./toolchain -- TODO change this
+# - SYCL is accessible in the system (nightly image provides it within /opt/sycl),
+#   or SYCL is placed in ./toolchain (TODO: change this??). The second option has higher priority.
 # - /devops has been checked out in ./devops.
 # - env.GITHUB_TOKEN was properly set, because according to Github, that's
 #   apparently the recommended way to pass a secret into a github action:
@@ -113,10 +114,12 @@ runs:
   # modified output the entire sycl build dir as an artifact, in which the
   # intermediate files required can be stitched together from the build files.
   # However, this is not exactly "clean" or "fun to maintain"...
-  - name: Build LLVM
+  - name: Build Unified Runtime
     shell: bash
     run: |
-      echo "::group::checkout_llvm"
+      # Build Unified Runtime
+      echo "::group::checkout_llvm_ur"
+
       # Sparse-checkout UR at build ref:
       git clone --depth 1 --no-checkout https://github.com/intel/llvm ur
       cd ur
@@ -124,10 +127,10 @@ runs:
       git sparse-checkout set unified-runtime
       git fetch origin ${{ inputs.build_ref }}
       git checkout FETCH_HEAD
-      echo "::endgroup::"
-      echo "::group::configure_llvm"
 
-      # Configure UR
+      echo "::endgroup::"
+      echo "::group::configure_llvm_ur"
+
       mkdir build install
       cmake -DCMAKE_BUILD_TYPE=Release \
         -Sunified-runtime \
@@ -138,7 +141,7 @@ runs:
         -DUR_BUILD_ADAPTER_L0_V2=ON
 
       echo "::endgroup::"
-      echo "::group::build_and_install_llvm"
+      echo "::group::build_and_install_llvm_ur"
 
       cmake --build build -j "$(nproc)" 
       cmake --install build
@@ -146,38 +149,19 @@ runs:
       cd -
 
       echo "::endgroup::"
-  # Install level zero v1.25.2
-  # This is to have the latest level zero required by Compute Benchmarks
-  # Remove this w/a once the sycl nightly images are updated to have level zero v1.25.2
-  - name: Install level zero v1.25.2
-    shell: bash
-    run: |
-      echo "::group::checkout_level_zero"
-      # Checkout Level Zero at build ref:
-      wget https://github.com/oneapi-src/level-zero/archive/refs/tags/v1.25.2.tar.gz -O level-zero-v1.25.2.tar.gz
-      tar -xvf level-zero-v1.25.2.tar.gz
-      cd level-zero-1.25.2
-
-      echo "::endgroup::"
-      echo "::group::configure_level_zero"
-      
-      cmake -DCMAKE_BUILD_TYPE=Release \
-        -Bbuild
-
-      echo "::endgroup::"
-      echo "::group::build_and_install_level_zero"
-      
-      cmake --build build -j "$(nproc)"
-      sudo cmake --install build
-
-      cd -
-      echo "::endgroup::"
   # Linux tools installed during docker creation may not match the self-hosted
   # kernel version, so we need to install the correct version here.
   - name: Install perf in version matching the host kernel
     shell: bash
     run: |
+      # Install perf in version matching the host kernel
       echo "::group::install_linux_tools"
+      if [ "$RUNNER_TAG" = '["BMG_PERF"]' ]; then
+        echo "Adding repositories for Ubuntu 25.10 (Questing) on BMG_PERF runner"
+        echo "deb http://archive.ubuntu.com/ubuntu/ questing main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/questing.list
+        echo "deb http://archive.ubuntu.com/ubuntu/ questing-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/questing.list
+        echo "deb http://security.ubuntu.com/ubuntu/ questing-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/questing.list
+      fi
       sudo apt-get update
       sudo apt-get install -y linux-tools-$(uname -r)
       echo "::endgroup::"
@@ -201,8 +185,8 @@ runs:
       SAVE_PREFIX: ${{ inputs.save_name }}
     shell: bash
     run: |
-      # TODO generate summary + display helpful message here
-      export CMPLR_ROOT=./toolchain
+      # Build and run benchmarks
+
       echo "::group::install_python_deps"
       echo "Installing python dependencies..."
       # Using --break-system-packages because:
@@ -212,9 +196,11 @@ runs:
       # - apt is unable to install anything due to unresolved dpkg dependencies,
       #   as a result of how the sycl nightly images are created
       pip install --user --break-system-packages -r ./devops/scripts/benchmarks/requirements.txt
-      echo "::endgroup::"
-      echo "::group::sycl_ls"
 
+      echo "::endgroup::"
+      echo "::group::establish_parameters_and_vars"
+
+      export CMPLR_ROOT=./toolchain
       # By default, the benchmark scripts forceload level_zero
       FORCELOAD_ADAPTER="${ONEAPI_DEVICE_SELECTOR%%:*}"
       echo "Adapter: $FORCELOAD_ADAPTER"
@@ -248,7 +234,9 @@ runs:
       # docker images are built nightly. 
       export COMPUTE_RUNTIME_TAG_CACHE="$(cat ./devops/dependencies.json | jq -r .linux.compute_runtime.github_tag)"
 
-      sycl-ls
+      echo "::endgroup::"
+      echo "::group::sycl_ls"
+      sycl-ls --verbose
       echo "::endgroup::"
       echo "::group::run_benchmarks"
 
@@ -285,7 +273,11 @@ runs:
 
       echo "::endgroup::"
       
-      LLVM_BENCHMARKS_UNIT_TESTING=1 COMPUTE_BENCHMARKS_BUILD_PATH=$WORKDIR/compute-benchmarks-build python3 ./devops/scripts/benchmarks/tests/test_integration.py
+      # Run integration tests
+      # NOTE: Each integration test prints its own group name as part of test script
+      export LLVM_BENCHMARKS_UNIT_TESTING=1
+      export COMPUTE_BENCHMARKS_BUILD_PATH=$WORKDIR/compute-benchmarks-build
+      python3 ./devops/scripts/benchmarks/tests/test_integration.py
 
   - name: Cache changes and upload github summary
     if: always()
