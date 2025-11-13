@@ -565,20 +565,20 @@ void graph_impl::removeQueue(sycl::detail::queue_impl &RecordingQueue) {
 }
 
 void graph_impl::clearQueues(bool NeedsLock) {
-  graph_impl::RecQueuesStorage ToSwap;
-  if (NeedsLock) {
-    graph_impl::WriteLock Lock(MMutex);
-    std::swap(MRecordingQueues, ToSwap);
+  graph_impl::RecQueuesStorage SwappedQueues;
+  {
+    graph_impl::WriteLock Guard(MMutex, std::defer_lock);
+    if (NeedsLock) {
+      Guard.lock();
+    }
+    std::swap(MRecordingQueues, SwappedQueues);
   }
-  graph_impl::RecQueuesStorage &QueuesToClear =
-      NeedsLock ? ToSwap : MRecordingQueues;
 
-  for (auto &Queue : QueuesToClear) {
+  for (auto &Queue : SwappedQueues) {
     if (auto ValidQueue = Queue.lock(); ValidQueue) {
       ValidQueue->setCommandGraph(nullptr);
     }
   }
-  QueuesToClear.clear();
 }
 
 bool graph_impl::checkForCycles() {
