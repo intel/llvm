@@ -344,12 +344,6 @@ def main(directory, additional_env_vars, compare_names, filter):
                 failures[benchmark.name()] = f"Benchmark run failure: {e}"
                 log.error(f"failed: {e}")
 
-    for benchmark in benchmarks:
-        # this never has any useful information anyway, so hide it behind verbose
-        log.debug(f"tearing down {benchmark.name()}... ")
-        benchmark.teardown()
-        log.debug(f"{benchmark.name()} teardown complete.")
-
     this_name = options.current_run_name
     chart_data = {}
 
