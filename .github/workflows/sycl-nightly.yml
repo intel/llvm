@@ -225,7 +225,7 @@ jobs:
             target_devices: level_zero:gpu
 
           - name: Intel L0 Arc GPU
-            runner: '["Windows", arc"]'
+            runner: '["Windows", "arc"]'
             target_devices: level_zero:gpu
 
           - name: Intel L0 Battlemage GPU
