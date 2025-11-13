@@ -6,15 +6,18 @@
 import os
 import shutil
 import subprocess
-from pathlib import Path
-from enum import Enum
-from utils.result import BenchmarkMetadata, BenchmarkTag, Result
-from options import options
-from utils.utils import download, run
 from abc import ABC, abstractmethod
-from utils.unitrace import get_unitrace
+from enum import Enum
+from pathlib import Path
+
+from psutil import Process
+
+from options import options
 from utils.flamegraph import get_flamegraph
 from utils.logger import log
+from utils.result import BenchmarkMetadata, BenchmarkTag, Result
+from utils.unitrace import get_unitrace
+from utils.utils import download, run
 
 
 class TracingType(Enum):
@@ -151,6 +154,8 @@ class Benchmark(ABC):
             log.debug(f"FlameGraph perf data: {perf_data_file}")
             log.debug(f"FlameGraph command: {' '.join(command)}")
 
+        command = self.taskset_cmd() + command
+
         try:
             result = run(
                 command=command,
@@ -251,6 +256,16 @@ class Benchmark(ABC):
                 explicit_group=self.explicit_group(),
             )
         }
+
+    def taskset_cmd(self) -> list[str]:
+        """Returns a list of strings with taskset usage for core pinning.
+        Pin compute benchmarks to a CPU cores set to ensure consistent results
+        and non-zero CPU count measurements (e.g. avoid E-cores). Exactly 4 cores
+        are pinned by default to satisfy multiple threads benchmarks. It is assumed
+        that they have the maximum, or at least similar, frequency.
+        """
+        selected_cores = [str(core) for core in Process().cpu_affinity()[:4]]  # type: ignore
+        return ["taskset", "-c", ",".join(selected_cores)]
 
     @staticmethod
     def get_adapter_full_path():

@@ -82,25 +82,13 @@ runs:
       python3 ./devops/scripts/benchmarks/presets.py query "$PRESET"
       [ "$?" -ne 0 ] && exit 1  # Stop workflow if invalid preset
       echo "PRESET=$PRESET" >> $GITHUB_ENV
-  - name: Compute CPU core range to run benchmarks on
+  - name: Set NUMA node to run benchmarks on
     shell: bash
     run: |
-      # Compute the core range for the first NUMA node; second node is used by
-      # UMF. Skip the first 4 cores as the kernel is likely to schedule more
-      # work on these.
-      CORES="$(lscpu | awk '
-        /NUMA node0 CPU|On-line CPU/ {line=$0}
-        END {
-          split(line, a, " ")
-          split(a[4], b, ",")
-          sub(/^0/, "4", b[1])
-          print b[1]
-        }')"
-      echo "CPU core range to use: $CORES"
-      echo "CORES=$CORES" >> $GITHUB_ENV
-
-      ZE_AFFINITY_MASK=0
-      echo "ZE_AFFINITY_MASK=$ZE_AFFINITY_MASK" >> $GITHUB_ENV
+      # Set CPU and GPU affinity for the first NUMA node; second node is used by UMF
+      NUMA_NODE=0
+      echo "ZE_AFFINITY_MASK=$NUMA_NODE" >> $GITHUB_ENV
+      echo "NUMA_NODE=$NUMA_NODE" >> $GITHUB_ENV
 
   # Compute-benchmarks relies on UR static libraries, cmake config files, etc.
   # DPC++ doesn't ship with these files. The easiest way of obtaining these
@@ -243,7 +231,8 @@ runs:
       WORKDIR="$(realpath ./llvm_test_workdir)"
       if [ -n "$WORKDIR" ] && [ -d "$WORKDIR" ] && [[ "$WORKDIR" == *llvm_test_workdir* ]]; then rm -rf "$WORKDIR" ; fi
 
-      taskset -c "$CORES" ./devops/scripts/benchmarks/main.py "$WORKDIR" \
+      numactl --cpunodebind "$NUMA_NODE" --membind "$NUMA_NODE" \
+      ./devops/scripts/benchmarks/main.py "$WORKDIR" \
         --sycl "$(realpath ./toolchain)" \
         --ur "$(realpath ./ur/install)" \
         --adapter "$FORCELOAD_ADAPTER" \
