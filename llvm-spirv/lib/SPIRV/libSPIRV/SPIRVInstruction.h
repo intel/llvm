@@ -4496,5 +4496,64 @@ public:
 _SPIRV_OP(PredicatedLoad, true, 6, true)
 _SPIRV_OP(PredicatedStore, false, 4, true)
 #undef _SPIRV_OP
+
+template <Op OC> class SPIRVFSigmoidINTELInstBase : public SPIRVUnaryInst<OC> {
+protected:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(internal::CapabilitySigmoidINTEL);
+  }
+
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_sigmoid;
+  }
+
+  void validate() const override {
+    SPIRVUnaryInst<OC>::validate();
+
+    SPIRVType *ResCompTy = this->getType();
+    SPIRVWord ResCompCount = 1;
+    if (ResCompTy->isTypeVector()) {
+      ResCompCount = ResCompTy->getVectorComponentCount();
+      ResCompTy = ResCompTy->getVectorComponentType();
+    }
+
+    // validate is a const method, whilst getOperand is non-const method
+    // because it may call a method of class Module that may modify LiteralMap
+    // of Module field. That modification is not impacting validate method for
+    // these instructions, so const_cast is safe here.
+    using SPVFSigmoidTy = SPIRVFSigmoidINTELInstBase<OC>;
+    const SPIRVValue *Input = const_cast<SPVFSigmoidTy *>(this)->getOperand(0);
+
+    SPIRVType *InCompTy = Input->getType();
+    SPIRVWord InCompCount = 1;
+    if (InCompTy->isTypeVector()) {
+      InCompCount = InCompTy->getVectorComponentCount();
+      InCompTy = InCompTy->getVectorComponentType();
+    }
+
+    auto InstName = OpCodeNameMap::map(OC);
+    SPIRVErrorLog &SPVErrLog = this->getModule()->getErrorLog();
+
+    SPVErrLog.checkError(
+        ResCompTy->isTypeFloat(16) || ResCompTy->isTypeFloat(32) ||
+            ResCompTy->isTypeFloat(16, FPEncodingBFloat16KHR),
+        SPIRVEC_InvalidInstruction,
+        InstName + "\nResult value must be a scalar or vector of floating-point"
+                   " 16-bit or 32-bit type\n");
+    SPVErrLog.checkError(
+        ResCompTy == InCompTy, SPIRVEC_InvalidInstruction,
+        InstName +
+            "\nInput type must have the same component type as result type\n");
+    SPVErrLog.checkError(
+        ResCompCount == InCompCount, SPIRVEC_InvalidInstruction,
+        InstName + "\nInput type must have the same number of components as "
+                   "result type\n");
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVFSigmoidINTELInstBase<internal::Op##x> SPIRV##x;
+_SPIRV_OP(FSigmoidINTEL)
+#undef _SPIRV_OP
 } // namespace SPIRV
 #endif // SPIRV_LIBSPIRV_SPIRVINSTRUCTION_H

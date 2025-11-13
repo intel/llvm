@@ -58,27 +58,20 @@ on:
         required: false
         default: "cl"
 
-      e2e_testing_mode:
-        type: string
-        default: "full"
-
-      e2e_binaries_artifact:
-        type: string
-        default: ''
-        required: False
-
-      cts_testing_mode:
+      testing_mode:
         description: |
-          Testing mode to run SYCL-CTS in, can be either `full`, `build-only`
-          or `run-only`. In `build-only` mode an artifact of the CTS binaries
+          Testing mode to run E2E/SYCL-CTS in, can be either `full`, `build-only`
+          or `run-only`. In `build-only` mode an artifact of the tests binaries
           will be uploaded.
         type: string
         default: 'full'
 
-      sycl_cts_artifact:
+
+      binaries_artifact:
         type: string
         default: ''
         required: False
+
       artifact_retention_days:
         description: 'E2E/SYCL-CTS binaries artifact retention period.'
         type: string
@@ -112,7 +105,7 @@ jobs:
         arch: amd64
     - name: Setup oneAPI env
       uses: ./devops/actions/setup_windows_oneapi_env
-      if: ${{ always() && !cancelled() && inputs.cxx == 'icx' }}
+      if: ${{ !cancelled() && inputs.cxx == 'icx' }}
     - name: Set env
       run: |
         git config --system core.longpaths true
@@ -153,8 +146,8 @@ jobs:
       timeout-minutes: 60
       with:
         ref: ${{ inputs.tests_ref || inputs.repo_ref || github.sha }}
-        binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
-        testing_mode: ${{ inputs.e2e_testing_mode }}
+        binaries_artifact: ${{ inputs.binaries_artifact }}
+        testing_mode: ${{ inputs.testing_mode }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
         target_devices: ${{ inputs.target_devices }}
         extra_lit_opts: ${{ inputs.extra_lit_opts }}
@@ -167,8 +160,8 @@ jobs:
       with:
         ref: ${{ inputs.tests_ref || 'main' }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
-        cts_testing_mode: ${{ inputs.cts_testing_mode }}
-        sycl_cts_artifact: ${{ inputs.sycl_cts_artifact }}
+        testing_mode: ${{ inputs.testing_mode }}
+        binaries_artifact: ${{ inputs.binaries_artifact }}
         target_devices: ${{ inputs.target_devices }}
         retention-days: ${{ inputs.artifact_retention_days }}
 

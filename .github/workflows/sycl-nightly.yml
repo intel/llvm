@@ -85,7 +85,7 @@ jobs:
     permissions:
       contents: write
       packages: read
-    if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
       matrix:
@@ -175,7 +175,7 @@ jobs:
     permissions:
       contents: write
       packages: read
-    if: ${{ always() && !cancelled() && needs.ubuntu2404_oneapi_build.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.ubuntu2404_oneapi_build.outputs.build_conclusion == 'success' }}
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: Intel PVC L0 oneAPI
@@ -204,8 +204,7 @@ jobs:
     needs: build-win
     # Continue if build was successful.
     if: |
-      always()
-      && !cancelled()
+      !cancelled()
       && needs.build-win.outputs.build_conclusion == 'success'
     strategy:
       fail-fast: false
@@ -213,6 +212,10 @@ jobs:
         include:
           - name: Intel L0 Gen12 GPU
             runner: '["Windows", "gen12"]'
+            target_devices: level_zero:gpu
+
+          - name: Intel L0 Arc GPU
+            runner: '["Windows", arc"]'
             target_devices: level_zero:gpu
 
           - name: Intel L0 Battlemage GPU
@@ -228,7 +231,7 @@ jobs:
 
   cuda-aws-start:
     needs: [ubuntu2204_build]
-    if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     uses: ./.github/workflows/sycl-aws.yml
     secrets: inherit
     with:
@@ -239,7 +242,7 @@ jobs:
     permissions:
       contents: write
       packages: read
-    if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: CUDA E2E
@@ -255,7 +258,7 @@ jobs:
 
   cuda-aws-stop:
     needs: [cuda-aws-start, cuda-run-tests]
-    if: always() && ${{ needs.cuda-aws-start.result != 'skipped' }}
+    if: ${{ needs.cuda-aws-start.result != 'skipped' }}
     uses: ./.github/workflows/sycl-aws.yml
     secrets: inherit
     with:
@@ -266,26 +269,26 @@ jobs:
     permissions:
       contents: write
       packages: read
-    if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: Build SYCL-CTS for Linux
       runner: '["Linux", "build"]'
-      cts_testing_mode: 'build-only'
+      testing_mode: 'build-only'
       image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
       tests_selector: cts
       repo_ref: ${{ github.sha }}
       toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
-      sycl_cts_artifact: sycl_cts_bin_linux
+      binaries_artifact: sycl_cts_bin_linux
 
   run-sycl-cts-linux:
     needs: [ubuntu2204_build, build-sycl-cts-linux]
     permissions:
       contents: write
       packages: read
-    if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
       matrix:
@@ -303,7 +306,7 @@ jobs:
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
-      cts_testing_mode: 'run-only'
+      testing_mode: 'run-only'
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
       tests_selector: cts
@@ -311,24 +314,24 @@ jobs:
       toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
-      sycl_cts_artifact: sycl_cts_bin_linux
+      binaries_artifact: sycl_cts_bin_linux
 
   build-sycl-cts-win:
     needs: build-win
-    if: ${{ always() && !cancelled() && needs.build-win.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.build-win.outputs.build_conclusion == 'success' }}
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: Build SYCL-CTS for Windows
       runner: '["Windows", "build"]'
-      cts_testing_mode: 'build-only'
+      testing_mode: 'build-only'
       tests_selector: cts
       repo_ref: ${{ github.sha }}
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
-      sycl_cts_artifact: sycl_cts_bin_win
+      binaries_artifact: sycl_cts_bin_win
 
   run-sycl-cts-win:
     needs: [build-win, build-sycl-cts-win]
-    if: ${{ always() && !cancelled() && needs.build-win.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.build-win.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
       matrix:
@@ -340,12 +343,12 @@ jobs:
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
-      cts_testing_mode: 'run-only'
+      testing_mode: 'run-only'
       target_devices: ${{ matrix.target_devices }}
       tests_selector: cts
       repo_ref: ${{ github.sha }}
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
-      sycl_cts_artifact: sycl_cts_bin_win
+      binaries_artifact: sycl_cts_bin_win
 
   # Verification example:
   # cosign-windows-amd64.exe verify-blob sycl_linux.tar.gz \
@@ -368,7 +371,7 @@ jobs:
       with:
         name: sycl_windows_default
     - name: Sign with sigstore/cosign
-      uses: sigstore/gh-action-sigstore-python@v3.1.0
+      uses: sigstore/gh-action-sigstore-python@f832326173235dcb00dd5d92cd3f353de3188e6c # v3.1.0
       with:
         inputs: sycl_linux.tar.gz sycl_windows.tar.gz
     - name: Compute tag
@@ -381,7 +384,7 @@ jobs:
           echo "TAG=$(date +'%Y-%m-%d')-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
         fi
     - name: Upload binaries
-      uses: softprops/action-gh-release@v2.4.1
+      uses: softprops/action-gh-release@6da8fa9354ddfdc4aeace5fc48d7f679b5214090 # v2.4.1
       with:
         files: |
           sycl_linux.tar.gz
