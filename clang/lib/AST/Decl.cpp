@@ -2993,10 +2993,7 @@ bool ParmVarDecl::isDestroyedInCallee() const {
   // FIXME: isParamDestroyedInCallee() should probably imply
   // isDestructedType()
   const auto *RT = getType()->getAsCanonical<RecordType>();
-  if (RT &&
-      RT->getOriginalDecl()
-          ->getDefinitionOrSelf()
-          ->isParamDestroyedInCallee() &&
+  if (RT && RT->getDecl()->getDefinitionOrSelf()->isParamDestroyedInCallee() &&
       getType().isDestructedType())
     return true;
 
@@ -3320,6 +3317,10 @@ bool FunctionDecl::isImmediateEscalating() const {
       CD && CD->isInheritingConstructor())
     return CD->getInheritedConstructor().getConstructor();
 
+  // Destructors are not immediate escalating.
+  if (isa<CXXDestructorDecl>(this))
+    return false;
+
   // - a function that results from the instantiation of a templated entity
   // defined with the constexpr specifier.
   TemplatedKind TK = getTemplatedKind();
@@ -3383,11 +3384,11 @@ bool FunctionDecl::isMSVCRTEntryPoint() const {
     return false;
 
   return llvm::StringSwitch<bool>(getName())
-      .Cases("main",     // an ANSI console app
-             "wmain",    // a Unicode console App
-             "WinMain",  // an ANSI GUI app
-             "wWinMain", // a Unicode GUI app
-             "DllMain",  // a DLL
+      .Cases({"main",     // an ANSI console app
+              "wmain",    // a Unicode console App
+              "WinMain",  // an ANSI GUI app
+              "wWinMain", // a Unicode GUI app
+              "DllMain"}, // a DLL
              true)
       .Default(false);
 }
@@ -3507,7 +3508,7 @@ bool FunctionDecl::isUsableAsGlobalAllocationFunctionInConstantEvaluation(
     while (const auto *TD = T->getAs<TypedefType>())
       T = TD->getDecl()->getUnderlyingType();
     const IdentifierInfo *II =
-        T->castAsCanonical<EnumType>()->getOriginalDecl()->getIdentifier();
+        T->castAsCanonical<EnumType>()->getDecl()->getIdentifier();
     if (II && II->isStr("__hot_cold_t"))
       Consume();
   }
@@ -4716,7 +4717,7 @@ bool FieldDecl::isAnonymousStructOrUnion() const {
     return false;
 
   if (const auto *Record = getType()->getAsCanonical<RecordType>())
-    return Record->getOriginalDecl()->isAnonymousStructOrUnion();
+    return Record->getDecl()->isAnonymousStructOrUnion();
 
   return false;
 }
@@ -4776,7 +4777,7 @@ bool FieldDecl::isZeroSize(const ASTContext &Ctx) const {
   const auto *RT = getType()->getAsCanonical<RecordType>();
   if (!RT)
     return false;
-  const RecordDecl *RD = RT->getOriginalDecl()->getDefinition();
+  const RecordDecl *RD = RT->getDecl()->getDefinition();
   if (!RD) {
     assert(isInvalidDecl() && "valid field has incomplete type");
     return false;
@@ -5201,7 +5202,7 @@ bool RecordDecl::isOrContainsUnion() const {
   if (const RecordDecl *Def = getDefinition()) {
     for (const FieldDecl *FD : Def->fields()) {
       const RecordType *RT = FD->getType()->getAsCanonical<RecordType>();
-      if (RT && RT->getOriginalDecl()->isOrContainsUnion())
+      if (RT && RT->getDecl()->isOrContainsUnion())
         return true;
     }
   }
@@ -5569,7 +5570,8 @@ FunctionDecl *FunctionDecl::CreateDeserialized(ASTContext &C, GlobalDeclID ID) {
 
 bool FunctionDecl::isReferenceableKernel() const {
   return hasAttr<CUDAGlobalAttr>() ||
-         DeviceKernelAttr::isOpenCLSpelling(getAttr<DeviceKernelAttr>()) || hasAttr<DeviceKernelAttr>();
+         DeviceKernelAttr::isOpenCLSpelling(getAttr<DeviceKernelAttr>()) ||
+         hasAttr<SYCLKernelAttr>();
 }
 
 BlockDecl *BlockDecl::Create(ASTContext &C, DeclContext *DC, SourceLocation L) {
@@ -5699,14 +5701,14 @@ void TypedefNameDecl::anchor() {}
 
 TagDecl *TypedefNameDecl::getAnonDeclWithTypedefName(bool AnyRedecl) const {
   if (auto *TT = getTypeSourceInfo()->getType()->getAs<TagType>()) {
-    auto *OwningTypedef = TT->getOriginalDecl()->getTypedefNameForAnonDecl();
+    auto *OwningTypedef = TT->getDecl()->getTypedefNameForAnonDecl();
     auto *ThisTypedef = this;
     if (AnyRedecl && OwningTypedef) {
       OwningTypedef = OwningTypedef->getCanonicalDecl();
       ThisTypedef = ThisTypedef->getCanonicalDecl();
     }
     if (OwningTypedef == ThisTypedef)
-      return TT->getOriginalDecl()->getDefinitionOrSelf();
+      return TT->getDecl()->getDefinitionOrSelf();
   }
 
   return nullptr;
@@ -5715,7 +5717,7 @@ TagDecl *TypedefNameDecl::getAnonDeclWithTypedefName(bool AnyRedecl) const {
 bool TypedefNameDecl::isTransparentTagSlow() const {
   auto determineIsTransparent = [&]() {
     if (auto *TT = getUnderlyingType()->getAs<TagType>()) {
-      if (auto *TD = TT->getOriginalDecl()) {
+      if (auto *TD = TT->getDecl()) {
         if (TD->getName() != getName())
           return false;
         SourceLocation TTLoc = getLocation();

@@ -232,7 +232,11 @@ Below is a list of supported SPIR-V extensions, sorted alphabetically by their e
    * - ``SPV_INTEL_int4``
      - Adds support for 4-bit integer type, and allow this type to be used in cooperative matrices.
    * - ``SPV_KHR_float_controls2``
-     - Adds ability to specify the floating-point environment in shaders. It can be used on whole modules and individual instructions.
+     - Adds execution modes and decorations to control floating-point computations in both kernels and shaders. It can be used on whole modules and individual instructions.
+   * - ``SPV_INTEL_predicated_io``
+     - Adds predicated load and store instructions that conditionally read from or write to memory based on a boolean predicate.
+   * - ``SPV_KHR_maximal_reconvergence``
+     - Adds execution mode and capability to enable maximal reconvergence.
 
 SPIR-V representation in LLVM IR
 ================================

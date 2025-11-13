@@ -109,9 +109,10 @@ struct SPIRVTypeImageDescriptor;
 
 class SPIRVModule {
 public:
-  typedef std::map<SPIRVCapabilityKind, SPIRVCapability *> SPIRVCapMap;
+  typedef std::map<SPIRVCapabilityKind, std::unique_ptr<SPIRVCapability>>
+      SPIRVCapMap;
   typedef std::map<std::pair<SPIRVId, SPIRVCapabilityKind>,
-                   SPIRVConditionalCapabilityINTEL *>
+                   std::unique_ptr<SPIRVConditionalCapabilityINTEL>>
       SPIRVConditionalCapMap;
   typedef std::vector<SPIRVConditionalEntryPointINTEL *>
       SPIRVConditionalEntryPointVec;

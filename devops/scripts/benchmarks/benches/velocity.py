@@ -28,7 +28,8 @@ class VelocityBench(Suite):
         return "https://github.com/oneapi-src/Velocity-Bench/"
 
     def git_hash(self) -> str:
-        return "b22215c16f789100449c34bf4eaa3fb178983d69"
+        # 8 May, 2025
+        return "2b1479123ea3300062921228b99192eb3747904f"
 
     def setup(self) -> None:
         if options.sycl is None:
