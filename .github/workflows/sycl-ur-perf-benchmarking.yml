@@ -5,8 +5,8 @@ name: SYCL Run Benchmarks
 
 on:
   schedule:
-    # 3 hours ahead of SYCL nightly
-    - cron: '0 0 * * *'
+    # 2 hours after SYCL nightly
+    - cron: '0 5 * * *'
   # Run on pull requests only when a benchmark-related files were changed.
   pull_request:
     # These paths are exactly the same as in sycl-linux/windows-precommit.yml (to ignore over there)
