@@ -1,8 +1,8 @@
 // This test ensures that a program that has a kernel
 // using fp16 can be compiled AOT.
 
-// REQUIRES: ocloc, opencl-aot, any-device-is-cpu
-// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_tgllp -o %t.tgllp.out %s
+// REQUIRES: ocloc, opencl-aot, any-device-is-cpu, (!gpu-intel-gen12 || linux)
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_acm_g10 -o %t.dg2.out %s
 
 // CPU AOT targets host isa, so we compile on the run system instead.
 // RUN: %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -o %t.x86.out %s

@@ -1,8 +1,8 @@
 // This test ensures that a program that has a kernel
 // using various required sub-group sizes can be compiled AOT.
 
-// REQUIRES: ocloc, opencl-aot, any-device-is-cpu, opencl-cpu-rt
-// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_tgllp -o %t.tgllp.out %s
+// REQUIRES: ocloc, opencl-aot, any-device-is-cpu, opencl-cpu-rt, (!gpu-intel-gen12 || linux)
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_acm_g10 -o %t.dg2.out %s
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 -o %t.x86.out %s
 
 // ocloc on windows does not have support for PVC, so this command will
