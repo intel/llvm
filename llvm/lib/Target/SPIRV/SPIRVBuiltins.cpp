@@ -507,7 +507,9 @@ static Register buildLoadInst(SPIRVType *BaseType, Register PtrRegister,
 static Register buildBuiltinVariableLoad(
     MachineIRBuilder &MIRBuilder, SPIRVType *VariableType,
     SPIRVGlobalRegistry *GR, SPIRV::BuiltIn::BuiltIn BuiltinValue, LLT LLType,
-    Register Reg = Register(0), bool isConst = true, bool hasLinkageTy = true) {
+    Register Reg = Register(0), bool isConst = true,
+    const std::optional<SPIRV::LinkageType::LinkageType> &LinkageTy = {
+        SPIRV::LinkageType::Import}) {
   Register NewRegister =
       MIRBuilder.getMRI()->createVirtualRegister(&SPIRV::pIDRegClass);
   MIRBuilder.getMRI()->setType(
@@ -521,9 +523,8 @@ static Register buildBuiltinVariableLoad(
   // Set up the global OpVariable with the necessary builtin decorations.
   Register Variable = GR->buildGlobalVariable(
       NewRegister, PtrType, getLinkStringForBuiltIn(BuiltinValue), nullptr,
-      SPIRV::StorageClass::Input, nullptr, /* isConst= */ isConst,
-      /* HasLinkageTy */ hasLinkageTy, SPIRV::LinkageType::Import, MIRBuilder,
-      false);
+      SPIRV::StorageClass::Input, nullptr, /* isConst= */ isConst, LinkageTy,
+      MIRBuilder, false);
 
   // Load the value from the global variable.
   Register LoadedRegister =
@@ -1096,6 +1097,41 @@ static bool build2DBlockIOINTELInst(const SPIRV::IncomingCall *Call,
   return true;
 }
 
+static bool buildPipeInst(const SPIRV::IncomingCall *Call, unsigned Opcode,
+                          unsigned Scope, MachineIRBuilder &MIRBuilder,
+                          SPIRVGlobalRegistry *GR) {
+  switch (Opcode) {
+  case SPIRV::OpCommitReadPipe:
+  case SPIRV::OpCommitWritePipe:
+    return buildOpFromWrapper(MIRBuilder, Opcode, Call, Register(0));
+  case SPIRV::OpGroupCommitReadPipe:
+  case SPIRV::OpGroupCommitWritePipe:
+  case SPIRV::OpGroupReserveReadPipePackets:
+  case SPIRV::OpGroupReserveWritePipePackets: {
+    Register ScopeConstReg =
+        MIRBuilder.buildConstant(LLT::scalar(32), Scope).getReg(0);
+    MachineRegisterInfo *MRI = MIRBuilder.getMRI();
+    MRI->setRegClass(ScopeConstReg, &SPIRV::iIDRegClass);
+    MachineInstrBuilder MIB;
+    MIB = MIRBuilder.buildInstr(Opcode);
+    // Add Return register and type.
+    if (Opcode == SPIRV::OpGroupReserveReadPipePackets ||
+        Opcode == SPIRV::OpGroupReserveWritePipePackets)
+      MIB.addDef(Call->ReturnRegister)
+          .addUse(GR->getSPIRVTypeID(Call->ReturnType));
+
+    MIB.addUse(ScopeConstReg);
+    for (unsigned int i = 0; i < Call->Arguments.size(); ++i)
+      MIB.addUse(Call->Arguments[i]);
+
+    return true;
+  }
+  default:
+    return buildOpFromWrapper(MIRBuilder, Opcode, Call,
+                              GR->getSPIRVTypeID(Call->ReturnType));
+  }
+}
+
 static unsigned getNumComponentsForDim(SPIRV::Dim::Dim dim) {
   switch (dim) {
   case SPIRV::Dim::DIM_1D:
@@ -1443,18 +1479,25 @@ static bool generateKernelClockInst(const SPIRV::IncomingCall *Call,
 
   Register ResultReg = Call->ReturnRegister;
 
-  // Deduce the `Scope` operand from the builtin function name.
-  SPIRV::Scope::Scope ScopeArg =
-      StringSwitch<SPIRV::Scope::Scope>(Builtin->Name)
-          .EndsWith("device", SPIRV::Scope::Scope::Device)
-          .EndsWith("work_group", SPIRV::Scope::Scope::Workgroup)
-          .EndsWith("sub_group", SPIRV::Scope::Scope::Subgroup);
-  Register ScopeReg = buildConstantIntReg32(ScopeArg, MIRBuilder, GR);
+  if (Builtin->Name == "__spirv_ReadClockKHR") {
+    MIRBuilder.buildInstr(SPIRV::OpReadClockKHR)
+        .addDef(ResultReg)
+        .addUse(GR->getSPIRVTypeID(Call->ReturnType))
+        .addUse(Call->Arguments[0]);
+  } else {
+    // Deduce the `Scope` operand from the builtin function name.
+    SPIRV::Scope::Scope ScopeArg =
+        StringSwitch<SPIRV::Scope::Scope>(Builtin->Name)
+            .EndsWith("device", SPIRV::Scope::Scope::Device)
+            .EndsWith("work_group", SPIRV::Scope::Scope::Workgroup)
+            .EndsWith("sub_group", SPIRV::Scope::Scope::Subgroup);
+    Register ScopeReg = buildConstantIntReg32(ScopeArg, MIRBuilder, GR);
 
-  MIRBuilder.buildInstr(SPIRV::OpReadClockKHR)
-      .addDef(ResultReg)
-      .addUse(GR->getSPIRVTypeID(Call->ReturnType))
-      .addUse(ScopeReg);
+    MIRBuilder.buildInstr(SPIRV::OpReadClockKHR)
+        .addDef(ResultReg)
+        .addUse(GR->getSPIRVTypeID(Call->ReturnType))
+        .addUse(ScopeReg);
+  }
 
   return true;
 }
@@ -1759,7 +1802,7 @@ static bool generateDotOrFMulInst(const StringRef DemangledCall,
   // Add Packed Vector Format for Integer dot product builtins if arguments are
   // scalar
   if (!IsVec && OC != SPIRV::OpFMulS)
-    MIB.addImm(0);
+    MIB.addImm(SPIRV::PackedVectorFormat4x8Bit);
 
   return true;
 }
@@ -1777,7 +1820,7 @@ static bool generateWaveInst(const SPIRV::IncomingCall *Call,
 
   return buildBuiltinVariableLoad(
       MIRBuilder, Call->ReturnType, GR, Value, LLType, Call->ReturnRegister,
-      /* isConst= */ false, /* hasLinkageTy= */ false);
+      /* isConst= */ false, /* LinkageType= */ std::nullopt);
 }
 
 // We expect a builtin
@@ -2329,6 +2372,41 @@ static bool generate2DBlockIOINTELInst(const SPIRV::IncomingCall *Call,
       SPIRV::lookupNativeBuiltin(Builtin->Name, Builtin->Set)->Opcode;
 
   return build2DBlockIOINTELInst(Call, Opcode, MIRBuilder, GR);
+}
+
+static bool generatePipeInst(const SPIRV::IncomingCall *Call,
+                             MachineIRBuilder &MIRBuilder,
+                             SPIRVGlobalRegistry *GR) {
+  const SPIRV::DemangledBuiltin *Builtin = Call->Builtin;
+  unsigned Opcode =
+      SPIRV::lookupNativeBuiltin(Builtin->Name, Builtin->Set)->Opcode;
+
+  unsigned Scope = SPIRV::Scope::Workgroup;
+  if (Builtin->Name.contains("sub_group"))
+    Scope = SPIRV::Scope::Subgroup;
+
+  return buildPipeInst(Call, Opcode, Scope, MIRBuilder, GR);
+}
+
+static bool generatePredicatedLoadStoreInst(const SPIRV::IncomingCall *Call,
+                                            MachineIRBuilder &MIRBuilder,
+                                            SPIRVGlobalRegistry *GR) {
+  const SPIRV::DemangledBuiltin *Builtin = Call->Builtin;
+  unsigned Opcode =
+      SPIRV::lookupNativeBuiltin(Builtin->Name, Builtin->Set)->Opcode;
+
+  bool IsSet = Opcode != SPIRV::OpPredicatedStoreINTEL;
+  unsigned ArgSz = Call->Arguments.size();
+  SmallVector<uint32_t, 1> ImmArgs;
+  MachineRegisterInfo *MRI = MIRBuilder.getMRI();
+  // Memory operand is optional and is literal.
+  if (ArgSz > 3)
+    ImmArgs.push_back(
+        getConstFromIntrinsic(Call->Arguments[/*Literal index*/ 3], MRI));
+
+  Register TypeReg = GR->getSPIRVTypeID(Call->ReturnType);
+  return buildOpFromWrapper(MIRBuilder, Opcode, Call,
+                            IsSet ? TypeReg : Register(0), ImmArgs);
 }
 
 static bool buildNDRange(const SPIRV::IncomingCall *Call,
@@ -2929,6 +3007,10 @@ std::optional<bool> lowerBuiltin(const StringRef DemangledCall,
     return generateTernaryBitwiseFunctionINTELInst(Call.get(), MIRBuilder, GR);
   case SPIRV::Block2DLoadStore:
     return generate2DBlockIOINTELInst(Call.get(), MIRBuilder, GR);
+  case SPIRV::Pipe:
+    return generatePipeInst(Call.get(), MIRBuilder, GR);
+  case SPIRV::PredicatedLoadStore:
+    return generatePredicatedLoadStoreInst(Call.get(), MIRBuilder, GR);
   }
   return false;
 }

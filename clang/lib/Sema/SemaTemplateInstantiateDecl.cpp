@@ -1031,12 +1031,29 @@ static void instantiateSYCLReqdWorkGroupSizeAttr(
                                         ZResult.get());
 }
 
+static void instantiateDependentCUDAClusterDimsAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const CUDAClusterDimsAttr &Attr, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+
+  auto SubstElt = [&S, &TemplateArgs](Expr *E) {
+    return E ? S.SubstExpr(E, TemplateArgs).get() : nullptr;
+  };
+
+  Expr *XExpr = SubstElt(Attr.getX());
+  Expr *YExpr = SubstElt(Attr.getY());
+  Expr *ZExpr = SubstElt(Attr.getZ());
+
+  S.addClusterDimsAttr(New, Attr, XExpr, YExpr, ZExpr);
+}
+
 // This doesn't take any template parameters, but we have a custom action that
 // needs to happen when the kernel itself is instantiated. We need to run the
 // ItaniumMangler to mark the names required to name this kernel.
-static void instantiateDependentDeviceKernelAttr(
+static void instantiateDependentSYCLKernelAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const DeviceKernelAttr &Attr, Decl *New) {
+    const SYCLKernelAttr &Attr, Decl *New) {
   New->addAttr(Attr.clone(S.getASTContext()));
 }
 
@@ -1089,10 +1106,18 @@ static bool isRelevantAttr(Sema &S, const Decl *D, const Attr *A) {
 
 static void instantiateDependentHLSLParamModifierAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const HLSLParamModifierAttr *Attr, Decl *New) {
-  ParmVarDecl *P = cast<ParmVarDecl>(New);
-  P->addAttr(Attr->clone(S.getASTContext()));
-  P->setType(S.HLSL().getInoutParameterType(P->getType()));
+    const HLSLParamModifierAttr *Attr, const Decl *Old, Decl *New) {
+  ParmVarDecl *NewParm = cast<ParmVarDecl>(New);
+  NewParm->addAttr(Attr->clone(S.getASTContext()));
+
+  const Type *OldParmTy = cast<ParmVarDecl>(Old)->getType().getTypePtr();
+  if (OldParmTy->isDependentType() && Attr->isAnyOut())
+    NewParm->setType(S.HLSL().getInoutParameterType(NewParm->getType()));
+
+  assert(
+      (!Attr->isAnyOut() || (NewParm->getType().isRestrictQualified() &&
+                             NewParm->getType()->isReferenceType())) &&
+      "out or inout parameter type must be a reference and restrict qualified");
 }
 
 void Sema::InstantiateAttrsForDecl(
@@ -1394,9 +1419,14 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
           *this, TemplateArgs, *AMDGPUMaxNumWorkGroups, New);
     }
 
+    if (const auto *CUDAClusterDims = dyn_cast<CUDAClusterDimsAttr>(TmplAttr)) {
+      instantiateDependentCUDAClusterDimsAttr(*this, TemplateArgs,
+                                              *CUDAClusterDims, New);
+    }
+
     if (const auto *ParamAttr = dyn_cast<HLSLParamModifierAttr>(TmplAttr)) {
       instantiateDependentHLSLParamModifierAttr(*this, TemplateArgs, ParamAttr,
-                                                New);
+                                                Tmpl, New);
       continue;
     }
 
@@ -1439,8 +1469,8 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
       continue;
     }
 
-    if (auto *A = dyn_cast<DeviceKernelAttr>(TmplAttr)) {
-      instantiateDependentDeviceKernelAttr(*this, TemplateArgs, *A, New);
+    if (auto *A = dyn_cast<SYCLKernelAttr>(TmplAttr)) {
+      instantiateDependentSYCLKernelAttr(*this, TemplateArgs, *A, New);
       continue;
     }
 
@@ -1995,9 +2025,9 @@ Decl *TemplateDeclInstantiator::InstantiateTypedefNameDecl(TypedefNameDecl *D,
   // If the old typedef was the name for linkage purposes of an anonymous
   // tag decl, re-establish that relationship for the new typedef.
   if (const TagType *oldTagType = D->getUnderlyingType()->getAs<TagType>()) {
-    TagDecl *oldTag = oldTagType->getOriginalDecl();
+    TagDecl *oldTag = oldTagType->getDecl();
     if (oldTag->getTypedefNameForAnonDecl() == D && !Invalid) {
-      TagDecl *newTag = DI->getType()->castAs<TagType>()->getOriginalDecl();
+      TagDecl *newTag = DI->getType()->castAs<TagType>()->getDecl();
       assert(!newTag->hasNameForLinkage());
       newTag->setTypedefNameForAnonDecl(Typedef);
     }
@@ -2053,17 +2083,19 @@ Decl *TemplateDeclInstantiator::InstantiateTypeAliasTemplateDecl(
   if (!InstParams)
     return nullptr;
 
-  TypeAliasDecl *Pattern = D->getTemplatedDecl();
-  Sema::InstantiatingTemplate InstTemplate(
-      SemaRef, D->getBeginLoc(), D,
-      D->getTemplateDepth() >= TemplateArgs.getNumLevels()
-          ? ArrayRef<TemplateArgument>()
-          : (TemplateArgs.begin() + TemplateArgs.getNumLevels() - 1 -
-             D->getTemplateDepth())
-                ->Args);
+  // FIXME: This is a hack for instantiating lambdas in the pattern of the
+  // alias. We are not really instantiating the alias at its template level,
+  // that only happens in CheckTemplateId, this is only for outer templates
+  // which contain it. In getTemplateInstantiationArgs, the template arguments
+  // used here would be used for collating the template arguments needed to
+  // instantiate the lambda. Pass an empty argument list, so this workaround
+  // doesn't get confused if there is an outer alias being instantiated.
+  Sema::InstantiatingTemplate InstTemplate(SemaRef, D->getBeginLoc(), D,
+                                           ArrayRef<TemplateArgument>());
   if (InstTemplate.isInvalid())
     return nullptr;
 
+  TypeAliasDecl *Pattern = D->getTemplatedDecl();
   TypeAliasTemplateDecl *PrevAliasTemplate = nullptr;
   if (getPreviousDeclForInstantiation<TypedefNameDecl>(Pattern)) {
     DeclContext::lookup_result Found = Owner->lookup(Pattern->getDeclName());
@@ -4263,7 +4295,7 @@ TemplateDeclInstantiator::VisitTemplateTemplateParmDecl(
     ExpandedParams.reserve(D->getNumExpansionTemplateParameters());
     for (unsigned I = 0, N = D->getNumExpansionTemplateParameters();
          I != N; ++I) {
-      LocalInstantiationScope Scope(SemaRef);
+      LocalInstantiationScope Scope(SemaRef, /*CombineWithOuterScope=*/true);
       TemplateParameterList *Expansion =
         SubstTemplateParams(D->getExpansionTemplateParameters(I));
       if (!Expansion)
@@ -4295,7 +4327,7 @@ TemplateDeclInstantiator::VisitTemplateTemplateParmDecl(
     if (Expand) {
       for (unsigned I = 0; I != *NumExpansions; ++I) {
         Sema::ArgPackSubstIndexRAII SubstIndex(SemaRef, I);
-        LocalInstantiationScope Scope(SemaRef);
+        LocalInstantiationScope Scope(SemaRef, /*CombineWithOuterScope=*/true);
         TemplateParameterList *Expansion = SubstTemplateParams(TempParams);
         if (!Expansion)
           return nullptr;
@@ -4306,21 +4338,18 @@ TemplateDeclInstantiator::VisitTemplateTemplateParmDecl(
       // expanded parameter pack is the original expansion type, but callers
       // will end up using the expanded parameter pack types for type-checking.
       IsExpandedParameterPack = true;
-      InstParams = TempParams;
-    } else {
-      // We cannot fully expand the pack expansion now, so just substitute
-      // into the pattern.
-      Sema::ArgPackSubstIndexRAII SubstIndex(SemaRef, std::nullopt);
-
-      LocalInstantiationScope Scope(SemaRef);
-      InstParams = SubstTemplateParams(TempParams);
-      if (!InstParams)
-        return nullptr;
     }
+
+    Sema::ArgPackSubstIndexRAII SubstIndex(SemaRef, std::nullopt);
+
+    LocalInstantiationScope Scope(SemaRef, /*CombineWithOuterScope=*/true);
+    InstParams = SubstTemplateParams(TempParams);
+    if (!InstParams)
+      return nullptr;
   } else {
     // Perform the actual substitution of template parameters within a new,
     // local instantiation scope.
-    LocalInstantiationScope Scope(SemaRef);
+    LocalInstantiationScope Scope(SemaRef, /*CombineWithOuterScope=*/true);
     InstParams = SubstTemplateParams(TempParams);
     if (!InstParams)
       return nullptr;
@@ -4689,6 +4718,24 @@ Decl *TemplateDeclInstantiator::VisitOMPThreadPrivateDecl(
 
   OMPThreadPrivateDecl *TD =
       SemaRef.OpenMP().CheckOMPThreadPrivateDecl(D->getLocation(), Vars);
+
+  TD->setAccess(AS_public);
+  Owner->addDecl(TD);
+
+  return TD;
+}
+
+Decl *
+TemplateDeclInstantiator::VisitOMPGroupPrivateDecl(OMPGroupPrivateDecl *D) {
+  SmallVector<Expr *, 5> Vars;
+  for (auto *I : D->varlist()) {
+    Expr *Var = SemaRef.SubstExpr(I, TemplateArgs).get();
+    assert(isa<DeclRefExpr>(Var) && "groupprivate arg is not a DeclRefExpr");
+    Vars.push_back(Var);
+  }
+
+  OMPGroupPrivateDecl *TD =
+      SemaRef.OpenMP().CheckOMPGroupPrivateDecl(D->getLocation(), Vars);
 
   TD->setAccess(AS_public);
   Owner->addDecl(TD);
@@ -5786,18 +5833,21 @@ void Sema::InstantiateExceptionSpec(SourceLocation PointOfInstantiation,
   if (Proto->getExceptionSpecType() != EST_Uninstantiated)
     return;
 
+  RecursiveInstGuard AlreadyInstantiating(
+      *this, Decl, RecursiveInstGuard::Kind::ExceptionSpec);
+  if (AlreadyInstantiating) {
+    // This exception specification indirectly depends on itself. Reject.
+    // FIXME: Corresponding rule in the standard?
+    Diag(PointOfInstantiation, diag::err_exception_spec_cycle) << Decl;
+    UpdateExceptionSpec(Decl, EST_None);
+    return;
+  }
+
   InstantiatingTemplate Inst(*this, PointOfInstantiation, Decl,
                              InstantiatingTemplate::ExceptionSpecification());
   if (Inst.isInvalid()) {
     // We hit the instantiation depth limit. Clear the exception specification
     // so that our callers don't have to cope with EST_Uninstantiated.
-    UpdateExceptionSpec(Decl, EST_None);
-    return;
-  }
-  if (Inst.isAlreadyInstantiating()) {
-    // This exception specification indirectly depends on itself. Reject.
-    // FIXME: Corresponding rule in the standard?
-    Diag(PointOfInstantiation, diag::err_exception_spec_cycle) << Decl;
     UpdateExceptionSpec(Decl, EST_None);
     return;
   }
@@ -5860,8 +5910,6 @@ TemplateDeclInstantiator::InitFunctionInstantiation(FunctionDecl *New,
   if (ActiveInst.Kind == ActiveInstType::ExplicitTemplateArgumentSubstitution ||
       ActiveInst.Kind == ActiveInstType::DeducedTemplateArgumentSubstitution) {
     if (isa<FunctionTemplateDecl>(ActiveInst.Entity)) {
-      SemaRef.InstantiatingSpecializations.erase(
-          {ActiveInst.Entity->getCanonicalDecl(), ActiveInst.Kind});
       atTemplateEnd(SemaRef.TemplateInstCallbacks, SemaRef, ActiveInst);
       ActiveInst.Kind = ActiveInstType::TemplateInstantiation;
       ActiveInst.Entity = New;
@@ -6019,6 +6067,12 @@ void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
     Function = const_cast<FunctionDecl*>(ExistingDefn);
   }
 
+#ifndef NDEBUG
+  RecursiveInstGuard AlreadyInstantiating(*this, Function,
+                                          RecursiveInstGuard::Kind::Template);
+  assert(!AlreadyInstantiating && "should have been caught by caller");
+#endif
+
   // Find the function body that we'll be substituting.
   const FunctionDecl *PatternDecl = Function->getTemplateInstantiationPattern();
   assert(PatternDecl && "instantiating a non-template");
@@ -6158,7 +6212,7 @@ void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
   }
 
   InstantiatingTemplate Inst(*this, PointOfInstantiation, Function);
-  if (Inst.isInvalid() || Inst.isAlreadyInstantiating())
+  if (Inst.isInvalid())
     return;
   PrettyDeclStackTraceEntry CrashInfo(Context, Function, SourceLocation(),
                                       "instantiating function definition");
@@ -6231,7 +6285,7 @@ void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
   Function->setDeclarationNameLoc(NameLocPointsToPattern());
 
   EnterExpressionEvaluationContextForFunction EvalContext(
-      *this, Sema::ExpressionEvaluationContext::PotentiallyEvaluated);
+      *this, Sema::ExpressionEvaluationContext::PotentiallyEvaluated, Function);
 
   Qualifiers ThisTypeQuals;
   CXXRecordDecl *ThisContext = nullptr;
@@ -6295,7 +6349,7 @@ void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
       QualType TransformRecordType(TypeLocBuilder &TLB, RecordTypeLoc TL) {
         const RecordType *T = TL.getTypePtr();
         RecordDecl *Record = cast_or_null<RecordDecl>(
-            getDerived().TransformDecl(TL.getNameLoc(), T->getOriginalDecl()));
+            getDerived().TransformDecl(TL.getNameLoc(), T->getDecl()));
         if (Record != OldDecl)
           return Base::TransformRecordType(TLB, TL);
 
@@ -6731,6 +6785,11 @@ void Sema::InstantiateVariableDefinition(SourceLocation PointOfInstantiation,
   if (TSK == TSK_ExplicitSpecialization)
     return;
 
+  RecursiveInstGuard AlreadyInstantiating(*this, Var,
+                                          RecursiveInstGuard::Kind::Template);
+  if (AlreadyInstantiating)
+    return;
+
   // Find the pattern and the arguments to substitute into it.
   VarDecl *PatternDecl = Var->getTemplateInstantiationPattern();
   assert(PatternDecl && "no pattern for templated variable");
@@ -6754,7 +6813,7 @@ void Sema::InstantiateVariableDefinition(SourceLocation PointOfInstantiation,
       // FIXME: Factor out the duplicated instantiation context setup/tear down
       // code here.
       InstantiatingTemplate Inst(*this, PointOfInstantiation, Var);
-      if (Inst.isInvalid() || Inst.isAlreadyInstantiating())
+      if (Inst.isInvalid())
         return;
       PrettyDeclStackTraceEntry CrashInfo(Context, Var, SourceLocation(),
                                           "instantiating variable initializer");
@@ -6866,7 +6925,7 @@ void Sema::InstantiateVariableDefinition(SourceLocation PointOfInstantiation,
   }
 
   InstantiatingTemplate Inst(*this, PointOfInstantiation, Var);
-  if (Inst.isInvalid() || Inst.isAlreadyInstantiating())
+  if (Inst.isInvalid())
     return;
   PrettyDeclStackTraceEntry CrashInfo(Context, Var, SourceLocation(),
                                       "instantiating variable definition");
@@ -7484,8 +7543,9 @@ NamedDecl *Sema::FindInstantiatedDecl(SourceLocation Loc, NamedDecl *D,
               Args.addArgument(
                   getTrivialTemplateArgumentLoc(UnpackedArg, QualType(), Loc));
           }
-          QualType T = CheckTemplateIdType(ElaboratedTypeKeyword::None,
-                                           TemplateName(TD), Loc, Args);
+          QualType T = CheckTemplateIdType(
+              ElaboratedTypeKeyword::None, TemplateName(TD), Loc, Args,
+              /*Scope=*/nullptr, /*ForNestedNameSpecifier=*/false);
           // We may get a non-null type with errors, in which case
           // `getAsCXXRecordDecl` will return `nullptr`. For instance, this
           // happens when one of the template arguments is an invalid
@@ -7641,7 +7701,7 @@ static void processFunctionInstantiation(Sema &S,
                                   DefinitionRequired, AtEndOfTU);
   if (!FD->isDefined())
     return;
-  if (S.LangOpts.SYCLIsDevice && FD->hasAttr<DeviceKernelAttr>())
+  if (S.LangOpts.SYCLIsDevice && FD->hasAttr<SYCLKernelAttr>())
     S.SYCL().ConstructOpenCLKernel(FD, MC);
   FD->setInstantiationIsPending(false);
 }

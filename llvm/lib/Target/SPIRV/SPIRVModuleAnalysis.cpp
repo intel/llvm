@@ -531,9 +531,9 @@ void SPIRVModuleAnalysis::collectFuncNames(MachineInstr &MI,
   if (MI.getOpcode() == SPIRV::OpDecorate) {
     // If it's got Import linkage.
     auto Dec = MI.getOperand(1).getImm();
-    if (Dec == static_cast<unsigned>(SPIRV::Decoration::LinkageAttributes)) {
+    if (Dec == SPIRV::Decoration::LinkageAttributes) {
       auto Lnk = MI.getOperand(MI.getNumOperands() - 1).getImm();
-      if (Lnk == static_cast<unsigned>(SPIRV::LinkageType::Import)) {
+      if (Lnk == SPIRV::LinkageType::Import) {
         // Map imported function name to function ID register.
         const Function *ImportedFunc =
             F->getParent()->getFunction(getStringImm(MI, 2));
@@ -573,7 +573,7 @@ static void collectOtherInstr(MachineInstr &MI, SPIRV::ModuleAnalysisInfo &MAI,
 void SPIRVModuleAnalysis::processOtherInstrs(const Module &M) {
   InstrTraces IS;
   for (auto F = M.begin(), E = M.end(); F != E; ++F) {
-    if ((*F).isDeclaration())
+    if (F->isDeclaration())
       continue;
     MachineFunction *MF = MMI->getMachineFunction(*F);
     assert(MF);
@@ -1133,6 +1133,23 @@ void addOpAccessChainReqs(const MachineInstr &Instr,
     return;
   }
 
+  bool IsNonUniform =
+      hasNonUniformDecoration(Instr.getOperand(0).getReg(), MRI);
+
+  auto FirstIndexReg = Instr.getOperand(3).getReg();
+  bool FirstIndexIsConstant =
+      Subtarget.getInstrInfo()->isConstantInstr(*MRI.getVRegDef(FirstIndexReg));
+
+  if (StorageClass == SPIRV::StorageClass::StorageClass::StorageBuffer) {
+    if (IsNonUniform)
+      Handler.addRequirements(
+          SPIRV::Capability::StorageBufferArrayNonUniformIndexingEXT);
+    else if (!FirstIndexIsConstant)
+      Handler.addRequirements(
+          SPIRV::Capability::StorageBufferArrayDynamicIndexing);
+    return;
+  }
+
   Register PointeeTypeReg = ResTypeInst->getOperand(2).getReg();
   MachineInstr *PointeeType = MRI.getUniqueVRegDef(PointeeTypeReg);
   if (PointeeType->getOpcode() != SPIRV::OpTypeImage &&
@@ -1141,27 +1158,25 @@ void addOpAccessChainReqs(const MachineInstr &Instr,
     return;
   }
 
-  bool IsNonUniform =
-      hasNonUniformDecoration(Instr.getOperand(0).getReg(), MRI);
   if (isUniformTexelBuffer(PointeeType)) {
     if (IsNonUniform)
       Handler.addRequirements(
           SPIRV::Capability::UniformTexelBufferArrayNonUniformIndexingEXT);
-    else
+    else if (!FirstIndexIsConstant)
       Handler.addRequirements(
           SPIRV::Capability::UniformTexelBufferArrayDynamicIndexingEXT);
   } else if (isInputAttachment(PointeeType)) {
     if (IsNonUniform)
       Handler.addRequirements(
           SPIRV::Capability::InputAttachmentArrayNonUniformIndexingEXT);
-    else
+    else if (!FirstIndexIsConstant)
       Handler.addRequirements(
           SPIRV::Capability::InputAttachmentArrayDynamicIndexingEXT);
   } else if (isStorageTexelBuffer(PointeeType)) {
     if (IsNonUniform)
       Handler.addRequirements(
           SPIRV::Capability::StorageTexelBufferArrayNonUniformIndexingEXT);
-    else
+    else if (!FirstIndexIsConstant)
       Handler.addRequirements(
           SPIRV::Capability::StorageTexelBufferArrayDynamicIndexingEXT);
   } else if (isSampledImage(PointeeType) ||
@@ -1170,14 +1185,14 @@ void addOpAccessChainReqs(const MachineInstr &Instr,
     if (IsNonUniform)
       Handler.addRequirements(
           SPIRV::Capability::SampledImageArrayNonUniformIndexingEXT);
-    else
+    else if (!FirstIndexIsConstant)
       Handler.addRequirements(
           SPIRV::Capability::SampledImageArrayDynamicIndexing);
   } else if (isStorageImage(PointeeType)) {
     if (IsNonUniform)
       Handler.addRequirements(
           SPIRV::Capability::StorageImageArrayNonUniformIndexingEXT);
-    else
+    else if (!FirstIndexIsConstant)
       Handler.addRequirements(
           SPIRV::Capability::StorageImageArrayDynamicIndexing);
   }
@@ -1222,9 +1237,42 @@ static void AddDotProductRequirements(const MachineInstr &MI,
   }
 }
 
+void addPrintfRequirements(const MachineInstr &MI,
+                           SPIRV::RequirementHandler &Reqs,
+                           const SPIRVSubtarget &ST) {
+  SPIRVGlobalRegistry *GR = ST.getSPIRVGlobalRegistry();
+  const SPIRVType *PtrType = GR->getSPIRVTypeForVReg(MI.getOperand(4).getReg());
+  if (PtrType) {
+    MachineOperand ASOp = PtrType->getOperand(1);
+    if (ASOp.isImm()) {
+      unsigned AddrSpace = ASOp.getImm();
+      if (AddrSpace != SPIRV::StorageClass::UniformConstant) {
+        if (!ST.canUseExtension(
+                SPIRV::Extension::
+                    SPV_EXT_relaxed_printf_string_address_space)) {
+          report_fatal_error("SPV_EXT_relaxed_printf_string_address_space is "
+                             "required because printf uses a format string not "
+                             "in constant address space.",
+                             false);
+        }
+        Reqs.addExtension(
+            SPIRV::Extension::SPV_EXT_relaxed_printf_string_address_space);
+      }
+    }
+  }
+}
+
+static bool isBFloat16Type(const SPIRVType *TypeDef) {
+  return TypeDef && TypeDef->getNumOperands() == 3 &&
+         TypeDef->getOpcode() == SPIRV::OpTypeFloat &&
+         TypeDef->getOperand(1).getImm() == 16 &&
+         TypeDef->getOperand(2).getImm() == SPIRV::FPEncoding::BFloat16KHR;
+}
+
 void addInstrRequirements(const MachineInstr &MI,
-                          SPIRV::RequirementHandler &Reqs,
+                          SPIRV::ModuleAnalysisInfo &MAI,
                           const SPIRVSubtarget &ST) {
+  SPIRV::RequirementHandler &Reqs = MAI.Reqs;
   switch (MI.getOpcode()) {
   case SPIRV::OpMemoryModel: {
     int64_t Addr = MI.getOperand(0).getImm();
@@ -1261,12 +1309,29 @@ void addInstrRequirements(const MachineInstr &MI,
       Reqs.addCapability(SPIRV::Capability::Int8);
     break;
   }
+  case SPIRV::OpDot: {
+    const MachineRegisterInfo &MRI = MI.getMF()->getRegInfo();
+    SPIRVType *TypeDef = MRI.getVRegDef(MI.getOperand(1).getReg());
+    if (isBFloat16Type(TypeDef))
+      Reqs.addCapability(SPIRV::Capability::BFloat16DotProductKHR);
+    break;
+  }
   case SPIRV::OpTypeFloat: {
     unsigned BitWidth = MI.getOperand(1).getImm();
     if (BitWidth == 64)
       Reqs.addCapability(SPIRV::Capability::Float64);
-    else if (BitWidth == 16)
-      Reqs.addCapability(SPIRV::Capability::Float16);
+    else if (BitWidth == 16) {
+      if (isBFloat16Type(&MI)) {
+        if (!ST.canUseExtension(SPIRV::Extension::SPV_KHR_bfloat16))
+          report_fatal_error("OpTypeFloat type with bfloat requires the "
+                             "following SPIR-V extension: SPV_KHR_bfloat16",
+                             false);
+        Reqs.addExtension(SPIRV::Extension::SPV_KHR_bfloat16);
+        Reqs.addCapability(SPIRV::Capability::BFloat16TypeKHR);
+      } else {
+        Reqs.addCapability(SPIRV::Capability::Float16);
+      }
+    }
     break;
   }
   case SPIRV::OpTypeVector: {
@@ -1286,8 +1351,9 @@ void addInstrRequirements(const MachineInstr &MI,
     assert(MI.getOperand(2).isReg());
     const MachineRegisterInfo &MRI = MI.getMF()->getRegInfo();
     SPIRVType *TypeDef = MRI.getVRegDef(MI.getOperand(2).getReg());
-    if (TypeDef->getOpcode() == SPIRV::OpTypeFloat &&
-        TypeDef->getOperand(1).getImm() == 16)
+    if ((TypeDef->getNumOperands() == 2) &&
+        (TypeDef->getOpcode() == SPIRV::OpTypeFloat) &&
+        (TypeDef->getOperand(1).getImm() == 16))
       Reqs.addCapability(SPIRV::Capability::Float16Buffer);
     break;
   }
@@ -1296,6 +1362,12 @@ void addInstrRequirements(const MachineInstr &MI,
         static_cast<int64_t>(
             SPIRV::InstructionSet::NonSemantic_Shader_DebugInfo_100)) {
       Reqs.addExtension(SPIRV::Extension::SPV_KHR_non_semantic_info);
+      break;
+    }
+    if (MI.getOperand(3).getImm() ==
+        static_cast<int64_t>(SPIRV::OpenCLExtInst::printf)) {
+      addPrintfRequirements(MI, Reqs, ST);
+      break;
     }
     break;
   }
@@ -1593,7 +1665,7 @@ void addInstrRequirements(const MachineInstr &MI,
       Reqs.addCapability(SPIRV::Capability::AsmINTEL);
     }
     break;
-  case SPIRV::OpTypeCooperativeMatrixKHR:
+  case SPIRV::OpTypeCooperativeMatrixKHR: {
     if (!ST.canUseExtension(SPIRV::Extension::SPV_KHR_cooperative_matrix))
       report_fatal_error(
           "OpTypeCooperativeMatrixKHR type requires the "
@@ -1601,7 +1673,12 @@ void addInstrRequirements(const MachineInstr &MI,
           false);
     Reqs.addExtension(SPIRV::Extension::SPV_KHR_cooperative_matrix);
     Reqs.addCapability(SPIRV::Capability::CooperativeMatrixKHR);
+    const MachineRegisterInfo &MRI = MI.getMF()->getRegInfo();
+    SPIRVType *TypeDef = MRI.getVRegDef(MI.getOperand(1).getReg());
+    if (isBFloat16Type(TypeDef))
+      Reqs.addCapability(SPIRV::Capability::BFloat16CooperativeMatrixKHR);
     break;
+  }
   case SPIRV::OpArithmeticFenceEXT:
     if (!ST.canUseExtension(SPIRV::Extension::SPV_EXT_arithmetic_fence))
       report_fatal_error("OpArithmeticFenceEXT requires the "
@@ -1751,15 +1828,45 @@ void addInstrRequirements(const MachineInstr &MI,
     break;
   case SPIRV::OpConvertHandleToImageINTEL:
   case SPIRV::OpConvertHandleToSamplerINTEL:
-  case SPIRV::OpConvertHandleToSampledImageINTEL:
+  case SPIRV::OpConvertHandleToSampledImageINTEL: {
     if (!ST.canUseExtension(SPIRV::Extension::SPV_INTEL_bindless_images))
       report_fatal_error("OpConvertHandleTo[Image/Sampler/SampledImage]INTEL "
                          "instructions require the following SPIR-V extension: "
                          "SPV_INTEL_bindless_images",
                          false);
+    SPIRVGlobalRegistry *GR = ST.getSPIRVGlobalRegistry();
+    SPIRV::AddressingModel::AddressingModel AddrModel = MAI.Addr;
+    SPIRVType *TyDef = GR->getSPIRVTypeForVReg(MI.getOperand(1).getReg());
+    if (MI.getOpcode() == SPIRV::OpConvertHandleToImageINTEL &&
+        TyDef->getOpcode() != SPIRV::OpTypeImage) {
+      report_fatal_error("Incorrect return type for the instruction "
+                         "OpConvertHandleToImageINTEL",
+                         false);
+    } else if (MI.getOpcode() == SPIRV::OpConvertHandleToSamplerINTEL &&
+               TyDef->getOpcode() != SPIRV::OpTypeSampler) {
+      report_fatal_error("Incorrect return type for the instruction "
+                         "OpConvertHandleToSamplerINTEL",
+                         false);
+    } else if (MI.getOpcode() == SPIRV::OpConvertHandleToSampledImageINTEL &&
+               TyDef->getOpcode() != SPIRV::OpTypeSampledImage) {
+      report_fatal_error("Incorrect return type for the instruction "
+                         "OpConvertHandleToSampledImageINTEL",
+                         false);
+    }
+    SPIRVType *SpvTy = GR->getSPIRVTypeForVReg(MI.getOperand(2).getReg());
+    unsigned Bitwidth = GR->getScalarOrVectorBitWidth(SpvTy);
+    if (!(Bitwidth == 32 && AddrModel == SPIRV::AddressingModel::Physical32) &&
+        !(Bitwidth == 64 && AddrModel == SPIRV::AddressingModel::Physical64)) {
+      report_fatal_error(
+          "Parameter value must be a 32-bit scalar in case of "
+          "Physical32 addressing model or a 64-bit scalar in case of "
+          "Physical64 addressing model",
+          false);
+    }
     Reqs.addExtension(SPIRV::Extension::SPV_INTEL_bindless_images);
     Reqs.addCapability(SPIRV::Capability::BindlessImagesINTEL);
     break;
+  }
   case SPIRV::OpSubgroup2DBlockLoadINTEL:
   case SPIRV::OpSubgroup2DBlockLoadTransposeINTEL:
   case SPIRV::OpSubgroup2DBlockLoadTransformINTEL:
@@ -1876,6 +1983,17 @@ void addInstrRequirements(const MachineInstr &MI,
     // TODO: Add UntypedPointersKHR when implemented.
     break;
   }
+  case SPIRV::OpPredicatedLoadINTEL:
+  case SPIRV::OpPredicatedStoreINTEL: {
+    if (!ST.canUseExtension(SPIRV::Extension::SPV_INTEL_predicated_io))
+      report_fatal_error(
+          "OpPredicated[Load/Store]INTEL instructions require "
+          "the following SPIR-V extension: SPV_INTEL_predicated_io",
+          false);
+    Reqs.addExtension(SPIRV::Extension::SPV_INTEL_predicated_io);
+    Reqs.addCapability(SPIRV::Capability::PredicatedIOINTEL);
+    break;
+  }
 
   default:
     break;
@@ -1897,7 +2015,7 @@ static void collectReqs(const Module &M, SPIRV::ModuleAnalysisInfo &MAI,
       continue;
     for (const MachineBasicBlock &MBB : *MF)
       for (const MachineInstr &MI : MBB)
-        addInstrRequirements(MI, MAI.Reqs, ST);
+        addInstrRequirements(MI, MAI, ST);
   }
   // Collect requirements for OpExecutionMode instructions.
   auto Node = M.getNamedMetadata("spirv.ExecutionMode");
@@ -1960,6 +2078,9 @@ static void collectReqs(const Module &M, SPIRV::ModuleAnalysisInfo &MAI,
       MAI.Reqs.getAndAddRequirements(
           SPIRV::OperandCategory::ExecutionModeOperand,
           SPIRV::ExecutionMode::LocalSize, ST);
+    }
+    if (F.getFnAttribute("enable-maximal-reconvergence").getValueAsBool()) {
+      MAI.Reqs.addExtension(SPIRV::Extension::SPV_KHR_maximal_reconvergence);
     }
     if (F.getMetadata("work_group_size_hint"))
       MAI.Reqs.getAndAddRequirements(

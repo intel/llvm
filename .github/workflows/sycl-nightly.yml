@@ -23,13 +23,22 @@ jobs:
         git diff --exit-code -I "^# RUN" origin/sycl-rel-6_3:sycl/test/abi/sycl_symbols_linux.dump sycl/test/abi/sycl_symbols_linux-sycl-rel-6_3.dump
         git diff --exit-code -I "^# RUN" origin/sycl-rel-6_3:sycl/test/abi/sycl_symbols_windows.dump sycl/test/abi/sycl_symbols_windows-sycl-rel-6_3.dump
 
+  get_date:
+    runs-on: ubuntu-latest
+    outputs:
+      date: ${{ steps.get_date.outputs.date }}
+    steps:
+    - id: get_date
+      run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
   ubuntu2204_build:
+    needs: get_date
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl-linux-build.yml
     secrets: inherit
     with:
       build_cache_root: "/__w/"
-      build_configure_extra_args: '--hip --cuda'
+      build_configure_extra_args: '--hip --cuda -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}"'
       build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
 
       retention-days: 90
@@ -85,7 +94,7 @@ jobs:
     permissions:
       contents: write
       packages: read
-    if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
       matrix:
@@ -175,7 +184,7 @@ jobs:
     permissions:
       contents: write
       packages: read
-    if: ${{ always() && !cancelled() && needs.ubuntu2404_oneapi_build.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.ubuntu2404_oneapi_build.outputs.build_conclusion == 'success' }}
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: Intel PVC L0 oneAPI
@@ -189,6 +198,7 @@ jobs:
       toolchain_decompress_command: ${{ needs.ubuntu2404_oneapi_build.outputs.toolchain_decompress_command }}
 
   build-win:
+    needs: get_date
     uses: ./.github/workflows/sycl-windows-build.yml
     if: github.repository == 'intel/llvm'
     with:
@@ -197,15 +207,14 @@ jobs:
       # functionality, make sure Linux/Windows names follow the same pattern.
       toolchain_artifact_filename: sycl_windows.tar.gz
       # Disable the spirv-dis requirement as to not require SPIR-V Tools.
-      build_configure_extra_args: -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off
+      build_configure_extra_args: -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}"
       build_target: all
 
   e2e-win:
     needs: build-win
     # Continue if build was successful.
     if: |
-      always()
-      && !cancelled()
+      !cancelled()
       && needs.build-win.outputs.build_conclusion == 'success'
     strategy:
       fail-fast: false
@@ -213,6 +222,10 @@ jobs:
         include:
           - name: Intel L0 Gen12 GPU
             runner: '["Windows", "gen12"]'
+            target_devices: level_zero:gpu
+
+          - name: Intel L0 Arc GPU
+            runner: '["Windows", arc"]'
             target_devices: level_zero:gpu
 
           - name: Intel L0 Battlemage GPU
@@ -228,7 +241,7 @@ jobs:
 
   cuda-aws-start:
     needs: [ubuntu2204_build]
-    if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     uses: ./.github/workflows/sycl-aws.yml
     secrets: inherit
     with:
@@ -239,7 +252,7 @@ jobs:
     permissions:
       contents: write
       packages: read
-    if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: CUDA E2E
@@ -255,7 +268,7 @@ jobs:
 
   cuda-aws-stop:
     needs: [cuda-aws-start, cuda-run-tests]
-    if: always() && ${{ needs.cuda-aws-start.result != 'skipped' }}
+    if: ${{ needs.cuda-aws-start.result != 'skipped' }}
     uses: ./.github/workflows/sycl-aws.yml
     secrets: inherit
     with:
@@ -266,26 +279,26 @@ jobs:
     permissions:
       contents: write
       packages: read
-    if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: Build SYCL-CTS for Linux
       runner: '["Linux", "build"]'
-      cts_testing_mode: 'build-only'
+      testing_mode: 'build-only'
       image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
       tests_selector: cts
       repo_ref: ${{ github.sha }}
       toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
-      sycl_cts_artifact: sycl_cts_bin_linux
+      binaries_artifact: sycl_cts_bin_linux
 
   run-sycl-cts-linux:
     needs: [ubuntu2204_build, build-sycl-cts-linux]
     permissions:
       contents: write
       packages: read
-    if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
       matrix:
@@ -303,7 +316,7 @@ jobs:
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
-      cts_testing_mode: 'run-only'
+      testing_mode: 'run-only'
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
       tests_selector: cts
@@ -311,24 +324,24 @@ jobs:
       toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
-      sycl_cts_artifact: sycl_cts_bin_linux
+      binaries_artifact: sycl_cts_bin_linux
 
   build-sycl-cts-win:
     needs: build-win
-    if: ${{ always() && !cancelled() && needs.build-win.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.build-win.outputs.build_conclusion == 'success' }}
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: Build SYCL-CTS for Windows
       runner: '["Windows", "build"]'
-      cts_testing_mode: 'build-only'
+      testing_mode: 'build-only'
       tests_selector: cts
       repo_ref: ${{ github.sha }}
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
-      sycl_cts_artifact: sycl_cts_bin_win
+      binaries_artifact: sycl_cts_bin_win
 
   run-sycl-cts-win:
     needs: [build-win, build-sycl-cts-win]
-    if: ${{ always() && !cancelled() && needs.build-win.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.build-win.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
       matrix:
@@ -340,12 +353,12 @@ jobs:
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
-      cts_testing_mode: 'run-only'
+      testing_mode: 'run-only'
       target_devices: ${{ matrix.target_devices }}
       tests_selector: cts
       repo_ref: ${{ github.sha }}
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
-      sycl_cts_artifact: sycl_cts_bin_win
+      binaries_artifact: sycl_cts_bin_win
 
   # Verification example:
   # cosign-windows-amd64.exe verify-blob sycl_linux.tar.gz \
@@ -355,33 +368,33 @@ jobs:
   nightly_build_upload:
     name: Nightly Build Upload
     if: ${{ github.ref_name == 'sycl' }}
-    needs: [ubuntu2204_build, build-win]
+    needs: [get_date, ubuntu2204_build, build-win]
     runs-on: ubuntu-latest
     permissions:
       contents: write
       id-token: write
     steps:
-    - uses: actions/download-artifact@v5
+    - uses: actions/download-artifact@v6
       with:
         name: sycl_linux_default
-    - uses: actions/download-artifact@v5
+    - uses: actions/download-artifact@v6
       with:
         name: sycl_windows_default
     - name: Sign with sigstore/cosign
-      uses: sigstore/gh-action-sigstore-python@v3.0.1
+      uses: sigstore/gh-action-sigstore-python@f832326173235dcb00dd5d92cd3f353de3188e6c # v3.1.0
       with:
         inputs: sycl_linux.tar.gz sycl_windows.tar.gz
     - name: Compute tag
       id: tag
       run: |
         if [ "${{ github.event_name == 'schedule' }}" == "true" ]; then
-          echo "TAG=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
+          echo "TAG=${{ needs.get_date.outputs.date }}" >> "$GITHUB_OUTPUT"
         else
           # TODO: Use date of the commit?
-          echo "TAG=$(date +'%Y-%m-%d')-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "TAG=${{ needs.get_date.outputs.date }}-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
         fi
     - name: Upload binaries
-      uses: softprops/action-gh-release@v2.3.3
+      uses: softprops/action-gh-release@6da8fa9354ddfdc4aeace5fc48d7f679b5214090 # v2.4.1
       with:
         files: |
           sycl_linux.tar.gz
@@ -402,7 +415,7 @@ jobs:
     needs: ubuntu2204_build
     steps:
     - uses: actions/checkout@v5
-    - uses: actions/download-artifact@v5
+    - uses: actions/download-artifact@v6
       with:
         name: sycl_linux_default
         path: devops/

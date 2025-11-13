@@ -219,6 +219,7 @@ class SYCLToolchain {
       // Create a compiler instance to handle the actual work.
       CompilerInstance Compiler(std::move(Invocation),
                                 std::move(PCHContainerOps));
+      Compiler.setVirtualFileSystem(Files->getVirtualFileSystemPtr());
       Compiler.setFileManager(Files);
       // Suppress summary with number of warnings and errors being printed to
       // stdout.
@@ -226,12 +227,11 @@ class SYCLToolchain {
           std::make_unique<llvm::raw_null_ostream>());
 
       // Create the compiler's actual diagnostics engine.
-      Compiler.createDiagnostics(Files->getVirtualFileSystem(), DiagConsumer,
-                                 /*ShouldOwnClient=*/false);
+      Compiler.createDiagnostics(DiagConsumer, /*ShouldOwnClient=*/false);
       if (!Compiler.hasDiagnostics())
         return false;
 
-      Compiler.createSourceManager(*Files);
+      Compiler.createSourceManager();
 
       const bool Success = Compiler.ExecuteAction(FEAction);
 
@@ -766,107 +766,58 @@ Expected<ModuleUPtr> jit_compiler::compileDeviceCode(
 
 // This function is a simplified copy of the device library selection process
 // in `clang::driver::tools::SYCL::getDeviceLibraries`, assuming a SPIR-V, or
-// GPU targets (no AoT, no native CPU). Keep in sync!
-static bool getDeviceLibraries(const ArgList &Args,
+// GPU targets (no native CPU). Keep in sync!
+static void getDeviceLibraries(const ArgList &Args,
                                SmallVectorImpl<std::string> &LibraryList,
-                               DiagnosticsEngine &Diags, BinaryFormat Format) {
+                               BinaryFormat Format) {
   // For CUDA/HIP we only need devicelib, early exit here.
   if (Format == BinaryFormat::PTX) {
     LibraryList.push_back(
         Args.MakeArgString("devicelib-nvptx64-nvidia-cuda.bc"));
-    return false;
+    return;
   } else if (Format == BinaryFormat::AMDGCN) {
     LibraryList.push_back(Args.MakeArgString("devicelib-amdgcn-amd-amdhsa.bc"));
-    return false;
+    return;
   }
 
-  struct DeviceLibOptInfo {
-    StringRef DeviceLibName;
-    StringRef DeviceLibOption;
-  };
-
-  // Currently, all SYCL device libraries will be linked by default.
-  llvm::StringMap<bool> DeviceLibLinkInfo = {
-      {"libc", true},          {"libm-fp32", true},   {"libm-fp64", true},
-      {"libimf-fp32", true},   {"libimf-fp64", true}, {"libimf-bf16", true},
-      {"libm-bfloat16", true}, {"internal", true}};
-
-  // If -fno-sycl-device-lib is specified, its values will be used to exclude
-  // linkage of libraries specified by DeviceLibLinkInfo. Linkage of "internal"
-  // libraries cannot be affected via -fno-sycl-device-lib.
-  bool ExcludeDeviceLibs = false;
-
-  bool FoundUnknownLib = false;
-
-  if (Arg *A = Args.getLastArg(OPT_fsycl_device_lib_EQ,
-                               OPT_fno_sycl_device_lib_EQ)) {
-    if (A->getValues().size() == 0) {
-      Diags.Report(diag::warn_drv_empty_joined_argument)
-          << A->getAsString(Args);
-    } else {
-      if (A->getOption().matches(OPT_fno_sycl_device_lib_EQ)) {
-        ExcludeDeviceLibs = true;
-      }
-
-      for (StringRef Val : A->getValues()) {
-        if (Val == "all") {
-          for (const auto &K : DeviceLibLinkInfo.keys()) {
-            DeviceLibLinkInfo[K] = (K == "internal") || !ExcludeDeviceLibs;
-          }
-          break;
-        }
-        auto LinkInfoIter = DeviceLibLinkInfo.find(Val);
-        if (LinkInfoIter == DeviceLibLinkInfo.end() || Val == "internal") {
-          Diags.Report(diag::err_drv_unsupported_option_argument)
-              << A->getSpelling() << Val;
-          FoundUnknownLib = true;
-        }
-        DeviceLibLinkInfo[Val] = !ExcludeDeviceLibs;
-      }
-    }
-  }
-
-  using SYCLDeviceLibsList = SmallVector<DeviceLibOptInfo, 5>;
-
-  const SYCLDeviceLibsList SYCLDeviceWrapperLibs = {
-      {"libsycl-crt", "libc"},
-      {"libsycl-complex", "libm-fp32"},
-      {"libsycl-complex-fp64", "libm-fp64"},
-      {"libsycl-cmath", "libm-fp32"},
-      {"libsycl-cmath-fp64", "libm-fp64"},
+  using SYCLDeviceLibsList = SmallVector<StringRef>;
+  const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt",
+                                             "libsycl-complex",
+                                             "libsycl-complex-fp64",
+                                             "libsycl-cmath",
+                                             "libsycl-cmath-fp64",
 #if defined(_WIN32)
-      {"libsycl-msvc-math", "libm-fp32"},
+                                             "libsycl-msvc-math",
 #endif
-      {"libsycl-imf", "libimf-fp32"},
-      {"libsycl-imf-fp64", "libimf-fp64"},
-      {"libsycl-imf-bf16", "libimf-bf16"}};
-  // ITT annotation libraries are linked in separately whenever the device
-  // code instrumentation is enabled.
-  const SYCLDeviceLibsList SYCLDeviceAnnotationLibs = {
-      {"libsycl-itt-user-wrappers", "internal"},
-      {"libsycl-itt-compiler-wrappers", "internal"},
-      {"libsycl-itt-stubs", "internal"}};
+                                             "libsycl-imf",
+                                             "libsycl-imf-fp64",
+                                             "libsycl-imf-bf16",
+                                             "libsycl-fallback-cassert",
+                                             "libsycl-fallback-cstring",
+                                             "libsycl-fallback-complex",
+                                             "libsycl-fallback-complex-fp64",
+                                             "libsycl-fallback-cmath",
+                                             "libsycl-fallback-cmath-fp64",
+                                             "libsycl-fallback-imf",
+                                             "libsycl-fallback-imf-fp64",
+                                             "libsycl-fallback-imf-bf16"};
 
   StringRef LibSuffix = ".bc";
   auto AddLibraries = [&](const SYCLDeviceLibsList &LibsList) {
-    for (const DeviceLibOptInfo &Lib : LibsList) {
-      if (!DeviceLibLinkInfo[Lib.DeviceLibOption]) {
-        continue;
-      }
-      SmallString<128> LibName(Lib.DeviceLibName);
-      llvm::sys::path::replace_extension(LibName, LibSuffix);
-      LibraryList.push_back(Args.MakeArgString(LibName));
+    for (const StringRef &Lib : LibsList) {
+      LibraryList.push_back(Args.MakeArgString(Twine(Lib) + LibSuffix));
     }
   };
 
-  AddLibraries(SYCLDeviceWrapperLibs);
+  AddLibraries(SYCLDeviceLibs);
 
+  const SYCLDeviceLibsList SYCLDeviceAnnotationLibs = {
+      "libsycl-itt-user-wrappers", "libsycl-itt-compiler-wrappers",
+      "libsycl-itt-stubs"};
   if (Args.hasFlag(OPT_fsycl_instrument_device_code,
                    OPT_fno_sycl_instrument_device_code, false)) {
     AddLibraries(SYCLDeviceAnnotationLibs);
   }
-
-  return FoundUnknownLib;
 }
 
 Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
@@ -882,12 +833,7 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
                           /* ShouldOwnClient=*/false);
 
   SmallVector<std::string> LibNames;
-  const bool FoundUnknownLib =
-      getDeviceLibraries(UserArgList, LibNames, Diags, Format);
-  if (FoundUnknownLib) {
-    return createStringError("Could not determine list of device libraries: %s",
-                             BuildLog.c_str());
-  }
+  getDeviceLibraries(UserArgList, LibNames, Format);
   const bool IsCudaHIP =
       Format == BinaryFormat::PTX || Format == BinaryFormat::AMDGCN;
   if (IsCudaHIP) {

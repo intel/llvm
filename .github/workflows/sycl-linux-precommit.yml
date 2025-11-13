@@ -51,7 +51,7 @@ jobs:
   build:
     name: Self build
     needs: [detect_changes]
-    if: always() && success()
+    if: success()
     uses: ./.github/workflows/sycl-linux-build.yml
     with:
       build_ref: ${{ github.sha }}
@@ -70,7 +70,7 @@ jobs:
   # Build and run native cpu e2e tests separately as cannot currently
   # build all the e2e tests
   build_run_native_cpu_e2e_tests:
-    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}  
+    if: ${{ !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
     runs-on: [Linux, build]
     needs: [build]
     container:
@@ -84,7 +84,7 @@ jobs:
 
       # download build artefact
       - name: Download toolchain
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: sycl_linux_default
       - name: Extract SYCL toolchain
@@ -109,7 +109,7 @@ jobs:
   # The idea is to ensure that the code works with both CUDA versions.
   build_ubuntu2204:
     needs: [detect_changes]
-    if: always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur_cuda_adapter')
+    if: ${{ !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur_cuda_adapter') }}
     uses: ./.github/workflows/sycl-linux-build.yml
     with:
       build_ref: ${{ github.sha }}
@@ -143,7 +143,7 @@ jobs:
 
   E2E:
     needs: [build, detect_changes, compat_read_exclude]
-    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
     permissions:
       contents: write
       packages: read
@@ -188,19 +188,23 @@ jobs:
             runner: '["Linux", "gen12"]'
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             extra_lit_opts: --param test-preview-mode=True
-            e2e_binaries_artifact: e2e_bin_preview
+            binaries_artifact: e2e_bin_preview
+
+          # We're in an ABI-breaking window, so these don't make sense for now.
           - name: ABI compatibility / sycl-rel-6_2
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_2
             target_devices: level_zero:gpu
             extra_lit_opts: '--param test-preview-mode=False --filter-out "${{ needs.compat_read_exclude.outputs.FILTER_6_2 }}"'
-            e2e_binaries_artifact: 'in-container'
+            binaries_artifact: 'in-container'
+            skip_run: true
           - name: ABI compatibility / sycl-rel-6_3
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_3
             target_devices: level_zero:gpu
             extra_lit_opts: '--param test-preview-mode=False --filter-out "${{ needs.compat_read_exclude.outputs.FILTER_6_3 }}"'
-            e2e_binaries_artifact: 'in-container'
+            binaries_artifact: 'in-container'
+            skip_run: true
 
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
@@ -214,8 +218,8 @@ jobs:
       toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}
-      e2e_binaries_artifact: ${{ matrix.e2e_binaries_artifact || 'e2e_bin' }}
-      e2e_testing_mode: 'run-only'
+      binaries_artifact: ${{ matrix.binaries_artifact || 'e2e_bin' }}
+      testing_mode: 'run-only'
 
       # Do not install drivers on AMD and CUDA runners.
       install_igc_driver: >-
@@ -229,7 +233,7 @@ jobs:
         (contains(needs.detect_changes.outputs.filters, 'devigccfg') || contains(needs.detect_changes.outputs.filters, 'drivers')) ||
         'false' }}
       # Run only if the PR does not have the 'ci-no-devigc' label.
-      skip_run: ${{matrix.use_igc_dev && contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') || 'false'}}
+      skip_run: ${{matrix.use_igc_dev && contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') || matrix.skip_run || 'false'}}
       env: ${{ matrix.env || (contains(needs.detect_changes.outputs.filters, 'esimd') && '{}' || '{"LIT_FILTER_OUT":"ESIMD/"}') }}
 
   test-perf:
@@ -238,7 +242,7 @@ jobs:
       contents: write
       packages: read
     if: |
-      always() && !cancelled()
+      !cancelled()
       && needs.build.outputs.build_conclusion == 'success'
       && (contains(github.event.pull_request.labels.*.name, 'run-perf-tests')
           || contains(needs.detect_changes.outputs.filters, 'perf-tests'))

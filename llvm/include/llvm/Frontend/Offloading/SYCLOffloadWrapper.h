@@ -39,10 +39,13 @@ struct SYCLImage {
 
   SYCLImage(std::unique_ptr<llvm::MemoryBuffer> Image,
             const llvm::util::PropertySetRegistry &Registry,
-            llvm::StringRef Entries, llvm::StringRef Target = "")
+            llvm::StringRef Entries, llvm::StringRef Target = "",
+            llvm::StringRef CompileOptions = "",
+            llvm::StringRef LinkOptions = "")
       : Image(std::move(Image)), PropertyRegistry(std::move(Registry)),
         Entries(Entries.begin(), Entries.size()),
-        Target(Target.begin(), Target.size()) {}
+        Target(Target.begin(), Target.size()), CompileOptions(CompileOptions),
+        LinkOptions(LinkOptions) {}
 
   std::unique_ptr<llvm::MemoryBuffer> Image;
   llvm::util::PropertySetRegistry PropertyRegistry;
@@ -54,17 +57,15 @@ struct SYCLImage {
 
   // Format of the image data - SPIRV, LLVMIR bitcode, etc
   SYCLBinaryImageFormat Format = SYCLBinaryImageFormat::BIF_None;
+
+  // Target/Compiler specific options that will be used to compile and
+  // link program at runtime in JIT scenario.
+  std::string CompileOptions;
+  std::string LinkOptions;
 };
 
 struct SYCLWrappingOptions {
   bool EmitRegistrationFunctions = true;
-
-  // target/compiler specific options what are suggested to use to "compile"
-  // program at runtime.
-  std::string CompileOptions;
-  // Target/Compiler specific options that are suggested to use to "link"
-  // program at runtime.
-  std::string LinkOptions;
 };
 
 /// Wraps the input bundled images and accompanied data into the module \p M
