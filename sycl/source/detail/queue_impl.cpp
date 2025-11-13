@@ -630,6 +630,8 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
   detail::CG::StorageInitHelper CGData;
   std::unique_lock<std::mutex> Lock(MMutex);
 
+  NestedCallsTracker tracker;
+
   // Used by queue_empty() and getLastEvent()
   MEmpty.store(false, std::memory_order_release);
 

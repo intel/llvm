@@ -1093,6 +1093,8 @@ void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
 }
 
 using namespace sycl::detail;
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 bool handler::DisableRangeRounding() {
   return SYCLConfig<SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING>::get();
 }
@@ -1106,6 +1108,7 @@ void handler::GetRangeRoundingSettings(size_t &MinFactor, size_t &GoodFactor,
   SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS>::GetSettings(
       MinFactor, GoodFactor, MinRange);
 }
+#endif
 
 void handler::memcpy(void *Dest, const void *Src, size_t Count) {
   throwIfActionIsCreated();
@@ -1980,6 +1983,7 @@ kernel_bundle<bundle_state::input> handler::getKernelBundle() const {
       *KernelBundleImplPtr);
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
   device_impl &DeviceImpl = impl->get_device();
   std::array<size_t, 3> UrResult = {};
@@ -2001,7 +2005,6 @@ std::tuple<std::array<size_t, 3>, bool> handler::getMaxWorkGroups_v2() {
   return {std::array<size_t, 3>{0, 0, 0}, false};
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::setNDRangeUsed(bool Value) { (void)Value; }
 #endif
 
@@ -2037,6 +2040,10 @@ void handler::registerDynamicParameter(
 #endif
 
 bool handler::eventNeeded() const { return impl->MEventNeeded; }
+
+device handler::get_device() const {
+  return detail::createSyclObjFromImpl<device>(impl->get_device());
+}
 
 void *handler::storeRawArg(const void *Ptr, size_t Size) {
   impl->CGData.MArgsStorage.emplace_back(Size);
