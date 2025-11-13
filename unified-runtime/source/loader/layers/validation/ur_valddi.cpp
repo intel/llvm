@@ -11668,7 +11668,7 @@ __urdlllocal ur_result_t UR_APICALL urGraphDumpContentsExp(
     ur_exp_graph_handle_t hGraph,
     /// [in] Path to the file to write the dumped graph contents.
     const char *filePath,
-    /// [in][optional] Pointer to extension-specific structure.
+    /// [out][optional] Pointer to extension-specific structure.
     void *pNext) {
   auto pfnDumpContentsExp =
       getContext()->urDdiTable.GraphExp.pfnDumpContentsExp;
