@@ -1220,7 +1220,9 @@ private:
     for (auto &SYCLBIN : MSYCLBINs) {
       std::vector<const RTDeviceBinaryImage *> NativeBinImgs =
           SYCLBIN->getNativeBinaryImages(Dev);
-      Result.insert(Result.end(), NativeBinImgs.begin(), NativeBinImgs.end());
+      Result.insert(Result.end(),
+                    std::make_move_iterator(NativeBinImgs.begin()),
+                    std::make_move_iterator(NativeBinImgs.end()));
     }
 
     return Result;
