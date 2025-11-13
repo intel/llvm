@@ -966,9 +966,10 @@ ur_result_t urQueueEndGraphCaptureExp(ur_queue_handle_t hQueue,
 
 ur_result_t urQueueAppendGraphExp(ur_queue_handle_t hQueue,
                                   ur_exp_executable_graph_handle_t hGraph,
-                                  void *pNext, ur_event_handle_t hSignalEvent,
+                                  ur_event_handle_t hSignalEvent,
                                   uint32_t numWaitEvents,
-                                  ur_event_handle_t *phWaitEvents) {
+                                  ur_event_handle_t *phWaitEvents,
+                                  void *pNext) {
   std::ignore = hQueue;
   std::ignore = hGraph;
   std::ignore = pNext;

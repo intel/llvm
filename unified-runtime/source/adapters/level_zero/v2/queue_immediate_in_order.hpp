@@ -566,9 +566,10 @@ public:
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
   ur_result_t queueAppendGraphExp(ur_exp_executable_graph_handle_t hGraph,
-                                  void *pNext, ur_event_handle_t hSignalEvent,
+                                  ur_event_handle_t hSignalEvent,
                                   uint32_t numWaitEvents,
-                                  ur_event_handle_t *phWaitEvents) override {
+                                  ur_event_handle_t *phWaitEvents,
+                                  void *pNext) override {
     (void)hGraph;
     (void)pNext;
     (void)hSignalEvent;
