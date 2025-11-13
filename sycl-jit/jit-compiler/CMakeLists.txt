@@ -28,7 +28,7 @@ endif()
 
 set(SYCL_JIT_RESOURCE_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-install)
 
-set(SYCL_JIT_PREPARE_RESOURCE_COMMANDS "")
+set(SYCL_JIT_PREPARE_RESOURCE_COMMANDS)
 foreach(component IN LISTS SYCL_JIT_RESOURCE_INSTALL_COMPONENTS)
   list(APPEND SYCL_JIT_PREPARE_RESOURCE_COMMANDS
     COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR} --prefix ${SYCL_JIT_RESOURCE_INSTALL_DIR} --component "${component}"
@@ -38,6 +38,60 @@ endforeach()
 set(SYCL_JIT_RESOURCE_DEPS ${SYCL_JIT_RESOURCE_INSTALL_COMPONENTS})
   # OpenCL-Headers doesn't have a corresponding build target:
 list(FILTER SYCL_JIT_RESOURCE_DEPS EXCLUDE REGEX "^OpenCL-Headers$")
+
+# We also want to embed LLVM's libc/libcxx headers into resource. We don't want
+# to use them through LLVM_ENABLE_RUNTIMES for a few reasons though:
+#   * We configure them in a way that might be incompatible with their normal
+#     usage
+#   * We don't want to include them in all/install targets
+# As such, configure libc/libcxx via explicit `llvm_ExternalProject_Add` in a
+# separate location.
+set(SYCL_JIT_RUNTIME_PROJECTS "libc;libcxx")
+if (NOT WIN32)
+  list(APPEND SYCL_JIT_RUNTIME_PROJECTS libcxxabi libunwind)
+endif()
+
+# Couldn't pass -DLLVM_ENABLE_RUNTIMES=<libc;libcxx;...> through CMAKE_ARGS
+# below because semicolon is used as a separate for CMAKE_ARGS itself.
+# Workaround by passing it through PASSTHROUGH_PREFIXES by saving/restoring that
+# variable's original value.
+set(SYCL_JIT_LLVM_ENABLE_RUNTIMES_COPY ${LLVM_ENABLE_RUNTIMES})
+set(LLVM_ENABLE_RUNTIMES ${SYCL_JIT_RUNTIME_PROJECTS})
+llvm_ExternalProject_Add(sycl-jit-extra-headers
+                           ${CMAKE_CURRENT_SOURCE_DIR}/../../runtimes
+                           CMAKE_ARGS -DCOMPILER_RT_BUILD_BUILTINS=Off
+                                      -DLLVM_INCLUDE_TESTS=Off
+                                      -DLLVM_DEFAULT_TARGET_TRIPLE=${LLVM_TARGET_TRIPLE}
+                                      -DLLVM_ENABLE_PROJECTS_USED=${LLVM_ENABLE_PROJECTS_USED}
+                                      -DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR=${LLVM_ENABLE_PER_TARGET_RUNTIME_DIR}
+                                      -DLLVM_BUILD_TOOLS=${LLVM_BUILD_TOOLS}
+                                      -DCMAKE_C_COMPILER_WORKS=ON
+                                      -DCMAKE_CXX_COMPILER_WORKS=ON
+                                      -DCMAKE_Fortran_COMPILER_WORKS=ON
+                                      -DCMAKE_ASM_COMPILER_WORKS=ON
+                                      # libc config options:
+                                      -DLLVM_LIBC_FULL_BUILD=ON
+                                      -DLLVM_LIBC_ALL_HEADERS=1
+                                      -DLIBC_CONFIG_PATH=${CMAKE_CURRENT_SOURCE_DIR}/lib/libc-config
+                                      # libcxx config options:
+                                      -DLIBCXX_HAS_EXTERNAL_THREAD_API=ON
+                           TARGET_TRIPLE ${LLVM_TARGET_TRIPLE}
+                           USE_TOOLCHAIN
+                           PASSTHROUGH_PREFIXES LLVM_ENABLE_RUNTIMES
+                           EXCLUDE_FROM_ALL
+                           NO_INSTALL
+                         )
+set(LLVM_ENABLE_RUNTIMES ${SYCL_JIT_LLVM_ENABLE_RUNTIMES_COPY})
+list(APPEND SYCL_JIT_RESOURCE_DEPS sycl-jit-extra-headers-configure)
+list(APPEND SYCL_JIT_PREPARE_RESOURCE_COMMANDS
+  # libc
+  COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}/tools/sycl-jit/jit-compiler/sycl-jit-extra-headers-bins --target generate-libc-headers
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/tools/sycl-jit/jit-compiler/sycl-jit-extra-headers-bins/libc/include ${SYCL_JIT_RESOURCE_INSTALL_DIR}/include/libc
+
+  # libcxx
+  COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}/tools/sycl-jit/jit-compiler/sycl-jit-extra-headers-bins --target generate-cxx-headers
+  COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR}/tools/sycl-jit/jit-compiler/sycl-jit-extra-headers-bins --prefix ${SYCL_JIT_RESOURCE_INSTALL_DIR} --component cxx-headers
+)
 
 # This is very hacky and I don't quite know what I'm doing, but it's necessary
 # to have `resource.cpp` re-generated/re-built when some SYCL header changes.
@@ -52,43 +106,6 @@ add_custom_target(rtc-prepare-resources
   ${SYCL_JIT_RESOURCE_FILES}
 )
 
-set(SYCL_JIT_RUNTIME_RESOURCE_DEPS "")
-set(SYCL_JIT_PREPARE_RUNTIME_RESOURCE_COMMANDS "")
-
-if ("libcxx" IN_LIST LLVM_ENABLE_RUNTIMES)
-  list(APPEND SYCL_JIT_RUNTIME_RESOURCE_DEPS runtimes-configure)
-
-  if (WIN32)
-    set(SYCL_JIT_CXX_CONFIG_SITE ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-install/include/c++/v1/__config_site)
-  else()
-    set(SYCL_JIT_CXX_CONFIG_SITE ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-install/include/x86_64-unknown-linux-gnu/c++/v1/__config_site)
-  endif()
-
-  list(APPEND SYCL_JIT_PREPARE_RUNTIME_RESOURCE_COMMANDS
-    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}/runtimes/runtimes-bins --target generate-cxx-headers
-    COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR}/runtimes/runtimes-bins --prefix ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-install --component cxx-headers
-    # `<thread>` functionality isn't really supported on the device, just make
-    # it pass compilation. The easiest way to do that is to configure `libc++`
-    # to use "external threading API".
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-install/include/sycl-rtc-standalone
-    COMMAND sed 's/_LIBCPP_HAS_THREAD_API_EXTERNAL 0/_LIBCPP_HAS_THREAD_API_EXTERNAL 1/' ${SYCL_JIT_CXX_CONFIG_SITE} > ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-install/include/sycl-rtc-standalone/__config_site
-  )
-endif()
-
-if ("libc" IN_LIST LLVM_ENABLE_RUNTIMES)
-  list(APPEND SYCL_JIT_RUNTIME_RESOURCE_DEPS runtimes-configure)
-
-  list(APPEND SYCL_JIT_PREPARE_RUNTIME_RESOURCE_COMMANDS
-    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}/runtimes/runtimes-bins --target generate-libc-headers
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/runtimes/runtimes-bins/libc/include ${SYCL_JIT_RESOURCE_INSTALL_DIR}/include/libc
-  )
-endif()
-
-add_custom_target(rtc-prepare-runtime-resources
-  DEPENDS ${SYCL_JIT_RUNTIME_RESOURCE_DEPS}
-  ${SYCL_JIT_PREPARE_RUNTIME_RESOURCE_COMMANDS}
-)
-
 add_custom_command(
   OUTPUT ${SYCL_JIT_RESOURCE_CPP}
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py --toolchain-dir ${SYCL_JIT_RESOURCE_INSTALL_DIR} --output ${SYCL_JIT_RESOURCE_CPP} --prefix ${SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT}
@@ -96,8 +113,6 @@ add_custom_command(
   rtc-prepare-resources
   ${SYCL_JIT_RESOURCE_DEPS}
   ${SYCL_JIT_RESOURCE_FILES}
-  rtc-prepare-runtime-resources
-  ${SYCL_JIT_RUNTIME_RESOURCE_DEPS}
   ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py
 )
 
@@ -140,7 +155,6 @@ add_custom_command(
   ${SYCL_JIT_RESOURCE_CPP}
   ${SYCL_JIT_RESOURCE_DEPS}
   ${SYCL_JIT_RESOURCE_FILES}
-  ${SYCL_JIT_RUNTIME_RESOURCE_DEPS}
   ${CMAKE_CURRENT_SOURCE_DIR}/include/Resource.h
 )
 

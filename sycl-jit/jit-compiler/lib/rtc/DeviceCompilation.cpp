@@ -313,15 +313,14 @@ class SYCLToolchain {
       // Must come before C/C++ headers as we're intercepting them in those
       // wrappers:
       AddInc("include/sycl/stl_wrappers");
-      // Contains modified `__config_site` for libc++, need to come earlier in
-      // the search path. Other headers there don't seem to require any specific
-      // priority/search path order.
+      // Extra headers we provide as part of jit-compiler, e.g.
+      // `__external_threading` and `linux/errno.h` that are needed to make
+      // LLVM's libc/libcxx work. As far as I know, can be anywhere in the
+      // includes search path as those files aren't provide anywhere else.
       AddInc("include/sycl-rtc-standalone/");
 #if !defined(_WIN32)
-      // AFAIK, it only contains original `__config_site` that we don't use (see
-      // above), but it seems safer to add this path anyway, in case any extra
-      // files are added. On Windows `LIBCXX_GENERATED_INCLUDE_TARGET_DIR` is
-      // off and thus we don't need it.
+      // On Windows `LIBCXX_GENERATED_INCLUDE_TARGET_DIR` is off and thus we
+      // don't need this.
       AddInc("include/x86_64-unknown-linux-gnu/c++/v1");
 #endif
       // libcxx headers, must come before libc headers:

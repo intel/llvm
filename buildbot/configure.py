@@ -179,12 +179,6 @@ def do_configure(args, passthrough_args):
 
     install_dir = os.path.join(abs_obj_dir, "install")
 
-    llvm_enable_runtimes = "libcxx"
-    # Matches `libcxx`'s requirements/platform ABI:
-    if platform.system() != "Windows":
-        llvm_enable_runtimes += ";libcxxabi;libunwind"
-    llvm_enable_runtimes += ";libc"
-
     cmake_cmd = [
         "cmake",
         "-G",
@@ -201,12 +195,6 @@ def do_configure(args, passthrough_args):
         "-DLLVM_EXTERNAL_LIBDEVICE_SOURCE_DIR={}".format(libdevice_dir),
         "-DLLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR={}".format(jit_dir),
         "-DLLVM_ENABLE_PROJECTS={}".format(llvm_enable_projects),
-        "-DLLVM_ENABLE_RUNTIMES={}".format(llvm_enable_runtimes),
-        "-DLLVM_LIBC_FULL_BUILD=ON",
-        "-DLLVM_LIBC_ALL_HEADERS=1",
-        "-DLIBC_CONFIG_PATH={}".format(
-            os.path.join(abs_src_dir, "sycl-jit/jit-compiler/lib/libc-config")
-        ),
         "-DSYCL_BUILD_PI_HIP_PLATFORM={}".format(sycl_build_pi_hip_platform),
         "-DLLVM_BUILD_TOOLS=ON",
         "-DLLVM_ENABLE_ZSTD={}".format(llvm_enable_zstd),
