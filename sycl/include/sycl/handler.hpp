@@ -3665,6 +3665,10 @@ private:
 
   queue getQueue();
 
+  // Invalidates the handler impl object. This is to signal that the handler
+  // has been finalized and the data in the impl object is no longer to be used.
+  void invalidateImpl();
+
 protected:
   /// Registers event dependencies in this command group.
   void depends_on(const detail::EventImplPtr &Event);

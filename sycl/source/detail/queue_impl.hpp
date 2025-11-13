@@ -405,7 +405,7 @@ public:
   ///
   /// \return a SYCL event representing submitted command or nullptr.
   EventImplPtr submit_kernel_scheduler_bypass(
-      KernelData &KData, std::vector<detail::EventImplPtr> &DepEvents,
+      KernelData &&KData, std::vector<detail::EventImplPtr> &&DepEvents,
       bool EventNeeded, detail::kernel_impl *KernelImplPtr,
       detail::kernel_bundle_impl *KernelBundleImpPtr,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc);

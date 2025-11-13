@@ -642,8 +642,13 @@ event handler::finalize() {
 
       detail::EventImplPtr ResultEvent =
           impl->get_queue().submit_kernel_scheduler_bypass(
-              impl->MKernelData, impl->CGData.MEvents, impl->MEventNeeded,
-              MKernel.get(), KernelBundleImpPtr, MCodeLoc, impl->MIsTopCodeLoc);
+              std::move(impl->MKernelData), std::move(impl->CGData.MEvents),
+              impl->MEventNeeded, MKernel.get(), KernelBundleImpPtr, MCodeLoc,
+              impl->MIsTopCodeLoc);
+
+      // This marks the early end of finalization and we can mark the impl as
+      // invalid as all the important parts have been taken.
+      invalidateImpl();
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
       return ResultEvent;
 #else
@@ -895,6 +900,10 @@ event handler::finalize() {
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
       std::move(CommandGroup), *Queue, !DiscardEvent);
+
+  // At this point finalization of the handler has been done and there is no
+  // longer any need for the impl, so we invalidate it.
+  invalidateImpl();
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   return DiscardEvent ? nullptr : Event;
@@ -2260,6 +2269,16 @@ void handler::copyCodeLoc(const handler &other) {
 queue handler::getQueue() {
   return createSyclObjFromImpl<queue>(impl->get_queue());
 }
+
+void handler::invalidateImpl() {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  implOwner.reset();
+  impl = nullptr;
+#else
+  impl.reset();
+#endif
+}
+
 namespace detail {
 __SYCL_EXPORT void HandlerAccess::preProcess(handler &CGH,
                                              type_erased_cgfo_ty F) {
