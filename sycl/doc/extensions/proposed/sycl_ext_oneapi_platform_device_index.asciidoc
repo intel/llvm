@@ -139,7 +139,7 @@ a@
 ----
 class platform {
   // ...
-  device ext_oneapi_index_to_device(size_t index) const;
+  device ext_oneapi_device_at_index(size_t index) const;
 };
 ----
 |====
@@ -151,7 +151,7 @@ class platform {
 a@
 [source,c++]
 ----
-device ext_oneapi_index_to_device(size_t index) const;
+device ext_oneapi_device_at_index(size_t index) const;
 ----
 |====
 
@@ -199,7 +199,7 @@ int main() {
   sycl::platform p; // Get the platform containing the default device.
 
   size_t index = d1.ext_oneapi_index_within_platform();
-  sycl::device d2 = p.ext_oneapi_index_to_device(index);
+  sycl::device d2 = p.ext_oneapi_device_at_index(index);
   assert(d1 == d2);
 }
 ----
