@@ -204,9 +204,6 @@ class GBench(Benchmark):
 
         return results
 
-    def teardown(self):
-        return
-
 
 class GBenchPreloaded(GBench):
     def __init__(self, bench, lib_to_be_replaced, replacing_lib):

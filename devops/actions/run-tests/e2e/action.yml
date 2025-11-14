@@ -4,9 +4,6 @@ inputs:
   ref:
     required: false
   binaries_artifact:
-    # Number of input parameters for manual 'workflow_dispatch' is limited, so
-    # we treat empty value as 'in-container' when in 'run-only' mode via
-    # 'workflow_dispatch'.
     required: false
   testing_mode:
     required: true
@@ -22,14 +19,12 @@ inputs:
   sycl_compiler:
     required: false
 
+
 runs:
   using: "composite"
   steps:
   - name: Checkout E2E tests
-    if: |
-      !(inputs.testing_mode == 'run-only'
-         && (inputs.binaries_artifact == 'in-container'
-             || github.event_name == 'workflow_dispatch'))
+    if: ${{ !(inputs.testing_mode == 'run-only' && inputs.binaries_artifact == 'in-container') }}
     uses: actions/checkout@v4
     with:
       path: llvm
@@ -38,28 +33,19 @@ runs:
         llvm/utils/lit
         sycl/test-e2e
   - name: Download E2E Binaries
-    if: |
-      inputs.testing_mode == 'run-only'
-      && !(inputs.binaries_artifact == 'in-container'
-           || github.event_name == 'workflow_dispatch')
+    if: ${{ inputs.testing_mode == 'run-only' && inputs.binaries_artifact != 'in-container' }}
     uses: actions/download-artifact@v4
     with:
       name: ${{ inputs.binaries_artifact }}
   - name: Extract E2E Binaries
-    if: |
-      inputs.testing_mode == 'run-only'
-      && !(inputs.binaries_artifact == 'in-container'
-           || github.event_name == 'workflow_dispatch')
+    if: ${{ inputs.testing_mode == 'run-only' && inputs.binaries_artifact != 'in-container' }}
     shell: bash
     run: |
       mkdir build-e2e
       tar -I 'zstd' -xf e2e_binaries.tar.zst -C build-e2e
 
   - name: Extract E2E tests from container image
-    if: |
-      inputs.testing_mode == 'run-only'
-      && (inputs.binaries_artifact == 'in-container'
-          || github.event_name == 'workflow_dispatch')
+    if: ${{ inputs.testing_mode == 'run-only' && inputs.binaries_artifact == 'in-container' }}
     shell: bash
     run: |
       mkdir build-e2e llvm

@@ -149,3 +149,8 @@
 // DEBUG-WIN-NOT: "-gcodeview"
 // DEBUG-WIN: {{.*}}"-fsycl-is-host"{{.*}}"-gcodeview"
 // DEBUG-WIN-NOT: dwarf-version
+
+// RUN: %clang -### -fsycl -sycl-std=2017 --no-offloadlib -- %s 2>&1 | FileCheck %s --check-prefix=CHECK-NO-OFFLOADLIB
+// RUN: %clangxx -### -fsycl -sycl-std=2017 --no-offloadlib -- %s 2>&1 | FileCheck %s --check-prefix=CHECK-NO-OFFLOADLIB
+// RUN: %clang_cl -### -fsycl -sycl-std=2017 --no-offloadlib -- %s 2>&1 | FileCheck %s --check-prefix=CHECK-NO-OFFLOADLIB
+// CHECK-NO-OFFLOADLIB-NOT: warning: unknown argument ignored in clang-cl: '--no-offloadlib'

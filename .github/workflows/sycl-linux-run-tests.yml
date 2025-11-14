@@ -135,6 +135,16 @@ on:
         default: 'false'
         required: False
 
+      in_workflow_call_mode:
+        description: |
+          Unlike `github.event_type` that captures the original trigger, we use
+          this to determine how this particular workflow has been called. This
+          isn't supposed to be specified by a caller and only relies on the
+          default value.
+        default: 'true'
+        required: False
+        type: string
+
   workflow_dispatch:
     inputs:
       runner:
@@ -332,7 +342,9 @@ jobs:
       timeout-minutes: 60
       with:
         ref: ${{ inputs.tests_ref || inputs.repo_ref || github.sha }}
-        binaries_artifact: ${{ inputs.binaries_artifact }}
+        binaries_artifact: ${{ inputs.in_workflow_call_mode && inputs.binaries_artifact
+                               || inputs.testing_mode == 'run-only' && 'in-container'
+                               || '' }}
         testing_mode: ${{ inputs.testing_mode }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
         target_devices: ${{ inputs.target_devices }}
@@ -349,7 +361,9 @@ jobs:
         ref: ${{ inputs.tests_ref || 'main' }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
         testing_mode: ${{ inputs.testing_mode }}
-        binaries_artifact: ${{ inputs.binaries_artifact }}
+        binaries_artifact: ${{ inputs.in_workflow_call_mode && inputs.binaries_artifact
+                               || inputs.testing_mode == 'run-only' && 'in-container'
+                               || '' }}
         target_devices: ${{ inputs.target_devices }}
         retention-days: ${{ inputs.retention-days }}
 

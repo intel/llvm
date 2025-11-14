@@ -51,7 +51,7 @@ jobs:
   build:
     needs: [detect_changes]
     if: |
-      always() && success()
+      success()
       && github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
@@ -62,8 +62,7 @@ jobs:
     needs: build
     # Continue if build was successful.
     if: |
-      always()
-      && !cancelled()
+      !cancelled()
       && needs.build.outputs.build_conclusion == 'success'
     strategy:
       fail-fast: false
@@ -71,6 +70,8 @@ jobs:
         include:
           - name: Intel GEN12 Graphics with Level Zero
             runner: '["Windows","gen12"]'
+          - name: Intel Arc Graphics with Level Zero
+            runner: '["Windows","arc"]'
           - name: Intel Battlemage Graphics with Level Zero
             runner: '["Windows","bmg"]'
     uses: ./.github/workflows/sycl-windows-run-tests.yml
