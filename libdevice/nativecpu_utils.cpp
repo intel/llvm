@@ -243,7 +243,7 @@ DefineLogicalGroupOp(bool, bool, i1);
   }                                                                            \
                                                                                \
   DEVICE_EXTERNAL Type __spirv_GroupBroadcast(                                 \
-      int32_t g, Type v, ncpu_types::vector_t<IDType, 2> l) noexcept {          \
+      int32_t g, Type v, ncpu_types::vector_t<IDType, 2> l) noexcept {         \
     if (__spv::Scope::Flag::Subgroup == g)                                     \
       return __mux_sub_group_broadcast_##Sfx(v, l[0]);                         \
     else                                                                       \
@@ -251,7 +251,7 @@ DefineLogicalGroupOp(bool, bool, i1);
   }                                                                            \
                                                                                \
   DEVICE_EXTERNAL Type __spirv_GroupBroadcast(                                 \
-      int32_t g, Type v, ncpu_types::vector_t<IDType, 3> l) noexcept {          \
+      int32_t g, Type v, ncpu_types::vector_t<IDType, 3> l) noexcept {         \
     if (__spv::Scope::Flag::Subgroup == g)                                     \
       return __mux_sub_group_broadcast_##Sfx(v, l[0]);                         \
     else                                                                       \
