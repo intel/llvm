@@ -2276,7 +2276,6 @@ void handler::copyCodeLoc(const handler &other) {
 queue handler::getQueue() {
   return createSyclObjFromImpl<queue>(impl->get_queue());
 }
-
 namespace detail {
 __SYCL_EXPORT void HandlerAccess::preProcess(handler &CGH,
                                              type_erased_cgfo_ty F) {
