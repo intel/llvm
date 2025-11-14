@@ -20,15 +20,16 @@ inline namespace _V1 {
 
 namespace detail {
 
-void GetRangeRoundingSettings(size_t &MinFactor, size_t &GoodFactor,
-                              size_t &MinRange);
+void __SYCL_EXPORT GetRangeRoundingSettings(size_t &MinFactor,
+                                            size_t &GoodFactor,
+                                            size_t &MinRange);
 
 std::tuple<std::array<size_t, 3>, bool>
-getMaxWorkGroups_v2(const device &Device);
+    __SYCL_EXPORT getMaxWorkGroups_v2(const device &Device);
 
-bool DisableRangeRounding();
+bool __SYCL_EXPORT DisableRangeRounding();
 
-bool RangeRoundingTrace();
+bool __SYCL_EXPORT RangeRoundingTrace();
 
 template <int Dims>
 std::tuple<range<Dims>, bool> getRoundedRange(range<Dims> UserRange,
