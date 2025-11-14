@@ -4,6 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       sycl_build_info:
+        description: |
+          Compiler build info, e.g. "X.Y.Z release"
+
 
 permissions: read-all
 
