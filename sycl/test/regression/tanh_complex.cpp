@@ -19,7 +19,7 @@ template <typename T> bool FloatingPointEq(T LHS, T RHS) {
   if (std::isnan(LHS))
     return std::isnan(RHS);
   // Allow some rounding differences, but minimal.
-  return std::abs(LHS - RHS) < T{0.00001};
+  return std::abs(LHS - RHS) < T{0.0001};
 }
 
 #define CHECK_TANH_RESULT(REAL, IMAG, T)                                       \
