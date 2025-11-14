@@ -28,10 +28,8 @@ from utils.compute_runtime import *
 from utils.validate import Validate
 from utils.detect_versions import DetectVersion
 from utils.logger import log, initialize_logger
+from utils.workdir_version import INTERNAL_WORKDIR_VERSION
 from presets import enabled_suites, presets
-
-# Update this if you are changing the layout of the results files
-INTERNAL_WORKDIR_VERSION = "2.0"
 
 
 def run_iterations(
@@ -343,12 +341,6 @@ def main(directory, additional_env_vars, compare_names, filter):
             else:
                 failures[benchmark.name()] = f"Benchmark run failure: {e}"
                 log.error(f"failed: {e}")
-
-    for benchmark in benchmarks:
-        # this never has any useful information anyway, so hide it behind verbose
-        log.debug(f"tearing down {benchmark.name()}... ")
-        benchmark.teardown()
-        log.debug(f"{benchmark.name()} teardown complete.")
 
     this_name = options.current_run_name
     chart_data = {}

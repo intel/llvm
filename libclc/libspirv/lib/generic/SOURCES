@@ -92,9 +92,8 @@ math/fmax_common.cl
 math/fmin.cl
 math/fmin_common.cl
 math/fmod.cl
-math/FMod.cl
-math/FRem.cl
 math/fract.cl
+math/frem.cl
 math/frexp.cl
 math/half_cos.cl
 math/half_divide.cl
