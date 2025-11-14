@@ -609,7 +609,7 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
         KData.getNDRDesc(), std::move(HostKernelPtr),
         nullptr, // Kernel
         nullptr, // KernelBundle
-        std::move(CGData), std::move(KData).getArgs(),
+        std::move(CGData), std::move(KData.getArgs()),
         *KData.getDeviceKernelInfoPtr(), std::move(StreamStorage),
         std::move(AuxiliaryResources), detail::CGType::Kernel,
         KData.getKernelCacheConfig(), KData.isCooperative(),
