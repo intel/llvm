@@ -10261,8 +10261,8 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
     // "-device pvc,bdw", the offloading arch will be "pvc,bdw", which
     // contains a comma. Because the comma is used to separate fields
     // within the --image option, we cannot pass arch=pvc,bdw directly.
-    // Instead, we if we pass it like arch=pvc,arch=bdw when, then
-    // clang-offload-packager joins them back to arch=pvc,bdw.
+    // Instead, we pass it like arch=pvc,arch=bdw, then
+    // llvm-offload-binary joins them back to arch=pvc,bdw.
     SmallVector<StringRef> Archs;
     Arch.split(Archs, ',');
     if (Archs.size() > 1) {
@@ -10293,7 +10293,7 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
           AL += A;
         }
         // As mentioned earlier, we cannot pass a value with commas directly,
-        // but clang-offload-packager joins multiple occurrences of the same
+        // but llvm-offload-binary joins multiple occurrences of the same
         // option separated by commas, so we split the value on
         // all commas and pass them as separate arguments.
         for (StringRef Split : llvm::split(AL, ',')) {
