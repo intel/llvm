@@ -38,6 +38,21 @@ template <sycl::aspect Aspect> struct KernelFunctorWithDeviceHasWithAttr {
   }
 };
 
+template <sycl::aspect Aspect> struct KernelFunctorWithAllAttrs {
+  // expected-warning@+4 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+3 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+2 {{kernel has both attribute 'sycl::reqd_sub_group_size' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; conflicting properties are ignored}}
+  void operator() [[sycl::reqd_work_group_size(
+      32)]] [[sycl::
+                  work_group_size_hint(32)]] [[sycl::reqd_sub_group_size(
+      32)]] [[sycl::device_has(sycl::aspect::cpu)]] () const {}
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
+    return sycl::ext::oneapi::experimental::properties{
+        sycl::ext::oneapi::experimental::device_has<Aspect>};
+  }
+};
+
 void check_work_group_size() {
   sycl::queue Q;
 
@@ -62,10 +77,17 @@ void check_device_has() {
   Q.single_task(KernelFunctorWithDeviceHasWithAttr<sycl::aspect::cpu>{});
 }
 
+void check_all() {
+  sycl::queue Q;
+
+  Q.single_task(KernelFunctorWithAllAttrs<sycl::aspect::cpu>{});
+}
+
 int main() {
   check_work_group_size();
   check_work_group_size_hint();
   check_sub_group_size();
   check_device_has();
+  check_all();
   return 0;
 }
