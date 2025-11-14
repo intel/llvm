@@ -457,6 +457,13 @@ PropSetRegTy computeModuleProperties(const Module &M,
       PropSet.add(PropSetRegTy::SYCL_ASSERT_USED, FName, true);
   }
   {
+    std::vector<StringRef> MallocFuncNames{"malloc", "free"};
+    std::vector<StringRef> FuncNames =
+        getKernelNamesUsingSpecialFunctions(M, MallocFuncNames);
+    for (const StringRef &FName : FuncNames)
+      PropSet.add(PropSetRegTy::SYCL_MALLOC_USED, FName, true);
+  }
+  {
     std::vector<std::pair<StringRef, int>> ArgPos =
         getKernelNamesUsingImplicitLocalMem(M);
     for (const auto &FuncAndArgPos : ArgPos)

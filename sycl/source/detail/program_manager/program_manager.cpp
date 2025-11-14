@@ -1802,6 +1802,14 @@ void ProgramManager::cacheKernelUsesAssertInfo(const RTDeviceBinaryImage &Img) {
       m_KernelUsesAssert.insert(Prop->Name);
 }
 
+void ProgramManager::cacheKernelUsesMallocInfo(const RTDeviceBinaryImage &Img) {
+  const RTDeviceBinaryImage::PropertyRange &MallocUsedRange =
+      Img.getMallocUsed();
+  if (MallocUsedRange.isAvailable())
+    for (const auto &Prop : MallocUsedRange)
+      m_KernelUsesMalloc.insert(Prop->Name);
+}
+
 void ProgramManager::cacheKernelImplicitLocalArg(
     const RTDeviceBinaryImage &Img) {
   const RTDeviceBinaryImage::PropertyRange &ImplicitLocalArgRange =
@@ -2045,6 +2053,7 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
   }
 
   cacheKernelUsesAssertInfo(*Img);
+  cacheKernelUsesMallocInfo(*Img);
 
   // check if kernel uses sanitizer
   {
