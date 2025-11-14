@@ -159,7 +159,7 @@ TEST_P(urEnqueueKernelLaunchWithArgsTest, Success) {
 }
 
 TEST_P(urEnqueueKernelLaunchWithArgsTest, InvalidNullHandleQueue) {
-  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                    urEnqueueKernelLaunchWithArgsExp(
                        nullptr, kernel, workDim, global_offset, global_size,
                        local_size, args.size(), args.data(), 0, nullptr, 0,
@@ -167,7 +167,7 @@ TEST_P(urEnqueueKernelLaunchWithArgsTest, InvalidNullHandleQueue) {
 }
 
 TEST_P(urEnqueueKernelLaunchWithArgsTest, InvalidNullHandleKernel) {
-  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                    urEnqueueKernelLaunchWithArgsExp(
                        queue, nullptr, workDim, global_offset, global_size,
                        local_size, args.size(), args.data(), 0, nullptr, 0,

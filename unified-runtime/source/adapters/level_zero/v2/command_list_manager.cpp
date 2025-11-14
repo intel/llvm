@@ -1140,6 +1140,8 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpNew(
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t phEvent,
     bool cooperativeKernelLaunchRequested) {
 
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
   ur_result_t checkResult = kernelLaunchChecks(hKernel, workDim);
   if (checkResult != UR_RESULT_SUCCESS) {
     return checkResult;
