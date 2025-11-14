@@ -19,7 +19,7 @@ template <typename T> bool FloatingPointEq(T LHS, T RHS) {
   if (std::isnan(LHS))
     return std::isnan(RHS);
   // Allow some rounding differences, but minimal.
-  return std::abs(LHS - RHS) < T{0.000001};
+  return std::abs(LHS - RHS) < T{0.00001};
 }
 
 #define CHECK_TANH_RESULT(REAL, IMAG, T)                                       \
@@ -78,9 +78,6 @@ int main() {
   CHECK_TANH_RESULT(0.0, 0.0, float);
   CHECK_TANH_RESULT(0.0, 0.0, double);
 
-  CHECK_TANH_RESULT(std::numeric_limits<float>::quiet_NaN(), 0.0, float);
-  CHECK_TANH_RESULT(std::numeric_limits<double>::quiet_NaN(), 0.0, double);
-
   CHECK_TANH_RESULT(std::numeric_limits<float>::quiet_NaN(), 1.0, float);
   CHECK_TANH_RESULT(std::numeric_limits<double>::quiet_NaN(), 1.0, double);
 
@@ -89,10 +86,13 @@ int main() {
   CHECK_TANH_RESULT(std::numeric_limits<double>::quiet_NaN(),
                     std::numeric_limits<double>::quiet_NaN(), double);
 
-  // The MSVC implementation of tanh for complex numbers does not return
-  // (1, +-0) for complex numbers with an infinite real, despite the C++
-  // standard requiring it. So instead, we check the results using reference
-  // values rather than trusting the result of std::tanh.
+  // The MSVC implementation of tanh for complex numbers does not adhere to the
+  // following requirements set by the definition of std::tanh:
+  //  * When the input has an infinite real, then the function should return
+  //    (1, +-0).
+  //  * When the input is (NaN, 0), the result should be (NaN, 0).
+  // Instead we check the results using reference values rather than trusting
+  // the result of std::tanh in these cases.
   CHECK_TANH_REF_RESULT(std::numeric_limits<float>::infinity(), 32.0, 1.0, 0.0,
                         float);
   CHECK_TANH_REF_RESULT(std::numeric_limits<double>::infinity(), 32.0, 1.0, 0.0,
@@ -129,6 +129,11 @@ int main() {
   CHECK_TANH_REF_RESULT(-std::numeric_limits<double>::infinity(),
                         std::numeric_limits<double>::quiet_NaN(), -1.0, 0.0,
                         double);
+
+  CHECK_TANH_REF_RESULT(std::numeric_limits<float>::quiet_NaN(), 0.0,
+                        std::numeric_limits<float>::quiet_NaN(), 0.0, float);
+  CHECK_TANH_REF_RESULT(std::numeric_limits<double>::quiet_NaN(), 0.0,
+                        std::numeric_limits<float>::quiet_NaN(), 0.0, double);
 
   return Failures;
 }
