@@ -141,15 +141,23 @@ device local memory required by the kernel in bytes.
 
 |===
 
-=== Total allocation check
+=== Error conditions
+
+If a kernel's static call tree contains a call to
+`get_work_group_scratch_memory`, then the `work_group_scratch_size` property
+must be specified on every launch of the kernel.
+Implementations are encouraged to throw a synchronous `exception` with the
+`errc::memory_allocation` error code when this property is missing from the
+kernel launch.
 
 If the total amount of device local memory requested exceeds a device's
 local memory capacity as reported by `info::device::local_mem_size`
-then the implementation must throw a synchronous exception with the
+then the implementation must throw a synchronous `exception` with the
 `errc::memory_allocation` error code from the kernel invocation command
-(e.g. `parallel_for`). This check must take all APIs that allocation device
+(e.g. `parallel_for`). This check must take all APIs that allocate device
 local memory into account, whether via the `work_group_scratch_size` property
 or other APIs such as `local_accessor`.
+
 
 == Example
 
