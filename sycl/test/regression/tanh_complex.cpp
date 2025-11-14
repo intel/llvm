@@ -60,6 +60,9 @@ template <typename T> bool FloatingPointEq(T LHS, T RHS) {
   }
 
 int main() {
+  // Set precision for easier debugging.
+  std::cout << std::setprecision(10);
+
   CHECK_TANH_RESULT(0, -11.0, float);
   CHECK_TANH_RESULT(0, -11.0, double);
 
