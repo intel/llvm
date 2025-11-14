@@ -162,6 +162,13 @@ private:
 
 } // namespace v1
 
+template <int Dims, typename LambdaArgType> struct TransformUserItemType {
+  using type = std::conditional_t<
+      std::is_convertible_v<nd_item<Dims>, LambdaArgType>, nd_item<Dims>,
+      std::conditional_t<std::is_convertible_v<item<Dims>, LambdaArgType>,
+                         item<Dims>, LambdaArgType>>;
+};
+
 template <detail::WrapAs WrapAs, typename LambdaArgType, typename KernelName,
           bool EventNeeded = false,
           typename PropertiesT = ext::oneapi::experimental::empty_properties_t,
@@ -171,75 +178,7 @@ auto submit_kernel_direct(
     KernelTypeUniversalRef &&KernelFunc, sycl::span<const event> DepEvents,
     const PropertiesT &ExtraProps =
         ext::oneapi::experimental::empty_properties_t{},
-    const detail::code_location &CodeLoc = detail::code_location::current()) {
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-
-  using KernelType =
-      std::remove_const_t<std::remove_reference_t<KernelTypeUniversalRef>>;
-
-  detail::KernelWrapper<WrapAs, KernelName, KernelType, LambdaArgType,
-                        PropertiesT>::wrap(KernelFunc);
-
-  HostKernelRef<KernelType, KernelTypeUniversalRef, LambdaArgType, Dims>
-      HostKernel(std::forward<KernelTypeUniversalRef>(KernelFunc));
-
-  // Instantiating the kernel on the host improves debugging.
-  // Passing this pointer to another translation unit prevents optimization.
-#ifndef NDEBUG
-  // TODO: call library to prevent dropping call due to optimization.
-  (void)
-      detail::GetInstantiateKernelOnHostPtr<KernelType, LambdaArgType, Dims>();
-#endif
-
-  detail::DeviceKernelInfo *DeviceKernelInfoPtr =
-      &detail::getDeviceKernelInfo<KernelName>();
-  constexpr auto Info = detail::CompileTimeKernelInfo<KernelName>;
-
-  assert(Info.Name != std::string_view{} && "Kernel must have a name!");
-
-  static_assert(
-      Info.Name == std::string_view{} || sizeof(KernelType) == Info.KernelSize,
-      "Unexpected kernel lambda size. This can be caused by an "
-      "external host compiler producing a lambda with an "
-      "unexpected layout. This is a limitation of the compiler."
-      "In many cases the difference is related to capturing constexpr "
-      "variables. In such cases removing constexpr specifier aligns the "
-      "captures between the host compiler and the device compiler."
-      "\n"
-      "In case of MSVC, passing "
-      "-fsycl-host-compiler-options='/std:c++latest' "
-      "might also help.");
-
-  detail::KernelPropertyHolderStructTy ParsedProperties;
-  if constexpr (ext::oneapi::experimental::detail::HasKernelPropertiesGetMethod<
-                    const KernelType &>::value) {
-    // Merge properties via get() and manually specified properties.
-    // get() method is used for specifying kernel properties but properties
-    // passed via launch_config (ExtraProps) should be kernel launch properties.
-    // They are mutually exclusive, so there should not be any conflict when
-    // merging properties. merge_properties() throws if there's a conflict.
-    auto MergedProps =
-        sycl::ext::oneapi::experimental::detail::merge_properties(
-            ExtraProps,
-            KernelFunc.get(ext::oneapi::experimental::properties_tag{}));
-
-    ParsedProperties = extractKernelProperties(MergedProps);
-  } else {
-    ParsedProperties = extractKernelProperties(ExtraProps);
-  }
-
-  if constexpr (EventNeeded) {
-    return submit_kernel_direct_with_event_impl(
-        Queue, RangeView, HostKernel, DeviceKernelInfoPtr, DepEvents,
-        ParsedProperties, TlsCodeLocCapture.query(),
-        TlsCodeLocCapture.isToplevel());
-  } else {
-    submit_kernel_direct_without_event_impl(
-        Queue, RangeView, HostKernel, DeviceKernelInfoPtr, DepEvents,
-        ParsedProperties, TlsCodeLocCapture.query(),
-        TlsCodeLocCapture.isToplevel());
-  }
-}
+    const detail::code_location &CodeLoc = detail::code_location::current());
 
 template <typename KernelName = detail::auto_name, bool EventNeeded = false,
           typename PropertiesT = ext::oneapi::experimental::empty_properties_t,
@@ -248,39 +187,7 @@ auto submit_kernel_direct_parallel_for(
     const queue &Queue, nd_range<Dims> Range,
     KernelTypeUniversalRef &&KernelFunc, sycl::span<const event> DepEvents = {},
     const PropertiesT &Props = ext::oneapi::experimental::empty_properties_t{},
-    const detail::code_location &CodeLoc = detail::code_location::current()) {
-
-  using KernelType =
-      std::remove_const_t<std::remove_reference_t<KernelTypeUniversalRef>>;
-  using NameT =
-      typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-
-  using LambdaArgType =
-      sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
-  static_assert(
-      std::is_convertible_v<sycl::nd_item<Dims>, LambdaArgType>,
-      "Kernel argument of a sycl::parallel_for with sycl::nd_range "
-      "must be either sycl::nd_item or be convertible from sycl::nd_item");
-  using TransformedArgType = sycl::nd_item<Dims>;
-
-#ifndef __SYCL_DEVICE_ONLY__
-  detail::checkValueRange<Dims>(Range);
-#endif
-
-  return submit_kernel_direct<detail::WrapAs::parallel_for, TransformedArgType,
-                              NameT, EventNeeded, PropertiesT,
-                              KernelTypeUniversalRef, Dims>(
-      Queue, detail::nd_range_view(Range),
-      std::forward<KernelTypeUniversalRef>(KernelFunc), DepEvents, Props,
-      CodeLoc);
-}
-
-template <int Dims, typename LambdaArgType> struct TransformUserItemType {
-  using type = std::conditional_t<
-      std::is_convertible_v<nd_item<Dims>, LambdaArgType>, nd_item<Dims>,
-      std::conditional_t<std::is_convertible_v<item<Dims>, LambdaArgType>,
-                         item<Dims>, LambdaArgType>>;
-};
+    const detail::code_location &CodeLoc = detail::code_location::current());
 
 template <typename KernelName = detail::auto_name, bool EventNeeded = false,
           typename PropertiesT = ext::oneapi::experimental::empty_properties_t,
@@ -289,94 +196,7 @@ auto submit_kernel_direct_parallel_for(
     const queue &Queue, range<Dims> Range, KernelTypeUniversalRef &&KernelFunc,
     sycl::span<const event> DepEvents = {},
     const PropertiesT &Props = ext::oneapi::experimental::empty_properties_t{},
-    const detail::code_location &CodeLoc = detail::code_location::current()) {
-
-#ifndef __SYCL_DEVICE_ONLY__
-  if (!range_size_fits_in_size_t(Range))
-    throw sycl::exception(make_error_code(errc::runtime),
-                          "The total number of work-items in "
-                          "a range must fit within size_t");
-#endif
-
-  using KernelType =
-      std::remove_const_t<std::remove_reference_t<KernelTypeUniversalRef>>;
-  using NameT =
-      typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-  using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
-
-  // If 1D kernel argument is an integral type, convert it to sycl::item<1>
-  // If user type is convertible from sycl::item/sycl::nd_item, use
-  // sycl::item/sycl::nd_item to transport item information
-  using TransformedArgType = std::conditional_t<
-      std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
-      typename TransformUserItemType<Dims, LambdaArgType>::type>;
-
-  static_assert(!std::is_same_v<TransformedArgType, sycl::nd_item<Dims>>,
-                "Kernel argument cannot have a sycl::nd_item type in "
-                "sycl::parallel_for with sycl::range");
-
-  static_assert(std::is_convertible_v<item<Dims>, LambdaArgType> ||
-                    std::is_convertible_v<item<Dims, false>, LambdaArgType>,
-                "sycl::parallel_for(sycl::range) kernel must have the "
-                "first argument of sycl::item type, or of a type which is "
-                "implicitly convertible from sycl::item");
-
-  using RefLambdaArgType = std::add_lvalue_reference_t<LambdaArgType>;
-  static_assert(
-      (std::is_invocable_v<KernelType, RefLambdaArgType>),
-      "SYCL kernel lambda/functor has an unexpected signature, it should be "
-      "invocable with sycl::item and optionally sycl::kernel_handler");
-
-  // Range rounding can be disabled by the user.
-  // Range rounding is supported only for newer SYCL standards.
-#if !defined(__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__) &&                  \
-    SYCL_LANGUAGE_VERSION >= 202012L
-  auto [RoundedRange, HasRoundedRange] =
-      detail::getRoundedRange(Range, get_device());
-  if (HasRoundedRange) {
-    using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
-    auto Wrapper =
-        getRangeRoundedKernelLambda<NameWT, TransformedArgType, Dims>(
-            KernelFunc, Range);
-
-    using KTypeWrapper = decltype(Wrapper);
-    using KName = std::conditional_t<std::is_same<KernelType, NameT>::value,
-                                     KTypeWrapper, NameWT>;
-#ifndef __SYCL_DEVICE_ONLY__
-    // We are executing over the rounded range, but there are still
-    // items/ids that are are constructed in ther range rounded
-    // kernel use items/ids in the user range, which means that
-    // __SYCL_ASSUME_INT can still be violated. So check the bounds
-    // of the user range, instead of the rounded range.
-    detail::checkValueRange<Dims>(Range);
-#endif
-    return submit_kernel_direct<detail::WrapAs::parallel_for,
-                                TransformedArgType, KName, EventNeeded,
-                                PropertiesT, KTypeWrapper, Dims>(
-        Queue, detail::nd_range_view(Range), std::move(Wrapper), DepEvents,
-        Props, CodeLoc);
-  } else
-#endif // !__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ &&
-       // SYCL_LANGUAGE_VERSION >= 202012L
-  {
-#ifndef __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
-#ifndef __SYCL_DEVICE_ONLY__
-    detail::checkValueRange<Dims>(Range);
-#endif
-    return submit_kernel_direct<detail::WrapAs::parallel_for,
-                                TransformedArgType, NameT, EventNeeded,
-                                PropertiesT, KernelTypeUniversalRef, Dims>(
-        Queue, detail::nd_range_view(Range),
-        std::forward<KernelTypeUniversalRef>(KernelFunc), DepEvents, Props,
-        CodeLoc);
-
-#else
-    (void)Range;
-    (void)Props;
-    (void)KernelFunc;
-#endif // __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
-  }
-}
+    const detail::code_location &CodeLoc = detail::code_location::current());
 
 template <typename KernelName = detail::auto_name, bool EventNeeded = false,
           typename PropertiesT = ext::oneapi::experimental::empty_properties_t,
@@ -385,20 +205,7 @@ auto submit_kernel_direct_single_task(
     const queue &Queue, KernelTypeUniversalRef &&KernelFunc,
     sycl::span<const event> DepEvents = {},
     const PropertiesT &Props = ext::oneapi::experimental::empty_properties_t{},
-    const detail::code_location &CodeLoc = detail::code_location::current()) {
-
-  using KernelType =
-      std::remove_const_t<std::remove_reference_t<KernelTypeUniversalRef>>;
-  using NameT =
-      typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-
-  return submit_kernel_direct<detail::WrapAs::single_task, void, NameT,
-                              EventNeeded, PropertiesT, KernelTypeUniversalRef,
-                              1>(
-      Queue, detail::nd_range_view(),
-      std::forward<KernelTypeUniversalRef>(KernelFunc), DepEvents, Props,
-      CodeLoc);
-}
+    const detail::code_location &CodeLoc = detail::code_location::current());
 
 } // namespace detail
 
@@ -4092,7 +3899,8 @@ private:
                     RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    using KernelType = std::tuple_element_t<0, std::tuple<RestT...>>;
+    using KernelType = std::remove_const_t<
+        std::remove_reference_t<std::tuple_element_t<0, std::tuple<RestT...>>>>;
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
     using TransformedArgType = std::conditional_t<
         std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
@@ -4141,7 +3949,8 @@ private:
                     RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    using KernelType = std::tuple_element_t<0, std::tuple<RestT...>>;
+    using KernelType = std::remove_const_t<
+        std::remove_reference_t<std::tuple_element_t<0, std::tuple<RestT...>>>>;
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
     using TransformedArgType = std::conditional_t<
         std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
@@ -4194,7 +4003,8 @@ private:
                     PropertiesT Properties, RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    using KernelType = std::tuple_element_t<0, std::tuple<RestT...>>;
+    using KernelType = std::remove_const_t<
+        std::remove_reference_t<std::tuple_element_t<0, std::tuple<RestT...>>>>;
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
     using TransformedArgType = std::conditional_t<
         std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
@@ -4256,6 +4066,235 @@ private:
             Info.ColumnNumber};
   }
 };
+
+namespace detail {
+
+template <detail::WrapAs WrapAs, typename LambdaArgType, typename KernelName,
+          bool EventNeeded, typename PropertiesT,
+          typename KernelTypeUniversalRef, int Dims>
+auto submit_kernel_direct(const queue &Queue, detail::nd_range_view RangeView,
+                          KernelTypeUniversalRef &&KernelFunc,
+                          sycl::span<const event> DepEvents,
+                          const PropertiesT &ExtraProps,
+                          const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+
+  using KernelType =
+      std::remove_const_t<std::remove_reference_t<KernelTypeUniversalRef>>;
+
+  detail::KernelWrapper<WrapAs, KernelName, KernelType, LambdaArgType,
+                        PropertiesT>::wrap(KernelFunc);
+
+  HostKernelRef<KernelType, KernelTypeUniversalRef, LambdaArgType, Dims>
+      HostKernel(std::forward<KernelTypeUniversalRef>(KernelFunc));
+
+  // Instantiating the kernel on the host improves debugging.
+  // Passing this pointer to another translation unit prevents optimization.
+#ifndef NDEBUG
+  // TODO: call library to prevent dropping call due to optimization.
+  (void)
+      detail::GetInstantiateKernelOnHostPtr<KernelType, LambdaArgType, Dims>();
+#endif
+
+  detail::DeviceKernelInfo *DeviceKernelInfoPtr =
+      &detail::getDeviceKernelInfo<KernelName>();
+  constexpr auto Info = detail::CompileTimeKernelInfo<KernelName>;
+
+  assert(Info.Name != std::string_view{} && "Kernel must have a name!");
+
+  static_assert(
+      Info.Name == std::string_view{} || sizeof(KernelType) == Info.KernelSize,
+      "Unexpected kernel lambda size. This can be caused by an "
+      "external host compiler producing a lambda with an "
+      "unexpected layout. This is a limitation of the compiler."
+      "In many cases the difference is related to capturing constexpr "
+      "variables. In such cases removing constexpr specifier aligns the "
+      "captures between the host compiler and the device compiler."
+      "\n"
+      "In case of MSVC, passing "
+      "-fsycl-host-compiler-options='/std:c++latest' "
+      "might also help.");
+
+  detail::KernelPropertyHolderStructTy ParsedProperties;
+  if constexpr (ext::oneapi::experimental::detail::HasKernelPropertiesGetMethod<
+                    const KernelType &>::value) {
+    // Merge properties via get() and manually specified properties.
+    // get() method is used for specifying kernel properties but properties
+    // passed via launch_config (ExtraProps) should be kernel launch properties.
+    // They are mutually exclusive, so there should not be any conflict when
+    // merging properties. merge_properties() throws if there's a conflict.
+    auto MergedProps =
+        sycl::ext::oneapi::experimental::detail::merge_properties(
+            ExtraProps,
+            KernelFunc.get(ext::oneapi::experimental::properties_tag{}));
+
+    ParsedProperties = extractKernelProperties(MergedProps);
+  } else {
+    ParsedProperties = extractKernelProperties(ExtraProps);
+  }
+
+  if constexpr (EventNeeded) {
+    return submit_kernel_direct_with_event_impl(
+        Queue, RangeView, HostKernel, DeviceKernelInfoPtr, DepEvents,
+        ParsedProperties, TlsCodeLocCapture.query(),
+        TlsCodeLocCapture.isToplevel());
+  } else {
+    submit_kernel_direct_without_event_impl(
+        Queue, RangeView, HostKernel, DeviceKernelInfoPtr, DepEvents,
+        ParsedProperties, TlsCodeLocCapture.query(),
+        TlsCodeLocCapture.isToplevel());
+  }
+}
+
+template <typename KernelName, bool EventNeeded, typename PropertiesT,
+          typename KernelTypeUniversalRef, int Dims>
+auto submit_kernel_direct_parallel_for(const queue &Queue, nd_range<Dims> Range,
+                                       KernelTypeUniversalRef &&KernelFunc,
+                                       sycl::span<const event> DepEvents,
+                                       const PropertiesT &Props,
+                                       const detail::code_location &CodeLoc) {
+
+  using KernelType =
+      std::remove_const_t<std::remove_reference_t<KernelTypeUniversalRef>>;
+  using NameT =
+      typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+
+  using LambdaArgType =
+      sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
+  static_assert(
+      std::is_convertible_v<sycl::nd_item<Dims>, LambdaArgType>,
+      "Kernel argument of a sycl::parallel_for with sycl::nd_range "
+      "must be either sycl::nd_item or be convertible from sycl::nd_item");
+  using TransformedArgType = sycl::nd_item<Dims>;
+
+#ifndef __SYCL_DEVICE_ONLY__
+  detail::checkValueRange<Dims>(Range);
+#endif
+
+  return submit_kernel_direct<detail::WrapAs::parallel_for, TransformedArgType,
+                              NameT, EventNeeded, PropertiesT,
+                              KernelTypeUniversalRef, Dims>(
+      Queue, detail::nd_range_view(Range),
+      std::forward<KernelTypeUniversalRef>(KernelFunc), DepEvents, Props,
+      CodeLoc);
+}
+
+template <typename KernelName, bool EventNeeded, typename PropertiesT,
+          typename KernelTypeUniversalRef, int Dims>
+auto submit_kernel_direct_parallel_for(const queue &Queue, range<Dims> Range,
+                                       KernelTypeUniversalRef &&KernelFunc,
+                                       sycl::span<const event> DepEvents,
+                                       const PropertiesT &Props,
+                                       const detail::code_location &CodeLoc) {
+
+#ifndef __SYCL_DEVICE_ONLY__
+  if (!range_size_fits_in_size_t(Range))
+    throw sycl::exception(make_error_code(errc::runtime),
+                          "The total number of work-items in "
+                          "a range must fit within size_t");
+#endif
+
+  using KernelType =
+      std::remove_const_t<std::remove_reference_t<KernelTypeUniversalRef>>;
+  using NameT =
+      typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+  using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
+
+  // If 1D kernel argument is an integral type, convert it to sycl::item<1>
+  // If user type is convertible from sycl::item/sycl::nd_item, use
+  // sycl::item/sycl::nd_item to transport item information
+  using TransformedArgType = std::conditional_t<
+      std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
+      typename TransformUserItemType<Dims, LambdaArgType>::type>;
+
+  static_assert(!std::is_same_v<TransformedArgType, sycl::nd_item<Dims>>,
+                "Kernel argument cannot have a sycl::nd_item type in "
+                "sycl::parallel_for with sycl::range");
+
+  static_assert(std::is_convertible_v<item<Dims>, LambdaArgType> ||
+                    std::is_convertible_v<item<Dims, false>, LambdaArgType>,
+                "sycl::parallel_for(sycl::range) kernel must have the "
+                "first argument of sycl::item type, or of a type which is "
+                "implicitly convertible from sycl::item");
+
+  using RefLambdaArgType = std::add_lvalue_reference_t<LambdaArgType>;
+  static_assert(
+      (std::is_invocable_v<KernelType, RefLambdaArgType>),
+      "SYCL kernel lambda/functor has an unexpected signature, it should be "
+      "invocable with sycl::item");
+
+  // Range rounding can be disabled by the user.
+  // Range rounding is supported only for newer SYCL standards.
+#if !defined(__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__) &&                  \
+    SYCL_LANGUAGE_VERSION >= 202012L
+  auto [RoundedRange, HasRoundedRange] =
+      detail::getRoundedRange(Range, Queue.get_device());
+  if (HasRoundedRange) {
+    using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
+    auto Wrapper =
+        detail::getRangeRoundedKernelLambda<NameWT, TransformedArgType, Dims>(
+            KernelFunc, Range);
+
+    using KTypeWrapper = decltype(Wrapper);
+    using KName = std::conditional_t<std::is_same<KernelType, NameT>::value,
+                                     KTypeWrapper, NameWT>;
+#ifndef __SYCL_DEVICE_ONLY__
+    // We are executing over the rounded range, but there are still
+    // items/ids that are are constructed in ther range rounded
+    // kernel use items/ids in the user range, which means that
+    // __SYCL_ASSUME_INT can still be violated. So check the bounds
+    // of the user range, instead of the rounded range.
+    detail::checkValueRange<Dims>(Range);
+#endif
+    return submit_kernel_direct<detail::WrapAs::parallel_for,
+                                TransformedArgType, KName, EventNeeded,
+                                PropertiesT, KTypeWrapper, Dims>(
+        Queue, detail::nd_range_view(Range), std::move(Wrapper), DepEvents,
+        Props, CodeLoc);
+  } else
+#endif // !__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ &&
+       // SYCL_LANGUAGE_VERSION >= 202012L
+  {
+#ifndef __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
+#ifndef __SYCL_DEVICE_ONLY__
+    detail::checkValueRange<Dims>(Range);
+#endif
+    return submit_kernel_direct<detail::WrapAs::parallel_for,
+                                TransformedArgType, NameT, EventNeeded,
+                                PropertiesT, KernelTypeUniversalRef, Dims>(
+        Queue, detail::nd_range_view(Range),
+        std::forward<KernelTypeUniversalRef>(KernelFunc), DepEvents, Props,
+        CodeLoc);
+
+#else
+    (void)Range;
+    (void)Props;
+    (void)KernelFunc;
+#endif // __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
+  }
+}
+
+template <typename KernelName, bool EventNeeded, typename PropertiesT,
+          typename KernelTypeUniversalRef>
+auto submit_kernel_direct_single_task(const queue &Queue,
+                                      KernelTypeUniversalRef &&KernelFunc,
+                                      sycl::span<const event> DepEvents,
+                                      const PropertiesT &Props,
+                                      const detail::code_location &CodeLoc) {
+
+  using KernelType =
+      std::remove_const_t<std::remove_reference_t<KernelTypeUniversalRef>>;
+  using NameT =
+      typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+
+  return submit_kernel_direct<detail::WrapAs::single_task, void, NameT,
+                              EventNeeded, PropertiesT, KernelTypeUniversalRef,
+                              1>(
+      Queue, detail::nd_range_view(),
+      std::forward<KernelTypeUniversalRef>(KernelFunc), DepEvents, Props,
+      CodeLoc);
+}
+} // namespace detail
 
 } // namespace _V1
 } // namespace sycl

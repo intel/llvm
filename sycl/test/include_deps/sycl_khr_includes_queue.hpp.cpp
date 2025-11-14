@@ -156,5 +156,6 @@
 // CHECK-NEXT: ext/oneapi/experimental/raw_kernel_arg.hpp
 // CHECK-NEXT: kernel.hpp
 // CHECK-NEXT: sampler.hpp
+// CHECK-NEXT: range_rounding.hpp
 // CHECK-NEXT: sycl_span.hpp
 // CHECK-EMPTY:

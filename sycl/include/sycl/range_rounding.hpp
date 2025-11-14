@@ -10,6 +10,7 @@
 
 #include <sycl/device.hpp>
 
+#include <sycl/detail/iostream_proxy.hpp>
 #include <tuple>
 
 #include <stddef.h> // for size_t
