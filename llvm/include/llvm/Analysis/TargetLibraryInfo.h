@@ -16,6 +16,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/IR/SystemLibraries.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/TargetParser/Triple.h"
@@ -25,7 +26,6 @@
 namespace llvm {
 
 template <typename T> class ArrayRef;
-enum class VectorLibrary;
 
 /// Describes a possible implementation of a floating point builtin operation.
 struct AltMathDesc {
@@ -189,7 +189,8 @@ public:
   };
 
   TargetLibraryInfoImpl() = delete;
-  LLVM_ABI explicit TargetLibraryInfoImpl(const Triple &T);
+  LLVM_ABI explicit TargetLibraryInfoImpl(
+      const Triple &T, VectorLibrary VecLib = VectorLibrary::NoLibrary);
 
   // Provide value semantics.
   LLVM_ABI TargetLibraryInfoImpl(const TargetLibraryInfoImpl &TLI);
