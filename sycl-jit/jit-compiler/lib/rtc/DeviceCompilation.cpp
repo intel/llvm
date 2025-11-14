@@ -276,15 +276,15 @@ class SYCLToolchain {
     //     chose `<toolchain>/include/libc`) and that has no support in the
     //     clang driver, so we have to add libc headers to system include
     //     directories manually.
-    //  3) However, libcxx her search path must combe *before* libc includes,
+    //  3) However, libcxx headers search path must come *before* libc includes,
     //     but `-isystem` and similar options prepend the list of search paths.
     //     As such, we can't just have the driver do part of the job and then
     //     adjust the behavior via extra options, so we need to maintain
     //     everything on our own.
     //   4) We could do everything via custom code in the clang driver, but the
     //      location of `include/libc` is controlled in this `sycl-jit` project
-    //      and it was slightly more convenient for me to implement it here, at
-    //      least for the downstream implementation.
+    //      and it was slightly more convenient to implement it here, at least
+    //      for the downstream implementation.
     //   5) Once we upstream SYCL support there will be a use-case to move libc
     //      headers installation to a separate directory (similar to libcxx), at
     //      that time we might have support for this in the clang driver
@@ -339,6 +339,11 @@ class SYCLToolchain {
       DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_D),
                        "_LIBCPP_REMOVE_TRANSITIVE_INCLUDES");
 #if defined(_WIN32)
+      // LLVM's libc implements very limited number of entrypoints on WIN,
+      // almost to be unusable, so nobody actually cares about using libcxx over
+      // LLVM libc on that platform. We only use declaration and not definition
+      // so we force libc to generate more header/entrypoints but it's not
+      // working well by default. Options below were find by trial-and-error.
       DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_D),
                        "_LIBCPP_WCHAR_H_HAS_CONST_OVERLOADS");
       DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_D),
@@ -346,6 +351,9 @@ class SYCLToolchain {
       DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_U), "__ELF__");
 
 #endif
+      // Similarly to Windows case above, libcxx over libc isn't fully
+      // supported upstream, even on Linux. Faced some errors (mostly around
+      // `_LIBCPP_USING_IF_EXISTS`) if the files below aren't included early:
       DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_include), "stdio.h");
       DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_include), "wchar.h");
       DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_include), "time.h");

@@ -1062,7 +1062,7 @@ compile the host part of the SYCL application.
 Technical implementation of that disables system include paths entirely (as
 having multiple C library implementation in include search paths would break
 things) and uses virtual file system containing in-memory copy of LLVM's
-{libcxx}/libc headers. That implicitly removes CUDA/HIP SKDs and would break
+{libcxx}/libc headers. That implicitly removes CUDA/HIP SDKs and would break
 online compilation for those targets, thus we do *not* employ that mechanism for
 those targets. Instead, end user's system is required to have a C/{cpp} toolchain
 installation.
