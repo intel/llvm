@@ -67,6 +67,7 @@
 using namespace llvm;
 
 static codegen::RegisterCodeGenFlags CGF;
+static codegen::RegisterSaveStatsFlag SSF;
 
 // General options for llc.  Other pass-specific options are specified
 // within the corresponding llc passes, and target-specific options
@@ -212,20 +213,6 @@ static cl::opt<std::string> RemarksFormat(
     "pass-remarks-format",
     cl::desc("The format used for serializing remarks (default: YAML)"),
     cl::value_desc("format"), cl::init("yaml"));
-
-enum SaveStatsMode { None, Cwd, Obj };
-
-static cl::opt<SaveStatsMode> SaveStats(
-    "save-stats",
-    cl::desc("Save LLVM statistics to a file in the current directory"
-             "(`-save-stats`/`-save-stats=cwd`) or the directory of the output"
-             "file (`-save-stats=obj`). (default: cwd)"),
-    cl::values(clEnumValN(SaveStatsMode::Cwd, "cwd",
-                          "Save to the current working directory"),
-               clEnumValN(SaveStatsMode::Cwd, "", ""),
-               clEnumValN(SaveStatsMode::Obj, "obj",
-                          "Save to the output file directory")),
-    cl::init(SaveStatsMode::None), cl::ValueOptional);
 
 static cl::opt<bool> EnableNewPassManager(
     "enable-new-pm", cl::desc("Enable the new pass manager"), cl::init(false));
@@ -380,60 +367,6 @@ static std::unique_ptr<ToolOutputFile> GetOutputStream(const char *TargetName,
   return FDOut;
 }
 
-std::string getMainExecutable(const char *Name) {
-  void *Ptr = (void *)(intptr_t)&getMainExecutable;
-  auto COWPath = sys::fs::getMainExecutable(Name, Ptr);
-  return sys::path::parent_path(COWPath).str();
-}
-
-Expected<std::string> findProgram(StringRef Name, ArrayRef<StringRef> Paths) {
-  ErrorOr<std::string> Path = sys::findProgramByName(Name, Paths);
-  if (!Path)
-    Path = sys::findProgramByName(Name);
-  if (!Path)
-    return "";
-  return *Path;
-}
-
-static int MaybeEnableStats() {
-  if (SaveStats == SaveStatsMode::None)
-    return 0;
-
-  llvm::EnableStatistics(false);
-  return 0;
-}
-
-static int MaybeSaveStats(std::string &&OutputFilename) {
-  if (SaveStats == SaveStatsMode::None)
-    return 0;
-
-  SmallString<128> StatsFilename;
-  if (SaveStats == SaveStatsMode::Obj) {
-    StatsFilename = OutputFilename;
-    llvm::sys::path::remove_filename(StatsFilename);
-  } else {
-    assert(SaveStats == SaveStatsMode::Cwd &&
-           "Should have been a valid --save-stats value");
-  }
-
-  auto BaseName = llvm::sys::path::filename(OutputFilename);
-  llvm::sys::path::append(StatsFilename, BaseName);
-  llvm::sys::path::replace_extension(StatsFilename, "stats");
-
-  auto FileFlags = llvm::sys::fs::OF_TextWithCRLF;
-  std::error_code EC;
-  auto StatsOS =
-      std::make_unique<llvm::raw_fd_ostream>(StatsFilename, EC, FileFlags);
-  if (EC) {
-    WithColor::error(errs(), "llc")
-        << "Unable to open statistics file: " << EC.message() << "\n";
-    return 1;
-  }
-
-  llvm::PrintStatisticsJSON(*StatsOS);
-  return 0;
-}
-
 // main - Entry point for the llc compiler.
 //
 int main(int argc, char **argv) {
@@ -511,8 +444,7 @@ int main(int argc, char **argv) {
     reportError(std::move(E), RemarksFilename);
   LLVMRemarkFileHandle RemarksFile = std::move(*RemarksFileOrErr);
 
-  if (int RetVal = MaybeEnableStats())
-    return RetVal;
+  codegen::MaybeEnableStatistics();
   std::string OutputFilename;
 
   if (InputLanguage != "" && InputLanguage != "ir" && InputLanguage != "mir")
@@ -527,29 +459,7 @@ int main(int argc, char **argv) {
   if (RemarksFile)
     RemarksFile->keep();
 
-  if (StringRef(OutputFilename).ends_with(".spv")) {
-    // An external tool (spirv-val) is used to validate the generated SPIR-V
-    // code. Github page: https://github.com/KhronosGroup/SPIRV-Tools
-    // Currently, this tool exists out-of-tree and it is the user's
-    // responsibility to make it available during the compilation process.
-    // TODO: Replace the tool invocation with an API library call when the tool
-    // is made available in-tree.
-    Expected<std::string> SPIRVValPath =
-        findProgram("spirv-val", {getMainExecutable("spirv-val")});
-    if (!SPIRVValPath || *SPIRVValPath == "") {
-      WithColor::warning(errs(), argv[0]) << "spirv-val not found.\n";
-      return 0;
-    }
-    SmallVector<StringRef, 8> CmdArgs;
-    CmdArgs.push_back(*SPIRVValPath);
-    CmdArgs.push_back(OutputFilename);
-    WithColor::warning(errs(), argv[0]) << "SPIR-V validation started.\n";
-    if (sys::ExecuteAndWait(*SPIRVValPath, CmdArgs))
-      WithColor::warning(errs(), argv[0]) << "SPIR-V validation failed.\n";
-    return 0;
-  }
-
-  return MaybeSaveStats(std::move(OutputFilename));
+  return codegen::MaybeSaveStatistics(OutputFilename, "llc");
 }
 
 static bool addPass(PassManagerBase &PM, const char *argv0, StringRef PassName,
