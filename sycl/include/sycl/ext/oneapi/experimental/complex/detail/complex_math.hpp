@@ -494,10 +494,11 @@ __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
     typename std::enable_if_t<is_genfloat<_Tp>::value, complex<_Tp>>
     tanh(const complex<_Tp> &__x) {
   if (sycl::isinf(__x.real()))
-    return complex<_Tp>(sycl::copysign(_Tp(1), __x.real()),
-                        sycl::copysign(_Tp(0), sycl::isfinite(__x.imag())
-                                                   ? sin(_Tp(2) * __x.imag())
-                                                   : _Tp(1)));
+    return complex<_Tp>(
+        sycl::copysign(_Tp(1), __x.real()),
+        sycl::copysign(_Tp(0), sycl::isfinite(__x.imag())
+                                   ? sycl::sin(_Tp(2) * __x.imag())
+                                   : _Tp(1)));
   if (sycl::isnan(__x.real()) && __x.imag() == 0)
     return __x;
   complex<_Tp> sinh_x = sinh(__x);
