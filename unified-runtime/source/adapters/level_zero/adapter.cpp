@@ -288,6 +288,14 @@ static bool isBMGorNewer() {
   return urResult == UR_RESULT_SUCCESS;
 }
 
+static void releaseStaticLoaderResourcesIfNeeded() {
+#ifdef UR_STATIC_LEVEL_ZERO
+  // Given static linking of the L0 Loader, we must release the static loader
+  // resources if the adapter is not used.
+  zelLoaderContextTeardown();
+#endif
+}
+
 // returns a pair indicating whether to use the V1 adapter and a string
 // indicating the reason for the decision.
 static std::pair<bool, std::string> shouldUseV1Adapter() {
@@ -525,12 +533,14 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
     auto [useV2, reason] = shouldUseV2Adapter();
     if (!useV2) {
       UR_LOG(INFO, "Skipping L0 V2 adapter: {}", reason);
+      releaseStaticLoaderResourcesIfNeeded();
       return;
     }
 #else
     auto [useV1, reason] = shouldUseV1Adapter();
     if (!useV1) {
       UR_LOG(INFO, "Skipping L0 V1 adapter: {}", reason);
+      releaseStaticLoaderResourcesIfNeeded();
       return;
     }
 #endif
