@@ -297,3 +297,17 @@
 // RUN:          -fsycl-link %s 2>&1 \
 // RUN:  | FileCheck -check-prefix CHECK_SYCL_DEVICE_LINKING %s
 // CHECK_SYCL_DEVICE_LINKING: clang-linker-wrapper{{.*}} "--sycl-device-link"
+
+// Check that target specified by -fsycl-targets is passed to sycl-post-link for filtering.
+// RUN:   %clang -### -fsycl -fsycl-targets=intel_gpu_pvc,intel_gpu_dg1,spir64_x86_64 \
+// RUN:               --offload-new-driver %s 2>&1 \
+// RUN:  | FileCheck --check-prefix=CHECK_TOOLS_FILTER %s
+// CHECK_TOOLS_FILTER-DAG: sycl-post-link{{.*}} -o intel_gpu_pvc,{{.*}}
+// CHECK_TOOLS_FILTER-DAG: sycl-post-link{{.*}} -o intel_gpu_dg1,{{.*}}
+// CHECK_TOOLS_FILTER-DAG: sycl-post-link{{.*}} -o spir64_x86_64,{{.*}}
+
+// Check that target specified by -Xsycl-target-backend is not passed to sycl-post-link for filtering.
+// RUN: %clangxx -fsycl -### -fsycl-targets=spir64_gen --offload-new-driver \
+// RUN:   -Xsycl-target-backend=spir64_gen "-device pvc" %s 2>&1 \
+// RUN:  | FileCheck --check-prefix=CHECK_NO_TOOLS_FILTER %s
+//CHECK_NO_TOOLS_FILTER-NOT: sycl-post-link{{.*}} -o intel_gpu_pv,{{.*}}
