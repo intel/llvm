@@ -312,8 +312,8 @@ compile_impl(const kernel_bundle<bundle_state::input> &InputBundle,
 std::shared_ptr<detail::kernel_bundle_impl>
 link_impl(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
           const std::vector<device> &Devs, const property_list &PropList) {
-  sycl::span<const kernel_bundle<bundle_state::object>, sycl::dynamic_extent>
-      ObjectBundlesView(ObjectBundles.data(), ObjectBundles.size());
+  sycl::span<const kernel_bundle<bundle_state::object>> ObjectBundlesView(
+      ObjectBundles.data(), ObjectBundles.size());
   return detail::kernel_bundle_impl::create(ObjectBundlesView, Devs, PropList,
                                             /*FastLink=*/false);
 }
@@ -322,8 +322,8 @@ std::shared_ptr<detail::kernel_bundle_impl>
 link_impl(const kernel_bundle<bundle_state::object> *ObjectBundles,
           size_t NumObjectBundles, const std::vector<device> &Devs,
           bool FastLink) {
-  sycl::span<const kernel_bundle<bundle_state::object>, sycl::dynamic_extent>
-      ObjectBundlesView(ObjectBundles, NumObjectBundles);
+  sycl::span<const kernel_bundle<bundle_state::object>> ObjectBundlesView(
+      ObjectBundles, NumObjectBundles);
   return detail::kernel_bundle_impl::create(ObjectBundlesView, Devs,
                                             property_list{}, FastLink);
 }

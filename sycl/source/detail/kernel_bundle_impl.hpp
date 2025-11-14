@@ -63,6 +63,11 @@ inline bool checkAllDevicesHaveAspect(devices_range Devices, aspect Aspect) {
 
 // Creates a link graph where the edges represent the relationship between
 // imported and exported symbols in the provided images.
+// The link graph takes a vector of images and a vector of vectors of integral
+// values. The latter is the dependencies of the images in the former argument.
+// Each vector of dependencies correspond 1:1 with the images in the device
+// images, and the values in each of these vectors correspond to the index of
+// each of the images it depends on.
 inline LinkGraph<device_image_plain>
 CreateLinkGraph(const std::vector<device_image_plain> &DevImages) {
   // Create a map between exported symbols and their indices in the device
@@ -101,8 +106,9 @@ CreateLinkGraph(const std::vector<device_image_plain> &DevImages) {
                                   "\" found in linked images.");
       DeviceImageDepsSet.emplace(ExportSymbolIt->second);
     }
-    Dependencies[I].insert(Dependencies[I].end(), DeviceImageDepsSet.begin(),
-                           DeviceImageDepsSet.end());
+    Dependencies[I].insert(Dependencies[I].end(),
+                           std::make_move_iterator(DeviceImageDepsSet.begin()),
+                           std::make_move_iterator(DeviceImageDepsSet.end()));
   }
   return LinkGraph<device_image_plain>{DevImages, Dependencies};
 }
@@ -270,10 +276,10 @@ public:
   }
 
   // Matches sycl::link
-  kernel_bundle_impl(sycl::span<const kernel_bundle<bundle_state::object>,
-                                sycl::dynamic_extent> &ObjectBundles,
-                     devices_range Devs, const property_list &PropList,
-                     bool FastLink, private_tag)
+  kernel_bundle_impl(
+      sycl::span<const kernel_bundle<bundle_state::object>> &ObjectBundles,
+      devices_range Devs, const property_list &PropList, bool FastLink,
+      private_tag)
       : MDevices(Devs.to<std::vector<device_impl *>>()),
         MState(bundle_state::executable) {
     if (MDevices.empty())
@@ -342,13 +348,13 @@ public:
         std::set<device_image_impl *> DevImagesSet;
         for (const kernel_bundle<bundle_state::object> &ObjectBundle :
              ObjectBundles) {
-          const std::shared_ptr<detail::kernel_bundle_impl> &ObjectBundleImpl =
-              getSyclObjImpl(ObjectBundle);
+          detail::kernel_bundle_impl &ObjectBundleImpl =
+              *getSyclObjImpl(ObjectBundle);
 
           // Firstly find all suitable AOT binaries, if the object bundle was
           // made from SYCLBIN.
           std::vector<const RTDeviceBinaryImage *> AOTBinaries =
-              ObjectBundleImpl->GetSYCLBINAOTBinaries(Dev);
+              ObjectBundleImpl.GetSYCLBINAOTBinaries(Dev);
 
           // The AOT binaries need to be brought into executable state. They
           // are considered unique, so they are placed directly into the unique
@@ -378,7 +384,7 @@ public:
               AOTKernelNames.insert(KNProp->Name);
           }
 
-          for (device_image_impl &DevImg : ObjectBundleImpl->device_images()) {
+          for (device_image_impl &DevImg : ObjectBundleImpl.device_images()) {
             // If the image is the same as one of the offline images, we can
             // skip it.
             if (OfflineDeviceImageSet.find(&DevImg) !=
@@ -386,7 +392,9 @@ public:
               continue;
 
             // If any of the exported symbols overlap with an AOT binary, skip
-            // this image.
+            // this image as fast-linking prioritizes AOT binaries.
+            // This can happen if the same source files have been compiled to
+            // both a usable AOT and JIT binary.
             for (const sycl_device_binary_property &ESProp :
                  DevImg.get_bin_image_ref()->getExportedSymbols())
               if (AOTExportedSymbols.find(ESProp->Name) !=
@@ -394,7 +402,9 @@ public:
                 continue;
 
             // If any of the kernels overlap with an AOT binary, skip this
-            // image.
+            // image as fast-linking prioritizes AOT binaries.
+            // This can happen if the same source files have been compiled to
+            // both a usable AOT and JIT binary.
             for (const sycl_device_binary_property &KNProp :
                  DevImg.get_bin_image_ref()->getKernelNames())
               if (AOTKernelNames.find(KNProp->Name) != AOTKernelNames.end())
@@ -523,8 +533,7 @@ public:
 
       const std::vector<device_image_plain> &AllDevImgs =
           DeviceImageWithDeps->getAll();
-      sycl::span<const device_image_plain> AllDevImgsSpan(AllDevImgs.data(),
-                                                          AllDevImgs.size());
+      sycl::span<const device_image_plain> AllDevImgsSpan(AllDevImgs);
       std::vector<device_image_plain> LinkedResults =
           detail::ProgramManager::getInstance().link(AllDevImgsSpan, MDevices,
                                                      PropList);
