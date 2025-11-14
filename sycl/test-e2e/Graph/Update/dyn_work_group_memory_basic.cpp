@@ -19,7 +19,7 @@ int main() {
   int *PtrA = malloc_device<T>(Size, Queue);
   std::vector<T> HostDataA(Size);
 
-  exp_ext::dynamic_work_group_memory<T[]> DynLocalMem{Graph, LocalSize};
+  exp_ext::dynamic_work_group_memory<T[]> DynLocalMem{LocalSize};
 
   Queue.memset(PtrA, 0, Size * sizeof(T)).wait();
 

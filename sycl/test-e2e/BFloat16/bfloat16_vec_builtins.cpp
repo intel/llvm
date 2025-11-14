@@ -2,10 +2,6 @@
 // RUN: %{build} %{mathflags} -o %t.out
 // RUN: %{run} %t.out
 
-// Test new, ABI-breaking for all platforms.
-// RUN:  %if preview-breaking-changes-supported %{  %{build} -fpreview-breaking-changes -o %t-pfrev.out %}
-// RUN:  %if preview-breaking-changes-supported %{  %{run} %t-pfrev.out  %}
-
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/bfloat16_math.hpp>
 

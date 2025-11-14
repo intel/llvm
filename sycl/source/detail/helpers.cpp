@@ -25,14 +25,6 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-// Unused, only keeping for ABI compatibility reasons.
-__SYCL_EXPORT void waitEvents(std::vector<sycl::event> DepEvents) {
-  for (auto SyclEvent : DepEvents) {
-    detail::getSyclObjImpl(SyclEvent)->waitInternal();
-  }
-}
-#endif
 
 const RTDeviceBinaryImage *retrieveKernelBinary(queue_impl &Queue,
                                                 KernelNameStrRefT KernelName,

@@ -147,13 +147,9 @@ public:
   /// @param path The path to write the DOT file to.
   /// @param verbose If true, print additional information about the nodes such
   /// as kernel args or memory access where applicable.
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   void print_graph(const std::string path, bool verbose = false) const {
     print_graph(sycl::detail::string_view{path}, verbose);
   }
-#else
-  void print_graph(const std::string path, bool verbose = false) const;
-#endif
 
   /// Get a list of all nodes contained in this graph.
   std::vector<node> get_nodes() const;
@@ -215,23 +211,6 @@ protected:
 
   static void checkNodePropertiesAndThrow(const property_list &Properties);
 };
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-#ifdef __SYCL_GRAPH_IMPL_CPP
-// Magic combination found by trial and error:
-__SYCL_EXPORT
-#if _WIN32
-inline
-#endif
-#else
-inline
-#endif
-    void
-    modifiable_command_graph::print_graph(const std::string path,
-                                          bool verbose) const {
-  print_graph(sycl::detail::string_view{path}, verbose);
-}
-#endif
 
 } // namespace detail
 } // namespace experimental

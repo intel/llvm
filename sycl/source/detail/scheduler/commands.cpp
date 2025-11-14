@@ -304,20 +304,6 @@ bool Command::isHostTask() const {
           CGType::CodeplayHostTask);
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-// This function is unused and should be removed in the next ABI-breaking
-// window.
-bool Command::isFusable() const {
-  if ((MType != CommandType::RUN_CG)) {
-    return false;
-  }
-  const auto &CG = (static_cast<const ExecCGCommand &>(*this)).getCG();
-  return (CG.getType() == CGType::Kernel) &&
-         (!static_cast<const CGExecKernel &>(CG).MKernelIsCooperative) &&
-         (!static_cast<const CGExecKernel &>(CG).MKernelUsesClusterLaunch);
-}
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
 namespace {
 
 struct EnqueueNativeCommandData {
@@ -3183,24 +3169,11 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
     CommandBufferNativeCommandData CustomOpData{
         std::move(IH), HostTask->MHostTask->MInteropTask};
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    // CMPLRLLVM-66082
-    // The native command-buffer should be a member of the sycl::interop_handle
-    // class, but it is in an ABI breaking change to add it. So member lives in
-    // the queue as a intermediate workaround.
-    MQueue->setInteropGraph(InteropCommandBuffer);
-#endif
-
     Adapter.call<UrApiKind::urCommandBufferAppendNativeCommandExp>(
         MCommandBuffer, CommandBufferInteropFreeFunc, &CustomOpData,
         ChildCommandBuffer, MSyncPointDeps.size(),
         MSyncPointDeps.empty() ? nullptr : MSyncPointDeps.data(),
         &OutSyncPoint);
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    // See CMPLRLLVM-66082
-    MQueue->setInteropGraph(nullptr);
-#endif
 
     if (ChildCommandBuffer) {
       ur_result_t Res =

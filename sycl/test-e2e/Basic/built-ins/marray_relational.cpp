@@ -1,7 +1,5 @@
 // RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
-// RUN: %if preview-breaking-changes-supported %{ %{build} -Wno-error=deprecated-declarations -fpreview-breaking-changes -o %t_preview.out %}
-// RUN: %if preview-breaking-changes-supported %{ %{run} %t_preview.out%}
 
 #include "helpers.hpp"
 

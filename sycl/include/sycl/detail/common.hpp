@@ -8,11 +8,6 @@
 
 #pragma once
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-#ifndef __SYCL_DEVICE_ONLY__
-#include <sycl/exception.hpp>
-#endif
-#endif                        // #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 
@@ -101,14 +96,8 @@ struct code_location {
 private:
   const char *MFileName;
   const char *MFunctionName;
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // For preserving layout of handler class
-  unsigned long MLineNo;
-  unsigned long MColumnNo;
-#else
   uint32_t MLineNo;
   uint32_t MColumnNo;
-#endif
 };
 
 /// @brief Data type that manages the code_location information in TLS
@@ -151,22 +140,9 @@ public:
   /// @param CodeLoc The code location information to set up the TLS slot with.
   tls_code_loc_t(const detail::code_location &CodeLoc);
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   // Used to maintain global state (GCodeLocTLS), so we do not want to copy
   tls_code_loc_t(const tls_code_loc_t &) = delete;
   tls_code_loc_t &operator=(const tls_code_loc_t &) = delete;
-#else
-  tls_code_loc_t &operator=(const tls_code_loc_t &) {
-    // Should never be called. In PREVIEW we marked it as deleted, but
-    // before ABI breaking change we need to keep it for backward compatibility.
-    assert(false && "tls_code_loc_t should not be copied");
-#ifndef __SYCL_DEVICE_ONLY__
-    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                          "tls_code_loc_t should not be copied");
-#endif
-    return *this;
-  }
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// If the code location is set up by this instance, reset it.
   ~tls_code_loc_t();
@@ -179,10 +155,8 @@ public:
   bool isToplevel() const { return !MLocalScope; }
 
 private:
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   // Cache the TLS location to decrease amount of TLS accesses.
   detail::code_location &CodeLocTLSRef;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   // The flag that is used to determine if the object is in a local scope or in
   // the top level scope.
   bool MLocalScope = true;

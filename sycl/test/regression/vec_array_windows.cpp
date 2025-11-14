@@ -6,7 +6,6 @@
 // REQUIRES: windows
 
 // RUN: %clangxx -fsycl -D_DEBUG %s -fsycl-device-only -Xclang -verify %s -Xclang -verify-ignore-unexpected=note,warning
-// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fpreview-breaking-changes -D_DEBUG -fsycl-device-only %s %}
 
 #include <sycl/sycl.hpp>
 

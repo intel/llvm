@@ -2,8 +2,6 @@
 
 // RUN: %{build} %{mathflags} -o %t.out
 // RUN: %{run} %t.out
-// RUN: %if preview-breaking-changes-supported %{ %{build} %{mathflags} -fpreview-breaking-changes -o %t_preview.out %}
-// RUN: %if preview-breaking-changes-supported %{ %{run} %t_preview.out%}
 
 #ifdef _WIN32
 #define _USE_MATH_DEFINES // To use math constants

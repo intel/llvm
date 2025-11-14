@@ -6,10 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-#define __SYCL_PIPES_CPP
-#endif
-
 #include <detail/event_impl.hpp>
 #include <detail/host_pipe_map_entry.hpp>
 #include <detail/program_manager/program_manager.hpp>

@@ -66,23 +66,6 @@ __SYCL_EXPORT uint32_t reduGetMaxNumConcurrentWorkGroups(handler &cgh) {
   return reduGetMaxNumConcurrentWorkGroups(getSyclObjImpl(cgh)->get_device());
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-__SYCL_EXPORT uint32_t reduGetMaxNumConcurrentWorkGroups(
-    std::shared_ptr<sycl::detail::queue_impl> Queue) {
-  // TODO: Graphs extension explicit API uses a handler with no queue attached,
-  // so return some value here. In the future we should have access to the
-  // device so can remove this.
-  //
-  // The 8 value was chosen as the hardcoded value as it is the returned
-  // value for sycl::info::device::max_compute_units on
-  // Intel HD Graphics devices used as a L0 backend during development.
-  if (Queue == nullptr) {
-    return 8;
-  }
-  return reduGetMaxNumConcurrentWorkGroups(Queue->getDeviceImpl());
-}
-#endif
-
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 // Inline this helper:
 #endif
@@ -128,13 +111,6 @@ __SYCL_EXPORT size_t reduGetMaxWGSize(handler &cgh,
   return reduGetMaxWGSize(getSyclObjImpl(cgh)->get_device(),
                           LocalMemBytesPerWorkItem);
 }
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-__SYCL_EXPORT
-size_t reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
-                        size_t LocalMemBytesPerWorkItem) {
-  return reduGetMaxWGSize(Queue->getDeviceImpl(), LocalMemBytesPerWorkItem);
-}
-#endif
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 // Inline this helper:
@@ -184,39 +160,6 @@ __SYCL_EXPORT size_t reduGetPreferredWGSize(handler &cgh,
   return reduGetPreferredWGSize(getSyclObjImpl(cgh)->get_device(),
                                 LocalMemBytesPerWorkItem);
 }
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-__SYCL_EXPORT size_t reduGetPreferredWGSize(std::shared_ptr<queue_impl> &Queue,
-                                            size_t LocalMemBytesPerWorkItem) {
-  // TODO: Graphs extension explicit API uses a handler with a null queue to
-  // process CGFs, in future we should have access to the device so we can
-  // correctly calculate this.
-  //
-  // The 32 value was chosen as the hardcoded value as it is the returned
-  // value for SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE on
-  // Intel HD Graphics devices used as a L0 backend during development.
-  if (Queue == nullptr) {
-    return 32;
-  }
-  device_impl &Dev = Queue->getDeviceImpl();
-
-  return reduGetPreferredWGSize(Dev, LocalMemBytesPerWorkItem);
-}
-#endif
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-__SYCL_EXPORT void
-addCounterInit(handler &CGH, std::shared_ptr<sycl::detail::queue_impl> &Queue,
-               std::shared_ptr<int> &Counter) {
-  auto EventImpl = detail::event_impl::create_device_event(*Queue);
-  EventImpl->setContextImpl(Queue->getContextImpl());
-  EventImpl->setStateIncomplete();
-  ur_event_handle_t UREvent = nullptr;
-  MemoryManager::fill_usm(Counter.get(), *Queue, sizeof(int), {0}, {},
-                          &UREvent);
-  EventImpl->setHandle(UREvent);
-  CGH.depends_on(createSyclObjFromImpl<event>(EventImpl));
-}
-#endif
 
 __SYCL_EXPORT void verifyReductionProps(const property_list &Props) {
   auto CheckDataLessProperties = [](int PropertyKind) {

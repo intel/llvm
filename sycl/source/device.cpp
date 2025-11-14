@@ -127,13 +127,8 @@ detail::ABINeutralT_t<typename detail::is_device_info_desc<Param>::return_type>
 device::get_info_impl() const {
   static_assert(
       std::is_same_v<typename detail::is_device_info_desc<Param>::return_type,
-                     decltype(impl->template
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-                              get_info
-#else
-                              get_info_abi_workaround
-#endif
-                              <Param, true /* InitializingCache */>())>);
+                     decltype(impl->template get_info<
+                              Param, true /* InitializingCache */>())>);
   return detail::convert_to_abi_neutral(impl->template get_info<Param>());
 }
 
@@ -201,14 +196,6 @@ typename detail::is_backend_info_desc<Param>::return_type
 device::get_backend_info() const {
   return impl->get_backend_info<Param>();
 }
-
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, Picode)              \
-  template __SYCL_EXPORT ReturnT                                               \
-  device::get_backend_info<info::DescType::Desc>() const;
-
-#include <sycl/info/sycl_backend_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
 
 backend device::get_backend() const noexcept { return impl->getBackend(); }
 

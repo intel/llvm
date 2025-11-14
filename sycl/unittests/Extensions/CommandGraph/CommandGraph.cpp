@@ -682,7 +682,7 @@ TEST_F(CommandGraphTest, DynamicWorkGroupMemoryGet) {
                                                  Queue.get_device()};
 
   ext::oneapi::experimental::dynamic_work_group_memory<int[]> DynLocalMem{
-      Graph, LocalSize};
+      LocalSize};
   ASSERT_ANY_THROW(DynLocalMem.get());
 }
 
@@ -697,6 +697,6 @@ TEST_F(CommandGraphTest, DynamicLocalAccessorGet) {
                                                  Queue.get_device()};
 
   ext::oneapi::experimental::dynamic_local_accessor<int, 1> DynLocalMem{
-      Graph, LocalSize};
+      LocalSize};
   ASSERT_ANY_THROW(DynLocalMem.get());
 }

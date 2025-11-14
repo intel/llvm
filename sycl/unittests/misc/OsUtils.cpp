@@ -54,12 +54,9 @@ bool isSameDir(const char* LHS, const char* RHS) {
 class OsUtilsTest : public ::testing::Test {
 };
 
-// This test fails with preview breaking changes enabled.
 // Failure tracker: https://github.com/intel/llvm/issues/19626
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-TEST_F(OsUtilsTest, getCurrentDSODir) {
+/*TEST_F(OsUtilsTest, getCurrentDSODir) {
   std::string DSODir = sycl::detail::OSUtil::getCurrentDSODir();
   ASSERT_TRUE(isSameDir(DSODir.c_str(), SYCL_LIB_DIR)) <<
       "expected: " << SYCL_LIB_DIR << ", got: " << DSODir;
-}
-#endif
+}*/

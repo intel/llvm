@@ -61,27 +61,15 @@ public:
 
   template <typename... T> operator ext::oneapi::accessor_property_list<T...>();
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 private:
-#endif
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  __SYCL_DEPRECATED("add_or_replace_accessor_properties() is not part of the "
-                    "SYCL API and will be removed in the future.")
-#endif
   void add_or_replace_accessor_properties(const property_list &PropertyList) {
     add_or_replace_accessor_properties_helper(PropertyList.MPropsWithData);
   }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  __SYCL_DEPRECATED("delete_accessor_property() is not part of the SYCL API "
-                    "and will be removed in the future.")
-#endif
   void delete_accessor_property(const sycl::detail::PropWithDataKind &Kind) {
     delete_accessor_property_helper(Kind);
   }
 
-private:
   property_list(
       std::bitset<detail::DataLessPropKind::DataLessPropKindSize> DataLessProps,
       std::vector<std::shared_ptr<detail::PropertyWithDataBase>> PropsWithData)

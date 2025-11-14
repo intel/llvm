@@ -89,22 +89,9 @@ struct FastKernelSubcacheT {
 // into this structure and get rid of the other KernelName -> * maps.
 class DeviceKernelInfo : public CompileTimeKernelInfoTy {
 public:
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Needs to own the kernel name string in non-preview builds since we pass it
-  // using a temporary string instead of a string view there.
-  std::string Name;
-#endif
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  DeviceKernelInfo() = default;
-#endif
   DeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
 
   void init(KernelNameStrRefT KernelName);
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Initialize default-created entry that has no data recorded:
-  void initIfEmpty(const CompileTimeKernelInfoTy &Info);
-#endif
   void setCompileTimeInfoIfNeeded(const CompileTimeKernelInfoTy &Info);
 
   FastKernelSubcacheT &getKernelSubcache();
@@ -112,12 +99,8 @@ public:
   const std::optional<int> &getImplicitLocalArgPos();
 
 private:
-  void assertInitialized();
   bool isCompileTimeInfoSet() const;
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  std::atomic<bool> MInitialized = false;
-#endif
   FastKernelSubcacheT MFastKernelSubcache;
   bool MUsesAssert;
   std::optional<int> MImplicitLocalArgPos;

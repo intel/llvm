@@ -231,16 +231,6 @@ ThreadPool &GlobalHandler::getHostTaskThreadPool() {
   return TP;
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-KernelNameBasedCacheT *GlobalHandler::createKernelNameBasedCache() {
-  static std::deque<DeviceKernelInfo> &DeviceKernelInfoStorage =
-      getOrCreate(MDeviceKernelInfoStorage);
-  LockGuard LG{MDeviceKernelInfoStorage.Lock};
-  return reinterpret_cast<KernelNameBasedCacheT *>(
-      &DeviceKernelInfoStorage.emplace_back());
-}
-#endif
-
 void GlobalHandler::releaseDefaultContexts() {
   // Release shared-pointers to SYCL objects.
   // Note that on Windows the destruction of the default context
@@ -374,12 +364,6 @@ void shutdown_late() {
   Handler->MPlatformCache.Inst.reset(nullptr);
   Handler->MScheduler.Inst.reset(nullptr);
   Handler->MProgramManager.Inst.reset(nullptr);
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Kernel cache, which is part of device kernel info,
-  // stores handles to the adapter, so clear it before releasing adapters.
-  Handler->MDeviceKernelInfoStorage.Inst.reset(nullptr);
-#endif
 
   // Clear the adapters and reset the instance if it was there.
   Handler->unloadAdapters();

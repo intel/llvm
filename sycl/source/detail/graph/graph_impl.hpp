@@ -270,13 +270,6 @@ public:
   /// @return Context associated with graph.
   sycl::context getContext() const { return MContext; }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  /// Query for the context impl tied to this graph.
-  /// @return shared_ptr ref for the context impl associated with graph.
-  const std::shared_ptr<sycl::detail::context_impl> &getContextImplPtr() const {
-    return sycl::detail::getSyclObjImpl(MContext);
-  }
-#endif
   sycl::detail::context_impl &getContextImpl() const {
     return *sycl::detail::getSyclObjImpl(MContext);
   }

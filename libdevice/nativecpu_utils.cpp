@@ -95,10 +95,29 @@ DefGenericCastToPtrExpl(ToGlobal, OCL_GLOBAL);
   DefSubgroupBlockINTEL_vt(Type, v8)
 
 namespace ncpu_types {
+// Legacy SYCL header vector definitions.
+template <typename DataT>
+using element_type_for_vector_t = typename sycl::detail::map_type<
+    DataT,
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+    std::byte, /*->*/ std::uint8_t, //
+#endif
+    bool, /*->*/ std::uint8_t,                              //
+    sycl::half, /*->*/ sycl::detail::half_impl::StorageT,   //
+    sycl::ext::oneapi::bfloat16, /*->*/ uint16_t,           //
+    char, /*->*/ sycl::detail::ConvertToOpenCLType_t<char>, //
+    DataT, /*->*/ DataT                                     //
+    >::type;
+template <typename DataT, int NumElements>
+using vector_t =
+    std::conditional_t<NumElements == 1, element_type_for_vector_t<DataT>,
+                       element_type_for_vector_t<DataT> __attribute__((
+                           ext_vector_type(NumElements)))>;
+
 template <class T> struct vtypes {
-  using v2 = typename sycl::vec<T, 2>::vector_t;
-  using v4 = typename sycl::vec<T, 4>::vector_t;
-  using v8 = typename sycl::vec<T, 8>::vector_t;
+  using v2 = vector_t<T, 2>;
+  using v4 = vector_t<T, 4>;
+  using v8 = vector_t<T, 8>;
 };
 } // namespace ncpu_types
 
@@ -224,7 +243,7 @@ DefineLogicalGroupOp(bool, bool, i1);
   }                                                                            \
                                                                                \
   DEVICE_EXTERNAL Type __spirv_GroupBroadcast(                                 \
-      int32_t g, Type v, sycl::vec<IDType, 2>::vector_t l) noexcept {          \
+      int32_t g, Type v, ncpu_types::vector_t<IDType, 2> l) noexcept {         \
     if (__spv::Scope::Flag::Subgroup == g)                                     \
       return __mux_sub_group_broadcast_##Sfx(v, l[0]);                         \
     else                                                                       \
@@ -232,7 +251,7 @@ DefineLogicalGroupOp(bool, bool, i1);
   }                                                                            \
                                                                                \
   DEVICE_EXTERNAL Type __spirv_GroupBroadcast(                                 \
-      int32_t g, Type v, sycl::vec<IDType, 3>::vector_t l) noexcept {          \
+      int32_t g, Type v, ncpu_types::vector_t<IDType, 3> l) noexcept {         \
     if (__spv::Scope::Flag::Subgroup == g)                                     \
       return __mux_sub_group_broadcast_##Sfx(v, l[0]);                         \
     else                                                                       \
@@ -310,8 +329,8 @@ DefShuffleINTEL_All(float, f32, float);
 DefShuffleINTEL_All(_Float16, f16, _Float16);
 
 #define DefineShuffleVec(T, N, Sfx, MuxType)                                   \
-  using vt##T##N = sycl::vec<T, N>::vector_t;                                  \
-  using vt##MuxType##N = sycl::vec<MuxType, N>::vector_t;                      \
+  using vt##T##N = ncpu_types::vector_t<T, N>;                                 \
+  using vt##MuxType##N = ncpu_types::vector_t<MuxType, N>;                     \
   DefShuffleINTEL_All(vt##T##N, v##N##Sfx, vt##MuxType##N)
 
 #define DefineShuffleVec2to16(Type, Sfx, MuxType)                              \
