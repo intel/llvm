@@ -693,13 +693,6 @@ optMain(int argc, char **argv,
                                    "", // FIXME: Get ABI name from MCOptions
                                    VecLib);
 
-#if 0
-  // FIXME: Get ABI name from MCOptions
-  RTLIB::RuntimeLibcallsInfo RTLCI(ModuleTriple, codegen::getExceptionModel(),
-                                   codegen::getFloatABIForCalls(),
-                                   codegen::getEABIVersion());
-#endif
-
   // The -disable-simplify-libcalls flag actually disables all builtin optzns.
   if (DisableSimplifyLibCalls)
     TLII.disableAllFunctions();
