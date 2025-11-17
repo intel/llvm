@@ -2157,10 +2157,12 @@ extractSYCLCompileLinkOptions(ArrayRef<OffloadFile> OffloadFiles) {
 }
 
 /// Transforms all the extracted offloading input files into an image that can
-/// be registered by the runtime.
+/// be registered by the runtime. If NeedsWrapping is false, writes bundled
+/// output directly without wrapping or host linking.
 Expected<SmallVector<StringRef>>
 linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
-                       const InputArgList &Args, char **Argv, int Argc) {
+                       const InputArgList &Args, char **Argv, int Argc,
+                       bool NeedsWrapping) {
   llvm::TimeTraceScope TimeScope("Handle all device input");
 
   std::mutex ImageMtx;
@@ -2393,6 +2395,26 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
     auto BundledImagesOrErr = bundleLinkedOutput(Input, Args, Kind);
     if (!BundledImagesOrErr)
       return BundledImagesOrErr.takeError();
+
+    if (!NeedsWrapping) {
+      if (BundledImagesOrErr->size() != 1)
+        return createStringError(
+            "Expected a single bundled image for direct fat binary output");
+
+      Expected<std::unique_ptr<FileOutputBuffer>> FOBOrErr =
+          FileOutputBuffer::create(
+              ExecutableName, BundledImagesOrErr->front()->getBufferSize());
+      if (!FOBOrErr)
+        return FOBOrErr.takeError();
+      std::unique_ptr<FileOutputBuffer> FOB = std::move(*FOBOrErr);
+      llvm::copy(BundledImagesOrErr->front()->getBuffer(),
+                 FOB->getBufferStart());
+      if (Error E = FOB->commit())
+        return std::move(E);
+
+      continue;
+    }
+
     auto OutputOrErr = wrapDeviceImages(*BundledImagesOrErr, Args, Kind);
     if (!OutputOrErr)
       return OutputOrErr.takeError();
@@ -2724,9 +2746,14 @@ int main(int Argc, char **Argv) {
     if (!DeviceInputFiles)
       reportError(DeviceInputFiles.takeError());
 
-    // Link and wrap the device images extracted from the linker input.
-    auto FilesOrErr =
-        linkAndWrapDeviceFiles(*DeviceInputFiles, Args, Argv, Argc);
+    // Check if we should emit fat binary directly without wrapping or host
+    // linking.
+    bool EmitFatbinOnly = Args.hasArg(OPT_emit_fatbin_only);
+
+    // Link and process the device images. The function may emit a direct fat
+    // binary if --emit-fatbin-only is specified.
+    auto FilesOrErr = linkAndWrapDeviceFiles(*DeviceInputFiles, Args, Argv,
+                                             Argc, !EmitFatbinOnly);
     if (!FilesOrErr)
       reportError(FilesOrErr.takeError());
 
@@ -2743,8 +2770,10 @@ int main(int Argc, char **Argv) {
         reportError(std::move(Err));
     } else {
       // Run the host linking job with the rendered arguments.
-      if (Error Err = runLinker(*FilesOrErr, Args))
-        reportError(std::move(Err));
+      if (!EmitFatbinOnly) {
+        if (Error Err = runLinker(*FilesOrErr, Args))
+          reportError(std::move(Err));
+      }
     }
   }
 

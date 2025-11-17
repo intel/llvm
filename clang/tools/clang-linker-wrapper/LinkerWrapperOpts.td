@@ -78,6 +78,11 @@ def preview_breaking_changes : Flag<["-"], "fpreview-breaking-changes">,
   Flags<[WrapperOnlyOption]>,
   HelpText<"Enables preview of breaking changes in the wrapper">;
 
+def emit_fatbin_only
+    : Flag<["--"], "emit-fatbin-only">,
+      Flags<[WrapperOnlyOption]>,
+      HelpText<"Emit fat binary directly without wrapping or host linking">;
+
 // Flags passed to the device linker.
 def arch_EQ : Joined<["--"], "arch=">,
   Flags<[DeviceOnlyOption, HelpHidden]>, MetaVarName<"<arch>">,
