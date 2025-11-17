@@ -72,7 +72,7 @@
 // CHK-CMDS-AOT-GEN-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]].o HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
 
 // Check that when --gpu-tool-arg is specified in clang-linker-wrapper 
-// (happen when with AOT device specified via -Xsycl-target-backend '-device pvc' in clang), 
+// (happen when AOT device is specified via -Xsycl-target-backend '-device pvc' in clang), 
 // the target is not passed to sycl-post-link for filtering.
 // RUN: clang-linker-wrapper -sycl-embed-ir -sycl-device-libraries=%t1.devicelib.o -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-unknown-linux-gnu" "--gpu-tool-arg=-device pvc" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t1.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-NO-CMDS-AOT-GEN %s
 // CHK-NO-CMDS-AOT-GEN-NOT: sycl-post-link{{.*}} -o intel_gpu_pv,{{.*}}
