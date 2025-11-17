@@ -16,3 +16,4 @@ if (SYCL_ENABLE_XPTI_TRACING)
   endif()
 endif()
 
+add_subdirectory(fuzzers)

@@ -1,0 +1,4 @@
+# Comment
+OPTION=value # comment
+#comment
+OPTION2=value #comment
