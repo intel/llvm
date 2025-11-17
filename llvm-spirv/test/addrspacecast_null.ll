@@ -1,6 +1,5 @@
 ; REQUIRES: spirv-dis
-; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: llvm-spirv %s -o %t.spv
 ; RUN: spirv-dis %t.spv | FileCheck %s
 
 ; Test that addrspacecast of null pointer generates appropriate OpConstantNull
