@@ -54,11 +54,11 @@ host and target device binaries.
 
 When dealing with multiple device binaries, an additional step is performed to
 package the multiple device binaries before being added to the host object.
-This additional step is performed with the `clang-offload-packager` taking
+This additional step is performed with the `llvm-offload-binary` taking
 image inputs containing information relating to the target triple,
 architecture setting and offloading kind.
 
-The `clang-offload-packager` is run during 'fat object' generation regardless
+The `llvm-offload-binary` is run during 'fat object' generation regardless
 of the number of device binaries being added to the conglomerate fat object.
 The device binaries are contained in what is designated as an ‘Offload Binary’.
 These binaries can reside in a variety of binary formats including Bitcode
@@ -69,9 +69,9 @@ We should have the ability to package SPIR-V based device binaries in the
 offload section of any given binary.  These device binaries will be packaged
 as normal with the packager and placed within the given section.
 
-Example usage of the external `clang-offload-packager` call:
+Example usage of the external `llvm-offload-binary` call:
 
-`clang-offload-packager --image=file=<name>,triple=<triple>,kind=<kind>`
+`llvm-offload-binary --image=file=<name>,triple=<triple>,kind=<kind>`
 
 ## Clang Linker Wrapper
 

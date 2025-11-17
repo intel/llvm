@@ -41,4 +41,4 @@ urllib3==2.5.0
 dataclasses-json==0.6.7
 
 # Unified-runtime is formatted using black
-black==25.1.0
+black==25.9.0

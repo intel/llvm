@@ -43,8 +43,11 @@
 
 #include "LLVMSPIRVOpts.h"
 
+#include <cstdint>
 #include <iostream>
+#include <optional>
 #include <string>
+#include <vector>
 
 namespace llvm {
 // Pass initialization functions need to be declared before inclusion of
