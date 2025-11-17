@@ -10414,7 +10414,7 @@ __urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleExp(
     /// [in] pointer to device USM memory
     void *pMem,
     /// [out][optional] a pointer to the IPC memory handle data
-    void *pIPCMemHandleData,
+    void **ppIPCMemHandleData,
     /// [out][optional] size of the resulting IPC memory handle data
     size_t *pIPCMemHandleDataSizeRet) {
   auto pfnGetMemHandleExp = getContext()->urDdiTable.IPCExp.pfnGetMemHandleExp;
@@ -10424,7 +10424,7 @@ __urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == pIPCMemHandleData)
+    if (NULL == ppIPCMemHandleData)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pIPCMemHandleDataSizeRet)
@@ -10439,7 +10439,7 @@ __urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleExp(
     URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
-  ur_result_t result = pfnGetMemHandleExp(hContext, pMem, pIPCMemHandleData,
+  ur_result_t result = pfnGetMemHandleExp(hContext, pMem, ppIPCMemHandleData,
                                           pIPCMemHandleDataSizeRet);
 
   return result;
@@ -10583,16 +10583,13 @@ __urdlllocal ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (ppMem == nullptr)
+    if (NULL == ppMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if ((hDevice == nullptr) || (hContext == nullptr))
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE < handleTypeToExport)
@@ -10638,16 +10635,13 @@ __urdlllocal ur_result_t UR_APICALL urMemoryExportFreeExportableMemoryExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (pMem == nullptr)
+    if (NULL == pMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if ((hDevice == nullptr) || (hContext == nullptr))
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
@@ -10688,16 +10682,13 @@ __urdlllocal ur_result_t UR_APICALL urMemoryExportExportMemoryHandleExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (pMemHandleRet == nullptr || pMem == nullptr)
+    if (NULL == pMemHandleRet || NULL == pMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if ((hDevice == nullptr) || (hContext == nullptr))
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE < handleTypeToExport)
@@ -11102,6 +11093,122 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
 
   ur_result_t result = pfnPeerAccessGetInfoExp(
       commandDevice, peerDevice, propName, propSize, pPropValue, pPropSizeRet);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueKernelLaunchWithArgsExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] number of dimensions, from 1 to 3, to specify the global and
+    /// work-group work-items
+    uint32_t workDim,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the offset used to calculate the global ID of a work-item
+    const size_t *pGlobalWorkOffset,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// number of global work-items in workDim that will execute the kernel
+    /// function
+    const size_t *pGlobalWorkSize,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the number of local work-items forming a work-group that will
+    /// execute the kernel function.
+    /// If nullptr, the runtime implementation will choose the work-group size.
+    const size_t *pLocalWorkSize,
+    /// [in] Number of entries in pArgs
+    uint32_t numArgs,
+    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
+    /// properties.
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    /// [in] size of the launch prop list
+    uint32_t numPropsInLaunchPropList,
+    /// [in][optional][range(0, numPropsInLaunchPropList)] pointer to a list
+    /// of launch properties
+    const ur_kernel_launch_property_t *launchPropList,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+    /// event.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular kernel execution instance. If phEventWaitList and phEvent
+    /// are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
+    ur_event_handle_t *phEvent) {
+  auto pfnKernelLaunchWithArgsExp =
+      getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchWithArgsExp;
+
+  if (nullptr == pfnKernelLaunchWithArgsExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pGlobalWorkSize)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (launchPropList == NULL && numPropsInLaunchPropList > 0)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (pArgs == NULL && numArgs > 0)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hKernel)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL != pArgs && UR_EXP_KERNEL_ARG_TYPE_SAMPLER < pArgs->type)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+
+    if (phEventWaitList == NULL && numEventsInWaitList > 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
+    if (phEventWaitList != NULL && numEventsInWaitList == 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
+    if (pGlobalWorkSize[0] == 0 || pGlobalWorkSize[1] == 0 ||
+        pGlobalWorkSize[2] == 0)
+      return UR_RESULT_ERROR_INVALID_WORK_DIMENSION;
+
+    if (pLocalWorkSize && (pLocalWorkSize[0] == 0 || pLocalWorkSize[1] == 0 ||
+                           pLocalWorkSize[2] == 0))
+      return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+
+    if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+      for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+        if (phEventWaitList[i] == NULL) {
+          return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+      }
+    }
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hQueue)) {
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hKernel)) {
+    URLOG_CTX_INVALID_REFERENCE(hKernel);
+  }
+
+  ur_result_t result = pfnKernelLaunchWithArgsExp(
+      hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+      pLocalWorkSize, numArgs, pArgs, numPropsInLaunchPropList, launchPropList,
+      numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -11740,6 +11847,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
     return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
 
   ur_result_t result = UR_RESULT_SUCCESS;
+
+  dditable.pfnKernelLaunchWithArgsExp = pDdiTable->pfnKernelLaunchWithArgsExp;
+  pDdiTable->pfnKernelLaunchWithArgsExp =
+      ur_validation_layer::urEnqueueKernelLaunchWithArgsExp;
 
   dditable.pfnUSMDeviceAllocExp = pDdiTable->pfnUSMDeviceAllocExp;
   pDdiTable->pfnUSMDeviceAllocExp =

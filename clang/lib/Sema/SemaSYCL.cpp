@@ -911,7 +911,7 @@ class SingleDeviceFunctionTracker {
     // a SYCLKernel or SYCLDevice attribute on it, add it to the set of
     // routines potentially reachable on device. This is to diagnose such
     // cases later in finalizeSYCLDelayedAnalysis().
-    if (!CurrentDecl->isDefined() && !CurrentDecl->hasAttr<DeviceKernelAttr>() &&
+    if (!CurrentDecl->isDefined() && !CurrentDecl->hasAttr<SYCLKernelAttr>() &&
         !CurrentDecl->hasAttr<SYCLDeviceAttr>())
       Parent.SemaSYCLRef.addFDToReachableFromSyclDevice(CurrentDecl,
                                                         CallStack.back());
@@ -971,7 +971,7 @@ class SingleDeviceFunctionTracker {
     if (isSYCLKernelBodyFunction(CurrentDecl)) {
       // This is a direct callee of the kernel.
       if (CallStack.size() == 1 &&
-          CallStack.back()->hasAttr<DeviceKernelAttr>()) {
+          CallStack.back()->hasAttr<SYCLKernelAttr>()) {
         assert(!KernelBody && "inconsistent call graph - only one kernel body "
                               "function can be called");
         KernelBody = CurrentDecl;
@@ -3009,7 +3009,7 @@ public:
     // to TransformStmt in replaceWithLocalClone can diagnose something that got
     // diagnosed on the actual kernel.
     KernelDecl->addAttr(
-        DeviceKernelAttr::CreateImplicit(SemaSYCLRef.getASTContext()));
+        SYCLKernelAttr::CreateImplicit(SemaSYCLRef.getASTContext()));
 
     SemaSYCLRef.addSyclDeviceDecl(KernelDecl);
   }
@@ -6093,7 +6093,7 @@ void SemaSYCL::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
     return;
 
   // If Callee has a SYCL attribute, no diagnostic needed.
-  if (Callee->hasAttr<SYCLDeviceAttr>() || Callee->hasAttr<DeviceKernelAttr>())
+  if (Callee->hasAttr<SYCLDeviceAttr>() || Callee->hasAttr<SYCLKernelAttr>())
     return;
 
   // If Callee has a CUDA device attribute, no diagnostic needed.
@@ -7302,22 +7302,30 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   }
 
   if (FreeFunctionCount > 0) {
+    // GlobalMapUpdater has to be in an anonymous namespace.
+    // Otherwise, if multiple translation units include the same integration
+    // header, there will be multiple varying definitions of GlobalMapUpdater
+    // with the same name across translation units, violating the C++'s One
+    // Definition Rule. Putting it in an anonymous namespace gives each
+    // translation unit its own unique definition.
+
     O << "\n#include <sycl/kernel_bundle.hpp>\n";
     O << "#include <sycl/detail/kernel_global_info.hpp>\n";
-    O << "namespace sycl {\n";
-    O << "inline namespace _V1 {\n";
-    O << "namespace detail {\n";
+    O << "namespace {\n";
     O << "struct GlobalMapUpdater {\n";
     O << "  GlobalMapUpdater() {\n";
     O << "    sycl::detail::free_function_info_map::add("
       << "sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, "
       << KernelDescs.size() << ");\n";
     O << "  }\n";
+    O << "  ~GlobalMapUpdater() {\n";
+    O << "    sycl::detail::free_function_info_map::remove("
+      << "sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, "
+      << KernelDescs.size() << ");\n";
+    O << "  }\n";
     O << "};\n";
     O << "static GlobalMapUpdater updater;\n";
-    O << "} // namespace detail\n";
-    O << "} // namespace _V1\n";
-    O << "} // namespace sycl\n";
+    O << "} // namespace\n";
   }
 }
 
@@ -7737,8 +7745,8 @@ static SourceLocation SourceLocationForUserDeclaredType(QualType QT) {
   SourceLocation Loc;
   const Type *T = QT->getUnqualifiedDesugaredType();
   if (const TagType *TT = dyn_cast<TagType>(T))
-    Loc = TT->getOriginalDecl()->getLocation();
-  else if (const ObjCInterfaceType *ObjCIT = dyn_cast<ObjCInterfaceType>(T))
+    Loc = TT->getDecl()->getLocation();
+  else if (const auto *ObjCIT = dyn_cast<ObjCInterfaceType>(T))
     Loc = ObjCIT->getDecl()->getLocation();
   return Loc;
 }

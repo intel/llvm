@@ -32,7 +32,7 @@ def do_configure(args, passthrough_args):
     libclc_nvidia_target_names = ";nvptx64--nvidiacl"
 
     sycl_enable_jit = "OFF"
-    if not args.disable_jit:
+    if not args.disable_jit and sys.platform != "darwin":
         llvm_external_projects += ";sycl-jit"
         sycl_enable_jit = "ON"
 

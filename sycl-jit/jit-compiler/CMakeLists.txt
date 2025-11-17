@@ -9,25 +9,57 @@ else()
 set(SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT "/sycl-jit-toolchain/")
 endif()
 
-set(SYCL_JIT_RESOURCE_DEPS
-  sycl-headers    # include/sycl
-  clang           # lib/clang/N/include
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py)
+
+if (NOT "libdevice" IN_LIST LLVM_ENABLE_PROJECTS)
+  message(FATAL_ERROR "libdevice is required for jit-compiler but not present in LLVM_ENABLE_PROJECTS")
+endif()
+
+set(SYCL_JIT_RESOURCE_INSTALL_COMPONENTS
+  sycl-headers
+  OpenCL-Headers
+  clang-resource-headers
+  libsycldevice)
 
 if ("libclc" IN_LIST LLVM_ENABLE_PROJECTS)
-  # Somehow just "libclc" doesn't build "remangled-*" (and maybe whatever else).
-  list(APPEND SYCL_JIT_RESOURCE_DEPS libclc libspirv-builtins) # lib/clc/*.bc
+  # If some targets required `libclc` then we should embed it for the
+  # `sycl-jit`.
+  list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS libspirv-builtins)
 endif()
 
-if ("libdevice" IN_LIST LLVM_ENABLE_PROJECTS)
-  list(APPEND SYCL_JIT_RESOURCE_DEPS libsycldevice) # lib/*.bc
-endif()
+set(SYCL_JIT_RESOURCE_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-install)
+
+set(SYCL_JIT_PREPARE_RESOURCE_COMMANDS)
+foreach(component IN LISTS SYCL_JIT_RESOURCE_INSTALL_COMPONENTS)
+  list(APPEND SYCL_JIT_PREPARE_RESOURCE_COMMANDS
+    COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR} --prefix ${SYCL_JIT_RESOURCE_INSTALL_DIR} --component "${component}"
+  )
+endforeach()
+
+set(SYCL_JIT_RESOURCE_DEPS ${SYCL_JIT_RESOURCE_INSTALL_COMPONENTS})
+  # OpenCL-Headers doesn't have a corresponding build target:
+list(FILTER SYCL_JIT_RESOURCE_DEPS EXCLUDE REGEX "^OpenCL-Headers$")
+
+# This is very hacky and I don't quite know what I'm doing, but it's necessary
+# to have `resource.cpp` re-generated/re-built when some SYCL header changes.
+#
+# Inspired by the way `sycl-headers` target is created.
+file(GLOB_RECURSE SYCL_JIT_RESOURCE_FILES CONFIGURE_DEPENDS "${SYCL_JIT_RESOURCE_INSTALL_DIR}/*" )
+
+add_custom_target(rtc-prepare-resources
+  DEPENDS ${SYCL_JIT_RESOURCE_DEPS}
+  ${SYCL_JIT_PREPARE_RESOURCE_COMMANDS}
+  BYPRODUCTS
+  ${SYCL_JIT_RESOURCE_FILES}
+)
 
 add_custom_command(
   OUTPUT ${SYCL_JIT_RESOURCE_CPP}
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py --toolchain-dir ${CMAKE_BINARY_DIR} --output ${SYCL_JIT_RESOURCE_CPP} --prefix ${SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT}
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py --toolchain-dir ${SYCL_JIT_RESOURCE_INSTALL_DIR} --output ${SYCL_JIT_RESOURCE_CPP} --prefix ${SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT}
   DEPENDS
+  rtc-prepare-resources
   ${SYCL_JIT_RESOURCE_DEPS}
+  ${SYCL_JIT_RESOURCE_FILES}
+  ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py
 )
 
 # We use C23/C++26's `#embed` to implement this resource creation, and "current"
@@ -67,6 +99,8 @@ add_custom_command(
   ${clang_exe} --target=${LLVM_HOST_TRIPLE} ${SYCL_JIT_RESOURCE_CPP} -I ${CMAKE_CURRENT_SOURCE_DIR}/include -c -o ${SYCL_JIT_RESOURCE_OBJ} ${SYCL_JIT_RESOURCE_CXX_FLAGS}
   DEPENDS
   ${SYCL_JIT_RESOURCE_CPP}
+  ${SYCL_JIT_RESOURCE_DEPS}
+  ${SYCL_JIT_RESOURCE_FILES}
   ${CMAKE_CURRENT_SOURCE_DIR}/include/Resource.h
 )
 

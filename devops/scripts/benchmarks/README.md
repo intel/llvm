@@ -52,6 +52,21 @@ $ cmake --build ~/ur_build -j $(nproc)
 $ cmake --install ~/ur_build
 ```
 
+## Testing
+
+There is a test which can execute benchmarking code and do some checks
+of internal data structures. In order to use it one should
+- prepare environment on its own (Level Zero, OneAPI or somehow SYCL
+`clang++` compiler)
+- have CMPLR_ROOT set and pointing to directory with `clang++`
+- have COMPUTE_BENCHMARKS_BUILD_PATH variable pointing to build directory of compute-benchmarks
+- set LLVM_BENCHMARKS_UNIT_TESTING=1
+
+Then tests can be executed by
+```
+python3 ./devops/scripts/benchmarks/tests/test_integration.py
+```
+
 ## Results
 
 By default, the benchmark results are not stored.  
@@ -115,7 +130,7 @@ The benchmarks scripts are used in a GitHub Actions workflow, and can be automat
 
 ![compute benchmarks](workflow.png "Compute Benchmarks CI job")
 
-To execute the benchmarks in CI, navigate to the `Actions` tab and then go to the `Run Benchmarks` workflow. Here, you will find a list of previous runs and a "Run workflow" button. Upon clicking the button, you will be prompted to fill in a form to customize your benchmark run. Important field is the `PR number`, which is the identifier for the Pull Request against which you want the benchmarks to run. Instead, you can specify `Commit hash` from within intel/llvm repository, or leave both empty to run benchmarks against the branch/tag the workflow started from (the value from dropdown list at the top).
+To execute the benchmarks in CI, navigate to the `Actions` tab and then go to the `SYCL Run Benchmarks` workflow. Here, you will find a list of previous runs and a "Run workflow" button. Upon clicking the button, you will be prompted to fill in a form to customize your benchmark run. Important field is the `PR number`, which is the identifier for the Pull Request against which you want the benchmarks to run. Instead, you can specify `Commit hash` from within intel/llvm repository, or leave both empty to run benchmarks against the branch/tag the workflow started from (the value from dropdown list at the top).
 
 Once all the information is entered, click the "Run workflow" button to initiate a new workflow run. This will execute the benchmarks and then post the results as a comment on the specified Pull Request.
 
