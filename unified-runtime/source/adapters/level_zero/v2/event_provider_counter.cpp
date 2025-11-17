@@ -44,7 +44,7 @@ static zex_counter_based_event_exp_flags_t createZeFlags(queue_type queueType,
   zex_counter_based_event_exp_flags_t zeFlags =
       ZEX_COUNTER_BASED_EVENT_FLAG_HOST_VISIBLE;
   if (flags & EVENT_FLAGS_PROFILING_ENABLED) {
-    zeFlags |= ZE_EVENT_POOL_FLAG_KERNEL_TIMESTAMP;
+    zeFlags |= ZEX_COUNTER_BASED_EVENT_FLAG_KERNEL_TIMESTAMP;
   }
 
   if (queueType == QUEUE_IMMEDIATE) {
@@ -62,6 +62,12 @@ raii::cache_borrowed_event provider_counter::allocate() {
     desc.stype = ZEX_STRUCTURE_COUNTER_BASED_EVENT_DESC;
     desc.flags = createZeFlags(queueType, flags);
     desc.signalScope = ZE_EVENT_SCOPE_FLAG_HOST;
+
+    uint32_t equivalentFlags = ZE_EVENT_POOL_FLAG_HOST_VISIBLE;
+    if (flags & EVENT_FLAGS_PROFILING_ENABLED) {
+      equivalentFlags |= ZE_EVENT_POOL_FLAG_KERNEL_TIMESTAMP;
+    }
+    UR_LOG(DEBUG, "ze_event_pool_desc_t flags set to: {}", equivalentFlags);
 
     ze_event_handle_t handle;
 
