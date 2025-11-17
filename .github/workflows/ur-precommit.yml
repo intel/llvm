@@ -43,13 +43,13 @@ jobs:
   source_checks:
     name: Source Checks
     needs: [detect_changes]
-    if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
+    if: ${{ !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
     uses: ./.github/workflows/ur-source-checks.yml
 
   adapters:
     name: Adapters
     needs: [detect_changes, source_checks]
-    if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
+    if: ${{ !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
     strategy:
       fail-fast: false
       matrix:
@@ -103,13 +103,13 @@ jobs:
 #  offload_build:
 #    name: Adapters (Offload)
 #    needs: [detect_changes, source_checks]
-#    if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur_offload_adapter') }}
+#    if: ${{ !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur_offload_adapter') }}
 #    uses: ./.github/workflows/ur-build-offload.yml
 
   macos:
     name: MacOS build only
     needs: [detect_changes, source_checks]
-    if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
+    if: ${{ !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
     strategy:
       matrix:
         os: ['macos-latest']
