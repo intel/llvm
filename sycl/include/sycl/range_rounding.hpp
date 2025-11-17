@@ -25,7 +25,7 @@ void __SYCL_EXPORT GetRangeRoundingSettings(size_t &MinFactor,
                                             size_t &MinRange);
 
 std::tuple<std::array<size_t, 3>, bool>
-    __SYCL_EXPORT getMaxWorkGroups_v2(const device &Device);
+    __SYCL_EXPORT getMaxWorkGroups(const device &Device);
 
 bool __SYCL_EXPORT DisableRangeRounding();
 
@@ -76,7 +76,7 @@ std::tuple<range<Dims>, bool> getRoundedRange(range<Dims> UserRange,
   // that has each work item peform multiple invocations the old
   // kernel in a 32-bit global range.
   id<Dims> MaxNWGs = [&] {
-    auto [MaxWGs, HasMaxWGs] = getMaxWorkGroups_v2(Device);
+    auto [MaxWGs, HasMaxWGs] = getMaxWorkGroups(Device);
     if (!HasMaxWGs) {
       id<Dims> Default;
       for (int i = 0; i < Dims; ++i)

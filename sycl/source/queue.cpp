@@ -67,8 +67,7 @@ void GetRangeRoundingSettings(size_t &MinFactor, size_t &GoodFactor,
       MinFactor, GoodFactor, MinRange);
 }
 
-std::tuple<std::array<size_t, 3>, bool>
-getMaxWorkGroups_v2(const device &Device) {
+std::tuple<std::array<size_t, 3>, bool> getMaxWorkGroups(const device &Device) {
   std::array<size_t, 3> UrResult = {};
   auto &DeviceImpl = getSyclObjImpl(Device);
 
