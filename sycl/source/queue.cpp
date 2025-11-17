@@ -20,8 +20,8 @@
 namespace sycl {
 inline namespace _V1 {
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 namespace detail {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 SubmissionInfo::SubmissionInfo()
     : impl{std::make_shared<SubmissionInfoImpl>()} {}
 
@@ -59,6 +59,8 @@ SubmissionInfo::EventMode() const {
   return impl->MEventMode;
 }
 
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
 void GetRangeRoundingSettings(size_t &MinFactor, size_t &GoodFactor,
                               size_t &MinRange) {
   SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS>::GetSettings(
@@ -90,8 +92,6 @@ bool RangeRoundingTrace() {
 }
 
 } // namespace detail
-
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
              const async_handler &AsyncHandler, const property_list &PropList) {
