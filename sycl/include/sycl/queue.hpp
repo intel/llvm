@@ -86,16 +86,11 @@ namespace detail {
 class queue_impl;
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-using SubmitPostProcessF = std::function<void(bool, bool, event &)>;
-
 struct SubmissionInfoImpl;
 
 class __SYCL_EXPORT SubmissionInfo {
 public:
   SubmissionInfo();
-
-  sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc();
-  const sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() const;
 
   std::shared_ptr<detail::queue_impl> &SecondaryQueue();
   const std::shared_ptr<detail::queue_impl> &SecondaryQueue() const;
@@ -131,13 +126,6 @@ public:
   SubmissionInfo(const detail::SubmissionInfo &SI)
       : MSecondaryQueue(SI.SecondaryQueue()), MEventMode(SI.EventMode()) {}
 
-  sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() {
-    return MPostProcessorFunc;
-  }
-  const sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() const {
-    return MPostProcessorFunc;
-  }
-
   std::shared_ptr<detail::queue_impl> &SecondaryQueue() {
     return MSecondaryQueue;
   }
@@ -153,7 +141,6 @@ public:
 
 private:
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  optional<detail::SubmitPostProcessF> MPostProcessorFunc = std::nullopt;
   std::shared_ptr<detail::queue_impl> MSecondaryQueue = nullptr;
 #endif
   ext::oneapi::experimental::event_mode_enum MEventMode =
@@ -3856,22 +3843,6 @@ private:
   void submit_without_event_impl(std::function<void(handler &)> CGH,
                                  const detail::code_location &CodeLoc,
                                  bool IsTopCodeLoc);
-  event
-  submit_impl_and_postprocess(std::function<void(handler &)> CGH,
-                              const detail::code_location &CodeLoc,
-                              const detail::SubmitPostProcessF &PostProcess);
-  event submit_impl_and_postprocess(
-      std::function<void(handler &)> CGH, const detail::code_location &CodeLoc,
-      const detail::SubmitPostProcessF &PostProcess, bool IsTopCodeLoc);
-  event
-  submit_impl_and_postprocess(std::function<void(handler &)> CGH,
-                              queue secondQueue,
-                              const detail::code_location &CodeLoc,
-                              const detail::SubmitPostProcessF &PostProcess);
-  event submit_impl_and_postprocess(
-      std::function<void(handler &)> CGH, queue secondQueue,
-      const detail::code_location &CodeLoc,
-      const detail::SubmitPostProcessF &PostProcess, bool IsTopCodeLoc);
 
   // Old version when `std::function` was used in place of
   // `std::function<void(handler &)>`.
@@ -3925,9 +3896,6 @@ private:
   /// \param CodeLoc is the code location of the submit call (default argument)
   /// \return a SYCL event object for the submitted command group.
   //
-  // UseFallBackAssert as template param vs `#if` in function body is necessary
-  // to prevent ODR-violation between TUs built with different fallback assert
-  // modes.
   template <typename PropertiesT>
   event submit_with_event(PropertiesT Props,
                           const detail::type_erased_cgfo_ty &CGF,
@@ -3947,9 +3915,6 @@ private:
   /// \param CGF is a function object containing command group.
   /// \param CodeLoc is the code location of the submit call (default argument)
   //
-  // UseFallBackAssert as template param vs `#if` in function body is necessary
-  // to prevent ODR-violation between TUs built with different fallback assert
-  // modes.
   template <typename PropertiesT>
   void submit_without_event(PropertiesT Props,
                             const detail::type_erased_cgfo_ty &CGF,

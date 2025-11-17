@@ -727,10 +727,6 @@
 ?GDBMethodsAnchor@UnsampledImageAccessorBaseHost@detail@_V1@sycl@@IEAAXXZ
 ?GetRangeRoundingSettings@handler@_V1@sycl@@AEAAXAEA_K00@Z
 ?HasAssociatedAccessor@handler@_V1@sycl@@AEBA_NPEAVAccessorImplHost@detail@23@W4target@access@23@@Z
-?PostProcessorFunc@SubmissionInfo@detail@_V1@sycl@@QEAAAEAV?$optional@V?$function@$$A6AX_N0AEAVevent@_V1@sycl@@@Z@std@@@234@XZ
-?PostProcessorFunc@SubmissionInfo@detail@_V1@sycl@@QEBAAEBV?$optional@V?$function@$$A6AX_N0AEAVevent@_V1@sycl@@@Z@std@@@234@XZ
-?PostProcessorFunc@SubmissionInfo@v1@detail@_V1@sycl@@QEAAAEAV?$optional@V?$function@$$A6AX_N0AEAVevent@_V1@sycl@@@Z@std@@@345@XZ
-?PostProcessorFunc@SubmissionInfo@v1@detail@_V1@sycl@@QEBAAEBV?$optional@V?$function@$$A6AX_N0AEAVevent@_V1@sycl@@@Z@std@@@345@XZ
 ?PushBack@exception_list@_V1@sycl@@AEAAX$$QEAVexception_ptr@std@@@Z
 ?PushBack@exception_list@_V1@sycl@@AEAAXAEBVexception_ptr@std@@@Z
 ?RangeRoundingTrace@handler@_V1@sycl@@AEAA_NXZ
@@ -4480,10 +4476,6 @@
 ?submit_impl@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@AEBUcode_location@detail@23@_N@Z
 ?submit_impl@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@V123@AEBUcode_location@detail@23@@Z
 ?submit_impl@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@V123@AEBUcode_location@detail@23@_N@Z
-?submit_impl_and_postprocess@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@AEBUcode_location@detail@23@AEBV?$function@$$A6AX_N0AEAVevent@_V1@sycl@@@Z@6@@Z
-?submit_impl_and_postprocess@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@AEBUcode_location@detail@23@AEBV?$function@$$A6AX_N0AEAVevent@_V1@sycl@@@Z@6@_N@Z
-?submit_impl_and_postprocess@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@V123@AEBUcode_location@detail@23@AEBV?$function@$$A6AX_N0AEAVevent@_V1@sycl@@@Z@6@@Z
-?submit_impl_and_postprocess@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@V123@AEBUcode_location@detail@23@AEBV?$function@$$A6AX_N0AEAVevent@_V1@sycl@@@Z@6@_N@Z
 ?submit_with_event_impl@queue@_V1@sycl@@AEAA?AVevent@23@AEBVtype_erased_cgfo_ty@detail@23@AEBVSubmissionInfo@623@AEBUcode_location@623@_N@Z
 ?submit_with_event_impl@queue@_V1@sycl@@AEAA?AVevent@23@AEBVtype_erased_cgfo_ty@detail@23@AEBVSubmissionInfo@v1@623@AEBUcode_location@623@_N@Z
 ?submit_with_event_impl@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@AEBVSubmissionInfo@detail@23@AEBUcode_location@823@_N@Z
