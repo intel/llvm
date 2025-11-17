@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <sycl/device.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
+#include <sycl/device.hpp>
 #include <tuple>
 
 #include <stddef.h> // for size_t
