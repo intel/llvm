@@ -357,7 +357,7 @@ if __name__ == "__main__":
     parser_avg.add_argument(
         "--produce-github-summary",
         action="store_true",
-        help=f"Produce regression summary for Github workflow, in file '{options.github_summary_filename}'.",
+        help=f"Produce regression summary for Github workflow, in file '{options.github_summary_regression_filename}'.",
         default=False,
     )
 
@@ -474,7 +474,7 @@ if __name__ == "__main__":
 
             if not args.dry_run:
                 if args.produce_github_summary:
-                    with open(options.github_summary_filename, "a") as f:
+                    with open(options.github_summary_regression_filename, "w") as f:
                         f.write("\n".join(gh_summary))
                 exit(1)  # Exit 1 to trigger Github test failure
 
@@ -483,7 +483,7 @@ if __name__ == "__main__":
             gh_summary.append("")
             gh_summary.append("### Regressions")
             gh_summary.append("No unexpected regressions found!")
-            with open(options.github_summary_filename, "a") as f:
+            with open(options.github_summary_regression_filename, "w") as f:
                 f.write("\n".join(gh_summary))
 
     else:

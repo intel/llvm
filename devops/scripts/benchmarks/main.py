@@ -84,11 +84,13 @@ def generate_github_summary(execution_stats, failures):
 
     # Write the summary to file
     try:
-        with open(options.github_summary_filename, "w") as f:
+        with open(options.github_summary_execution_filename, "w") as f:
             f.write("\n".join(gh_summary))
-        log.info(f"GitHub summary written to {options.github_summary_filename}")
+        log.info(
+            f"GitHub summary with execution stats written to {options.github_summary_execution_filename}"
+        )
     except Exception as e:
-        log.error(f"Failed to write GitHub summary: {e}")
+        log.error(f"Failed to write GitHub summary with execution stats: {e}")
 
 
 def run_iterations(
@@ -781,7 +783,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--produce-github-summary",
         action="store_true",
-        help=f"Produce execution stats summary for Github workflow, in file '{options.github_summary_filename}'.",
+        help=f"Produce execution stats summary for Github workflow, in file '{options.github_summary_execution_filename}'.",
         default=False,
     )
 
