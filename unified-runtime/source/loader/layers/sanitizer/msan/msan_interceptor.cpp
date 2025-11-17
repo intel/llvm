@@ -137,7 +137,7 @@ ur_result_t MsanInterceptor::releaseMemory(ur_context_handle_t Context,
 
 ur_result_t MsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
                                              ur_queue_handle_t Queue,
-                                             USMLaunchInfo &LaunchInfo) {
+                                             LaunchInfo &LaunchInfo) {
   auto Context = GetContext(Queue);
   auto Device = GetDevice(Queue);
   auto ContextInfo = getContextInfo(Context);
@@ -156,7 +156,7 @@ ur_result_t MsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
 
 ur_result_t MsanInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
                                               ur_queue_handle_t Queue,
-                                              USMLaunchInfo &LaunchInfo) {
+                                              LaunchInfo &LaunchInfo) {
   // FIXME: We must use block operation here, until we support
   // urEventSetCallback
   auto Result = getContext()->urDdiTable.Queue.pfnFinish(Queue);
@@ -458,7 +458,7 @@ MsanInterceptor::getMemBuffer(ur_mem_handle_t MemHandle) {
 
 ur_result_t MsanInterceptor::prepareLaunch(
     std::shared_ptr<DeviceInfo> &DeviceInfo, ur_queue_handle_t Queue,
-    ur_kernel_handle_t Kernel, USMLaunchInfo &LaunchInfo) {
+    ur_kernel_handle_t Kernel, LaunchInfo &LaunchInfo) {
   auto Program = GetProgram(Kernel);
 
   // Set membuffer arguments
@@ -653,12 +653,6 @@ ContextInfo::~ContextInfo() {
   assert(Result == UR_RESULT_SUCCESS);
 }
 
-ur_result_t USMLaunchInfo::initialize() {
-  UR_CALL(getContext()->urDdiTable.Context.pfnRetain(Context));
-  UR_CALL(getContext()->urDdiTable.Device.pfnRetain(Device));
-  return UR_RESULT_SUCCESS;
-}
-
 MsanRuntimeDataWrapper::~MsanRuntimeDataWrapper() {
   if (Host.CleanShadow) {
     [[maybe_unused]] auto Result =
@@ -670,14 +664,6 @@ MsanRuntimeDataWrapper::~MsanRuntimeDataWrapper() {
         getContext()->urDdiTable.USM.pfnFree(Context, (void *)DevicePtr);
     assert(Result == UR_RESULT_SUCCESS);
   }
-}
-
-USMLaunchInfo::~USMLaunchInfo() {
-  [[maybe_unused]] ur_result_t Result;
-  Result = getContext()->urDdiTable.Context.pfnRelease(Context);
-  assert(Result == UR_RESULT_SUCCESS);
-  Result = getContext()->urDdiTable.Device.pfnRelease(Device);
-  assert(Result == UR_RESULT_SUCCESS);
 }
 
 } // namespace msan
