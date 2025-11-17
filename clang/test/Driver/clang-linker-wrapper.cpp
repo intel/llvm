@@ -63,12 +63,19 @@
 // CHK-CMDS-AOT-GEN: spirv-to-ir-wrapper{{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
 // CHK-CMDS-AOT-GEN-NEXT: llvm-link{{.*}} --suppress-warnings [[FIRSTLLVMLINKIN]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc
 // CHK-CMDS-AOT-GEN-NEXT: llvm-link{{.*}} -only-needed --suppress-warnings [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc
-// CHK-CMDS-AOT-GEN-NEXT: sycl-post-link{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
+// Check that target specified by -fsycl-targets is passed to sycl-post-link for filtering.
+// CHK-CMDS-AOT-GEN-NEXT: sycl-post-link{{.*}} SYCL_POST_LINK_OPTIONS -o intel_gpu_pvc,[[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
 // CHK-CMDS-AOT-GEN-NEXT: llvm-spirv{{.*}} LLVM_SPIRV_OPTIONS -o {{.*}}
 // CHK-CMDS-AOT-GEN-NEXT: ocloc{{.*}} -output_no_suffix -spirv_input -device pvc{{.*}} -output {{.*}} -file {{.*}}
 // CHK-CMDS-AOT-GEN-NEXT: offload-wrapper: output: [[WRAPPEROUT:.*]].bc, input: {{.*}}, compile-opts: , link-opts:
 // CHK-CMDS-AOT-GEN-NEXT: clang{{.*}} -c -o [[LLCOUT:.*]].o [[WRAPPEROUT]].bc
 // CHK-CMDS-AOT-GEN-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]].o HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
+
+// Check that when --gpu-tool-arg is specified in clang-linker-wrapper 
+// (happen when with AOT device specified via -Xsycl-target-backend '-device pvc' in clang), 
+// the target is not passed to sycl-post-link for filtering.
+// RUN: clang-linker-wrapper -sycl-embed-ir -sycl-device-libraries=%t1.devicelib.o -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-unknown-linux-gnu" "--gpu-tool-arg=-device pvc" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t1.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-NO-CMDS-AOT-GEN %s
+// CHK-NO-CMDS-AOT-GEN-NOT: sycl-post-link{{.*}} -o intel_gpu_pv,{{.*}}
 
 /// Check for list of commands for standalone clang-linker-wrapper run for sycl (AOT for Intel CPU)
 // -------
