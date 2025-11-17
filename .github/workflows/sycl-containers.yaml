@@ -30,7 +30,7 @@ jobs:
   build_and_push_non_driver_images:
     if: github.repository == 'intel/llvm'
     name: "Containers"
-    runs-on: ubuntu-latest
+    runs-on: [Linux, docker-builder]
     permissions:
       packages: write
     strategy:
@@ -70,12 +70,13 @@ jobs:
           build-args: ${{ matrix.build_args }}
 
   # Then build "Intel Drivers" images that depend on previous images.
+  #
   # Note: Building these images on PR means using old "Base" and "Build" images,
   # as the ones above were not yet pushed.
   build_and_push_driver_images:
     needs: build_and_push_non_driver_images
     name: "Containers"
-    runs-on: ubuntu-latest
+    runs-on: [Linux, docker-builder]
     permissions:
       packages: write
     strategy:
