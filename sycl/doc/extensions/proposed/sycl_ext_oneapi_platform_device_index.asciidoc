@@ -1,4 +1,4 @@
-= sycl_ext_oneapi_device_index
+= sycl_ext_oneapi_platform_device_index
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -37,7 +37,7 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 10 specification.
+This extension is written against the SYCL 2020 revision 11 specification.
 All references below to the "core SYCL specification" or to section numbers in
 the SYCL specification refer to that revision.
 
@@ -57,10 +57,11 @@ specification.*
 == Overview
 
 Some SYCL applications find it more convenient to represent a device as an
-integer value rather than using the `device` class.
+integer value rather than using the `device` class, where the integer value
+represents the index of the device within its platform.
 The core SYCL specification already allows an application to do this by using
 the `device` object's index in the list of all devices returned by
-`device::get_devices`.
+`platform::get_devices`.
 However, converting between a `device` object and its index could be expensive
 because the conversion requires a search through all of the devices returned by
 `get_devices`.
@@ -75,7 +76,8 @@ conversion.
 This extension provides a feature-test macro as described in the core SYCL
 specification.
 An implementation supporting this extension must predefine the macro
-`SYCL_EXT_ONEAPI_DEVICE_INDEX` to one of the values defined in the table below.
+`SYCL_EXT_ONEAPI_PLATFORM_DEVICE_INDEX` to one of the values defined in the
+table below.
 Applications can test for the existence of this macro to determine if the
 implementation supports this feature, or applications can test the macro's value
 to determine which of the extension's features the implementation supports.
@@ -89,9 +91,9 @@ to determine which of the extension's features the implementation supports.
 |Initial version of this extension.
 |===
 
-=== New member functions in the device class
+=== New member function in the device class
 
-This extension adds the following new member functions to the `device` class.
+This extension adds the following new member function to the `device` class.
 
 [frame=all,grid=none,separator="@"]
 |====
@@ -100,8 +102,7 @@ a@
 ----
 class device {
   // ...
-  size_t ext_oneapi_to_index() const;
-  static device ext_oneapi_from_index(size_t index);
+  size_t ext_oneapi_index_within_platform() const;
 };
 ----
 |====
@@ -113,16 +114,35 @@ class device {
 a@
 [source,c++]
 ----
-size_t ext_oneapi_to_index() const;
+size_t ext_oneapi_index_within_platform() const;
 ----
 |====
 
 _Returns:_ If this device is a root device as defined by the core SYCL
 specification, returns the index that it has in the `std::vector` that is
-returned when calling `device::get_devices()`.
+returned when calling `platform::get_devices()` on the platform that contains
+this device.
 
 _Throws:_ An `exception` with the `errc::invalid` error code if this device is
 not a root device.
+
+'''
+
+=== New member function in the platform class
+
+This extension adds the following new member function to the `platform` class.
+
+[frame=all,grid=none,separator="@"]
+|====
+a@
+[source,c++]
+----
+class platform {
+  // ...
+  device ext_oneapi_device_at_index(size_t index) const;
+};
+----
+|====
 
 '''
 
@@ -131,18 +151,40 @@ not a root device.
 a@
 [source,c++]
 ----
-static device ext_oneapi_from_index(size_t index);
+device ext_oneapi_device_at_index(size_t index) const;
 ----
 |====
 
 _Returns:_ If the `index` is within range of the `std::vector` that is returned
-when calling `device::get_devices()`, returns a copy of the `device` object
+when calling `platform::get_devices()`, returns a copy of the `device` object
 which has that index.
 
 _Throws:_ An `exception` with the `errc::invalid` error code if the `index` is
 out of range.
 
 '''
+
+
+== {dpcpp} guaranteed compatibility with Level Zero and OpenCL backends
+
+The contents of this section are non-normative and apply only to the {dpcpp}
+implementation.
+The device index returned from `device::ext_oneapi_index_within_platform` is
+compatible with the index of the underlying backend device when the
+`ONEAPI_DEVICE_SELECTOR` environment variable is not set.
+Specifically, the following guarantees are provided.
+
+* When the platform's backend is `backend::ext_oneapi_level_zero`, the index
+  returned from `device::ext_oneapi_index_within_platform` matches the index of
+  the device's underlying `ze_device_handle_t` within the list of handles
+  returned from `zeDeviceGet`.
+  As a result, the SYCL device index is equivalent to the Level Zero index
+  returned from `zerTranslateDeviceHandleToIdentifier`.
+
+* When the platform's backend is `backend::opencl`, the index returned from
+  `device::ext_oneapi_index_within_platform` matches the index of the device's
+  underlying `cl_device_id` within the list of IDs returned from
+  `clGetDeviceIDs`.
 
 
 == Example
@@ -154,9 +196,10 @@ out of range.
 int main() {
   sycl::device d1;  // Get the default device.
                     // There is no guarantee this has index 0.
+  sycl::platform p; // Get the platform containing the default device.
 
-  size_t index = d1.ext_oneapi_to_index();
-  sycl::device d2 = sycl::device::ext_oneapi_from_index(index);
+  size_t index = d1.ext_oneapi_index_within_platform();
+  sycl::device d2 = p.ext_oneapi_device_at_index(index);
   assert(d1 == d2);
 }
 ----
