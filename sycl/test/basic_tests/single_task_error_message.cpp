@@ -12,9 +12,6 @@ int main() {
           .single_task([&](sycl::handler &cgh) {
             // expected-error-re@sycl/queue.hpp:* {{static assertion failed due to requirement '{{.*}}': sycl::queue.single_task() requires a kernel instead of command group.{{.*}} Use queue.submit() instead}}
             // expected-error-re@sycl/detail/cg_types.hpp:* {{no matching function for call to object of type '(lambda at {{.*}}single_task_error_message.cpp:{{.*}})'}}
-            // TODO Investigate why this function template is not instantiated
-            // (if this is expected).
-            // expected-error@sycl/detail/cg_types.hpp:* {{no matching function for call to 'runKernelWithoutArg'}}
           })
           .wait();
     }
@@ -31,9 +28,6 @@ int main() {
                        [&](sycl::handler &cgh) {
                          // expected-error-re@sycl/queue.hpp:* {{static assertion failed due to requirement '{{.*}}': sycl::queue.single_task() requires a kernel instead of command group.{{.*}} Use queue.submit() instead}}
                          // expected-error-re@sycl/detail/cg_types.hpp:* {{no matching function for call to object of type '(lambda at {{.*}}single_task_error_message.cpp:{{.*}})'}}
-                         // TODO Investigate why this function template is not
-                         // instantiated (if this is expected).
-                         // expected-error@sycl/detail/cg_types.hpp:* {{no matching function for call to 'runKernelWithoutArg'}}
                        })
           .wait();
     }
@@ -50,9 +44,6 @@ int main() {
                        [&](sycl::handler &cgh) {
                          // expected-error-re@sycl/queue.hpp:* {{static assertion failed due to requirement '{{.*}}': sycl::queue.single_task() requires a kernel instead of command group.{{.*}} Use queue.submit() instead}}
                          // expected-error-re@sycl/detail/cg_types.hpp:* {{no matching function for call to object of type '(lambda at {{.*}}single_task_error_message.cpp:{{.*}})'}}
-                         // TODO Investigate why this function template is not
-                         // instantiated (if this is expected).
-                         // expected-error@sycl/detail/cg_types.hpp:* {{no matching function for call to 'runKernelWithoutArg'}}
                        })
           .wait();
     }
