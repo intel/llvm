@@ -1171,13 +1171,16 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpNew(
   for (uint32_t argIndex = 0; argIndex < numArgs; argIndex++) {
     switch (pArgs[argIndex].type) {
     case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
-      hKernel->kernelArgs[argIndex] = (void *)&pArgs[argIndex].size;
+      hKernel->kernelArgs[argIndex] =
+          reinterpret_cast<void *>(const_cast<size_t *>(&pArgs[argIndex].size));
       break;
     case UR_EXP_KERNEL_ARG_TYPE_VALUE:
-      hKernel->kernelArgs[argIndex] = (void *)pArgs[argIndex].value.value;
+      hKernel->kernelArgs[argIndex] =
+          const_cast<void *>(pArgs[argIndex].value.value);
       break;
     case UR_EXP_KERNEL_ARG_TYPE_POINTER:
-      hKernel->kernelArgs[argIndex] = (void *)&pArgs[argIndex].value.pointer;
+      hKernel->kernelArgs[argIndex] = reinterpret_cast<void *>(
+          const_cast<void **>(&pArgs[argIndex].value.pointer));
       break;
     case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ:
       // compute zePtr for the given memory handle and store it in
