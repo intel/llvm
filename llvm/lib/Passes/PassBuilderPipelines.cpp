@@ -527,19 +527,16 @@ PassBuilder::buildO1FunctionSimplificationPipeline(OptimizationLevel Level,
                                     PTO.ForgetAllSCEVInLoopUnroll));
     invokeLoopOptimizerEndEPCallbacks(LPM2, Level);
 
-    FPM.addPass(
-        createFunctionToLoopPassAdaptor(std::move(LPM1),
-                                        /*UseMemorySSA=*/true,
-                                        /*UseBlockFrequencyInfo=*/true));
+    FPM.addPass(createFunctionToLoopPassAdaptor(std::move(LPM1),
+                                                /*UseMemorySSA=*/true));
     FPM.addPass(
         SimplifyCFGPass(SimplifyCFGOptions().convertSwitchRangeToICmp(true)));
     FPM.addPass(InstCombinePass());
     // The loop passes in LPM2 (LoopFullUnrollPass) do not preserve MemorySSA.
     // *All* loop passes must preserve it, in order to be able to use it.
-    FPM.addPass(
-        createFunctionToLoopPassAdaptor(std::move(LPM2),
-                                        /*UseMemorySSA=*/false,
-                                        /*UseBlockFrequencyInfo=*/false));
+    FPM.addPass(createFunctionToLoopPassAdaptor(std::move(LPM2),
+                                                /*UseMemorySSA=*/false));
+
   }
   // Delete small array after loop unroll.
   FPM.addPass(SROAPass(SROAOptions::ModifyCFG));
@@ -725,20 +722,16 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
 
     invokeLoopOptimizerEndEPCallbacks(LPM2, Level);
 
-    FPM.addPass(
-        createFunctionToLoopPassAdaptor(std::move(LPM1),
-                                        /*UseMemorySSA=*/true,
-                                        /*UseBlockFrequencyInfo=*/true));
+    FPM.addPass(createFunctionToLoopPassAdaptor(std::move(LPM1),
+                                                /*UseMemorySSA=*/true));
     FPM.addPass(
         SimplifyCFGPass(SimplifyCFGOptions().convertSwitchRangeToICmp(true)));
     FPM.addPass(InstCombinePass());
     // The loop passes in LPM2 (LoopIdiomRecognizePass, IndVarSimplifyPass,
     // LoopDeletionPass and LoopFullUnrollPass) do not preserve MemorySSA.
     // *All* loop passes must preserve it, in order to be able to use it.
-    FPM.addPass(
-        createFunctionToLoopPassAdaptor(std::move(LPM2),
-                                        /*UseMemorySSA=*/false,
-                                        /*UseBlockFrequencyInfo=*/false));
+    FPM.addPass(createFunctionToLoopPassAdaptor(std::move(LPM2),
+                                                /*UseMemorySSA=*/false));
   }
 
   // Delete small array after loop unroll.
@@ -792,7 +785,7 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
   FPM.addPass(createFunctionToLoopPassAdaptor(
       LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap,
                /*AllowSpeculation=*/true),
-      /*UseMemorySSA=*/true, /*UseBlockFrequencyInfo=*/false));
+      /*UseMemorySSA=*/true));
 
   FPM.addPass(CoroElidePass());
 
@@ -803,6 +796,7 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
   else
     FPM.addPass(SimplifyCFGPass(SimplifyCFGOptions()
                                     .convertSwitchRangeToICmp(true)
+                                    .convertSwitchToArithmetic(true)
                                     .hoistCommonInsts(true)
                                     .sinkCommonInsts(true)));
   FPM.addPass(InstCombinePass());
@@ -863,8 +857,7 @@ void PassBuilder::addPostPGOLoopRotation(ModulePassManager &MPM,
         createFunctionToLoopPassAdaptor(
             LoopRotatePass(EnableLoopHeaderDuplication ||
                            Level != OptimizationLevel::Oz),
-            /*UseMemorySSA=*/false,
-            /*UseBlockFrequencyInfo=*/false),
+            /*UseMemorySSA=*/false),
         PTO.EagerlyInvalidateAnalyses));
   }
 }
@@ -1379,8 +1372,7 @@ void PassBuilder::addVectorPasses(OptimizationLevel Level,
     LPM.addPass(SimpleLoopUnswitchPass(/* NonTrivial */ Level ==
                                        OptimizationLevel::O3));
     ExtraPasses.addPass(
-        createFunctionToLoopPassAdaptor(std::move(LPM), /*UseMemorySSA=*/true,
-                                        /*UseBlockFrequencyInfo=*/true));
+        createFunctionToLoopPassAdaptor(std::move(LPM), /*UseMemorySSA=*/true));
     ExtraPasses.addPass(
         SimplifyCFGPass(SimplifyCFGOptions().convertSwitchRangeToICmp(true)));
     ExtraPasses.addPass(InstCombinePass());
@@ -1399,6 +1391,7 @@ void PassBuilder::addVectorPasses(OptimizationLevel Level,
   FPM.addPass(SimplifyCFGPass(SimplifyCFGOptions()
                                   .forwardSwitchCondToPhi(true)
                                   .convertSwitchRangeToICmp(true)
+                                  .convertSwitchToArithmetic(true)
                                   .convertSwitchToLookupTable(true)
                                   .needCanonicalLoops(false)
                                   .hoistCommonInsts(true)
@@ -1458,7 +1451,7 @@ void PassBuilder::addVectorPasses(OptimizationLevel Level,
   FPM.addPass(createFunctionToLoopPassAdaptor(
       LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap,
                /*AllowSpeculation=*/true),
-      /*UseMemorySSA=*/true, /*UseBlockFrequencyInfo=*/false));
+      /*UseMemorySSA=*/true));
 
   // Now that we've vectorized and unrolled loops, we may have more refined
   // alignment information, try to re-derive it here.
@@ -1540,7 +1533,7 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
     OptimizePM.addPass(createFunctionToLoopPassAdaptor(
         LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap,
                  /*AllowSpeculation=*/true),
-        /*USeMemorySSA=*/true, /*UseBlockFrequencyInfo=*/false));
+        /*USeMemorySSA=*/true));
   }
 
   OptimizePM.addPass(Float2IntPass());
@@ -1582,8 +1575,8 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
       LPM.addPass(LoopInterchangePass());
 
     OptimizePM.addPass(
-        createFunctionToLoopPassAdaptor(std::move(LPM), /*UseMemorySSA=*/false,
-                                        /*UseBlockFrequencyInfo=*/false));
+        createFunctionToLoopPassAdaptor(std::move(LPM),
+		                        /*UseMemorySSA=*/false));
 
     // FIXME: This may not be the right place in the pipeline.
     // We need to have the data to support the right place.
@@ -1628,6 +1621,7 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
   OptimizePM.addPass(
       SimplifyCFGPass(SimplifyCFGOptions()
                           .convertSwitchRangeToICmp(true)
+                          .convertSwitchToArithmetic(true)
                           .speculateUnpredictables(true)
                           .hoistLoadsStoresWithCondFaulting(true)));
 
@@ -1679,6 +1673,16 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
     return buildO0DefaultPipeline(Level, Phase);
 
   ModulePassManager MPM;
+
+  // Currently this pipeline is only invoked in an LTO pre link pass or when we
+  // are not running LTO. If that changes the below checks may need updating.
+  assert(isLTOPreLink(Phase) || Phase == ThinOrFullLTOPhase::None);
+
+  // If we are invoking this in non-LTO mode, remove any MemProf related
+  // attributes and metadata, as we don't know whether we are linking with
+  // a library containing the necessary interfaces.
+  if (Phase == ThinOrFullLTOPhase::None)
+    MPM.addPass(MemProfRemoveInfo());
 
   // Convert @llvm.global.annotations to !annotation metadata.
   MPM.addPass(Annotation2MetadataPass());
@@ -1825,6 +1829,12 @@ ModulePassManager PassBuilder::buildThinLTODefaultPipeline(
     OptimizationLevel Level, const ModuleSummaryIndex *ImportSummary) {
   ModulePassManager MPM;
 
+  // If we are invoking this without a summary index noting that we are linking
+  // with a library containing the necessary APIs, remove any MemProf related
+  // attributes and metadata.
+  if (!ImportSummary || !ImportSummary->withSupportsHotColdNew())
+    MPM.addPass(MemProfRemoveInfo());
+
   if (ImportSummary) {
     // For ThinLTO we must apply the context disambiguation decisions early, to
     // ensure we can correctly match the callsites to summary data.
@@ -1895,6 +1905,12 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
   ModulePassManager MPM;
 
   invokeFullLinkTimeOptimizationEarlyEPCallbacks(MPM, Level);
+
+  // If we are invoking this without a summary index noting that we are linking
+  // with a library containing the necessary APIs, remove any MemProf related
+  // attributes and metadata.
+  if (!ExportSummary || !ExportSummary->withSupportsHotColdNew())
+    MPM.addPass(MemProfRemoveInfo());
 
   // Create a function that performs CFI checks for cross-DSO calls with targets
   // in the current module.
@@ -1985,6 +2001,7 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
   // is fixed.
   MPM.addPass(WholeProgramDevirtPass(ExportSummary, nullptr));
 
+  MPM.addPass(NoRecurseLTOInferencePass());
   // Stop here at -O1.
   if (Level == OptimizationLevel::O1) {
     // The LowerTypeTestsPass needs to run to lower type metadata and the
@@ -2132,7 +2149,7 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
   MainFPM.addPass(createFunctionToLoopPassAdaptor(
       LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap,
                /*AllowSpeculation=*/true),
-      /*USeMemorySSA=*/true, /*UseBlockFrequencyInfo=*/false));
+      /*USeMemorySSA=*/true));
 
   if (RunNewGVN)
     MainFPM.addPass(NewGVNPass());
@@ -2162,8 +2179,8 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
                                  PTO.ForgetAllSCEVInLoopUnroll));
   // The loop passes in LPM (LoopFullUnrollPass) do not preserve MemorySSA.
   // *All* loop passes must preserve it, in order to be able to use it.
-  MainFPM.addPass(createFunctionToLoopPassAdaptor(
-      std::move(LPM), /*UseMemorySSA=*/false, /*UseBlockFrequencyInfo=*/true));
+  MainFPM.addPass(
+      createFunctionToLoopPassAdaptor(std::move(LPM), /*UseMemorySSA=*/false));
 
   MainFPM.addPass(LoopDistributePass());
 
@@ -2211,6 +2228,7 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
   // Delete basic blocks, which optimization passes may have killed.
   LateFPM.addPass(SimplifyCFGPass(SimplifyCFGOptions()
                                       .convertSwitchRangeToICmp(true)
+                                      .convertSwitchToArithmetic(true)
                                       .hoistCommonInsts(true)
                                       .speculateUnpredictables(true)));
   MPM.addPass(createModuleToFunctionPassAdaptor(std::move(LateFPM)));
