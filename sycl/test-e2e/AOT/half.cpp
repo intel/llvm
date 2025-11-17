@@ -1,6 +1,7 @@
 // This test ensures that a program that has a kernel
 // using fp16 can be compiled AOT.
 
+// Don't run on Gen12 Windows as we don't use a driver that can AOT compile.
 // REQUIRES: ocloc, opencl-aot, any-device-is-cpu, (!gpu-intel-gen12 || linux)
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_acm_g10 -o %t.dg2.out %s
 
