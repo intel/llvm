@@ -1,11 +1,18 @@
+//== free_function_commands.hpp - sycl_khr_free_function_commands extension ==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
 #pragma once
+
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 
 namespace sycl {
 inline namespace _V1 {
-
-#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 namespace khr {
 
 template <typename CommandGroupFunc>
@@ -558,6 +565,6 @@ inline void event_barrier(const queue &q, const std::vector<event> &events,
 }
 
 } // namespace khr
-#endif
 } // namespace _V1
 } // namespace sycl
+#endif
