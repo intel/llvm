@@ -280,8 +280,7 @@ private:
       ur_kernel_handle_t hKernel, ze_kernel_handle_t hZeKernel,
       uint32_t workDim, const size_t *pGlobalWorkOffset,
       const size_t *pGlobalWorkSize, const size_t *pLocalWorkSize,
-      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-      ur_event_handle_t phEvent, bool cooperative,
+      wait_list_view &waitListView, ur_event_handle_t phEvent, bool cooperative,
       std::vector<void *> *pKMemObj = nullptr, void *pNext = nullptr);
 
   ur_result_t appendKernelLaunchUnlocked(

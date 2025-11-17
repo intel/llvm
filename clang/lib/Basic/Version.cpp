@@ -65,6 +65,14 @@ std::string getClangVendor() {
 #endif
 }
 
+std::string getSYCLBuildInfo() {
+#ifdef SYCL_BUILD_INFO
+  return SYCL_BUILD_INFO;
+#else
+  return "development";
+#endif
+}
+
 std::string getClangFullRepositoryVersion() {
   std::string buf;
   llvm::raw_string_ostream OS(buf);

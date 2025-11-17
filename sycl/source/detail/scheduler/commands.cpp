@@ -359,12 +359,14 @@ class DispatchHostTask {
         AdapterWithEvents.first->call<UrApiKind::urEventWait>(RawEvents.size(),
                                                               RawEvents.data());
       } catch (const sycl::exception &) {
-        MThisCmd->MEvent->getSubmittedQueue()->reportAsyncException(
-            std::current_exception());
+        auto QueuePtr = MThisCmd->MEvent->getSubmittedQueue();
+        Scheduler::getInstance().reportAsyncException(QueuePtr,
+                                                      std::current_exception());
         return false;
       } catch (...) {
-        MThisCmd->MEvent->getSubmittedQueue()->reportAsyncException(
-            std::current_exception());
+        auto QueuePtr = MThisCmd->MEvent->getSubmittedQueue();
+        Scheduler::getInstance().reportAsyncException(QueuePtr,
+                                                      std::current_exception());
         return false;
       }
     }
@@ -407,10 +409,12 @@ public:
           make_error_code(errc::runtime),
           std::string("Couldn't wait for host-task's dependencies")));
 
-      MThisCmd->MEvent->getSubmittedQueue()->reportAsyncException(EPtr);
+      auto QueuePtr = MThisCmd->MEvent->getSubmittedQueue();
+      auto &SchedulerInst = Scheduler::getInstance();
+      SchedulerInst.reportAsyncException(QueuePtr, EPtr);
       // reset host-task's lambda and quit
       HostTask.MHostTask.reset();
-      Scheduler::getInstance().NotifyHostTaskCompletion(MThisCmd);
+      SchedulerInst.NotifyHostTaskCompletion(MThisCmd);
       return;
     }
 
@@ -469,8 +473,8 @@ public:
         }
       }
 #endif
-      MThisCmd->MEvent->getSubmittedQueue()->reportAsyncException(
-          CurrentException);
+      auto QueuePtr = MThisCmd->MEvent->getSubmittedQueue();
+      Scheduler::getInstance().reportAsyncException(QueuePtr, CurrentException);
     }
 
     HostTask.MHostTask.reset();
@@ -487,8 +491,8 @@ public:
       Scheduler::getInstance().NotifyHostTaskCompletion(MThisCmd);
     } catch (...) {
       auto CurrentException = std::current_exception();
-      MThisCmd->MEvent->getSubmittedQueue()->reportAsyncException(
-          CurrentException);
+      auto QueuePtr = MThisCmd->MEvent->getSubmittedQueue();
+      Scheduler::getInstance().reportAsyncException(QueuePtr, CurrentException);
     }
   }
 };
@@ -563,7 +567,8 @@ Command::Command(
       MCommandBuffer(CommandBuffer), MSyncPointDeps(SyncPoints) {
   MWorkerQueue = MQueue;
   MEvent->setWorkerQueue(MWorkerQueue);
-  MEvent->setSubmittedQueue(MWorkerQueue);
+  if (Queue)
+    MEvent->setSubmittedQueue(Queue);
   MEvent->setCommand(this);
   if (MQueue)
     MEvent->setContextImpl(MQueue->getContextImpl());
@@ -1958,7 +1963,7 @@ ExecCGCommand::ExecCGCommand(
     assert(SubmitQueue &&
            "Host task command group must have a valid submit queue");
 
-    MEvent->setSubmittedQueue(SubmitQueue->weak_from_this());
+    MEvent->setSubmittedQueue(SubmitQueue);
     // Initialize host profiling info if the queue has profiling enabled.
     if (SubmitQueue->MIsProfilingEnabled)
       MEvent->initHostProfilingInfo();
@@ -2465,8 +2470,7 @@ static ur_result_t SetKernelParamsAndLaunch(
   }
 
   std::optional<int> ImplicitLocalArg =
-      ProgramManager::getInstance().kernelImplicitLocalArgPos(
-          DeviceKernelInfo.Name);
+      DeviceKernelInfo.getImplicitLocalArgPos();
   // Set the implicit local memory buffer to support
   // get_work_group_scratch_memory. This is for backend not supporting
   // CUDA-style local memory setting. Note that we may have -1 as a position,

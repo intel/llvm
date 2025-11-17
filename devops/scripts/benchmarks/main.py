@@ -28,10 +28,8 @@ from utils.compute_runtime import *
 from utils.validate import Validate
 from utils.detect_versions import DetectVersion
 from utils.logger import log, initialize_logger
+from utils.workdir_version import INTERNAL_WORKDIR_VERSION
 from presets import enabled_suites, presets
-
-# Update this if you are changing the layout of the results files
-INTERNAL_WORKDIR_VERSION = "2.0"
 
 
 def run_iterations(
@@ -137,10 +135,13 @@ def process_results(
             stddev_threshold_override
             if stddev_threshold_override is not None
             else options.stddev_threshold
-        ) * mean_value
+        )
+        threshold_scaled = threshold * mean_value
 
-        if stddev > threshold:
-            log.warning(f"stddev {stddev} above the threshold {threshold} for {label}")
+        if stddev > threshold_scaled:
+            log.warning(
+                f"stddev {stddev} above the threshold {threshold_scaled} ({threshold} times {mean_value}) for {label}"
+            )
             valid_results = False
 
         rlist.sort(key=lambda res: res.value)
@@ -228,6 +229,10 @@ def main(directory, additional_env_vars, compare_names, filter):
             benchmark for benchmark in s.benchmarks() if benchmark.enabled()
         ]
         if filter:
+            # log.info(f"all benchmarks:\n" + "\n".join([b.name() for b in suite_benchmarks]))
+            log.debug(
+                f"Filtering {len(suite_benchmarks)} benchmarks in {s.name()} suite for {filter.pattern}"
+            )
             suite_benchmarks = [
                 benchmark
                 for benchmark in suite_benchmarks
@@ -336,12 +341,6 @@ def main(directory, additional_env_vars, compare_names, filter):
             else:
                 failures[benchmark.name()] = f"Benchmark run failure: {e}"
                 log.error(f"failed: {e}")
-
-    for benchmark in benchmarks:
-        # this never has any useful information anyway, so hide it behind verbose
-        log.debug(f"tearing down {benchmark.name()}... ")
-        benchmark.teardown()
-        log.debug(f"{benchmark.name()} teardown complete.")
 
     this_name = options.current_run_name
     chart_data = {}
@@ -713,6 +712,7 @@ if __name__ == "__main__":
     options.dry_run = args.dry_run
     options.umf = args.umf
     options.iterations_stddev = args.iterations_stddev
+    options.stddev_threshold = args.stddev_threshold
     options.build_igc = args.build_igc
     options.current_run_name = args.relative_perf
     options.cudnn_directory = args.cudnn_directory

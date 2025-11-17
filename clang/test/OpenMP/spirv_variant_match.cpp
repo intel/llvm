@@ -37,9 +37,9 @@ int foo() { return 1; }
 
 // CHECK-DAG: define{{.*}}  @_Z3foov()
 
-// CHECK-DAG: call spir_func noundef i32 @_Z3foov()
-// TDK_GPU-DAG: call spir_func noundef i32 @"_Z25foo$ompvariant$S3$s8$Pgpuv"()
-// DK_GPU-DAG: call spir_func noundef i32 @"_Z25foo$ompvariant$S2$s6$Pgpuv"()
+// CHECK-DAG: call {{.*}}@_Z3foov()
+// TDK_GPU-DAG: call {{.*}}@"_Z25foo$ompvariant$S3$s8$Pgpuv"()
+// DK_GPU-DAG: call {{.*}}@"_Z25foo$ompvariant$S2$s6$Pgpuv"()
 
 int main() {
   int res;

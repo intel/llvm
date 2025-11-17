@@ -1,0 +1,691 @@
+= sycl_ext_oneapi_fp4
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+// This is necessary for asciidoc, but not for asciidoctor
+:cpp: C++
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2025 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.
+OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 10 specification.
+All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extensions:
+
+* link:../../supported/sycl_ext_oneapi_bfloat16.asciidoc[sycl_ext_oneapi_bfloat16]
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.
+Interfaces defined in this specification may not be implemented yet or may be in
+a preliminary state.
+The specification itself may also change in incompatible ways before it is
+finalized.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+
+== Overview
+
+This extension adds support for conversions between the E2M1 4-bit floating
+point type and other types.
+
+
+== Target support
+
+Some operations in this extension are supported only on certain target device
+architectures.
+These are described in the _Target Support_ clauses below for each operation.
+When the application violates these restrictions, the behavior is undefined.
+However, implementations are encouraged to diagnose either a compile time or a
+runtime error.
+When a runtime error is diagnosed in host code, an assertion failure is
+recommended.
+When a runtime error is diagnosed in device code, it is recommended to either
+throw a synchronous exception from the kernel launch function or to report an
+asynchronous error from the kernel invocation.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.
+An implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_FP4` to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's value
+to determine which of the extension's features the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== Rounding modes
+
+This extension adds the following enumeration of possible rounding modes.
+
+'''
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+enum class rounding {
+  to_even,
+  toward_zero
+};
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+'''
+
+`*to_even*`
+
+The IEEE 754 "roundTiesToEven" rounding mode.
+
+'''
+
+`*toward_zero*`
+
+The IEEE 754 "roundTowardZero" rounding mode.
+
+=== Stochastic rounding helper
+
+This extension adds the following helper that captures a stochastic rounding
+seed value.
+
+'''
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+struct stochastic_seed {
+  explicit stochastic_seed(uint32_t* pseed) : pseed(pseed) {}
+  uint32_t* const pseed;
+};
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+'''
+
+=== The E2M1 type
+
+The E2M1 type is a 4-bit floating-point format with one sign bit, two exponent
+bits and one mantissa bit.
+This format cannot represent Infinity or NaN.
+
+The following table provides the special values of the E2M1 type.
+
+[options="header"]
+[width="80%"]
+[cols="1,2"]
+|====
+| ^| E2M1
+| Exponent Bias
+| 1
+
+| Max normal
+| S.11.1 = 6.0 (1.5 * 2^2^)
+
+| Min normal
+| S.01.0 = 1.0 (1.0 * 2^0^)
+
+| Max subnormal
+| S.00.1 = 0.5 (0.5 * 2^0^)
+
+| Min subnormal
+| S.00.1 = 0.5 (0.5 * 2^0^)
+
+| Infinity
+| N/A
+
+| NaN
+| N/A
+
+|====
+
+This extension adds the `fp4_e2m1` type, which represents a set of packed E2M1
+values and provides various conversions to other types.
+The number of packed elements is defined by the `N` template parameter.
+
+[_Note:_ Although the `fp4_e2m1` type can be instantiated with any value of `N`,
+most operations on `fp4_e2m1` support only certain values of `N` according to
+the target device architecture.
+See the _Target Support_ clauses in the descriptions below for more details.
+_{endnote}_]
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<size_t N>
+class fp4_e2m1 {
+ public:
+  fp4_e2m1() = default;
+  fp4_e2m1(const fp4_e2m1 &) = default;
+  ~fp4_e2m1() = default;
+  fp4_e2m1& operator=(const fp4_e2m1&) = default;
+
+  // Construct from pack of half, bfloat16, float, double.
+  // Available only when the size of the pack is equal to N.
+
+  // Available only when each type in the pack is half.
+  template<typename... Halfs>
+  explicit fp4_e2m1(Halfs... vals);
+
+  // Available only when each type in the pack is bfloat16.
+  template<typename... Bfloats>
+  explicit fp4_e2m1(Bfloats... vals);
+
+  // Available only when each type in the pack is float.
+  template<typename... Floats>
+  explicit fp4_e2m1(Floats... vals);
+
+  // Available only when each type in the pack is double.
+  template<typename... Doubles>
+  explicit fp4_e2m1(Doubles... vals);
+
+  // Construct from an array of half, bfloat16, float, double.
+
+  explicit fp4_e2m1(half const (&vals)[N], rounding r = rounding::to_even);
+  explicit fp4_e2m1(bfloat16 const (&vals)[N], rounding r = rounding::to_even);
+  explicit fp4_e2m1(float const (&vals)[N], rounding r = rounding::to_even);
+  explicit fp4_e2m1(double const (&vals)[N]);
+
+  // Construct from an marray of half, bfloat16, float, double.
+
+  explicit fp4_e2m1(const marray<half,N>& vals, rounding r = rounding::to_even);
+  explicit fp4_e2m1(const marray<bfloat16,N>& vals, rounding r = rounding::to_even);
+  explicit fp4_e2m1(const marray<float,N>& vals, rounding r = rounding::to_even);
+  explicit fp4_e2m1(const marray<double,N>& vals);
+
+  // Construct with stochastic rounding with user provided seed from an array of
+  // half, bfloat16, float.
+
+  explicit fp4_e2m1(half const (&vals)[N], const stochastic_seed& seed);
+  explicit fp4_e2m1(bfloat16 const (&vals)[N], const stochastic_seed& seed);
+  explicit fp4_e2m1(float const (&vals)[N], const stochastic_seed& seed);
+
+  // Construct with stochastic rounding with user provided seed from an marray
+  // of half, bfloat16, float.
+
+  explicit fp4_e2m1(const marray<half,N>& vals, const stochastic_seed& seed);
+  explicit fp4_e2m1(const marray<bfloat16,N>& vals, const stochastic_seed& seed);
+  explicit fp4_e2m1(const marray<float,N>& vals, const stochastic_seed& seed);
+
+  // Construct from integer types.
+  // Available only when N==1.
+
+  explicit fp4_e2m1(short val);
+  explicit fp4_e2m1(int val);
+  explicit fp4_e2m1(long val);
+  explicit fp4_e2m1(long long val);
+  explicit fp4_e2m1(unsigned short val);
+  explicit fp4_e2m1(unsigned int val);
+  explicit fp4_e2m1(unsigned long val);
+  explicit fp4_e2m1(unsigned long long val);
+
+  // Assign (operator) from half, bfloat16, float, double, and integer types.
+  // Available only when N==1.
+
+  fp4_e2m1& operator=(half val);
+  fp4_e2m1& operator=(bfloat16 val);
+  fp4_e2m1& operator=(float val);
+  fp4_e2m1& operator=(double val);
+  fp4_e2m1& operator=(short val);
+  fp4_e2m1& operator=(int val);
+  fp4_e2m1& operator=(long val);
+  fp4_e2m1& operator=(long long val);
+  fp4_e2m1& operator=(unsigned short val);
+  fp4_e2m1& operator=(unsigned int val);
+  fp4_e2m1& operator=(unsigned long val);
+  fp4_e2m1& operator=(unsigned long long val);
+
+  // Convert to half, bfloat16, float, double.
+  // Available only when N==1.
+
+  explicit operator half() const;
+  explicit operator bfloat16() const;
+  explicit operator float() const;
+  explicit operator double() const;
+
+  // Convert to integer types.
+  // Available only when N==1.
+
+  explicit operator char() const;
+  explicit operator signed char() const;
+  explicit operator short() const;
+  explicit operator int() const;
+  explicit operator long() const;
+  explicit operator long long() const;
+  explicit operator unsigned char() const;
+  explicit operator unsigned short() const;
+  explicit operator unsigned int() const;
+  explicit operator unsigned long() const;
+  explicit operator unsigned long long() const;
+
+  // Convert to bool
+  // Available only when N==1.
+
+  explicit operator bool() const;
+
+  // Convert to marray of half, bfloat16, float
+
+  explicit operator marray<half,N>() const;
+  explicit operator marray<bfloat16,N>() const;
+  explicit operator marray<float,N>() const;
+
+  // Intentionally public to allow access to the raw values.
+
+  uint8_t vals[(N+1)/2];
+};
+
+// Deduction guide available only when the size of the pack is greater than zero.
+template<typename... Ts>
+fp4_e2m1(Ts...) -> fp4_e2m1<sizeof...(Ts)>;
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+==== Trivial constructors, destructor, and copy assignment operator
+
+[source,c++]
+----
+fp4_e2m1() = default;
+fp4_e2m1(const fp4_e2m1 &) = default;
+~fp4_e2m1() = default;
+fp4_e2m1& operator=(const fp4_e2m1&) = default;
+----
+
+The default constructor, copy constructor, destructor, and copy assignment
+operator are all trivial.
+
+==== Constructors
+
+[source,c++]
+----
+template<typename... Halfs>          (1)
+explicit fp4_e2m1(Halfs... vals);
+
+template<typename... Bfloats>        (2)
+explicit fp4_e2m1(Bfloats... vals);
+
+template<typename... Floats>         (3)
+explicit fp4_e2m1(Floats... vals);
+
+template<typename... Doubles>        (4)
+explicit fp4_e2m1(Doubles... vals);
+----
+
+_Constraints_ (1): The size of the `Halfs` pack is `N` and each type in this
+pack is `half`.
+
+_Constraints_ (2): The size of the `Bfloats` pack is `N` and each type in this
+pack is `ext::oneapi::bfloat16`.
+
+_Constraints_ (3): The size of the `Floats` pack is `N` and each type in this
+pack is `float`.
+
+_Constraints_ (4): The size of the `Doubles` pack is `N` and each type in this
+pack is `double`.
+
+_Effects:_ Initializes each element of this `fp4_e2m1` object from the
+corresponding value in the `vals` pack.
+Each value is converted using the `rounding::to_even` rounding mode.
+
+_Target Support:_ The number of elements in this `fp4_e2m1` (the `N` template
+parameter) has the following restrictions:
+
+* Host code supports all values of `N`.
+* Device code compiled for Intel Xe3p (CRI) supports only the
+  following `N` values: 1, 2, 3, 4, 8, 16.
+
+'''
+
+[source,c++]
+----
+explicit fp4_e2m1(half const (&vals)[N], rounding r = rounding::to_even);      (1)
+explicit fp4_e2m1(bfloat16 const (&vals)[N], rounding r = rounding::to_even);  (2)
+explicit fp4_e2m1(float const (&vals)[N], rounding r = rounding::to_even);     (3)
+explicit fp4_e2m1(double const (&vals)[N]);                                    (4)
+----
+
+_Effects:_ Initializes each element of this `fp4_e2m1` object from the
+corresponding element in the array `vals`.
+In overloads (1) - (3), each value is converted using the `r` rounding mode.
+In overload (4), each value is converted using the `rounding::to_even` rounding
+mode.
+
+_Target Support:_ The rounding mode `r` has the following restrictions:
+
+* Host code supports only `rounding::to_even`.
+* Device code compiled for Intel Xe3p (CRI) supports only
+  `rounding::to_even`.
+
+The number of elements in this `fp4_e2m1` (the `N` template parameter) has the
+following restrictions:
+
+* Host code supports all values of `N`.
+* Device code compiled for Intel Xe3p (CRI) supports only the
+  following `N` values: 1, 2, 3, 4, 8, 16.
+
+'''
+
+[source,c++]
+----
+explicit fp4_e2m1(const marray<half,N>& vals, rounding r = rounding::to_even);      (1)
+explicit fp4_e2m1(const marray<bfloat16,N>& vals, rounding r = rounding::to_even);  (2)
+explicit fp4_e2m1(const marray<float,N>& vals, rounding r = rounding::to_even);     (3)
+explicit fp4_e2m1(const marray<double,N>& vals);                                    (4)
+----
+
+_Effects:_ Initializes each element of this `fp4_e2m1` object from the
+corresponding element in the `marray` object `vals`.
+In overloads (1) - (3), each value is converted using the `r` rounding mode.
+In overload (4), each value is converted using the `rounding::to_even` rounding
+mode.
+
+_Target Support:_ The rounding mode `r` has the following restrictions:
+
+* Host code supports only `rounding::to_even`.
+* Device code compiled for Intel Xe3p (CRI) supports only
+  `rounding::to_even`.
+
+The number of elements in this `fp4_e2m1` (the `N` template parameter) has the
+following restrictions:
+
+* Host code supports all values of `N`.
+* Device code compiled for Intel Xe3p (CRI) supports only the
+  following `N` values: 1, 2, 3, 4, 8, 16.
+
+'''
+
+[source,c++]
+----
+explicit fp4_e2m1(half const (&vals)[N], const stochastic_seed& seed);
+explicit fp4_e2m1(bfloat16 const (&vals)[N], const stochastic_seed& seed);
+explicit fp4_e2m1(float const (&vals)[N], const stochastic_seed& seed);
+----
+
+_Effects:_ Initializes each element of this `fp4_e2m1` object from the
+corresponding value in the array `vals` using stochastic rounding.
+The pseudo-random biases are created deterministically using the seed value
+referenced by the helper object `seed`.
+
+The referenced seed value is also deterministically updated to a new
+pseudo-random value.
+This update is done with a non-atomic operation, so each work-item should
+reference a different seed value to avoid a race condition.
+
+_Target Support:_ These functions are not supported in host code.
+They are only supported in device code as follows:
+
+* Device code compiled for Intel Xe3p (CRI) supports these
+  functions.
+
+The number of elements in this `fp4_e2m1` (the `N` template parameter) has the
+following restrictions:
+
+* Device code compiled for Intel Xe3p (CRI) supports only the
+  following `N` values: 1, 2, 3, 4, 8, 16.
+
+'''
+
+[source,c++]
+----
+explicit fp4_e2m1(const marray<half,N>& vals, const stochastic_seed& seed);
+explicit fp4_e2m1(const marray<bfloat16,N>& vals, const stochastic_seed& seed);
+explicit fp4_e2m1(const marray<float,N>& vals, const stochastic_seed& seed);
+----
+
+_Effects:_ Initializes each element of this `fp4_e2m1` object from the
+corresponding value in the `marray` object `vals` using stochastic rounding.
+The pseudo-random biases are created deterministically using the seed value
+referenced by the helper object `seed`.
+
+The referenced seed value is also deterministically updated to a new
+pseudo-random value.
+This update is done with a non-atomic operation, so each work-item should
+reference a different seed value to avoid a race condition.
+
+_Target Support:_ These functions are not supported in host code.
+They are only supported in device code as follows:
+
+* Device code compiled for Intel Xe3p (CRI) supports these
+  functions.
+
+The number of elements in this `fp4_e2m1` (the `N` template parameter) has the
+following restrictions:
+
+* Device code compiled for Intel Xe3p (CRI) supports only the
+  following `N` values: 1, 2, 3, 4, 8, 16.
+
+'''
+
+[source,c++]
+----
+explicit fp4_e2m1(short val);
+explicit fp4_e2m1(int val);
+explicit fp4_e2m1(long val);
+explicit fp4_e2m1(long long val);
+explicit fp4_e2m1(unsigned short val);
+explicit fp4_e2m1(unsigned int val);
+explicit fp4_e2m1(unsigned long val);
+explicit fp4_e2m1(unsigned long long val);
+----
+
+_Constraints:_ `N == 1`.
+
+_Effects:_ Initializes the single element of this `fp4_e2m1` object from `val`.
+The value `val` is converted using the `rounding::to_even` rounding mode.
+
+'''
+
+==== Assignment operators
+
+[source,c++]
+----
+fp4_e2m1& operator=(half val);
+fp4_e2m1& operator=(bfloat16 val);
+fp4_e2m1& operator=(float val);
+fp4_e2m1& operator=(double val);
+fp4_e2m1& operator=(short val);
+fp4_e2m1& operator=(int val);
+fp4_e2m1& operator=(long val);
+fp4_e2m1& operator=(long long val);
+fp4_e2m1& operator=(unsigned short val);
+fp4_e2m1& operator=(unsigned int val);
+fp4_e2m1& operator=(unsigned long val);
+fp4_e2m1& operator=(unsigned long long val);
+----
+
+_Constraints:_ `N == 1`.
+
+_Effects:_ Assigns the single element of this `fp4_e2m1` object to `val`.
+The value `val` is converted using the `rounding::to_even` rounding mode.
+
+_Returns:_ A reference to this `fp4_e2m1` object.
+
+==== Conversion operators
+
+[source,c++]
+----
+explicit operator half() const;
+explicit operator bfloat16() const;
+explicit operator float() const;
+explicit operator double() const;
+----
+
+_Constraints:_ `N == 1`.
+
+_Returns_: The single element of this `fp4_e2m1` object is converted to the
+operator's respective type.
+
+[_Note:_ These conversions are exact, so there is no rounding mode.
+_{endnote}_]
+
+'''
+
+[source,c++]
+----
+explicit operator char() const;
+explicit operator signed char() const;
+explicit operator short() const;
+explicit operator int() const;
+explicit operator long() const;
+explicit operator long long() const;
+explicit operator unsigned char() const;
+explicit operator unsigned short() const;
+explicit operator unsigned int() const;
+explicit operator unsigned long() const;
+explicit operator unsigned long long() const;
+----
+
+_Constraints:_ `N == 1`.
+
+_Returns_: The single element of this `fp4_e2m1` object is converted to the
+operator's respective type using the `rounding::toward_zero` rounding mode.
+
+'''
+
+[source,c++]
+----
+explicit operator bool() const;
+----
+
+_Constraints:_ `N == 1`.
+
+_Returns_: The value `false` if the single element of this `fp4_e2m1` is either
++0 or -0.
+Otherwise, returns the value `true`.
+
+'''
+
+[source,c++]
+----
+explicit operator marray<half,N>() const;      (1)
+explicit operator marray<bfloat16,N>() const;  (2)
+explicit operator marray<float,N>() const;     (3)
+----
+
+_Returns:_ The values of this `fp4_e2m1` object are converted to an `marray` of
+`half`, `ext::oneapi::bfloat16`, or `float`.
+
+_Target Support:_ The number of elements in this `fp4_e2m1` (the `N` template
+parameter) has the following restrictions:
+
+* Host code supports all values of `N`.
+* Device code compiled for Intel Xe3p (CRI) supports only the
+  following `N` values: 1, 2, 3, 4, 8, 16.
+
+[_Note:_ These conversions are exact, so there is no rounding mode.
+_{endnote}_]
+
+'''
+
+==== Member variable
+
+[source,c++]
+----
+uint8_t vals[(N+1)/2];
+----
+
+Provides direct access to the storage of the E2M1 values in this `fp4_e2m1`
+object.
+Element 0 is in the low 4 bits of `vals[0]`.
+Element 1 (if it exists) is in the high 4 bits of `vals[0]`, etc.
+
+==== Deduction guide
+
+[source,c++]
+----
+template<typename... Ts>
+fp4_e2m1(Ts...) -> fp4_e2m1<sizeof...(Ts)>;
+----
+
+_Constraints:_ The size of the `Ts` pack is greater than zero.
+
+==== Non-stochastic rounding modes
+
+Conversions to E2M1 using one of the non-stochastic rounding modes work as
+follows:
+
+* Infinity is converted to the max normal value while preserving the sign.
+* NaN is converted to an implementation-defined value.
+* Other values are rounded according to the rounding mode.
+* If the resulting value is larger in magnitude than the max normal value, it is
+  converted to the max normal value while preserving the sign.
+
+==== Stochastic rounding
+
+Conversions to E2M1 using stochastic rounding work as follows:
+
+* Infinity is converted to the max normal value while preserving the sign.
+* NaN is converted to an implementation-defined value.
+
+For other values, a pseudo-random bias is added to the mantissa.
+If this overflows the mantissa, the exponent is incremented by 1 and the
+mantissa is shifted to the right.
+The resulting value is then converted as follows:
+
+* The value is rounded using IEEE 754 "roundTowardZero".
+* If the resulting value is larger in magnitude than the max normal value, it is
+  converted to the max normal value while preserving the sign.
+
+==== Integer conversions
+
+Conversions from E2M1 to non-boolean integral types work as follows:
+
+* The value is rounded according to the rounding mode.
+* If the resulting value is positive and out-of-range for the integer type, it
+  is converted to the type's maximum value.
+* If the resulting value is negative and out-of-range for the integer type, it
+  is converted to the type's minimum value (which is zero for unsigned types).
