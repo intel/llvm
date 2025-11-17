@@ -151,7 +151,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelSetArgLocalMultiTest);
 
 TEST_P(urKernelSetArgLocalMultiTest, Basic) {
   ASSERT_SUCCESS(urEnqueueKernelLaunch(
-      queue, kernel, n_dimensions, &global_offset, &global_size, &local_size, 0,
+      queue, kernel, n_dimensions, &global_offset, &global_size, &local_size,
       nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -163,7 +163,7 @@ TEST_P(urKernelSetArgLocalMultiTest, Basic) {
 
 TEST_P(urKernelSetArgLocalMultiTest, ReLaunch) {
   ASSERT_SUCCESS(urEnqueueKernelLaunch(
-      queue, kernel, n_dimensions, &global_offset, &global_size, &local_size, 0,
+      queue, kernel, n_dimensions, &global_offset, &global_size, &local_size,
       nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -174,7 +174,7 @@ TEST_P(urKernelSetArgLocalMultiTest, ReLaunch) {
 
   // Relaunch with new arguments
   ASSERT_SUCCESS(urEnqueueKernelLaunch(
-      queue, kernel, n_dimensions, &global_offset, &global_size, &local_size, 0,
+      queue, kernel, n_dimensions, &global_offset, &global_size, &local_size,
       nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
   uint32_t *new_output = (uint32_t *)shared_ptrs[0];
@@ -186,7 +186,7 @@ TEST_P(urKernelSetArgLocalMultiTest, ReLaunch) {
 // Overwrite local args to a larger value, then reset back to original
 TEST_P(urKernelSetArgLocalMultiTest, Overwrite) {
   ASSERT_SUCCESS(urEnqueueKernelLaunch(
-      queue, kernel, n_dimensions, &global_offset, &global_size, &local_size, 0,
+      queue, kernel, n_dimensions, &global_offset, &global_size, &local_size,
       nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -232,7 +232,7 @@ TEST_P(urKernelSetArgLocalMultiTest, Overwrite) {
 
   ASSERT_SUCCESS(urEnqueueKernelLaunch(
       queue, kernel, n_dimensions, &global_offset, &global_size,
-      &new_local_size, 0, nullptr, 0, nullptr, nullptr));
+      &new_local_size, nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
   Validate(output, X, Y, A, global_size, new_local_size);
@@ -327,7 +327,7 @@ struct urKernelSetArgLocalOutOfOrder : urKernelSetArgLocalMultiTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelSetArgLocalOutOfOrder);
 TEST_P(urKernelSetArgLocalOutOfOrder, Success) {
   ASSERT_SUCCESS(urEnqueueKernelLaunch(
-      queue, kernel, n_dimensions, &global_offset, &global_size, &local_size, 0,
+      queue, kernel, n_dimensions, &global_offset, &global_size, &local_size,
       nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 

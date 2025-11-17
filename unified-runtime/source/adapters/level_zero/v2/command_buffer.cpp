@@ -329,7 +329,7 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
       syncPointWaitList, numSyncPointsInWaitList);
 
   UR_CALL(commandListLocked->appendKernelLaunch(
-      hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize, 0,
+      hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
       nullptr, numSyncPointsInWaitList, eventsWaitList,
       commandBuffer->createEventIfRequested(retSyncPoint)));
 
