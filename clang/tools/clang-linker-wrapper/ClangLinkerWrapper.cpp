@@ -943,24 +943,29 @@ static void addSYCLBackendOptions(const ArgList &Args,
   if (IsCPU) {
     BackendOptions.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
   } else {
-    // ocloc -options args need to be comma separated, e.g. `-options
-    // "-g,-cl-opt-disable"`. Otherwise, only the first arg is processed by
-    // ocloc as an arg for -options, and the rest are processed as standalone
-    // flags, possibly leading to errors.
+    // ocloc -options takes arguments in the form of '-options "-g
+    // -cl-opt-disable"' where each argument is separated with spaces.
     // split function here returns a pair with everything before the separator
     // ("-options") in the first member of the pair, and everything after the
     // separator in the second part of the pair. The separator is not included
     // in any of them.
     auto [BeforeOptions, AfterOptions] = BackendOptions.split("-options ");
     // Only add if not empty, an empty arg can lead to ocloc errors.
-    if (!BeforeOptions.empty())
-      CmdArgs.push_back(BeforeOptions);
+    if (!BeforeOptions.empty()) {
+      SmallVector<StringRef, 8> BeforeArgs;
+      BeforeOptions.split(BeforeArgs, " ", /*MaxSplit=*/-1,
+                          /*KeepEmpty=*/false);
+      for (const auto &string : BeforeArgs) {
+        CmdArgs.push_back(string);
+      }
+    }
     if (!AfterOptions.empty()) {
-      // Separator not included by the split function, so explicitly added here.
       CmdArgs.push_back("-options");
-      std::string Replace = AfterOptions.str();
-      std::replace(Replace.begin(), Replace.end(), ' ', ',');
-      CmdArgs.push_back(Args.MakeArgString(Replace));
+      // Split the options string by spaces and rejoin to normalize whitespace
+      SmallVector<StringRef, 8> AfterArgs;
+      AfterOptions.split(AfterArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+      std::string JoinedOptions = llvm::join(AfterArgs, " ");
+      CmdArgs.push_back(Args.MakeArgString(JoinedOptions));
     }
   }
 
@@ -1441,9 +1446,8 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   if (ExtractedDeviceLibFiles.empty()) {
     // TODO: Add NVPTX when ready
     if (Triple.isSPIROrSPIRV())
-      return createStringError(
-          inconvertibleErrorCode(),
-          " SYCL device library file list cannot be empty.");
+      WithColor::warning(errs(), LinkerExecutable)
+          << "SYCL device library file list is empty\n";
     return *LinkedFile;
   }
 
@@ -2637,12 +2641,18 @@ int main(int Argc, char **Argv) {
 
   parallel::strategy = hardware_concurrency(1);
   if (auto *Arg = Args.getLastArg(OPT_wrapper_jobs)) {
-    unsigned Threads = 0;
-    if (!llvm::to_integer(Arg->getValue(), Threads) || Threads == 0)
-      reportError(createStringError("%s: expected a positive integer, got '%s'",
-                                    Arg->getSpelling().data(),
-                                    Arg->getValue()));
-    parallel::strategy = hardware_concurrency(Threads);
+    StringRef Val = Arg->getValue();
+    if (Val.equals_insensitive("jobserver"))
+      parallel::strategy = jobserver_concurrency();
+    else {
+      unsigned Threads = 0;
+      if (!llvm::to_integer(Val, Threads) || Threads == 0)
+        reportError(createStringError(
+            "%s: expected a positive integer or 'jobserver', got '%s'",
+            Arg->getSpelling().data(), Val.data()));
+      else
+        parallel::strategy = hardware_concurrency(Threads);
+    }
   }
 
   if (Args.hasArg(OPT_wrapper_time_trace_eq)) {

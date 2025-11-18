@@ -986,14 +986,14 @@ class: $xDevice
 name: $x_kernel_launch_properties_flags_t
 etors:
     - name: COOPERATIVE
-      desc: "Supports $X_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE and $xKernelSuggestMaxCooperativeGroupCount"
+      desc: "Supports $X_KERNEL_LAUNCH_FLAG_COOPERATIVE and $xKernelSuggestMaxCooperativeGroupCount"
       value: "$X_BIT(0)"
     - name: CLUSTER_DIMENSION
-      desc: "Supports $X_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION"
+      desc: "Supports $x_kernel_launch_cluster_property_t"
       value: "$X_BIT(1)"
     - name: WORK_GROUP_MEMORY
-      desc: "Supports $X_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY"
+      desc: "Supports $x_kernel_launch_workgroup_property_t"
       value: "$X_BIT(2)"
     - name: OPPORTUNISTIC_QUEUE_SERIALIZE
-      desc: "Supports $X_KERNEL_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE"
+      desc: "Supports $X_KERNEL_LAUNCH_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE"
       value: "$X_BIT(3)"

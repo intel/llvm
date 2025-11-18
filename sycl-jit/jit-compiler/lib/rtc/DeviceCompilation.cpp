@@ -219,6 +219,7 @@ class SYCLToolchain {
       // Create a compiler instance to handle the actual work.
       CompilerInstance Compiler(std::move(Invocation),
                                 std::move(PCHContainerOps));
+      Compiler.setVirtualFileSystem(Files->getVirtualFileSystemPtr());
       Compiler.setFileManager(Files);
       // Suppress summary with number of warnings and errors being printed to
       // stdout.
@@ -791,7 +792,6 @@ static void getDeviceLibraries(const ArgList &Args,
                                              "libsycl-imf",
                                              "libsycl-imf-fp64",
                                              "libsycl-imf-bf16",
-                                             "libsycl-fallback-cassert",
                                              "libsycl-fallback-cstring",
                                              "libsycl-fallback-complex",
                                              "libsycl-fallback-complex-fp64",

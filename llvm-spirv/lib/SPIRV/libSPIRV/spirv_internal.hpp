@@ -88,6 +88,7 @@ enum InternalOp {
   IOpConvertHandleToImageINTEL = 6529,
   IOpConvertHandleToSamplerINTEL = 6530,
   IOpConvertHandleToSampledImageINTEL = 6531,
+  IOpFSigmoidINTEL = 6168,
   IOpPrev = OpMax - 2,
   IOpForward
 };
@@ -108,6 +109,7 @@ enum InternalCapability {
   ICapabilityHWThreadQueryINTEL = 6134,
   ICapGlobalVariableDecorationsINTEL = 6146,
   ICapabilityTaskSequenceINTEL = 6162,
+  ICapabilitySigmoidINTEL = 6167,
   ICapabilityCooperativeMatrixCheckedInstructionsINTEL = 6192,
   ICapabilityBFloat16ArithmeticINTEL = 6226,
   ICapabilityCooperativeMatrixOffsetInstructionsINTEL = 6238,
@@ -219,6 +221,8 @@ _SPIRV_OP(Capability, PredicatedIOINTEL)
 _SPIRV_OP(Op, PredicatedLoadINTEL)
 _SPIRV_OP(Op, PredicatedStoreINTEL)
 
+_SPIRV_OP(Capability, SigmoidINTEL)
+_SPIRV_OP(Op, FSigmoidINTEL)
 #undef _SPIRV_OP
 
 constexpr SourceLanguage SourceLanguagePython =
