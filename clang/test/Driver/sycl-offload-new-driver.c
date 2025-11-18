@@ -145,12 +145,12 @@
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
 // RUN:          -Xsycl-target-backend -backend-opt -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_BACKEND %s
-// WRAPPER_OPTIONS_BACKEND: clang-linker-wrapper{{.*}} "--sycl-backend-compile-options={{.*}}-backend-opt{{.*}}"
+// WRAPPER_OPTIONS_BACKEND: clang-offload-packager{{.*}} {{.*}}compile-opts=-ftarget-register-alloc-mode=pvc:-ze-intel-enable-auto-large-GRF-mode -backend-opt"
 
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
 // RUN:          -Xsycl-target-linker -link-opt -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_LINK %s
-// WRAPPER_OPTIONS_LINK: clang-linker-wrapper{{.*}} "--sycl-target-link-options={{.*}}-link-opt{{.*}}"
+// WRAPPER_OPTIONS_LINK: clang-offload-packager{{.*}} {{.*}}link-opts=-link-opt
 
 /// Test option passing behavior for clang-offload-wrapper options for AOT.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
@@ -159,9 +159,8 @@
 // RUN:          -Xsycl-target-backend=spir64_x86_64 -backend-cpu-opt \
 // RUN:          -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_BACKEND_AOT %s
-// WRAPPER_OPTIONS_BACKEND_AOT: clang-linker-wrapper{{.*}}  "--host-triple=x86_64-unknown-linux-gnu"
-// WRAPPER_OPTIONS_BACKEND_AOT-SAME: "--gpu-tool-arg=-backend-gen-opt"
-// WRAPPER_OPTIONS_BACKEND_AOT-SAME: "--cpu-tool-arg=-backend-cpu-opt"
+// WRAPPER_OPTIONS_BACKEND_AOT: clang-offload-packager{{.*}} {{.*}}triple=spir64_gen-unknown-unknown,arch=generic,kind=sycl,compile-opts=-backend-gen-opt
+// WRAPPER_OPTIONS_BACKEND_AOT-SAME: {{.*}}triple=spir64_x86_64-unknown-unknown,arch=generic,kind=sycl,compile-opts=-backend-cpu-opt
 
 /// Verify arch settings for nvptx and amdgcn targets
 // RUN: %clangxx -fsycl -### -fsycl-targets=amdgcn-amd-amdhsa -fno-sycl-libspirv \
