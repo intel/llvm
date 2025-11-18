@@ -141,6 +141,7 @@ add_llvm_library(sycl-jit
    LINK_LIBS
    clangBasic
    clangDriver
+   clangOptions
    clangFrontend
    clangCodeGen
    clangTooling

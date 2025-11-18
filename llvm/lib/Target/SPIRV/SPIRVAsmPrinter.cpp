@@ -560,6 +560,11 @@ void SPIRVAsmPrinter::outputExecutionMode(const Module &M) {
     if (MDNode *Node = F.getMetadata("intel_reqd_sub_group_size"))
       outputExecutionModeFromMDNode(FReg, Node,
                                     SPIRV::ExecutionMode::SubgroupSize, 0, 0);
+    if (MDNode *Node = F.getMetadata("max_work_group_size")) {
+      if (ST->canUseExtension(SPIRV::Extension::SPV_INTEL_kernel_attributes))
+        outputExecutionModeFromMDNode(
+            FReg, Node, SPIRV::ExecutionMode::MaxWorkgroupSizeINTEL, 3, 1);
+    }
     if (MDNode *Node = F.getMetadata("vec_type_hint")) {
       MCInst Inst;
       Inst.setOpcode(SPIRV::OpExecutionMode);
@@ -572,12 +577,85 @@ void SPIRVAsmPrinter::outputExecutionMode(const Module &M) {
     }
     if (ST->isKernel() && !M.getNamedMetadata("spirv.ExecutionMode") &&
         !M.getNamedMetadata("opencl.enable.FP_CONTRACT")) {
-      MCInst Inst;
-      Inst.setOpcode(SPIRV::OpExecutionMode);
-      Inst.addOperand(MCOperand::createReg(FReg));
-      unsigned EM = static_cast<unsigned>(SPIRV::ExecutionMode::ContractionOff);
-      Inst.addOperand(MCOperand::createImm(EM));
-      outputMCInst(Inst);
+      if (ST->canUseExtension(SPIRV::Extension::SPV_KHR_float_controls2)) {
+        // When SPV_KHR_float_controls2 is enabled, ContractionOff is
+        // deprecated. We need to use FPFastMathDefault with the appropriate
+        // flags instead. Since FPFastMathDefault takes a target type, we need
+        // to emit it for each floating-point type that exists in the module
+        // to match the effect of ContractionOff. As of now, there are 3 FP
+        // types: fp16, fp32 and fp64.
+
+        // We only end up here because there is no "spirv.ExecutionMode"
+        // metadata, so that means no FPFastMathDefault. Therefore, we only
+        // need to make sure AllowContract is set to 0, as the rest of flags.
+        // We still need to emit the OpExecutionMode instruction, otherwise
+        // it's up to the client API to define the flags. Therefore, we need
+        // to find the constant with 0 value.
+
+        // Collect the SPIRVTypes for fp16, fp32, and fp64 and the constant of
+        // type int32 with 0 value to represent the FP Fast Math Mode.
+        std::vector<const MachineInstr *> SPIRVFloatTypes;
+        const MachineInstr *ConstZeroInt32 = nullptr;
+        for (const MachineInstr *MI :
+             MAI->getMSInstrs(SPIRV::MB_TypeConstVars)) {
+          unsigned OpCode = MI->getOpcode();
+
+          // Collect the SPIRV type if it's a float.
+          if (OpCode == SPIRV::OpTypeFloat) {
+            // Skip if the target type is not fp16, fp32, fp64.
+            const unsigned OpTypeFloatSize = MI->getOperand(1).getImm();
+            if (OpTypeFloatSize != 16 && OpTypeFloatSize != 32 &&
+                OpTypeFloatSize != 64) {
+              continue;
+            }
+            SPIRVFloatTypes.push_back(MI);
+            continue;
+          }
+
+          if (OpCode == SPIRV::OpConstantNull) {
+            // Check if the constant is int32, if not skip it.
+            const MachineRegisterInfo &MRI = MI->getMF()->getRegInfo();
+            MachineInstr *TypeMI = MRI.getVRegDef(MI->getOperand(1).getReg());
+            bool IsInt32Ty = TypeMI &&
+                             TypeMI->getOpcode() == SPIRV::OpTypeInt &&
+                             TypeMI->getOperand(1).getImm() == 32;
+            if (IsInt32Ty)
+              ConstZeroInt32 = MI;
+          }
+        }
+
+        // When SPV_KHR_float_controls2 is enabled, ContractionOff is
+        // deprecated. We need to use FPFastMathDefault with the appropriate
+        // flags instead. Since FPFastMathDefault takes a target type, we need
+        // to emit it for each floating-point type that exists in the module
+        // to match the effect of ContractionOff. As of now, there are 3 FP
+        // types: fp16, fp32 and fp64.
+        for (const MachineInstr *MI : SPIRVFloatTypes) {
+          MCInst Inst;
+          Inst.setOpcode(SPIRV::OpExecutionModeId);
+          Inst.addOperand(MCOperand::createReg(FReg));
+          unsigned EM =
+              static_cast<unsigned>(SPIRV::ExecutionMode::FPFastMathDefault);
+          Inst.addOperand(MCOperand::createImm(EM));
+          const MachineFunction *MF = MI->getMF();
+          MCRegister TypeReg =
+              MAI->getRegisterAlias(MF, MI->getOperand(0).getReg());
+          Inst.addOperand(MCOperand::createReg(TypeReg));
+          assert(ConstZeroInt32 && "There should be a constant zero.");
+          MCRegister ConstReg = MAI->getRegisterAlias(
+              ConstZeroInt32->getMF(), ConstZeroInt32->getOperand(0).getReg());
+          Inst.addOperand(MCOperand::createReg(ConstReg));
+          outputMCInst(Inst);
+        }
+      } else {
+        MCInst Inst;
+        Inst.setOpcode(SPIRV::OpExecutionMode);
+        Inst.addOperand(MCOperand::createReg(FReg));
+        unsigned EM =
+            static_cast<unsigned>(SPIRV::ExecutionMode::ContractionOff);
+        Inst.addOperand(MCOperand::createImm(EM));
+        outputMCInst(Inst);
+      }
     }
   }
 }
