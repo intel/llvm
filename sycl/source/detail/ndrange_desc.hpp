@@ -62,7 +62,7 @@ public:
   template <int Dims_>
   NDRDescT(sycl::range<Dims_> NumWorkItems, sycl::range<Dims_> LocalSizes,
            sycl::id<Dims_> Offset)
-      : Dims(size_t(Dims_)) {
+      : Dims{size_t(Dims_)} {
     init(&(NumWorkItems[0]), &(LocalSizes[0]), &(Offset[0]));
   }
 
