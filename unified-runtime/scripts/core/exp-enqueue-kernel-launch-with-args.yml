@@ -126,12 +126,9 @@ params:
     - type: "const $x_exp_kernel_arg_properties_t*"
       name: pArgs
       desc: "[in][optional][range(0, numArgs)] pointer to a list of kernel arg properties."
-    - type: uint32_t
-      name: numPropsInLaunchPropList
-      desc: "[in] size of the launch prop list"
-    - type: const $x_kernel_launch_property_t*
+    - type: const $x_kernel_launch_ext_properties_t*
       name: launchPropList
-      desc: "[in][optional][range(0, numPropsInLaunchPropList)] pointer to a list of launch properties"
+      desc: "[in][optional] pointer to a single linked list of launch properties"
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
@@ -166,5 +163,4 @@ returns:
     - $X_RESULT_ERROR_INVALID_OPERATION:
         - "If any property in `launchPropList` isn't supported by the device."
     - $X_RESULT_ERROR_INVALID_NULL_POINTER:
-        - "`launchPropList == NULL && numPropsInLaunchPropList > 0`"
         - "`pArgs == NULL && numArgs > 0`"

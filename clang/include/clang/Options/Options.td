@@ -1342,12 +1342,12 @@ def fgpu_sanitize : Flag<["-"], "fgpu-sanitize">, Group<f_Group>,
 def fno_gpu_sanitize : Flag<["-"], "fno-gpu-sanitize">, Group<f_Group>;
 
 def offload_compress : Flag<["--"], "offload-compress">,
-  HelpText<"Compress offload device binaries (HIP only)">;
+  HelpText<"Compress offload device binaries (HIP and SYCL only)">;
 def no_offload_compress : Flag<["--"], "no-offload-compress">;
 
 def offload_compression_level_EQ : Joined<["--"], "offload-compression-level=">,
   Flags<[HelpHidden]>,
-  HelpText<"Compression level for offload device binaries (HIP only)">;
+  HelpText<"Compression level for offload device binaries (HIP and SYCL only)">;
 
 def offload_jobs_EQ : Joined<["--"], "offload-jobs=">,
   HelpText<"Specify the number of threads to use for device offloading tasks "

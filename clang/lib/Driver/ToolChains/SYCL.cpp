@@ -123,8 +123,9 @@ void SYCLInstallationDetector::getSYCLDeviceLibPath(
 
 void SYCLInstallationDetector::addSYCLIncludeArgs(
     const ArgList &DriverArgs, ArgStringList &CC1Args) const {
-  if (DriverArgs.hasArg(options::OPT_nobuiltininc))
+  if (DriverArgs.hasArg(options::OPT_nostdlibinc, options::OPT_nostdinc)) {
     return;
+  }
   // Add the SYCL header search locations in the specified order.
   //   ../include/sycl/stl_wrappers
   //   ../include
@@ -603,7 +604,6 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
                                              "libsycl-imf",
                                              "libsycl-imf-fp64",
                                              "libsycl-imf-bf16",
-                                             "libsycl-fallback-cassert",
                                              "libsycl-fallback-cstring",
                                              "libsycl-fallback-complex",
                                              "libsycl-fallback-complex-fp64",
@@ -785,7 +785,6 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
     "itt-compiler-wrappers",
     "itt-stubs",
     "itt-user-wrappers",
-    "fallback-cassert",
     "fallback-cstring",
     "fallback-cmath",
     "fallback-cmath-fp64",

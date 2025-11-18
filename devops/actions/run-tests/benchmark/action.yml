@@ -2,7 +2,8 @@ name: 'Run benchmarks'
 
 # This action assumes the following prerequisites:
 #
-# - SYCL is placed in ./toolchain -- TODO change this
+# - SYCL is accessible in the system (nightly image provides it within /opt/sycl),
+#   or SYCL is placed in ./toolchain (TODO: change this??). The second option has higher priority.
 # - /devops has been checked out in ./devops.
 # - env.GITHUB_TOKEN was properly set, because according to Github, that's
 #   apparently the recommended way to pass a secret into a github action:
@@ -81,25 +82,13 @@ runs:
       python3 ./devops/scripts/benchmarks/presets.py query "$PRESET"
       [ "$?" -ne 0 ] && exit 1  # Stop workflow if invalid preset
       echo "PRESET=$PRESET" >> $GITHUB_ENV
-  - name: Compute CPU core range to run benchmarks on
+  - name: Set NUMA node to run benchmarks on
     shell: bash
     run: |
-      # Compute the core range for the first NUMA node; second node is used by
-      # UMF. Skip the first 4 cores as the kernel is likely to schedule more
-      # work on these.
-      CORES="$(lscpu | awk '
-        /NUMA node0 CPU|On-line CPU/ {line=$0}
-        END {
-          split(line, a, " ")
-          split(a[4], b, ",")
-          sub(/^0/, "4", b[1])
-          print b[1]
-        }')"
-      echo "CPU core range to use: $CORES"
-      echo "CORES=$CORES" >> $GITHUB_ENV
-
-      ZE_AFFINITY_MASK=0
-      echo "ZE_AFFINITY_MASK=$ZE_AFFINITY_MASK" >> $GITHUB_ENV
+      # Set CPU and GPU affinity for the first NUMA node; second node is used by UMF
+      NUMA_NODE=0
+      echo "ZE_AFFINITY_MASK=$NUMA_NODE" >> $GITHUB_ENV
+      echo "NUMA_NODE=$NUMA_NODE" >> $GITHUB_ENV
 
   # Compute-benchmarks relies on UR static libraries, cmake config files, etc.
   # DPC++ doesn't ship with these files. The easiest way of obtaining these
@@ -117,6 +106,8 @@ runs:
     shell: bash
     run: |
       # Build Unified Runtime
+      echo "::group::checkout_llvm_ur"
+
       # Sparse-checkout UR at build ref:
       git clone --depth 1 --no-checkout https://github.com/intel/llvm ur
       cd ur
@@ -125,7 +116,9 @@ runs:
       git fetch origin ${{ inputs.build_ref }}
       git checkout FETCH_HEAD
 
-      # Configure UR
+      echo "::endgroup::"
+      echo "::group::configure_llvm_ur"
+
       mkdir build install
       cmake -DCMAKE_BUILD_TYPE=Release \
         -Sunified-runtime \
@@ -135,39 +128,31 @@ runs:
         -DUR_BUILD_ADAPTER_L0=ON \
         -DUR_BUILD_ADAPTER_L0_V2=ON
 
-      # Build and install UR
+      echo "::endgroup::"
+      echo "::group::build_and_install_llvm_ur"
+
       cmake --build build -j "$(nproc)" 
       cmake --install build
 
       cd -
-  # Install level zero v1.25.2
-  # This is to have the latest level zero required by Compute Benchmarks
-  # Remove this w/a once the sycl nightly images are updated to have level zero v1.25.2
-  - name: Install level zero v1.25.2
-    shell: bash
-    run: |
-      # Install level zero v1.25.2
-      # Checkout Level Zero at build ref:
-      wget https://github.com/oneapi-src/level-zero/archive/refs/tags/v1.25.2.tar.gz -O level-zero-v1.25.2.tar.gz
-      tar -xvf level-zero-v1.25.2.tar.gz
-      cd level-zero-1.25.2
 
-      # Configure Level Zero
-      cmake -DCMAKE_BUILD_TYPE=Release \
-        -Bbuild
-
-      # Build and install Level Zero
-      cmake --build build -j "$(nproc)"
-      sudo cmake --install build
-
-      cd -
+      echo "::endgroup::"
   # Linux tools installed during docker creation may not match the self-hosted
   # kernel version, so we need to install the correct version here.
   - name: Install perf in version matching the host kernel
     shell: bash
     run: |
+      # Install perf in version matching the host kernel
+      echo "::group::install_linux_tools"
+      if [ "$RUNNER_TAG" = '["BMG_PERF"]' ]; then
+        echo "Adding repositories for Ubuntu 25.10 (Questing) on BMG_PERF runner"
+        echo "deb http://archive.ubuntu.com/ubuntu/ questing main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/questing.list
+        echo "deb http://archive.ubuntu.com/ubuntu/ questing-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/questing.list
+        echo "deb http://security.ubuntu.com/ubuntu/ questing-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/questing.list
+      fi
       sudo apt-get update
       sudo apt-get install -y linux-tools-$(uname -r)
+      echo "::endgroup::"
   - name: Set env var for results branch
     shell: bash
     run: |
@@ -189,9 +174,9 @@ runs:
     shell: bash
     run: |
       # Build and run benchmarks
-      # TODO generate summary + display helpful message here
-      export CMPLR_ROOT=./toolchain
-      echo "-----"
+
+      echo "::group::install_python_deps"
+      echo "Installing python dependencies..."
       # Using --break-system-packages because:
       # - venv is not installed
       # - unable to install anything via pip, as python packages in the docker
@@ -199,8 +184,11 @@ runs:
       # - apt is unable to install anything due to unresolved dpkg dependencies,
       #   as a result of how the sycl nightly images are created
       pip install --user --break-system-packages -r ./devops/scripts/benchmarks/requirements.txt
-      echo "-----"
 
+      echo "::endgroup::"
+      echo "::group::establish_parameters_and_vars"
+
+      export CMPLR_ROOT=./toolchain
       # By default, the benchmark scripts forceload level_zero
       FORCELOAD_ADAPTER="${ONEAPI_DEVICE_SELECTOR%%:*}"
       echo "Adapter: $FORCELOAD_ADAPTER"
@@ -234,13 +222,17 @@ runs:
       # docker images are built nightly. 
       export COMPUTE_RUNTIME_TAG_CACHE="$(cat ./devops/dependencies.json | jq -r .linux.compute_runtime.github_tag)"
 
-      sycl-ls
-      echo "-----"
+      echo "::endgroup::"
+      echo "::group::sycl_ls"
+      sycl-ls --verbose
+      echo "::endgroup::"
+      echo "::group::run_benchmarks"
 
       WORKDIR="$(realpath ./llvm_test_workdir)"
       if [ -n "$WORKDIR" ] && [ -d "$WORKDIR" ] && [[ "$WORKDIR" == *llvm_test_workdir* ]]; then rm -rf "$WORKDIR" ; fi
 
-      taskset -c "$CORES" ./devops/scripts/benchmarks/main.py "$WORKDIR" \
+      numactl --cpunodebind "$NUMA_NODE" --membind "$NUMA_NODE" \
+      ./devops/scripts/benchmarks/main.py "$WORKDIR" \
         --sycl "$(realpath ./toolchain)" \
         --ur "$(realpath ./ur/install)" \
         --adapter "$FORCELOAD_ADAPTER" \
@@ -254,7 +246,8 @@ runs:
         ${{ inputs.exit_on_failure == 'true' && '--exit-on-failure --iterations 1' || '' }}
       # TODO: add back: "--flamegraph inclusive" once works properly
 
-      echo "-----"
+      echo "::endgroup::"
+      echo "::group::compare_results"
       python3 ./devops/scripts/benchmarks/compare.py to_hist \
         --avg-type EWMA \
         --cutoff "$(date -u -d '7 days ago' +'%Y%m%d_%H%M%S')" \
@@ -267,8 +260,15 @@ runs:
         --produce-github-summary \
         ${{ inputs.dry_run == 'true' && '--dry-run' || '' }} \
 
-      echo "-----"
+      echo "::endgroup::"
 
+      # Run benchmarks' integration tests
+      # NOTE: Each integration test prints its own group name as part of test script
+      if [ '${{ github.event_name == 'pull_request' }}' = 'true' ]; then
+        export LLVM_BENCHMARKS_UNIT_TESTING=1
+        export COMPUTE_BENCHMARKS_BUILD_PATH=$WORKDIR/compute-benchmarks-build
+        python3 ./devops/scripts/benchmarks/tests/test_integration.py
+      fi
   - name: Cache changes and upload github summary
     if: always()
     shell: bash
