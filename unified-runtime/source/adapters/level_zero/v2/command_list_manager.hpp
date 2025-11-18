@@ -256,9 +256,10 @@ private:
       ur_kernel_handle_t hKernel, uint32_t workDim,
       const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
       const size_t *pLocalWorkSize, uint32_t numArgs,
-      const ur_exp_kernel_arg_properties_t *pArgs, uint32_t numEventsInWaitList,
-      const ur_event_handle_t *phEventWaitList, ur_event_handle_t phEvent,
-      bool cooperativeKernelLaunchRequested);
+      const ur_exp_kernel_arg_properties_t *pArgs,
+      const ur_kernel_launch_ext_properties_t *launchPropList,
+      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+      ur_event_handle_t phEvent);
 
   ur_result_t appendGenericCommandListsExp(
       uint32_t numCommandLists, ze_command_list_handle_t *phCommandLists,
