@@ -122,7 +122,7 @@ StringRef getStringLiteralArg(const CallInst *CI, unsigned ArgNo,
         V = ASC->getPointerOperand()->stripPointerCasts();
       using namespace PatternMatch;
       Value *X;
-      if (match(V, m_IntToPtr(m_Add(m_PtrToInt(m_Value(X)), m_ConstantInt()))))
+      if (match(V, m_GEP(m_Value(X), m_Constant())))
         V = X;
       return isa<AllocaInst>(V);
     };
