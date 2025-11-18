@@ -18,7 +18,6 @@
 #include "kernel.hpp"
 #include "lockable.hpp"
 #include "memory.hpp"
-#include "ur.hpp"
 
 #include "../common/latency_tracker.hpp"
 #include "../helpers/kernel_helpers.hpp"
@@ -123,10 +122,10 @@ ur_result_t batch_manager::renewRegularUnlocked(
 ur_result_t
 ur_queue_batched_t::renewBatchUnlocked(locked<batch_manager> &batchLocked) {
   if (batchLocked->isLimitOfUsedCommandListsReached()) {
-    UR_CALL(queueFinishUnlocked(batchLocked));
+    return queueFinishUnlocked(batchLocked);
+  } else {
+    return batchLocked->renewRegularUnlocked(getNewRegularCmdList());
   }
-
-  return batchLocked->renewRegularUnlocked(getNewRegularCmdList());
 }
 
 ur_result_t batch_manager::enqueueCurrentBatchUnlocked() {
@@ -214,20 +213,26 @@ ur_result_t batch_manager::batchFinish() {
 
   UR_CALL(activeBatch.releaseSubmittedKernels());
 
-  {
+  if (!isActiveBatchEmpty()) {
+    // Should have been enqueued as part of queueFinishUnlocked
     TRACK_SCOPE_LATENCY("ur_queue_batched_t::resetRegCmdlist");
     ZE2UR_CALL(zeCommandListReset, (activeBatch.getZeCommandList()));
+
+    setBatchEmpty();
+    regularGenerationNumber++;
   }
 
   runBatches.clear();
-  setBatchEmpty();
 
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t
 ur_queue_batched_t::queueFinishUnlocked(locked<batch_manager> &batchLocked) {
-  UR_CALL(batchLocked->enqueueCurrentBatchUnlocked());
+  if (!batchLocked->isActiveBatchEmpty()) {
+    UR_CALL(batchLocked->enqueueCurrentBatchUnlocked());
+  }
+
   UR_CALL(batchLocked->hostSynchronize());
 
   UR_CALL(queueFinishPoolsUnlocked());
@@ -1070,7 +1075,12 @@ ur_queue_batched_t::queueFlushUnlocked(locked<batch_manager> &batchLocked) {
 
 ur_result_t ur_queue_batched_t::queueFlush() {
   auto batchLocked = currentCmdLists.lock();
-  return queueFlushUnlocked(batchLocked);
+
+  if (batchLocked->isActiveBatchEmpty()) {
+    return UR_RESULT_SUCCESS;
+  } else {
+    return queueFlushUnlocked(batchLocked);
+  }
 }
 
 } // namespace v2

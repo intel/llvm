@@ -47,6 +47,14 @@
 
 namespace v2 {
 
+// The limit of regular command lists stored for execution; if exceeded, the
+// vector is cleared as part of queueFinish and slots are renewed.
+inline constexpr uint64_t initialSlotsForBatches = 10;
+
+// For the explanation of the purpose of generation numbers, see the comment for
+// regularGenerationNumber below
+inline constexpr ur_event_generation_t initialGenerationNumber = 0;
+
 struct batch_manager {
 private:
   // The currently active regular command list, which may be replaced in the
@@ -75,9 +83,6 @@ private:
   // associated with the event has already been submitted for execution and
   // additional submission of the current batch is not needed.
   ur_event_generation_t regularGenerationNumber;
-  // The limit of regular command lists stored for execution; if exceeded, the
-  // vector is cleared as part of queueFinish and slots are renewed.
-  static constexpr uint64_t initialSlotsForBatches = 10;
   // Whether any operation has been enqueued on the current batch
   bool isEmpty = true;
 
@@ -91,7 +96,7 @@ public:
         immediateList(context, device,
                       std::forward<v2::raii::command_list_unique_handle>(
                           commandListImmediate)),
-        regularGenerationNumber(0) {
+        regularGenerationNumber(initialGenerationNumber) {
     runBatches.reserve(initialSlotsForBatches);
   }
 
