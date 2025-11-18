@@ -730,10 +730,24 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
       createOutputFile(sys::path::filename(ExecutableName), "table");
   if (!TempFileOrErr)
     return TempFileOrErr.takeError();
+  std::string OutputPathWithArch = TempFileOrErr->str();
+
+  // Enable the driver to invoke sycl-post-link with the device architecture
+  // when Intel GPU targets are passed in -fsycl-targets.
+  // OPT_gpu_tool_arg_EQ is checked to ensure the device architecture is not
+  // passed through -Xsycl-target-backend=spir64_gen "-device <arch>" format
+  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+  StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
+  StringRef IsGPUTool = Args.getLastArgValue(OPT_gpu_tool_arg_EQ);
+
+  if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen && !Arch.empty() &&
+      IsGPUTool.empty() && Arch != "*")
+    OutputPathWithArch = "intel_gpu_" + Arch.str() + "," + OutputPathWithArch;
+  else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
+    OutputPathWithArch = "spir64_x86_64," + OutputPathWithArch;
 
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*SYCLPostLinkPath);
-  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   Arg *SYCLDeviceLibLoc = Args.getLastArg(OPT_sycl_device_library_location_EQ);
   if (SYCLDeviceLibLoc && !Triple.isSPIRAOT()) {
     std::string SYCLDeviceLibLocParam = SYCLDeviceLibLoc->getValue();
@@ -751,7 +765,7 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
   SYCLPostLinkOptions.split(CmdArgs, " ", /* MaxSplit = */ -1,
                             /* KeepEmpty = */ false);
   CmdArgs.push_back("-o");
-  CmdArgs.push_back(*TempFileOrErr);
+  CmdArgs.push_back(Args.MakeArgString(OutputPathWithArch));
   for (auto &File : InputFiles)
     CmdArgs.push_back(File);
   if (Error Err = executeCommands(*SYCLPostLinkPath, CmdArgs))
