@@ -166,7 +166,7 @@ template <detail::WrapAs WrapAs, typename LambdaArgType,
           typename PropertiesT = ext::oneapi::experimental::empty_properties_t,
           typename KernelTypeUniversalRef, int Dims>
 auto submit_kernel_direct(
-    const queue &Queue, detail::nd_range_view RangeView,
+    const queue &Queue, const detail::nd_range_view &RangeView,
     KernelTypeUniversalRef &&KernelFunc, sycl::span<const event> DepEvents,
     const PropertiesT &ExtraProps =
         ext::oneapi::experimental::empty_properties_t{},

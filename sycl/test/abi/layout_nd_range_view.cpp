@@ -8,7 +8,7 @@
 #include <sycl/detail/nd_range_view.hpp>
 
 
-SYCL_EXTERNAL void nd_range_view(sycl::detail::nd_range_view) {}
+SYCL_EXTERNAL void nd_range_view(sycl::detail::nd_range_view_v1::nd_range_view) {}
 // CHECK: 0 | class sycl::detail::nd_range_view
 // CHECK-NEXT: 0 |   const size_t * MGlobalSize
 // CHECK-NEXT: 8 |   const size_t * MLocalSize

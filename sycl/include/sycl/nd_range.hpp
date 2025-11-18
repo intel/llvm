@@ -16,8 +16,10 @@ namespace sycl {
 inline namespace _V1 {
 
 namespace detail {
+inline namespace nd_range_view_v1 {
 class nd_range_view;
 }
+} // namespace detail
 
 /// Defines the iteration domain of both the work-groups and the overall
 /// dispatch.

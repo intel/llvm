@@ -16,6 +16,8 @@ namespace detail {
 
 class NDRDescT;
 
+inline namespace nd_range_view_v1 {
+
 // The structure to keep dimension and references to ranges unified for
 // all dimensions.
 class nd_range_view {
@@ -51,6 +53,8 @@ public:
   bool MSetNumWorkGroups = false;
   size_t MDims = 0;
 };
+
+} // namespace nd_range_view_v1
 
 } // namespace detail
 } // namespace _V1
