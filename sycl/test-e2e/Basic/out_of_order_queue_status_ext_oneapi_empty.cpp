@@ -46,11 +46,25 @@ void TestFunc(queue &Q) {
     });
   }
 
-  // Wait a bit to give a chance for tasks to complete.
-  std::this_thread::sleep_for(std::chrono::milliseconds(500));
+  constexpr int InfiniteLoopPreventionThreshold = 100;
+  int InfiniteLoopPreventionCounter = 0;
 
-  // We expect that all submitted tasks are finished if ext_oneapi_empty is
-  // true.
+  // Wait for tasks created by parallel_for to actually start running. Otherwise
+  // ext_oneapi_empty may return true not because the queue is completed, but
+  // because tasks haven't been added to the queue.
+  do {
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    InfiniteLoopPreventionCounter++;
+  } while (Y[0] == 100 &&
+           InfiniteLoopPreventionCounter < InfiniteLoopPreventionThreshold);
+
+  assert(InfiniteLoopPreventionCounter < InfiniteLoopPreventionThreshold &&
+         "Failure since test took too long to run");
+
+  // Wait a bit to give a chance for tasks to complete.
+  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+  // We expect that all submitted tasks are finished if khr_empty is true.
   if (Q.ext_oneapi_empty())
     CheckArray(Y, Size, 200);
 
