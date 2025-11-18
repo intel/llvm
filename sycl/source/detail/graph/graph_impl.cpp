@@ -564,6 +564,7 @@ void graph_impl::removeQueue(sycl::detail::queue_impl &RecordingQueue) {
   MRecordingQueues.erase(RecordingQueue.weak_from_this());
 }
 
+
 void graph_impl::clearQueues(bool NeedsLock) {
   graph_impl::RecQueuesStorage SwappedQueues;
   {
@@ -707,6 +708,14 @@ void graph_impl::beginRecording(sycl::detail::queue_impl &Queue) {
   if (!Queue.hasCommandGraph()) {
     Queue.setCommandGraph(shared_from_this());
     addQueue(Queue);
+  }
+}
+void graph_impl::endRecording() {
+  // Collect attribute(s) for recorded Graph
+  if (MRecordingQueues.size() == 1) {
+    if (auto ValidQueue = MRecordingQueues.begin()->lock(); ValidQueue) {
+      MIsLinearRecorded = ValidQueue->isInOrder();
+    }
   }
 }
 
