@@ -2,7 +2,6 @@
 // DataT or N produces a verbose error message.
 //
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,error %s
-// RUN: %if preview-breaking-changes-supported %{%clangxx %fsycl-host-only -fsyntax-only -fpreview-breaking-changes -Xclang -verify -Xclang -verify-ignore-unexpected=note,error %s%}
 
 // Note: there is one more error being emitted: "requested alignemnt is not a
 // power of 2" It happens because in all cases above we weren't able to select

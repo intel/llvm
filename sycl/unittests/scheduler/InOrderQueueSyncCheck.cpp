@@ -42,17 +42,9 @@ public:
   virtual void depends_on(const std::vector<detail::EventImplPtr> &Events) {}
   virtual void depends_on(event Event) {};
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   virtual sycl::detail::EventImplPtr finalize() {
     return detail::event_impl::create_default_event();
   }
-#else
-  virtual event finalize() {
-    sycl::detail::EventImplPtr NewEvent =
-        detail::event_impl::create_completed_host_event();
-    return sycl::detail::createSyclObjFromImpl<sycl::event>(NewEvent);
-  }
-#endif
 
   sycl::detail::CGType getType() { return MCGType; }
 

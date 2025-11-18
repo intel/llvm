@@ -12,12 +12,5 @@ int main() {
   sycl::property_list props{
       sycl::ext::oneapi::property::queue::discard_events{}};
 
-  // expected-warning@+1{{add_or_replace_accessor_properties() is not part of the SYCL API and will be removed in the future.}}
-  props.add_or_replace_accessor_properties(props);
-
-  // expected-warning@+1{{delete_accessor_property() is not part of the SYCL API and will be removed in the future.}}
-  props.delete_accessor_property(
-      sycl::detail::PropWithDataKind::BufferUseMutex);
-
   return 0;
 }

@@ -14,22 +14,12 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 using KernelNameStrT = std::string_view;
 using KernelNameStrRefT = std::string_view;
 using ABINeutralKernelNameStrT = detail::string_view;
-#else
-using KernelNameStrT = std::string;
-using KernelNameStrRefT = const std::string &;
-using ABINeutralKernelNameStrT = detail::string;
-#endif
 
 inline KernelNameStrT toKernelNameStrT(const ABINeutralKernelNameStrT &str) {
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   return std::string_view(str);
-#else
-  return str.data();
-#endif
 }
 
 } // namespace detail

@@ -1,5 +1,4 @@
 // RUN: %clangxx -fsycl -fsyntax-only %s
-// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fsyntax-only -fpreview-breaking-changes %s %}
 
 #include <sycl/ext/oneapi/experimental/chunk.hpp>
 #include <sycl/ext/oneapi/experimental/fragment.hpp>

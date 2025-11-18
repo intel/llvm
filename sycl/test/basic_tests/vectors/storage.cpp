@@ -1,5 +1,4 @@
 // RUN: %clangxx -fsycl -Xclang -verify %s -fsyntax-only
-// RUN: %clangxx -fsycl -Xclang -verify %s -fsyntax-only -fpreview-breaking-changes
 // RUN: %clangxx -fsycl -Xclang -verify %s -fsyntax-only -D__SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE=1
 // expected-no-diagnostics
 
@@ -21,20 +20,9 @@ public:
         sizeof(std::array<T, N>) == sizeof(T[N]) &&
         alignof(std::array<T, N>) == alignof(T[N]);
 
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES) ||                               \
-    __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE
     static_assert(uses_plain_array,
                   "We must use plain array regardless of "
                   "layout, because user is opted-in for a potential ABI-break");
-#else
-    static_assert(std_array_and_plain_array_have_the_same_layout ==
-                      uses_plain_array,
-                  "If layouts are the same, we must use safer plain array "
-                  "instead of std::array, or vice versa");
-    static_assert(
-        !std_array_and_plain_array_have_the_same_layout == uses_std_array,
-        "If layouts are not the same, we must use std::array to preserve ABI");
-#endif
   }
 };
 } // namespace detail

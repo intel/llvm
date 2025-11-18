@@ -42,13 +42,13 @@ TEST_F(CommandGraphTest, DynamicObjRegister) {
 
   // TODO: Update test when deprecated constructors that take a graph have been
   // removed.
-  experimental::dynamic_parameter DynamicParam{Graph, int{}};
+  experimental::dynamic_parameter DynamicParam{int{}};
   ASSERT_NO_FATAL_FAILURE(CheckRegisterWrongGraph(DynamicParam));
 
-  experimental::dynamic_work_group_memory<int[]> DynamicWorkGroupMem{Graph, 1};
+  experimental::dynamic_work_group_memory<int[]> DynamicWorkGroupMem{1};
   ASSERT_NO_FATAL_FAILURE(CheckRegisterWrongGraph(DynamicWorkGroupMem));
 
-  experimental::dynamic_local_accessor<int, 1> DynamicLocalAcc{Graph, 1};
+  experimental::dynamic_local_accessor<int, 1> DynamicLocalAcc{1};
   ASSERT_NO_FATAL_FAILURE(CheckRegisterWrongGraph(DynamicLocalAcc));
 }
 
@@ -146,13 +146,13 @@ TEST_F(CommandGraphTest, UpdateNodeTypeExceptions) {
     }));
   };
 
-  experimental::dynamic_parameter DynamicParam{Graph, int{}};
+  experimental::dynamic_parameter DynamicParam{int{}};
   ASSERT_NO_FATAL_FAILURE(CheckNodeCompatibility(DynamicParam));
 
-  experimental::dynamic_work_group_memory<int[]> DynamicWorkGroupMem{Graph, 1};
+  experimental::dynamic_work_group_memory<int[]> DynamicWorkGroupMem{1};
   ASSERT_NO_FATAL_FAILURE(CheckNodeCompatibility(DynamicWorkGroupMem));
 
-  experimental::dynamic_local_accessor<int, 1> DynamicLocalAcc{Graph, 1};
+  experimental::dynamic_local_accessor<int, 1> DynamicLocalAcc{1};
   ASSERT_NO_FATAL_FAILURE(CheckNodeCompatibility(DynamicLocalAcc));
 }
 

@@ -38,7 +38,7 @@ int main() {
 // CHECK-DAG: %_pi_device_binary_property_struct = type { ptr, ptr, i32, i64 }
 // CHECK-DAG: %_pi_device_binary_property_set_struct = type { ptr, ptr, ptr }
 // CHECK-DAG: %struct.__tgt_offload_entry = type { i64, i16, i16, i32, ptr, ptr, i64, i64, ptr }
-// CHECK-DAG: %__sycl.tgt_device_image = type { i16, i8, i8, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr }
+// CHECK-DAG: %__sycl.tgt_device_image = type { i16, i8, i8, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr }
 // CHECK-DAG: %__sycl.tgt_bin_desc = type { i16, i16, ptr, ptr, ptr }
 
 // CHECK-DAG: @.sycl_offloading.target.0 = internal unnamed_addr constant [7 x i8] c"spir64\00"
@@ -58,7 +58,7 @@ int main() {
 // CHECK-DAG: @__sycl_offload_entries_arr = internal constant [1 x %struct.__tgt_offload_entry] [%struct.__tgt_offload_entry { i64 0, i16 1, i16 8, i32 0, ptr null, ptr @__sycl_offload_entry_name, i64 0, i64 0, ptr null }]
 // CHECK-DAG: @.sycl_offloading.0.info = internal local_unnamed_addr constant [2 x i64] [i64 ptrtoint (ptr @.sycl_offloading.0.data to i64), i64 912], section ".tgtimg", align 16
 // CHECK-DAG: @llvm.used = appending global [1 x ptr] [ptr @.sycl_offloading.0.info], section "llvm.metadata"
-// CHECK-DAG: @.sycl_offloading.device_images = internal unnamed_addr constant [1 x %__sycl.tgt_device_image] [%__sycl.tgt_device_image { i16 2, i8 4, i8 0, ptr @.sycl_offloading.target.0, ptr @.sycl_offloading.opts.compile.0, ptr @.sycl_offloading.opts.link.0, ptr null, ptr null, ptr @.sycl_offloading.0.data, ptr getelementptr ([912 x i8], ptr @.sycl_offloading.0.data, i64 0, i64 912), ptr @__sycl_offload_entries_arr, ptr getelementptr ([1 x %struct.__tgt_offload_entry], ptr @__sycl_offload_entries_arr, i64 0, i64 1), ptr @__sycl_offload_prop_sets_arr.5, ptr getelementptr ([3 x %_pi_device_binary_property_set_struct], ptr @__sycl_offload_prop_sets_arr.5, i64 0, i64 3) }]
+// CHECK-DAG: @.sycl_offloading.device_images = internal unnamed_addr constant [1 x %__sycl.tgt_device_image] [%__sycl.tgt_device_image { i16 3, i8 4, i8 0, ptr @.sycl_offloading.target.0, ptr @.sycl_offloading.opts.compile.0, ptr @.sycl_offloading.opts.link.0, ptr @.sycl_offloading.0.data, ptr getelementptr ([912 x i8], ptr @.sycl_offloading.0.data, i64 0, i64 912), ptr @__sycl_offload_entries_arr, ptr getelementptr ([1 x %struct.__tgt_offload_entry], ptr @__sycl_offload_entries_arr, i64 0, i64 1), ptr @__sycl_offload_prop_sets_arr.5, ptr getelementptr ([3 x %_pi_device_binary_property_set_struct], ptr @__sycl_offload_prop_sets_arr.5, i64 0, i64 3) }]
 // CHECK-DAG: @.sycl_offloading.descriptor = internal constant %__sycl.tgt_bin_desc { i16 1, i16 1, ptr @.sycl_offloading.device_images, ptr null, ptr null }
 // CHECK-DAG: @llvm.global_ctors = {{.*}} { i32 1, ptr @sycl.descriptor_reg, ptr null }]
 // CHECK-DAG: @llvm.global_dtors = {{.*}} { i32 1, ptr @sycl.descriptor_unreg, ptr null }]

@@ -27,7 +27,7 @@ int main() {
   Queue.memset(PtrA, 0, N * sizeof(int)).wait();
   Queue.memset(PtrB, 0, N * sizeof(int)).wait();
 
-  exp_ext::dynamic_parameter InputParam(SubGraph, PtrA);
+  exp_ext::dynamic_parameter InputParam(PtrA);
 
   auto SubKernelNode = SubGraph.add([&](handler &cgh) {
     cgh.set_arg(0, InputParam);

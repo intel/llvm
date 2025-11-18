@@ -576,11 +576,6 @@ alloc get_pointer_type(const void *Ptr, context_impl &Ctxt) {
   return ResultAlloc;
 }
 } // namespace detail
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-__SYCL_EXPORT alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
-  return get_pointer_type(Ptr, *getSyclObjImpl(Ctxt));
-}
-#endif
 
 /// Queries the device against which the pointer was allocated
 ///

@@ -21,8 +21,8 @@ int main() {
   std::vector<int> HostDataC(Size);
 
   int ScalarValue = 17;
-  exp_ext::dynamic_parameter DynParamScalar(Graph, ScalarValue);
-  exp_ext::dynamic_parameter DynParamPtr(Graph, PtrA);
+  exp_ext::dynamic_parameter DynParamScalar(ScalarValue);
+  exp_ext::dynamic_parameter DynParamPtr(PtrA);
 
   // Kernel has 2 dynamic parameters, one of scalar type & one of ptr type
   auto CGFA = [&](handler &CGH) {

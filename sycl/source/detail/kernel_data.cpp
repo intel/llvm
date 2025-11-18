@@ -103,15 +103,9 @@ static void addArgsForLocalAccessor(detail::LocalAccessorImplHost *LAcc,
 
 void KernelData::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                             const int Size, const size_t Index,
-                            size_t &IndexShift, bool IsKernelCreatedFromSource
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-                            ,
-                            bool IsESIMD
-#endif
-) {
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+                            size_t &IndexShift,
+                            bool IsKernelCreatedFromSource) {
   bool IsESIMD = isESIMD();
-#endif
   using detail::kernel_param_kind_t;
   size_t GlobalSize = MNDRDesc.GlobalSize[0];
   for (size_t I = 1; I < MNDRDesc.Dims; ++I) {
@@ -296,12 +290,7 @@ void KernelData::extractArgsAndReqs(bool IsKernelCreatedFromSource) {
     const detail::kernel_param_kind_t &Kind = UnPreparedArgs[I].MType;
     const int &Size = UnPreparedArgs[I].MSize;
     const int Index = UnPreparedArgs[I].MIndex;
-    processArg(Ptr, Kind, Size, Index, IndexShift, IsKernelCreatedFromSource
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-               ,
-               isESIMD()
-#endif
-    );
+    processArg(Ptr, Kind, Size, Index, IndexShift, IsKernelCreatedFromSource);
   }
 }
 
@@ -353,12 +342,7 @@ void KernelData::extractArgsAndReqsFromLambda() {
     }
 
     processArg(Ptr, Kind, Size, I, IndexShift,
-               /*IsKernelCreatedFromSource=*/false
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-               ,
-               isESIMD()
-#endif
-    );
+               /*IsKernelCreatedFromSource=*/false);
   }
 }
 

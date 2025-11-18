@@ -31,9 +31,9 @@ int main() {
   Queue.memcpy(PtrB, HostDataB.data(), Size * sizeof(int)).wait();
   Queue.memset(PtrC, 0, Size * sizeof(int)).wait();
 
-  exp_ext::dynamic_parameter ParamA(Graph, PtrA);
-  exp_ext::dynamic_parameter ParamB(Graph, PtrB);
-  exp_ext::dynamic_parameter ParamOut(Graph, PtrC);
+  exp_ext::dynamic_parameter ParamA(PtrA);
+  exp_ext::dynamic_parameter ParamB(PtrB);
+  exp_ext::dynamic_parameter ParamOut(PtrC);
 
   nd_range<1> NDRange{Size, 32};
 

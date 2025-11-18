@@ -252,12 +252,6 @@ public:
 
   bool isHostTask() const;
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // This function is unused and should be removed in the next ABI-breaking
-  // window.
-  bool isFusable() const;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
 protected:
   std::shared_ptr<queue_impl> MQueue;
   EventImplPtr MEvent;

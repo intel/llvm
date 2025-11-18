@@ -51,11 +51,7 @@ int main() {
   check<device_selector, 8, 8>();
   check<event, 16, 8>();
   check<gpu_selector, 8, 8>();
-#ifdef _MSC_VER
-  check<handler, 208, 8>();
-#else
-  check<handler, 216, 8>();
-#endif
+  check<handler, 176, 8>();
   check<image<1>, 16, 8>();
   check<kernel, 16, 8>();
   check<platform, 16, 8>();

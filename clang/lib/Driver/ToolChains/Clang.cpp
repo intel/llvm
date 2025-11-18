@@ -10003,13 +10003,8 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // clang-offload-wrapper
     //   -o=<outputfile>.bc
     //   -host=x86_64-pc-linux-gnu -kind=sycl
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    //   -format=spirv <inputfile1>.spv <manifest1>(optional)
-    //   -format=spirv <inputfile2>.spv <manifest2>(optional)
-#else
     //   -format=spirv <inputfile1>.spv
     //   -format=spirv <inputfile2>.spv
-#endif
     //  ...
     ArgStringList WrapperArgs;
 

@@ -1,10 +1,6 @@
 // RUN: %clangxx -fsycl -fsyntax-only -ferror-limit=0 -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning,error %s
-// RUN: %if preview-breaking-changes-supported %{%clangxx -fsycl -fpreview-breaking-changes -fsyntax-only -ferror-limit=0 -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning,error %s %}
 
 // Tests the requirements on the first argument in a kernel lambda.
-// TODO: Some of the behavior is currently guarded behind the
-// -fpreview-breaking-changes option. Remove the use of this option when this
-// behavior has been promoted.
 
 #include <sycl/sycl.hpp>
 

@@ -152,10 +152,6 @@ public:
   // Used to extract captured variables.
   virtual char *getPtr() = 0;
   virtual ~HostKernelBase() noexcept = default;
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // NOTE: InstatiateKernelOnHost() should not be called.
-  virtual void InstantiateKernelOnHost() = 0;
-#endif
 };
 
 // Class which stores specific lambda object.
@@ -170,69 +166,6 @@ public:
   char *getPtr() override { return reinterpret_cast<char *>(&MKernel); }
 
   ~HostKernel() noexcept override = default;
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // This function is needed for host-side compilation to keep kernels
-  // instantitated. This is important for debuggers to be able to associate
-  // kernel code instructions with source code lines.
-  // NOTE: InstatiateKernelOnHost() should not be called.
-  void InstantiateKernelOnHost() override {
-    using IDBuilder = sycl::detail::Builder;
-    constexpr bool HasKernelHandlerArg =
-        KernelLambdaHasKernelHandlerArgT<KernelType, KernelArgType>::value;
-    if constexpr (std::is_same_v<KernelArgType, void>) {
-      runKernelWithoutArg(MKernel, std::bool_constant<HasKernelHandlerArg>());
-    } else if constexpr (std::is_same_v<KernelArgType, sycl::id<Dims>>) {
-      sycl::id ID = InitializedVal<Dims, id>::template get<0>();
-      runKernelWithArg<const KernelArgType &>(
-          MKernel, ID, std::bool_constant<HasKernelHandlerArg>());
-    } else if constexpr (std::is_same_v<KernelArgType, item<Dims, true>> ||
-                         std::is_same_v<KernelArgType, item<Dims, false>>) {
-      constexpr bool HasOffset =
-          std::is_same_v<KernelArgType, item<Dims, true>>;
-      if constexpr (!HasOffset) {
-        KernelArgType Item = IDBuilder::createItem<Dims, HasOffset>(
-            InitializedVal<Dims, range>::template get<1>(),
-            InitializedVal<Dims, id>::template get<0>());
-        runKernelWithArg<KernelArgType>(
-            MKernel, Item, std::bool_constant<HasKernelHandlerArg>());
-      } else {
-        KernelArgType Item = IDBuilder::createItem<Dims, HasOffset>(
-            InitializedVal<Dims, range>::template get<1>(),
-            InitializedVal<Dims, id>::template get<0>(),
-            InitializedVal<Dims, id>::template get<0>());
-        runKernelWithArg<KernelArgType>(
-            MKernel, Item, std::bool_constant<HasKernelHandlerArg>());
-      }
-    } else if constexpr (std::is_same_v<KernelArgType, nd_item<Dims>>) {
-      sycl::range<Dims> Range = InitializedVal<Dims, range>::template get<1>();
-      sycl::id<Dims> ID = InitializedVal<Dims, id>::template get<0>();
-      sycl::group<Dims> Group =
-          IDBuilder::createGroup<Dims>(Range, Range, Range, ID);
-      sycl::item<Dims, true> GlobalItem =
-          IDBuilder::createItem<Dims, true>(Range, ID, ID);
-      sycl::item<Dims, false> LocalItem =
-          IDBuilder::createItem<Dims, false>(Range, ID);
-      KernelArgType NDItem =
-          IDBuilder::createNDItem<Dims>(GlobalItem, LocalItem, Group);
-      runKernelWithArg<const KernelArgType>(
-          MKernel, NDItem, std::bool_constant<HasKernelHandlerArg>());
-    } else if constexpr (std::is_same_v<KernelArgType, sycl::group<Dims>>) {
-      sycl::range<Dims> Range = InitializedVal<Dims, range>::template get<1>();
-      sycl::id<Dims> ID = InitializedVal<Dims, id>::template get<0>();
-      KernelArgType Group =
-          IDBuilder::createGroup<Dims>(Range, Range, Range, ID);
-      runKernelWithArg<KernelArgType>(
-          MKernel, Group, std::bool_constant<HasKernelHandlerArg>());
-    } else {
-      // Assume that anything else can be default-constructed. If not, this
-      // should fail to compile and the implementor should implement a generic
-      // case for the new argument type.
-      runKernelWithArg<KernelArgType>(
-          MKernel, KernelArgType{}, std::bool_constant<HasKernelHandlerArg>());
-    }
-  }
-#endif
 };
 
 // the class keeps reference to a lambda allocated externally on stack
@@ -243,11 +176,6 @@ public:
   HostKernelRefBase &operator=(const HostKernelRefBase &) = delete;
 
   virtual std::unique_ptr<HostKernelBase> takeOrCopyOwnership() const = 0;
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // The kernels that are passed via HostKernelRefBase are instantiated along
-  // ctor call with GetInstantiateKernelOnHostPtr().
-  void InstantiateKernelOnHost() override {}
-#endif
 };
 
 // Primary template for movable objects.

@@ -76,7 +76,6 @@
 // CHECK-NEXT: info/ext_intel_kernel_info_traits.def
 // CHECK-NEXT: info/ext_oneapi_device_traits.def
 // CHECK-NEXT: info/ext_oneapi_kernel_queue_specific_traits.def
-// CHECK-NEXT: info/sycl_backend_traits.def
 // CHECK-NEXT: detail/owner_less_base.hpp
 // CHECK-NEXT: detail/impl_utils.hpp
 // CHECK-NEXT: ext/oneapi/weak_object_base.hpp

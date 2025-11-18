@@ -114,10 +114,8 @@ void *LocalAccessorBaseHost::getPtr() {
   // `(void)getPtr()` inside. As such, binaries compiled with older toolchain
   // are calling this method from the `sycl::local_accessor` ctor on host and we
   // cannot "abort" for them.
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   // Must not be/isn't called, user-facing APIs do error-checking.
   std::abort();
-#endif
   return nullptr;
 }
 void *LocalAccessorBaseHost::getPtr() const {
@@ -125,10 +123,8 @@ void *LocalAccessorBaseHost::getPtr() const {
   // `(void)getPtr()` inside. As such, binaries compiled with older toolchain
   // are calling this method from the `sycl::local_accessor` ctor on host and we
   // cannot "abort" for them.
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   // Must not be/isn't called, user-facing APIs do error-checking.
   std::abort();
-#endif
   return nullptr;
 }
 const property_list &LocalAccessorBaseHost::getPropList() const {

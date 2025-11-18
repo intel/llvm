@@ -115,18 +115,6 @@ public:
   typename Param::return_type get_info(const device &Device,
                                        const range<3> &WGSize) const;
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // This function is unused and should be removed in the next ABI breaking.
-
-  /// Query queue/launch-specific information from a kernel using the
-  /// info::kernel_queue_specific descriptor for a specific Queue.
-  ///
-  /// \param Queue is a valid SYCL queue.
-  /// \return depends on information being queried.
-  template <typename Param>
-  typename Param::return_type ext_oneapi_get_info(queue Queue) const;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
   /// Query queue/launch-specific information from a kernel using the
   /// info::kernel_queue_specific descriptor for a specific Queue and values.
   /// max_num_work_groups is the only valid descriptor for this function.
@@ -456,62 +444,6 @@ inline typename ext::intel::info::kernel_device_specific::spill_memory_size::
       this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(),
       getAdapter());
 }
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-// These functions are unused and should be removed in the next ABI breaking.
-
-template <>
-inline typename syclex::info::kernel_queue_specific::max_work_group_size::
-    return_type
-    kernel_impl::ext_oneapi_get_info<
-        syclex::info::kernel_queue_specific::max_work_group_size>(
-        queue Queue) const {
-  adapter_impl &Adapter = getAdapter();
-  const auto DeviceNativeHandle =
-      getSyclObjImpl(Queue.get_device())->getHandleRef();
-
-  size_t KernelWGSize = 0;
-  Adapter.call<UrApiKind::urKernelGetGroupInfo>(
-      MKernel, DeviceNativeHandle, UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE,
-      sizeof(size_t), &KernelWGSize, nullptr);
-  return KernelWGSize;
-}
-
-template <int Dimensions>
-inline sycl::id<Dimensions>
-generate_id(const sycl::range<Dimensions> &DevMaxWorkItemSizes,
-            const size_t DevWgSize) {
-  sycl::id<Dimensions> Ret;
-  for (int i = 0; i < Dimensions; i++) {
-    // DevMaxWorkItemSizes values are inverted, see
-    // sycl/source/detail/device_info.hpp:582
-    Ret[i] = std::min(DevMaxWorkItemSizes[i], DevWgSize);
-  }
-  return Ret;
-}
-
-#define ADD_TEMPLATE_METHOD_SPEC(Num)                                          \
-  template <>                                                                  \
-  inline typename syclex::info::kernel_queue_specific::max_work_item_sizes<    \
-      Num>::return_type                                                        \
-  kernel_impl::ext_oneapi_get_info<                                            \
-      syclex::info::kernel_queue_specific::max_work_item_sizes<Num>>(          \
-      queue Queue) const {                                                     \
-    const auto Dev = Queue.get_device();                                       \
-    const auto DeviceWgSize =                                                  \
-        get_info<info::kernel_device_specific::work_group_size>(Dev);          \
-    const auto DeviceMaxWorkItemSizes =                                        \
-        Dev.get_info<info::device::max_work_item_sizes<Num>>();                \
-    return generate_id<Num>(DeviceMaxWorkItemSizes, DeviceWgSize);             \
-  } // namespace detail
-
-ADD_TEMPLATE_METHOD_SPEC(1)
-ADD_TEMPLATE_METHOD_SPEC(2)
-ADD_TEMPLATE_METHOD_SPEC(3)
-
-#undef ADD_TEMPLATE_METHOD_SPEC
-
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 #define ADD_TEMPLATE_METHOD_SPEC(QueueSpec, Num, Kind, Reg)                    \
   template <>                                                                  \

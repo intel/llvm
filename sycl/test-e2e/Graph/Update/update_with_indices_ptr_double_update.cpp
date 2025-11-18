@@ -27,7 +27,7 @@ int main() {
   Queue.memset(PtrB, 0, N * sizeof(int)).wait();
   Queue.memset(PtrUnused, 0, N * sizeof(int)).wait();
 
-  exp_ext::dynamic_parameter InputParam(Graph, PtrA);
+  exp_ext::dynamic_parameter InputParam(PtrA);
 
   auto KernelNode = Graph.add([&](handler &cgh) {
     cgh.set_arg(0, InputParam);

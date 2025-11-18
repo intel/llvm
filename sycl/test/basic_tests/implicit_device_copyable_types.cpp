@@ -1,5 +1,4 @@
 // RUN: %clangxx -fsycl -fsyntax-only %s
-// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fpreview-breaking-changes -fsyntax-only %s  %}
 
 #include <sycl/sycl.hpp>
 #include <variant>

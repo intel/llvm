@@ -28,7 +28,7 @@ int main() {
   Queue.memset(PtrA, 0, N * sizeof(int)).wait();
   Queue.memset(PtrB, 0, N * sizeof(int)).wait();
 
-  exp_ext::dynamic_parameter DynParam(Graph, PtrA);
+  exp_ext::dynamic_parameter DynParam(PtrA);
 
   nd_range<3> NDRange{GlobalWorkSize, LocalWorkSize};
 

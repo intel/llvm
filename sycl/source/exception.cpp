@@ -17,21 +17,6 @@
 namespace sycl {
 inline namespace _V1 {
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-exception::exception(std::error_code EC, const char *Msg)
-    : exception(EC, nullptr, Msg) {}
-
-// new SYCL 2020 constructors
-exception::exception(std::error_code EC) : exception(EC, nullptr, "") {}
-
-exception::exception(int EV, const std::error_category &ECat,
-                     const char *WhatArg)
-    : exception({EV, ECat}, nullptr, std::string(WhatArg)) {}
-
-exception::exception(int EV, const std::error_category &ECat)
-    : exception({EV, ECat}, nullptr, "") {}
-#endif
-
 // protected base constructor for all SYCL 2020 constructors
 exception::exception(std::error_code EC, std::shared_ptr<context> SharedPtrCtx,
                      const char *WhatArg)
