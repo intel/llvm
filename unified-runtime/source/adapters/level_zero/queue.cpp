@@ -930,9 +930,8 @@ ur_result_t urQueueFlush(
   return Queue->executeAllOpenCommandLists();
 }
 
-ur_result_t urQueueBeginGraphCaptureExp(ur_queue_handle_t hQueue, void *pNext) {
+ur_result_t urQueueBeginGraphCaptureExp(ur_queue_handle_t hQueue) {
   std::ignore = hQueue;
-  std::ignore = pNext;
   UR_LOG_LEGACY(ERR,
                 logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
@@ -940,11 +939,9 @@ ur_result_t urQueueBeginGraphCaptureExp(ur_queue_handle_t hQueue, void *pNext) {
 }
 
 ur_result_t urQueueBeginCaptureIntoGraphExp(ur_queue_handle_t hQueue,
-                                            ur_exp_graph_handle_t hGraph,
-                                            void *pNext) {
+                                            ur_exp_graph_handle_t hGraph) {
   std::ignore = hQueue;
   std::ignore = hGraph;
-  std::ignore = pNext;
   UR_LOG_LEGACY(ERR,
                 logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
@@ -952,10 +949,8 @@ ur_result_t urQueueBeginCaptureIntoGraphExp(ur_queue_handle_t hQueue,
 }
 
 ur_result_t urQueueEndGraphCaptureExp(ur_queue_handle_t hQueue,
-                                      ur_exp_graph_handle_t *phGraph,
-                                      void *pNext) {
+                                      ur_exp_graph_handle_t *phGraph) {
   std::ignore = hQueue;
-  std::ignore = pNext;
   if (phGraph)
     *phGraph = nullptr;
   UR_LOG_LEGACY(ERR,
@@ -968,11 +963,9 @@ ur_result_t urQueueAppendGraphExp(ur_queue_handle_t hQueue,
                                   ur_exp_executable_graph_handle_t hGraph,
                                   ur_event_handle_t hSignalEvent,
                                   uint32_t numWaitEvents,
-                                  ur_event_handle_t *phWaitEvents,
-                                  void *pNext) {
+                                  ur_event_handle_t *phWaitEvents) {
   std::ignore = hQueue;
   std::ignore = hGraph;
-  std::ignore = pNext;
   std::ignore = hSignalEvent;
   std::ignore = numWaitEvents;
   std::ignore = phWaitEvents;

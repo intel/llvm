@@ -11356,9 +11356,7 @@ __urdlllocal ur_result_t UR_APICALL urGraphCreateExp(
     /// [in] Handle of the context object.
     ur_context_handle_t hContext,
     /// [out][alloc] Pointer to the handle of the created graph object.
-    ur_exp_graph_handle_t *phGraph,
-    /// [out] Pointer to extension-specific structure.
-    void *pNext) {
+    ur_exp_graph_handle_t *phGraph) {
   auto pfnCreateExp = getContext()->urDdiTable.GraphExp.pfnCreateExp;
 
   if (nullptr == pfnCreateExp) {
@@ -11367,9 +11365,6 @@ __urdlllocal ur_result_t UR_APICALL urGraphCreateExp(
 
   if (getContext()->enableParameterValidation) {
     if (NULL == phGraph)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
-    if (NULL == pNext)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == hContext)
@@ -11381,7 +11376,7 @@ __urdlllocal ur_result_t UR_APICALL urGraphCreateExp(
     URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
-  ur_result_t result = pfnCreateExp(hContext, phGraph, pNext);
+  ur_result_t result = pfnCreateExp(hContext, phGraph);
 
   return result;
 }
@@ -11390,9 +11385,7 @@ __urdlllocal ur_result_t UR_APICALL urGraphCreateExp(
 /// @brief Intercept function for urQueueBeginGraphCaptureExp
 __urdlllocal ur_result_t UR_APICALL urQueueBeginGraphCaptureExp(
     /// [in] Handle of the queue on which to begin graph capture.
-    ur_queue_handle_t hQueue,
-    /// [in][optional] Pointer to extension-specific structure.
-    void *pNext) {
+    ur_queue_handle_t hQueue) {
   auto pfnBeginGraphCaptureExp =
       getContext()->urDdiTable.QueueExp.pfnBeginGraphCaptureExp;
 
@@ -11410,7 +11403,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueBeginGraphCaptureExp(
     URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
-  ur_result_t result = pfnBeginGraphCaptureExp(hQueue, pNext);
+  ur_result_t result = pfnBeginGraphCaptureExp(hQueue);
 
   return result;
 }
@@ -11421,9 +11414,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueBeginCaptureIntoGraphExp(
     /// [in] Handle of the queue on which to begin graph capture.
     ur_queue_handle_t hQueue,
     /// [in] Handle of the graph object to capture into.
-    ur_exp_graph_handle_t hGraph,
-    /// [in][optional] Pointer to extension-specific structure.
-    void *pNext) {
+    ur_exp_graph_handle_t hGraph) {
   auto pfnBeginCaptureIntoGraphExp =
       getContext()->urDdiTable.QueueExp.pfnBeginCaptureIntoGraphExp;
 
@@ -11444,7 +11435,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueBeginCaptureIntoGraphExp(
     URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
-  ur_result_t result = pfnBeginCaptureIntoGraphExp(hQueue, hGraph, pNext);
+  ur_result_t result = pfnBeginCaptureIntoGraphExp(hQueue, hGraph);
 
   return result;
 }
@@ -11457,9 +11448,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueEndGraphCaptureExp(
     /// [out] Pointer to the handle of the recorded graph object. If
     /// ::urQueueBeginCaptureIntoGraphExp was used to begin the capture, then
     /// phGraph will contain the same graph that was passed to it.
-    ur_exp_graph_handle_t *phGraph,
-    /// [out][optional] Pointer to extension-specific structure.
-    void *pNext) {
+    ur_exp_graph_handle_t *phGraph) {
   auto pfnEndGraphCaptureExp =
       getContext()->urDdiTable.QueueExp.pfnEndGraphCaptureExp;
 
@@ -11480,7 +11469,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueEndGraphCaptureExp(
     URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
-  ur_result_t result = pfnEndGraphCaptureExp(hQueue, phGraph, pNext);
+  ur_result_t result = pfnEndGraphCaptureExp(hQueue, phGraph);
 
   return result;
 }
@@ -11491,9 +11480,7 @@ __urdlllocal ur_result_t UR_APICALL urGraphInstantiateGraphExp(
     /// [in] Handle of the recorded graph to instantiate.
     ur_exp_graph_handle_t hGraph,
     /// [out] Pointer to the handle of the instantiated executable graph.
-    ur_exp_executable_graph_handle_t *phExecGraph,
-    /// [out][optional] Pointer to extension-specific structure.
-    void *pNext) {
+    ur_exp_executable_graph_handle_t *phExecGraph) {
   auto pfnInstantiateGraphExp =
       getContext()->urDdiTable.GraphExp.pfnInstantiateGraphExp;
 
@@ -11509,7 +11496,7 @@ __urdlllocal ur_result_t UR_APICALL urGraphInstantiateGraphExp(
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
-  ur_result_t result = pfnInstantiateGraphExp(hGraph, phExecGraph, pNext);
+  ur_result_t result = pfnInstantiateGraphExp(hGraph, phExecGraph);
 
   return result;
 }
@@ -11527,9 +11514,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueAppendGraphExp(
     uint32_t numWaitEvents,
     /// [in][optional][range(0, numWaitEvents)] Handle of the events to wait
     /// on before launching.
-    ur_event_handle_t *phWaitEvents,
-    /// [out][optional] Pointer to extension-specific structure.
-    void *pNext) {
+    ur_event_handle_t *phWaitEvents) {
   auto pfnAppendGraphExp = getContext()->urDdiTable.QueueExp.pfnAppendGraphExp;
 
   if (nullptr == pfnAppendGraphExp) {
@@ -11555,7 +11540,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueAppendGraphExp(
   }
 
   ur_result_t result = pfnAppendGraphExp(hQueue, hGraph, hSignalEvent,
-                                         numWaitEvents, phWaitEvents, pNext);
+                                         numWaitEvents, phWaitEvents);
 
   return result;
 }
@@ -11667,9 +11652,7 @@ __urdlllocal ur_result_t UR_APICALL urGraphDumpContentsExp(
     /// [in] Handle of the graph to dump.
     ur_exp_graph_handle_t hGraph,
     /// [in] Path to the file to write the dumped graph contents.
-    const char *filePath,
-    /// [out][optional] Pointer to extension-specific structure.
-    void *pNext) {
+    const char *filePath) {
   auto pfnDumpContentsExp =
       getContext()->urDdiTable.GraphExp.pfnDumpContentsExp;
 
@@ -11685,7 +11668,7 @@ __urdlllocal ur_result_t UR_APICALL urGraphDumpContentsExp(
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
-  ur_result_t result = pfnDumpContentsExp(hGraph, filePath, pNext);
+  ur_result_t result = pfnDumpContentsExp(hGraph, filePath);
 
   return result;
 }

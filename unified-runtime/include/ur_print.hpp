@@ -15244,11 +15244,6 @@ inline std::ostream &operator<<(
 
   ur::details::printPtr(os, *(params->phQueue));
 
-  os << ", ";
-  os << ".pNext = ";
-
-  ur::details::printStruct(os, *(params->ppNext));
-
   return os;
 }
 
@@ -15271,11 +15266,6 @@ inline std::ostream &operator<<(
 
   ur::details::printPtr(os, *(params->phGraph));
 
-  os << ", ";
-  os << ".pNext = ";
-
-  ur::details::printStruct(os, *(params->ppNext));
-
   return os;
 }
 
@@ -15296,11 +15286,6 @@ operator<<(std::ostream &os,
   os << ".phGraph = ";
 
   ur::details::printPtr(os, *(params->pphGraph));
-
-  os << ", ";
-  os << ".pNext = ";
-
-  ur::details::printStruct(os, *(params->ppNext));
 
   return os;
 }
@@ -15347,11 +15332,6 @@ inline std::ostream &operator<<(
     }
     os << "}";
   }
-
-  os << ", ";
-  os << ".pNext = ";
-
-  ur::details::printStruct(os, *(params->ppNext));
 
   return os;
 }
@@ -21032,11 +21012,6 @@ operator<<(std::ostream &os,
 
   ur::details::printPtr(os, *(params->pphGraph));
 
-  os << ", ";
-  os << ".pNext = ";
-
-  ur::details::printStruct(os, *(params->ppNext));
-
   return os;
 }
 
@@ -21057,11 +21032,6 @@ operator<<(std::ostream &os,
   os << ".phExecGraph = ";
 
   ur::details::printPtr(os, *(params->pphExecGraph));
-
-  os << ", ";
-  os << ".pNext = ";
-
-  ur::details::printStruct(os, *(params->ppNext));
 
   return os;
 }
@@ -21134,11 +21104,6 @@ inline std::ostream &operator<<(
   os << ".filePath = ";
 
   ur::details::printPtr(os, *(params->pfilePath));
-
-  os << ", ";
-  os << ".pNext = ";
-
-  ur::details::printStruct(os, *(params->ppNext));
 
   return os;
 }

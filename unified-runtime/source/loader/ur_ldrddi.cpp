@@ -5999,9 +5999,7 @@ __urdlllocal ur_result_t UR_APICALL urGraphCreateExp(
     /// [in] Handle of the context object.
     ur_context_handle_t hContext,
     /// [out][alloc] Pointer to the handle of the created graph object.
-    ur_exp_graph_handle_t *phGraph,
-    /// [out] Pointer to extension-specific structure.
-    void *pNext) {
+    ur_exp_graph_handle_t *phGraph) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
 
@@ -6010,16 +6008,14 @@ __urdlllocal ur_result_t UR_APICALL urGraphCreateExp(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnCreateExp(hContext, phGraph, pNext);
+  return pfnCreateExp(hContext, phGraph);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urQueueBeginGraphCaptureExp
 __urdlllocal ur_result_t UR_APICALL urQueueBeginGraphCaptureExp(
     /// [in] Handle of the queue on which to begin graph capture.
-    ur_queue_handle_t hQueue,
-    /// [in][optional] Pointer to extension-specific structure.
-    void *pNext) {
+    ur_queue_handle_t hQueue) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
 
@@ -6028,7 +6024,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueBeginGraphCaptureExp(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnBeginGraphCaptureExp(hQueue, pNext);
+  return pfnBeginGraphCaptureExp(hQueue);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6037,9 +6033,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueBeginCaptureIntoGraphExp(
     /// [in] Handle of the queue on which to begin graph capture.
     ur_queue_handle_t hQueue,
     /// [in] Handle of the graph object to capture into.
-    ur_exp_graph_handle_t hGraph,
-    /// [in][optional] Pointer to extension-specific structure.
-    void *pNext) {
+    ur_exp_graph_handle_t hGraph) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
 
@@ -6049,7 +6043,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueBeginCaptureIntoGraphExp(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnBeginCaptureIntoGraphExp(hQueue, hGraph, pNext);
+  return pfnBeginCaptureIntoGraphExp(hQueue, hGraph);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6060,9 +6054,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueEndGraphCaptureExp(
     /// [out] Pointer to the handle of the recorded graph object. If
     /// ::urQueueBeginCaptureIntoGraphExp was used to begin the capture, then
     /// phGraph will contain the same graph that was passed to it.
-    ur_exp_graph_handle_t *phGraph,
-    /// [out][optional] Pointer to extension-specific structure.
-    void *pNext) {
+    ur_exp_graph_handle_t *phGraph) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
 
@@ -6071,7 +6063,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueEndGraphCaptureExp(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnEndGraphCaptureExp(hQueue, phGraph, pNext);
+  return pfnEndGraphCaptureExp(hQueue, phGraph);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6080,9 +6072,7 @@ __urdlllocal ur_result_t UR_APICALL urGraphInstantiateGraphExp(
     /// [in] Handle of the recorded graph to instantiate.
     ur_exp_graph_handle_t hGraph,
     /// [out] Pointer to the handle of the instantiated executable graph.
-    ur_exp_executable_graph_handle_t *phExecGraph,
-    /// [out][optional] Pointer to extension-specific structure.
-    void *pNext) {
+    ur_exp_executable_graph_handle_t *phExecGraph) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hGraph);
 
@@ -6091,7 +6081,7 @@ __urdlllocal ur_result_t UR_APICALL urGraphInstantiateGraphExp(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnInstantiateGraphExp(hGraph, phExecGraph, pNext);
+  return pfnInstantiateGraphExp(hGraph, phExecGraph);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6107,9 +6097,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueAppendGraphExp(
     uint32_t numWaitEvents,
     /// [in][optional][range(0, numWaitEvents)] Handle of the events to wait
     /// on before launching.
-    ur_event_handle_t *phWaitEvents,
-    /// [out][optional] Pointer to extension-specific structure.
-    void *pNext) {
+    ur_event_handle_t *phWaitEvents) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
 
@@ -6119,7 +6107,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueAppendGraphExp(
 
   // forward to device-platform
   return pfnAppendGraphExp(hQueue, hGraph, hSignalEvent, numWaitEvents,
-                           phWaitEvents, pNext);
+                           phWaitEvents);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6198,9 +6186,7 @@ __urdlllocal ur_result_t UR_APICALL urGraphDumpContentsExp(
     /// [in] Handle of the graph to dump.
     ur_exp_graph_handle_t hGraph,
     /// [in] Path to the file to write the dumped graph contents.
-    const char *filePath,
-    /// [out][optional] Pointer to extension-specific structure.
-    void *pNext) {
+    const char *filePath) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hGraph);
 
@@ -6209,7 +6195,7 @@ __urdlllocal ur_result_t UR_APICALL urGraphDumpContentsExp(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnDumpContentsExp(hGraph, filePath, pNext);
+  return pfnDumpContentsExp(hGraph, filePath);
 }
 
 } // namespace ur_loader

@@ -479,23 +479,20 @@ ur_result_t urEnqueueNativeCommandExp(
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
-ur_result_t urQueueBeginGraphCaptureExp(ur_queue_handle_t hQueue,
-                                        void *pNext) try {
-  return hQueue->get().queueBeginGraphCapteExp(pNext);
+ur_result_t urQueueBeginGraphCaptureExp(ur_queue_handle_t hQueue) try {
+  return hQueue->get().queueBeginGraphCapteExp();
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 ur_result_t urQueueBeginCaptureIntoGraphExp(ur_queue_handle_t hQueue,
-                                            ur_exp_graph_handle_t hGraph,
-                                            void *pNext) try {
-  return hQueue->get().queueBeginCapteIntoGraphExp(hGraph, pNext);
+                                            ur_exp_graph_handle_t hGraph) try {
+  return hQueue->get().queueBeginCapteIntoGraphExp(hGraph);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 ur_result_t urQueueEndGraphCaptureExp(ur_queue_handle_t hQueue,
-                                      ur_exp_graph_handle_t *phGraph,
-                                      void *pNext) try {
-  return hQueue->get().queueEndGraphCapteExp(phGraph, pNext);
+                                      ur_exp_graph_handle_t *phGraph) try {
+  return hQueue->get().queueEndGraphCapteExp(phGraph);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
@@ -503,10 +500,9 @@ ur_result_t urQueueAppendGraphExp(ur_queue_handle_t hQueue,
                                   ur_exp_executable_graph_handle_t hGraph,
                                   ur_event_handle_t hSignalEvent,
                                   uint32_t numWaitEvents,
-                                  ur_event_handle_t *phWaitEvents,
-                                  void *pNext) try {
+                                  ur_event_handle_t *phWaitEvents) try {
   return hQueue->get().queueAppendGraphExp(hGraph, hSignalEvent, numWaitEvents,
-                                           phWaitEvents, pNext);
+                                           phWaitEvents);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }

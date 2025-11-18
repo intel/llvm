@@ -9600,16 +9600,13 @@ ur_result_t UR_APICALL urEnqueueNativeCommandExp(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phGraph`
-///         + `NULL == pNext`
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
 ur_result_t UR_APICALL urGraphCreateExp(
     /// [in] Handle of the context object.
     ur_context_handle_t hContext,
     /// [out][alloc] Pointer to the handle of the created graph object.
-    ur_exp_graph_handle_t *phGraph,
-    /// [out] Pointer to extension-specific structure.
-    void *pNext) {
+    ur_exp_graph_handle_t *phGraph) {
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
 }
@@ -9628,9 +9625,7 @@ ur_result_t UR_APICALL urGraphCreateExp(
 ///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
 ur_result_t UR_APICALL urQueueBeginGraphCaptureExp(
     /// [in] Handle of the queue on which to begin graph capture.
-    ur_queue_handle_t hQueue,
-    /// [in][optional] Pointer to extension-specific structure.
-    void *pNext) {
+    ur_queue_handle_t hQueue) {
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
 }
@@ -9653,9 +9648,7 @@ ur_result_t UR_APICALL urQueueBeginCaptureIntoGraphExp(
     /// [in] Handle of the queue on which to begin graph capture.
     ur_queue_handle_t hQueue,
     /// [in] Handle of the graph object to capture into.
-    ur_exp_graph_handle_t hGraph,
-    /// [in][optional] Pointer to extension-specific structure.
-    void *pNext) {
+    ur_exp_graph_handle_t hGraph) {
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
 }
@@ -9680,9 +9673,7 @@ ur_result_t UR_APICALL urQueueEndGraphCaptureExp(
     /// [out] Pointer to the handle of the recorded graph object. If
     /// ::urQueueBeginCaptureIntoGraphExp was used to begin the capture, then
     /// phGraph will contain the same graph that was passed to it.
-    ur_exp_graph_handle_t *phGraph,
-    /// [out][optional] Pointer to extension-specific structure.
-    void *pNext) {
+    ur_exp_graph_handle_t *phGraph) {
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
 }
@@ -9705,9 +9696,7 @@ ur_result_t UR_APICALL urGraphInstantiateGraphExp(
     /// [in] Handle of the recorded graph to instantiate.
     ur_exp_graph_handle_t hGraph,
     /// [out] Pointer to the handle of the instantiated executable graph.
-    ur_exp_executable_graph_handle_t *phExecGraph,
-    /// [out][optional] Pointer to extension-specific structure.
-    void *pNext) {
+    ur_exp_executable_graph_handle_t *phExecGraph) {
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
 }
@@ -9736,9 +9725,7 @@ ur_result_t UR_APICALL urQueueAppendGraphExp(
     uint32_t numWaitEvents,
     /// [in][optional][range(0, numWaitEvents)] Handle of the events to wait
     /// on before launching.
-    ur_event_handle_t *phWaitEvents,
-    /// [out][optional] Pointer to extension-specific structure.
-    void *pNext) {
+    ur_event_handle_t *phWaitEvents) {
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
 }
@@ -9849,9 +9836,7 @@ ur_result_t UR_APICALL urGraphDumpContentsExp(
     /// [in] Handle of the graph to dump.
     ur_exp_graph_handle_t hGraph,
     /// [in] Path to the file to write the dumped graph contents.
-    const char *filePath,
-    /// [out][optional] Pointer to extension-specific structure.
-    void *pNext) {
+    const char *filePath) {
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
 }
