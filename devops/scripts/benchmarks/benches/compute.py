@@ -61,8 +61,8 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        # Nov 7, 2025
-        return "d985da634fc1a9416ca0bd067cfb9886b02d0211"
+        # Nov 17, 2025
+        return "932ae79f7cca7e156285fc10a59610927c769e89"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -860,6 +860,7 @@ class StreamMemory(ComputeBenchmark):
             "--multiplier=1",
             "--vectorSize=1",
             "--lws=256",
+            "--prefetch=0",
         ]
 
 
