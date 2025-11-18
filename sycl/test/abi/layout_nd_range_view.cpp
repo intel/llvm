@@ -13,7 +13,6 @@ SYCL_EXTERNAL void nd_range_view(sycl::detail::nd_range_view_v1::nd_range_view) 
 // CHECK-NEXT: 0 |   const size_t * MGlobalSize
 // CHECK-NEXT: 8 |   const size_t * MLocalSize
 // CHECK-NEXT: 16 |  const size_t * MOffset
-// CHECK-NEXT: 24 |  _Bool MSetNumWorkGroups
-// CHECK-NEXT: 32 |  size_t MDims
-// CHECK-NEXT: | [sizeof=40, dsize=40, align=8,
-// CHECK-NEXT: |  nvsize=40, nvalign=8]
+// CHECK-NEXT: 24 |  size_t MDims
+// CHECK-NEXT: | [sizeof=32, dsize=32, align=8,
+// CHECK-NEXT: |  nvsize=32, nvalign=8]

@@ -30,16 +30,6 @@ public:
   nd_range_view &operator=(nd_range_view &&Desc) = default;
 
   template <int Dims_>
-  nd_range_view(sycl::range<Dims_> &N, bool SetNumWorkGroups = false)
-      : MGlobalSize(&(N[0])), MSetNumWorkGroups(SetNumWorkGroups),
-        MDims{size_t(Dims_)} {}
-
-  template <int Dims_>
-  nd_range_view(sycl::range<Dims_> &GlobalSize, sycl::id<Dims_> &Offset)
-      : MGlobalSize(&(GlobalSize[0])), MOffset(&(Offset[0])),
-        MDims{size_t(Dims_)} {}
-
-  template <int Dims_>
   nd_range_view(sycl::nd_range<Dims_> &ExecutionRange)
       : MGlobalSize(&(ExecutionRange.globalSize[0])),
         MLocalSize(&(ExecutionRange.localSize[0])),
@@ -48,7 +38,6 @@ public:
   const size_t *MGlobalSize = nullptr;
   const size_t *MLocalSize = nullptr;
   const size_t *MOffset = nullptr;
-  bool MSetNumWorkGroups = false;
   size_t MDims = 0;
 };
 

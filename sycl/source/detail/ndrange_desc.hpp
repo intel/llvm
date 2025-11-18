@@ -36,19 +36,27 @@ public:
   NDRDescT(const detail::nd_range_view &NDRangeView) {
     if (!NDRangeView.MGlobalSize) {
       init();
-    } else if (NDRangeView.MLocalSize) {
-      init(NDRangeView.MGlobalSize, NDRangeView.MLocalSize, NDRangeView.MOffset,
-           NDRangeView.MDims);
-    } else if (NDRangeView.MOffset) {
-      init(NDRangeView.MGlobalSize, NDRangeView.MOffset, NDRangeView.MDims);
     } else {
-      init(NDRangeView.MGlobalSize, NDRangeView.MSetNumWorkGroups,
+      init(NDRangeView.MGlobalSize, NDRangeView.MLocalSize, NDRangeView.MOffset,
            NDRangeView.MDims);
     }
   }
 
-  template <int Dims_> NDRDescT(sycl::range<Dims_> N, bool SetNumWorkGroups) {
-    init(&(N[0]), SetNumWorkGroups, Dims_);
+  template <int Dims_>
+  NDRDescT(sycl::range<Dims_> N, bool SetNumWorkGroups) : Dims(size_t(Dims_)) {
+    if (SetNumWorkGroups) {
+      for (size_t I = 0; I < Dims; ++I) {
+        NumWorkGroups[I] = N[I];
+      }
+    } else {
+      for (size_t I = 0; I < Dims; ++I) {
+        GlobalSize[I] = N[I];
+      }
+
+      for (size_t I = Dims; I < 3; ++I) {
+        GlobalSize[I] = 1;
+      }
+    }
   }
 
   template <int Dims_>
@@ -58,8 +66,12 @@ public:
   }
 
   template <int Dims_>
-  NDRDescT(sycl::range<Dims_> NumWorkItems, sycl::id<Dims_> Offset) {
-    init(&(NumWorkItems[0]), &(Offset[0]), Dims_);
+  NDRDescT(sycl::range<Dims_> NumWorkItems, sycl::id<Dims_> Offset)
+      : Dims(size_t(Dims_)) {
+    for (size_t I = 0; I < Dims; ++I) {
+      GlobalSize[I] = NumWorkItems[I];
+      GlobalOffset[I] = Offset[I];
+    }
   }
 
   template <int Dims_>
@@ -96,23 +108,6 @@ public:
   size_t Dims = 0;
 
 private:
-  void init(const size_t *N, bool SetNumWorkGroups, int DimsVal) {
-    Dims = size_t(DimsVal);
-    if (SetNumWorkGroups) {
-      for (size_t I = 0; I < Dims; ++I) {
-        NumWorkGroups[I] = N[I];
-      }
-    } else {
-      for (size_t I = 0; I < Dims; ++I) {
-        GlobalSize[I] = N[I];
-      }
-
-      for (size_t I = Dims; I < 3; ++I) {
-        GlobalSize[I] = 1;
-      }
-    }
-  }
-
   void init(const size_t *NumWorkItems, const size_t *LocalSizes,
             const size_t *Offset, int DimsVal) {
     Dims = size_t(DimsVal);
@@ -131,17 +126,11 @@ private:
     }
   }
 
-  void init(const size_t *NumWorkItems, const size_t *Offset, int DimsVal) {
-    Dims = size_t(DimsVal);
-    for (size_t I = 0; I < Dims; ++I) {
-      GlobalSize[I] = NumWorkItems[I];
-      GlobalOffset[I] = Offset[I];
-    }
-  }
-
   void init() {
     size_t GlobalS = 1;
-    init(&GlobalS, false, 1);
+    size_t LocalS = 1;
+    size_t Offset = 0;
+    init(&GlobalS, &LocalS, &Offset, 1);
   }
 };
 
