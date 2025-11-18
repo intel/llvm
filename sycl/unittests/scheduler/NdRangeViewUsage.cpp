@@ -13,28 +13,26 @@
 template <int dims>
 void TestNdRangeView(sycl::range<dims> global, sycl::range<dims> local,
                      sycl::id<dims> offset) {
-  {
-    sycl::nd_range<dims> nd_range{global, local, offset};
-    sycl::detail::nd_range_view r{nd_range};
-    ASSERT_EQ(r.MDims, size_t{dims});
-    for (int d = 0; d < dims; d++) {
-      ASSERT_EQ(r.MGlobalSize[d], global[d]);
-      ASSERT_EQ(r.MLocalSize[d], local[d]);
-      ASSERT_EQ(r.MOffset[d], offset[d]);
-    }
+  sycl::nd_range<dims> nd_range{global, local, offset};
+  sycl::detail::nd_range_view r{nd_range};
+  ASSERT_EQ(r.MDims, size_t{dims});
+  for (int d = 0; d < dims; d++) {
+    ASSERT_EQ(r.MGlobalSize[d], global[d]);
+    ASSERT_EQ(r.MLocalSize[d], local[d]);
+    ASSERT_EQ(r.MOffset[d], offset[d]);
+  }
 
-    sycl::detail::NDRDescT NDRDesc(r);
-    ASSERT_EQ(NDRDesc.Dims, size_t{dims});
-    for (int d = 0; d < dims; d++) {
-      ASSERT_EQ(NDRDesc.GlobalSize[d], global[d]);
-      ASSERT_EQ(NDRDesc.LocalSize[d], local[d]);
-      ASSERT_EQ(NDRDesc.GlobalOffset[d], offset[d]);
-    }
+  sycl::detail::NDRDescT NDRDesc(r);
+  ASSERT_EQ(NDRDesc.Dims, size_t{dims});
+  for (int d = 0; d < dims; d++) {
+    ASSERT_EQ(NDRDesc.GlobalSize[d], global[d]);
+    ASSERT_EQ(NDRDesc.LocalSize[d], local[d]);
+    ASSERT_EQ(NDRDesc.GlobalOffset[d], offset[d]);
+  }
 
-    for (int d = dims; d < 3; d++) {
-      ASSERT_EQ(NDRDesc.GlobalSize[d], 1UL);
-      ASSERT_EQ(NDRDesc.LocalSize[d], 1UL);
-    }
+  for (int d = dims; d < 3; d++) {
+    ASSERT_EQ(NDRDesc.GlobalSize[d], 1UL);
+    ASSERT_EQ(NDRDesc.LocalSize[d], 1UL);
   }
 }
 
