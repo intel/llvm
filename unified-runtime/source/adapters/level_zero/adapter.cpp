@@ -47,12 +47,6 @@ public:
                      const std::string &msg) override {
     fprintf(stderr, "%s", msg.c_str());
   }
-
-  ~ur_legacy_sink() {
-#if defined(_WIN32)
-    logger::isTearDowned = true;
-#endif
-  };
 };
 
 // Find the corresponding ZesDevice Handle for a given ZeDevice
