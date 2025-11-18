@@ -28,7 +28,8 @@ class GromacsBench(Suite):
         return "https://gitlab.com/gromacs/gromacs.git"
 
     def git_tag(self):
-        return "v2025.2"
+        # 29 Aug, 2025
+        return "v2025.3"
 
     def grappa_url(self):
         return "https://zenodo.org/record/11234002/files/grappa-1.5k-6.1M_rc0.9.tar.gz"
@@ -96,9 +97,6 @@ class GromacsBench(Suite):
             checksum="cc02be35ba85c8b044e47d097661dffa8bea57cdb3db8b5da5d01cdbc94fe6c8902652cfe05fb9da7f2af0698be283a2",
             untar=True,
         )
-
-    def teardown(self):
-        pass
 
 
 class GromacsBenchmark(Benchmark):
@@ -278,6 +276,3 @@ class GromacsBenchmark(Benchmark):
                         )
 
         raise ValueError(f"Conserved Energy Drift not found in log file: {log_file}")
-
-    def teardown(self):
-        pass

@@ -35,9 +35,8 @@ __kernel void test_atomic_cmpxchg(__global int *p, int cmp, int val) {
 // 0x2 Workgroup
 // CHECK-SPIRV-DAG: Constant [[UINT]] [[WORKGROUP_SCOPE:[0-9]+]] 2
 //
-// 0x0 Relaxed
-// TODO: do we need CrossWorkgroupMemory here as well?
-// CHECK-SPIRV-DAG: Constant [[UINT]] [[RELAXED:[0-9]+]] 0
+// 0x0 Relaxed | 0x200 CrossWorkgroupMemory
+// CHECK-SPIRV-DAG: Constant [[UINT]] [[RELAXED:[0-9]+]] 512
 //
 // CHECK-SPIRV: Function {{[0-9]+}} [[TEST]]
 // CHECK-SPIRV: FunctionParameter [[UINT_PTR]] [[PTR:[0-9]+]]
