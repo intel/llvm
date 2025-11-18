@@ -844,23 +844,20 @@ ur_result_t urEnqueueNativeCommandExp(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent);
 ur_result_t urGraphCreateExp(ur_context_handle_t hContext,
-                             ur_exp_graph_handle_t *phGraph, void *pNext);
-ur_result_t urQueueBeginGraphCaptureExp(ur_queue_handle_t hQueue, void *pNext);
+                             ur_exp_graph_handle_t *phGraph);
+ur_result_t urQueueBeginGraphCaptureExp(ur_queue_handle_t hQueue);
 ur_result_t urQueueBeginCaptureIntoGraphExp(ur_queue_handle_t hQueue,
-                                            ur_exp_graph_handle_t hGraph,
-                                            void *pNext);
+                                            ur_exp_graph_handle_t hGraph);
 ur_result_t urQueueEndGraphCaptureExp(ur_queue_handle_t hQueue,
-                                      ur_exp_graph_handle_t *phGraph,
-                                      void *pNext);
+                                      ur_exp_graph_handle_t *phGraph);
 ur_result_t
 urGraphInstantiateGraphExp(ur_exp_graph_handle_t hGraph,
-                           ur_exp_executable_graph_handle_t *phExecGraph,
-                           void *pNext);
+                           ur_exp_executable_graph_handle_t *phExecGraph);
 ur_result_t urQueueAppendGraphExp(ur_queue_handle_t hQueue,
                                   ur_exp_executable_graph_handle_t hGraph,
                                   ur_event_handle_t hSignalEvent,
                                   uint32_t numWaitEvents,
-                                  ur_event_handle_t *phWaitEvents, void *pNext);
+                                  ur_event_handle_t *phWaitEvents);
 ur_result_t urGraphDestroyExp(ur_exp_graph_handle_t hGraph);
 ur_result_t urGraphExecutableGraphDestroyExp(
     ur_exp_executable_graph_handle_t hExecutableGraph);
@@ -868,7 +865,7 @@ ur_result_t urQueueIsGraphCaptureEnabledExp(ur_queue_handle_t hQueue,
                                             bool *hResult);
 ur_result_t urGraphIsEmptyExp(ur_exp_graph_handle_t hGraph, bool *hResult);
 ur_result_t urGraphDumpContentsExp(ur_exp_graph_handle_t hGraph,
-                                   const char *filePath, void *pNext);
+                                   const char *filePath);
 #ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
 ur_result_t urAdapterGetDdiTables(ur_dditable_t *ddi);
 #endif

@@ -38,9 +38,6 @@ params:
     - type: $x_exp_graph_handle_t*
       name: phGraph
       desc: "[out][alloc] Pointer to the handle of the created graph object."
-    - type: void*
-      name: pNext
-      desc: "[out] Pointer to extension-specific structure."
 returns:
     - $X_RESULT_SUCCESS
     - $X_RESULT_ERROR_INVALID_ARGUMENT
@@ -53,9 +50,6 @@ params:
   - type: $x_queue_handle_t
     name: hQueue
     desc: "[in] Handle of the queue on which to begin graph capture."
-  - type: void*
-    name: pNext
-    desc: "[in][optional] Pointer to extension-specific structure."
 returns:
     - $X_RESULT_SUCCESS
     - $X_RESULT_ERROR_INVALID_ARGUMENT
@@ -71,9 +65,6 @@ params:
   - type: $x_exp_graph_handle_t
     name: hGraph
     desc: "[in] Handle of the graph object to capture into."
-  - type: void*
-    name: pNext
-    desc: "[in][optional] Pointer to extension-specific structure."
 returns:
   - $X_RESULT_SUCCESS
   - $X_RESULT_ERROR_INVALID_ARGUMENT
@@ -90,9 +81,6 @@ params:
     name: phGraph
     desc: "[out] Pointer to the handle of the recorded graph object. If $xQueueBeginCaptureIntoGraphExp
           was used to begin the capture, then phGraph will contain the same graph that was passed to it."
-  - type: void*
-    name: pNext
-    desc: "[out][optional] Pointer to extension-specific structure."
 returns:
   - $X_RESULT_SUCCESS
   - $X_RESULT_ERROR_INVALID_ARGUMENT
@@ -108,9 +96,6 @@ params:
   - type: $x_exp_executable_graph_handle_t*
     name: phExecGraph
     desc: "[out] Pointer to the handle of the instantiated executable graph."
-  - type: void*
-    name: pNext
-    desc: "[out][optional] Pointer to extension-specific structure."
 returns:
   - $X_RESULT_SUCCESS
   - $X_RESULT_ERROR_INVALID_ARGUMENT
@@ -135,9 +120,6 @@ params:
   - type: $x_event_handle_t*
     name: phWaitEvents
     desc: "[in][optional][range(0, numWaitEvents)] Handle of the events to wait on before launching."
-  - type: void*
-    name: pNext
-    desc: "[out][optional] Pointer to extension-specific structure."
 returns:
   - $X_RESULT_SUCCESS
   - $X_RESULT_ERROR_INVALID_ARGUMENT
@@ -207,9 +189,6 @@ params:
     - type: const char*
       name: filePath
       desc: "[in] Path to the file to write the dumped graph contents."
-    - type: void*
-      name: pNext
-      desc: "[out][optional] Pointer to extension-specific structure."
 returns:
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY

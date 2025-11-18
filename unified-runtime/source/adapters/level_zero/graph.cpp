@@ -16,10 +16,8 @@ namespace ur::level_zero {
 
 // Graph experimental functions - not yet supported
 ur_result_t urGraphCreateExp(ur_context_handle_t hContext,
-                             ur_exp_graph_handle_t *phGraph,
-                             void *pProperties) {
+                             ur_exp_graph_handle_t *phGraph) {
   std::ignore = hContext;
-  std::ignore = pProperties;
   if (phGraph)
     *phGraph = nullptr;
   UR_LOG_LEGACY(ERR,
@@ -56,23 +54,19 @@ ur_result_t urGraphIsEmptyExp(ur_exp_graph_handle_t hGraph, bool *pIsEmpty) {
 }
 
 ur_result_t urGraphDumpContentsExp(ur_exp_graph_handle_t hGraph,
-                                   const char *pDotFilePath,
-                                   void *pProperties) {
+                                   const char *pDotFilePath) {
   std::ignore = hGraph;
   std::ignore = pDotFilePath;
-  std::ignore = pProperties;
   UR_LOG_LEGACY(ERR,
                 logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t
-urGraphInstantiateGraphExp(ur_exp_graph_handle_t hGraph,
-                           ur_exp_executable_graph_handle_t *phExecutableGraph,
-                           void *pProperties) {
+ur_result_t urGraphInstantiateGraphExp(
+    ur_exp_graph_handle_t hGraph,
+    ur_exp_executable_graph_handle_t *phExecutableGraph) {
   std::ignore = hGraph;
-  std::ignore = pProperties;
   if (phExecutableGraph)
     *phExecutableGraph = nullptr;
   UR_LOG_LEGACY(ERR,

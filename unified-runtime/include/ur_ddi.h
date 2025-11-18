@@ -686,23 +686,23 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetQueueProcAddrTable_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urQueueBeginGraphCaptureExp
 typedef ur_result_t(UR_APICALL *ur_pfnQueueBeginGraphCaptureExp_t)(
-    ur_queue_handle_t, void *);
+    ur_queue_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urQueueBeginCaptureIntoGraphExp
 typedef ur_result_t(UR_APICALL *ur_pfnQueueBeginCaptureIntoGraphExp_t)(
-    ur_queue_handle_t, ur_exp_graph_handle_t, void *);
+    ur_queue_handle_t, ur_exp_graph_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urQueueEndGraphCaptureExp
 typedef ur_result_t(UR_APICALL *ur_pfnQueueEndGraphCaptureExp_t)(
-    ur_queue_handle_t, ur_exp_graph_handle_t *, void *);
+    ur_queue_handle_t, ur_exp_graph_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urQueueAppendGraphExp
 typedef ur_result_t(UR_APICALL *ur_pfnQueueAppendGraphExp_t)(
     ur_queue_handle_t, ur_exp_executable_graph_handle_t, ur_event_handle_t,
-    uint32_t, ur_event_handle_t *, void *);
+    uint32_t, ur_event_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urQueueIsGraphCaptureEnabledExp
@@ -1860,14 +1860,13 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetCommandBufferExpProcAddrTable_t)(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urGraphCreateExp
-typedef ur_result_t(UR_APICALL *ur_pfnGraphCreateExp_t)(ur_context_handle_t,
-                                                        ur_exp_graph_handle_t *,
-                                                        void *);
+typedef ur_result_t(UR_APICALL *ur_pfnGraphCreateExp_t)(
+    ur_context_handle_t, ur_exp_graph_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urGraphInstantiateGraphExp
 typedef ur_result_t(UR_APICALL *ur_pfnGraphInstantiateGraphExp_t)(
-    ur_exp_graph_handle_t, ur_exp_executable_graph_handle_t *, void *);
+    ur_exp_graph_handle_t, ur_exp_executable_graph_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urGraphDestroyExp
@@ -1886,7 +1885,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnGraphIsEmptyExp_t)(ur_exp_graph_handle_t,
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urGraphDumpContentsExp
 typedef ur_result_t(UR_APICALL *ur_pfnGraphDumpContentsExp_t)(
-    ur_exp_graph_handle_t, const char *, void *);
+    ur_exp_graph_handle_t, const char *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of GraphExp functions pointers

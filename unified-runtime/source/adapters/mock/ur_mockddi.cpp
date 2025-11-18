@@ -12435,12 +12435,10 @@ __urdlllocal ur_result_t UR_APICALL urGraphCreateExp(
     /// [in] Handle of the context object.
     ur_context_handle_t hContext,
     /// [out][alloc] Pointer to the handle of the created graph object.
-    ur_exp_graph_handle_t *phGraph,
-    /// [out] Pointer to extension-specific structure.
-    void *pNext) try {
+    ur_exp_graph_handle_t *phGraph) try {
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  ur_graph_create_exp_params_t params = {&hContext, &phGraph, &pNext};
+  ur_graph_create_exp_params_t params = {&hContext, &phGraph};
 
   auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_before_callback("urGraphCreateExp"));
@@ -12479,12 +12477,10 @@ __urdlllocal ur_result_t UR_APICALL urGraphCreateExp(
 /// @brief Intercept function for urQueueBeginGraphCaptureExp
 __urdlllocal ur_result_t UR_APICALL urQueueBeginGraphCaptureExp(
     /// [in] Handle of the queue on which to begin graph capture.
-    ur_queue_handle_t hQueue,
-    /// [in][optional] Pointer to extension-specific structure.
-    void *pNext) try {
+    ur_queue_handle_t hQueue) try {
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  ur_queue_begin_graph_capture_exp_params_t params = {&hQueue, &pNext};
+  ur_queue_begin_graph_capture_exp_params_t params = {&hQueue};
 
   auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_before_callback("urQueueBeginGraphCaptureExp"));
@@ -12525,13 +12521,10 @@ __urdlllocal ur_result_t UR_APICALL urQueueBeginCaptureIntoGraphExp(
     /// [in] Handle of the queue on which to begin graph capture.
     ur_queue_handle_t hQueue,
     /// [in] Handle of the graph object to capture into.
-    ur_exp_graph_handle_t hGraph,
-    /// [in][optional] Pointer to extension-specific structure.
-    void *pNext) try {
+    ur_exp_graph_handle_t hGraph) try {
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  ur_queue_begin_capture_into_graph_exp_params_t params = {&hQueue, &hGraph,
-                                                           &pNext};
+  ur_queue_begin_capture_into_graph_exp_params_t params = {&hQueue, &hGraph};
 
   auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_before_callback(
@@ -12577,12 +12570,10 @@ __urdlllocal ur_result_t UR_APICALL urQueueEndGraphCaptureExp(
     /// [out] Pointer to the handle of the recorded graph object. If
     /// ::urQueueBeginCaptureIntoGraphExp was used to begin the capture, then
     /// phGraph will contain the same graph that was passed to it.
-    ur_exp_graph_handle_t *phGraph,
-    /// [out][optional] Pointer to extension-specific structure.
-    void *pNext) try {
+    ur_exp_graph_handle_t *phGraph) try {
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  ur_queue_end_graph_capture_exp_params_t params = {&hQueue, &phGraph, &pNext};
+  ur_queue_end_graph_capture_exp_params_t params = {&hQueue, &phGraph};
 
   auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_before_callback("urQueueEndGraphCaptureExp"));
@@ -12623,13 +12614,10 @@ __urdlllocal ur_result_t UR_APICALL urGraphInstantiateGraphExp(
     /// [in] Handle of the recorded graph to instantiate.
     ur_exp_graph_handle_t hGraph,
     /// [out] Pointer to the handle of the instantiated executable graph.
-    ur_exp_executable_graph_handle_t *phExecGraph,
-    /// [out][optional] Pointer to extension-specific structure.
-    void *pNext) try {
+    ur_exp_executable_graph_handle_t *phExecGraph) try {
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  ur_graph_instantiate_graph_exp_params_t params = {&hGraph, &phExecGraph,
-                                                    &pNext};
+  ur_graph_instantiate_graph_exp_params_t params = {&hGraph, &phExecGraph};
 
   auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_before_callback("urGraphInstantiateGraphExp"));
@@ -12677,13 +12665,11 @@ __urdlllocal ur_result_t UR_APICALL urQueueAppendGraphExp(
     uint32_t numWaitEvents,
     /// [in][optional][range(0, numWaitEvents)] Handle of the events to wait
     /// on before launching.
-    ur_event_handle_t *phWaitEvents,
-    /// [out][optional] Pointer to extension-specific structure.
-    void *pNext) try {
+    ur_event_handle_t *phWaitEvents) try {
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  ur_queue_append_graph_exp_params_t params = {
-      &hQueue, &hGraph, &hSignalEvent, &numWaitEvents, &phWaitEvents, &pNext};
+  ur_queue_append_graph_exp_params_t params = {&hQueue, &hGraph, &hSignalEvent,
+                                               &numWaitEvents, &phWaitEvents};
 
   auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_before_callback("urQueueAppendGraphExp"));
@@ -12902,12 +12888,10 @@ __urdlllocal ur_result_t UR_APICALL urGraphDumpContentsExp(
     /// [in] Handle of the graph to dump.
     ur_exp_graph_handle_t hGraph,
     /// [in] Path to the file to write the dumped graph contents.
-    const char *filePath,
-    /// [out][optional] Pointer to extension-specific structure.
-    void *pNext) try {
+    const char *filePath) try {
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  ur_graph_dump_contents_exp_params_t params = {&hGraph, &filePath, &pNext};
+  ur_graph_dump_contents_exp_params_t params = {&hGraph, &filePath};
 
   auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_before_callback("urGraphDumpContentsExp"));

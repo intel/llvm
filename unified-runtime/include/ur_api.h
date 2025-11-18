@@ -13535,16 +13535,13 @@ typedef struct ur_exp_executable_graph_handle_t_
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phGraph`
-///         + `NULL == pNext`
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
 UR_APIEXPORT ur_result_t UR_APICALL urGraphCreateExp(
     /// [in] Handle of the context object.
     ur_context_handle_t hContext,
     /// [out][alloc] Pointer to the handle of the created graph object.
-    ur_exp_graph_handle_t *phGraph,
-    /// [out] Pointer to extension-specific structure.
-    void *pNext);
+    ur_exp_graph_handle_t *phGraph);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Begin graph capture on the specified immediate queue.
@@ -13560,9 +13557,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urGraphCreateExp(
 ///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
 UR_APIEXPORT ur_result_t UR_APICALL urQueueBeginGraphCaptureExp(
     /// [in] Handle of the queue on which to begin graph capture.
-    ur_queue_handle_t hQueue,
-    /// [in][optional] Pointer to extension-specific structure.
-    void *pNext);
+    ur_queue_handle_t hQueue);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Begin capturing commands into an existing graph on the specified
@@ -13582,9 +13577,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueBeginCaptureIntoGraphExp(
     /// [in] Handle of the queue on which to begin graph capture.
     ur_queue_handle_t hQueue,
     /// [in] Handle of the graph object to capture into.
-    ur_exp_graph_handle_t hGraph,
-    /// [in][optional] Pointer to extension-specific structure.
-    void *pNext);
+    ur_exp_graph_handle_t hGraph);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief End graph capture on the specified immediate queue.
@@ -13606,9 +13599,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueEndGraphCaptureExp(
     /// [out] Pointer to the handle of the recorded graph object. If
     /// ::urQueueBeginCaptureIntoGraphExp was used to begin the capture, then
     /// phGraph will contain the same graph that was passed to it.
-    ur_exp_graph_handle_t *phGraph,
-    /// [out][optional] Pointer to extension-specific structure.
-    void *pNext);
+    ur_exp_graph_handle_t *phGraph);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Instantiate an executable graph from a recorded graph.
@@ -13628,9 +13619,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urGraphInstantiateGraphExp(
     /// [in] Handle of the recorded graph to instantiate.
     ur_exp_graph_handle_t hGraph,
     /// [out] Pointer to the handle of the instantiated executable graph.
-    ur_exp_executable_graph_handle_t *phExecGraph,
-    /// [out][optional] Pointer to extension-specific structure.
-    void *pNext);
+    ur_exp_executable_graph_handle_t *phExecGraph);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Append an executable graph to the queue.
@@ -13656,9 +13645,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueAppendGraphExp(
     uint32_t numWaitEvents,
     /// [in][optional][range(0, numWaitEvents)] Handle of the events to wait
     /// on before launching.
-    ur_event_handle_t *phWaitEvents,
-    /// [out][optional] Pointer to extension-specific structure.
-    void *pNext);
+    ur_event_handle_t *phWaitEvents);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Destroy a recorded graph object. All executable graph instances
@@ -13754,9 +13741,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urGraphDumpContentsExp(
     /// [in] Handle of the graph to dump.
     ur_exp_graph_handle_t hGraph,
     /// [in] Path to the file to write the dumped graph contents.
-    const char *filePath,
-    /// [out][optional] Pointer to extension-specific structure.
-    void *pNext);
+    const char *filePath);
 
 #if !defined(__GNUC__)
 #pragma endregion
@@ -14583,7 +14568,6 @@ typedef struct ur_queue_flush_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_queue_begin_graph_capture_exp_params_t {
   ur_queue_handle_t *phQueue;
-  void **ppNext;
 } ur_queue_begin_graph_capture_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -14593,7 +14577,6 @@ typedef struct ur_queue_begin_graph_capture_exp_params_t {
 typedef struct ur_queue_begin_capture_into_graph_exp_params_t {
   ur_queue_handle_t *phQueue;
   ur_exp_graph_handle_t *phGraph;
-  void **ppNext;
 } ur_queue_begin_capture_into_graph_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -14603,7 +14586,6 @@ typedef struct ur_queue_begin_capture_into_graph_exp_params_t {
 typedef struct ur_queue_end_graph_capture_exp_params_t {
   ur_queue_handle_t *phQueue;
   ur_exp_graph_handle_t **pphGraph;
-  void **ppNext;
 } ur_queue_end_graph_capture_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -14616,7 +14598,6 @@ typedef struct ur_queue_append_graph_exp_params_t {
   ur_event_handle_t *phSignalEvent;
   uint32_t *pnumWaitEvents;
   ur_event_handle_t **pphWaitEvents;
-  void **ppNext;
 } ur_queue_append_graph_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -16239,7 +16220,6 @@ typedef struct ur_command_buffer_get_native_handle_exp_params_t {
 typedef struct ur_graph_create_exp_params_t {
   ur_context_handle_t *phContext;
   ur_exp_graph_handle_t **pphGraph;
-  void **ppNext;
 } ur_graph_create_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -16249,7 +16229,6 @@ typedef struct ur_graph_create_exp_params_t {
 typedef struct ur_graph_instantiate_graph_exp_params_t {
   ur_exp_graph_handle_t *phGraph;
   ur_exp_executable_graph_handle_t **pphExecGraph;
-  void **ppNext;
 } ur_graph_instantiate_graph_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -16284,7 +16263,6 @@ typedef struct ur_graph_is_empty_exp_params_t {
 typedef struct ur_graph_dump_contents_exp_params_t {
   ur_exp_graph_handle_t *phGraph;
   const char **pfilePath;
-  void **ppNext;
 } ur_graph_dump_contents_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////

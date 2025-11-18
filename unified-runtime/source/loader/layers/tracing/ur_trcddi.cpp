@@ -10540,22 +10540,20 @@ __urdlllocal ur_result_t UR_APICALL urGraphCreateExp(
     /// [in] Handle of the context object.
     ur_context_handle_t hContext,
     /// [out][alloc] Pointer to the handle of the created graph object.
-    ur_exp_graph_handle_t *phGraph,
-    /// [out] Pointer to extension-specific structure.
-    void *pNext) {
+    ur_exp_graph_handle_t *phGraph) {
   auto pfnCreateExp = getContext()->urDdiTable.GraphExp.pfnCreateExp;
 
   if (nullptr == pfnCreateExp)
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
-  ur_graph_create_exp_params_t params = {&hContext, &phGraph, &pNext};
+  ur_graph_create_exp_params_t params = {&hContext, &phGraph};
   uint64_t instance = getContext()->notify_begin(UR_FUNCTION_GRAPH_CREATE_EXP,
                                                  "urGraphCreateExp", &params);
 
   auto &logger = getContext()->logger;
   UR_LOG_L(logger, INFO, "   ---> urGraphCreateExp\n");
 
-  ur_result_t result = pfnCreateExp(hContext, phGraph, pNext);
+  ur_result_t result = pfnCreateExp(hContext, phGraph);
 
   getContext()->notify_end(UR_FUNCTION_GRAPH_CREATE_EXP, "urGraphCreateExp",
                            &params, &result, instance);
@@ -10575,16 +10573,14 @@ __urdlllocal ur_result_t UR_APICALL urGraphCreateExp(
 /// @brief Intercept function for urQueueBeginGraphCaptureExp
 __urdlllocal ur_result_t UR_APICALL urQueueBeginGraphCaptureExp(
     /// [in] Handle of the queue on which to begin graph capture.
-    ur_queue_handle_t hQueue,
-    /// [in][optional] Pointer to extension-specific structure.
-    void *pNext) {
+    ur_queue_handle_t hQueue) {
   auto pfnBeginGraphCaptureExp =
       getContext()->urDdiTable.QueueExp.pfnBeginGraphCaptureExp;
 
   if (nullptr == pfnBeginGraphCaptureExp)
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
-  ur_queue_begin_graph_capture_exp_params_t params = {&hQueue, &pNext};
+  ur_queue_begin_graph_capture_exp_params_t params = {&hQueue};
   uint64_t instance =
       getContext()->notify_begin(UR_FUNCTION_QUEUE_BEGIN_GRAPH_CAPTURE_EXP,
                                  "urQueueBeginGraphCaptureExp", &params);
@@ -10592,7 +10588,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueBeginGraphCaptureExp(
   auto &logger = getContext()->logger;
   UR_LOG_L(logger, INFO, "   ---> urQueueBeginGraphCaptureExp\n");
 
-  ur_result_t result = pfnBeginGraphCaptureExp(hQueue, pNext);
+  ur_result_t result = pfnBeginGraphCaptureExp(hQueue);
 
   getContext()->notify_end(UR_FUNCTION_QUEUE_BEGIN_GRAPH_CAPTURE_EXP,
                            "urQueueBeginGraphCaptureExp", &params, &result,
@@ -10615,17 +10611,14 @@ __urdlllocal ur_result_t UR_APICALL urQueueBeginCaptureIntoGraphExp(
     /// [in] Handle of the queue on which to begin graph capture.
     ur_queue_handle_t hQueue,
     /// [in] Handle of the graph object to capture into.
-    ur_exp_graph_handle_t hGraph,
-    /// [in][optional] Pointer to extension-specific structure.
-    void *pNext) {
+    ur_exp_graph_handle_t hGraph) {
   auto pfnBeginCaptureIntoGraphExp =
       getContext()->urDdiTable.QueueExp.pfnBeginCaptureIntoGraphExp;
 
   if (nullptr == pfnBeginCaptureIntoGraphExp)
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
-  ur_queue_begin_capture_into_graph_exp_params_t params = {&hQueue, &hGraph,
-                                                           &pNext};
+  ur_queue_begin_capture_into_graph_exp_params_t params = {&hQueue, &hGraph};
   uint64_t instance =
       getContext()->notify_begin(UR_FUNCTION_QUEUE_BEGIN_CAPTURE_INTO_GRAPH_EXP,
                                  "urQueueBeginCaptureIntoGraphExp", &params);
@@ -10633,7 +10626,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueBeginCaptureIntoGraphExp(
   auto &logger = getContext()->logger;
   UR_LOG_L(logger, INFO, "   ---> urQueueBeginCaptureIntoGraphExp\n");
 
-  ur_result_t result = pfnBeginCaptureIntoGraphExp(hQueue, hGraph, pNext);
+  ur_result_t result = pfnBeginCaptureIntoGraphExp(hQueue, hGraph);
 
   getContext()->notify_end(UR_FUNCTION_QUEUE_BEGIN_CAPTURE_INTO_GRAPH_EXP,
                            "urQueueBeginCaptureIntoGraphExp", &params, &result,
@@ -10659,16 +10652,14 @@ __urdlllocal ur_result_t UR_APICALL urQueueEndGraphCaptureExp(
     /// [out] Pointer to the handle of the recorded graph object. If
     /// ::urQueueBeginCaptureIntoGraphExp was used to begin the capture, then
     /// phGraph will contain the same graph that was passed to it.
-    ur_exp_graph_handle_t *phGraph,
-    /// [out][optional] Pointer to extension-specific structure.
-    void *pNext) {
+    ur_exp_graph_handle_t *phGraph) {
   auto pfnEndGraphCaptureExp =
       getContext()->urDdiTable.QueueExp.pfnEndGraphCaptureExp;
 
   if (nullptr == pfnEndGraphCaptureExp)
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
-  ur_queue_end_graph_capture_exp_params_t params = {&hQueue, &phGraph, &pNext};
+  ur_queue_end_graph_capture_exp_params_t params = {&hQueue, &phGraph};
   uint64_t instance =
       getContext()->notify_begin(UR_FUNCTION_QUEUE_END_GRAPH_CAPTURE_EXP,
                                  "urQueueEndGraphCaptureExp", &params);
@@ -10676,7 +10667,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueEndGraphCaptureExp(
   auto &logger = getContext()->logger;
   UR_LOG_L(logger, INFO, "   ---> urQueueEndGraphCaptureExp\n");
 
-  ur_result_t result = pfnEndGraphCaptureExp(hQueue, phGraph, pNext);
+  ur_result_t result = pfnEndGraphCaptureExp(hQueue, phGraph);
 
   getContext()->notify_end(UR_FUNCTION_QUEUE_END_GRAPH_CAPTURE_EXP,
                            "urQueueEndGraphCaptureExp", &params, &result,
@@ -10699,17 +10690,14 @@ __urdlllocal ur_result_t UR_APICALL urGraphInstantiateGraphExp(
     /// [in] Handle of the recorded graph to instantiate.
     ur_exp_graph_handle_t hGraph,
     /// [out] Pointer to the handle of the instantiated executable graph.
-    ur_exp_executable_graph_handle_t *phExecGraph,
-    /// [out][optional] Pointer to extension-specific structure.
-    void *pNext) {
+    ur_exp_executable_graph_handle_t *phExecGraph) {
   auto pfnInstantiateGraphExp =
       getContext()->urDdiTable.GraphExp.pfnInstantiateGraphExp;
 
   if (nullptr == pfnInstantiateGraphExp)
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
-  ur_graph_instantiate_graph_exp_params_t params = {&hGraph, &phExecGraph,
-                                                    &pNext};
+  ur_graph_instantiate_graph_exp_params_t params = {&hGraph, &phExecGraph};
   uint64_t instance =
       getContext()->notify_begin(UR_FUNCTION_GRAPH_INSTANTIATE_GRAPH_EXP,
                                  "urGraphInstantiateGraphExp", &params);
@@ -10717,7 +10705,7 @@ __urdlllocal ur_result_t UR_APICALL urGraphInstantiateGraphExp(
   auto &logger = getContext()->logger;
   UR_LOG_L(logger, INFO, "   ---> urGraphInstantiateGraphExp\n");
 
-  ur_result_t result = pfnInstantiateGraphExp(hGraph, phExecGraph, pNext);
+  ur_result_t result = pfnInstantiateGraphExp(hGraph, phExecGraph);
 
   getContext()->notify_end(UR_FUNCTION_GRAPH_INSTANTIATE_GRAPH_EXP,
                            "urGraphInstantiateGraphExp", &params, &result,
@@ -10747,16 +10735,14 @@ __urdlllocal ur_result_t UR_APICALL urQueueAppendGraphExp(
     uint32_t numWaitEvents,
     /// [in][optional][range(0, numWaitEvents)] Handle of the events to wait
     /// on before launching.
-    ur_event_handle_t *phWaitEvents,
-    /// [out][optional] Pointer to extension-specific structure.
-    void *pNext) {
+    ur_event_handle_t *phWaitEvents) {
   auto pfnAppendGraphExp = getContext()->urDdiTable.QueueExp.pfnAppendGraphExp;
 
   if (nullptr == pfnAppendGraphExp)
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
-  ur_queue_append_graph_exp_params_t params = {
-      &hQueue, &hGraph, &hSignalEvent, &numWaitEvents, &phWaitEvents, &pNext};
+  ur_queue_append_graph_exp_params_t params = {&hQueue, &hGraph, &hSignalEvent,
+                                               &numWaitEvents, &phWaitEvents};
   uint64_t instance = getContext()->notify_begin(
       UR_FUNCTION_QUEUE_APPEND_GRAPH_EXP, "urQueueAppendGraphExp", &params);
 
@@ -10764,7 +10750,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueAppendGraphExp(
   UR_LOG_L(logger, INFO, "   ---> urQueueAppendGraphExp\n");
 
   ur_result_t result = pfnAppendGraphExp(hQueue, hGraph, hSignalEvent,
-                                         numWaitEvents, phWaitEvents, pNext);
+                                         numWaitEvents, phWaitEvents);
 
   getContext()->notify_end(UR_FUNCTION_QUEUE_APPEND_GRAPH_EXP,
                            "urQueueAppendGraphExp", &params, &result, instance);
@@ -10930,23 +10916,21 @@ __urdlllocal ur_result_t UR_APICALL urGraphDumpContentsExp(
     /// [in] Handle of the graph to dump.
     ur_exp_graph_handle_t hGraph,
     /// [in] Path to the file to write the dumped graph contents.
-    const char *filePath,
-    /// [out][optional] Pointer to extension-specific structure.
-    void *pNext) {
+    const char *filePath) {
   auto pfnDumpContentsExp =
       getContext()->urDdiTable.GraphExp.pfnDumpContentsExp;
 
   if (nullptr == pfnDumpContentsExp)
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
-  ur_graph_dump_contents_exp_params_t params = {&hGraph, &filePath, &pNext};
+  ur_graph_dump_contents_exp_params_t params = {&hGraph, &filePath};
   uint64_t instance = getContext()->notify_begin(
       UR_FUNCTION_GRAPH_DUMP_CONTENTS_EXP, "urGraphDumpContentsExp", &params);
 
   auto &logger = getContext()->logger;
   UR_LOG_L(logger, INFO, "   ---> urGraphDumpContentsExp\n");
 
-  ur_result_t result = pfnDumpContentsExp(hGraph, filePath, pNext);
+  ur_result_t result = pfnDumpContentsExp(hGraph, filePath);
 
   getContext()->notify_end(UR_FUNCTION_GRAPH_DUMP_CONTENTS_EXP,
                            "urGraphDumpContentsExp", &params, &result,

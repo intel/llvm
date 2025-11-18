@@ -604,29 +604,23 @@ public:
   }
 
   // Graph capture experimental APIs - not supported on Level Zero adapter v2
-  ur_result_t queueBeginGraphCapteExp(void *pNext) override {
-    (void)pNext;
+  ur_result_t queueBeginGraphCapteExp() override {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
-  ur_result_t queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t hGraph,
-                                          void *pNext) override {
+  ur_result_t
+  queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t hGraph) override {
     (void)hGraph;
-    (void)pNext;
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
-  ur_result_t queueEndGraphCapteExp(ur_exp_graph_handle_t *phGraph,
-                                    void *pNext) override {
+  ur_result_t queueEndGraphCapteExp(ur_exp_graph_handle_t *phGraph) override {
     (void)phGraph;
-    (void)pNext;
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
   ur_result_t queueAppendGraphExp(ur_exp_executable_graph_handle_t hGraph,
                                   ur_event_handle_t hSignalEvent,
                                   uint32_t numWaitEvents,
-                                  ur_event_handle_t *phWaitEvents,
-                                  void *pNext) override {
+                                  ur_event_handle_t *phWaitEvents) override {
     (void)hGraph;
-    (void)pNext;
     (void)hSignalEvent;
     (void)numWaitEvents;
     (void)phWaitEvents;
