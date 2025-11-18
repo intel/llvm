@@ -64,7 +64,8 @@ void TestFunc(queue &Q) {
   // Wait a bit to give a chance for tasks to complete.
   std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
-  // We expect that all submitted tasks are finished if khr_empty is true.
+  // We expect that all submitted tasks are finished if ext_oneapi_empty is
+  // true.
   if (Q.ext_oneapi_empty())
     CheckArray(Y, Size, 200);
 
