@@ -45,8 +45,6 @@ public:
         MLocalSize(&(ExecutionRange.localSize[0])),
         MOffset(&(ExecutionRange.offset[0])), MDims{size_t(Dims_)} {}
 
-  sycl::detail::NDRDescT toNDRDescT() const;
-
   const size_t *MGlobalSize = nullptr;
   const size_t *MLocalSize = nullptr;
   const size_t *MOffset = nullptr;

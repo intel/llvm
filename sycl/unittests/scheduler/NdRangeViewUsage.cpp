@@ -23,7 +23,7 @@ void TestNdRangeView(sycl::range<dims> global, sycl::range<dims> local,
       ASSERT_EQ(r.MOffset[d], offset[d]);
     }
 
-    sycl::detail::NDRDescT NDRDesc = r.toNDRDescT();
+    sycl::detail::NDRDescT NDRDesc(r);
     ASSERT_EQ(NDRDesc.Dims, size_t{dims});
     for (int d = 0; d < dims; d++) {
       ASSERT_EQ(NDRDesc.GlobalSize[d], global[d]);
@@ -45,7 +45,7 @@ void TestNdRangeView(sycl::range<dims> global, sycl::range<dims> local,
     }
     ASSERT_EQ(r.MLocalSize, nullptr);
 
-    sycl::detail::NDRDescT NDRDesc = r.toNDRDescT();
+    sycl::detail::NDRDescT NDRDesc(r);
     ASSERT_EQ(NDRDesc.Dims, size_t{dims});
     for (int d = 0; d < dims; d++) {
       ASSERT_EQ(NDRDesc.GlobalSize[d], global[d]);
@@ -69,7 +69,7 @@ void TestNdRangeView(sycl::range<dims> global, sycl::range<dims> local,
     ASSERT_EQ(r.MLocalSize, nullptr);
     ASSERT_EQ(r.MOffset, nullptr);
 
-    sycl::detail::NDRDescT NDRDesc = r.toNDRDescT();
+    sycl::detail::NDRDescT NDRDesc(r);
     ASSERT_EQ(NDRDesc.Dims, size_t{dims});
     for (int d = 0; d < dims; d++) {
       ASSERT_EQ(NDRDesc.NumWorkGroups[d], global[d]);
@@ -93,7 +93,7 @@ void TestNdRangeView(sycl::range<dims> global, sycl::range<dims> local,
     ASSERT_EQ(r.MLocalSize, nullptr);
     ASSERT_EQ(r.MOffset, nullptr);
 
-    sycl::detail::NDRDescT NDRDesc = r.toNDRDescT();
+    sycl::detail::NDRDescT NDRDesc(r);
     ASSERT_EQ(NDRDesc.Dims, size_t{dims});
     for (int d = 0; d < dims; d++) {
       ASSERT_EQ(NDRDesc.GlobalSize[d], global[d]);

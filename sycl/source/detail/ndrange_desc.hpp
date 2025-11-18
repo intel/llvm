@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/detail/nd_range_view.hpp>
 #include <sycl/nd_range.hpp>
 #include <sycl/range.hpp>
 
@@ -32,61 +33,34 @@ public:
   NDRDescT(const NDRDescT &Desc) = default;
   NDRDescT(NDRDescT &&Desc) = default;
 
-  NDRDescT(const size_t *N, bool SetNumWorkGroups, int DimsVal)
-      : Dims{size_t(DimsVal)} {
-    if (SetNumWorkGroups) {
-      for (size_t I = 0; I < Dims; ++I) {
-        NumWorkGroups[I] = N[I];
-      }
+  NDRDescT(const detail::nd_range_view &NDRangeView) {
+    if (!NDRangeView.MGlobalSize) {
+      init();
+    } else if (NDRangeView.MLocalSize) {
+      init(NDRangeView.MGlobalSize, NDRangeView.MLocalSize, NDRangeView.MOffset,
+           NDRangeView.MDims);
+    } else if (NDRangeView.MOffset) {
+      init(NDRangeView.MGlobalSize, NDRangeView.MOffset, NDRangeView.MDims);
     } else {
-      for (size_t I = 0; I < Dims; ++I) {
-        GlobalSize[I] = N[I];
-      }
-
-      for (int I = Dims; I < 3; ++I) {
-        GlobalSize[I] = 1;
-      }
+      init(NDRangeView.MGlobalSize, NDRangeView.MSetNumWorkGroups,
+           NDRangeView.MDims);
     }
   }
 
-  template <int Dims_>
-  NDRDescT(sycl::range<Dims_> N, bool SetNumWorkGroups)
-      : NDRDescT(&(N[0]), SetNumWorkGroups, Dims_) {}
-
-  NDRDescT(const size_t *NumWorkItems, const size_t *LocalSizes,
-           const size_t *Offset, int DimsVal)
-      : Dims{size_t(DimsVal)} {
-    for (size_t I = 0; I < Dims; ++I) {
-      GlobalSize[I] = NumWorkItems[I];
-      LocalSize[I] = LocalSizes[I];
-      GlobalOffset[I] = Offset[I];
-    }
-
-    for (int I = Dims; I < 3; ++I) {
-      LocalSize[I] = LocalSizes[0] ? 1 : 0;
-    }
-
-    for (int I = Dims; I < 3; ++I) {
-      GlobalSize[I] = 1;
-    }
+  template <int Dims_> NDRDescT(sycl::range<Dims_> N, bool SetNumWorkGroups) {
+    init(&(N[0]), SetNumWorkGroups, Dims_);
   }
 
   template <int Dims_>
   NDRDescT(sycl::range<Dims_> NumWorkItems, sycl::range<Dims_> LocalSizes,
-           sycl::id<Dims_> Offset)
-      : NDRDescT(&(NumWorkItems[0]), &(LocalSizes[0]), &(Offset[0]), Dims_) {}
-
-  NDRDescT(const size_t *NumWorkItems, const size_t *Offset, int DimsVal)
-      : Dims{size_t(DimsVal)} {
-    for (size_t I = 0; I < Dims; ++I) {
-      GlobalSize[I] = NumWorkItems[I];
-      GlobalOffset[I] = Offset[I];
-    }
+           sycl::id<Dims_> Offset) {
+    init(&(NumWorkItems[0]), &(LocalSizes[0]), &(Offset[0]), Dims_);
   }
 
   template <int Dims_>
-  NDRDescT(sycl::range<Dims_> NumWorkItems, sycl::id<Dims_> Offset)
-      : NDRDescT(&(NumWorkItems[0]), &(Offset[0]), Dims_) {}
+  NDRDescT(sycl::range<Dims_> NumWorkItems, sycl::id<Dims_> Offset) {
+    init(&(NumWorkItems[0]), &(Offset[0]), Dims_);
+  }
 
   template <int Dims_>
   NDRDescT(sycl::nd_range<Dims_> ExecutionRange)
@@ -120,6 +94,55 @@ public:
   std::array<size_t, 3> NumWorkGroups{0, 0, 0};
   std::array<size_t, 3> ClusterDimensions{1, 1, 1};
   size_t Dims = 0;
+
+private:
+  void init(const size_t *N, bool SetNumWorkGroups, int DimsVal) {
+    Dims = size_t(DimsVal);
+    if (SetNumWorkGroups) {
+      for (size_t I = 0; I < Dims; ++I) {
+        NumWorkGroups[I] = N[I];
+      }
+    } else {
+      for (size_t I = 0; I < Dims; ++I) {
+        GlobalSize[I] = N[I];
+      }
+
+      for (size_t I = Dims; I < 3; ++I) {
+        GlobalSize[I] = 1;
+      }
+    }
+  }
+
+  void init(const size_t *NumWorkItems, const size_t *LocalSizes,
+            const size_t *Offset, int DimsVal) {
+    Dims = size_t(DimsVal);
+    for (size_t I = 0; I < Dims; ++I) {
+      GlobalSize[I] = NumWorkItems[I];
+      LocalSize[I] = LocalSizes[I];
+      GlobalOffset[I] = Offset[I];
+    }
+
+    for (size_t I = Dims; I < 3; ++I) {
+      LocalSize[I] = LocalSizes[0] ? 1 : 0;
+    }
+
+    for (size_t I = Dims; I < 3; ++I) {
+      GlobalSize[I] = 1;
+    }
+  }
+
+  void init(const size_t *NumWorkItems, const size_t *Offset, int DimsVal) {
+    Dims = size_t(DimsVal);
+    for (size_t I = 0; I < Dims; ++I) {
+      GlobalSize[I] = NumWorkItems[I];
+      GlobalOffset[I] = Offset[I];
+    }
+  }
+
+  void init() {
+    size_t GlobalS = 1;
+    init(&GlobalS, false, 1);
+  }
 };
 
 } // namespace detail
