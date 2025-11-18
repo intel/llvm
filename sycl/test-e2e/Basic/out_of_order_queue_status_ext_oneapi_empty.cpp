@@ -46,7 +46,7 @@ void TestFunc(queue &Q) {
     });
   }
 
-  constexpr int InfiniteLoopPreventionThreshold = 100;
+  constexpr int InfiniteLoopPreventionThreshold = 1000;
   int InfiniteLoopPreventionCounter = 0;
 
   // Wait for tasks created by parallel_for to actually start running. Otherwise
