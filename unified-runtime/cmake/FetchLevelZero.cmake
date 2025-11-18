@@ -45,6 +45,7 @@ if(NOT LEVEL_ZERO_LIB_NAME AND NOT LEVEL_ZERO_LIBRARY)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-c++98-compat-extra-semi")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-warning-option")
   endif()
+  set(BUILD_STATIC ON)
 
   set(UR_LEVEL_ZERO_LOADER_REPO "https://github.com/oneapi-src/level-zero.git")
   # Remember to update the pkg_check_modules minimum version above when updating the
@@ -59,11 +60,6 @@ if(NOT LEVEL_ZERO_LIB_NAME AND NOT LEVEL_ZERO_LIBRARY)
   set(CMAKE_MSVC_RUNTIME_LIBRARY_BAK "${CMAKE_MSVC_RUNTIME_LIBRARY}")
   # UMF has not yet been able to build as static
   set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
-  
-  # Force building validation layer by setting BUILD_STATIC to OFF
-  # This must be set before FetchContent to override Level Zero's default
-  set(BUILD_STATIC OFF CACHE BOOL "Build Level Zero as dynamic library to enable validation layer" FORCE)
-  
   message(STATUS "Level Zero Adapter: Will fetch Level Zero Loader from ${UR_LEVEL_ZERO_LOADER_REPO}")
   include(FetchContent)
   FetchContent_Declare(level-zero-loader
@@ -75,13 +71,6 @@ if(NOT LEVEL_ZERO_LIB_NAME AND NOT LEVEL_ZERO_LIBRARY)
   endif()
   FetchContent_MakeAvailable(level-zero-loader)
   FetchContent_GetProperties(level-zero-loader)
-
-  # Ensure validation layer is built as part of the default target
-  # This is needed for leak debugging with UR_L0_LEAKS_DEBUG=1
-  if(TARGET ze_validation_layer)
-    add_dependencies(ze_loader ze_validation_layer)
-    message(STATUS "Level Zero validation layer will be built with loader")
-  endif()
 
   # Restore original flags
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_BAK}")
