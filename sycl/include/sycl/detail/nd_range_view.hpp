@@ -38,7 +38,7 @@ public:
   const size_t *MGlobalSize = nullptr;
   const size_t *MLocalSize = nullptr;
   const size_t *MOffset = nullptr;
-  size_t MDims = 0;
+  size_t MDims = 1;
 };
 
 } // namespace nd_range_view_v1
