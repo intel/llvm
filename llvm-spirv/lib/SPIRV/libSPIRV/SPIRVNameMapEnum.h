@@ -714,6 +714,11 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(internal::CapabilityFloat4E2M1CooperativeMatrixINTEL,
       "Float4E2M1CooperativeMatrixINTEL");
   add(internal::CapabilityFloatConversionsINTEL, "FloatConversionsINTEL");
+  add(internal::CapabilityAtomicInt16CompareExchangeINTEL,
+      "AtomicInt16CompareExchangeINTEL");
+  add(internal::CapabilityInt16AtomicsINTEL, "Int16AtomicsINTEL");
+  add(internal::CapabilityAtomicBFloat16LoadStoreINTEL,
+      "AtomicBFloat16LoadStoreINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
 
