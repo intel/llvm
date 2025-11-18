@@ -2106,11 +2106,12 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
 }
 
 template <typename MultimapT, typename KeyT, typename ValT>
-void removeFromMultimapByVal(MultimapT &Map, const KeyT &Key, const ValT &Val) {
+void removeFromMultimapByVal(MultimapT &Map, const KeyT &Key, const ValT &Val,
+                             bool AssertContains = true) {
   auto [RangeBegin, RangeEnd] = Map.equal_range(Key);
   auto It = std::find_if(RangeBegin, RangeEnd,
                          [&](const auto &Pair) { return Pair.second == Val; });
-  if (It == RangeEnd)
+  if (!AssertContains && It == RangeEnd)
     return;
   assert(It != RangeEnd);
   Map.erase(It);
@@ -2237,7 +2238,8 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
     // unmap loop)
     for (const sycl_device_binary_property &ESProp :
          Img->getExportedSymbols()) {
-      removeFromMultimapByVal(m_ExportedSymbolImages, ESProp->Name, Img);
+      removeFromMultimapByVal(m_ExportedSymbolImages, ESProp->Name, Img,
+                              /*AssertContains*/ false);
     }
 
     m_DeviceImages.erase(DevImgIt);
