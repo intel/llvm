@@ -70,6 +70,7 @@
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
@@ -105,6 +106,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <string>
 #include <utility>
 #if LLVM_ON_UNIX
 #include <unistd.h> // getpid
@@ -2414,12 +2416,17 @@ void Driver::generateCompilationDiagnostics(
   InputList Inputs;
   BuildInputs(C.getDefaultToolChain(), C.getArgs(), Inputs);
 
+  ArgStringList IRInputs;
   for (InputList::iterator it = Inputs.begin(), ie = Inputs.end(); it != ie;) {
     bool IgnoreInput = false;
 
-    // Ignore input from stdin or any inputs that cannot be preprocessed.
-    // Check type first as not all linker inputs have a value.
-    if (types::getPreprocessedType(it->first) == types::TY_INVALID) {
+    // Save IR inputs separately, ignore input from stdin or any other inputs
+    // that cannot be preprocessed. Check type first as not all linker inputs
+    // have a value.
+    if (types::isLLVMIR(it->first)) {
+      IRInputs.push_back(it->second->getValue());
+      IgnoreInput = true;
+    } else if (types::getPreprocessedType(it->first) == types::TY_INVALID) {
       IgnoreInput = true;
     } else if (!strcmp(it->second->getValue(), "-")) {
       Diag(clang::diag::note_drv_command_failed_diag_msg)
@@ -2436,7 +2443,7 @@ void Driver::generateCompilationDiagnostics(
     }
   }
 
-  if (Inputs.empty()) {
+  if (Inputs.empty() && IRInputs.empty()) {
     Diag(clang::diag::note_drv_command_failed_diag_msg)
         << "Error generating preprocessed source(s) - "
            "no preprocessable inputs.";
@@ -2459,66 +2466,104 @@ void Driver::generateCompilationDiagnostics(
     return;
   }
 
-  // Construct the list of abstract actions to perform for this compilation. On
-  // Darwin OSes this uses the driver-driver and builds universal actions.
-  const ToolChain &TC = C.getDefaultToolChain();
-  if (TC.getTriple().isOSBinFormatMachO())
-    BuildUniversalActions(C, TC, Inputs);
-  else
-    BuildActions(C, C.getArgs(), Inputs, C.getActions());
+  // If we only have IR inputs there's no need for preprocessing.
+  if (!Inputs.empty()) {
+    // Construct the list of abstract actions to perform for this compilation.
+    // On Darwin OSes this uses the driver-driver and builds universal actions.
+    const ToolChain &TC = C.getDefaultToolChain();
+    if (TC.getTriple().isOSBinFormatMachO())
+      BuildUniversalActions(C, TC, Inputs);
+    else
+      BuildActions(C, C.getArgs(), Inputs, C.getActions());
 
-  BuildJobs(C);
+    BuildJobs(C);
 
-  // If there were errors building the compilation, quit now.
-  if (Trap.hasErrorOccurred()) {
-    Diag(clang::diag::note_drv_command_failed_diag_msg)
-        << "Error generating preprocessed source(s).";
-    return;
+    // If there were errors building the compilation, quit now.
+    if (Trap.hasErrorOccurred()) {
+      Diag(clang::diag::note_drv_command_failed_diag_msg)
+          << "Error generating preprocessed source(s).";
+      return;
+    }
+    // Generate preprocessed output.
+    SmallVector<std::pair<int, const Command *>, 4> FailingCommands;
+    C.ExecuteJobs(C.getJobs(), FailingCommands);
+
+    // If any of the preprocessing commands failed, clean up and exit.
+    if (!FailingCommands.empty()) {
+      Diag(clang::diag::note_drv_command_failed_diag_msg)
+          << "Error generating preprocessed source(s).";
+      return;
+    }
+
+    const TempFileList &TempFiles = C.getTempFiles();
+    if (TempFiles.empty()) {
+      Diag(clang::diag::note_drv_command_failed_diag_msg)
+          << "Error generating preprocessed source(s).";
+      return;
+    }
   }
 
-  // Generate preprocessed output.
-  SmallVector<std::pair<int, const Command *>, 4> FailingCommands;
-  C.ExecuteJobs(C.getJobs(), FailingCommands);
+  // Copying filenames due to ownership.
+  const TempFileList &Files = C.getTempFiles();
+  SmallVector<std::string> TempFiles;
+  for (auto File : Files)
+    TempFiles.push_back(File.first);
 
-  // If any of the preprocessing commands failed, clean up and exit.
-  if (!FailingCommands.empty()) {
-    Diag(clang::diag::note_drv_command_failed_diag_msg)
-        << "Error generating preprocessed source(s).";
-    return;
-  }
+  // We'd like to copy the IR input file into our own temp file
+  // because the build system might try to clean-up after itself.
+  for (auto const *Input : IRInputs) {
+    int FD;
+    llvm::SmallVector<char, 64> Path;
 
-  const TempFileList &TempFiles = C.getTempFiles();
-  if (TempFiles.empty()) {
-    Diag(clang::diag::note_drv_command_failed_diag_msg)
-        << "Error generating preprocessed source(s).";
-    return;
+    StringRef extension = llvm::sys::path::extension(Input);
+    if (!extension.empty())
+      extension = extension.drop_front();
+
+    std::error_code EC = llvm::sys::fs::createTemporaryFile(
+        llvm::sys::path::stem(Input), extension, FD, Path);
+    if (EC) {
+      Diag(clang::diag::note_drv_command_failed_diag_msg)
+          << "Error generating run script: " << "Failed copying IR input files"
+          << " " << EC.message();
+      return;
+    }
+
+    EC = llvm::sys::fs::copy_file(Input, FD);
+    if (EC) {
+      Diag(clang::diag::note_drv_command_failed_diag_msg)
+          << "Error generating run script: " << "Failed copying IR input files"
+          << " " << EC.message();
+      return;
+    }
+
+    TempFiles.push_back(std::string(Path.begin(), Path.end()));
   }
 
   Diag(clang::diag::note_drv_command_failed_diag_msg) << BugReporMsg;
 
   SmallString<128> VFS;
   SmallString<128> ReproCrashFilename;
-  for (auto &TempFile : TempFiles) {
-    Diag(clang::diag::note_drv_command_failed_diag_msg) << TempFile.first;
+  for (std::string &TempFile : TempFiles) {
+    Diag(clang::diag::note_drv_command_failed_diag_msg) << TempFile;
     if (Report)
-      Report->TemporaryFiles.push_back(TempFile.first);
+      Report->TemporaryFiles.push_back(TempFile);
     if (ReproCrashFilename.empty()) {
-      ReproCrashFilename = TempFile.first;
+      ReproCrashFilename = TempFile;
       llvm::sys::path::replace_extension(ReproCrashFilename, ".crash");
     }
-    if (StringRef(TempFile.first).ends_with(".cache")) {
+    if (StringRef(TempFile).ends_with(".cache")) {
       // In some cases (modules) we'll dump extra data to help with reproducing
       // the crash into a directory next to the output.
-      VFS = llvm::sys::path::filename(TempFile.first);
+      VFS = llvm::sys::path::filename(TempFile);
       llvm::sys::path::append(VFS, "vfs", "vfs.yaml");
     }
   }
 
   for (auto &TempFile : SavedTemps)
-    C.addTempFile(TempFile.first);
+    TempFiles.push_back(TempFile.first);
 
   // Assume associated files are based off of the first temporary file.
-  CrashReportInfo CrashInfo(TempFiles[0].first, VFS);
+  CrashReportInfo CrashInfo(TempFiles[0], VFS);
 
   llvm::SmallString<128> Script(CrashInfo.Filename);
   llvm::sys::path::replace_extension(Script, "sh");
