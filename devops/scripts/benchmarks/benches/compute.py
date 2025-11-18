@@ -62,7 +62,10 @@ class ComputeBench(Suite):
 
     def git_hash(self) -> str:
         # Nov 17, 2025
-        return "932ae79f7cca7e156285fc10a59610927c769e89"
+        git_hash_value = "ec6710ff85cb6bd9232ca67237e782618b4d8382"
+        log.info(f"ComputeBench git hash: {git_hash_value}")
+
+        return "ec6710ff85cb6bd9232ca67237e782618b4d8382"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -269,6 +272,7 @@ class ComputeBench(Suite):
                 )
             )
 
+        # Add RecordAndReplay benchmarks
         record_and_replay_params = product([0, 1], [0, 1])
         for emulate, instantiate in record_and_replay_params:
 
@@ -312,6 +316,39 @@ class ComputeBench(Suite):
                     nInstantiations=0,
                     nAppendKern=1,
                     nAppendCopy=0,
+                ),
+            ]
+
+        # Add TorchMultiQueue benchmarks
+        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+
+            def createTorchMultiQueueBench(variant_name: str, **kwargs):
+                return TorchMultiQueue(
+                    self,
+                    runtime,
+                    variant_name,
+                    PROFILERS.TIMER,
+                    **kwargs,
+                )
+
+            benches += [
+                createTorchMultiQueueBench(
+                    "large",
+                    workgroupCount=4096,
+                    workgroupSize=512,
+                    kernelsPerQueue=20,
+                ),
+                createTorchMultiQueueBench(
+                    "medium",
+                    workgroupCount=512,
+                    workgroupSize=256,
+                    kernelsPerQueue=10,
+                ),
+                createTorchMultiQueueBench(
+                    "small",
+                    workgroupCount=256,
+                    workgroupSize=124,
+                    kernelsPerQueue=4,
                 ),
             ]
 
@@ -733,6 +770,48 @@ class RecordAndReplay(ComputeBenchmark):
 
     def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
         return [f"--{k}={v}" for k, v in self._rr_params.items()]
+
+
+class TorchMultiQueue(ComputeBenchmark):
+    def __init__(
+        self, suite, runtime: RUNTIMES, variant_name: str, profiler_type, **kwargs
+    ):
+        self._variant_name = variant_name
+        self._smq_params = kwargs
+        self._iterations_regular = 1000
+        self._iterations_trace = 10
+        super().__init__(
+            suite,
+            f"torch_benchmark_{runtime.value}",
+            "KernelSubmitMultiQueue",
+            runtime,
+            profiler_type,
+        )
+
+    def name(self):
+        ret = []
+        for k, v in self._smq_params.items():
+            ret.append(f"{k} {v}")
+        ret.sort()
+        return self._bench_name + " " + ", ".join(ret)
+
+    def display_name(self) -> str:
+        return f"{self.explicit_group()} {self._runtime.value}"
+
+    def explicit_group(self):
+        return f"{self._test} {self._variant_name}"
+
+    def get_tags(self):
+        return ["pytorch_" + runtime_to_tag_name(self._runtime)]
+
+    def _supported_runtimes(self) -> list[RUNTIMES]:
+        return super()._supported_runtimes() + [RUNTIMES.SYCL_PREVIEW]
+
+    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
+        iters = self._get_iters(run_trace)
+        return [f"--iterations={iters}"] + [
+            f"--{k}={v}" for k, v in self._smq_params.items()
+        ]
 
 
 class QueueInOrderMemcpy(ComputeBenchmark):

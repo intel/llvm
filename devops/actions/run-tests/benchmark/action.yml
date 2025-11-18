@@ -166,6 +166,11 @@ runs:
     with:
       ref: ${{ env.BENCHMARK_RESULTS_BRANCH }}
       path: llvm-ci-perf-results
+  
+  # - name: Show compute-benchmarks version
+  #   shell: bash
+  #   run: |
+      
   - name: Build and run benchmarks
     env:
       # Need to append "_<device>_<backend>" to save name in order to follow
@@ -235,7 +240,7 @@ runs:
       [ -f "github_summary_exe.md" ] && rm github_summary_exe.md
       [ -f "github_summary_reg.md" ] && rm github_summary_reg.md
 
-      numactl --cpunodebind "$NUMA_NODE" --membind "$NUMA_NODE" \
+      gdb -return-child-result --ex r -ex bt --ex q --args numactl --cpunodebind "$NUMA_NODE" --membind "$NUMA_NODE" \
       ./devops/scripts/benchmarks/main.py "$WORKDIR" \
         --sycl "$(realpath ./toolchain)" \
         --ur "$(realpath ./ur/install)" \
@@ -274,6 +279,19 @@ runs:
         export COMPUTE_BENCHMARKS_BUILD_PATH=$WORKDIR/compute-benchmarks-build
         python3 ./devops/scripts/benchmarks/tests/test_integration.py
       fi
+
+  - name: Show compute-benchmarks version
+    shell: bash
+    run: |
+      echo "Compute-benchmarks version info:"
+      python3 -c "
+      import sys
+      sys.path.append('./devops/scripts/benchmarks')
+      from benches.compute import ComputeBench
+      bench = ComputeBench()
+      print(f'Git hash: {bench.git_hash()}')
+      print(f'Git URL: {bench.git_url()}')
+      "
   - name: Cache changes and upload github summary
     if: always()
     shell: bash
