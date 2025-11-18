@@ -133,7 +133,9 @@ class ProgramManager {
 public:
   // Returns the single instance of the program manager for the entire
   // process. Can only be called after staticInit is done.
-  static ProgramManager &getInstance();
+  static ProgramManager &getInstance() {
+    return GlobalHandler::instance().getProgramManager();
+  }
 
   const RTDeviceBinaryImage &getDeviceImage(KernelNameStrRefT KernelName,
                                             context_impl &ContextImpl,
@@ -571,6 +573,33 @@ protected:
 
   friend class ::ProgramManagerTest;
 };
+
+inline std::optional<int>
+ProgramManager::kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const {
+  auto it = m_KernelImplicitLocalArgPos.find(KernelName);
+  if (it != m_KernelImplicitLocalArgPos.end())
+    return it->second;
+  return {};
+}
+
+inline std::optional<kernel_id>
+ProgramManager::tryGetSYCLKernelID(KernelNameStrRefT KernelName) {
+  std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+
+  auto KernelID = m_KernelName2KernelIDs.find(KernelName);
+  if (KernelID == m_KernelName2KernelIDs.end())
+    return std::nullopt;
+
+  return KernelID->second;
+}
+
+inline kernel_id ProgramManager::getSYCLKernelID(KernelNameStrRefT KernelName) {
+  if (std::optional<kernel_id> MaybeKernelID = tryGetSYCLKernelID(KernelName))
+    return *MaybeKernelID;
+  throw exception(make_error_code(errc::runtime),
+                  "No kernel found with the specified name");
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

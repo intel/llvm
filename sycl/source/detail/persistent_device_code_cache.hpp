@@ -222,8 +222,7 @@ public:
 
   /* Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is set*/
   static void trace(const std::string &msg, const std::string &path = "") {
-    static const bool traceEnabled =
-        SYCLConfig<SYCL_CACHE_TRACE>::isTraceDiskCache();
+    static const bool traceEnabled = SYCLConfigTrace::isTraceDiskCache();
     if (traceEnabled) {
       auto outputPath = path;
       std::replace(outputPath.begin(), outputPath.end(), '\\', '/');
@@ -232,8 +231,7 @@ public:
   }
   static void trace_KernelCompiler(const std::string &msg,
                                    const std::string &path = "") {
-    static const bool traceEnabled =
-        SYCLConfig<SYCL_CACHE_TRACE>::isTraceKernelCompiler();
+    static const bool traceEnabled = SYCLConfigTrace::isTraceKernelCompiler();
     if (traceEnabled) {
       auto outputPath = path;
       std::replace(outputPath.begin(), outputPath.end(), '\\', '/');

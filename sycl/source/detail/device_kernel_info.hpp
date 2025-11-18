@@ -107,13 +107,28 @@ public:
 #endif
   void setCompileTimeInfoIfNeeded(const CompileTimeKernelInfoTy &Info);
 
-  FastKernelSubcacheT &getKernelSubcache();
-  bool usesAssert();
-  const std::optional<int> &getImplicitLocalArgPos();
+  FastKernelSubcacheT &getKernelSubcache() {
+    assertInitialized();
+    return MFastKernelSubcache;
+  }
+
+  bool usesAssert() const {
+    assertInitialized();
+    return MUsesAssert;
+  }
+
+  const std::optional<int> &getImplicitLocalArgPos() {
+    assertInitialized();
+    return MImplicitLocalArgPos;
+  }
 
 private:
-  void assertInitialized();
-  bool isCompileTimeInfoSet() const;
+  void assertInitialized() const {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    assert(MInitialized.load() && "Data needs to be initialized before use");
+#endif
+  }
+  bool isCompileTimeInfoSet() const { return KernelSize != 0; }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   std::atomic<bool> MInitialized = false;

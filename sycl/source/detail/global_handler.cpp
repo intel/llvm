@@ -105,20 +105,7 @@ void GlobalHandler::TraceEventXPTI(const char *Message) {
 #endif
 }
 
-GlobalHandler *&GlobalHandler::getInstancePtr() {
-  static GlobalHandler *RTGlobalObjHandler = new GlobalHandler();
-  return RTGlobalObjHandler;
-}
-
-GlobalHandler &GlobalHandler::instance() {
-  GlobalHandler *RTGlobalObjHandler = GlobalHandler::getInstancePtr();
-  assert(RTGlobalObjHandler && "Handler must not be deallocated earlier");
-  return *RTGlobalObjHandler;
-}
-
-bool GlobalHandler::isInstanceAlive() {
-  return GlobalHandler::getInstancePtr();
-}
+GlobalHandler *GlobalHandler::RTGlobalObjHandler = new GlobalHandler();
 
 template <typename T, typename... Types>
 T &GlobalHandler::getOrCreate(InstWithLock<T> &IWL, Types &&...Args) {

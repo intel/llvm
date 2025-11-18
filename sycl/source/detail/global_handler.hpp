@@ -48,14 +48,13 @@ class DeviceKernelInfo;
 /// construction or destruction is generated anyway.
 class GlobalHandler {
 public:
-  /// \return a reference to a GlobalHandler singleton instance. Memory for
-  /// storing objects is allocated on first call. The reference is valid as long
-  /// as runtime library is loaded (i.e. untill `DllMain` or
+  static bool isInstanceAlive() { return RTGlobalObjHandler != nullptr; }
+  /// \return a reference to a GlobalHandler singleton instance. The reference
+  /// is valid as long as runtime library is loaded (i.e. untill `DllMain` or
   /// `__attribute__((destructor))` is called).
-  static GlobalHandler &instance();
+  static GlobalHandler &instance() { return *RTGlobalObjHandler; }
 
-  /// \return true if the instance has not been deallocated yet.
-  static bool isInstanceAlive();
+  static GlobalHandler *&getInstancePtr() { return RTGlobalObjHandler; }
 
   GlobalHandler(const GlobalHandler &) = delete;
   GlobalHandler(GlobalHandler &&) = delete;
@@ -95,19 +94,18 @@ public:
   // For testing purposes only
   void attachScheduler(Scheduler *Scheduler);
 
+  // Constructor and destructor are declared out-of-line to allow incomplete
+  // types as template arguments to unique_ptr.
+  GlobalHandler();
+  ~GlobalHandler();
+
 private:
   bool OkToDefer = true;
 
   friend void shutdown_early(bool);
   friend void shutdown_late();
   friend class ObjectUsageCounter;
-  static GlobalHandler *&getInstancePtr();
   static SpinLock MSyclGlobalHandlerProtector;
-
-  // Constructor and destructor are declared out-of-line to allow incomplete
-  // types as template arguments to unique_ptr.
-  GlobalHandler();
-  ~GlobalHandler();
 
   template <typename T> struct InstWithLock {
     std::unique_ptr<T> Inst;
@@ -135,7 +133,10 @@ private:
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   InstWithLock<std::deque<DeviceKernelInfo>> MDeviceKernelInfoStorage;
 #endif
+
+  static GlobalHandler *RTGlobalObjHandler;
 };
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
