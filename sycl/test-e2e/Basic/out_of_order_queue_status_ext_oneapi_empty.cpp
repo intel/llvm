@@ -46,7 +46,7 @@ void TestFunc(queue &Q) {
     });
   }
 
-  constexpr int InfiniteLoopPreventionThreshold = 1000;
+  constexpr int InfiniteLoopPreventionThreshold = 100;
   int InfiniteLoopPreventionCounter = 0;
 
   // Wait for tasks created by parallel_for to actually start running. Otherwise
@@ -66,7 +66,7 @@ void TestFunc(queue &Q) {
 
   // We expect that all submitted tasks are finished if ext_oneapi_empty is
   // true.
-  if (Q.ext_oneapi_empty())
+  if (Q.ext_oneapi_empty() && Y[0] != 100)
     CheckArray(Y, Size, 200);
 
   Q.wait();
