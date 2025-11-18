@@ -1,10 +1,11 @@
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "../fixtures.h"
+#include "uur/fixtures.h"
 #include <array>
 #include <cstring>
 
@@ -90,7 +91,7 @@ struct USMSaxpyKernelTest : USMSaxpyKernelTestBase {
   ur_exp_command_buffer_command_handle_t command_handle = nullptr;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(USMSaxpyKernelTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(USMSaxpyKernelTest);
 
 TEST_P(USMSaxpyKernelTest, UpdateParameters) {
   // Run command-buffer prior to update an verify output
@@ -188,7 +189,7 @@ struct USMMultiSaxpyKernelTest : USMSaxpyKernelTestBase {
   std::array<ur_exp_command_buffer_command_handle_t, nodes> command_handles{};
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(USMMultiSaxpyKernelTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(USMMultiSaxpyKernelTest);
 
 TEST_P(USMMultiSaxpyKernelTest, UpdateParameters) {
   // Run command-buffer prior to update an verify output

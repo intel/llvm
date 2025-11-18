@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2025-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -144,7 +144,8 @@ struct urEnqueueKernelLaunchWithArgsTest : uur::urKernelExecutionTest {
   ur_backend_t backend{};
   std::vector<ur_exp_kernel_arg_properties_t> args;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueKernelLaunchWithArgsTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(
+    urEnqueueKernelLaunchWithArgsTest);
 
 TEST_P(urEnqueueKernelLaunchWithArgsTest, Success) {
   ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
@@ -284,7 +285,8 @@ struct urEnqueueKernelLaunchWithArgsMemObjTest : uur::urKernelExecutionTest {
   } accessor;
   std::vector<ur_exp_kernel_arg_properties_t> args;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueKernelLaunchWithArgsMemObjTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(
+    urEnqueueKernelLaunchWithArgsMemObjTest);
 
 TEST_P(urEnqueueKernelLaunchWithArgsMemObjTest, Success) {
   ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
