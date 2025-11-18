@@ -189,6 +189,11 @@ jobs:
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             extra_lit_opts: --param test-preview-mode=True
             binaries_artifact: e2e_bin_preview
+          - name: New Offload Model
+            runner: '[Linux, "gen12"]'
+            target_devices: opencl:cpu
+            extra_lit_opts: --param enable_new_offload_model=True
+            testing_mode: 'build-only'
 
           # We're in an ABI-breaking window, so these don't make sense for now.
           - name: ABI compatibility / sycl-rel-6_2
@@ -219,7 +224,7 @@ jobs:
       toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}
       binaries_artifact: ${{ matrix.binaries_artifact || 'e2e_bin' }}
-      testing_mode: 'run-only'
+      testing_mode: ${{ matrix.testing_mode || 'run-only' }}
 
       # Do not install drivers on AMD and CUDA runners.
       install_igc_driver: >-

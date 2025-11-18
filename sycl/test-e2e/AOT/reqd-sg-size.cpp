@@ -5,6 +5,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_tgllp -o %t.tgllp.out %s
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 -o %t.x86.out %s
 
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-71777
+
 // ocloc on windows does not have support for PVC, so this command will
 // result in an error when on windows. (In general, there is no support
 // for pvc on windows.)

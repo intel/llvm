@@ -13,6 +13,9 @@
 // for pvc on windows.)
 // RUN: %if !windows %{ %clangxx -fsycl -fsycl-targets=intel_gpu_pvc -o %t.pvc.out %s %}
 
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-71777
+
 // UNSUPPORTED: target-native_cpu
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
 
