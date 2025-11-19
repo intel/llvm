@@ -4474,6 +4474,8 @@
 ?storeRawArg@handler@_V1@sycl@@AEAAPEAXAEBVraw_kernel_arg@experimental@oneapi@ext@23@@Z
 ?storeRawArg@handler@_V1@sycl@@AEAAPEAXPEBX_K@Z
 ?stringifyErrorCode@detail@_V1@sycl@@YAPEBDH@Z
+?submit_graph_direct_with_event_impl@_V1@sycl@@YA?AVevent@12@AEBVqueue@12@AEAV?$command_graph@$00@experimental@oneapi@ext@12@V?$span@$$CBVevent@_V1@sycl@@$0?0@12@AEBUcode_location@detail@12@@Z
+?submit_graph_direct_without_event_impl@_V1@sycl@@YAXAEBVqueue@12@AEAV?$command_graph@$00@experimental@oneapi@ext@12@V?$span@$$CBVevent@_V1@sycl@@$0?0@12@AEBUcode_location@detail@12@@Z
 ?submit_impl@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@AEBUcode_location@detail@23@@Z
 ?submit_impl@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@AEBUcode_location@detail@23@_N@Z
 ?submit_impl@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@V123@AEBUcode_location@detail@23@@Z
