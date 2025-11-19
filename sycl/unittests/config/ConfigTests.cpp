@@ -28,8 +28,8 @@ TEST(ConfigTests, CheckConfigProcessing) {
     File.close();
   }
   try {
-    sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
-    throw std::logic_error("sycl::exception didn't throw");
+    sycl::detail::readConfig(true);
+    throw std::logic_error("sycl::exception didn't throw 1");
   } catch (sycl::exception &e) {
     EXPECT_EQ(
         std::string(
@@ -46,8 +46,8 @@ TEST(ConfigTests, CheckConfigProcessing) {
     File.close();
   }
   try {
-    sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
-    throw std::logic_error("sycl::exception didn't throw");
+    sycl::detail::readConfig(true);
+    throw std::logic_error("sycl::exception didn't throw 2");
   } catch (sycl::exception &e) {
     EXPECT_EQ(
         std::string(
@@ -64,8 +64,8 @@ TEST(ConfigTests, CheckConfigProcessing) {
     File.close();
   }
   try {
-    sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
-    throw std::logic_error("sycl::exception didn't throw");
+    sycl::detail::readConfig(true);
+    throw std::logic_error("sycl::exception didn't throw 3");
   } catch (sycl::exception &e) {
     EXPECT_EQ(
         std::string(
@@ -82,8 +82,8 @@ TEST(ConfigTests, CheckConfigProcessing) {
     File.close();
   }
   try {
-    sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
-    throw std::logic_error("sycl::exception didn't throw");
+    sycl::detail::readConfig(true);
+    throw std::logic_error("sycl::exception didn't throw 4");
   } catch (sycl::exception &e) {
     EXPECT_EQ(
         std::string(
@@ -103,8 +103,8 @@ TEST(ConfigTests, CheckConfigProcessing) {
     File.close();
   }
   try {
-    sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
-    throw std::logic_error("sycl::exception didn't throw");
+    sycl::detail::readConfig(true);
+    throw std::logic_error("sycl::exception didn't throw 5");
   } catch (sycl::exception &e) {
     EXPECT_TRUE(std::regex_match(
         e.what(),
@@ -121,8 +121,8 @@ TEST(ConfigTests, CheckConfigProcessing) {
     File.close();
   }
   try {
-    sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
-    throw std::logic_error("sycl::exception didn't throw");
+    sycl::detail::readConfig(true);
+    throw std::logic_error("sycl::exception didn't throw 6");
   } catch (sycl::exception &e) {
     EXPECT_TRUE(std::regex_match(
         e.what(), std::regex("Variable name is more than ([\\d]+) or less "
@@ -142,8 +142,8 @@ TEST(ConfigTests, CheckConfigProcessing) {
     File.close();
   }
   try {
-    sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
-    throw std::logic_error("sycl::exception didn't throw");
+    sycl::detail::readConfig(true);
+    throw std::logic_error("sycl::exception didn't throw 7");
   } catch (sycl::exception &e) {
     EXPECT_TRUE(std::regex_match(
         e.what(), std::regex("The value contains more than ([\\d]+) characters "
@@ -159,8 +159,8 @@ TEST(ConfigTests, CheckConfigProcessing) {
     File.close();
   }
   try {
-    sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
-    throw std::logic_error("sycl::exception didn't throw");
+    sycl::detail::readConfig(true);
+    throw std::logic_error("sycl::exception didn't throw 8");
   } catch (sycl::exception &e) {
     EXPECT_TRUE(std::regex_match(
         e.what(), std::regex("The value contains more than ([\\d]+) characters "
@@ -176,8 +176,8 @@ TEST(ConfigTests, CheckConfigProcessing) {
     File.close();
   }
   try {
-    sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
-    throw std::logic_error("sycl::exception didn't throw");
+    sycl::detail::readConfig(true);
+    throw std::logic_error("sycl::exception didn't throw 9");
   } catch (sycl::exception &e) {
     EXPECT_TRUE(std::regex_match(
         e.what(), std::regex("The value contains more than ([\\d]+) characters "
@@ -249,20 +249,17 @@ TEST(ConfigTests, CheckSyclCacheTraceTest) {
   // Lambda to test parsing of SYCL_CACHE_TRACE
   auto TestConfig = [](int expectedValue, int expectedDiskCache,
                        int expectedInMemCache, int expectedKernelCompiler) {
-    EXPECT_EQ(static_cast<unsigned int>(expectedValue),
-              SYCLConfig<SYCL_CACHE_TRACE>::get());
+    EXPECT_EQ(static_cast<unsigned int>(expectedValue), SYCLConfigTrace::get());
 
     EXPECT_EQ(
         expectedDiskCache,
-        static_cast<int>(
-            sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::isTraceDiskCache()));
+        static_cast<int>(sycl::detail::SYCLConfigTrace::isTraceDiskCache()));
     EXPECT_EQ(
         expectedInMemCache,
-        static_cast<int>(
-            sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache()));
+        static_cast<int>(sycl::detail::SYCLConfigTrace::isTraceInMemCache()));
     EXPECT_EQ(expectedKernelCompiler,
-              static_cast<int>(sycl::detail::SYCLConfig<
-                               SYCL_CACHE_TRACE>::isTraceKernelCompiler()));
+              static_cast<int>(
+                  sycl::detail::SYCLConfigTrace::isTraceKernelCompiler()));
   };
 
   // Lambda to set SYCL_CACHE_TRACE
@@ -279,40 +276,40 @@ TEST(ConfigTests, CheckSyclCacheTraceTest) {
   TestConfig(0, 0, 0, 0);
 
   SetSyclCacheTraceEnv("1");
-  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  sycl::detail::SYCLConfigTrace::reset();
   TestConfig(1, 1, 0, 0);
 
   SetSyclCacheTraceEnv("2");
-  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  sycl::detail::SYCLConfigTrace::reset();
   TestConfig(2, 0, 1, 0);
 
   SetSyclCacheTraceEnv("3");
-  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  sycl::detail::SYCLConfigTrace::reset();
   TestConfig(3, 1, 1, 0);
 
   SetSyclCacheTraceEnv("4");
-  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  sycl::detail::SYCLConfigTrace::reset();
   TestConfig(4, 0, 0, 1);
 
   SetSyclCacheTraceEnv("5");
-  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  sycl::detail::SYCLConfigTrace::reset();
   TestConfig(5, 1, 0, 1);
 
   SetSyclCacheTraceEnv("6");
-  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  sycl::detail::SYCLConfigTrace::reset();
   TestConfig(6, 0, 1, 1);
 
   SetSyclCacheTraceEnv("7");
-  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  sycl::detail::SYCLConfigTrace::reset();
   TestConfig(7, 1, 1, 1);
 
   SetSyclCacheTraceEnv("8");
-  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  sycl::detail::SYCLConfigTrace::reset();
   TestConfig(1, 1, 0, 0);
 
   // Set random non-null value. It should default to 1.
   SetSyclCacheTraceEnv("random");
-  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  sycl::detail::SYCLConfigTrace::reset();
   TestConfig(1, 1, 0, 0);
 
   // When SYCL_CACHE_TRACE is not set, it should default to 0.
@@ -321,7 +318,7 @@ TEST(ConfigTests, CheckSyclCacheTraceTest) {
 #else
   unsetenv("SYCL_CACHE_TRACE");
 #endif
-  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  sycl::detail::SYCLConfigTrace::reset();
   TestConfig(0, 0, 0, 0);
 }
 
