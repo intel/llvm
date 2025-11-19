@@ -1794,14 +1794,6 @@ Managed<ur_program_handle_t> ProgramManager::build(
   return LinkedProg;
 }
 
-void ProgramManager::cacheKernelUsesAssertInfo(const RTDeviceBinaryImage &Img) {
-  const RTDeviceBinaryImage::PropertyRange &AssertUsedRange =
-      Img.getAssertUsed();
-  if (AssertUsedRange.isAvailable())
-    for (const auto &Prop : AssertUsedRange)
-      m_KernelUsesAssert.insert(Prop->Name);
-}
-
 void ProgramManager::cacheKernelImplicitLocalArg(
     const RTDeviceBinaryImage &Img) {
   const RTDeviceBinaryImage::PropertyRange &ImplicitLocalArgRange =
@@ -2044,8 +2036,6 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
     m_KernelNameRefCount[name]++;
   }
 
-  cacheKernelUsesAssertInfo(*Img);
-
   // check if kernel uses sanitizer
   {
     sycl_device_binary_property SanProp = Img->getProperty("sanUsed");
@@ -2233,7 +2223,6 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
       if (--RefCount == 0) {
         // TODO aggregate all these maps into a single one since their entries
         // share lifetime.
-        m_KernelUsesAssert.erase(Name);
         m_KernelImplicitLocalArgPos.erase(Name);
         m_DeviceKernelInfoMap.erase(Name);
         m_KernelNameRefCount.erase(RefCountIt);
