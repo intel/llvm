@@ -339,10 +339,18 @@ public:
     }
 
     std::map<device_impl *, LinkGraph<device_image_plain>> DevImageLinkGraphs;
+
+    // The linking logic differs depending on whether fast-linking is enabled:
+    // When doing fast-linking, we insert the suitable AOT binaries from the
+    // object bundles. This needs to be done per-device, as AOT binaries may
+    // not be compatible across different architectures. As such, the link-graph
+    // needs to be constructed for each device.
+    // When doing regular linking, the JIT images in the graph will be the same
+    // for all devices, so the link-graph can be created once and then resolved
+    // for each device in separation, with a unification at the end to bundle
+    // together the linking for devices with the same resulting sets of linked
+    // images.
     if (FastLink) {
-      // When doing fast-linking, we insert the suitable AOT binaries from the
-      // object bundles. This needs to be done per-device, as AOT binaries may
-      // not be compatible across different architectures.
       for (device_impl &Dev : get_devices()) {
         std::vector<device_image_plain> DevImages;
         std::set<device_image_impl *> DevImagesSet;
@@ -401,10 +409,7 @@ public:
                   AOTExportedSymbols.end())
                 continue;
 
-            // If any of the kernels overlap with an AOT binary, skip this
-            // image as fast-linking prioritizes AOT binaries.
-            // This can happen if the same source files have been compiled to
-            // both a usable AOT and JIT binary.
+            // Same as above, but regarding kernels instead of exported symbols.
             for (const sycl_device_binary_property &KNProp :
                  DevImg.get_bin_image_ref()->getKernelNames())
               if (AOTKernelNames.find(KNProp->Name) != AOTKernelNames.end())
