@@ -180,6 +180,34 @@ const std::array<std::pair<std::string, backend>, 8> &getSyclBeMap() {
        {"*", backend::all}}};
   return SyclBeMap;
 }
+namespace {
+
+unsigned int parseLevel(const char *ValStr) {
+  unsigned int intVal = 0;
+
+  if (ValStr) {
+    try {
+      intVal = std::stoul(ValStr);
+    } catch (...) {
+      // If the value is not null and not a number, it is considered
+      // to enable disk cache tracing. This is the legacy behavior.
+      intVal = 1;
+    }
+  }
+
+  // Legacy behavior.
+  if (intVal > 7)
+    intVal = 1;
+
+  return intVal;
+}
+
+} // namespace
+
+void SYCLConfigTrace::reset() { Level = parseLevel(BaseT::getRawValue()); }
+
+unsigned int SYCLConfigTrace::Level =
+    parseLevel(SYCLConfigTrace::BaseT::getRawValue());
 
 } // namespace detail
 } // namespace _V1
