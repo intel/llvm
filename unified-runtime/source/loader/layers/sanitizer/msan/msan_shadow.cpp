@@ -163,7 +163,7 @@ ur_result_t MsanShadowMemoryCPU::EnqueuePoisonShadowWithOrigin(
                (void *)(uptr)Value);
       memset((void *)ShadowBegin, Value, ShadowEnd - ShadowBegin + 1);
     }
-    {
+    if (Origin) {
       const uptr OriginBegin = MemToOrigin(Ptr);
       const uptr OriginEnd =
           MemToOrigin(Ptr + Size - 1) + MSAN_ORIGIN_GRANULARITY;
@@ -323,7 +323,7 @@ ur_result_t MsanShadowMemoryGPU::EnqueuePoisonShadowWithOrigin(
                           Events.data(), OutEvent));
   }
 
-  {
+  if (Origin) {
     uptr OriginBegin = MemToOrigin(Ptr);
     uptr OriginEnd = MemToOrigin(Ptr + Size - 1) + sizeof(Origin) - 1;
     UR_CALL(EnqueueVirtualMemMap(OriginBegin, OriginEnd, Events, OutEvent));
