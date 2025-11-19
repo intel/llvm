@@ -796,7 +796,22 @@ void applyFuncOnFilteredArgs(
   }
 }
 
-void ReverseRangeDimensionsForKernel(NDRDescT &NDR);
+// We have the following mapping between dimensions with SPIR-V builtins:
+// 1D: id[0] -> x
+// 2D: id[0] -> y, id[1] -> x
+// 3D: id[0] -> z, id[1] -> y, id[2] -> x
+// So in order to ensure the correctness we update all the kernel
+// parameters accordingly.
+// Initially we keep the order of NDRDescT as it provided by the user, this
+// simplifies overall handling and do the reverse only when
+// the kernel is enqueued.
+inline void ReverseRangeDimensionsForKernel(NDRDescT &NDR) {
+  if (NDR.Dims > 1) {
+    std::swap(NDR.GlobalSize[0], NDR.GlobalSize[NDR.Dims - 1]);
+    std::swap(NDR.LocalSize[0], NDR.LocalSize[NDR.Dims - 1]);
+    std::swap(NDR.GlobalOffset[0], NDR.GlobalOffset[NDR.Dims - 1]);
+  }
+}
 
 } // namespace detail
 } // namespace _V1
