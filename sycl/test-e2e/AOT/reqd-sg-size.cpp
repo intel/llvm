@@ -1,8 +1,9 @@
 // This test ensures that a program that has a kernel
 // using various required sub-group sizes can be compiled AOT.
 
-// REQUIRES: ocloc, opencl-aot, any-device-is-cpu, opencl-cpu-rt
-// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_tgllp -o %t.tgllp.out %s
+// Don't run on Gen12 Windows as we don't use a driver that can AOT compile.
+// REQUIRES: ocloc, opencl-aot, any-device-is-cpu, opencl-cpu-rt, (!gpu-intel-gen12 || linux)
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_acm_g10 -o %t.dg2.out %s
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 -o %t.x86.out %s
 
 // UNSUPPORTED: new-offload-model
