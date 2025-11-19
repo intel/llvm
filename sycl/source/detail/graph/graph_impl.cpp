@@ -705,6 +705,14 @@ void graph_impl::beginRecording(sycl::detail::queue_impl &Queue) {
     addQueue(Queue);
   }
 }
+void graph_impl::endRecording() {
+  // Collect attribute(s) for recorded Graph
+  if (MRecordingQueues.size() == 1) {
+    if (auto ValidQueue = MRecordingQueues.begin()->lock(); ValidQueue) {
+      MIsLinearRecorded = ValidQueue->isInOrder();
+    }
+  }
+}
 
 // Check if nodes do not require enqueueing and if so loop back through
 // predecessors until we find the real dependency.
@@ -1262,6 +1270,11 @@ exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
 }
 
 void exec_graph_impl::duplicateNodes() {
+  if (MGraphImpl->isLinearRecorded() && !MGraphImpl->hasSubGraph()) {
+    MNodeStorage = MGraphImpl->MNodeStorage;
+    return;
+  }
+
   // Map of original modifiable nodes (keys) to new duplicated nodes (values)
   std::unordered_map<node_impl *, node_impl *> NodesMap;
   nodes_range ModifiableNodes{MGraphImpl->MNodeStorage};
@@ -1971,6 +1984,7 @@ void modifiable_command_graph::begin_recording(
 
 void modifiable_command_graph::end_recording() {
   graph_impl::WriteLock Lock(impl->MMutex);
+  impl->endRecording();
   impl->clearQueues();
 }
 

@@ -788,6 +788,7 @@ event handler::finalize() {
         ParentLock = ext::oneapi::experimental::detail::graph_impl::WriteLock(
             ParentGraph->MMutex);
       }
+      ParentGraph->setHasSubGraph();
       impl->CGData.MRequirements = impl->MExecGraph->getRequirements();
       // Here we are using the CommandGroup without passing a CommandBuffer to
       // pass the exec_graph_impl and event dependencies. Since this subgraph CG
