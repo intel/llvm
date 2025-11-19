@@ -3805,13 +3805,6 @@ private:
   friend auto get_native(const queue &Obj)
       -> backend_return_t<BackendName, queue>;
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-#if __SYCL_USE_FALLBACK_ASSERT
-  friend event detail::submitAssertCapture(const queue &, event &,
-                                           const detail::code_location &);
-#endif
-#endif
-
   template <typename CommandGroupFunc, typename PropertiesT>
   friend void ext::oneapi::experimental::detail::submit_impl(
       const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
