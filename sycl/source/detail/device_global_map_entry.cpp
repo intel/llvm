@@ -70,7 +70,8 @@ bool DeviceGlobalMapEntry::isProfileCounter() const {
 // __sycl_increment_profile_counters must be defined as a weak symbol so that
 // the program will link even if the profiling runtime is not linked in. When
 // compiling with MSVC there is no weak attribute, so we use a pragma comment
-// and default function to achieve the same effect.
+// and default function to achieve the same effect. When compiling with Apple
+// Clang, profiling is unsupported and the function definition is empty.
 #ifdef _MSC_VER
 extern "C" void
 __sycl_increment_profile_counters(std::uint64_t FnHash, std::size_t NumCounters,
@@ -86,6 +87,14 @@ __sycl_increment_profile_counters_default(std::uint64_t FnHash,
 #pragma comment(                                                               \
     linker,                                                                    \
     "/alternatename:__sycl_increment_profile_counters=__sycl_increment_profile_counters_default")
+#elif defined(__clang__) && defined(__apple_build_version__)
+extern "C" void
+__sycl_increment_profile_counters(std::uint64_t FnHash, std::size_t NumCounters,
+                                  const std::uint64_t *Increments) {
+  (void)FnHash;
+  (void)NumCounters;
+  (void)Increments;
+}
 #else
 extern "C" void __attribute__((weak))
 __sycl_increment_profile_counters(std::uint64_t FnHash, std::size_t NumCounters,
