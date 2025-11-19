@@ -173,6 +173,7 @@ jobs:
 
     - name: Test adapters
       env:
+        UR_L0_V2_FORCE_DISABLE_COPY_OFFLOAD: 1
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
         LIT_OPTS: "--timeout 120"
       run: cmake --build build -j $(nproc) -- check-unified-runtime-conformance
