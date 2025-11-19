@@ -318,8 +318,7 @@ void GlobalHandler::drainThreadPool() {
 //  2) when process is being terminated
 void shutdown_early(bool CanJoinThreads = true) {
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
-  GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
-  if (!Handler)
+  if (!GlobalHandler::RTGlobalObjHandler)
     return;
 
 #if defined(XPTI_ENABLE_INSTRUMENTATION) && defined(_WIN32)
@@ -329,26 +328,26 @@ void shutdown_early(bool CanJoinThreads = true) {
 #endif
 
   // Now that we are shutting down, we will no longer defer MemObj releases.
-  Handler->endDeferredRelease();
+  GlobalHandler::RTGlobalObjHandler->endDeferredRelease();
 
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
-  Handler->prepareSchedulerToRelease(true);
+  GlobalHandler::RTGlobalObjHandler->prepareSchedulerToRelease(true);
 
-  if (Handler->MHostTaskThreadPool.Inst) {
-    Handler->MHostTaskThreadPool.Inst->finishAndWait(CanJoinThreads);
-    Handler->MHostTaskThreadPool.Inst.reset(nullptr);
+  if (GlobalHandler::RTGlobalObjHandler->MHostTaskThreadPool.Inst) {
+    GlobalHandler::RTGlobalObjHandler->MHostTaskThreadPool.Inst->finishAndWait(
+        CanJoinThreads);
+    GlobalHandler::RTGlobalObjHandler->MHostTaskThreadPool.Inst.reset(nullptr);
   }
 
   // This releases OUR reference to the default context, but
   // other may yet have refs
-  Handler->releaseDefaultContexts();
+  GlobalHandler::RTGlobalObjHandler->releaseDefaultContexts();
 }
 
 void shutdown_late() {
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
-  GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
-  if (!Handler)
+  if (!GlobalHandler::RTGlobalObjHandler)
     return;
 
 #if defined(XPTI_ENABLE_INSTRUMENTATION) && defined(_WIN32)
@@ -358,26 +357,27 @@ void shutdown_late() {
 #endif
 
   // First, release resources, that may access adapters.
-  Handler->MPlatformCache.Inst.reset(nullptr);
-  Handler->MScheduler.Inst.reset(nullptr);
-  Handler->MProgramManager.Inst.reset(nullptr);
+  GlobalHandler::RTGlobalObjHandler->MPlatformCache.Inst.reset(nullptr);
+  GlobalHandler::RTGlobalObjHandler->MScheduler.Inst.reset(nullptr);
+  GlobalHandler::RTGlobalObjHandler->MProgramManager.Inst.reset(nullptr);
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // Kernel cache, which is part of device kernel info,
   // stores handles to the adapter, so clear it before releasing adapters.
-  Handler->MDeviceKernelInfoStorage.Inst.reset(nullptr);
+  GlobalHandler::RTGlobalObjHandler->MDeviceKernelInfoStorage.Inst.reset(
+      nullptr);
 #endif
 
   // Clear the adapters and reset the instance if it was there.
-  Handler->unloadAdapters();
-  if (Handler->MAdapters.Inst)
-    Handler->MAdapters.Inst.reset(nullptr);
+  GlobalHandler::RTGlobalObjHandler->unloadAdapters();
+  if (GlobalHandler::RTGlobalObjHandler->MAdapters.Inst)
+    GlobalHandler::RTGlobalObjHandler->MAdapters.Inst.reset(nullptr);
 
-  Handler->MXPTIRegistry.Inst.reset(nullptr);
+  GlobalHandler::RTGlobalObjHandler->MXPTIRegistry.Inst.reset(nullptr);
 
   // Release the rest of global resources.
-  delete Handler;
-  Handler = nullptr;
+  delete GlobalHandler::RTGlobalObjHandler;
+  GlobalHandler::RTGlobalObjHandler = nullptr;
 }
 
 #ifdef _WIN32

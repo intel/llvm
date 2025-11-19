@@ -54,8 +54,6 @@ public:
   /// `__attribute__((destructor))` is called).
   static GlobalHandler &instance() { return *RTGlobalObjHandler; }
 
-  static GlobalHandler *&getInstancePtr() { return RTGlobalObjHandler; }
-
   GlobalHandler(const GlobalHandler &) = delete;
   GlobalHandler(GlobalHandler &&) = delete;
   GlobalHandler &operator=(const GlobalHandler &) = delete;
@@ -94,12 +92,12 @@ public:
   // For testing purposes only
   void attachScheduler(Scheduler *Scheduler);
 
+private:
   // Constructor and destructor are declared out-of-line to allow incomplete
   // types as template arguments to unique_ptr.
   GlobalHandler();
   ~GlobalHandler();
 
-private:
   bool OkToDefer = true;
 
   friend void shutdown_early(bool);

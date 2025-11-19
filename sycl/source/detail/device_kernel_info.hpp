@@ -117,7 +117,7 @@ public:
     return MUsesAssert;
   }
 
-  const std::optional<int> &getImplicitLocalArgPos() {
+  std::optional<int> getImplicitLocalArgPos() const {
     assertInitialized();
     return MImplicitLocalArgPos;
   }
