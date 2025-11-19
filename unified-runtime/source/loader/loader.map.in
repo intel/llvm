@@ -397,9 +397,11 @@
 		urPrintKernelGetSuggestedLocalWorkSizeParams;
 		urPrintKernelGroupInfo;
 		urPrintKernelInfo;
+		urPrintKernelLaunchClusterProperty;
+		urPrintKernelLaunchExtProperties;
+		urPrintKernelLaunchFlags;
 		urPrintKernelLaunchPropertiesFlags;
-		urPrintKernelLaunchProperty;
-		urPrintKernelLaunchPropertyId;
+		urPrintKernelLaunchWorkgroupProperty;
 		urPrintKernelNativeProperties;
 		urPrintKernelReleaseParams;
 		urPrintKernelRetainParams;
