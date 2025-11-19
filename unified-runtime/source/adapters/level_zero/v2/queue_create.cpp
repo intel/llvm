@@ -12,8 +12,11 @@
 
 #include "logger/ur_logger.hpp"
 #include "queue_api.hpp"
+#include "queue_batched.hpp"
 #include "queue_handle.hpp"
 #include "queue_immediate_in_order.hpp"
+
+static const bool ForceBatched = getenv_tobool("UR_L0_V2_FORCE_BATCHED");
 
 namespace v2 {
 
@@ -62,21 +65,56 @@ ur_result_t urQueueCreate(ur_context_handle_t hContext,
     return UR_RESULT_ERROR_INVALID_DEVICE;
   }
 
+  TRACK_SCOPE_LATENCY("queueCreate");
+
   ur_queue_flags_t flags = 0;
   if (pProperties) {
     flags = pProperties->flags;
   }
 
+  if (ForceBatched) {
+    flags |= UR_QUEUE_FLAG_SUBMISSION_BATCHED;
+  }
+
   auto zeIndex = v2::getZeIndex(pProperties);
 
-  if ((flags & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) != 0) {
-    *phQueue =
-        ur_queue_handle_t_::create<v2::ur_queue_immediate_out_of_order_t>(
-            hContext, hDevice, v2::getZeOrdinal(hDevice),
-            v2::getZePriority(flags), zeIndex,
-            v2::eventFlagsFromQueueFlags(flags), flags);
+  bool immediate = true;
+  bool outOfOrder = false;
+
+  if (flags & UR_QUEUE_FLAG_SUBMISSION_BATCHED) {
+    immediate = false;
+  }
+
+  if (flags & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
+    outOfOrder = true;
+  }
+
+  if (flags & UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE) {
+    if (!immediate) {
+      UR_LOG(WARN,
+             "urQueueCreate called with both UR_QUEUE_FLAG_SUBMISSION_BATCHED "
+             "and UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE in ur_queue_flags_t. "
+             "Defaulting to the immediate submission mode.");
+    }
+
+    immediate = true;
+  }
+
+  if (immediate) {
+    if (outOfOrder) {
+      *phQueue =
+          ur_queue_handle_t_::create<v2::ur_queue_immediate_out_of_order_t>(
+              hContext, hDevice, v2::getZeOrdinal(hDevice),
+              v2::getZePriority(flags), zeIndex,
+              v2::eventFlagsFromQueueFlags(flags), flags);
+    } else {
+      *phQueue = ur_queue_handle_t_::create<v2::ur_queue_immediate_in_order_t>(
+          hContext, hDevice, v2::getZeOrdinal(hDevice),
+          v2::getZePriority(flags), zeIndex,
+          v2::eventFlagsFromQueueFlags(flags), flags);
+    }
   } else {
-    *phQueue = ur_queue_handle_t_::create<v2::ur_queue_immediate_in_order_t>(
+    *phQueue = ur_queue_handle_t_::create<v2::ur_queue_batched_t>(
         hContext, hDevice, v2::getZeOrdinal(hDevice), v2::getZePriority(flags),
         zeIndex, v2::eventFlagsFromQueueFlags(flags), flags);
   }
