@@ -5032,24 +5032,27 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   if (IsMSVCHostCompiler)
     HostCompileArgs.push_back("/external:W0");
 
-  // Add default header search directories.
-  SmallString<128> BaseDir(C.getDriver().Dir);
-  llvm::sys::path::append(BaseDir, "..", "include");
-  SmallString<128> SYCLDir(BaseDir);
-  llvm::sys::path::append(SYCLDir, "sycl");
-  // This is used to provide our wrappers around STL headers that provide
-  // additional functions/template specializations when the user includes those
-  // STL headers in their programs (e.g., <complex>).
-  SmallString<128> STLWrappersDir(SYCLDir);
-  llvm::sys::path::append(STLWrappersDir, "stl_wrappers");
-  // Add the SYCL specific header directories as system directories for non
-  // MSVC compilers.
-  HostCompileArgs.push_back(IsMSVCHostCompiler ? "/external:I" : "-isystem");
-  HostCompileArgs.push_back(TCArgs.MakeArgString(SYCLDir));
-  HostCompileArgs.push_back(IsMSVCHostCompiler ? "/external:I" : "-isystem");
-  HostCompileArgs.push_back(TCArgs.MakeArgString(STLWrappersDir));
-  HostCompileArgs.push_back(IsMSVCHostCompiler ? "/external:I" : "-isystem");
-  HostCompileArgs.push_back(TCArgs.MakeArgString(BaseDir));
+  namespace options = clang::driver::options;
+  if (!TCArgs.hasArg(options::OPT_nostdlibinc, options::OPT_nostdinc)) {
+    // Add default header search directories.
+    SmallString<128> BaseDir(C.getDriver().Dir);
+    llvm::sys::path::append(BaseDir, "..", "include");
+    SmallString<128> SYCLDir(BaseDir);
+    llvm::sys::path::append(SYCLDir, "sycl");
+    // This is used to provide our wrappers around STL headers that provide
+    // additional functions/template specializations when the user includes
+    // those STL headers in their programs (e.g., <complex>).
+    SmallString<128> STLWrappersDir(SYCLDir);
+    llvm::sys::path::append(STLWrappersDir, "stl_wrappers");
+    // Add the SYCL specific header directories as system directories for non
+    // MSVC compilers.
+    HostCompileArgs.push_back(IsMSVCHostCompiler ? "/external:I" : "-isystem");
+    HostCompileArgs.push_back(TCArgs.MakeArgString(SYCLDir));
+    HostCompileArgs.push_back(IsMSVCHostCompiler ? "/external:I" : "-isystem");
+    HostCompileArgs.push_back(TCArgs.MakeArgString(STLWrappersDir));
+    HostCompileArgs.push_back(IsMSVCHostCompiler ? "/external:I" : "-isystem");
+    HostCompileArgs.push_back(TCArgs.MakeArgString(BaseDir));
+  }
 
   if (!OutputAdded) {
     // Add output file to the command line.  This is assumed to be prefaced
@@ -10257,6 +10260,18 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
         "kind=" + Kind.str(),
     };
 
+    // When compiling like -fsycl-targets=spir64_gen -Xsycl-target-backend
+    // "-device pvc,bdw", the offloading arch will be "pvc,bdw", which
+    // contains a comma. Because the comma is used to separate fields
+    // within the --image option, we cannot pass arch=pvc,bdw directly.
+    // Instead, we pass it like arch=pvc,arch=bdw, then
+    // llvm-offload-binary joins them back to arch=pvc,bdw.
+    SmallVector<StringRef> Archs;
+    Arch.split(Archs, ',');
+    if (Archs.size() > 1) {
+      Parts[2] = "arch=" + llvm::join(Archs, ",arch=");
+    }
+
     if (TC->getDriver().isUsingOffloadLTO())
       for (StringRef Feature : FeatureArgs)
         Parts.emplace_back("feature=" + Feature.str());
@@ -10280,7 +10295,13 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
           AL += " ";
           AL += A;
         }
-        Parts.emplace_back(C.getArgs().MakeArgString(Twine(Opt) + AL));
+        // As mentioned earlier, we cannot pass a value with commas directly,
+        // but llvm-offload-binary joins multiple occurrences of the same
+        // option separated by commas, so we split the value on
+        // all commas and pass them as separate arguments.
+        for (StringRef Split : llvm::split(AL, ',')) {
+          Parts.emplace_back(C.getArgs().MakeArgString(Twine(Opt) + Split));
+        }
       };
       const ArgList &Args =
           C.getArgsForToolChain(nullptr, StringRef(), Action::OFK_SYCL);
@@ -10289,10 +10310,10 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
           static_cast<const toolchains::SYCLToolChain &>(*TC);
       SYCLTC.AddImpliedTargetArgs(TC->getTriple(), Args, BuildArgs, JA, *HostTC,
                                   Arch);
-      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs, Arch);
+      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
       createArgString("compile-opts=");
       BuildArgs.clear();
-      SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs, Arch);
+      SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);
       createArgString("link-opts=");
     }
 

@@ -112,6 +112,11 @@ int main() {
   NonemptyWrapper.kernel_single_task<class NEK9>([]() [[sycl::device_has(sycl::aspect::cpu)]] {});
   // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::device_has" it will be ignored}}
   NonemptyWrapper.kernel_single_task<class NEK10>([]() [[sycl::device_has(sycl::aspect::cpu, sycl::aspect::gpu)]] {});
+  // expected-warning@+4 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+3 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+2 {{kernel has both attribute 'sycl::reqd_sub_group_size' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; conflicting properties are ignored}}
+  NonemptyWrapper.kernel_single_task<class NEK11>([]() [[sycl::reqd_work_group_size(1)]] [[sycl::work_group_size_hint(1)]] [[sycl::reqd_sub_group_size(1)]] [[sycl::device_has(sycl::aspect::cpu, sycl::aspect::gpu)]] {});
 
   // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size" it will be ignored}}
   NonemptyWrapperWithImplicit.kernel_single_task<class NEKWI1>([]() [[sycl::reqd_work_group_size(1)]] {});
@@ -133,6 +138,11 @@ int main() {
   NonemptyWrapperWithImplicit.kernel_single_task<class NEKWI9>([]() [[sycl::device_has(sycl::aspect::cpu)]] {});
   // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::device_has" it will be ignored}}
   NonemptyWrapperWithImplicit.kernel_single_task<class NEKWI10>([]() [[sycl::device_has(sycl::aspect::cpu, sycl::aspect::gpu)]] {});
+  // expected-warning@+4 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+3 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+2 {{kernel has both attribute 'sycl::reqd_sub_group_size' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; conflicting properties are ignored}}
+  NonemptyWrapperWithImplicit.kernel_single_task<class NEKWI11>([]() [[sycl::reqd_work_group_size(1)]] [[sycl::work_group_size_hint(1)]] [[sycl::reqd_sub_group_size(1)]] [[sycl::device_has(sycl::aspect::cpu, sycl::aspect::gpu)]] {});
 
   // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size" it will be ignored}}
   NonemptyWrapperWithFilter.kernel_single_task<class NEKWF1>([]() [[sycl::reqd_work_group_size(1)]] {});
@@ -154,6 +164,11 @@ int main() {
   NonemptyWrapperWithFilter.kernel_single_task<class NEKWF9>([]() [[sycl::device_has(sycl::aspect::cpu)]] {});
   // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::device_has" it will be ignored}}
   NonemptyWrapperWithFilter.kernel_single_task<class NEKWF10>([]() [[sycl::device_has(sycl::aspect::cpu, sycl::aspect::gpu)]] {});
+  // expected-warning@+4 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+3 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+2 {{kernel has both attribute 'sycl::reqd_sub_group_size' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; conflicting properties are ignored}}
+  NonemptyWrapperWithFilter.kernel_single_task<class NEKWF11>([]() [[sycl::reqd_work_group_size(1)]] [[sycl::work_group_size_hint(1)]] [[sycl::reqd_sub_group_size(1)]] [[sycl::device_has(sycl::aspect::cpu, sycl::aspect::gpu)]] {});
 
   // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size" it will be ignored}}
   NonemptyWrapperWithImplicitAndFilter.kernel_single_task<class NEKWIF1>([]() [[sycl::reqd_work_group_size(1)]] {});
@@ -175,4 +190,9 @@ int main() {
   NonemptyWrapperWithImplicitAndFilter.kernel_single_task<class NEKWIF9>([]() [[sycl::device_has(sycl::aspect::cpu)]] {});
   // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::device_has" it will be ignored}}
   NonemptyWrapperWithImplicitAndFilter.kernel_single_task<class NEKWIF10>([]() [[sycl::device_has(sycl::aspect::cpu, sycl::aspect::gpu)]] {});
+  // expected-warning@+4 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+3 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+2 {{kernel has both attribute 'sycl::reqd_sub_group_size' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; conflicting properties are ignored}}
+  NonemptyWrapperWithImplicitAndFilter.kernel_single_task<class NEKWIF11>([]() [[sycl::reqd_work_group_size(1)]] [[sycl::work_group_size_hint(1)]] [[sycl::reqd_sub_group_size(1)]] [[sycl::device_has(sycl::aspect::cpu, sycl::aspect::gpu)]] {});
 }
