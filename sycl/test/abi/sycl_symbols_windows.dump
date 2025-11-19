@@ -4069,11 +4069,9 @@
 ?getCommandGraph@handler@_V1@sycl@@AEBA?AV?$shared_ptr@Vgraph_impl@detail@experimental@oneapi@ext@_V1@sycl@@@std@@XZ
 ?getContextImpl@handler@_V1@sycl@@AEBAAEAVcontext_impl@detail@23@XZ
 ?getContextImplPtr@handler@_V1@sycl@@AEBAAEBV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@XZ
-?getCurrentDSODir@OSUtil@detail@_V1@sycl@@SA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ?getDeviceBackend@handler@_V1@sycl@@AEBA?AW4backend@23@XZ
 ?getDeviceFromHandler@detail@_V1@sycl@@YA?AVdevice@23@AEAVhandler@23@@Z
 ?getDeviceKernelInfo@detail@_V1@sycl@@YAAEAVDeviceKernelInfo@123@AEBUCompileTimeKernelInfoTy@compile_time_kernel_info_v1@123@@Z
-?getDirName@OSUtil@detail@_V1@sycl@@SA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEBD@Z
 ?getElemSize@AccessorBaseHost@detail@_V1@sycl@@QEBAIXZ
 ?getElementSize@LocalAccessorBaseHost@detail@_V1@sycl@@QEAAHXZ
 ?getElementSize@SampledImageAccessorBaseHost@detail@_V1@sycl@@QEBAHXZ
