@@ -587,10 +587,10 @@ struct Wrapper {
     auto *Target = addStringToModule(Image.Target, Twine(OffloadKindTag) +
                                                        "target." + ImageID);
     auto *CompileOptions =
-        addStringToModule(Options.CompileOptions,
+        addStringToModule(Image.CompileOptions,
                           Twine(OffloadKindTag) + "opts.compile." + ImageID);
     auto *LinkOptions = addStringToModule(
-        Options.LinkOptions, Twine(OffloadKindTag) + "opts.link." + ImageID);
+        Image.LinkOptions, Twine(OffloadKindTag) + "opts.link." + ImageID);
 
     std::pair<Constant *, Constant *> PropSets =
         addPropertySetRegistry(Image.PropertyRegistry);

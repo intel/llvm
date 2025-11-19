@@ -1478,8 +1478,9 @@ public:
           arch::intel_cpu_dmr,     arch::intel_gpu_pvc,
           arch::intel_gpu_dg2_g10, arch::intel_gpu_dg2_g11,
           arch::intel_gpu_dg2_g12, arch::intel_gpu_bmg_g21,
-          arch::intel_gpu_lnl_m,   arch::intel_gpu_arl_h,
-          arch::intel_gpu_ptl_h,   arch::intel_gpu_ptl_u,
+          arch::intel_gpu_bmg_g31, arch::intel_gpu_lnl_m,
+          arch::intel_gpu_arl_h,   arch::intel_gpu_ptl_h,
+          arch::intel_gpu_ptl_u,
       };
       try {
         return std::any_of(
@@ -2027,6 +2028,7 @@ public:
       };
     else if ((architecture::intel_gpu_pvc == DeviceArch) ||
              (architecture::intel_gpu_bmg_g21 == DeviceArch) ||
+             (architecture::intel_gpu_bmg_g31 == DeviceArch) ||
              (architecture::intel_gpu_lnl_m == DeviceArch) ||
              (architecture::intel_gpu_ptl_h == DeviceArch) ||
              (architecture::intel_gpu_ptl_u == DeviceArch)) {
