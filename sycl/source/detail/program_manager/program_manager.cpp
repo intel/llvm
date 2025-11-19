@@ -66,10 +66,6 @@ static void enableITTAnnotationsIfNeeded(const ur_program_handle_t &Prog,
   }
 }
 
-ProgramManager &ProgramManager::getInstance() {
-  return GlobalHandler::instance().getProgramManager();
-}
-
 static Managed<ur_program_handle_t>
 createBinaryProgram(context_impl &Context, devices_range Devices,
                     const uint8_t **Binaries, size_t *Lengths,
@@ -1805,14 +1801,6 @@ void ProgramManager::cacheKernelImplicitLocalArg(
     }
 }
 
-std::optional<int>
-ProgramManager::kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const {
-  auto it = m_KernelImplicitLocalArgPos.find(KernelName);
-  if (it != m_KernelImplicitLocalArgPos.end())
-    return it->second;
-  return {};
-}
-
 DeviceKernelInfo &ProgramManager::getOrCreateDeviceKernelInfo(
     const CompileTimeKernelInfoTy &Info) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
@@ -2342,24 +2330,6 @@ ProgramManager::getBinImageState(const RTDeviceBinaryImage *BinImage) {
     return sycl::bundle_state::input;
   return BinImage->getImportedSymbols().empty() ? sycl::bundle_state::executable
                                                 : sycl::bundle_state::object;
-}
-
-std::optional<kernel_id>
-ProgramManager::tryGetSYCLKernelID(KernelNameStrRefT KernelName) {
-  std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
-
-  auto KernelID = m_KernelName2KernelIDs.find(KernelName);
-  if (KernelID == m_KernelName2KernelIDs.end())
-    return std::nullopt;
-
-  return KernelID->second;
-}
-
-kernel_id ProgramManager::getSYCLKernelID(KernelNameStrRefT KernelName) {
-  if (std::optional<kernel_id> MaybeKernelID = tryGetSYCLKernelID(KernelName))
-    return *MaybeKernelID;
-  throw exception(make_error_code(errc::runtime),
-                  "No kernel found with the specified name");
 }
 
 bool ProgramManager::hasCompatibleImage(const device_impl &DeviceImpl) {
