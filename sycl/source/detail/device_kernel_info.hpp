@@ -108,7 +108,6 @@ public:
   void setCompileTimeInfoIfNeeded(const CompileTimeKernelInfoTy &Info);
 
   FastKernelSubcacheT &getKernelSubcache();
-  bool usesAssert();
   const std::optional<int> &getImplicitLocalArgPos();
 
 private:
@@ -119,7 +118,6 @@ private:
   std::atomic<bool> MInitialized = false;
 #endif
   FastKernelSubcacheT MFastKernelSubcache;
-  bool MUsesAssert;
   std::optional<int> MImplicitLocalArgPos;
 };
 
