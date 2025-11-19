@@ -233,7 +233,6 @@ ur_result_t ur_command_list_manager::appendKernelLaunchUnlocked(
   wait_list_view waitListView =
       getWaitListView(phEventWaitList, numEventsInWaitList);
 
-  // last arguments: pKMemObj == nullptr and pNext == nullptr
   return appendKernelLaunchLocked(
       hKernel, hZeKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
       pLocalWorkSize, waitListView, phEvent, cooperative);
