@@ -430,6 +430,24 @@ Error runLinker(ArrayRef<StringRef> Files, const ArgList &Args) {
     return createStringError("linker path missing, must pass 'linker-path'");
   ArgStringList NewLinkerArgs;
   for (const opt::Arg *Arg : Args) {
+    // DEBUG: Print argument information before checking WrapperOnlyOption
+    llvm::errs() << "DEBUG: Processing argument: " << Arg->getSpelling();
+    
+    // Safely check if the argument has values before accessing them
+    if (Arg->getNumValues() > 0) {
+      llvm::errs() << " with value: " << Arg->getValue();
+    } else {
+      llvm::errs() << " (no value)";
+    }
+    
+    llvm::errs() << " hasFlag(WrapperOnlyOption): " << Arg->getOption().hasFlag(WrapperOnlyOption)
+                 << "\n";
+
+    StringRef Spelling = Arg->getSpelling();
+    if (Spelling.starts_with("--sycl-target-link-options")) {
+      continue;
+    }
+
     // Do not forward arguments only intended for the linker wrapper.
     if (Arg->getOption().hasFlag(WrapperOnlyOption))
       continue;
