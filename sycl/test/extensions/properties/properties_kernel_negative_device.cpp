@@ -39,10 +39,10 @@ template <sycl::aspect Aspect> struct KernelFunctorWithDeviceHasWithAttr {
 };
 
 template <sycl::aspect Aspect> struct KernelFunctorWithAllAttrs {
-  // expected-warning@+4 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; conflicting properties are ignored}}
-  // expected-warning@+4 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; conflicting properties are ignored}}
-  // expected-warning@+4 {{kernel has both attribute 'sycl::reqd_sub_group_size' and kernel properties; conflicting properties are ignored}}
-  // expected-warning@+4 {{kernel has both attribute 'sycl::device_has' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+4 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size" it will be ignored}}
+  // expected-warning@+4 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size_hint" it will be ignored}}
+  // expected-warning@+4 {{kernel has both attribute 'sycl::reqd_sub_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::sub_group_size" it will be ignored}}
+  // expected-warning@+4 {{kernel has both attribute 'sycl::device_has' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::device_has" it will be ignored}}
   void operator() [[sycl::reqd_work_group_size(
       32)]] [[sycl::
                   work_group_size_hint(32)]] [[sycl::reqd_sub_group_size(
