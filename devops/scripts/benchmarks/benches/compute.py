@@ -214,7 +214,7 @@ class ComputeBench(Suite):
                 emulate_graphs = [0]
             elif runtime == RUNTIMES.UR:
                 emulate_graphs = [1]
-            else: # level-zero
+            else:  # level-zero
                 emulate_graphs = [0, 1]
             for emulate_graph in emulate_graphs:
                 benches.append(
