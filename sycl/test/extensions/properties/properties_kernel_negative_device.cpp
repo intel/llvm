@@ -40,9 +40,9 @@ template <sycl::aspect Aspect> struct KernelFunctorWithDeviceHasWithAttr {
 
 template <sycl::aspect Aspect> struct KernelFunctorWithAllAttrs {
   // expected-warning@+4 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; conflicting properties are ignored}}
-  // expected-warning@+3 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; conflicting properties are ignored}}
-  // expected-warning@+2 {{kernel has both attribute 'sycl::reqd_sub_group_size' and kernel properties; conflicting properties are ignored}}
-  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+4 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+4 {{kernel has both attribute 'sycl::reqd_sub_group_size' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+4 {{kernel has both attribute 'sycl::device_has' and kernel properties; conflicting properties are ignored}}
   void operator() [[sycl::reqd_work_group_size(
       32)]] [[sycl::
                   work_group_size_hint(32)]] [[sycl::reqd_sub_group_size(
