@@ -76,6 +76,7 @@ class device_impl;
 class devices_range;
 class queue_impl;
 class event_impl;
+class device_images_range;
 // DeviceLibExt is shared between sycl runtime and sycl-post-link tool.
 // If any update is made here, need to sync with DeviceLibExt definition
 // in llvm/tools/sycl-post-link/sycl-post-link.cpp
@@ -355,9 +356,9 @@ public:
 
   // Produces set of device images by convering input device images to object
   // the executable state
-  std::vector<device_image_plain>
-  link(const std::vector<device_image_plain> &Imgs, devices_range Devs,
-       const property_list &PropList);
+  std::vector<device_image_plain> link(device_images_range Imgs,
+                                       devices_range Devs,
+                                       const property_list &PropList);
 
   // Produces new device image by converting input device image to the
   // executable state
