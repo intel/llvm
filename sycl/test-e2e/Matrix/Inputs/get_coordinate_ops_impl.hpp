@@ -193,6 +193,77 @@ int main() {
                         layout::row_major, 1>();
       test_get_coord_op<int8_t, int32_t, /*TK*/ 32, /*TN*/ 16, use::b,
                         layout::row_major, 1>();
+
+      // std::cout << "8x16x16 float/bfloat16" << std::endl;
+      // test_get_coord_op<bfloat16, float, /*TM*/ 8, /*TK*/ 16, use::a,
+      //                   layout::row_major, 1>();
+      // test_get_coord_op<bfloat16, float, /*TK*/ 16, /*TN*/ 16, use::b,
+      //                   layout::ext_intel_packed, 2>();
+      // test_get_coord_op<bfloat16, float, /*TK*/ 16, /*TN*/ 16, use::b,
+      //                   layout::row_major, 1>();
+      // test_get_coord_op<bfloat16, float, /*TM*/ 8, /*TN*/ 16,
+      // use::accumulator,
+      //                   layout::row_major, 1>();
+      // test_get_coord_op<float, float, /*TM*/ 8, /*TN*/ 16, use::accumulator,
+      //                   layout::row_major, 1>();
+
+      // std::cout << "16x16x16 float/bfloat16" << std::endl;
+      // test_get_coord_op<bfloat16, float, /*TM*/ 16, /*TK*/ 16, use::a,
+      //                   layout::row_major, 1>();
+      // // B - duplicate from 8x16x16
+      // test_get_coord_op<bfloat16, float, /*TM*/ 16, /*TN*/ 16,
+      // use::accumulator,
+      //                   layout::row_major, 1>();
+      // test_get_coord_op<float, float, /*TM*/ 16, /*TN*/ 16, use::accumulator,
+      //                   layout::row_major, 1>();
+
+      // std::cout << "1x64x16 float/bfloat16" << std::endl;
+      // test_get_coord_op<bfloat16, float, /*TM*/ 1, /*TK*/ 16, use::a,
+      //                   layout::row_major, 1>();
+      // // B
+      // test_get_coord_op<bfloat16, float, /*TK*/ 16, /*TN*/ 64, use::b,
+      //                   layout::ext_intel_packed, 2>();
+      // test_get_coord_op<bfloat16, float, /*TK*/ 16, /*TN*/ 64, use::b,
+      //                   layout::row_major, 1>();
+      // test_get_coord_op<bfloat16, float, /*TM*/ 1, /*TN*/ 64,
+      // use::accumulator,
+      //                   layout::row_major, 1>();
+      // test_get_coord_op<float, float, /*TM*/ 1, /*TN*/ 64, use::accumulator,
+      //                   layout::row_major, 1>();
+
+      // std::cout << "1x64x32 float/bfloat16" << std::endl;
+      // test_get_coord_op<bfloat16, float, /*TM*/ 1, /*TK*/ 32, use::a,
+      //                   layout::row_major, 1>();
+      // // B
+      // test_get_coord_op<bfloat16, float, /*TK*/ 32, /*TN*/ 64, use::b,
+      //                   layout::ext_intel_packed, 2>();
+      // test_get_coord_op<bfloat16, float, /*TK*/ 32, /*TN*/ 64, use::b,
+      //                   layout::row_major, 1>();
+      // test_get_coord_op<bfloat16, float, /*TM*/ 1, /*TN*/ 64,
+      // use::accumulator,
+      //                   layout::row_major, 1>();
+      // test_get_coord_op<float, float, /*TM*/ 1, /*TN*/ 64, use::accumulator,
+      //                   layout::row_major, 1>();
+
+      // std::cout << "32x64x16 float/bfloat16" << std::endl;
+      // test_get_coord_op<bfloat16, float, /*TM*/ 32, /*TK*/ 16, use::a,
+      //                   layout::row_major, 1>();
+      // // B - duplicate from 1x64x16
+      // test_get_coord_op<bfloat16, float, /*TM*/ 32, /*TN*/ 64,
+      // use::accumulator,
+      //                   layout::row_major, 1>();
+      // test_get_coord_op<float, float, /*TM*/ 32, /*TN*/ 64, use::accumulator,
+      //                   layout::row_major, 1>();
+
+      // std::cout << "32x64x32 float/bfloat16" << std::endl;
+      // test_get_coord_op<bfloat16, float, /*TM*/ 32, /*TK*/ 32, use::a,
+      //                   layout::row_major, 1>();
+      // // B - duplicate from 1x64x32
+      // test_get_coord_op<bfloat16, float, /*TM*/ 32, /*TN*/ 64,
+      // use::accumulator,
+      //                   layout::row_major, 1>();
+      // test_get_coord_op<float, float, /*TM*/ 32, /*TN*/ 64, use::accumulator,
+      //                   layout::row_major, 1>();
 #endif
       break;
     }
