@@ -500,6 +500,7 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
     ResultEvent->setEnqueued();
     // connect returned event with dependent events
     if (!isInOrder()) {
+      // DepEvents is not used anymore, so can move.
       ResultEvent->getPreparedDepsEvents() = std::move(DepEvents);
       // ResultEvent is local for current thread, no need to lock.
       ResultEvent->cleanDepEventsThroughOneLevelUnlocked();
