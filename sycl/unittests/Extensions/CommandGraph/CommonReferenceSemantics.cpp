@@ -14,7 +14,10 @@ using namespace sycl::ext::oneapi;
 
 class MockKernel;
 MOCK_INTEGRATION_HEADER(MockKernel)
-
+static sycl::unittest::MockDeviceImage MockKernelImg =
+    sycl::unittest::generateDefaultImage({"MockKernel"});
+static sycl::unittest::MockDeviceImageArray<1> MockKernelImgArray{
+    &MockKernelImg};
 /**
  * Checks that the operators and constructors of graph related classes meet the
  * common reference semantics.
