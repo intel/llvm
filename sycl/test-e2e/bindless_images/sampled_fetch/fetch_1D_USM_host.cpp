@@ -2,9 +2,7 @@
 // REQUIRES: aspect-ext_oneapi_bindless_sampled_image_fetch_1d_usm
 // UNSUPPORTED: target-amd
 // UNSUPPORTED-INTENDED: Sampled fetch not currently supported on AMD
-// XPASSing in the nightly
-// UNSUPPORTED: run-mode && linux && arch-intel_gpu_bmg_g21 && !spirv-backend
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19586
+
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
