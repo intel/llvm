@@ -14,7 +14,7 @@
 class kernel_sampled_fetch;
 
 // Uncomment to print additional test information
-// #define VERBOSE_PRINT
+#define VERBOSE_PRINT
 
 int main() {
   sycl::device dev;
