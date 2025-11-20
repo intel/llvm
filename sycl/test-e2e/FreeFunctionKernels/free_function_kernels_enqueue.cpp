@@ -3,6 +3,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
 // This test checks that free function kernels can be submitted using the
 // enqueued functions defined in the free function kernel extension, namely the
 // single_task and the nd_launch functions that take a queue/handler as an
