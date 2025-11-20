@@ -3,6 +3,9 @@
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
 // RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 //
+// XFAIL: level_zero && windows && gpu-intel-gen12
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20696
+//
 // REQUIRES: aspect-usm_host_allocations
 
 // Tests injected barrier between an in-order operation in no event mode and a
@@ -19,7 +22,6 @@ int main() {
   constexpr int HostTaskValue = 7;
   sycl::queue Q{sycl::property::queue::in_order{}};
 
-  // HostUSM USM so host_task and device kernel can both access.
   int *HostUSM = sycl::malloc_host<int>(1, Q);
 
   // Record graph with a single host_task that overwrites the value.
@@ -33,7 +35,7 @@ int main() {
   auto ExecGraph = Graph.finalize();
 
   exp_ext::single_task(Q, [=]() {
-    // Empirically determined to consistently trigger race condition when
+    // Empirically determined to trigger race condition when
     // barrier is removed.
     int SpinIters = 500;
     for (volatile int i = 0; i < SpinIters; i += 1) {
