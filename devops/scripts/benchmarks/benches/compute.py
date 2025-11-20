@@ -215,7 +215,9 @@ class ComputeBench(Suite):
             elif runtime == RUNTIMES.UR:
                 emulate_graphs = [1]
             else:  # level-zero
-                emulate_graphs = [0, 1]
+                # SubmitGraph with L0 graph segfaults on PVC
+                device_arch = getattr(options, "device_architecture", "")
+                emulate_graphs = [1] if "pvc" in device_arch else [0, 1]
             for emulate_graph in emulate_graphs:
                 benches.append(
                     GraphApiSubmitGraph(
