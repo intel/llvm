@@ -32,24 +32,152 @@ jobs:
       # prefer widespread gzip compression.
       toolchain_artifact_filename: sycl_linux.tar.gz
 
-  e2e-with-new-offload-model:
+  ubuntu2204_test:
     needs: [ubuntu2204_build]
-    if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
-    strategy:
-      fail-fast: false
-    uses: ./.github/workflows/sycl-linux-run-tests.yml
     permissions:
       contents: write
       packages: read
+    if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          #- name: AMD/HIP
+          #  runner: '["Linux", "amdgpu"]'
+          #  image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
+          #  target_devices: hip:gpu
+
+          #- name: Preview mode on AMD/HIP
+          #  runner: '["Linux", "amdgpu"]'
+          #  image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
+          #  target_devices: hip:gpu
+          #  extra_lit_opts: --param test-preview-mode=True
+
+          #- name: NVIDIA/CUDA
+          #  runner: '["Linux", "cuda"]'
+          #  image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
+          #  target_devices: cuda:gpu
+
+          #- name: Preview mode on NVIDIA/CUDA
+          #  runner: '["Linux", "cuda"]'
+          #  image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
+          #  target_devices: cuda:gpu
+          #  extra_lit_opts: --param test-preview-mode=True
+
+          #- name: Intel L0 Gen12 GPU
+          #  runner: '["Linux", "gen12"]'
+          #  target_devices: level_zero:gpu
+
+          #- name: Intel L0 Ponte Vecchio GPU
+          #  runner: '["Linux", "pvc"]'
+          #  target_devices: level_zero:gpu
+
+          #- name: Intel L0 Battlemage GPU
+          #  runner: '["Linux", "bmg"]'
+          #  target_devices: level_zero:gpu
+
+          #- name: Preview mode on Intel L0 Battlemage GPU
+          #  runner: '["Linux", "bmg"]'
+          #  target_devices: level_zero:gpu
+          #  extra_lit_opts: --param test-preview-mode=True
+
+          #- name: Intel L0 Arc A-Series GPU
+          #  runner: '["Linux", "arc"]'
+          #  target_devices: level_zero:gpu
+
+          #- name: Intel OCL Gen12 GPU
+          #  runner: '["Linux", "gen12"]'
+          #  target_devices: opencl:gpu
+
+          #- name: OCL CPU (AMD)
+          #  runner: '["Linux", "amdcpu"]'
+          #  image_options: -u 1001
+          #  target_devices: opencl:cpu
+
+          #- name: OCL CPU (Intel/GEN12)
+          #  runner: '["Linux", "gen12"]'
+          #  image_options: -u 1001 --privileged --cap-add SYS_ADMIN
+          #  target_devices: opencl:cpu
+
+          #- name: OCL CPU (Intel/Arc)
+          #  runner: '["Linux", "arc"]'
+          #  image_options: -u 1001
+          #  target_devices: opencl:cpu
+
+          #- name: Preview mode on SPR/PVC
+          #  runner: '["Linux", "pvc"]'
+          #  target_devices: level_zero:gpu
+          #  extra_lit_opts: --param test-preview-mode=True
+          
+          - name: AMD/HIP with NewOffloadModel
+            runner: '["Linux", "amdgpu"]'
+            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
+            target_devices: hip:gpu
+            extra_lit_opts: --param enable_new_offload_model=True --param enable_new_offload_model=True
+
+          - name: NVIDIA/CUDA with NewOffloadModel
+            runner: '["Linux", "cuda"]'
+            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
+            target_devices: cuda:gpu
+            extra_lit_opts: --param enable_new_offload_model=True
+
+          - name: Intel L0 Gen12 GPU with NewOffloadModel
+            runner: '["Linux", "gen12"]'
+            target_devices: level_zero:gpu
+            extra_lit_opts: --param enable_new_offload_model=True
+
+          - name: Intel L0 Ponte Vecchio GPU with NewOffloadModel
+            runner: '["Linux", "pvc"]'
+            target_devices: level_zero:gpu
+            extra_lit_opts: --param enable_new_offload_model=True
+
+          - name: Intel L0 Battlemage GPU with NewOffloadModel
+            runner: '["Linux", "bmg"]'
+            target_devices: level_zero:gpu
+            extra_lit_opts: --param enable_new_offload_model=True
+
+          - name: Preview mode on Intel L0 Battlemage GPU with NewOffloadModel
+            runner: '["Linux", "bmg"]'
+            target_devices: level_zero:gpu
+            extra_lit_opts: --param test-preview-mode=True
+
+          - name: Intel L0 Arc A-Series GPU with NewOffloadModel
+            runner: '["Linux", "arc"]'
+            target_devices: level_zero:gpu
+            extra_lit_opts: --param enable_new_offload_model=True
+
+          - name: Intel OCL Gen12 GPU with NewOffloadModel
+            runner: '["Linux", "gen12"]'
+            target_devices: opencl:gpu
+            extra_lit_opts: --param enable_new_offload_model=True
+
+          - name: OCL CPU (AMD) with NewOffloadModel
+            runner: '["Linux", "amdcpu"]'
+            image_options: -u 1001
+            target_devices: opencl:cpu
+            extra_lit_opts: --param enable_new_offload_model=True
+
+          - name: OCL CPU (Intel/GEN12) with NewOffloadModel
+            runner: '["Linux", "gen12"]'
+            image_options: -u 1001 --privileged --cap-add SYS_ADMIN
+            target_devices: opencl:cpu
+            extra_lit_opts: --param enable_new_offload_model=True
+
+          - name: OCL CPU (Intel/Arc) with NewOffloadModel
+            runner: '["Linux", "arc"]'
+            image_options: -u 1001
+            target_devices: opencl:cpu
+            extra_lit_opts: --param enable_new_offload_model=True
+
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
-      name: "E2E with enabled NewOffloadModel"
-      runner: ${{ inputs.runner }}
-      image_options: ${{ inputs.image_options }}
+      name: ${{ matrix.name }}
+      runner: ${{ matrix.runner }}
+      image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
+      target_devices: ${{ matrix.target_devices }}
       tests_selector: e2e
-      testing_mode: ${{ inputs.testing_mode }}
-      target_devices: ${{ inputs.target_devices }}
-      extra_lit_opts: "--param enable_new_offload_model=True"
-      tests_ref: ${{ github.sha }}
+      extra_lit_opts: "--param 'cxx_flags=-D_GLIBCXX_USE_CXX11_ABI=0' ${{ matrix.extra_lit_opts }}"
+      repo_ref: ${{ github.sha }}
       toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
@@ -67,20 +195,49 @@ jobs:
       build_configure_extra_args: -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}"
       build_target: all
 
-  e2e-win-with-new-offload-model:
-    needs: [build-win]
-    if: ${{ !cancelled() && needs.build-win.outputs.build_conclusion == 'success' }}
+  e2e-win:
+    needs: build-win
+    # Continue if build was successful.
+    if: |
+      !cancelled()
+      && needs.build-win.outputs.build_conclusion == 'success'
     strategy:
       fail-fast: false
+      matrix:
+        include:
+          #- name: Intel L0 Gen12 GPU
+          #  runner: '["Windows", "gen12"]'
+          #  target_devices: level_zero:gpu
+
+          #- name: Intel L0 Arc GPU
+          #  runner: '["Windows", "arc"]'
+          #  target_devices: level_zero:gpu
+
+          #- name: Intel L0 Battlemage GPU
+          #  runner: '["Windows", "bmg"]'
+          #  target_devices: level_zero:gpu
+          
+          - name: Intel L0 Gen12 GPU with NewOffloadModel
+            runner: '["Windows", "gen12"]'
+            target_devices: level_zero:gpu
+            extra_lit_opts: --param enable_new_offload_model=True
+
+          - name: Intel L0 Arc GPU with NewOffloadModel
+            runner: '["Windows", "arc"]'
+            target_devices: level_zero:gpu
+            extra_lit_opts: --param enable_new_offload_model=True
+
+          - name: Intel L0 Battlemage GPU with NewOffloadModel
+            runner: '["Windows", "bmg"]'
+            target_devices: level_zero:gpu
+            extra_lit_opts: --param enable_new_offload_model=True
+
     uses: ./.github/workflows/sycl-windows-run-tests.yml
-    permissions: read-all
     with:
-      name: "E2E Windows with enabled NewOffloadModel"
-      runner: '["Windows", arc"]'
-      tests_selector: e2e
-      testing_mode: ${{ inputs.testing_mode }}
-      target_devices: level_zero:gpu
-      extra_lit_opts: "--param enable_new_offload_model=True"
+      name: ${{ matrix.name }}
+      runner: ${{ matrix.runner }}
+      target_devices: ${{ matrix.target_devices }}
+      extra_lit_opts: ${{ matrix.extra_lit_opts }}
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
 
   build-sycl-cts-linux:
