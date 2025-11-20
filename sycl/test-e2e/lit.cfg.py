@@ -987,7 +987,7 @@ if config.test_mode != "build-only":
 # Check for enabled NewOffloadModel
 if lit_config.params.get("enable_new_offload_model", "False") != "False":
     config.available_features.add("new-offload-model")
-    config.cxx_flags += "--offload-new-driver "
+    config.cxx_flags += " --offload-new-driver "
 
 # That has to be executed last so that all device-independent features have been
 # discovered already.

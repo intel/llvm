@@ -42,72 +42,72 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          #- name: AMD/HIP
-          #  runner: '["Linux", "amdgpu"]'
-          #  image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
-          #  target_devices: hip:gpu
+          - name: AMD/HIP
+            runner: '["Linux", "amdgpu"]'
+            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
+            target_devices: hip:gpu
 
-          #- name: Preview mode on AMD/HIP
-          #  runner: '["Linux", "amdgpu"]'
-          #  image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
-          #  target_devices: hip:gpu
-          #  extra_lit_opts: --param test-preview-mode=True
+          - name: Preview mode on AMD/HIP
+            runner: '["Linux", "amdgpu"]'
+            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
+            target_devices: hip:gpu
+            extra_lit_opts: --param test-preview-mode=True
 
-          #- name: NVIDIA/CUDA
-          #  runner: '["Linux", "cuda"]'
-          #  image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
-          #  target_devices: cuda:gpu
+          - name: NVIDIA/CUDA
+            runner: '["Linux", "cuda"]'
+            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
+            target_devices: cuda:gpu
 
-          #- name: Preview mode on NVIDIA/CUDA
-          #  runner: '["Linux", "cuda"]'
-          #  image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
-          #  target_devices: cuda:gpu
-          #  extra_lit_opts: --param test-preview-mode=True
+          - name: Preview mode on NVIDIA/CUDA
+            runner: '["Linux", "cuda"]'
+            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
+            target_devices: cuda:gpu
+            extra_lit_opts: --param test-preview-mode=True
 
-          #- name: Intel L0 Gen12 GPU
-          #  runner: '["Linux", "gen12"]'
-          #  target_devices: level_zero:gpu
+          - name: Intel L0 Gen12 GPU
+            runner: '["Linux", "gen12"]'
+            target_devices: level_zero:gpu
 
-          #- name: Intel L0 Ponte Vecchio GPU
-          #  runner: '["Linux", "pvc"]'
-          #  target_devices: level_zero:gpu
+          - name: Intel L0 Ponte Vecchio GPU
+            runner: '["Linux", "pvc"]'
+            target_devices: level_zero:gpu
 
-          #- name: Intel L0 Battlemage GPU
-          #  runner: '["Linux", "bmg"]'
-          #  target_devices: level_zero:gpu
+          - name: Intel L0 Battlemage GPU
+            runner: '["Linux", "bmg"]'
+            target_devices: level_zero:gpu
 
-          #- name: Preview mode on Intel L0 Battlemage GPU
-          #  runner: '["Linux", "bmg"]'
-          #  target_devices: level_zero:gpu
-          #  extra_lit_opts: --param test-preview-mode=True
+          - name: Preview mode on Intel L0 Battlemage GPU
+            runner: '["Linux", "bmg"]'
+            target_devices: level_zero:gpu
+            extra_lit_opts: --param test-preview-mode=True
 
-          #- name: Intel L0 Arc A-Series GPU
-          #  runner: '["Linux", "arc"]'
-          #  target_devices: level_zero:gpu
+          - name: Intel L0 Arc A-Series GPU
+            runner: '["Linux", "arc"]'
+            target_devices: level_zero:gpu
 
-          #- name: Intel OCL Gen12 GPU
-          #  runner: '["Linux", "gen12"]'
-          #  target_devices: opencl:gpu
+          - name: Intel OCL Gen12 GPU
+            runner: '["Linux", "gen12"]'
+            target_devices: opencl:gpu
 
-          #- name: OCL CPU (AMD)
-          #  runner: '["Linux", "amdcpu"]'
-          #  image_options: -u 1001
-          #  target_devices: opencl:cpu
+          - name: OCL CPU (AMD)
+            runner: '["Linux", "amdcpu"]'
+            image_options: -u 1001
+            target_devices: opencl:cpu
 
-          #- name: OCL CPU (Intel/GEN12)
-          #  runner: '["Linux", "gen12"]'
-          #  image_options: -u 1001 --privileged --cap-add SYS_ADMIN
-          #  target_devices: opencl:cpu
+          - name: OCL CPU (Intel/GEN12)
+            runner: '["Linux", "gen12"]'
+            image_options: -u 1001 --privileged --cap-add SYS_ADMIN
+            target_devices: opencl:cpu
 
-          #- name: OCL CPU (Intel/Arc)
-          #  runner: '["Linux", "arc"]'
-          #  image_options: -u 1001
-          #  target_devices: opencl:cpu
+          - name: OCL CPU (Intel/Arc)
+            runner: '["Linux", "arc"]'
+            image_options: -u 1001
+            target_devices: opencl:cpu
 
-          #- name: Preview mode on SPR/PVC
-          #  runner: '["Linux", "pvc"]'
-          #  target_devices: level_zero:gpu
-          #  extra_lit_opts: --param test-preview-mode=True
+          - name: Preview mode on SPR/PVC
+            runner: '["Linux", "pvc"]'
+            target_devices: level_zero:gpu
+            extra_lit_opts: --param test-preview-mode=True
           
           - name: AMD/HIP with NewOffloadModel
             runner: '["Linux", "amdgpu"]'
