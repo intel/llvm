@@ -360,29 +360,29 @@ public:
     return createSyclObjFromImpl<event>(ResEvent);
   }
 
-  template <int Dims>
   event submit_kernel_direct_with_event(
-      const nd_range<Dims> &Range, detail::HostKernelRefBase &HostKernel,
+      const detail::nd_range_view &RangeView,
+      detail::HostKernelRefBase &HostKernel,
       detail::DeviceKernelInfo *DeviceKernelInfo,
       sycl::span<const event> DepEvents,
       const detail::KernelPropertyHolderStructTy &Props,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
     detail::EventImplPtr EventImpl = submit_kernel_direct_impl(
-        NDRDescT{Range}, HostKernel, DeviceKernelInfo,
+        RangeView.toNDRDescT(), HostKernel, DeviceKernelInfo,
         /*CallerNeedsEvent*/ true, DepEvents, Props, CodeLoc, IsTopCodeLoc);
     return createSyclObjFromImpl<event>(EventImpl);
   }
 
-  template <int Dims>
   void submit_kernel_direct_without_event(
-      const nd_range<Dims> &Range, detail::HostKernelRefBase &HostKernel,
+      const detail::nd_range_view &RangeView,
+      detail::HostKernelRefBase &HostKernel,
       detail::DeviceKernelInfo *DeviceKernelInfo,
       sycl::span<const event> DepEvents,
       const detail::KernelPropertyHolderStructTy &Props,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
-    submit_kernel_direct_impl(NDRDescT{Range}, HostKernel, DeviceKernelInfo,
-                              /*CallerNeedsEvent*/ false, DepEvents, Props,
-                              CodeLoc, IsTopCodeLoc);
+    submit_kernel_direct_impl(
+        RangeView.toNDRDescT(), HostKernel, DeviceKernelInfo,
+        /*CallerNeedsEvent*/ false, DepEvents, Props, CodeLoc, IsTopCodeLoc);
   }
 
   void submit_without_event(const detail::type_erased_cgfo_ty &CGF,

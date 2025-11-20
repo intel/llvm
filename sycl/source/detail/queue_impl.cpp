@@ -12,6 +12,7 @@
 #include <detail/queue_impl.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
+#include <sycl/detail/nd_range_view.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 
@@ -124,6 +125,18 @@ prepareSYCLEventAssociatedWithQueue(detail::queue_impl &QueueImpl) {
   EventImpl->setContextImpl(QueueImpl.getContextImpl());
   EventImpl->setStateIncomplete();
   return detail::createSyclObjFromImpl<event>(EventImpl);
+}
+
+sycl::detail::NDRDescT nd_range_view::toNDRDescT() const {
+  if (!MGlobalSize) {
+    return NDRDescT(nd_range<1>{1, 1});
+  } else if (MLocalSize) {
+    return NDRDescT(MGlobalSize, MLocalSize, MOffset, MDims);
+  } else if (MOffset) {
+    return NDRDescT(MGlobalSize, MOffset, MDims);
+  } else {
+    return NDRDescT(MGlobalSize, MSetNumWorkGroups, MDims);
+  }
 }
 
 const std::vector<event> &
@@ -629,6 +642,8 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
                           SubmitCommandFuncType &SubmitCommandFunc) {
   detail::CG::StorageInitHelper CGData;
   std::unique_lock<std::mutex> Lock(MMutex);
+
+  NestedCallsTracker tracker;
 
   // Used by queue_empty() and getLastEvent()
   MEmpty.store(false, std::memory_order_release);

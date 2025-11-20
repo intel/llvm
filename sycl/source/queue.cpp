@@ -20,8 +20,8 @@
 namespace sycl {
 inline namespace _V1 {
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 namespace detail {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 SubmissionInfo::SubmissionInfo()
     : impl{std::make_shared<SubmissionInfoImpl>()} {}
 
@@ -58,9 +58,39 @@ const ext::oneapi::experimental::event_mode_enum &
 SubmissionInfo::EventMode() const {
   return impl->MEventMode;
 }
-} // namespace detail
 
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
+void GetRangeRoundingSettings(size_t &MinFactor, size_t &GoodFactor,
+                              size_t &MinRange) {
+  SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS>::GetSettings(
+      MinFactor, GoodFactor, MinRange);
+}
+
+std::tuple<std::array<size_t, 3>, bool> getMaxWorkGroups(const device &Device) {
+  std::array<size_t, 3> UrResult = {};
+  auto &DeviceImpl = getSyclObjImpl(Device);
+
+  auto Ret = DeviceImpl->getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
+      DeviceImpl->getHandleRef(),
+      UrInfoCode<
+          ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
+      sizeof(UrResult), &UrResult, nullptr);
+  if (Ret == UR_RESULT_SUCCESS) {
+    return {UrResult, true};
+  }
+  return {std::array<size_t, 3>{0, 0, 0}, false};
+}
+
+bool DisableRangeRounding() {
+  return SYCLConfig<SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING>::get();
+}
+
+bool RangeRoundingTrace() {
+  return SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE>::get();
+}
+
+} // namespace detail
 
 queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
              const async_handler &AsyncHandler, const property_list &PropList) {
@@ -463,79 +493,29 @@ void queue::ext_oneapi_set_external_event(const event &external_event) {
 
 const property_list &queue::getPropList() const { return impl->getPropList(); }
 
-template <int Dims>
 event submit_kernel_direct_with_event_impl(
-    const queue &Queue, const nd_range<Dims> &Range,
+    const queue &Queue, const detail::nd_range_view &RangeView,
     detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     sycl::span<const event> DepEvents,
     const detail::KernelPropertyHolderStructTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
   return getSyclObjImpl(Queue)->submit_kernel_direct_with_event(
-      Range, HostKernel, DeviceKernelInfo, DepEvents, Props, CodeLoc,
+      RangeView, HostKernel, DeviceKernelInfo, DepEvents, Props, CodeLoc,
       IsTopCodeLoc);
 }
 
-template event __SYCL_EXPORT submit_kernel_direct_with_event_impl<1>(
-    const queue &Queue, const nd_range<1> &Range,
-    detail::HostKernelRefBase &HostKernel,
-    detail::DeviceKernelInfo *DeviceKernelInfo,
-    sycl::span<const event> DepEvents,
-    const detail::KernelPropertyHolderStructTy &Props,
-    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
-
-template event __SYCL_EXPORT submit_kernel_direct_with_event_impl<2>(
-    const queue &Queue, const nd_range<2> &Range,
-    detail::HostKernelRefBase &HostKernel,
-    detail::DeviceKernelInfo *DeviceKernelInfo,
-    sycl::span<const event> DepEvents,
-    const detail::KernelPropertyHolderStructTy &Props,
-    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
-
-template event __SYCL_EXPORT submit_kernel_direct_with_event_impl<3>(
-    const queue &Queue, const nd_range<3> &Range,
-    detail::HostKernelRefBase &HostKernel,
-    detail::DeviceKernelInfo *DeviceKernelInfo,
-    sycl::span<const event> DepEvents,
-    const detail::KernelPropertyHolderStructTy &Props,
-    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
-
-template <int Dims>
 void submit_kernel_direct_without_event_impl(
-    const queue &Queue, const nd_range<Dims> &Range,
+    const queue &Queue, const detail::nd_range_view &RangeView,
     detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     sycl::span<const event> DepEvents,
     const detail::KernelPropertyHolderStructTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
   getSyclObjImpl(Queue)->submit_kernel_direct_without_event(
-      Range, HostKernel, DeviceKernelInfo, DepEvents, Props, CodeLoc,
+      RangeView, HostKernel, DeviceKernelInfo, DepEvents, Props, CodeLoc,
       IsTopCodeLoc);
 }
-
-template void __SYCL_EXPORT submit_kernel_direct_without_event_impl<1>(
-    const queue &Queue, const nd_range<1> &Range,
-    detail::HostKernelRefBase &HostKernel,
-    detail::DeviceKernelInfo *DeviceKernelInfo,
-    sycl::span<const event> DepEvents,
-    const detail::KernelPropertyHolderStructTy &Props,
-    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
-
-template void __SYCL_EXPORT submit_kernel_direct_without_event_impl<2>(
-    const queue &Queue, const nd_range<2> &Range,
-    detail::HostKernelRefBase &HostKernel,
-    detail::DeviceKernelInfo *DeviceKernelInfo,
-    sycl::span<const event> DepEvents,
-    const detail::KernelPropertyHolderStructTy &Props,
-    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
-
-template void __SYCL_EXPORT submit_kernel_direct_without_event_impl<3>(
-    const queue &Queue, const nd_range<3> &Range,
-    detail::HostKernelRefBase &HostKernel,
-    detail::DeviceKernelInfo *DeviceKernelInfo,
-    sycl::span<const event> DepEvents,
-    const detail::KernelPropertyHolderStructTy &Props,
-    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
 } // namespace _V1
 } // namespace sycl

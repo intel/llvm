@@ -32,50 +32,61 @@ public:
   NDRDescT(const NDRDescT &Desc) = default;
   NDRDescT(NDRDescT &&Desc) = default;
 
-  template <int Dims_>
-  NDRDescT(sycl::range<Dims_> N, bool SetNumWorkGroups) : Dims{size_t(Dims_)} {
+  NDRDescT(const size_t *N, bool SetNumWorkGroups, int DimsVal)
+      : Dims{size_t(DimsVal)} {
     if (SetNumWorkGroups) {
-      for (size_t I = 0; I < Dims_; ++I) {
+      for (size_t I = 0; I < Dims; ++I) {
         NumWorkGroups[I] = N[I];
       }
     } else {
-      for (size_t I = 0; I < Dims_; ++I) {
+      for (size_t I = 0; I < Dims; ++I) {
         GlobalSize[I] = N[I];
       }
 
-      for (int I = Dims_; I < 3; ++I) {
+      for (int I = Dims; I < 3; ++I) {
         GlobalSize[I] = 1;
       }
     }
   }
 
   template <int Dims_>
-  NDRDescT(sycl::range<Dims_> NumWorkItems, sycl::range<Dims_> LocalSizes,
-           sycl::id<Dims_> Offset)
-      : Dims{size_t(Dims_)} {
-    for (size_t I = 0; I < Dims_; ++I) {
+  NDRDescT(sycl::range<Dims_> N, bool SetNumWorkGroups)
+      : NDRDescT(&(N[0]), SetNumWorkGroups, Dims_) {}
+
+  NDRDescT(const size_t *NumWorkItems, const size_t *LocalSizes,
+           const size_t *Offset, int DimsVal)
+      : Dims{size_t(DimsVal)} {
+    for (size_t I = 0; I < Dims; ++I) {
       GlobalSize[I] = NumWorkItems[I];
       LocalSize[I] = LocalSizes[I];
       GlobalOffset[I] = Offset[I];
     }
 
-    for (int I = Dims_; I < 3; ++I) {
+    for (int I = Dims; I < 3; ++I) {
       LocalSize[I] = LocalSizes[0] ? 1 : 0;
     }
 
-    for (int I = Dims_; I < 3; ++I) {
+    for (int I = Dims; I < 3; ++I) {
       GlobalSize[I] = 1;
     }
   }
 
   template <int Dims_>
-  NDRDescT(sycl::range<Dims_> NumWorkItems, sycl::id<Dims_> Offset)
-      : Dims{size_t(Dims_)} {
-    for (size_t I = 0; I < Dims_; ++I) {
+  NDRDescT(sycl::range<Dims_> NumWorkItems, sycl::range<Dims_> LocalSizes,
+           sycl::id<Dims_> Offset)
+      : NDRDescT(&(NumWorkItems[0]), &(LocalSizes[0]), &(Offset[0]), Dims_) {}
+
+  NDRDescT(const size_t *NumWorkItems, const size_t *Offset, int DimsVal)
+      : Dims{size_t(DimsVal)} {
+    for (size_t I = 0; I < Dims; ++I) {
       GlobalSize[I] = NumWorkItems[I];
       GlobalOffset[I] = Offset[I];
     }
   }
+
+  template <int Dims_>
+  NDRDescT(sycl::range<Dims_> NumWorkItems, sycl::id<Dims_> Offset)
+      : NDRDescT(&(NumWorkItems[0]), &(Offset[0]), Dims_) {}
 
   template <int Dims_>
   NDRDescT(sycl::nd_range<Dims_> ExecutionRange)

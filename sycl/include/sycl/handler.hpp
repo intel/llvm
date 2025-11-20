@@ -46,6 +46,7 @@
 #include <sycl/nd_range.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
+#include <sycl/range_rounding.hpp>
 #include <sycl/sampler.hpp>
 
 #include <assert.h>
@@ -361,6 +362,24 @@ public:
     return KernelFunc.get(ext::oneapi::experimental::properties_tag{});
   }
 };
+
+template <typename WrapperT, typename TransformedArgType, int Dims,
+          typename KernelType,
+          std::enable_if_t<detail::KernelLambdaHasKernelHandlerArgT<
+              KernelType, TransformedArgType>::value> * = nullptr>
+auto getRangeRoundedKernelLambda(KernelType KernelFunc, range<Dims> UserRange) {
+  return detail::RoundedRangeKernelWithKH<TransformedArgType, Dims, KernelType>{
+      UserRange, KernelFunc};
+}
+
+template <typename WrapperT, typename TransformedArgType, int Dims,
+          typename KernelType,
+          std::enable_if_t<!detail::KernelLambdaHasKernelHandlerArgT<
+              KernelType, TransformedArgType>::value> * = nullptr>
+auto getRangeRoundedKernelLambda(KernelType KernelFunc, range<Dims> UserRange) {
+  return detail::RoundedRangeKernel<TransformedArgType, Dims, KernelType>{
+      UserRange, KernelFunc};
+}
 
 using std::enable_if_t;
 using sycl::detail::queue_impl;
@@ -1017,6 +1036,8 @@ private:
 
   bool eventNeeded() const;
 
+  device get_device() const;
+
   template <int Dims, typename LambdaArgType> struct TransformUserItemType {
     using type = std::conditional_t<
         std::is_convertible_v<nd_item<Dims>, LambdaArgType>, nd_item<Dims>,
@@ -1024,6 +1045,7 @@ private:
                            item<Dims>, LambdaArgType>>;
   };
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   std::optional<std::array<size_t, 3>> getMaxWorkGroups();
   // We need to use this version to support gcc 7.5.0. Remove when minimal
   // supported gcc version is bumped.
@@ -1152,6 +1174,7 @@ private:
       return {range<Dims>{}, false};
     return {RoundedRange, true};
   }
+#endif
 
   /// Defines and invokes a SYCL kernel function for the specified range.
   ///
@@ -1214,11 +1237,12 @@ private:
     // Range rounding is supported only for newer SYCL standards.
 #if !defined(__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__) &&                  \
     SYCL_LANGUAGE_VERSION >= 202012L
-    auto [RoundedRange, HasRoundedRange] = getRoundedRange(UserRange);
+    auto [RoundedRange, HasRoundedRange] =
+        detail::getRoundedRange(UserRange, get_device());
     if (HasRoundedRange) {
       using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
       auto Wrapper =
-          getRangeRoundedKernelLambda<NameWT, TransformedArgType, Dims>(
+          detail::getRangeRoundedKernelLambda<NameWT, TransformedArgType, Dims>(
               KernelFunc, UserRange);
 
       using KName = std::conditional_t<std::is_same<KernelType, NameT>::value,
@@ -3258,6 +3282,7 @@ private:
   friend class ext::oneapi::experimental::detail::dynamic_parameter_impl;
   friend class ext::oneapi::experimental::detail::dynamic_command_group_impl;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   bool DisableRangeRounding();
 
   bool RangeRoundingTrace();
@@ -3265,27 +3290,6 @@ private:
   void GetRangeRoundingSettings(size_t &MinFactor, size_t &GoodFactor,
                                 size_t &MinRange);
 
-  template <typename WrapperT, typename TransformedArgType, int Dims,
-            typename KernelType,
-            std::enable_if_t<detail::KernelLambdaHasKernelHandlerArgT<
-                KernelType, TransformedArgType>::value> * = nullptr>
-  auto getRangeRoundedKernelLambda(KernelType KernelFunc,
-                                   range<Dims> UserRange) {
-    return detail::RoundedRangeKernelWithKH<TransformedArgType, Dims,
-                                            KernelType>{UserRange, KernelFunc};
-  }
-
-  template <typename WrapperT, typename TransformedArgType, int Dims,
-            typename KernelType,
-            std::enable_if_t<!detail::KernelLambdaHasKernelHandlerArgT<
-                KernelType, TransformedArgType>::value> * = nullptr>
-  auto getRangeRoundedKernelLambda(KernelType KernelFunc,
-                                   range<Dims> UserRange) {
-    return detail::RoundedRangeKernel<TransformedArgType, Dims, KernelType>{
-        UserRange, KernelFunc};
-  }
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   const std::shared_ptr<detail::context_impl> &getContextImplPtr() const;
 #endif
   detail::context_impl &getContextImpl() const;

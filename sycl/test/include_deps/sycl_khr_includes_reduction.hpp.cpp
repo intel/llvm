@@ -180,8 +180,10 @@
 // CHECK-NEXT: kernel.hpp
 // CHECK-NEXT: sampler.hpp
 // CHECK-NEXT: queue.hpp
+// CHECK-NEXT: detail/nd_range_view.hpp
 // CHECK-NEXT: detail/optional.hpp
 // CHECK-NEXT: ext/oneapi/experimental/event_mode_property.hpp
+// CHECK-NEXT: range_rounding.hpp
 // CHECK-NEXT: sycl_span.hpp
 // CHECK-NEXT: usm.hpp
 // CHECK-NEXT: usm/usm_pointer_info.hpp
