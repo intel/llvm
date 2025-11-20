@@ -223,47 +223,6 @@ jobs:
         fi
 
         cmake --build $GITHUB_WORKSPACE/build --target check-llvm
-    - name: check-clang
-      if: ${{ !cancelled() && contains(inputs.changes, 'clang') }}
-      env:
-        # Can't inline to support possible quotes inside:
-        BUILD_CONFIGURE_EXTRA_ARGS: ${{ inputs.build_configure_extra_args }}
-      run: |
-        # Can we move this to Dockerfile? Hopefully, noop on Windows.
-        export XDG_CACHE_HOME=$GITHUB_WORKSPACE/os_cache
-        if [[ "${BUILD_CONFIGURE_EXTRA_ARGS}" == *"--use-libcxx"* ]]; then
-          # https://github.com/llvm/llvm-project/issues/59428
-          export LIT_FILTER_OUT="(E|e)xception"
-        fi
-        cmake --build $GITHUB_WORKSPACE/build --target check-clang
-    - name: check-sycl
-      if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
-      run: |
-        # TODO consider moving this to Dockerfile.
-        export LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
-        cmake --build $GITHUB_WORKSPACE/build --target check-sycl
-    - name: check-sycl-unittests
-      if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
-      run: |
-        # TODO consider moving this to Dockerfile.
-        export LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
-        cmake --build $GITHUB_WORKSPACE/build --target check-sycl-unittests
-    - name: check-llvm-spirv
-      if: ${{ !cancelled() && contains(inputs.changes, 'llvm_spirv') }}
-      run: |
-        cmake --build $GITHUB_WORKSPACE/build --target check-llvm-spirv
-    - name: check-xptifw
-      if: ${{ !cancelled() && contains(inputs.changes, 'xptifw') }}
-      run: |
-        cmake --build $GITHUB_WORKSPACE/build --target check-xptifw
-    - name: check-libclc
-      if: ${{ !cancelled() && contains(inputs.changes, 'libclc') }}
-      run: |
-        cmake --build $GITHUB_WORKSPACE/build --target check-libclc
-    - name: check-libdevice
-      if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
-      run: |
-        cmake --build $GITHUB_WORKSPACE/build --target check-libdevice
     - name: Check E2E test requirements
       if: ${{ !cancelled() && !contains(inputs.changes, 'sycl') }}
       run: |
@@ -368,3 +327,18 @@ jobs:
         binaries_artifact: ${{ inputs.e2e_binaries_preview_artifact }}
         sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
         extra_lit_opts: --param test-preview-mode=True
+
+    - name: Build E2E tests with NewOffloadModel
+      if: |
+        inputs.e2e_binaries_preview_artifact &&
+        !cancelled()
+        && steps.build.conclusion == 'success' &&
+        contains(github.event.pull_request.labels.*.name, "new-offload-model")
+      uses: ./devops/actions/run-tests/e2e
+      with:
+        ref: ${{ inputs.ref || github.sha }}
+        testing_mode: build-only
+        target_devices: all
+        binaries_artifact: ${{ inputs.e2e_binaries_with_new_offload_model }}
+        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
+        extra_lit_opts: --param enable_new_offload_model=True

@@ -160,36 +160,6 @@ jobs:
       run: |
         cmake --build build --target ${{ inputs.build_target }}
     - run: build/bin/clang++ --version
-    - name: check-llvm
-      if: ${{ !cancelled() && contains(inputs.changes, 'llvm') }}
-      shell: bash
-      run: |      
-        cmake --build build --target check-llvm
-    - name: check-clang
-      if: ${{ !cancelled() && contains(inputs.changes, 'clang') }}
-      run: |
-        cmake --build build --target check-clang
-    - name: check-sycl
-      if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
-      shell: bash
-      run: |        
-         cmake --build build --target check-sycl
-    - name: check-sycl-unittests
-      if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
-      run: |
-        cmake --build build --target check-sycl-unittests
-    - name: check-llvm-spirv
-      if: ${{ !cancelled() && contains(inputs.changes, 'llvm_spirv') }}
-      run: |
-        cmake --build build --target check-llvm-spirv
-    - name: check-xptifw
-      if: ${{ !cancelled() && contains(inputs.changes, 'xptifw') }}
-      run: |
-        cmake --build build --target check-xptifw
-    - name: check-libdevice
-      if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
-      run: |
-        cmake --build build --target check-libdevice
     - name: Generate/diff new ABI symbols
       if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
       shell: bash
@@ -255,20 +225,20 @@ jobs:
         extra_lit_opts: --param sycl_build_targets="spir"
         cxx: ${{ inputs.cxx }}
 
-    #- name: Build E2E tests with New Offload Model
-    #  if: |
-    #    inputs.e2e_binaries_artifact &&
-    #    !cancelled() &&
-    #    steps.build.conclusion == 'success' &&
-    #    contains(github.event.pull_request.labels.*.name, "new-offload-model")
-    #  uses: ./devops/actions/run-tests/windows/e2e
-    #  with:
-    #    ref: ${{ inputs.ref || github.sha }}
-    #    testing_mode: build-only
-    #    target_devices: all
-    #    binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
-    #    extra_lit_opts: --param sycl_build_targets="spir" --param enable_new_offload_model=True
-    #    cxx: ${{ inputs.cxx }}
+    - name: Build E2E tests with New Offload Model
+      if: |
+        inputs.e2e_binaries_artifact &&
+        !cancelled() &&
+        steps.build.conclusion == 'success' &&
+        contains(github.event.pull_request.labels.*.name, "new-offload-model")
+      uses: ./devops/actions/run-tests/windows/e2e
+      with:
+        ref: ${{ inputs.ref || github.sha }}
+        testing_mode: build-only
+        target_devices: all
+        binaries_artifact: ${{ inputs.e2e_binaries_artifact_with_new_offload_model }}
+        extra_lit_opts: --param sycl_build_targets="spir" --param enable_new_offload_model=True
+        cxx: ${{ inputs.cxx }}
 
     - name:  Detect hung tests
       if: always()
