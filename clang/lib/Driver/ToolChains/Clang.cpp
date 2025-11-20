@@ -11526,29 +11526,35 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
           WrapperOption = "--cpu-tool-arg=";
       } else
         continue;
-      ArgStringList BuildArgs;
-      SmallString<128> BackendOptString;
-      SmallString<128> LinkOptString;
-      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
-      for (const auto &A : BuildArgs)
-        appendOption(BackendOptString, A);
+      // ArgStringList BuildArgs;
+      // SmallString<128> BackendOptString;
+      // SmallString<128> LinkOptString;
+      // SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
+      // for (const auto &A : BuildArgs)
+      //   appendOption(BackendOptString, A);
 
-      BuildArgs.clear();
-      SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);
-      for (const auto &A : BuildArgs) {
-        if (IsJIT)
-          appendOption(LinkOptString, A);
-        else
-          // For AOT, combine the Backend and Linker strings into one.
-          appendOption(BackendOptString, A);
-      }
-      if (!BackendOptString.empty())
-        CmdArgs.push_back(
-            Args.MakeArgString(Twine(WrapperOption) + BackendOptString));
-      if (!LinkOptString.empty())
-        CmdArgs.push_back(
-            Args.MakeArgString("--sycl-target-link-options=" + LinkOptString));
+      // BuildArgs.clear();
+      // SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);
+    //   for (const auto &A : BuildArgs) {
+    //     if (IsJIT)
+    //       int x = 1;
+    //       // appendOption(LinkOptString, A);
+    //     else
+    //       // For AOT, combine the Backend and Linker strings into one.
+    //       appendOption(BackendOptString, A);
+    //   }
+    //   if (!BackendOptString.empty()) {
+    //     llvm::errs() << "DEBUG: Adding argument: '" << BackendOptString << "'\n";
+    //     CmdArgs.push_back(
+    //         Args.MakeArgString(Twine(WrapperOption) + BackendOptString));
+    //     }
+    //   if (!LinkOptString.empty()){
+    //     llvm::errs() << "DEBUG: Adding argument: '" << LinkOptString << "'\n";
+    //     CmdArgs.push_back(
+    //         Args.MakeArgString("--sycl-target-link-options=" + LinkOptString));
+    //   }
     }
+  
     // Add option to enable creating of the .syclbin file.
     if (Arg *A = Args.getLastArg(options::OPT_fsyclbin_EQ))
       CmdArgs.push_back(
