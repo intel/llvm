@@ -102,6 +102,7 @@
 // CHECK-NEXT: nd_item.hpp
 // CHECK-NEXT: nd_range.hpp
 // CHECK-NEXT: detail/id_queries_fit_in_int.hpp
+// CHECK-NEXT: detail/nd_range_view.hpp
 // CHECK-NEXT: detail/optional.hpp
 // CHECK-NEXT: device.hpp
 // CHECK-NEXT: detail/string_view.hpp
