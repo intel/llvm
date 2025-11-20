@@ -507,7 +507,7 @@ public:
         auto LockedCacheKP = acquireKernelsPerProgramCache();
         // List kernels that are to be removed from the cache, if tracing is
         // enabled.
-        if (SYCLConfigTrace::isTraceInMemCache()) {
+        if (__builtin_expect(SYCLConfigTrace::isTraceInMemCache(), false)) {
           for (const auto &Kernel : LockedCacheKP.get()[NativePrg])
             traceKernel("Kernel evicted.", Kernel.first);
         }
