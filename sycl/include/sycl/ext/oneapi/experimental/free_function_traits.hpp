@@ -48,14 +48,6 @@ template <auto *Func> struct kernel_function_s {};
 
 template <auto *Func> inline constexpr kernel_function_s<Func> kernel_function;
 
-namespace detail {
-template <typename T> struct is_kernel_function_s {
-  static constexpr bool value = false;
-};
-
-template <auto *Func> struct is_kernel_function_s<kernel_function_s<Func>> {
-  static constexpr bool value = true;
-};
 } // namespace detail
 
 } // namespace ext::oneapi::experimental
