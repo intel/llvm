@@ -253,7 +253,7 @@ jobs:
       binaries_artifact: sycl_cts_bin_win_with_new_offload_model
 
   run-with-new-offload-sycl-cts-win:
-    needs: [build-win, build-with-new-offload-sycl-cts-win]
+    needs: [build-win, build-with-new-offload-model-sycl-cts-win]
     if: ${{ !cancelled() && needs.build-win.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
