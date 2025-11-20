@@ -224,11 +224,6 @@ void printCommands(ArrayRef<StringRef> CmdArgs) {
   if (CmdArgs.empty())
     return;
 
-  llvm::errs() << " \"" << CmdArgs.front() << "\" ";
-  for (auto IC = std::next(CmdArgs.begin()), IE = CmdArgs.end(); IC != IE; ++IC)
-    llvm::errs() << *IC << (std::next(IC) != IE ? " " : "\n");
-}
-
 [[noreturn]] void reportError(Error E) {
   outs().flush();
   logAllUnhandledErrors(std::move(E),
@@ -430,24 +425,6 @@ Error runLinker(ArrayRef<StringRef> Files, const ArgList &Args) {
     return createStringError("linker path missing, must pass 'linker-path'");
   ArgStringList NewLinkerArgs;
   for (const opt::Arg *Arg : Args) {
-    // DEBUG: Print argument information before checking WrapperOnlyOption
-    llvm::errs() << "DEBUG: Processing argument: " << Arg->getSpelling();
-    
-    // Safely check if the argument has values before accessing them
-    if (Arg->getNumValues() > 0) {
-      llvm::errs() << " with value: " << Arg->getValue();
-    } else {
-      llvm::errs() << " (no value)";
-    }
-    
-    llvm::errs() << " hasFlag(WrapperOnlyOption): " << Arg->getOption().hasFlag(WrapperOnlyOption)
-                 << "\n";
-
-    StringRef Spelling = Arg->getSpelling();
-    if (Spelling.starts_with("--sycl-target-link-options")) {
-      continue;
-    }
-
     // Do not forward arguments only intended for the linker wrapper.
     if (Arg->getOption().hasFlag(WrapperOnlyOption))
       continue;
@@ -1290,8 +1267,6 @@ Error copyFileToFinalExecutable(StringRef File, const ArgList &Args) {
     llvm::Triple Triple(Args.getLastArgValue(OPT_host_triple_EQ,
                                              sys::getDefaultTargetTriple()));
     StringRef CopyCommand = Triple.isOSWindows() ? "copy" : "cp";
-    llvm::errs() << "\"" << CopyCommand << "\" " << File << " "
-                 << ExecutableName << "\n";
   }
   // TODO: check if copy can be replaced by rename.
   if (std::error_code EC = sys::fs::copy_file(File, ExecutableName))
