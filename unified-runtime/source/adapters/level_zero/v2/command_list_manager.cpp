@@ -1201,8 +1201,8 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpNew(
           reinterpret_cast<void *>(const_cast<size_t *>(&pArgs[argIndex].size));
       break;
     case UR_EXP_KERNEL_ARG_TYPE_VALUE:
-      hKernel->kernelArgs[argIndex] =
-          const_cast<void *>(pArgs[argIndex].value.value);
+      hKernel->kernelArgs[argIndex] = reinterpret_cast<void *>(
+          const_cast<void **>(&pArgs[argIndex].value.value));
       break;
     case UR_EXP_KERNEL_ARG_TYPE_POINTER:
       hKernel->kernelArgs[argIndex] = reinterpret_cast<void *>(
