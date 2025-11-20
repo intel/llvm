@@ -42,6 +42,7 @@ add_custom_command(OUTPUT "${version_inc}"
                            "-DLLVM_VC_REVISION=${llvm_vc_revision}"
                            "-DLLVM_FORCE_VC_REVISION=${LLVM_FORCE_VC_REVISION}"
                            "-DLLVM_FORCE_VC_REPOSITORY=${LLVM_FORCE_VC_REPOSITORY}"
+                           "-DSYCL_BUILD_INFO=${SYCL_BUILD_INFO}"
                            -P "${generate_vcs_version_script}")
 
 # Mark the generated header as being generated.
