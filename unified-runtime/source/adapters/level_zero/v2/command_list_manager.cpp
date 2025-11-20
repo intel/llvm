@@ -1256,8 +1256,11 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExp(
   bool CooperativeCompatible =
       hPlatform->ZeCommandListAppendLaunchKernelWithArgumentsExt
           .DriverSupportsCooperativeKernelLaunchWithArgs;
+  bool DisableZeLaunchKernelWithArgs =
+      hPlatform->ZeCommandListAppendLaunchKernelWithArgumentsExt
+          .DisableZeLaunchKernelWithArgs;
   bool RunNewPath =
-      KernelWithArgsSupported &&
+      !DisableZeLaunchKernelWithArgs && KernelWithArgsSupported &&
       (!cooperativeKernelLaunchRequested ||
        (cooperativeKernelLaunchRequested && CooperativeCompatible));
   if (RunNewPath) {
