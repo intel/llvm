@@ -23,10 +23,17 @@ struct Bar {};
 template<typename T1>
 using BarUsing = Bar<T1, float>;
 
+template<typename T1, typename T2>
+using BarUsing2 = Bar<Foo<T2>, T1>;
+
 class Baz {
 public:
   using type = BarUsing<double>;
 };
+
+template <typename T1, typename T2, typename T3 = BarUsing2<T1, T2>,
+          typename T4 = BarUsing<T2>>
+struct AliasAsDefaultArg {};
 
 } // namespace ns
 
@@ -57,7 +64,25 @@ template void bar_using(ns::BarUsing<int>);
 
 // CHECK: template <typename T> void bar_using(ns::Bar<T, float>);
 
+template<typename T1, typename T2>
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]]
+void bar_using2(ns::BarUsing2<T1, T2> Arg) {}
+template void bar_using2(ns::BarUsing2<int, float>);
+
+// CHECK: template <typename T1, typename T2> void bar_using2(ns::Bar<ns::Foo<T2>, T1>);
+
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]]
 void baz_type(ns::Baz::type Arg) {}
 
 // CHECK: void baz_type(ns::Bar<double, float> Arg);
+
+#if 0
+// This test case fails, but it is added here in advance to add a record of a
+// known bug.
+template<typename T1, typename T2>
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]]
+void alias_as_default_template_arg(ns::AliasAsDefaultArg<T1, T2> Arg) {}
+template void alias_as_default_template_arg(ns::AliasAsDefaultArg<int, float>);
+
+// CHECK-DISABLED: template <typename T1, typename T2> void alias_as_default_template_arg(ns::AliasAsDefaultArg<T1, T2, ns::Bar<ns::Foo<T2>, T1>, ns::Bar<T2, float>>);
+#endif
