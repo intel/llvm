@@ -160,19 +160,6 @@ jobs:
       run: |
         cmake --build build --target ${{ inputs.build_target }}
     - run: build/bin/clang++ --version
-    - name: Generate/diff new ABI symbols
-      if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
-      shell: bash
-      run: |
-        LLVM_BIN_PATH="build/bin" python.exe src/sycl/tools/abi_check.py --mode dump_symbols --output build/new_sycl_symbols_windows.dump build/bin/sycl?.dll
-        diff -Naur src/sycl/test/abi/sycl_symbols_windows.dump build/new_sycl_symbols_windows.dump || true
-    - name: Upload new ABI symbols
-      if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
-      uses: actions/upload-artifact@v5
-      with:
-        name: sycl_windows_abi_symbols
-        path: build/new_sycl_symbols_windows.dump
-        retention-days: ${{ inputs.retention-days }}
     - name: Install sycl-toolchain
       if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
       run: |
