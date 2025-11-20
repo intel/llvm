@@ -224,6 +224,11 @@ void printCommands(ArrayRef<StringRef> CmdArgs) {
   if (CmdArgs.empty())
     return;
 
+  llvm::errs() << " \"" << CmdArgs.front() << "\" ";
+  for (auto IC = std::next(CmdArgs.begin()), IE = CmdArgs.end(); IC != IE; ++IC)
+    llvm::errs() << *IC << (std::next(IC) != IE ? " " : "\n");
+}
+
 [[noreturn]] void reportError(Error E) {
   outs().flush();
   logAllUnhandledErrors(std::move(E),
@@ -1267,6 +1272,8 @@ Error copyFileToFinalExecutable(StringRef File, const ArgList &Args) {
     llvm::Triple Triple(Args.getLastArgValue(OPT_host_triple_EQ,
                                              sys::getDefaultTargetTriple()));
     StringRef CopyCommand = Triple.isOSWindows() ? "copy" : "cp";
+    llvm::errs() << "\"" << CopyCommand << "\" " << File << " "
+                 << ExecutableName << "\n";
   }
   // TODO: check if copy can be replaced by rename.
   if (std::error_code EC = sys::fs::copy_file(File, ExecutableName))

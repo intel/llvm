@@ -11512,47 +11512,15 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     for (auto &ToolChainMember :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       const ToolChain *TC = ToolChainMember.second;
-      bool IsJIT = false;
       StringRef WrapperOption;
-      StringRef WrapperLinkOption;
       if (TC->getTriple().isSPIROrSPIRV()) {
-        if (TC->getTriple().getSubArch() == llvm::Triple::NoSubArch) {
-          IsJIT = true;
-          WrapperOption = "--sycl-backend-compile-options=";
-        }
         if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen)
           WrapperOption = "--gpu-tool-arg=";
         if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
           WrapperOption = "--cpu-tool-arg=";
+        Args.MakeArgString(Twine(WrapperOption));
       } else
         continue;
-      // ArgStringList BuildArgs;
-      // SmallString<128> BackendOptString;
-      // SmallString<128> LinkOptString;
-      // SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
-      // for (const auto &A : BuildArgs)
-      //   appendOption(BackendOptString, A);
-
-      // BuildArgs.clear();
-      // SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);
-    //   for (const auto &A : BuildArgs) {
-    //     if (IsJIT)
-    //       int x = 1;
-    //       // appendOption(LinkOptString, A);
-    //     else
-    //       // For AOT, combine the Backend and Linker strings into one.
-    //       appendOption(BackendOptString, A);
-    //   }
-    //   if (!BackendOptString.empty()) {
-    //     llvm::errs() << "DEBUG: Adding argument: '" << BackendOptString << "'\n";
-    //     CmdArgs.push_back(
-    //         Args.MakeArgString(Twine(WrapperOption) + BackendOptString));
-    //     }
-    //   if (!LinkOptString.empty()){
-    //     llvm::errs() << "DEBUG: Adding argument: '" << LinkOptString << "'\n";
-    //     CmdArgs.push_back(
-    //         Args.MakeArgString("--sycl-target-link-options=" + LinkOptString));
-    //   }
     }
   
     // Add option to enable creating of the .syclbin file.
