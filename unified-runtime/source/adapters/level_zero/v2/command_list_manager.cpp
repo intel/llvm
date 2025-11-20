@@ -155,7 +155,7 @@ ur_result_t ur_command_list_manager::appendKernelLaunchLocked(
     ur_kernel_handle_t hKernel, ze_kernel_handle_t hZeKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     const size_t *pLocalWorkSize, wait_list_view &waitListView,
-    ur_event_handle_t phEvent, bool cooperative, std::vector<void *> *pKMemObj,
+    ur_event_handle_t phEvent, bool cooperative, bool callWithArgs,
     void *pNext) {
 
   ze_group_count_t zeThreadGroupDimensions{1, 1, 1};
@@ -170,7 +170,7 @@ ur_result_t ur_command_list_manager::appendKernelLaunchLocked(
       hContext.get(), hDevice.get(), pGlobalWorkOffset, workDim, WG[0], WG[1],
       WG[2], getZeCommandList(), waitListView));
 
-  if (pKMemObj) {
+  if (callWithArgs) {
     // zeCommandListAppendLaunchKernelWithArguments
     TRACK_SCOPE_LATENCY("ur_command_list_manager::"
                         "zeCommandListAppendLaunchKernelWithArguments");
@@ -1228,7 +1228,7 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpNew(
   return appendKernelLaunchLocked(
       hKernel, hZeKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
       pLocalWorkSize, waitListView, phEvent, cooperativeKernelLaunchRequested,
-      &hKernel->kernelMemObj, pNext);
+      true /* callWithArgs */, pNext);
 }
 
 ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExp(
