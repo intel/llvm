@@ -9,8 +9,8 @@
 // XFAIL: target-native_cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20397
 
-// UNSUPPORTED: new-offload-model
-// UNSUPPORTED-TRACKER: CMPLRLLVM-71777
+// XFAIL: new-offload-model
+// XFAIL-TRACKER: CMPLRLLVM-71777
 
 // CPU AOT targets host isa, so we compile everything on the run system instead.
 //////////////////////  Compile device images

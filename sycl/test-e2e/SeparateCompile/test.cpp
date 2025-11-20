@@ -1,5 +1,5 @@
-// UNSUPPORTED: new-offload-model
-// UNSUPPORTED-TRACKER: CMPLRLLVM-71777
+// XFAIL: new-offload-model
+// XFAIL-TRACKER: CMPLRLLVM-71777
 
 // REQUIRES: target-spir
 //
