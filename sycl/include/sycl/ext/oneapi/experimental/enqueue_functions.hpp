@@ -291,6 +291,7 @@ void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
 // Free function kernel enqueue functions
 template <auto *Func, typename... ArgsT>
 void single_task(queue Q, kernel_function_s<Func> KernelFunc, ArgsT &&...Args) {
+  (void)KernelFunc;
   submit(Q, [&](handler &CGH) {
     single_task(CGH, KernelFunc, std::forward<ArgsT>(Args)...);
   });
@@ -299,6 +300,7 @@ void single_task(queue Q, kernel_function_s<Func> KernelFunc, ArgsT &&...Args) {
 template <auto *Func, typename... ArgsT>
 void single_task(handler &CGH, kernel_function_s<Func> KernelFunc,
                  ArgsT &&...Args) {
+  (void)KernelFunc;
   queue Q = CGH.getQueue();
   sycl::kernel_bundle Bndl =
       get_kernel_bundle<Func, sycl::bundle_state::executable>(Q.get_context());
@@ -310,6 +312,7 @@ void single_task(handler &CGH, kernel_function_s<Func> KernelFunc,
 template <auto *Func, int Dimensions, typename... ArgsT>
 void nd_launch(queue Q, nd_range<Dimensions> Range,
                kernel_function_s<Func> KernelFunc, ArgsT &&...Args) {
+  (void)KernelFunc;
   submit(Q, [&](handler &CGH) {
     nd_launch(CGH, Range, KernelFunc, std::forward<ArgsT>(Args)...);
   });
@@ -318,6 +321,7 @@ void nd_launch(queue Q, nd_range<Dimensions> Range,
 template <auto *Func, int Dimensions, typename... ArgsT>
 void nd_launch(handler &CGH, nd_range<Dimensions> Range,
                kernel_function_s<Func> KernelFunc, ArgsT &&...Args) {
+  (void)KernelFunc;
   queue Q = CGH.getQueue();
   sycl::kernel_bundle Bndl =
       get_kernel_bundle<Func, sycl::bundle_state::executable>(Q.get_context());
@@ -330,6 +334,7 @@ void nd_launch(handler &CGH, nd_range<Dimensions> Range,
 template <auto *Func, int Dimensions, typename Properties, typename... ArgsT>
 void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
                kernel_function_s<Func> KernelFunc, ArgsT &&...Args) {
+  (void)KernelFunc;
   submit(Q, [&](handler &CGH) {
     nd_launch(CGH, Config, KernelFunc, std::forward<ArgsT>(Args)...);
   });
@@ -339,6 +344,7 @@ template <auto *Func, int Dimensions, typename Properties, typename... ArgsT>
 void nd_launch(handler &CGH,
                launch_config<nd_range<Dimensions>, Properties> Config,
                kernel_function_s<Func> KernelFunc, ArgsT &&...Args) {
+  (void)KernelFunc;
   queue Q = CGH.getQueue();
   sycl::kernel_bundle Bndl =
       get_kernel_bundle<Func, sycl::bundle_state::executable>(Q.get_context());
