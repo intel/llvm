@@ -655,15 +655,15 @@ EventImplPtr queue_impl::submit_graph_direct_impl(
     if (auto ParentGraph = getCommandGraph(); ParentGraph) {
       std::unique_ptr<detail::CG> CommandGroup;
       {
-        ext::oneapi::experimental::detail::graph_impl::ReadLock ParentLock(
-            ParentGraph->MMutex);
+        ext::oneapi::experimental::detail::graph_impl::ReadLock ExecLock(
+            ExecGraph->MMutex);
         CGData.MRequirements = ExecGraph->getRequirements();
-        // Here we are using the CommandGroup without passing a CommandBuffer to
-        // pass the exec_graph_impl and event dependencies. Since this subgraph
-        // CG will not be executed this is fine.
-        CommandGroup.reset(
-            new sycl::detail::CGExecCommandBuffer(nullptr, ExecGraph, CGData));
       }
+      // Here we are using the CommandGroup without passing a CommandBuffer to
+      // pass the exec_graph_impl and event dependencies. Since this subgraph
+      // CG will not be executed this is fine.
+      CommandGroup.reset(
+          new sycl::detail::CGExecCommandBuffer(nullptr, ExecGraph, CGData));
       CommandGroup->MIsTopCodeLoc = IsTopCodeLoc;
       return {submit_command_to_graph(*ParentGraph, std::move(CommandGroup),
                                       detail::CGType::ExecCommandBuffer),
