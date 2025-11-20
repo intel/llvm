@@ -95,24 +95,13 @@ DefGenericCastToPtrExpl(ToGlobal, OCL_GLOBAL);
   DefSubgroupBlockINTEL_vt(Type, v8)
 
 namespace ncpu_types {
-// Legacy SYCL header vector definitions.
-template <typename DataT>
-using element_type_for_vector_t = typename sycl::detail::map_type<
-    DataT,
-#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-    std::byte, /*->*/ std::uint8_t, //
-#endif
-    bool, /*->*/ std::uint8_t,                              //
-    sycl::half, /*->*/ sycl::detail::half_impl::StorageT,   //
-    sycl::ext::oneapi::bfloat16, /*->*/ uint16_t,           //
-    char, /*->*/ sycl::detail::ConvertToOpenCLType_t<char>, //
-    DataT, /*->*/ DataT                                     //
-    >::type;
+template <typename T>
+using opencl_type_t =
+    decltype(sycl::detail::convertToOpenCLType(std::declval<T>()));
 template <typename DataT, int NumElements>
-using vector_t =
-    std::conditional_t<NumElements == 1, element_type_for_vector_t<DataT>,
-                       element_type_for_vector_t<DataT> __attribute__((
-                           ext_vector_type(NumElements)))>;
+using vector_t = std::conditional_t<
+    NumElements == 1, opencl_type_t<DataT>,
+    opencl_type_t<DataT __attribute__((ext_vector_type(NumElements)))>>;
 
 template <class T> struct vtypes {
   using v2 = vector_t<T, 2>;
