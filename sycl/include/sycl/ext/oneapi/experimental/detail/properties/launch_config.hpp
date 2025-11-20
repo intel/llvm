@@ -13,10 +13,8 @@
 
 namespace sycl {
 inline namespace _V1 {
-template <int Dimensions>
-class nd_range;
-template<int Dimensions>
-class range;
+template <int Dimensions> class nd_range;
+template <int Dimensions> class range;
 
 namespace ext::oneapi::experimental {
 namespace detail {
