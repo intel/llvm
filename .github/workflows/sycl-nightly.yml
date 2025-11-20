@@ -197,6 +197,28 @@ jobs:
       toolchain_artifact_filename: ${{ needs.ubuntu2404_oneapi_build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.ubuntu2404_oneapi_build.outputs.toolchain_decompress_command }}
 
+  e2e-with-new-offload-model:
+    needs: [ubuntu2204_build]
+    if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    strategy:
+      fail-fast: false
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    permissions:
+      contents: write
+      packages: read
+    with:
+      name: "E2E with enabled NewOffloadModel"
+      runner: ${{ inputs.runner }}
+      image_options: ${{ inputs.image_options }}
+      tests_selector: e2e
+      testing_mode: ${{ inputs.testing_mode }}
+      target_devices: ${{ inputs.target_devices }}
+      extra_lit_opts: "--param enable_new_offload_model=True"
+      tests_ref: ${{ github.sha }}
+      toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
+
   build-win:
     needs: get_date
     uses: ./.github/workflows/sycl-windows-build.yml
@@ -237,6 +259,22 @@ jobs:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
       target_devices: ${{ matrix.target_devices }}
+      toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
+
+  e2e-win-with-new-offload-model:
+    needs: [build-win]
+    if: ${{ !cancelled() && needs.build-win.outputs.build_conclusion == 'success' }}
+    strategy:
+      fail-fast: false
+    uses: ./.github/workflows/sycl-windows-run-tests.yml
+    permissions: read-all
+    with:
+      name: "E2E Windows with enabled NewOffloadModel"
+      runner: '["Windows", arc"]'
+      tests_selector: e2e
+      testing_mode: ${{ inputs.testing_mode }}
+      target_devices: level_zero:gpu
+      extra_lit_opts: "--param enable_new_offload_model=True"
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
 
   cuda-aws-start:
@@ -326,6 +364,60 @@ jobs:
       toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
       binaries_artifact: sycl_cts_bin_linux
 
+  build-with-new-offload-sycl-cts-linux:
+    needs: ubuntu2204_build
+    permissions:
+      contents: write
+      packages: read
+    if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    with:
+      name: Build SYCL-CTS for Linux
+      runner: '["Linux", "build"]'
+      testing_mode: 'build-only'
+      image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+      tests_selector: cts
+      extra_lit_opts: "--param enable_new_offload_model=True" 
+      repo_ref: ${{ github.sha }}
+      toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
+      binaries_artifact: sycl_cts_bin_linux_with_new_offload_model
+
+  run-with-new-offload-sycl-cts-linux:
+    needs: [ubuntu2204_build, build-with-new-offload-sycl-cts-linux]
+    permissions:
+      contents: write
+      packages: read
+    if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: SYCL-CTS on OCL CPU
+            runner: '["Linux", "gen12"]'
+            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            target_devices: opencl:cpu
+
+          - name: SYCL-CTS on L0 gen12
+            runner: '["Linux", "gen12"]'
+            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    with:
+      name: ${{ matrix.name }}
+      runner: ${{ matrix.runner }}
+      testing_mode: 'run-only'
+      image_options: ${{ matrix.image_options }}
+      target_devices: ${{ matrix.target_devices }}
+      tests_selector: cts
+      extra_lit_opts: "--param enable_new_offload_model=True"
+      repo_ref: ${{ github.sha }}
+      toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
+      binaries_artifact: sycl_cts_bin_linux_with_new_offload_model
+
   build-sycl-cts-win:
     needs: build-win
     if: ${{ !cancelled() && needs.build-win.outputs.build_conclusion == 'success' }}
@@ -359,6 +451,41 @@ jobs:
       repo_ref: ${{ github.sha }}
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
       binaries_artifact: sycl_cts_bin_win
+
+  build-with-new-offload-model-sycl-cts-win:
+    needs: build-win
+    if: ${{ !cancelled() && needs.build-win.outputs.build_conclusion == 'success' }}
+    uses: ./.github/workflows/sycl-windows-run-tests.yml
+    with:
+      name: Build SYCL-CTS for Windows
+      runner: '["Windows", "build"]'
+      testing_mode: 'build-only'
+      tests_selector: cts
+      extra_lit_opts: "--param enable_new_offload_model=True"
+      repo_ref: ${{ github.sha }}
+      toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
+      binaries_artifact: sycl_cts_bin_win_with_new_offload_model
+
+  run-with-new-offload-sycl-cts-win:
+    needs: [build-win, build-with-new-offload-sycl-cts-win]
+    if: ${{ !cancelled() && needs.build-win.outputs.build_conclusion == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: SYCL-CTS on L0 gen12
+            runner: '["Windows", "gen12"]'
+            target_devices: level_zero:gpu
+    uses: ./.github/workflows/sycl-windows-run-tests.yml
+    with:
+      name: ${{ matrix.name }}
+      runner: ${{ matrix.runner }}
+      testing_mode: 'run-only'
+      target_devices: ${{ matrix.target_devices }}
+      tests_selector: cts
+      repo_ref: ${{ github.sha }}
+      toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
+      binaries_artifact: sycl_cts_bin_win_with_new_offload_model
 
   # Verification example:
   # cosign-windows-amd64.exe verify-blob sycl_linux.tar.gz \

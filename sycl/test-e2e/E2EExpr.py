@@ -48,6 +48,7 @@ class E2EExpr(BooleanExpression):
         "pdtracker",
         "ze_debug",
         "device-config-file",
+        "new-offload-model",
     }
 
     def __init__(self, string, variables, build_only_mode, final_unknown_value):
