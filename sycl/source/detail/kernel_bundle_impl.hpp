@@ -414,11 +414,14 @@ public:
           }
         }
 
+        // Move the images from the set to images collection.
+        // Note: Move iterators do not allow moving from sets, so instead we
+        //       need to call extract.
+        //       https://godbolt.org/z/h3YGoPYbr illustrates this limitation.
         DevImages.reserve(DevImages.size() + DevImagesSet.size());
-        for (auto It = std::make_move_iterator(DevImagesSet.begin()),
-                  End = std::make_move_iterator(DevImagesSet.end());
-             It != End; ++It)
-          DevImages.push_back(createSyclObjFromImpl<device_image_plain>(**It));
+        for (auto It = DevImagesSet.begin(); It != DevImagesSet.end();)
+          DevImages.push_back(createSyclObjFromImpl<device_image_plain>(
+              *DevImagesSet.extract(It++).value()));
 
         // Check for conflicting kernels in RTC kernel bundles.
         ThrowIfConflictingKernels(DevImages);
