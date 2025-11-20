@@ -255,6 +255,21 @@ jobs:
         extra_lit_opts: --param sycl_build_targets="spir"
         cxx: ${{ inputs.cxx }}
 
+    #- name: Build E2E tests with New Offload Model
+    #  if: |
+    #    inputs.e2e_binaries_artifact &&
+    #    !cancelled() &&
+    #    steps.build.conclusion == 'success' &&
+    #    contains(github.event.pull_request.labels.*.name, "new-offload-model")
+    #  uses: ./devops/actions/run-tests/windows/e2e
+    #  with:
+    #    ref: ${{ inputs.ref || github.sha }}
+    #    testing_mode: build-only
+    #    target_devices: all
+    #    binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
+    #    extra_lit_opts: --param sycl_build_targets="spir" --param enable_new_offload_model=True
+    #    cxx: ${{ inputs.cxx }}
+
     - name:  Detect hung tests
       if: always()
       shell: powershell
