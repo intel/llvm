@@ -204,11 +204,13 @@ jobs:
           --ci-defaults --use-zstd ${{ inputs.build_configure_extra_args }} \
           -DCMAKE_C_COMPILER_LAUNCHER=ccache \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-          -DLLVM_INSTALL_UTILS=ON
+          -DLLVM_INSTALL_UTILS=ON \
+          -DSYCL_UR_FORCE_FETCH_LEVEL_ZERO=ON
     - name: Compile
       id: build
       # Emulate default value for manual dispatch as we've run out of available arguments.
       run: cmake --build $GITHUB_WORKSPACE/build --target ${{ inputs.build_target || 'sycl-toolchain' }}
+    - run: $GITHUB_WORKSPACE/build/bin/clang++ --version
     - name: check-llvm
       if: ${{ !cancelled() && contains(inputs.changes, 'llvm') }}
       env:

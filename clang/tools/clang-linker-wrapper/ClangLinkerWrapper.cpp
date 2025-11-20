@@ -727,10 +727,24 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
       createOutputFile(sys::path::filename(ExecutableName), "table");
   if (!TempFileOrErr)
     return TempFileOrErr.takeError();
+  std::string OutputPathWithArch = TempFileOrErr->str();
+
+  // Enable the driver to invoke sycl-post-link with the device architecture
+  // when Intel GPU targets are passed in -fsycl-targets.
+  // OPT_gpu_tool_arg_EQ is checked to ensure the device architecture is not
+  // passed through -Xsycl-target-backend=spir64_gen "-device <arch>" format
+  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+  StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
+  StringRef IsGPUTool = Args.getLastArgValue(OPT_gpu_tool_arg_EQ);
+
+  if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen && !Arch.empty() &&
+      IsGPUTool.empty() && Arch != "*")
+    OutputPathWithArch = "intel_gpu_" + Arch.str() + "," + OutputPathWithArch;
+  else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
+    OutputPathWithArch = "spir64_x86_64," + OutputPathWithArch;
 
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*SYCLPostLinkPath);
-  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   Arg *SYCLDeviceLibLoc = Args.getLastArg(OPT_sycl_device_library_location_EQ);
   if (SYCLDeviceLibLoc && !Triple.isSPIRAOT()) {
     std::string SYCLDeviceLibLocParam = SYCLDeviceLibLoc->getValue();
@@ -748,7 +762,7 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
   SYCLPostLinkOptions.split(CmdArgs, " ", /* MaxSplit = */ -1,
                             /* KeepEmpty = */ false);
   CmdArgs.push_back("-o");
-  CmdArgs.push_back(*TempFileOrErr);
+  CmdArgs.push_back(Args.MakeArgString(OutputPathWithArch));
   for (auto &File : InputFiles)
     CmdArgs.push_back(File);
   if (Error Err = executeCommands(*SYCLPostLinkPath, CmdArgs))
@@ -943,24 +957,29 @@ static void addSYCLBackendOptions(const ArgList &Args,
   if (IsCPU) {
     BackendOptions.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
   } else {
-    // ocloc -options args need to be comma separated, e.g. `-options
-    // "-g,-cl-opt-disable"`. Otherwise, only the first arg is processed by
-    // ocloc as an arg for -options, and the rest are processed as standalone
-    // flags, possibly leading to errors.
+    // ocloc -options takes arguments in the form of '-options "-g
+    // -cl-opt-disable"' where each argument is separated with spaces.
     // split function here returns a pair with everything before the separator
     // ("-options") in the first member of the pair, and everything after the
     // separator in the second part of the pair. The separator is not included
     // in any of them.
     auto [BeforeOptions, AfterOptions] = BackendOptions.split("-options ");
     // Only add if not empty, an empty arg can lead to ocloc errors.
-    if (!BeforeOptions.empty())
-      CmdArgs.push_back(BeforeOptions);
+    if (!BeforeOptions.empty()) {
+      SmallVector<StringRef, 8> BeforeArgs;
+      BeforeOptions.split(BeforeArgs, " ", /*MaxSplit=*/-1,
+                          /*KeepEmpty=*/false);
+      for (const auto &string : BeforeArgs) {
+        CmdArgs.push_back(string);
+      }
+    }
     if (!AfterOptions.empty()) {
-      // Separator not included by the split function, so explicitly added here.
       CmdArgs.push_back("-options");
-      std::string Replace = AfterOptions.str();
-      std::replace(Replace.begin(), Replace.end(), ' ', ',');
-      CmdArgs.push_back(Args.MakeArgString(Replace));
+      // Split the options string by spaces and rejoin to normalize whitespace
+      SmallVector<StringRef, 8> AfterArgs;
+      AfterOptions.split(AfterArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+      std::string JoinedOptions = llvm::join(AfterArgs, " ");
+      CmdArgs.push_back(Args.MakeArgString(JoinedOptions));
     }
   }
 
@@ -1441,9 +1460,8 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   if (ExtractedDeviceLibFiles.empty()) {
     // TODO: Add NVPTX when ready
     if (Triple.isSPIROrSPIRV())
-      return createStringError(
-          inconvertibleErrorCode(),
-          " SYCL device library file list cannot be empty.");
+      WithColor::warning(errs(), LinkerExecutable)
+          << "SYCL device library file list is empty\n";
     return *LinkedFile;
   }
 

@@ -2735,6 +2735,7 @@ void Driver::PrintSYCLToolHelp(const Compilation &C) const {
 }
 
 void Driver::PrintVersion(const Compilation &C, raw_ostream &OS) const {
+  OS << "Intel SYCL compiler " << getSYCLBuildInfo() << " build based on:\n";
   if (IsFlangMode()) {
     OS << getClangToolFullVersion("flang") << '\n';
   } else {
