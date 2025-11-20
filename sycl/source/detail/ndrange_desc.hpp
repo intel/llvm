@@ -86,7 +86,6 @@ public:
       : NDRDescT(Range, /*SetNumWorkGroups=*/false) {}
 
   template <int Dims_> void setClusterDimensions(sycl::range<Dims_> N) {
-
     for (int I = 0; I < Dims_; ++I)
       ClusterDimensions[I] = N[I];
   }
