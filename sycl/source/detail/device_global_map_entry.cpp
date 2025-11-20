@@ -12,6 +12,7 @@
 #include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/usm/usm_impl.hpp>
+#include <sycl/detail/common.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -21,16 +22,21 @@ DeviceGlobalUSMMem::~DeviceGlobalUSMMem() {
   // removeAssociatedResources is expected to have cleaned up both the pointer
   // and the event. When asserts are enabled the values are set, so we check
   // these here.
-  auto ContextImplPtr = MAllocatingContext.lock();
-  if (ContextImplPtr) {
-    if (MPtr != nullptr) {
-      detail::usm::freeInternal(MPtr, ContextImplPtr.get());
-      MPtr = nullptr;
+  try {
+    auto ContextImplPtr = MAllocatingContext.lock();
+    if (ContextImplPtr) {
+      if (MPtr != nullptr) {
+        detail::usm::freeInternal(MPtr, ContextImplPtr.get());
+        MPtr = nullptr;
+      }
+      if (MInitEvent != nullptr) {
+        ContextImplPtr->getAdapter().call<UrApiKind::urEventRelease>(
+            MInitEvent);
+        MInitEvent = nullptr;
+      }
     }
-    if (MInitEvent != nullptr) {
-      ContextImplPtr->getAdapter().call<UrApiKind::urEventRelease>(MInitEvent);
-      MInitEvent = nullptr;
-    }
+  } catch (std::exception &e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~DeviceGlobalUSMMem", e);
   }
 
   assert(MPtr == nullptr && "MPtr has not been cleaned up.");
