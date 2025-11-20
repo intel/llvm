@@ -79,12 +79,11 @@ CreateLinkGraph(const std::vector<device_image_plain> &DevImages) {
       continue;
     for (const sycl_device_binary_property &ESProp :
          DevImageImpl.get_bin_image_ref()->getExportedSymbols()) {
-      if (ExportMap.find(ESProp->Name) != ExportMap.end())
+      if (!ExportMap.insert({ESProp->Name, I}).second)
         throw sycl::exception(make_error_code(errc::invalid),
                               "Duplicate exported symbol \"" +
                                   std::string{ESProp->Name} +
                                   "\" found in binaries.");
-      ExportMap.emplace(ESProp->Name, I);
     }
   }
 
@@ -106,20 +105,17 @@ CreateLinkGraph(const std::vector<device_image_plain> &DevImages) {
                                   "\" found in linked images.");
       DeviceImageDepsSet.emplace(ExportSymbolIt->second);
     }
-    Dependencies[I].insert(Dependencies[I].end(),
-                           std::make_move_iterator(DeviceImageDepsSet.begin()),
-                           std::make_move_iterator(DeviceImageDepsSet.end()));
+    Dependencies[I].insert(Dependencies[I].end(), DeviceImageDepsSet.begin(),
+                           DeviceImageDepsSet.end());
   }
   return LinkGraph<device_image_plain>{DevImages, Dependencies};
 }
 
-inline void
-ThrowIfConflictingKernels(device_images_range DevImages) {
-  std::set<std::string_view, std::less<>> SeenKernelNames;
-  std::set<std::string_view, std::less<>> Conflicts;
+inline void ThrowIfConflictingKernels(device_images_range DevImages) {
+  std::set<std::string_view> SeenKernelNames;
+  std::set<std::string_view> Conflicts;
   for (const device_image_impl &DevImage : DevImages) {
     const KernelNameSetT &KernelNames = DevImage.getKernelNames();
-    std::vector<std::string_view> Intersect;
     std::set_intersection(SeenKernelNames.begin(), SeenKernelNames.end(),
                           KernelNames.begin(), KernelNames.end(),
                           std::inserter(Conflicts, Conflicts.begin()));
