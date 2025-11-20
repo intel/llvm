@@ -230,7 +230,7 @@ jobs:
         inputs.e2e_binaries_artifact &&
         !cancelled() &&
         steps.build.conclusion == 'success' &&
-        contains(github.event.pull_request.labels.*.name, "new-offload-model")
+        contains(github.event.pull_request.labels.*.name, 'new-offload-model')
       uses: ./devops/actions/run-tests/windows/e2e
       with:
         ref: ${{ inputs.ref || github.sha }}

@@ -241,7 +241,7 @@ jobs:
     if: |
       !cancelled() &&
       needs.build.outputs.build_conclusion == 'success' &&
-      contains(github.event.pull_request.labels.*.name, "new-offload-model")
+      contains(github.event.pull_request.labels.*.name, 'new-offload-model')
     permissions:
       contents: write
       packages: read
