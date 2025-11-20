@@ -306,9 +306,9 @@ public:
         Kprop.get<cuda::cluster_size_key<3>>()->MProperty);
   }
 
-  KernelNameStrRefT getKernelName() const {
+  std::string_view getKernelName() const {
     assert(MDeviceKernelInfoPtr);
-    return static_cast<KernelNameStrRefT>(MDeviceKernelInfoPtr->Name);
+    return MDeviceKernelInfoPtr->Name;
   }
 
   void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,

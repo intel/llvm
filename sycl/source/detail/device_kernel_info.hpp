@@ -11,7 +11,6 @@
 #include <detail/kernel_arg_mask.hpp>
 #include <hash_table8.hpp>
 #include <sycl/detail/compile_time_kernel_info.hpp>
-#include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/ur.hpp>
 
@@ -90,17 +89,11 @@ struct FastKernelSubcacheT {
 class DeviceKernelInfo : public CompileTimeKernelInfoTy {
 public:
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Needs to own the kernel name string in non-preview builds since we pass it
-  // using a temporary string instead of a string view there.
-  std::string Name;
-#endif
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   DeviceKernelInfo() = default;
 #endif
   DeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
 
-  void init(KernelNameStrRefT KernelName);
+  void init(std::string_view KernelName);
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // Initialize default-created entry that has no data recorded:
   void initIfEmpty(const CompileTimeKernelInfoTy &Info);

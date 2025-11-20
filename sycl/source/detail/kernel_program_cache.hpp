@@ -15,7 +15,6 @@
 #include <detail/platform_impl.hpp>
 #include <detail/unordered_multimap.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/detail/locked.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/spinlock.hpp>
@@ -215,7 +214,7 @@ public:
 
   using KernelCacheT = emhash8::HashMap<
       ur_program_handle_t,
-      emhash8::HashMap<KernelNameStrT, std::shared_ptr<KernelBuildResult>>>;
+      emhash8::HashMap<std::string_view, std::shared_ptr<KernelBuildResult>>>;
 
   class FastKernelSubcacheWrapper {
   public:
@@ -260,7 +259,7 @@ public:
   };
 
   using FastKernelCacheT =
-      emhash8::HashMap<KernelNameStrT, FastKernelSubcacheWrapper>;
+      emhash8::HashMap<std::string_view, FastKernelSubcacheWrapper>;
 
   // DS to hold data and functions related to Program cache eviction.
   struct EvictionList {
@@ -365,7 +364,7 @@ public:
   // set.
   template <typename MsgType>
   static inline void traceKernel(const MsgType &Msg,
-                                 KernelNameStrRefT KernelName,
+                                 std::string_view KernelName,
                                  bool IsFastKernelCache = false) {
     if (!SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache())
       return;
@@ -430,7 +429,7 @@ public:
   }
 
   std::pair<std::shared_ptr<KernelBuildResult>, bool>
-  getOrInsertKernel(ur_program_handle_t Program, KernelNameStrRefT KernelName) {
+  getOrInsertKernel(ur_program_handle_t Program, std::string_view KernelName) {
     auto LockedCache = acquireKernelsPerProgramCache();
     auto &Cache = LockedCache.get()[Program];
     auto [It, DidInsert] = Cache.try_emplace(KernelName, nullptr);
@@ -443,7 +442,7 @@ public:
   }
 
   FastKernelCacheValPtr
-  tryToGetKernelFast(KernelNameStrRefT KernelName, ur_device_handle_t Device,
+  tryToGetKernelFast(std::string_view KernelName, ur_device_handle_t Device,
                      FastKernelSubcacheT &KernelSubcache) {
     const FastKernelSubcacheEntriesT &SubcacheEntries = KernelSubcache.Entries;
     FastKernelSubcacheReadLockT SubcacheLock{KernelSubcache.Mutex};
@@ -462,7 +461,7 @@ public:
     return FastKernelCacheValPtr();
   }
 
-  void saveKernel(KernelNameStrRefT KernelName, ur_device_handle_t Device,
+  void saveKernel(std::string_view KernelName, ur_device_handle_t Device,
                   const FastKernelCacheValPtr &CacheVal,
                   FastKernelSubcacheT &KernelSubcache) {
     if (SYCLConfig<SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD>::
@@ -842,8 +841,9 @@ private:
 
   // Map between fast kernel cache keys and program handle.
   // MFastKernelCacheMutex will be used for synchronization.
-  std::unordered_map<ur_program_handle_t,
-                     std::vector<std::pair<KernelNameStrT, ur_device_handle_t>>>
+  std::unordered_map<
+      ur_program_handle_t,
+      std::vector<std::pair<std::string_view, ur_device_handle_t>>>
       MProgramToFastKernelCacheKeyMap;
 
   EvictionList MEvictionList;

@@ -40,8 +40,8 @@ void foo() {
 // CHECK:       56 |           pointer _M_start
 // CHECK-NEXT:  64 |           pointer _M_finish
 // CHECK-NEXT:  72 |           pointer _M_end_of_storage
-// CHECK-NEXT:  80 |   class sycl::detail::string MKernelName
-// CHECK-NEXT:  80 |     char * str
+// CHECK-NEXT:  80 |   class sycl::detail::string_view MKernelName
+// CHECK-NEXT:  80 |     const char * str
 // CHECK-NEXT:  88 |   class std::shared_ptr<class sycl::detail::kernel_impl> MKernel
 // CHECK-NEXT:  88 |     class std::__shared_ptr<class sycl::detail::kernel_impl> (base)
 // CHECK-NEXT:  88 |       class std::__shared_ptr_access<class sycl::detail::kernel_impl, __gnu_cxx::_S_atomic> (base) (empty)

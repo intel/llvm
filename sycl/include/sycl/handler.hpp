@@ -19,7 +19,6 @@
 #include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/detail/kernel_launch_helper.hpp>
-#include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/detail/reduction_forward.hpp>
 #include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
@@ -530,7 +529,7 @@ private:
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// \return a string containing name of SYCL kernel.
-  detail::ABINeutralKernelNameStrT getKernelName();
+  detail::string_view getKernelName();
 
   template <typename LambdaNameT> bool lambdaAndKernelHaveEqualName() {
     // TODO It is unclear a kernel and a lambda/functor must to be equal or not
@@ -541,7 +540,7 @@ private:
     assert(MKernel && "MKernel is not initialized");
     constexpr std::string_view LambdaName =
         detail::CompileTimeKernelInfo<LambdaNameT>.Name;
-    detail::ABINeutralKernelNameStrT KernelName = getKernelName();
+    detail::string_view KernelName = getKernelName();
     return KernelName == LambdaName;
   }
 #endif
@@ -3151,7 +3150,7 @@ private:
 #endif
   std::vector<detail::LocalAccessorImplPtr> MLocalAccStorage;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreamStorage;
-  detail::ABINeutralKernelNameStrT MKernelName;
+  detail::string_view MKernelName;
   /// Storage for a sycl::kernel object.
   std::shared_ptr<detail::kernel_impl> MKernel;
   /// Pointer to the source host memory or accessor(depending on command type).

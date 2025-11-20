@@ -9,7 +9,6 @@
 #pragma once
 
 #include <sycl/detail/impl_utils.hpp>
-#include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/detail/type_traits.hpp>
 
 #include <ur_api.h>
@@ -32,7 +31,7 @@ class queue_impl;
 class RTDeviceBinaryImage;
 
 const RTDeviceBinaryImage *
-retrieveKernelBinary(queue_impl &Queue, KernelNameStrRefT KernelName,
+retrieveKernelBinary(queue_impl &Queue, std::string_view KernelName,
                      CGExecKernel *CGKernel = nullptr);
 
 template <typename SyclTy, typename... Iterators> class variadic_iterator {

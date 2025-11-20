@@ -14,15 +14,11 @@ namespace detail {
 
 DeviceKernelInfo::DeviceKernelInfo(const CompileTimeKernelInfoTy &Info)
     : CompileTimeKernelInfoTy(Info)
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-      ,
-      Name(Info.Name.data())
-#endif
 {
   init(Name.data());
 }
 
-void DeviceKernelInfo::init(KernelNameStrRefT KernelName) {
+void DeviceKernelInfo::init(std::string_view KernelName) {
   auto &PM = detail::ProgramManager::getInstance();
   MImplicitLocalArgPos = PM.kernelImplicitLocalArgPos(KernelName);
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES

@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <sycl/detail/kernel_name_str_t.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -33,7 +32,7 @@ struct EqualByNameComp {
 // identificator
 class kernel_id_impl {
 public:
-  kernel_id_impl(KernelNameStrT Name) : MName(std::move(Name)) {}
+  kernel_id_impl(std::string_view Name) : MName(std::move(Name)) {}
   kernel_id_impl(){};
   const char *get_name() { return MName.data(); }
 
