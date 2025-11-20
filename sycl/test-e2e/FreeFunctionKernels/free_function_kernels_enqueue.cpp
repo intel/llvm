@@ -6,7 +6,7 @@
 // This test checks that free function kernels can be submitted using the
 // enqueued functions defined in the free function kernel extension, namely the
 // single_task and the nd_launch functions that take a queue/handler as an
-// argument.
+// argument. These were added in https://github.com/intel/llvm/pull/19995.
 
 #include <cassert>
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
