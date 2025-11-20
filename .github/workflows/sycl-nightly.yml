@@ -128,7 +128,7 @@ jobs:
             target_devices: level_zero:gpu
 
           - name: Intel L0 Ponte Vecchio GPU
-            runner: '["Linux", "pvc"]'
+            runner: '["Linux", "pvc-test"]'
             target_devices: level_zero:gpu
 
           - name: Intel L0 Battlemage GPU
@@ -164,7 +164,7 @@ jobs:
             target_devices: opencl:cpu
 
           - name: Preview mode on SPR/PVC
-            runner: '["Linux", "pvc"]'
+            runner: '["Linux", "pvc-test"]'
             target_devices: level_zero:gpu
             extra_lit_opts: --param test-preview-mode=True
 
@@ -190,7 +190,7 @@ jobs:
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: Intel PVC L0 oneAPI
-      runner: '["Linux", "pvc"]'
+      runner: '["Linux", "pvc-test"]'
       target_devices: level_zero:gpu
       extra_lit_opts: -j 50
       image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
