@@ -17,6 +17,7 @@
 #include <iterator>
 #include <memory>
 #include <queue>
+#include <string_view>
 #include <tuple>
 #include <variant>
 #include <vector>

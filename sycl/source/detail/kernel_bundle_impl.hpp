@@ -26,6 +26,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <string_view>
 #include <unordered_set>
 #include <vector>
 

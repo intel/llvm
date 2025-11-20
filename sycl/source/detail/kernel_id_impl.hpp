@@ -8,6 +8,12 @@
 
 #pragma once
 
+#include <sycl/kernel_bundle.hpp>
+
+#include <cstring>
+#include <string>
+#include <string_view>
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {

@@ -16,6 +16,7 @@
 
 #include <mutex>
 #include <optional>
+#include <string_view>
 
 namespace sycl {
 inline namespace _V1 {
