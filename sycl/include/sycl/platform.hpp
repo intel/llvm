@@ -214,6 +214,13 @@ public:
   /// \return the default context
   context khr_get_default_context() const;
 
+  /// If the index is within range of the std::vector that is returned when
+  /// calling platform::get_devices(), returns a copy of the device object which
+  /// has that index.
+  ///
+  /// \return a copy of the device object which has that index.
+  device ext_oneapi_device_at_index(size_t index) const;
+
 private:
   ur_native_handle_t getNative() const;
 

@@ -138,6 +138,15 @@ std::vector<device> platform::ext_oneapi_get_composite_devices() const {
   return Result;
 }
 
+device platform::ext_oneapi_device_at_index(size_t index) const {
+  auto devices = get_devices();
+  if (index < devices.size())
+    return devices[index];
+  else
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "index is out of range");
+}
+
 namespace detail {
 
 void enable_ext_oneapi_default_context(bool Val) {

@@ -17,6 +17,9 @@
 #include <sycl/device_selector.hpp>
 #include <sycl/info/info_desc.hpp>
 
+#include <algorithm>
+#include <iterator>
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -342,6 +345,17 @@ detail::string device::ext_oneapi_cl_profile_impl() const {
   std::string profile =
       ext::oneapi::experimental::detail::OpenCLC_Profile(ipVersion);
   return detail::string{profile};
+}
+
+size_t device::ext_oneapi_index_within_platform() const {
+  auto devices = get_platform().get_devices();
+  auto it = std::find(devices.begin(), devices.end(), *this);
+  if (it == devices.end())
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "this device is not a root device");
+
+  size_t index = std::distance(devices.begin(), it);
+  return index;
 }
 
 } // namespace _V1
