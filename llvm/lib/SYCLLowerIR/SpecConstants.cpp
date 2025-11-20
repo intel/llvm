@@ -122,7 +122,7 @@ StringRef getStringLiteralArg(const CallInst *CI, unsigned ArgNo,
         V = ASC->getPointerOperand()->stripPointerCasts();
       using namespace PatternMatch;
       Value *X;
-      if (match(V, m_GEP(m_Value(X), m_Constant())))
+      if (match(V, m_PtrAdd(m_Value(X), m_Constant())))
         V = X;
       return isa<AllocaInst>(V);
     };
@@ -541,7 +541,8 @@ Instruction *emitCall(Type *RetTy, StringRef BaseFunctionName,
   // types? Is it necessary?
 
   FunctionCallee FC = M->getOrInsertFunction(FunctionName, FT);
-  auto *Call = CallInst::Create(FT, FC.getCallee(), Args, "", InsertBefore);
+  auto *Call = CallInst::Create(FT, FC.getCallee(), Args, "",
+                                InsertBefore->getIterator());
   if (IsSPIROrSPIRV) {
     cast<Function>(FC.getCallee())->setCallingConv(CallingConv::SPIR_FUNC);
     Call->setCallingConv(CallingConv::SPIR_FUNC);
@@ -724,9 +725,8 @@ Value *createLoadFromBuffer(CallInst *InsertBefore, Value *Buffer,
   if (SCType->isIntegerTy(1)) // No bitcast to i1 before load
     BitCast = GEP;
   else
-    BitCast =
-        new BitCastInst(GEP, PointerType::get(SCType, GEP->getAddressSpace()),
-                        "bc", InsertBefore->getIterator());
+    BitCast = new BitCastInst(GEP, PointerType::get(C, GEP->getAddressSpace()),
+                              "bc", InsertBefore->getIterator());
 
   // When we encounter i1 spec constant, we still load the whole byte
   Value *Load = new LoadInst(SCType->isIntegerTy(1) ? Int8Ty : SCType, BitCast,
@@ -831,8 +831,8 @@ void updatePaddingInLastMDNode(LLVMContext &Ctx,
 /// type.
 void createStoreInstructionIntoSpecConstValue(Value *Dst, Value *V,
                                               CallInst *InsertBefore) {
-  Type *PointerType =
-      PointerType::get(V->getType(), Dst->getType()->getPointerAddressSpace());
+  Type *PointerType = PointerType::get(
+      V->getContext(), Dst->getType()->getPointerAddressSpace());
   IRBuilder B(InsertBefore);
   Value *Bitcast = B.CreateBitCast(Dst, PointerType);
   B.CreateStore(V, Bitcast);
