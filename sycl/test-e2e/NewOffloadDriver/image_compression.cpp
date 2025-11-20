@@ -1,5 +1,5 @@
 // End-to-End test for testing device image compression when we
-// seperatly compile and link device images.
+// separately compile and link device images for New Offloading Model.
 
 // REQUIRES: zstd, opencl-aot, cpu, linux
 
@@ -11,24 +11,24 @@
 
 // CPU AOT targets host isa, so we compile everything on the run system instead.
 //////////////////////  Compile device images
-// RUN: %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fsycl-host-compiler=clang++ -fsycl-host-compiler-options='-std=c++17 -Wno-attributes -Wno-deprecated-declarations -fPIC -DENABLE_KERNEL1' -DENABLE_KERNEL1 -c %s -o %t_kernel1_aot.o
-// RUN: %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fsycl-host-compiler=clang++ -fsycl-host-compiler-options='-std=c++17 -Wno-attributes -Wno-deprecated-declarations -fPIC -DENABLE_KERNEL2' -DENABLE_KERNEL2 -c %s -o %t_kernel2_aot.o
+// RUN: %clangxx --offload-new-driver -fsycl -fsycl-targets=spir64_x86_64 -fsycl-host-compiler=clang++ -fsycl-host-compiler-options='-std=c++17 -Wno-attributes -Wno-deprecated-declarations -fPIC -DENABLE_KERNEL1' -DENABLE_KERNEL1 -c %s -o %t_kernel1_aot.o
+// RUN: %clangxx --offload-new-driver -fsycl -fsycl-targets=spir64_x86_64 -fsycl-host-compiler=clang++ -fsycl-host-compiler-options='-std=c++17 -Wno-attributes -Wno-deprecated-declarations -fPIC -DENABLE_KERNEL2' -DENABLE_KERNEL2 -c %s -o %t_kernel2_aot.o
 
 //////////////////////   Link device images
-// RUN: %{run-aux} %clangxx --offload-compress -fsycl -fsycl-link -fsycl-targets=spir64_x86_64 -fPIC %t_kernel1_aot.o %t_kernel2_aot.o -o %t_compressed_image.o -v
+// RUN: %clangxx --offload-new-driver --offload-compress -fsycl -fsycl-link -fsycl-targets=spir64_x86_64 -fPIC %t_kernel1_aot.o %t_kernel2_aot.o -o %t_compressed_image.o -v
 
-// Make sure the clang-offload-wrapper is called with the --offload-compress when using the old offloading model
+// Make sure the clang-linker-wrapper is called with the --compress when using the new offloading model
 // option.
-// RUN: %{run-aux} %clangxx --no-offload-new-driver --offload-compress -fsycl -fsycl-link -fsycl-targets=spir64_x86_64 -fPIC %t_kernel1_aot.o %t_kernel2_aot.o -o %t_compressed_image.o -### &> %t_driver_opts.txt
-// RUN: %{run-aux} FileCheck -input-file=%t_driver_opts.txt %s --check-prefix=CHECK-DRIVER-OPTS
+// RUN: %clangxx --offload-new-driver --offload-compress -fsycl -fsycl-link -fsycl-targets=spir64_x86_64 -fPIC %t_kernel1_aot.o %t_kernel2_aot.o -o %t_compressed_image.o -### &> %t_driver_opts.txt
+// RUN: FileCheck -input-file=%t_driver_opts.txt %s --check-prefix=CHECK-DRIVER-OPTS
 
-// CHECK-DRIVER-OPTS: clang-offload-wrapper{{.*}} "-offload-compress"
+// CHECK-DRIVER-OPTS: clang-linker-wrapper{{.*}} "--compress"
 
 //////////////////////   Compile the host program
-// RUN: %{run-aux} %clangxx -fsycl -std=c++17 -Wno-attributes -Wno-deprecated-declarations -fPIC -c %s -o %t_main.o
+// RUN: %clangxx --offload-new-driver -fsycl -std=c++17 -Wno-attributes -Wno-deprecated-declarations -fPIC -c %s -o %t_main.o
 
 //////////////////////   Link the host program and compressed device images
-// RUN: %{run-aux} %clangxx -fsycl %t_main.o %t_kernel1_aot.o %t_kernel2_aot.o %t_compressed_image.o -o %t_compress.out
+// RUN: %clangxx --offload-new-driver -fsycl %t_main.o %t_kernel1_aot.o %t_kernel2_aot.o %t_compressed_image.o -o %t_compress.out
 
 // RUN: %{run} %t_compress.out
 
