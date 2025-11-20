@@ -344,5 +344,9 @@ detail::string device::ext_oneapi_cl_profile_impl() const {
   return detail::string{profile};
 }
 
+context device::ext_oneapi_get_default_context() {
+  return impl->get_platform().khr_get_default_context();
+}
+
 } // namespace _V1
 } // namespace sycl
