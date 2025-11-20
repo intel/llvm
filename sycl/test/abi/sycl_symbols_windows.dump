@@ -712,6 +712,7 @@
 ?AccessTargetMask@handler@_V1@sycl@@0HB
 ?Clear@exception_list@_V1@sycl@@AEAAXXZ
 ?DirSep@OSUtil@detail@_V1@sycl@@2QEBDEB
+?DisableRangeRounding@detail@_V1@sycl@@YA_NXZ
 ?DisableRangeRounding@handler@_V1@sycl@@AEAA_NXZ
 ?EventMode@SubmissionInfo@detail@_V1@sycl@@QEAAAEAW4event_mode_enum@experimental@oneapi@ext@34@XZ
 ?EventMode@SubmissionInfo@detail@_V1@sycl@@QEBAAEBW4event_mode_enum@experimental@oneapi@ext@34@XZ
@@ -719,6 +720,7 @@
 ?EventMode@SubmissionInfo@v1@detail@_V1@sycl@@QEBAAEBW4event_mode_enum@experimental@oneapi@ext@45@XZ
 ?GDBMethodsAnchor@SampledImageAccessorBaseHost@detail@_V1@sycl@@IEAAXXZ
 ?GDBMethodsAnchor@UnsampledImageAccessorBaseHost@detail@_V1@sycl@@IEAAXXZ
+?GetRangeRoundingSettings@detail@_V1@sycl@@YAXAEA_K00@Z
 ?GetRangeRoundingSettings@handler@_V1@sycl@@AEAAXAEA_K00@Z
 ?HasAssociatedAccessor@handler@_V1@sycl@@AEBA_NPEAVAccessorImplHost@detail@23@W4target@access@23@@Z
 ?PostProcessorFunc@SubmissionInfo@detail@_V1@sycl@@QEAAAEAV?$optional@V?$function@$$A6AX_N0AEAVevent@_V1@sycl@@@Z@std@@@234@XZ
@@ -727,6 +729,7 @@
 ?PostProcessorFunc@SubmissionInfo@v1@detail@_V1@sycl@@QEBAAEBV?$optional@V?$function@$$A6AX_N0AEAVevent@_V1@sycl@@@Z@std@@@345@XZ
 ?PushBack@exception_list@_V1@sycl@@AEAAX$$QEAVexception_ptr@std@@@Z
 ?PushBack@exception_list@_V1@sycl@@AEAAXAEBVexception_ptr@std@@@Z
+?RangeRoundingTrace@detail@_V1@sycl@@YA_NXZ
 ?RangeRoundingTrace@handler@_V1@sycl@@AEAA_NXZ
 ?SecondaryQueue@SubmissionInfo@detail@_V1@sycl@@QEAAAEAV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@XZ
 ?SecondaryQueue@SubmissionInfo@detail@_V1@sycl@@QEBAAEBV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@XZ
@@ -4076,6 +4079,7 @@
 ?getEndTime@HostProfilingInfo@detail@_V1@sycl@@QEBA_KXZ
 ?getKernelBundle@handler@_V1@sycl@@AEBA?AV?$kernel_bundle@$0A@@23@XZ
 ?getKernelName@handler@_V1@sycl@@AEAA?AVstring@detail@23@XZ
+?getMaxWorkGroups@detail@_V1@sycl@@YA?AV?$tuple@V?$array@_K$02@std@@_N@std@@AEBVdevice@23@@Z
 ?getMaxWorkGroups@handler@_V1@sycl@@AEAA?AV?$optional@V?$array@_K$02@std@@@std@@XZ
 ?getMaxWorkGroups_v2@handler@_V1@sycl@@AEAA?AV?$tuple@V?$array@_K$02@std@@_N@std@@XZ
 ?getMemoryObject@AccessorBaseHost@detail@_V1@sycl@@QEBAPEAXXZ
@@ -4168,6 +4172,7 @@
 ?get_coordinate_normalization_mode@sampler@_V1@sycl@@QEBA?AW4coordinate_normalization_mode@23@XZ
 ?get_count@image_plain@detail@_V1@sycl@@IEBA_KXZ
 ?get_descriptor@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBAAEBUimage_descriptor@23456@XZ
+?get_device@handler@_V1@sycl@@AEBA?AVdevice@23@XZ
 ?get_device@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBA?AVdevice@56@XZ
 ?get_device@memory_pool@experimental@oneapi@ext@_V1@sycl@@QEBA?AVdevice@56@XZ
 ?get_device@physical_mem@experimental@oneapi@ext@_V1@sycl@@QEBA?AVdevice@56@XZ
