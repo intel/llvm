@@ -76,6 +76,7 @@ class device_impl;
 class devices_range;
 class queue_impl;
 class event_impl;
+class device_images_range;
 // DeviceLibExt is shared between sycl runtime and sycl-post-link tool.
 // If any update is made here, need to sync with DeviceLibExt definition
 // in llvm/tools/sycl-post-link/sycl-post-link.cpp
@@ -355,9 +356,9 @@ public:
 
   // Produces set of device images by convering input device images to object
   // the executable state
-  std::vector<device_image_plain>
-  link(const std::vector<device_image_plain> &Imgs, devices_range Devs,
-       const property_list &PropList);
+  std::vector<device_image_plain> link(device_images_range Imgs,
+                                       devices_range Devs,
+                                       const property_list &PropList);
 
   // Produces new device image by converting input device image to the
   // executable state
@@ -370,11 +371,6 @@ public:
 
   ProgramManager();
   ~ProgramManager() = default;
-
-  template <typename NameT>
-  bool kernelUsesAssert(const NameT &KernelName) const {
-    return m_KernelUsesAssert.find(KernelName) != m_KernelUsesAssert.end();
-  }
 
   SanitizerType kernelUsesSanitizer() const { return m_SanitizerFoundInImage; }
 
@@ -411,9 +407,6 @@ private:
 
   /// Dumps image to current directory
   void dumpImage(const RTDeviceBinaryImage &Img, uint32_t SequenceID = 0) const;
-
-  /// Add info on kernels using assert into cache
-  void cacheKernelUsesAssertInfo(const RTDeviceBinaryImage &Img);
 
   /// Add info on kernels using local arg into cache
   void cacheKernelImplicitLocalArg(const RTDeviceBinaryImage &Img);
@@ -528,8 +521,6 @@ protected:
   // different types without temporary key_type object creation. This includes
   // standard overloads, such as comparison between std::string and
   // std::string_view or just char*.
-  using KernelUsesAssertSet = std::set<KernelNameStrT, std::less<>>;
-  KernelUsesAssertSet m_KernelUsesAssert;
   std::unordered_map<KernelNameStrT, int> m_KernelImplicitLocalArgPos;
 
   // Map for storing device kernel information. Runtime lookup should be avoided
