@@ -76,7 +76,7 @@ const char *SYCLInstallationDetector::findLibspirvPath(
   };
 
   if (const char *R = searchAt(D.ResourceDir, "lib", "libclc"))
-      return R;
+    return R;
 
   return nullptr;
 }
