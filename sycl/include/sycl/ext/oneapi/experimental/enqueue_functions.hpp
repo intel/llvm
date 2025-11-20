@@ -12,10 +12,13 @@
 
 #include <sycl/detail/common.hpp>
 #include <sycl/event.hpp>
+#include <sycl/ext/oneapi/experimental/detail/properties/launch_config.hpp>
 #include <sycl/ext/oneapi/experimental/enqueue_types.hpp>
+#include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/handler.hpp>
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/nd_range.hpp>
 #include <sycl/queue.hpp>
 #include <sycl/range.hpp>
@@ -25,78 +28,6 @@ inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 namespace detail {
-// Trait for identifying sycl::range and sycl::nd_range.
-template <typename RangeT> struct is_range_or_nd_range : std::false_type {};
-template <int Dimensions>
-struct is_range_or_nd_range<range<Dimensions>> : std::true_type {};
-template <int Dimensions>
-struct is_range_or_nd_range<nd_range<Dimensions>> : std::true_type {};
-
-template <typename RangeT>
-constexpr bool is_range_or_nd_range_v = is_range_or_nd_range<RangeT>::value;
-
-template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess;
-
-// Checks that none of the properties in the property list has compile-time
-// effects on the kernel.
-template <typename T>
-struct NoPropertyHasCompileTimeKernelEffect : std::false_type {};
-template <typename... Ts>
-struct NoPropertyHasCompileTimeKernelEffect<properties_t<Ts...>> {
-  static constexpr bool value =
-      !(HasCompileTimeEffect<Ts>::value || ... || false);
-};
-} // namespace detail
-
-// Available only when Range is range or nd_range
-template <
-    typename RangeT, typename PropertiesT = empty_properties_t,
-    typename = std::enable_if_t<
-        ext::oneapi::experimental::detail::is_range_or_nd_range_v<RangeT>>>
-class launch_config {
-  static_assert(ext::oneapi::experimental::detail::
-                    NoPropertyHasCompileTimeKernelEffect<PropertiesT>::value,
-                "launch_config does not allow properties with compile-time "
-                "kernel effects.");
-
-public:
-  launch_config(RangeT Range, PropertiesT Properties = {})
-      : MRange{Range}, MProperties{Properties} {}
-
-private:
-  RangeT MRange;
-  PropertiesT MProperties;
-
-  const RangeT &getRange() const noexcept { return MRange; }
-
-  const PropertiesT &getProperties() const noexcept { return MProperties; }
-
-  template <typename LCRangeT, typename LCPropertiesT>
-  friend struct detail::LaunchConfigAccess;
-};
-
-#ifdef __cpp_deduction_guides
-// CTAD work-around to avoid warning from GCC when using default deduction
-// guidance.
-launch_config(detail::AllowCTADTag)
-    -> launch_config<void, empty_properties_t, void>;
-#endif // __cpp_deduction_guides
-
-namespace detail {
-// Helper for accessing the members of launch_config.
-template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess {
-  LaunchConfigAccess(const launch_config<LCRangeT, LCPropertiesT> &LaunchConfig)
-      : MLaunchConfig{LaunchConfig} {}
-
-  const launch_config<LCRangeT, LCPropertiesT> &MLaunchConfig;
-
-  const LCRangeT &getRange() const noexcept { return MLaunchConfig.getRange(); }
-
-  const LCPropertiesT &getProperties() const noexcept {
-    return MLaunchConfig.getProperties();
-  }
-};
-
 template <typename CommandGroupFunc, typename PropertiesT>
 void submit_impl(const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
                  const sycl::detail::code_location &CodeLoc) {
@@ -355,6 +286,69 @@ void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
   submit(std::move(Q), [&](handler &CGH) {
     nd_launch(CGH, Config, KernelObj, std::forward<ArgsT>(Args)...);
   });
+}
+
+// Free function kernel enqueue functions
+template <auto *Func, typename... ArgsT>
+void single_task(queue Q, kernel_function_s<Func> KernelFunc, ArgsT &&...Args) {
+  submit(Q, [&](handler &CGH) {
+    single_task(CGH, KernelFunc, std::forward<ArgsT>(Args)...);
+  });
+}
+
+template <auto *Func, typename... ArgsT>
+void single_task(handler &CGH, kernel_function_s<Func> KernelFunc,
+                 ArgsT &&...Args) {
+  queue Q = CGH.getQueue();
+  sycl::kernel_bundle Bndl =
+      get_kernel_bundle<Func, sycl::bundle_state::executable>(Q.get_context());
+  sycl::kernel Krn = Bndl.template ext_oneapi_get_kernel<Func>();
+  CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
+  CGH.single_task(Krn);
+}
+
+template <auto *Func, int Dimensions, typename... ArgsT>
+void nd_launch(queue Q, nd_range<Dimensions> Range,
+               kernel_function_s<Func> KernelFunc, ArgsT &&...Args) {
+  submit(Q, [&](handler &CGH) {
+    nd_launch(CGH, Range, KernelFunc, std::forward<ArgsT>(Args)...);
+  });
+}
+
+template <auto *Func, int Dimensions, typename... ArgsT>
+void nd_launch(handler &CGH, nd_range<Dimensions> Range,
+               kernel_function_s<Func> KernelFunc, ArgsT &&...Args) {
+  queue Q = CGH.getQueue();
+  sycl::kernel_bundle Bndl =
+      get_kernel_bundle<Func, sycl::bundle_state::executable>(Q.get_context());
+  sycl::kernel Krn = Bndl.template ext_oneapi_get_kernel<Func>();
+
+  CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
+  CGH.parallel_for(Range, Krn);
+}
+
+template <auto *Func, int Dimensions, typename Properties, typename... ArgsT>
+void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
+               kernel_function_s<Func> KernelFunc, ArgsT &&...Args) {
+  submit(Q, [&](handler &CGH) {
+    nd_launch(CGH, Config, KernelFunc, std::forward<ArgsT>(Args)...);
+  });
+}
+
+template <auto *Func, int Dimensions, typename Properties, typename... ArgsT>
+void nd_launch(handler &CGH,
+               launch_config<nd_range<Dimensions>, Properties> Config,
+               kernel_function_s<Func> KernelFunc, ArgsT &&...Args) {
+  queue Q = CGH.getQueue();
+  sycl::kernel_bundle Bndl =
+      get_kernel_bundle<Func, sycl::bundle_state::executable>(Q.get_context());
+  sycl::kernel Krn = Bndl.template ext_oneapi_get_kernel<Func>();
+  ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
+                                                        Properties>
+      ConfigAccess(Config);
+  CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
+  sycl::detail::HandlerAccess::parallelForImpl(
+      CGH, ConfigAccess.getRange(), ConfigAccess.getProperties(), Krn);
 }
 
 inline void memcpy(handler &CGH, void *Dest, const void *Src, size_t NumBytes) {
