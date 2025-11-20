@@ -1250,6 +1250,12 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExp(
     cooperativeKernelLaunchRequested = true;
   }
 
+  int DisableZeLaunchKernelWithArgs = 0;
+  if (auto DisableZeLaunchKernelWithArgsVal =
+          std::getenv("UR_L0_V2_DISABLE_ZE_LAUNCH_KERNEL_WITH_ARGS")) {
+    DisableZeLaunchKernelWithArgs = std::atoi(DisableZeLaunchKernelWithArgsVal);
+  }
+
   ur_platform_handle_t hPlatform = hContext->getPlatform();
   bool KernelWithArgsSupported =
       hPlatform->ZeCommandListAppendLaunchKernelWithArgumentsExt.Supported;
@@ -1257,7 +1263,7 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExp(
       hPlatform->ZeCommandListAppendLaunchKernelWithArgumentsExt
           .DriverSupportsCooperativeKernelLaunchWithArgs;
   bool RunNewPath =
-      KernelWithArgsSupported &&
+      !DisableZeLaunchKernelWithArgs && KernelWithArgsSupported &&
       (!cooperativeKernelLaunchRequested ||
        (cooperativeKernelLaunchRequested && CooperativeCompatible));
   if (RunNewPath) {
