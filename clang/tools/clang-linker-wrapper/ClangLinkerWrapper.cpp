@@ -273,13 +273,16 @@ std::string getMainExecutable(const char *Name) {
 Expected<StringRef> createOutputFile(const Twine &Prefix, StringRef Extension) {
   std::scoped_lock<decltype(TempFilesMutex)> Lock(TempFilesMutex);
   SmallString<128> OutputFile;
+  std::string PrefixStr = clang::sanitizeTargetIDInFileName(Prefix.str());
+
   if (SaveTemps) {
     // Generate a unique path name without creating a file
     sys::fs::createUniquePath(Prefix + "-%%%%%%." + Extension, OutputFile,
                               /*MakeAbsolute=*/false);
+    (PrefixStr + "." + Extension).toNullTerminatedStringRef(OutputFile);
   } else {
     if (std::error_code EC =
-            sys::fs::createTemporaryFile(Prefix, Extension, OutputFile))
+            sys::fs::createTemporaryFile(PrefixStr, Extension, OutputFile))
       return createFileError(OutputFile, EC);
   }
 
