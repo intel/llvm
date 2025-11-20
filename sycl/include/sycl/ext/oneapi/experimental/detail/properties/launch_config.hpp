@@ -9,14 +9,18 @@
 #pragma once
 
 #include <sycl/ext/oneapi/properties/properties.hpp>
-#include <sycl/nd_range.hpp>
-#include <sycl/range.hpp>
+#include <sycl/ext/oneapi/properties/property.hpp>
 
 namespace sycl {
 inline namespace _V1 {
-namespace ext::oneapi::experimental {
+template <int Dimensions>
+class nd_range;
+template<int Dimensions>
+class range;
 
+namespace ext::oneapi::experimental {
 namespace detail {
+struct AllowCTADTag;
 // Trait for identifying sycl::range and sycl::nd_range.
 template <typename RangeT> struct is_range_or_nd_range : std::false_type {};
 template <int Dimensions>

@@ -146,6 +146,7 @@
 // CHECK-NEXT: ext/oneapi/bindless_images_mem_handle.hpp
 // CHECK-NEXT: ext/oneapi/device_global/device_global.hpp
 // CHECK-NEXT: ext/oneapi/device_global/properties.hpp
+// CHECK-NEXT: ext/oneapi/experimental/detail/properties/launch_config.hpp
 // CHECK-NEXT: ext/oneapi/experimental/raw_kernel_arg.hpp
 // CHECK-NEXT: kernel.hpp
 // CHECK-NEXT: sampler.hpp

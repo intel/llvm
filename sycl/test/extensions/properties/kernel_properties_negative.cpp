@@ -17,9 +17,9 @@ int main() {
       oneapi::work_group_progress<oneapi::forward_progress_guarantee::parallel,
                                   oneapi::execution_scope::root_group>};
 
-  // expected-error-re@sycl/ext/oneapi/experimental/enqueue_functions.hpp:* {{static assertion failed due to requirement {{.*}} launch_config does not allow properties with compile-time kernel effects.}}
+  // expected-error-re@sycl/ext/oneapi/experimental/detail/properties/launch_config.hpp:* {{static assertion failed due to requirement {{.*}} launch_config does not allow properties with compile-time kernel effects.}}
   oneapi::launch_config LC1{sycl::range<1>{1}, props1};
 
-  // expected-error-re@sycl/ext/oneapi/experimental/enqueue_functions.hpp:* {{static assertion failed due to requirement {{.*}} launch_config does not allow properties with compile-time kernel effects.}}
+  // expected-error-re@sycl/ext/oneapi/experimental/detail/properties/launch_config.hpp:* {{static assertion failed due to requirement {{.*}} launch_config does not allow properties with compile-time kernel effects.}}
   oneapi::launch_config LC22{sycl::range<1>{1}, props2};
 }
