@@ -137,11 +137,6 @@ public:
 
   void setKernelFunc(void *KernelFuncPtr) { MKernelFuncPtr = KernelFuncPtr; }
 
-  bool usesAssert() const {
-    assert(MDeviceKernelInfoPtr);
-    return MDeviceKernelInfoPtr->usesAssert();
-  }
-
   // Kernel launch properties getter and setters.
   ur_kernel_cache_config_t getKernelCacheConfig() const {
     return MKernelCacheConfig;
