@@ -12,6 +12,7 @@ add_ur_adapter(${TARGET_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/device.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/enqueue.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/event.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/graph.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/kernel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/memory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/platform.cpp
