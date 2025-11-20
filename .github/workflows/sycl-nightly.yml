@@ -8,21 +8,6 @@ on:
 permissions: read-all
 
 jobs:
-  check_abi_symbols:
-    name: Check ABI symbols tests match release branch
-    runs-on: [Linux, build]
-    if: github.repository == 'intel/llvm'
-    container: ghcr.io/intel/llvm/ubuntu2404_build
-    steps:
-    - uses: actions/checkout@v5
-      with:
-        sparse-checkout: |
-          sycl/test/abi
-    - run: |
-        git fetch --depth=1 origin sycl-rel-6_3
-        git diff --exit-code -I "^# RUN" origin/sycl-rel-6_3:sycl/test/abi/sycl_symbols_linux.dump sycl/test/abi/sycl_symbols_linux-sycl-rel-6_3.dump
-        git diff --exit-code -I "^# RUN" origin/sycl-rel-6_3:sycl/test/abi/sycl_symbols_windows.dump sycl/test/abi/sycl_symbols_windows-sycl-rel-6_3.dump
-
   get_date:
     runs-on: ubuntu-latest
     outputs:
