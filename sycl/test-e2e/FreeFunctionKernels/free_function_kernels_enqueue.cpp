@@ -1,6 +1,6 @@
 // REQUIRES: aspect-usm_shared_allocations
 
-// RUN: ${build} -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // This test checks that free function kernels can be submitted using the
