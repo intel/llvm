@@ -9994,6 +9994,25 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   // object that is fed to the linker from the wrapper generated bc file
   assert(isa<OffloadWrapperJobAction>(JA) && "Expecting wrapping job!");
 
+  // Validate and propogate CLI options related to device image compression
+  // and enabling preview breaking changes.
+  auto addCLIOptions = [&](ArgStringList &Args) -> void {
+    // -offload-compress
+    if (C.getInputArgs().getLastArg(options::OPT_offload_compress)) {
+      Args.push_back(C.getArgs().MakeArgString(Twine("-offload-compress")));
+      // -offload-compression-level=<>
+      if (Arg *A = C.getInputArgs().getLastArg(
+              options::OPT_offload_compression_level_EQ))
+        Args.push_back(C.getArgs().MakeArgString(
+            Twine("-offload-compression-level=") + A->getValue()));
+    }
+    // Enable preview breaking changes in clang-offload-wrapper,
+    // in case it needs to introduce any ABI breaking changes.
+    // For example, changes in offload binary descriptor format.
+    if (C.getArgs().hasArg(options::OPT_fpreview_breaking_changes))
+      Args.push_back("-fpreview-breaking-changes");
+  };
+
   Action::OffloadKind OffloadingKind = JA.getOffloadingDeviceKind();
   if (OffloadingKind == Action::OFK_SYCL) {
     // The wrapper command looks like this:
@@ -10030,18 +10049,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     llvm::Triple TT = getToolChain().getTriple();
     SmallString<128> TargetTripleOpt = TT.getArchName();
 
-    // Validate and propogate CLI options related to device image compression.
-    // -offload-compress
-    if (C.getInputArgs().getLastArg(options::OPT_offload_compress)) {
-      WrapperArgs.push_back(
-          C.getArgs().MakeArgString(Twine("-offload-compress")));
-      // -offload-compression-level=<>
-      if (Arg *A = C.getInputArgs().getLastArg(
-              options::OPT_offload_compression_level_EQ))
-        WrapperArgs.push_back(C.getArgs().MakeArgString(
-            Twine("-offload-compression-level=") + A->getValue()));
-    }
-
+    addCLIOptions(WrapperArgs);
     addRunTimeWrapperOpts(C, OffloadingKind, TCArgs, WrapperArgs,
                           getToolChain(), JA);
 
@@ -10071,11 +10079,6 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     WrapperArgs.push_back(
         C.getArgs().MakeArgString(Twine("-kind=") + Twine(Kind)));
 
-    // Enable preview breaking changes in clang-offload-wrapper,
-    // in case it needs to introduce any ABI breaking changes.
-    // For example, changes in offload binary descriptor format.
-    if (C.getArgs().hasArg(options::OPT_fpreview_breaking_changes))
-      WrapperArgs.push_back("-fpreview-breaking-changes");
 
     assert((Inputs.size() > 0) && "no inputs for clang-offload-wrapper");
     assert(((Inputs[0].getType() != types::TY_Tempfiletable) ||
@@ -10144,19 +10147,8 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
          "Not have inputs for all dependence actions??");
 
   if (OffloadingKind == Action::OFK_None &&
-      C.getArgs().hasArg(options::OPT_fsycl_link_EQ)) {
-
-    // When compiling and linking separately, we need to propagate the
-    // compression related CLI options to offload-wrapper.
-    if (C.getInputArgs().getLastArg(options::OPT_offload_compress)) {
-      CmdArgs.push_back(C.getArgs().MakeArgString(Twine("-offload-compress")));
-      // -offload-compression-level=<>
-      if (Arg *A = C.getInputArgs().getLastArg(
-              options::OPT_offload_compression_level_EQ))
-        CmdArgs.push_back(C.getArgs().MakeArgString(
-            Twine("-offload-compression-level=") + A->getValue()));
-    }
-  }
+      C.getArgs().hasArg(options::OPT_fsycl_link_EQ))
+    addCLIOptions(CmdArgs);
 
   // Add offload targets and inputs.
   for (unsigned I = 0; I < Inputs.size(); ++I) {
