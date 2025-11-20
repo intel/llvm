@@ -319,9 +319,12 @@ graph_impl::graph_impl(const sycl::context &SyclContext,
     // Create native UR graph when native recording is enabled
     // Note: Native recording only works with immediate command lists,
     // this is validated when recording begins
-    auto UrContext = sycl::detail::getSyclObjImpl(MContext)->getHandleRef();
+    context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
+    sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
+
     ur_result_t Result =
-        urGraphCreateExp(UrContext, &MNativeGraphHandle, nullptr);
+        Adapter.call_nocheck<sycl::detail::UrApiKind::urGraphCreateExp>(
+            ContextImpl.getHandleRef(), &MNativeGraphHandle, nullptr);
     if (Result != UR_RESULT_SUCCESS) {
       throw sycl::exception(sycl::make_error_code(errc::runtime),
                             "Failed to create native UR graph");
@@ -347,7 +350,12 @@ graph_impl::~graph_impl() {
     }
     // Clean up native UR graph if it was created
     if (MNativeGraphHandle) {
-      urGraphDestroyExp(MNativeGraphHandle);
+      context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
+      sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
+
+      ur_result_t Result =
+          Adapter.call_nocheck<sycl::detail::UrApiKind::urGraphDestroyExp>(
+              MNativeGraphHandle);
       MNativeGraphHandle = nullptr;
     }
   } catch (std::exception &e) {
@@ -1054,9 +1062,13 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
   // recording
   if (GraphImpl->isNativeRecordingEnabled() &&
       GraphImpl->getNativeGraphHandle()) {
+    context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
+    sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
     ur_result_t Result =
-        urGraphInstantiateGraphExp(GraphImpl->getNativeGraphHandle(),
-                                   &MNativeExecutableGraphHandle, nullptr);
+        Adapter
+            .call_nocheck<sycl::detail::UrApiKind::urGraphInstantiateGraphExp>(
+                GraphImpl->getNativeGraphHandle(),
+                &MNativeExecutableGraphHandle, nullptr);
     if (Result != UR_RESULT_SUCCESS) {
       throw sycl::exception(sycl::make_error_code(errc::runtime),
                             "Failed to instantiate native UR executable graph");
