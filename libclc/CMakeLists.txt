@@ -206,7 +206,7 @@ endif()
 option( LIBCLC_NATIVECPU_HOST_TARGET "Build libclc for Native CPU." Off)
 
 if( LIBCLC_NATIVECPU_HOST_TARGET )
-  list(APPEND LIBCLC_TARGETS_TO_BUILD native_cpu)
+  list(APPEND LIBCLC_TARGETS_TO_BUILD native_cpu--)
 endif()
 
 list( SORT LIBCLC_TARGETS_TO_BUILD )
@@ -241,7 +241,7 @@ set( nvptx--nvidiacl_devices none )
 set( nvptx64--nvidiacl_devices none )
 set( spirv-mesa3d-_devices none )
 set( spirv64-mesa3d-_devices none )
-set( native_cpu_devices none )
+set( native_cpu_devices--_devices none )
 
 # Setup aliases
 set( cedar_aliases palm sumo sumo2 redwood juniper )
@@ -365,7 +365,7 @@ file( MAKE_DIRECTORY ${LIBCLC_OUTPUT_LIBRARY_DIR} )
 
 foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
   message( STATUS "libclc target '${t}' is enabled" )
-  string( REPLACE "-" ";" TRIPLE  ${t}-- )
+  string( REPLACE "-" ";" TRIPLE  ${t} )
   list( GET TRIPLE 0 ARCH )
   list( GET TRIPLE 1 VENDOR )
   list( GET TRIPLE 2 OS )
