@@ -5032,7 +5032,6 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   if (IsMSVCHostCompiler)
     HostCompileArgs.push_back("/external:W0");
 
-  namespace options = clang::options;
   if (!TCArgs.hasArg(options::OPT_nostdlibinc, options::OPT_nostdinc)) {
     // Add default header search directories.
     SmallString<128> BaseDir(C.getDriver().Dir);

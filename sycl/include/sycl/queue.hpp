@@ -21,6 +21,7 @@
 #include <sycl/detail/id_queries_fit_in_int.hpp> // for checkValueRange
 #include <sycl/detail/info_desc_helpers.hpp>  // for is_queue_info_...
 #include <sycl/detail/kernel_desc.hpp>        // for KernelInfo
+#include <sycl/detail/nd_range_view.hpp>
 #include <sycl/detail/optional.hpp>
 #include <sycl/detail/owner_less_base.hpp> // for OwnerLessBase
 #include <sycl/device.hpp>                 // for device
@@ -64,18 +65,16 @@ template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
 
-template <int Dims>
 event __SYCL_EXPORT submit_kernel_direct_with_event_impl(
-    const queue &Queue, const nd_range<Dims> &Range,
+    const queue &Queue, const detail::nd_range_view &RangeView,
     detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     sycl::span<const event> DepEvents,
     const detail::KernelPropertyHolderStructTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
-template <int Dims>
 void __SYCL_EXPORT submit_kernel_direct_without_event_impl(
-    const queue &Queue, const nd_range<Dims> &Range,
+    const queue &Queue, const detail::nd_range_view &RangeView,
     detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     sycl::span<const event> DepEvents,
@@ -167,7 +166,7 @@ template <detail::WrapAs WrapAs, typename LambdaArgType,
           typename PropertiesT = ext::oneapi::experimental::empty_properties_t,
           typename KernelTypeUniversalRef, int Dims>
 auto submit_kernel_direct(
-    const queue &Queue, const nd_range<Dims> &Range,
+    const queue &Queue, const detail::nd_range_view &RangeView,
     KernelTypeUniversalRef &&KernelFunc, sycl::span<const event> DepEvents,
     const PropertiesT &ExtraProps =
         ext::oneapi::experimental::empty_properties_t{},
@@ -233,12 +232,12 @@ auto submit_kernel_direct(
 
   if constexpr (EventNeeded) {
     return submit_kernel_direct_with_event_impl(
-        Queue, Range, HostKernel, DeviceKernelInfoPtr, DepEvents,
+        Queue, RangeView, HostKernel, DeviceKernelInfoPtr, DepEvents,
         ParsedProperties, TlsCodeLocCapture.query(),
         TlsCodeLocCapture.isToplevel());
   } else {
     submit_kernel_direct_without_event_impl(
-        Queue, Range, HostKernel, DeviceKernelInfoPtr, DepEvents,
+        Queue, RangeView, HostKernel, DeviceKernelInfoPtr, DepEvents,
         ParsedProperties, TlsCodeLocCapture.query(),
         TlsCodeLocCapture.isToplevel());
   }
@@ -248,7 +247,7 @@ template <typename KernelName = detail::auto_name, bool EventNeeded = false,
           typename PropertiesT = ext::oneapi::experimental::empty_properties_t,
           typename KernelTypeUniversalRef, int Dims>
 auto submit_kernel_direct_parallel_for(
-    const queue &Queue, const nd_range<Dims> &Range,
+    const queue &Queue, nd_range<Dims> Range,
     KernelTypeUniversalRef &&KernelFunc, sycl::span<const event> DepEvents = {},
     const PropertiesT &Props = ext::oneapi::experimental::empty_properties_t{},
     const detail::code_location &CodeLoc = detail::code_location::current()) {
@@ -271,8 +270,9 @@ auto submit_kernel_direct_parallel_for(
   return submit_kernel_direct<detail::WrapAs::parallel_for, TransformedArgType,
                               KernelName, EventNeeded, PropertiesT,
                               KernelTypeUniversalRef, Dims>(
-      Queue, Range, std::forward<KernelTypeUniversalRef>(KernelFunc), DepEvents,
-      Props, CodeLoc);
+      Queue, detail::nd_range_view(Range),
+      std::forward<KernelTypeUniversalRef>(KernelFunc), DepEvents, Props,
+      CodeLoc);
 }
 
 template <typename KernelName = detail::auto_name, bool EventNeeded = false,
@@ -287,7 +287,7 @@ auto submit_kernel_direct_single_task(
   return submit_kernel_direct<detail::WrapAs::single_task, void, KernelName,
                               EventNeeded, PropertiesT, KernelTypeUniversalRef,
                               1>(
-      Queue, nd_range<1>{1, 1},
+      Queue, detail::nd_range_view(),
       std::forward<KernelTypeUniversalRef>(KernelFunc), DepEvents, Props,
       CodeLoc);
 }

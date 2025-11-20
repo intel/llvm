@@ -127,6 +127,7 @@ inline namespace _V1 {
 #define SYCL_KHR_DEFAULT_CONTEXT 1
 #define SYCL_EXT_INTEL_EVENT_MODE 1
 #define SYCL_EXT_ONEAPI_TANGLE 1
+#define SYCL_EXT_ONEAPI_INTER_PROCESS_COMMUNICATION 1
 
 // Unfinished KHR extensions. These extensions are only available if the
 // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS macro is defined.

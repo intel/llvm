@@ -134,7 +134,9 @@ class ProgramManager {
 public:
   // Returns the single instance of the program manager for the entire
   // process. Can only be called after staticInit is done.
-  static ProgramManager &getInstance();
+  static ProgramManager &getInstance() {
+    return GlobalHandler::instance().getProgramManager();
+  }
 
   const RTDeviceBinaryImage &getDeviceImage(KernelNameStrRefT KernelName,
                                             context_impl &ContextImpl,
@@ -236,11 +238,24 @@ public:
 
   // The function returns the unique SYCL kernel identifier associated with a
   // kernel name or nullopt if there is no such ID.
-  std::optional<kernel_id> tryGetSYCLKernelID(KernelNameStrRefT KernelName);
+  std::optional<kernel_id> tryGetSYCLKernelID(KernelNameStrRefT KernelName) {
+    std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+
+    auto KernelID = m_KernelName2KernelIDs.find(KernelName);
+    if (KernelID == m_KernelName2KernelIDs.end())
+      return std::nullopt;
+
+    return KernelID->second;
+  }
 
   // The function returns the unique SYCL kernel identifier associated with a
   // kernel name or throws a sycl exception if there is no such ID.
-  kernel_id getSYCLKernelID(KernelNameStrRefT KernelName);
+  kernel_id getSYCLKernelID(KernelNameStrRefT KernelName) {
+    if (std::optional<kernel_id> MaybeKernelID = tryGetSYCLKernelID(KernelName))
+      return *MaybeKernelID;
+    throw exception(make_error_code(errc::runtime),
+                    "No kernel found with the specified name");
+  }
 
   // The function returns a vector containing all unique SYCL kernel identifiers
   // in SYCL device images.
@@ -375,7 +390,12 @@ public:
   SanitizerType kernelUsesSanitizer() const { return m_SanitizerFoundInImage; }
 
   std::optional<int>
-  kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const;
+  kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const {
+    auto it = m_KernelImplicitLocalArgPos.find(KernelName);
+    if (it != m_KernelImplicitLocalArgPos.end())
+      return it->second;
+    return {};
+  }
 
   DeviceKernelInfo &
   getOrCreateDeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
@@ -562,6 +582,7 @@ protected:
 
   friend class ::ProgramManagerTest;
 };
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
