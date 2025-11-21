@@ -55,9 +55,7 @@ int main() {
   int *Src = sycl::malloc_shared<int>(SIZE, Q);
   int *Dst = sycl::malloc_shared<int>(SIZE, Q);
 
-  syclexp::nd_launch(
-      Q, ::sycl::nd_range<1>(::sycl::range<1>(SIZE), ::sycl::range<1>(SIZE)),
-      syclexp::kernel_function<empty>);
+  syclexp::single_task(Q, syclexp::kernel_function_s<empty>{});
 
   syclexp::nd_launch(
       Q, ::sycl::nd_range<1>(::sycl::range<1>(SIZE), ::sycl::range<1>(SIZE)),
