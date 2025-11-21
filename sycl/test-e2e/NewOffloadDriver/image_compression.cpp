@@ -1,5 +1,8 @@
 // End-to-End test for testing device image compression when we
-// separately compile and link device images for New Offloading Model.
+// separately compile and link device images.
+
+// This test is copied from compression_separate_compile.cpp and adapted
+// to use the New Offloading Model.
 
 // REQUIRES: zstd, opencl-aot, cpu, linux
 
