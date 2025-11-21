@@ -39,11 +39,11 @@ void square(int *src, int *dst) {
   dst[Lid] = src[Lid] * src[Lid];
 }
 
+template <typename T>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
-void squareWithScratchMemory(int *src, int *dst) {
+void squareWithScratchMemoryTemplated(T *src, T *dst) {
   size_t Lid = syclext::this_work_item::get_nd_item<1>().get_local_linear_id();
-  int *LocalMem =
-      reinterpret_cast<int *>(syclexp::get_work_group_scratch_memory());
+  T *LocalMem = reinterpret_cast<T *>(syclexp::get_work_group_scratch_memory());
   LocalMem[Lid] = src[Lid] * src[Lid];
   dst[Lid] = LocalMem[Lid];
 }
@@ -69,14 +69,17 @@ int main() {
           syclexp::work_group_scratch_size(SIZE * sizeof(int))}};
 
   static_assert(
-      std::is_same_v<decltype(syclexp::nd_launch(
-                         Q, Config,
-                         syclexp::kernel_function<squareWithScratchMemory>, Src,
-                         Dst)),
-                     void>);
+      std::is_same_v<
+          decltype(syclexp::nd_launch(
+              Q, Config,
+              syclexp::kernel_function<squareWithScratchMemoryTemplated<int>>,
+              Src, Dst)),
+          void>);
 
   syclexp::nd_launch(
-      Q, Config, syclexp::kernel_function<squareWithScratchMemory>, Src, Dst);
+      Q, Config,
+      syclexp::kernel_function<squareWithScratchMemoryTemplated<int>>, Src,
+      Dst);
   Q.wait();
 
   for (int I = 0; I < SIZE; I++) {
@@ -105,12 +108,14 @@ int main() {
      static_assert(
          std::is_same_v<decltype(syclexp::nd_launch(
                             CGH, Config,
-                            syclexp::kernel_function<squareWithScratchMemory>,
+                            syclexp::kernel_function<
+                                squareWithScratchMemoryTemplated<int>>,
                             Src, Dst)),
                         void>);
-     syclexp::nd_launch(CGH, Config,
-                        syclexp::kernel_function<squareWithScratchMemory>, Src,
-                        Dst);
+     syclexp::nd_launch(
+         CGH, Config,
+         syclexp::kernel_function<squareWithScratchMemoryTemplated<int>>, Src,
+         Dst);
    }).wait();
 
   for (int I = 0; I < SIZE; I++) {
