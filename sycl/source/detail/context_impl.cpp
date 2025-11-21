@@ -215,7 +215,6 @@ context_impl::get_info<info::context::atomic_fence_scope_capabilities>() const {
 device select_device(DSelectorInvocableType DeviceSelectorInvocable,
                      std::vector<device> &Devices);
 
-
 device_impl *
 context_impl::findMatchingDeviceImpl(ur_device_handle_t &DeviceUR) const {
   for (device_impl *D : MDevices)
