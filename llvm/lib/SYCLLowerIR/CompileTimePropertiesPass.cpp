@@ -601,9 +601,8 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
 
     if (isHostPipeVariable(GV)) {
       auto VarName = getGlobalVariableUniqueId(GV);
-      MDOps.push_back(buildSpirvDecorMetadata(Ctx, SpirvHostAccessDecor,
-                                              SpirvHostAccessDefaultValue,
-                                              VarName));
+      MDOps.push_back(buildSpirvDecorMetadata(
+          Ctx, SpirvHostAccessDecor, SpirvHostAccessDefaultValue, VarName));
     }
 
     // Add the generated metadata to the variable
@@ -682,9 +681,8 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
           SPIRVMetadata =
               buildSpirvDecorMetadata(Ctx, SpirvPipelineEnableDecor, 1);
           MDOps.push_back(SPIRVMetadata);
-          SPIRVMetadata =
-              buildSpirvDecorMetadata(Ctx, SpirvInitiationIntervalDecor,
-                                      PipelineOrInitiationInterval);
+          SPIRVMetadata = buildSpirvDecorMetadata(
+              Ctx, SpirvInitiationIntervalDecor, PipelineOrInitiationInterval);
         }
         MDOps.push_back(SPIRVMetadata);
       } else if (MDNode *SPIRVMetadata =
