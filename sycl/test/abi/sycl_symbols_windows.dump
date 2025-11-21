@@ -4287,6 +4287,7 @@
 ?lgamma_r_impl@detail@_V1@sycl@@YAMMPEAH@Z
 ?lgamma_r_impl@detail@_V1@sycl@@YANNPEAH@Z
 ?link_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBV?$vector@V?$kernel_bundle@$00@_V1@sycl@@V?$allocator@V?$kernel_bundle@$00@_V1@sycl@@@std@@@5@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@AEBVproperty_list@23@@Z
+?link_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@PEBV?$kernel_bundle@$00@23@_KAEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@_N@Z
 ?makeDir@OSUtil@detail@_V1@sycl@@SAHPEBD@Z
 ?make_context@detail@_V1@sycl@@YA?AVcontext@23@_KAEBV?$function@$$A6AXVexception_list@_V1@sycl@@@Z@std@@W4backend@23@_NAEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@6@@Z
 ?make_device@detail@_V1@sycl@@YA?AVdevice@23@_KW4backend@23@@Z

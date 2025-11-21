@@ -61,6 +61,75 @@ inline bool checkAllDevicesHaveAspect(devices_range Devices, aspect Aspect) {
                      [&Aspect](device_impl &Dev) { return Dev.has(Aspect); });
 }
 
+// Creates a link graph where the edges represent the relationship between
+// imported and exported symbols in the provided images.
+// The link graph takes a vector of images and a vector of vectors of integral
+// values. The latter is the dependencies of the images in the former argument.
+// Each vector of dependencies correspond 1:1 with the images in the device
+// images, and the values in each of these vectors correspond to the index of
+// each of the images it depends on.
+inline LinkGraph<device_image_plain>
+CreateLinkGraph(const std::vector<device_image_plain> &DevImages) {
+  // Create a map between exported symbols and their indices in the device
+  // images collection.
+  std::map<std::string_view, size_t> ExportMap;
+  for (size_t I = 0; I < DevImages.size(); ++I) {
+    device_image_impl &DevImageImpl = *getSyclObjImpl(DevImages[I]);
+    if (DevImageImpl.get_bin_image_ref() == nullptr)
+      continue;
+    for (const sycl_device_binary_property &ESProp :
+         DevImageImpl.get_bin_image_ref()->getExportedSymbols()) {
+      if (!ExportMap.insert({ESProp->Name, I}).second)
+        throw sycl::exception(make_error_code(errc::invalid),
+                              "Duplicate exported symbol \"" +
+                                  std::string{ESProp->Name} +
+                                  "\" found in binaries.");
+    }
+  }
+
+  // Create dependency mappings.
+  std::vector<std::vector<size_t>> Dependencies;
+  Dependencies.resize(DevImages.size());
+  for (size_t I = 0; I < DevImages.size(); ++I) {
+    device_image_impl &DevImageImpl = *getSyclObjImpl(DevImages[I]);
+    if (DevImageImpl.get_bin_image_ref() == nullptr)
+      continue;
+    std::set<size_t> DeviceImageDepsSet;
+    for (const sycl_device_binary_property &ISProp :
+         DevImageImpl.get_bin_image_ref()->getImportedSymbols()) {
+      auto ExportSymbolIt = ExportMap.find(ISProp->Name);
+      if (ExportSymbolIt == ExportMap.end())
+        throw sycl::exception(make_error_code(errc::invalid),
+                              "No exported symbol \"" +
+                                  std::string{ISProp->Name} +
+                                  "\" found in linked images.");
+      DeviceImageDepsSet.emplace(ExportSymbolIt->second);
+    }
+    Dependencies[I].insert(Dependencies[I].end(), DeviceImageDepsSet.begin(),
+                           DeviceImageDepsSet.end());
+  }
+  return LinkGraph<device_image_plain>{DevImages, Dependencies};
+}
+
+inline void ThrowIfConflictingKernels(device_images_range DevImages) {
+  std::set<std::string_view> SeenKernelNames;
+  std::set<std::string_view> Conflicts;
+  for (const device_image_impl &DevImage : DevImages) {
+    const KernelNameSetT &KernelNames = DevImage.getKernelNames();
+    std::set_intersection(SeenKernelNames.begin(), SeenKernelNames.end(),
+                          KernelNames.begin(), KernelNames.end(),
+                          std::inserter(Conflicts, Conflicts.begin()));
+    SeenKernelNames.insert(KernelNames.begin(), KernelNames.end());
+  }
+  if (Conflicts.empty())
+    return;
+  std::stringstream MsgS;
+  MsgS << "Conflicting kernel definitions: ";
+  for (const std::string_view &Conflict : Conflicts)
+    MsgS << " " << Conflict;
+  throw sycl::exception(make_error_code(errc::invalid), MsgS.str());
+}
+
 namespace syclex = sycl::ext::oneapi::experimental;
 
 class kernel_impl;
@@ -203,8 +272,9 @@ public:
 
   // Matches sycl::link
   kernel_bundle_impl(
-      const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
-      devices_range Devs, const property_list &PropList, private_tag)
+      sycl::span<const kernel_bundle<bundle_state::object>> &ObjectBundles,
+      devices_range Devs, const property_list &PropList, bool FastLink,
+      private_tag)
       : MDevices(Devs.to<std::vector<device_impl *>>()),
         MState(bundle_state::executable) {
     if (MDevices.empty())
@@ -263,97 +333,131 @@ public:
       }
     }
 
-    // Collect all unique images.
-    std::vector<device_image_plain> DevImages;
-    {
-      std::set<device_image_impl *> DevImagesSet;
-      std::unordered_set<const RTDeviceBinaryImage *> SeenBinImgs;
-      for (const kernel_bundle<bundle_state::object> &ObjectBundle :
-           ObjectBundles)
-        for (device_image_impl &DevImg :
-             getSyclObjImpl(ObjectBundle)->device_images())
-          if (OfflineDeviceImageSet.find(&DevImg) ==
-              OfflineDeviceImageSet.end())
-            DevImagesSet.insert(&DevImg);
-      DevImages.reserve(DevImagesSet.size());
-      for (auto It = DevImagesSet.begin(); It != DevImagesSet.end();)
-        DevImages.push_back(createSyclObjFromImpl<device_image_plain>(
-            *DevImagesSet.extract(It++).value()));
-    }
-
-    // Check for conflicting kernels in RTC kernel bundles.
-    {
-      std::set<std::string_view, std::less<>> SeenKernelNames;
-      std::set<std::string_view, std::less<>> Conflicts;
-      for (const device_image_plain &DevImage : DevImages) {
-        const KernelNameSetT &KernelNames =
-            getSyclObjImpl(DevImage)->getKernelNames();
-        std::vector<std::string_view> Intersect;
-        std::set_intersection(SeenKernelNames.begin(), SeenKernelNames.end(),
-                              KernelNames.begin(), KernelNames.end(),
-                              std::inserter(Conflicts, Conflicts.begin()));
-        SeenKernelNames.insert(KernelNames.begin(), KernelNames.end());
-      }
-
-      if (!Conflicts.empty()) {
-        std::stringstream MsgS;
-        MsgS << "Conflicting kernel definitions: ";
-        for (const std::string_view &Conflict : Conflicts)
-          MsgS << " " << Conflict;
-        throw sycl::exception(make_error_code(errc::invalid), MsgS.str());
-      }
-    }
-
-    // Create a map between exported symbols and their indices in the device
-    // images collection.
-    std::map<std::string_view, size_t> ExportMap;
-    for (size_t I = 0; I < DevImages.size(); ++I) {
-      device_image_impl &DevImageImpl = *getSyclObjImpl(DevImages[I]);
-      if (DevImageImpl.get_bin_image_ref() == nullptr)
-        continue;
-      for (const sycl_device_binary_property &ESProp :
-           DevImageImpl.get_bin_image_ref()->getExportedSymbols()) {
-        if (ExportMap.find(ESProp->Name) != ExportMap.end())
-          throw sycl::exception(make_error_code(errc::invalid),
-                                "Duplicate exported symbol \"" +
-                                    std::string{ESProp->Name} +
-                                    "\" found in binaries.");
-        ExportMap.emplace(ESProp->Name, I);
-      }
-    }
-
-    // Create dependency mappings.
-    std::vector<std::vector<size_t>> Dependencies;
-    Dependencies.resize(DevImages.size());
-    for (size_t I = 0; I < DevImages.size(); ++I) {
-      device_image_impl &DevImageImpl = *getSyclObjImpl(DevImages[I]);
-      if (DevImageImpl.get_bin_image_ref() == nullptr)
-        continue;
-      std::set<size_t> DeviceImageDepsSet;
-      for (const sycl_device_binary_property &ISProp :
-           DevImageImpl.get_bin_image_ref()->getImportedSymbols()) {
-        auto ExportSymbolIt = ExportMap.find(ISProp->Name);
-        if (ExportSymbolIt == ExportMap.end())
-          throw sycl::exception(make_error_code(errc::invalid),
-                                "No exported symbol \"" +
-                                    std::string{ISProp->Name} +
-                                    "\" found in linked images.");
-        DeviceImageDepsSet.emplace(ExportSymbolIt->second);
-      }
-      Dependencies[I].insert(Dependencies[I].end(), DeviceImageDepsSet.begin(),
-                             DeviceImageDepsSet.end());
-    }
-
-    // Create a link graph and clone it for each device.
-    device_impl &FirstDevice = get_devices().front();
     std::map<device_impl *, LinkGraph<device_image_plain>> DevImageLinkGraphs;
-    const auto &FirstGraph =
-        DevImageLinkGraphs
-            .emplace(&FirstDevice,
-                     LinkGraph<device_image_plain>{DevImages, Dependencies})
-            .first->second;
-    for (device_impl &Dev : get_devices())
-      DevImageLinkGraphs.emplace(&Dev, FirstGraph.Clone());
+
+    // The linking logic differs depending on whether fast-linking is enabled:
+    // When doing fast-linking, we insert the suitable AOT binaries from the
+    // object bundles. This needs to be done per-device, as AOT binaries may
+    // not be compatible across different architectures. As such, the link-graph
+    // needs to be constructed for each device.
+    // When doing regular linking, the JIT images in the graph will be the same
+    // for all devices, so the link-graph can be created once and then resolved
+    // for each device in separation, with a unification at the end to bundle
+    // together the linking for devices with the same resulting sets of linked
+    // images.
+    if (FastLink) {
+      for (device_impl &Dev : get_devices()) {
+        std::vector<device_image_plain> DevImages;
+        std::set<device_image_impl *> DevImagesSet;
+        for (const kernel_bundle<bundle_state::object> &ObjectBundle :
+             ObjectBundles) {
+          detail::kernel_bundle_impl &ObjectBundleImpl =
+              *getSyclObjImpl(ObjectBundle);
+
+          // Firstly find all suitable AOT binaries, if the object bundle was
+          // made from SYCLBIN.
+          std::vector<const RTDeviceBinaryImage *> AOTBinaries =
+              ObjectBundleImpl.GetSYCLBINAOTBinaries(Dev);
+
+          // The AOT binaries need to be brought into executable state. They
+          // are considered unique, so they are placed directly into the unique
+          // images list.
+          DevImages.reserve(AOTBinaries.size());
+          for (const detail::RTDeviceBinaryImage *Image : AOTBinaries) {
+            device_image_plain &AOTDevImg =
+                DevImages.emplace_back(device_image_impl::create(
+                    Image, MContext, devices_range{Dev},
+                    bundle_state::executable,
+                    /*KernelIDs=*/nullptr, Managed<ur_program_handle_t>{},
+                    ImageOriginSYCLBIN));
+            DevImgPlainWithDeps AOTDevImgWithDeps{AOTDevImg};
+            ProgramManager::getInstance().bringSYCLDeviceImageToState(
+                AOTDevImgWithDeps, bundle_state::executable);
+          }
+
+          // Record all the AOT exported symbols and kernels.
+          std::unordered_set<std::string_view> AOTExportedSymbols;
+          std::unordered_set<std::string_view> AOTKernelNames;
+          for (const RTDeviceBinaryImage *AOTBin : AOTBinaries) {
+            for (const sycl_device_binary_property &ESProp :
+                 AOTBin->getExportedSymbols())
+              AOTExportedSymbols.insert(ESProp->Name);
+            for (const sycl_device_binary_property &KNProp :
+                 AOTBin->getKernelNames())
+              AOTKernelNames.insert(KNProp->Name);
+          }
+
+          for (device_image_impl &DevImg : ObjectBundleImpl.device_images()) {
+            // If the image is the same as one of the offline images, we can
+            // skip it.
+            if (OfflineDeviceImageSet.find(&DevImg) !=
+                OfflineDeviceImageSet.end())
+              continue;
+
+            // If any of the exported symbols overlap with an AOT binary, skip
+            // this image as fast-linking prioritizes AOT binaries.
+            // This can happen if the same source files have been compiled to
+            // both a usable AOT and JIT binary.
+            for (const sycl_device_binary_property &ESProp :
+                 DevImg.get_bin_image_ref()->getExportedSymbols())
+              if (AOTExportedSymbols.find(ESProp->Name) !=
+                  AOTExportedSymbols.end())
+                continue;
+
+            // Same as above, but regarding kernels instead of exported symbols.
+            for (const sycl_device_binary_property &KNProp :
+                 DevImg.get_bin_image_ref()->getKernelNames())
+              if (AOTKernelNames.find(KNProp->Name) != AOTKernelNames.end())
+                continue;
+
+            DevImagesSet.insert(&DevImg);
+          }
+        }
+
+        // Move the images from the set to images collection.
+        // Note: Move iterators do not allow moving from sets, so instead we
+        //       need to call extract.
+        //       https://godbolt.org/z/h3YGoPYbr illustrates this limitation.
+        DevImages.reserve(DevImages.size() + DevImagesSet.size());
+        for (auto It = DevImagesSet.begin(); It != DevImagesSet.end();)
+          DevImages.push_back(createSyclObjFromImpl<device_image_plain>(
+              *DevImagesSet.extract(It++).value()));
+
+        // Check for conflicting kernels in RTC kernel bundles.
+        ThrowIfConflictingKernels(DevImages);
+
+        // Create and insert the corresponding link graph.
+        DevImageLinkGraphs.emplace(&Dev, CreateLinkGraph(DevImages));
+      }
+    } else {
+      // Collect all unique images.
+      std::vector<device_image_plain> DevImages;
+      {
+        std::set<device_image_impl *> DevImagesSet;
+        for (const kernel_bundle<bundle_state::object> &ObjectBundle :
+             ObjectBundles)
+          for (device_image_impl &DevImg :
+               getSyclObjImpl(ObjectBundle)->device_images())
+            if (OfflineDeviceImageSet.find(&DevImg) ==
+                OfflineDeviceImageSet.end())
+              DevImagesSet.insert(&DevImg);
+        DevImages.reserve(DevImagesSet.size());
+        for (auto It = DevImagesSet.begin(); It != DevImagesSet.end();)
+          DevImages.push_back(createSyclObjFromImpl<device_image_plain>(
+              *DevImagesSet.extract(It++).value()));
+      }
+
+      // Check for conflicting kernels in RTC kernel bundles.
+      ThrowIfConflictingKernels(DevImages);
+
+      // Create a link graph and clone it for each device.
+      device_impl &FirstDevice = get_devices().front();
+      const auto &FirstGraph =
+          DevImageLinkGraphs.emplace(&FirstDevice, CreateLinkGraph(DevImages))
+              .first->second;
+      for (device_impl &Dev : get_devices())
+        DevImageLinkGraphs.emplace(&Dev, FirstGraph.Clone());
+    }
 
     // Poison the images based on whether the corresponding device supports it.
     for (auto &GraphIt : DevImageLinkGraphs) {
@@ -369,9 +473,50 @@ public:
 
     // Link based on the resulting graphs.
     for (auto &GraphIt : UnifiedGraphs) {
+      const std::vector<device_impl *> &GraphDevs = GraphIt.first;
+      std::vector<device_image_plain> GraphImgs =
+          GraphIt.second.GetNodeValues();
+
+      auto [JITImgs, AOTImgs] =
+          [&]() -> std::pair<device_images_range, device_images_range> {
+        // If we are not fast-linking, all images must be JIT.
+        if (!FastLink)
+          return {GraphImgs, {}};
+
+        std::sort(
+            GraphImgs.begin(), GraphImgs.end(),
+            [](const device_image_plain &LHS, const device_image_plain &RHS) {
+              // Sort by state: That leaves objects (JIT) at the beginning and
+              // executables (AOT) at the end.
+              return getSyclObjImpl(LHS)->get_state() <
+                     getSyclObjImpl(RHS)->get_state();
+            });
+        auto AOTImgsBegin =
+            std::find_if(GraphImgs.begin(), GraphImgs.end(),
+                         [](const device_image_plain &Img) {
+                           return getSyclObjImpl(Img)->get_state() ==
+                                  bundle_state::executable;
+                         });
+        size_t NumJITImgs = std::distance(GraphImgs.begin(), AOTImgsBegin);
+        return {{GraphImgs.begin(), GraphImgs.begin() + NumJITImgs},
+                {GraphImgs.begin() + NumJITImgs, GraphImgs.end()}};
+      }();
+
+      // If there AOT binaries, the link should allow unresolved symbols.
       std::vector<device_image_plain> LinkedResults =
           detail::ProgramManager::getInstance().link(
-              GraphIt.second.GetNodeValues(), GraphIt.first, PropList);
+              JITImgs, GraphDevs, PropList,
+              /*AllowUnresolvedSymbols=*/!AOTImgs.empty());
+
+      if (!AOTImgs.empty()) {
+        // In dynamic linking, AOT binaries count as results as well.
+        LinkedResults.reserve(LinkedResults.size() + AOTImgs.size());
+        for (device_image_impl &AOTImg : AOTImgs)
+          LinkedResults.push_back(
+              createSyclObjFromImpl<device_image_plain>(AOTImg));
+        detail::ProgramManager::getInstance().dynamicLink(LinkedResults);
+      }
+
       MDeviceImages.insert(MDeviceImages.end(), LinkedResults.begin(),
                            LinkedResults.end());
       MUniqueDeviceImages.insert(MUniqueDeviceImages.end(),
@@ -1074,6 +1219,23 @@ private:
     const auto It =
         std::unique(MUniqueDeviceImages.begin(), MUniqueDeviceImages.end());
     MUniqueDeviceImages.erase(It, MUniqueDeviceImages.end());
+  }
+
+  std::vector<const RTDeviceBinaryImage *>
+  GetSYCLBINAOTBinaries(device_impl &Dev) {
+    if (MSYCLBINs.size() == 1)
+      return MSYCLBINs[0]->getNativeBinaryImages(Dev);
+
+    std::vector<const RTDeviceBinaryImage *> Result;
+    for (auto &SYCLBIN : MSYCLBINs) {
+      std::vector<const RTDeviceBinaryImage *> NativeBinImgs =
+          SYCLBIN->getNativeBinaryImages(Dev);
+      Result.insert(Result.end(),
+                    std::make_move_iterator(NativeBinImgs.begin()),
+                    std::make_move_iterator(NativeBinImgs.end()));
+    }
+
+    return Result;
   }
 
   context MContext;
