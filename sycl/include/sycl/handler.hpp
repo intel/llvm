@@ -877,51 +877,6 @@ private:
     }
   }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  void verifyDeviceHasProgressGuarantee(
-      sycl::ext::oneapi::experimental::forward_progress_guarantee guarantee,
-      sycl::ext::oneapi::experimental::execution_scope threadScope,
-      sycl::ext::oneapi::experimental::execution_scope coordinationScope);
-
-  template <typename Properties>
-  void checkAndSetClusterRange(const Properties &Props) {
-    namespace syclex = sycl::ext::oneapi::experimental;
-    constexpr std::size_t ClusterDim =
-        syclex::detail::getClusterDim<Properties>();
-    if constexpr (ClusterDim > 0) {
-      auto ClusterSize = Props
-                             .template get_property<
-                                 syclex::cuda::cluster_size_key<ClusterDim>>()
-                             .get_cluster_size();
-      setKernelClusterLaunch(ClusterSize);
-    }
-  }
-
-  /// Process runtime kernel properties.
-  ///
-  /// Stores information about kernel properties into the handler.
-  template <typename PropertiesT>
-  void processLaunchProperties(PropertiesT Props) {
-    SetKernelLaunchpropertiesIfNotEmpty(detail::extractKernelProperties(Props));
-  }
-
-  /// Process kernel properties.
-  ///
-  /// Stores information about kernel properties into the handler.
-  ///
-  /// Note: it is important that this function *does not* depend on kernel
-  /// name or kernel type, because then it will be instantiated for every
-  /// kernel, even though body of those instantiated functions could be almost
-  /// the same, thus unnecessary increasing compilation time.
-  template <
-      bool IsESIMDKernel,
-      typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
-  void processProperties(PropertiesT Props) {
-    SetKernelLaunchpropertiesIfNotEmpty(
-        detail::extractKernelProperties<IsESIMDKernel>(Props));
-  }
-#endif // INTEL_PREVIEW_BREAKING_CHANGES
-
   /// Checks whether it is possible to copy the source shape to the destination
   /// shape(the shapes are described by the accessor ranges) by using
   /// copying by regions of memory and not copying element by element
@@ -3446,30 +3401,6 @@ private:
   void memcpyFromHostOnlyDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
                                       bool IsDeviceImageScoped, size_t NumBytes,
                                       size_t Offset);
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Modeled after ur_kernel_cache_config_t
-  // Used as an argument to setKernelCacheConfig that's part of the ABI.
-  enum class StableKernelCacheConfig : int32_t {
-    Default = 0,
-    LargeSLM = 1,
-    LargeData = 2
-  };
-
-  // Set value of the gpu cache configuration for the kernel.
-  void setKernelCacheConfig(StableKernelCacheConfig);
-  // Set value of the kernel is cooperative flag
-  void setKernelIsCooperative(bool);
-
-  // Set using cuda thread block cluster launch flag and set the launch bounds.
-  void setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims);
-  void setKernelClusterLaunch(sycl::range<3> ClusterSize);
-  void setKernelClusterLaunch(sycl::range<2> ClusterSize);
-  void setKernelClusterLaunch(sycl::range<1> ClusterSize);
-
-  // Set the request work group memory size (work_group_static ext).
-  void setKernelWorkGroupMem(size_t Size);
-#endif
 
   void setKernelLaunchProperties(
       const detail::KernelPropertyHolderStructTy &KernelLaunchProperties);
