@@ -85,24 +85,6 @@ void __SYCL_EXPORT submit_kernel_direct_without_event_impl(
 namespace detail {
 class queue_impl;
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-struct SubmissionInfoImpl;
-
-class __SYCL_EXPORT SubmissionInfo {
-public:
-  SubmissionInfo();
-
-  std::shared_ptr<detail::queue_impl> &SecondaryQueue();
-  const std::shared_ptr<detail::queue_impl> &SecondaryQueue() const;
-
-  ext::oneapi::experimental::event_mode_enum &EventMode();
-  const ext::oneapi::experimental::event_mode_enum &EventMode() const;
-
-private:
-  std::shared_ptr<SubmissionInfoImpl> impl = nullptr;
-};
-#endif
-
 namespace v1 {
 
 // This class is a part of the ABI, so it's moved to a separate namespace to
@@ -121,18 +103,6 @@ namespace v1 {
 class __SYCL_EXPORT SubmissionInfo {
 public:
   SubmissionInfo() {}
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  SubmissionInfo(const detail::SubmissionInfo &SI)
-      : MSecondaryQueue(SI.SecondaryQueue()), MEventMode(SI.EventMode()) {}
-
-  std::shared_ptr<detail::queue_impl> &SecondaryQueue() {
-    return MSecondaryQueue;
-  }
-  const std::shared_ptr<detail::queue_impl> &SecondaryQueue() const {
-    return MSecondaryQueue;
-  }
-#endif
 
   ext::oneapi::experimental::event_mode_enum &EventMode() { return MEventMode; }
   const ext::oneapi::experimental::event_mode_enum &EventMode() const {
@@ -3826,55 +3796,6 @@ private:
         SI.EventMode() = EventModeProp.value;
     }
   }
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  /// TODO: Unused. Remove these when ABI-break window is open.
-  /// Not using `type_erased_cgfo_ty` on purpose.
-  event submit_impl(std::function<void(handler &)> CGH,
-                    const detail::code_location &CodeLoc);
-  event submit_impl(std::function<void(handler &)> CGH,
-                    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
-  event submit_impl(std::function<void(handler &)> CGH, queue secondQueue,
-                    const detail::code_location &CodeLoc);
-  event submit_impl(std::function<void(handler &)> CGH, queue secondQueue,
-                    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
-  void submit_without_event_impl(std::function<void(handler &)> CGH,
-                                 const detail::code_location &CodeLoc);
-  void submit_without_event_impl(std::function<void(handler &)> CGH,
-                                 const detail::code_location &CodeLoc,
-                                 bool IsTopCodeLoc);
-
-  // Old version when `std::function` was used in place of
-  // `std::function<void(handler &)>`.
-  event submit_with_event_impl(std::function<void(handler &)> CGH,
-                               const detail::SubmissionInfo &SubmitInfo,
-                               const detail::code_location &CodeLoc,
-                               bool IsTopCodeLoc);
-
-  void submit_without_event_impl(std::function<void(handler &)> CGH,
-                                 const detail::SubmissionInfo &SubmitInfo,
-                                 const detail::code_location &CodeLoc,
-                                 bool IsTopCodeLoc);
-  event submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
-                               const detail::SubmissionInfo &SubmitInfo,
-                               const detail::code_location &CodeLoc,
-                               bool IsTopCodeLoc);
-  void submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
-                                 const detail::SubmissionInfo &SubmitInfo,
-                                 const detail::code_location &CodeLoc,
-                                 bool IsTopCodeLoc);
-
-  /// A template-free versions of submit.
-  event submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
-                               const detail::v1::SubmissionInfo &SubmitInfo,
-                               const detail::code_location &CodeLoc,
-                               bool IsTopCodeLoc);
-  /// A template-free version of submit_without_event.
-  void submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
-                                 const detail::v1::SubmissionInfo &SubmitInfo,
-                                 const detail::code_location &CodeLoc,
-                                 bool IsTopCodeLoc);
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// A template-free version of submit as const member function.
   event submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
