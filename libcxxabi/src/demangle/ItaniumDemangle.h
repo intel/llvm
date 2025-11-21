@@ -1376,7 +1376,7 @@ public:
   template <typename Fn> void match(Fn F) const { F(Name, Params, Requires); }
 
   void printLeft(OutputBuffer &OB) const override {
-    ScopedOverride<unsigned> LT(OB.GtIsGt, 0);
+    ScopedOverride<bool> LT(OB.TemplateTracker.InsideTemplate, true);
     OB += "template<";
     Params.printWithComma(OB);
     OB += "> typename ";
@@ -1560,7 +1560,7 @@ public:
   const NodeArray &getParams() const { return Params; }
 
   void printLeft(OutputBuffer &OB) const override {
-    ScopedOverride<unsigned> LT(OB.GtIsGt, 0);
+    ScopedOverride<bool> LT(OB.TemplateTracker.InsideTemplate, true);
     OB += "<";
     Params.printWithComma(OB);
     OB += ">";
@@ -1834,7 +1834,7 @@ public:
 
   void printDeclarator(OutputBuffer &OB) const {
     if (!TemplateParams.empty()) {
-      ScopedOverride<unsigned> LT(OB.GtIsGt, 0);
+      ScopedOverride<bool> LT(OB.TemplateTracker.InsideTemplate, true);
       OB += "<";
       TemplateParams.printWithComma(OB);
       OB += ">";
@@ -1895,7 +1895,9 @@ public:
   }
 
   void printLeft(OutputBuffer &OB) const override {
-    bool ParenAll = OB.isGtInsideTemplateArgs() &&
+    // If we're printing a '<' inside of a template argument, and we haven't
+    // yet parenthesized the expression, do so now.
+    bool ParenAll = !OB.isInParensInTemplateArgs() &&
                     (InfixOperator == ">" || InfixOperator == ">>");
     if (ParenAll)
       OB.printOpen();
@@ -2071,7 +2073,7 @@ public:
   void printLeft(OutputBuffer &OB) const override {
     OB += CastKind;
     {
-      ScopedOverride<unsigned> LT(OB.GtIsGt, 0);
+      ScopedOverride<bool> LT(OB.TemplateTracker.InsideTemplate, true);
       OB += "<";
       OB.printLeft(*To);
       OB += ">";
