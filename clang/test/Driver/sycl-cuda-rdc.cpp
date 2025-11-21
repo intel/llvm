@@ -4,7 +4,8 @@
 
 // UNSUPPORTED: system-windows
 
-// RUN: %clangxx -### -fsycl -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend --cuda-gpu-arch=sm_61 -fgpu-rdc -nocudalib -fsycl-libspirv-path=%S/Inputs/SYCL/share/clc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc %s 2>&1 \
+// RUN: %clangxx -### -fsycl -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend --cuda-gpu-arch=sm_61 -fgpu-rdc -nocudalib \
+// RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/libclc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc %s 2>&1 \
 // RUN: | FileCheck %s -check-prefix=CHECK-SYCL_RDC_NVPTX
 
 // Verify that ptxas does not pass "-c"

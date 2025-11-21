@@ -448,10 +448,6 @@ function(add_libclc_builtin_set)
 
   set( builtins_link_lib $<TARGET_PROPERTY:${builtins_link_lib_tgt},TARGET_FILE> )
 
-  add_custom_command( OUTPUT ${LIBCLC_OUTPUT_LIBRARY_DIR}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_OUTPUT_LIBRARY_DIR}
-    DEPENDS ${builtins_link_lib} prepare_builtins )
-
   # For SPIR-V targets we diverage at this point and generate SPIR-V using the
   # llvm-spirv tool.
   if( ARG_ARCH STREQUAL spirv OR ARG_ARCH STREQUAL spirv64 )
@@ -524,7 +520,6 @@ function(add_libclc_builtin_set)
   if( ARG_REMANGLE )
     set( dummy_in ${LIBCLC_OUTPUT_LIBRARY_DIR}/libclc_dummy_in.cc )
     add_custom_command( OUTPUT ${dummy_in}
-      COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_OUTPUT_LIBRARY_DIR}
       COMMAND ${CMAKE_COMMAND} -E touch ${dummy_in}
     )
     set(long_widths l32 l64)
@@ -540,10 +535,9 @@ function(add_libclc_builtin_set)
     foreach(long_width ${long_widths})
       foreach(signedness ${char_signedness})
         # Remangle
-        set( builtins_remangle_path
-            "${LIBCLC_OUTPUT_LIBRARY_DIR}/remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}" )
+        set( remangled_filename remangled-${long_width}-${signedness}_char.${obj_suffix_mangled} )
+        set( builtins_remangle_path "${LIBCLC_OUTPUT_LIBRARY_DIR}/${remangled_filename}" )
         add_custom_command( OUTPUT "${builtins_remangle_path}"
-          COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_OUTPUT_LIBRARY_DIR}
           COMMAND ${libclc-remangler_exe}
           -o "${builtins_remangle_path}"
           --triple=${ARG_TRIPLE}
@@ -552,19 +546,17 @@ function(add_libclc_builtin_set)
           --input-ir=${libclc_builtins_lib}
           ${dummy_in}
           DEPENDS prepare-${obj_suffix} ${libclc_builtins_lib} ${libclc-remangler_target} ${dummy_in})
-        add_custom_target( "remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}" ALL
-          DEPENDS "${builtins_remangle_path}" "${dummy_in}")
-        set_target_properties("remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}"
-          PROPERTIES TARGET_FILE "${builtins_remangle_path}")
+        add_custom_target( ${remangled_filename} ALL
+          DEPENDS "${builtins_remangle_path}" "${dummy_in}" )
+        set_target_properties( ${remangled_filename}
+          PROPERTIES TARGET_FILE "${builtins_remangle_path}" )
 
         # Add dependency to top-level pseudo target to ease making other
         # targets dependent on libclc.
-        add_dependencies(${ARG_PARENT_TARGET} "remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}")
+        add_dependencies( ${ARG_PARENT_TARGET} ${remangled_filename} )
 
         # Keep remangled variants
-        install(
-          FILES ${builtins_remangle_path}
-          DESTINATION ${CMAKE_INSTALL_DATADIR}/clc )
+        libclc_install( FILES ${builtins_remangle_path} )
       endforeach()
     endforeach()
 

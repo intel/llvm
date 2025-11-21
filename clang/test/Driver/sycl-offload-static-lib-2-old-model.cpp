@@ -88,12 +88,12 @@
 // RUN: touch %t_lib.a
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fno-sycl-instrument-device-code \
 // RUN: --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
-// RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/share/clc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
+// RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/libclc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
 // RUN: --no-offloadlib -fsycl --no-offload-new-driver %t_lib.a -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_SRC -DBUNDLE_TRIPLE=sycl-spir64-unknown-unknown
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fno-sycl-instrument-device-code --no-offloadlib \
 // RUN: --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
-// RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/share/clc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
+// RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/libclc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
 // RUN: -fsycl-targets=nvptx64-nvidia-cuda -fsycl --no-offload-new-driver %t_lib.a -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_SRC-CUDA
 // STATIC_LIB_SRC: 0: input, "[[INPUTA:.+\.a]]", object, (host-sycl)

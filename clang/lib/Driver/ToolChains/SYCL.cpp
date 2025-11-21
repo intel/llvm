@@ -75,15 +75,8 @@ const char *SYCLInstallationDetector::findLibspirvPath(
     return nullptr;
   };
 
-  for (const auto &IC : InstallationCandidates) {
-    // Expected path w/out install.
-    if (const char *R = searchAt(IC, "lib", "clc"))
-      return R;
-
-    // Expected path w/ install.
-    if (const char *R = searchAt(IC, "share", "clc"))
-      return R;
-  }
+  if (const char *R = searchAt(D.ResourceDir, "lib", "libclc"))
+    return R;
 
   return nullptr;
 }
