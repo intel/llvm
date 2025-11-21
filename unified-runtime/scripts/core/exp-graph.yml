@@ -1,0 +1,195 @@
+#
+# Copyright (C) 2025 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+# TODO:
+# ZE_RESULT_ERROR_INVALID_GRAPH
+# ZE_RESULT_QUERY_TRUE
+# ZE_RESULT_QUERY_FALSE
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime Experimental APIs for Graph Record and Replay"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of record & replay graph object"
+name: "$x_exp_graph_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of record & replay executable graph object"
+name: "$x_exp_executable_graph_handle_t"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create a new record & replay graph instance explicitly."
+class: $xGraph
+name: CreateExp
+decl: static
+details:
+    - "Create a new record & replay graph instance explicitly."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] Handle of the context object."
+    - type: $x_exp_graph_handle_t*
+      name: phGraph
+      desc: "[out][alloc] Pointer to the handle of the created graph object."
+returns:
+    - $X_RESULT_SUCCESS
+    - $X_RESULT_ERROR_INVALID_ARGUMENT
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Begin graph capture on the specified immediate queue."
+class: $xQueue
+name: BeginGraphCaptureExp
+params:
+  - type: $x_queue_handle_t
+    name: hQueue
+    desc: "[in] Handle of the queue on which to begin graph capture."
+returns:
+    - $X_RESULT_SUCCESS
+    - $X_RESULT_ERROR_INVALID_ARGUMENT
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Begin capturing commands into an existing graph on the specified immediate queue."
+class: $xQueue
+name: BeginCaptureIntoGraphExp
+params:
+  - type: $x_queue_handle_t
+    name: hQueue
+    desc: "[in] Handle of the queue on which to begin graph capture."
+  - type: $x_exp_graph_handle_t
+    name: hGraph
+    desc: "[in] Handle of the graph object to capture into."
+returns:
+  - $X_RESULT_SUCCESS
+  - $X_RESULT_ERROR_INVALID_ARGUMENT
+--- #--------------------------------------------------------------------------
+type: function
+desc: "End graph capture on the specified immediate queue."
+class: $xQueue
+name: EndGraphCaptureExp
+params:
+  - type: $x_queue_handle_t
+    name: hQueue
+    desc: "[in] Handle of the queue on which to end graph capture."
+  - type: $x_exp_graph_handle_t*
+    name: phGraph
+    desc: "[out] Pointer to the handle of the recorded graph object. If $xQueueBeginCaptureIntoGraphExp
+          was used to begin the capture, then phGraph will contain the same graph that was passed to it."
+returns:
+  - $X_RESULT_SUCCESS
+  - $X_RESULT_ERROR_INVALID_ARGUMENT
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Instantiate an executable graph from a recorded graph."
+class: $xGraph
+name: InstantiateGraphExp
+params:
+  - type: $x_exp_graph_handle_t
+    name: hGraph
+    desc: "[in] Handle of the recorded graph to instantiate."
+  - type: $x_exp_executable_graph_handle_t*
+    name: phExecGraph
+    desc: "[out] Pointer to the handle of the instantiated executable graph."
+returns:
+  - $X_RESULT_SUCCESS
+  - $X_RESULT_ERROR_INVALID_ARGUMENT
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Append an executable graph to the queue."
+class: $xQueue
+name: AppendGraphExp
+params:
+  - type: $x_queue_handle_t
+    name: hQueue
+    desc: "[in] Handle of the queue to append the graph to."
+  - type: $x_exp_executable_graph_handle_t
+    name: hGraph
+    desc: "[in] Handle of the executable graph to append."
+  - type: $x_event_handle_t
+    name: hSignalEvent
+    desc: "[in][optional] Event to be signaled on completion."
+  - type: uint32_t
+    name: numWaitEvents
+    desc: "[in][optional] Number of events to wait on before executing."
+  - type: $x_event_handle_t*
+    name: phWaitEvents
+    desc: "[in][optional][range(0, numWaitEvents)] Handle of the events to wait on before launching."
+returns:
+  - $X_RESULT_SUCCESS
+  - $X_RESULT_ERROR_INVALID_ARGUMENT
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Destroy a recorded graph object. All executable graph instances created from this recorded graph must be destroyed before calling this function."
+class: $xGraph
+name: DestroyExp
+params:
+    - type: $x_exp_graph_handle_t
+      name: hGraph
+      desc: "[in] Handle of the graph object to destroy."
+returns:
+    - $X_RESULT_SUCCESS
+    - $X_RESULT_ERROR_INVALID_ARGUMENT
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Destroy an instantiated executable graph object. The graph instance must not be executing on any queue."
+class: $xGraph
+name: ExecutableGraphDestroyExp
+params:
+    - type: $x_exp_executable_graph_handle_t
+      name: hExecutableGraph
+      desc: "[in] Handle of the executable graph object to destroy."
+returns:
+    - $X_RESULT_SUCCESS
+    - $X_RESULT_ERROR_INVALID_ARGUMENT
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Query whether graph capture is currently enabled on the given queue."
+class: $xQueue
+name: IsGraphCaptureEnabledExp
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] Native queue to query."
+    - type: bool*
+      name: hResult
+      desc: "[out] Pointer to a boolean where the result will be stored."
+returns:
+    - $X_RESULT_SUCCESS
+    - $X_RESULT_ERROR_INVALID_ARGUMENT
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Return whether the given recorded graph contains any nodes."
+class: $xGraph
+name: IsEmptyExp
+params:
+    - type: $x_exp_graph_handle_t
+      name: hGraph
+      desc: "[in] Handle of the graph to query."
+    - type: bool*
+      name: hResult
+      desc: "[out] Pointer to a boolean where the result will be stored."
+returns:
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Dump the contents of the recorded graph to the provided file path."
+class: $xGraph
+name: DumpContentsExp
+params:
+    - type: $x_exp_graph_handle_t
+      name: hGraph
+      desc: "[in] Handle of the graph to dump."
+    - type: const char*
+      name: filePath
+      desc: "[in] Path to the file to write the dumped graph contents."
+returns:
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
