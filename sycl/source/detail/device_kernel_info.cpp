@@ -73,15 +73,6 @@ void DeviceKernelInfo::setCompileTimeInfoIfNeeded(
   assert(Info == *this);
 }
 
-FastKernelSubcacheT &DeviceKernelInfo::getKernelSubcache() {
-  return MFastKernelSubcache;
-}
-const std::optional<int> &DeviceKernelInfo::getImplicitLocalArgPos() {
-  return MImplicitLocalArgPos;
-}
-
-bool DeviceKernelInfo::isCompileTimeInfoSet() const { return KernelSize != 0; }
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
