@@ -241,7 +241,7 @@ jobs:
     if: |
       !cancelled() &&
       needs.build.outputs.build_conclusion == 'success' &&
-      contains(github.event.pull_request.labels.*.name, "new-offload-model")
+      contains(github.event.pull_request.labels.*.name, 'new-offload-model')
     permissions:
       contents: write
       packages: read
@@ -282,31 +282,10 @@ jobs:
           - name: Intel / Battlemage Graphics
             runner: '["Linux", "bmg"]'
             target_devices: level_zero_v1:gpu;level_zero_v2:gpu
-          - name: Preview Mode
-            runner: '["Linux", "gen12"]'
-            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
-            extra_lit_opts: --param test-preview-mode=True
-            binaries_artifact: e2e_bin_preview
-
-          # We're in an ABI-breaking window, so these don't make sense for now.
-          - name: ABI compatibility / sycl-rel-6_2
-            runner: '["Linux", "pvc"]'
-            image: ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_2
-            target_devices: level_zero:gpu
-            extra_lit_opts: '--param test-preview-mode=False --filter-out "${{ needs.compat_read_exclude.outputs.FILTER_6_2 }}"'
-            binaries_artifact: 'in-container'
-            skip_run: true
-          - name: ABI compatibility / sycl-rel-6_3
-            runner: '["Linux", "pvc"]'
-            image: ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_3
-            target_devices: level_zero:gpu
-            extra_lit_opts: '--param test-preview-mode=False --filter-out "${{ needs.compat_read_exclude.outputs.FILTER_6_3 }}"'
-            binaries_artifact: 'in-container'
-            skip_run: true
 
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
-      name: ${{ matrix.name }}
+      name: ${{ matrix.name }} with NewOffloadModel
       runner: ${{ matrix.runner }}
       image: ${{ matrix.image }}
       image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
@@ -316,7 +295,7 @@ jobs:
       toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}
-      binaries_artifact: ${{ matrix.binaries_artifact || 'e2e_bin' }}
+      binaries_artifact: ${{ matrix.binaries_artifact || 'e2e_bin_with_new_offload_model' }}
       testing_mode: ${{ matrix.testing_mode || 'run-only' }}
 
       # Do not install drivers on AMD and CUDA runners.
