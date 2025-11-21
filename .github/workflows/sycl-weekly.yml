@@ -51,12 +51,12 @@ jobs:
       matrix:
         include:
           - name: SYCL-CTS on OCL CPU PVC w/ LLVM SPIR-V Backend
-            runner: '["Linux", "pvc"]'
+            runner: '["Linux", "pvc-test"]'
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
             target_devices: opencl:cpu
 
           - name: SYCL-CTS on L0 GPU PVC w/ LLVM SPIR-V Backend
-            runner: '["Linux", "pvc"]'
+            runner: '["Linux", "pvc-test"]'
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
     uses: ./.github/workflows/sycl-linux-run-tests.yml

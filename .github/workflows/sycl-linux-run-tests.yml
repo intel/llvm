@@ -153,7 +153,7 @@ on:
           - '["Linux", "gen12"]'
           - '["amdgpu"]'
           - '["Linux", "arc"]'
-          - '["Linux", "pvc"]'
+          - '["Linux", "pvc-test"]'
           - '["cts-cpu"]'
           - '["Linux", "build"]'
           - '["cuda"]'

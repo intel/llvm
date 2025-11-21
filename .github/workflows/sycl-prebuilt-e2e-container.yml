@@ -92,7 +92,7 @@ jobs:
     # I'll start with just a single configuration, but this might be extended
     # with a matrix in future (e.g., to run on cpu/CUDA/AMDGPU).
     name: Run E2E tests with SYCL RT they were built with
-    runs-on: [Linux, pvc]
+    runs-on: [Linux, pvc-test]
     needs: [docker, build]
     if: ${{ !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
     container:
