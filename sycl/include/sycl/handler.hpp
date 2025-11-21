@@ -2160,7 +2160,7 @@ public:
     parallel_for<KernelName>(
         Range,
         ext::oneapi::experimental::detail::RetrieveGetMethodPropertiesOrEmpty(
-            std::forward<RestT>(Rest)...),
+            Rest...),
         std::forward<RestT>(Rest)...);
   }
 
@@ -2171,7 +2171,7 @@ public:
     parallel_for<KernelName>(
         Range,
         ext::oneapi::experimental::detail::RetrieveGetMethodPropertiesOrEmpty(
-            std::forward<RestT>(Rest)...),
+            Rest...),
         std::forward<RestT>(Rest)...);
   }
 
@@ -2182,7 +2182,7 @@ public:
     parallel_for<KernelName>(
         Range,
         ext::oneapi::experimental::detail::RetrieveGetMethodPropertiesOrEmpty(
-            std::forward<RestT>(Rest)...),
+            Rest...),
         std::forward<RestT>(Rest)...);
   }
 
@@ -2214,7 +2214,7 @@ public:
     parallel_for<KernelName>(
         Range,
         ext::oneapi::experimental::detail::RetrieveGetMethodPropertiesOrEmpty(
-            std::forward<RestT>(Rest)...),
+            Rest...),
         std::forward<RestT>(Rest)...);
   }
 
