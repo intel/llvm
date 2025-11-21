@@ -123,7 +123,6 @@ void SYCLInstallationDetector::getSYCLDeviceLibPath(
 
 void SYCLInstallationDetector::addSYCLIncludeArgs(
     const ArgList &DriverArgs, ArgStringList &CC1Args) const {
-  namespace options = clang::driver::options;
   if (DriverArgs.hasArg(options::OPT_nostdlibinc, options::OPT_nostdinc)) {
     return;
   }
@@ -235,7 +234,8 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
   const char *Foreach = C.getArgs().MakeArgString(ForeachPath);
 
   auto Cmd = std::make_unique<Command>(JA, *T, ResponseFileSupport::None(),
-                                       Foreach, ForeachArgs, std::nullopt);
+                                       Foreach, ForeachArgs,
+                                       ArrayRef<InputInfo>{});
   C.addCommand(std::move(Cmd));
 }
 
@@ -934,7 +934,8 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     CmdArgs.push_back("--suppress-warnings");
     C.addCommand(std::make_unique<Command>(JA, *this,
                                            ResponseFileSupport::AtFileUTF8(),
-                                           Exec, CmdArgs, std::nullopt));
+                                           Exec, CmdArgs,
+                                           ArrayRef<InputInfo>{}));
   };
 
   // Add an intermediate output file.
@@ -1088,7 +1089,7 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
       getToolChain().GetProgramPath(makeExeName(C, "ocloc")));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   auto Cmd = std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
-                                       Exec, CmdArgs, std::nullopt);
+                                       Exec, CmdArgs, ArrayRef<InputInfo>{});
   if (!ForeachInputs.empty()) {
     StringRef ParallelJobs =
         Args.getLastArgValue(options::OPT_fsycl_max_parallel_jobs_EQ);
@@ -1363,7 +1364,7 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
       getToolChain().GetProgramPath(makeExeName(C, "opencl-aot")));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   auto Cmd = std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
-                                       Exec, CmdArgs, std::nullopt);
+                                       Exec, CmdArgs, ArrayRef<InputInfo>{});
   if (!ForeachInputs.empty()) {
     StringRef ParallelJobs =
         Args.getLastArgValue(options::OPT_fsycl_max_parallel_jobs_EQ);

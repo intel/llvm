@@ -76,48 +76,6 @@ template <> device queue_impl::get_info<info::queue::device>() const {
   return get_device();
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::platform::version::return_type
-queue_impl::get_backend_info<info::platform::version>() const {
-  if (getContextImpl().getBackend() != backend::opencl) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::platform::version info descriptor can "
-                          "only be queried with an OpenCL backend");
-  }
-  return get_device().get_platform().get_info<info::platform::version>();
-}
-#endif
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::device::version::return_type
-queue_impl::get_backend_info<info::device::version>() const {
-  if (getContextImpl().getBackend() != backend::opencl) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::device::version info descriptor can only "
-                          "be queried with an OpenCL backend");
-  }
-  return get_device().get_info<info::device::version>();
-}
-#endif
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::device::backend_version::return_type
-queue_impl::get_backend_info<info::device::backend_version>() const {
-  if (getContextImpl().getBackend() != backend::ext_oneapi_level_zero) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::device::backend_version info descriptor "
-                          "can only be queried with a Level Zero backend");
-  }
-  return "";
-  // Currently The Level Zero backend does not define the value of this
-  // information descriptor and implementations are encouraged to return the
-  // empty string as per specification.
-}
-#endif
-
 static event
 prepareSYCLEventAssociatedWithQueue(detail::queue_impl &QueueImpl) {
   auto EventImpl = detail::event_impl::create_device_event(QueueImpl);
@@ -584,7 +542,7 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
   KData.validateAndSetKernelLaunchProperties(Props, hasCommandGraph(),
                                              getDeviceImpl());
 
-  auto SubmitKernelFunc = [&](detail::CG::StorageInitHelper &CGData)
+  auto SubmitKernelFunc = [&](detail::CG::StorageInitHelper &&CGData)
       -> std::pair<EventImplPtr, bool> {
     bool SchedulerBypass =
         (CGData.MEvents.size() > 0
@@ -650,7 +608,7 @@ EventImplPtr queue_impl::submit_graph_direct_impl(
     [[maybe_unused]] const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
   bool EventNeeded = CallerNeedsEvent || ExecGraph->containsHostTask() ||
                      !supportsDiscardingPiEvents();
-  auto SubmitGraphFunc = [&](detail::CG::StorageInitHelper CGData)
+  auto SubmitGraphFunc = [&](detail::CG::StorageInitHelper &&CGData)
       -> std::pair<EventImplPtr, bool> {
     if (auto ParentGraph = getCommandGraph(); ParentGraph) {
       std::unique_ptr<detail::CG> CommandGroup;
@@ -738,7 +696,7 @@ detail::EventImplPtr queue_impl::submit_direct(
   // Used by queue_empty() and getLastEvent()
   MEmpty.store(false, std::memory_order_release);
 
-  auto [EventImpl, SchedulerBypass] = SubmitCommandFunc(CGData);
+  auto [EventImpl, SchedulerBypass] = SubmitCommandFunc(std::move(CGData));
 
   // Synchronize with the "no last event mode", used by the handler-based
   // kernel submit path
@@ -761,7 +719,7 @@ detail::EventImplPtr queue_impl::submit_direct(
     addEventUnlocked(EventImpl);
   }
 
-  return CallerNeedsEvent ? EventImpl : nullptr;
+  return CallerNeedsEvent ? std::move(EventImpl) : nullptr;
 }
 
 template <typename HandlerFuncT>

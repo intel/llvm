@@ -689,6 +689,10 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
     throw exception(make_error_code(errc::feature_not_supported),
                     "Cannot resolve external symbols, linking is unsupported "
                     "for the backend");
+
+  // Access to m_ExportedSymbolImages must be guarded by m_KernelIDsMutex.
+  std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+
   while (!WorkList.empty()) {
     std::string Symbol = WorkList.front();
     WorkList.pop();
@@ -2938,7 +2942,8 @@ mergeImageData(device_images_range Imgs, std::vector<kernel_id> &KernelIDs,
 
 std::vector<device_image_plain>
 ProgramManager::link(device_images_range Imgs, devices_range Devs,
-                     const property_list &PropList) {
+                     const property_list &PropList,
+                     bool AllowUnresolvedSymbols) {
   {
     auto NoAllowedPropertiesCheck = [](int) { return false; };
     detail::PropertyValidator::checkPropsAndThrow(
@@ -2961,11 +2966,15 @@ ProgramManager::link(device_images_range Imgs, devices_range Devs,
   context_impl &ContextImpl = *getSyclObjImpl(Context);
   adapter_impl &Adapter = ContextImpl.getAdapter();
 
+  ur_exp_program_flags_t UrLinkFlags{};
+  if (AllowUnresolvedSymbols)
+    UrLinkFlags &= UR_EXP_PROGRAM_FLAG_ALLOW_UNRESOLVED_SYMBOLS;
+
   Managed<ur_program_handle_t> LinkedProg{Adapter};
   auto doLink = [&] {
     auto Res = Adapter.call_nocheck<UrApiKind::urProgramLinkExp>(
         ContextImpl.getHandleRef(), URDevices.size(), URDevices.data(),
-        ur_exp_program_flags_t{}, URPrograms.size(), URPrograms.data(),
+        UrLinkFlags, URPrograms.size(), URPrograms.data(),
         LinkOptionsStr.c_str(), &LinkedProg);
     if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
       Res = Adapter.call_nocheck<UrApiKind::urProgramLink>(
@@ -3045,6 +3054,17 @@ ProgramManager::link(device_images_range Imgs, devices_range Devs,
       std::move(NewSpecConstBlob), CombinedOrigins, std::move(MergedRTCInfo),
       std::move(MergedKernelNames), std::move(MergedEliminatedKernelArgMasks),
       std::move(MergedImageStorage)))};
+}
+
+void ProgramManager::dynamicLink(device_images_range Imgs) {
+  if (Imgs.empty())
+    return;
+
+  auto URPrograms = Imgs.to<std::vector<ur_program_handle_t>>();
+  auto [URCtx, Adapter] =
+      get_ur_handles(*getSyclObjImpl(Imgs.front().get_context()));
+  Adapter->call<UrApiKind::urProgramDynamicLinkExp>(URCtx, URPrograms.size(),
+                                                    URPrograms.data());
 }
 
 // The function duplicates most of the code from existing getBuiltPIProgram.

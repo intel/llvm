@@ -327,7 +327,7 @@ graph_impl::graph_impl(const sycl::context &SyclContext,
 
 graph_impl::~graph_impl() {
   try {
-    clearQueues();
+    clearQueues(false /*Needs lock*/);
     for (auto &MemObj : MMemObjs) {
       MemObj->markNoLongerBeingUsedInGraph();
     }
@@ -564,17 +564,21 @@ void graph_impl::removeQueue(sycl::detail::queue_impl &RecordingQueue) {
   MRecordingQueues.erase(RecordingQueue.weak_from_this());
 }
 
-bool graph_impl::clearQueues() {
-  bool AnyQueuesCleared = false;
-  for (auto &Queue : MRecordingQueues) {
+void graph_impl::clearQueues(bool NeedsLock) {
+  graph_impl::RecQueuesStorage SwappedQueues;
+  {
+    graph_impl::WriteLock Guard(MMutex, std::defer_lock);
+    if (NeedsLock) {
+      Guard.lock();
+    }
+    std::swap(MRecordingQueues, SwappedQueues);
+  }
+
+  for (auto &Queue : SwappedQueues) {
     if (auto ValidQueue = Queue.lock(); ValidQueue) {
       ValidQueue->setCommandGraph(nullptr);
-      AnyQueuesCleared = true;
     }
   }
-  MRecordingQueues.clear();
-
-  return AnyQueuesCleared;
 }
 
 bool graph_impl::checkForCycles() {
@@ -1968,8 +1972,7 @@ void modifiable_command_graph::begin_recording(
 }
 
 void modifiable_command_graph::end_recording() {
-  graph_impl::WriteLock Lock(impl->MMutex);
-  impl->clearQueues();
+  impl->clearQueues(true /*Needs lock*/);
 }
 
 void modifiable_command_graph::end_recording(queue &RecordingQueue) {

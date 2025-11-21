@@ -318,7 +318,8 @@ public:
   ur_exp_command_buffer_sync_point_t getSyncPoint() const { return MSyncPoint; }
 
   void setCommandGraph(
-      std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
+      const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+          &Graph) {
     MGraph = Graph;
   }
 
