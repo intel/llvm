@@ -3150,6 +3150,8 @@ private:
 #endif
   std::vector<detail::LocalAccessorImplPtr> MLocalAccStorage;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreamStorage;
+  // std::string_view ABI differs under `-D_GLIBCXX_USE_CXX11_ABI=0`,
+  // use our implementation instead.
   detail::string_view MKernelName;
   /// Storage for a sycl::kernel object.
   std::shared_ptr<detail::kernel_impl> MKernel;

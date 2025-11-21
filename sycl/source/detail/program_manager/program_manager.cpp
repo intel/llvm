@@ -1094,13 +1094,7 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
 
   Managed<ur_program_handle_t> Program = getBuiltURProgram(
       ContextImpl, DeviceImpl, DeviceKernelInfo.Name, NDRDesc);
-
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-// Simplify this once `DeviceKernelInfo.Name`'s type is known.
-// Using `decltype(auto)` instead of just `auto` to get reference when
-// possible.
-#endif
-  decltype(auto) KernelName = std::string_view{DeviceKernelInfo.Name};
+  std::string_view KernelName = DeviceKernelInfo.Name;
   auto BuildF = [this, &Program, &KernelName, &ContextImpl] {
     adapter_impl &Adapter = ContextImpl.getAdapter();
     Managed<ur_kernel_handle_t> Kernel{Adapter};

@@ -161,7 +161,7 @@ public:
 
   size_t size() const { return MDeviceGlobals.size(); }
 
-  size_t count(const std::string_view &UniqueId) const {
+  size_t count(std::string_view UniqueId) const {
     return MDeviceGlobals.count(UniqueId);
   }
 
