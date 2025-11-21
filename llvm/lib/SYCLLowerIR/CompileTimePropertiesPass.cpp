@@ -948,16 +948,29 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
     LLVMContext &Ctx = M.getContext();
     unsigned MDKindID = Ctx.getMDKindID(SPIRV_DECOR_MD_KIND);
     if (!FPGAProp && llvm::isa<llvm::Instruction>(IntrInst->getArgOperand(0))) {
-      // If there are no annotations other than cache controls we can apply the
-      // controls to the pointer and remove the intrinsic.
+      // Find all load/store instructions using the pointer being annotated and
+      // apply the cache control metadata to them.
+      SmallVector<std::pair<Instruction *, int>, 8> TargetedInstList;
+      getUserListIgnoringCast<LoadInst>(IntrInst, TargetedInstList);
+      getUserListIgnoringCast<StoreInst>(IntrInst, TargetedInstList);
+      getUserListIgnoringCast<MemTransferInst>(IntrInst, TargetedInstList);
+      for (const auto &Pair : TargetedInstList) {
+        auto *Inst = Pair.first;
+        // Merge with existing metadata if present.
+        SmallVector<Metadata *, 8> MDOps;
+        if (MDNode *CurrentMD = Inst->getMetadata(MDKindID))
+          for (Metadata *Op : CurrentMD->operands())
+            MDOps.push_back(Op);
+        for (Metadata *Op : MDOpsCacheProp)
+          MDOps.push_back(Op);
+        MDOps.push_back(ConstantAsMetadata::get(Constant::getIntegerValue(
+            Type::getInt32Ty(Ctx), APInt(32, Pair.second))));
+        Inst->setMetadata(MDKindID, MDTuple::get(Ctx, MDOps));
+      }
+      // Replace all uses of ptr.annotations intrinsic with first operand and
+      // delete the original intrinsic.
       Instruction *PtrInstr = cast<Instruction>(IntrInst->getArgOperand(0));
-      if (MDNode *CurrentMD = PtrInstr->getMetadata(MDKindID))
-        for (Metadata *Op : CurrentMD->operands())
-          MDOpsCacheProp.push_back(Op);
-      PtrInstr->setMetadata(MDKindID, MDTuple::get(Ctx, MDOpsCacheProp));
-      // Replace all uses of IntrInst with first operand
       IntrInst->replaceAllUsesWith(PtrInstr);
-      // Delete the original IntrInst
       RemovableAnnotations.push_back(IntrInst);
     } else {
       // If there were FPGA annotations then we retain the original intrinsic
