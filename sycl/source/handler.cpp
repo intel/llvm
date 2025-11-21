@@ -1930,56 +1930,6 @@ void handler::setDeviceKernelInfo(kernel &&Kernel) {
   // `lambdaAndKernelHaveEqualName` calls can handle that.
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-void handler::setNDRangeDescriptorPadded(sycl::range<3> N,
-                                         bool SetNumWorkGroups, int Dims) {
-  if (Dims == 1) {
-    sycl::range<1> Range = {N[0]};
-    impl->MKernelData.setNDRDesc(NDRDescT{Range, SetNumWorkGroups});
-  } else if (Dims == 2) {
-    sycl::range<2> Range = {N[0], N[1]};
-    impl->MKernelData.setNDRDesc(NDRDescT{Range, SetNumWorkGroups});
-  } else if (Dims == 3) {
-    impl->MKernelData.setNDRDesc(NDRDescT{N, SetNumWorkGroups});
-  }
-}
-
-void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
-                                         sycl::id<3> Offset, int Dims) {
-  if (Dims == 1) {
-    sycl::range<1> NumWorkItemsTrimmed = {NumWorkItems[0]};
-    sycl::id<1> OffsetTrimmed = {Offset[0]};
-    impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItemsTrimmed, OffsetTrimmed});
-  } else if (Dims == 2) {
-    sycl::range<2> NumWorkItemsTrimmed = {NumWorkItems[0], NumWorkItems[1]};
-    sycl::id<2> OffsetTrimmed = {Offset[0], Offset[1]};
-    impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItemsTrimmed, OffsetTrimmed});
-  } else if (Dims == 3) {
-    impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, Offset});
-  }
-}
-
-void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
-                                         sycl::range<3> LocalSize,
-                                         sycl::id<3> Offset, int Dims) {
-  if (Dims == 1) {
-    sycl::range<1> NumWorkItemsTrimmed = {NumWorkItems[0]};
-    sycl::range<1> LocalSizeTrimmed = {LocalSize[0]};
-    sycl::id<1> OffsetTrimmed = {Offset[0]};
-    impl->MKernelData.setNDRDesc(
-        NDRDescT{NumWorkItemsTrimmed, LocalSizeTrimmed, OffsetTrimmed});
-  } else if (Dims == 2) {
-    sycl::range<2> NumWorkItemsTrimmed = {NumWorkItems[0], NumWorkItems[1]};
-    sycl::range<2> LocalSizeTrimmed = {LocalSize[0], LocalSize[1]};
-    sycl::id<2> OffsetTrimmed = {Offset[0], Offset[1]};
-    impl->MKernelData.setNDRDesc(
-        NDRDescT{NumWorkItemsTrimmed, LocalSizeTrimmed, OffsetTrimmed});
-  } else if (Dims == 3) {
-    impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, LocalSize, Offset});
-  }
-}
-#endif
-
 void handler::setNDRangeDescriptor(sycl::range<3> N, bool SetNumWorkGroups) {
   impl->MKernelData.setNDRDesc(NDRDescT{N, SetNumWorkGroups});
 }

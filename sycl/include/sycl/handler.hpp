@@ -3496,16 +3496,6 @@ private:
   bool HasAssociatedAccessor(detail::AccessorImplHost *Req,
                              access::target AccessTarget) const;
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  void setNDRangeDescriptorPadded(sycl::range<3> N, bool SetNumWorkGroups,
-                                  int Dims);
-  void setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
-                                  sycl::id<3> Offset, int Dims);
-  void setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
-                                  sycl::range<3> LocalSize, sycl::id<3> Offset,
-                                  int Dims);
-#endif
-
   template <int Dims>
   void setNDRangeDescriptor(sycl::range<Dims> N,
                             bool SetNumWorkGroups = false) {
