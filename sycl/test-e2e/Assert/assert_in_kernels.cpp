@@ -2,9 +2,6 @@
 
 // UNSUPPORTED: hip
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/7634
-//
-// XFAIL: (opencl && gpu)
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/11364
 
 // XFAIL: target-native_cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
