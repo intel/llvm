@@ -416,12 +416,8 @@ node_impl &graph_impl::add(std::function<void(handler &)> CGF,
                            const std::vector<sycl::detail::ArgDesc> &Args,
                            nodes_range Deps) {
   (void)Args;
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   detail::handler_impl HandlerImpl{*this};
   sycl::handler Handler{HandlerImpl};
-#else
-  sycl::handler Handler{shared_from_this()};
-#endif
 
   // Pass the node deps to the handler so they are available when processing the
   // CGF, need for async_malloc nodes.

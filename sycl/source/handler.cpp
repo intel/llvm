@@ -368,38 +368,10 @@ fill_copy_args(detail::handler_impl *impl,
 
 } // namespace detail
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 handler::handler(detail::handler_impl &HandlerImpl) : impl(&HandlerImpl) {}
 handler::handler(std::unique_ptr<detail::handler_impl> &&HandlerImpl)
     : implOwner(std::move(HandlerImpl)), impl(implOwner.get()) {}
-#else
-handler::handler(std::unique_ptr<detail::handler_impl> &&HandlerImpl)
-    : impl(std::move(HandlerImpl)) {}
 
-handler::handler(std::shared_ptr<detail::queue_impl> Queue,
-                 bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(*Queue, CallerNeedsEvent)),
-      MQueueDoNotUse(std::move(Queue)) {}
-
-handler::handler(
-    std::shared_ptr<detail::queue_impl> Queue,
-    [[maybe_unused]] std::shared_ptr<detail::queue_impl> PrimaryQueue,
-    [[maybe_unused]] std::shared_ptr<detail::queue_impl> SecondaryQueue,
-    bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(*Queue, CallerNeedsEvent)),
-      MQueueDoNotUse(Queue) {}
-
-handler::handler(std::shared_ptr<detail::queue_impl> Queue,
-                 [[maybe_unused]] detail::queue_impl *SecondaryQueue,
-                 bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(*Queue, CallerNeedsEvent)),
-      MQueueDoNotUse(std::move(Queue)) {}
-
-handler::handler(
-    std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
-    : impl(std::make_shared<detail::handler_impl>(*Graph)) {}
-
-#endif
 handler::~handler() = default;
 
 // Sets the submission state to indicate that an explicit kernel bundle has been
@@ -483,28 +455,6 @@ detail::EventImplPtr handler::finalize() {
 #else
 event handler::finalize() {
 #endif
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Old reduction implementation, prior to
-  //   https://github.com/intel/llvm/pull/18794
-  //   https://github.com/intel/llvm/pull/18898
-  //   https://github.com/intel/llvm/pull/19203
-  // relied on explicit calls to handler::finalize and those calls were inlined
-  // into the user applications. As such, we have to preserve the following
-  // behavior for ABI-compatibility purposes:
-  if (MIsFinalizedDoNotUse)
-    return MLastEventDoNotUse;
-
-  MIsFinalizedDoNotUse = true;
-  // Use macros to trick clang-format:
-#define WRAP_BODY_BEGIN MLastEventDoNotUse = [this]() {
-#define WRAP_BODY_END                                                          \
-  }                                                                            \
-  ();                                                                          \
-  return MLastEventDoNotUse;
-
-  WRAP_BODY_BEGIN
-#endif
-
   const auto &type = getType();
   detail::queue_impl *Queue = impl->get_queue_or_null();
   ext::oneapi::experimental::detail::graph_impl *Graph =
@@ -900,13 +850,6 @@ event handler::finalize() {
   return DiscardEvent ? nullptr : Event;
 #else
   return detail::createSyclObjFromImpl<event>(Event);
-#endif
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  WRAP_BODY_END
-
-#undef WRAP_BODY_BEGIN
-#undef WRAP_BODY_END
 #endif
 }
 
@@ -2036,12 +1979,8 @@ __SYCL_EXPORT void HandlerAccess::preProcess(handler &CGH,
                                              type_erased_cgfo_ty F) {
   queue_impl &Q = CGH.impl->get_queue();
   bool EventNeeded = !Q.isInOrder();
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   handler_impl HandlerImpl{Q, EventNeeded};
   handler AuxHandler{HandlerImpl};
-#else
-  handler AuxHandler{Q.shared_from_this(), EventNeeded};
-#endif
   AuxHandler.copyCodeLoc(CGH);
   F(AuxHandler);
   auto E = AuxHandler.finalize();

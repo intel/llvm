@@ -421,7 +421,6 @@ template <int Dims> bool range_size_fits_in_size_t(const range<Dims> &r) {
 /// \ingroup sycl_api
 class __SYCL_EXPORT handler {
 private:
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Constructs SYCL handler from the pre-constructed stack-allocated
   /// `handler_impl` (not enforced, but meaningless to do a heap allocation
   /// outside handler instance).
@@ -431,39 +430,6 @@ private:
   // Can't provide this overload outside preview because `handler` lacks
   // required data members.
   handler(detail::handler_impl &HandlerImpl);
-#else
-  /// Constructs SYCL handler from queue.
-  ///
-  /// \param Queue is a SYCL queue.
-  /// \param CallerNeedsEvent indicates if the event resulting from this handler
-  ///        is needed by the caller.
-  handler(std::shared_ptr<detail::queue_impl> Queue, bool CallerNeedsEvent);
-  /// Constructs SYCL handler from the associated queue and the submission's
-  /// primary and secondary queue.
-  ///
-  /// \param Queue is a SYCL queue. This is equal to either PrimaryQueue or
-  ///        SecondaryQueue.
-  /// \param PrimaryQueue is the primary SYCL queue of the submission.
-  /// \param SecondaryQueue is the secondary SYCL queue of the submission. This
-  ///        is null if no secondary queue is associated with the submission.
-  /// \param CallerNeedsEvent indicates if the event resulting from this handler
-  ///        is needed by the caller.
-  handler(std::shared_ptr<detail::queue_impl> Queue,
-          std::shared_ptr<detail::queue_impl> PrimaryQueue,
-          std::shared_ptr<detail::queue_impl> SecondaryQueue,
-          bool CallerNeedsEvent);
-  __SYCL_DLL_LOCAL handler(std::shared_ptr<detail::queue_impl> Queue,
-                           detail::queue_impl *SecondaryQueue,
-                           bool CallerNeedsEvent);
-
-  /// Constructs SYCL handler from Graph.
-  ///
-  /// The handler will add the command-group as a node to the graph rather than
-  /// enqueueing it straight away.
-  ///
-  /// \param Graph is a SYCL command_graph
-  handler(std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph);
-#endif
   handler(std::unique_ptr<detail::handler_impl> &&HandlerImpl);
 
   ~handler();
@@ -3072,15 +3038,8 @@ public:
       uint64_t SignalValue);
 
 private:
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   std::unique_ptr<detail::handler_impl> implOwner;
   detail::handler_impl *impl;
-#else
-  std::shared_ptr<detail::handler_impl> impl;
-
-  // Use impl->get_queue*() instead:
-  std::shared_ptr<detail::queue_impl> MQueueDoNotUse;
-#endif
   std::vector<detail::LocalAccessorImplPtr> MLocalAccStorage;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreamStorage;
   detail::ABINeutralKernelNameStrT MKernelName;
@@ -3098,11 +3057,6 @@ private:
   std::unique_ptr<detail::HostKernelBase> MHostKernel;
 
   detail::code_location MCodeLoc = {};
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Was used for the previous reduction implementation (via `withAuxHandler`).
-  bool MIsFinalizedDoNotUse = false;
-  event MLastEventDoNotUse;
-#endif
 
   // Make queue_impl class friend to be able to call finalize method.
   friend class detail::queue_impl;
@@ -3538,11 +3492,8 @@ private:
 
   friend class detail::HandlerAccess;
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   __SYCL_DLL_LOCAL detail::handler_impl *get_impl() { return impl; }
-#else
-  __SYCL_DLL_LOCAL detail::handler_impl *get_impl() { return impl.get(); }
-#endif
+
   // Friend free-functions for asynchronous allocation and freeing.
   __SYCL_EXPORT friend void
   ext::oneapi::experimental::async_free(sycl::handler &h, void *ptr);
@@ -3584,13 +3535,8 @@ public:
   }
 
   static void swap(handler &LHS, handler &RHS) {
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     std::swap(LHS.implOwner, RHS.implOwner);
-#endif
     std::swap(LHS.impl, RHS.impl);
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    std::swap(LHS.MQueueDoNotUse, RHS.MQueueDoNotUse);
-#endif
     std::swap(LHS.MLocalAccStorage, RHS.MLocalAccStorage);
     std::swap(LHS.MStreamStorage, RHS.MStreamStorage);
     std::swap(LHS.MKernelName, RHS.MKernelName);
@@ -3601,10 +3547,6 @@ public:
     std::swap(LHS.MPattern, RHS.MPattern);
     std::swap(LHS.MHostKernel, RHS.MHostKernel);
     std::swap(LHS.MCodeLoc, RHS.MCodeLoc);
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    std::swap(LHS.MIsFinalizedDoNotUse, RHS.MIsFinalizedDoNotUse);
-    std::swap(LHS.MLastEventDoNotUse, RHS.MLastEventDoNotUse);
-#endif
   }
 
   // pre/postProcess are used only for reductions right now, but the
