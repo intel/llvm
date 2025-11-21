@@ -957,15 +957,6 @@ void handler::associateWithHandler(
                              static_cast<int>(AccTarget));
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
-                         const int Size, const size_t Index, size_t &IndexShift,
-                         bool IsKernelCreatedFromSource, bool IsESIMD) {
-  impl->MKernelData.processArg(Ptr, Kind, Size, Index, IndexShift,
-                               IsKernelCreatedFromSource, IsESIMD);
-}
-#endif
-
 void handler::setArgHelper(int ArgIndex, detail::work_group_memory_impl &Arg) {
   impl->MWorkGroupMemoryObjects.push_back(
       std::make_shared<detail::work_group_memory_impl>(Arg));
@@ -991,64 +982,6 @@ void handler::extractArgsAndReqs() {
   assert(impl->MKernelData.getDeviceKernelInfoPtr() != nullptr);
   impl->MKernelData.extractArgsAndReqs(MKernel->isCreatedFromSource());
 }
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-// TODO: Those functions are not used anymore, remove it in the next
-// ABI-breaking window.
-void handler::extractArgsAndReqsFromLambda(
-    char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
-    size_t NumKernelParams, bool IsESIMD) {
-
-  std::vector<detail::kernel_param_desc_t> ParamDescs;
-  ParamDescs.reserve(NumKernelParams);
-  for (size_t i = 0; i < NumKernelParams; i++) {
-    ParamDescs.push_back(ParamDescGetter(i));
-  }
-
-  extractArgsAndReqsFromLambda(LambdaPtr, ParamDescs, IsESIMD);
-}
-
-void handler::extractArgsAndReqsFromLambda(
-    char *LambdaPtr, const std::vector<detail::kernel_param_desc_t> &ParamDescs,
-    bool IsESIMD) {
-  const bool IsKernelCreatedFromSource = false;
-  size_t IndexShift = 0;
-
-  for (size_t I = 0; I < ParamDescs.size(); ++I) {
-    void *Ptr = LambdaPtr + ParamDescs[I].offset;
-    const detail::kernel_param_kind_t &Kind = ParamDescs[I].kind;
-    const int &Size = ParamDescs[I].info;
-    if (Kind == detail::kernel_param_kind_t::kind_accessor) {
-      // For args kind of accessor Size is information about accessor.
-      // The first 11 bits of Size encodes the accessor target.
-      const access::target AccTarget =
-          static_cast<access::target>(Size & AccessTargetMask);
-      if ((AccTarget == access::target::device ||
-           AccTarget == access::target::constant_buffer) ||
-          (AccTarget == access::target::image ||
-           AccTarget == access::target::image_array)) {
-        detail::AccessorBaseHost *AccBase =
-            static_cast<detail::AccessorBaseHost *>(Ptr);
-        Ptr = detail::getSyclObjImpl(*AccBase).get();
-      } else if (AccTarget == access::target::local) {
-        detail::LocalAccessorBaseHost *LocalAccBase =
-            static_cast<detail::LocalAccessorBaseHost *>(Ptr);
-        Ptr = detail::getSyclObjImpl(*LocalAccBase).get();
-      }
-    }
-    impl->MKernelData.processArg(Ptr, Kind, Size, I, IndexShift,
-                                 IsKernelCreatedFromSource, IsESIMD);
-  }
-}
-
-void handler::extractArgsAndReqsFromLambda(
-    char *LambdaPtr, size_t KernelArgsNum,
-    const detail::kernel_param_desc_t *KernelArgs, bool IsESIMD) {
-  std::vector<detail::kernel_param_desc_t> ParamDescs(
-      KernelArgs, KernelArgs + KernelArgsNum);
-  extractArgsAndReqsFromLambda(LambdaPtr, ParamDescs, IsESIMD);
-}
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 // Calling methods of kernel_impl requires knowledge of class layout.

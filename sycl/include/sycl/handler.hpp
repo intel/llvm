@@ -502,31 +502,8 @@ private:
 
   void setDeviceKernelInfo(kernel &&Kernel);
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // TODO: Those functions are not used anymore, remove it in the next
-  // ABI-breaking window.
-  void extractArgsAndReqsFromLambda(
-      char *LambdaPtr,
-      const std::vector<detail::kernel_param_desc_t> &ParamDescs, bool IsESIMD);
-  void
-  extractArgsAndReqsFromLambda(char *LambdaPtr, size_t KernelArgsNum,
-                               const detail::kernel_param_desc_t *KernelArgs,
-                               bool IsESIMD);
-  /// Extracts and prepares kernel arguments from the lambda using information
-  /// from the built-ins or integration header.
-  void extractArgsAndReqsFromLambda(
-      char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
-      size_t NumKernelParams, bool IsESIMD);
-#endif
   /// Extracts and prepares kernel arguments set via set_arg(s).
   void extractArgsAndReqs();
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // TODO: remove in the next ABI-breaking window.
-  void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
-                  const int Size, const size_t Index, size_t &IndexShift,
-                  bool IsKernelCreatedFromSource, bool IsESIMD);
-#endif
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// \return a string containing name of SYCL kernel.
