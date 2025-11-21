@@ -108,6 +108,10 @@ public:
   iterator_range(IterTy Begin, IterTy End, size_t Size)
       : Begin(Begin), End(End), Size(Size) {}
 
+  template <typename IterTy>
+  iterator_range(IterTy Begin, IterTy End)
+      : iterator_range(Begin, End, std::distance(Begin, End)) {}
+
   iterator_range() : iterator_range(iterator{}, iterator{}, 0) {}
 
   template <typename ContainerTy, typename = std::void_t<decltype(iterator{

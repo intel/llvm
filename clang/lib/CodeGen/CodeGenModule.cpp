@@ -2539,9 +2539,8 @@ static QualType GeneralizeTransparentUnion(QualType Ty) {
   const RecordDecl *UD = UT->getDecl()->getDefinitionOrSelf();
   if (!UD->hasAttr<TransparentUnionAttr>())
     return Ty;
-  for (const auto *it : UD->fields()) {
-    return it->getType();
-  }
+  if (!UD->fields().empty())
+    return UD->fields().begin()->getType();
   return Ty;
 }
 
@@ -3619,6 +3618,7 @@ static void emitUsed(CodeGenModule &CGM, StringRef Name,
   // Don't create llvm.used if there is no need.
   if (List.empty())
     return;
+
   // For SYCL emit pointers in the default address space which is a superset of
   // other address spaces, so that casts from any other address spaces will be
   // valid.
@@ -3633,7 +3633,7 @@ static void emitUsed(CodeGenModule &CGM, StringRef Name,
   UsedArray.resize(List.size());
   for (unsigned i = 0, e = List.size(); i != e; ++i) {
     UsedArray[i] = llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(
-        cast<llvm::Constant>(&*List[i]), TargetType);
+            cast<llvm::Constant>(&*List[i]), TargetType);
   }
 
   if (UsedArray.empty())
