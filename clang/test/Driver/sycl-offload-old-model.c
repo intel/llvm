@@ -898,6 +898,16 @@
 // FSYCL-PREVIEW-BREAKING-CHANGES-DEBUG-CHECK-NOT: -defaultlib:sycl{{[0-9]*}}.lib
 // FSYCL-PREVIEW-BREAKING-CHANGES-DEBUG-CHECK-NOT: -defaultlib:sycl{{[0-9]*}}-preview.lib
 
+/// Check for -fpreview-breaking-changes output during the clang-offload-wrapper
+/// step of the offload compilation.
+// RUN: %clang -### -fsycl --no-offload-new-driver -fpreview-breaking-changes \
+// RUN:  %s 2>&1 \
+// RUN: | FileCheck -check-prefix PREVIEW-WRAPPER %s
+// RUN: %clang -### -fsycl --no-offload-new-driver -fpreview-breaking-changes \
+// RUN:  -fsycl-link %s 2>&1 \
+// RUN: | FileCheck -check-prefix PREVIEW-WRAPPER %s
+// PREVIEW-WRAPPER: clang-offload-wrapper{{.*}} "-fpreview-breaking-changes"
+
 // Check if fsycl-targets correctly processes multiple NVidia
 // and AMD GPU targets.
 // RUN:   %clang -### -fsycl -fsycl-targets=nvidia_gpu_sm_60,nvidia_gpu_sm_70 -fno-sycl-libspirv -nocudalib --no-offload-new-driver  %s 2>&1 \
