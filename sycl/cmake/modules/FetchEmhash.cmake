@@ -9,7 +9,7 @@ if(NOT emhash_FOUND)
   include(FetchContent)
   FetchContent_Declare(emhash
     GIT_REPOSITORY    ${EMHASH_REPO}
-    GIT_TAG           09fb0439de0c65e387498232c89d561ee95fbd60
+    GIT_TAG           5e131ba09a5290823fe71099d9c35eb5df5345b6
     SOURCE_SUBDIR  emhash
   )
   FetchContent_MakeAvailable(emhash)
