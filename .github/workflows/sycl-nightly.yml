@@ -1,5 +1,6 @@
 name: SYCL Nightly
 
+
 on:
   workflow_dispatch:
   schedule:
