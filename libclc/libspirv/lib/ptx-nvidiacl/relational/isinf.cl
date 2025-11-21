@@ -13,6 +13,16 @@
 
 _CLC_DEF _CLC_OVERLOAD bool __spirv_IsInf(float x) { return __nv_isinff(x); }
 
+// Simple implementation that doesn't require CUDA libdevice
+// Check if exponent is all 1s and mantissa is 0
+
+// _CLC_DEF _CLC_OVERLOAD bool __spirv_IsInf(float x) {
+//  unsigned int bits = __builtin_bit_cast(unsigned int, x);
+//  // Infinity: sign bit (any), exponent (0xFF), mantissa (0x0)
+//  return ((bits & 0x7FFFFFFF) == 0x7F800000);
+// }
+// TODO double
+
 _CLC_DEFINE_RELATIONAL_UNARY_VEC_ALL(char, __spirv_IsInf, float)
 
 #ifdef cl_khr_fp64
