@@ -6814,12 +6814,17 @@ private:
       QualType T = Param->getType();
       QualType CT = T.getCanonicalType();
 
-      auto *TST = dyn_cast<TemplateSpecializationType>(T.getTypePtr());
-      auto *CTST = dyn_cast<TemplateSpecializationType>(CT.getTypePtr());
+      const auto *TST = dyn_cast<TemplateSpecializationType>(T.getTypePtr());
+      const auto *CTST = dyn_cast<TemplateSpecializationType>(CT.getTypePtr());
       if (!TST || !CTST) {
         ParmListOstream << T.getAsString(Policy);
         continue;
       }
+
+      const TemplateSpecializationType *TSTAsNonAlias =
+          TST->getAsNonAliasTemplateSpecializationType();
+      if (TSTAsNonAlias)
+        TST = TSTAsNonAlias;
 
       TemplateName CTN = CTST->getTemplateName();
       CTN.getAsTemplateDecl()->printQualifiedName(ParmListOstream);
