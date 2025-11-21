@@ -4552,11 +4552,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     /// execute the kernel function.
     /// If nullptr, the runtime implementation will choose the work-group size.
     const size_t *pLocalWorkSize,
-    /// [in] size of the launch prop list
-    uint32_t numPropsInLaunchPropList,
-    /// [in][optional][range(0, numPropsInLaunchPropList)] pointer to a list
-    /// of launch properties
-    const ur_kernel_launch_property_t *launchPropList,
+    /// [in][optional] pointer to a single linked list of launch properties
+    const ur_kernel_launch_ext_properties_t *launchPropList,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -4579,14 +4576,15 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     if (NULL == pGlobalWorkSize)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
-    if (launchPropList == NULL && numPropsInLaunchPropList > 0)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
     if (NULL == hQueue)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hKernel)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL != launchPropList &&
+        UR_KERNEL_LAUNCH_FLAGS_MASK & launchPropList->flags)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -4613,10 +4611,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     URLOG_CTX_INVALID_REFERENCE(hKernel);
   }
 
-  ur_result_t result = pfnKernelLaunch(
-      hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      pLocalWorkSize, numPropsInLaunchPropList, launchPropList,
-      numEventsInWaitList, phEventWaitList, phEvent);
+  ur_result_t result =
+      pfnKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
+                      pGlobalWorkSize, pLocalWorkSize, launchPropList,
+                      numEventsInWaitList, phEventWaitList, phEvent);
 
   if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
       phEvent) {
@@ -11124,11 +11122,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
     /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
     /// properties.
     const ur_exp_kernel_arg_properties_t *pArgs,
-    /// [in] size of the launch prop list
-    uint32_t numPropsInLaunchPropList,
-    /// [in][optional][range(0, numPropsInLaunchPropList)] pointer to a list
-    /// of launch properties
-    const ur_kernel_launch_property_t *launchPropList,
+    /// [in][optional] pointer to a single linked list of launch properties
+    const ur_kernel_launch_ext_properties_t *launchPropList,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -11152,9 +11147,6 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
     if (NULL == pGlobalWorkSize)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
-    if (launchPropList == NULL && numPropsInLaunchPropList > 0)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
     if (pArgs == NULL && numArgs > 0)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -11165,6 +11157,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL != pArgs && UR_EXP_KERNEL_ARG_TYPE_SAMPLER < pArgs->type)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+
+    if (NULL != launchPropList &&
+        UR_KERNEL_LAUNCH_FLAGS_MASK & launchPropList->flags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
@@ -11202,8 +11198,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
 
   ur_result_t result = pfnKernelLaunchWithArgsExp(
       hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      pLocalWorkSize, numArgs, pArgs, numPropsInLaunchPropList, launchPropList,
-      numEventsInWaitList, phEventWaitList, phEvent);
+      pLocalWorkSize, numArgs, pArgs, launchPropList, numEventsInWaitList,
+      phEventWaitList, phEvent);
 
   if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
       phEvent) {

@@ -3256,14 +3256,19 @@ void SemaSYCL::checkSYCLAddIRAttributesFunctionAttrConflicts(Decl *D) {
   }
 
   // If there are potentially conflicting attributes, we issue a warning.
-  for (const auto *Attr : std::vector<AttributeCommonInfo *>{
-           D->getAttr<SYCLReqdWorkGroupSizeAttr>(),
-           D->getAttr<IntelReqdSubGroupSizeAttr>(),
-           D->getAttr<SYCLWorkGroupSizeHintAttr>(),
-           D->getAttr<SYCLDeviceHasAttr>()})
+  for (const auto [Attr, PotentialConflictProp] :
+       std::vector<std::pair<AttributeCommonInfo *, StringRef>>{
+           {D->getAttr<SYCLReqdWorkGroupSizeAttr>(),
+            "sycl::ext::oneapi::experimental::work_group_size"},
+           {D->getAttr<IntelReqdSubGroupSizeAttr>(),
+            "sycl::ext::oneapi::experimental::sub_group_size"},
+           {D->getAttr<SYCLWorkGroupSizeHintAttr>(),
+            "sycl::ext::oneapi::experimental::work_group_size_hint"},
+           {D->getAttr<SYCLDeviceHasAttr>(),
+            "sycl::ext::oneapi::experimental::device_has"}})
     if (Attr)
       Diag(Attr->getLoc(), diag::warn_sycl_old_and_new_kernel_attributes)
-          << Attr;
+          << Attr << PotentialConflictProp;
 }
 
 void SemaSYCL::handleSYCLRegisteredKernels(Decl *D, const ParsedAttr &A) {

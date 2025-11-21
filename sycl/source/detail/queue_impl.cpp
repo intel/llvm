@@ -435,13 +435,6 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
   }
 
   bool DiscardEvent = !EventNeeded && supportsDiscardingPiEvents();
-  if (DiscardEvent) {
-    // Kernel only uses assert if it's non interop one
-    bool KernelUsesAssert =
-        !(KernelImplPtr && KernelImplPtr->isInterop()) && KData.usesAssert();
-    DiscardEvent = !KernelUsesAssert;
-  }
-
   std::shared_ptr<detail::event_impl> ResultEvent =
       DiscardEvent ? nullptr : detail::event_impl::create_device_event(*this);
 
@@ -581,7 +574,7 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
   KData.validateAndSetKernelLaunchProperties(Props, hasCommandGraph(),
                                              getDeviceImpl());
 
-  auto SubmitKernelFunc = [&](detail::CG::StorageInitHelper &CGData,
+  auto SubmitKernelFunc = [&](detail::CG::StorageInitHelper &&CGData,
                               bool SchedulerBypass) -> EventImplPtr {
     if (SchedulerBypass) {
       // No need to copy/move the kernel function, so we set
@@ -693,7 +686,8 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
   MNoLastEventMode.store(isInOrder() && SchedulerBypass,
                          std::memory_order_relaxed);
 
-  EventImplPtr EventImpl = SubmitCommandFunc(CGData, SchedulerBypass);
+  EventImplPtr EventImpl =
+      SubmitCommandFunc(std::move(CGData), SchedulerBypass);
 
   // Sync with the last event for in order queue. For scheduler-bypass flow,
   // the ordering is done at the layers below the SYCL runtime,
@@ -708,7 +702,7 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
     Deps.UnenqueuedCmdEvents.push_back(EventImpl);
   }
 
-  return CallerNeedsEvent ? EventImpl : nullptr;
+  return CallerNeedsEvent ? std::move(EventImpl) : nullptr;
 }
 
 template <typename HandlerFuncT>

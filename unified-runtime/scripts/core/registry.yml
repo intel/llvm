@@ -805,3 +805,12 @@ etors:
 - name: PHYSICAL_MEM_PROPERTIES
   desc: $x_physical_mem_properties_t
   value: '37'
+- name: KERNEL_LAUNCH_EXT_PROPERTIES
+  desc: $x_kernel_launch_ext_properties_t
+  value: '38'
+- name: KERNEL_LAUNCH_CLUSTER_PROPERTY
+  desc: $x_kernel_launch_cluster_property_t
+  value: '40'
+- name: KERNEL_LAUNCH_WORKGROUP_PROPERTY
+  desc: $x_kernel_launch_workgroup_property_t
+  value: '41'

@@ -263,22 +263,6 @@ context_impl::get_backend_info<info::device::backend_version>() const {
 }
 #endif
 
-ur_context_handle_t &context_impl::getHandleRef() { return MContext; }
-const ur_context_handle_t &context_impl::getHandleRef() const {
-  return MContext;
-}
-
-KernelProgramCache &context_impl::getKernelProgramCache() const {
-  return MKernelProgramCache;
-}
-
-bool context_impl::hasDevice(const detail::device_impl &Device) const {
-  for (device_impl *D : MDevices)
-    if (D == &Device)
-      return true;
-  return false;
-}
-
 device_impl *
 context_impl::findMatchingDeviceImpl(ur_device_handle_t &DeviceUR) const {
   for (device_impl *D : MDevices)
@@ -433,7 +417,7 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
       }
       // Write the pointer to the device global and store the event in the
       // initialize events list.
-      ur_event_handle_t InitEvent;
+      ur_event_handle_t InitEvent = nullptr;
       void *const &USMPtr = DeviceGlobalUSM.getPtr();
       Adapter.call<UrApiKind::urEnqueueDeviceGlobalVariableWrite>(
           QueueImpl.getHandleRef(), NativePrg,
