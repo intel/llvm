@@ -435,13 +435,6 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
   }
 
   bool DiscardEvent = !EventNeeded && supportsDiscardingPiEvents();
-  if (DiscardEvent) {
-    // Kernel only uses assert if it's non interop one
-    bool KernelUsesAssert =
-        !(KernelImplPtr && KernelImplPtr->isInterop()) && KData.usesAssert();
-    DiscardEvent = !KernelUsesAssert;
-  }
-
   std::shared_ptr<detail::event_impl> ResultEvent =
       DiscardEvent ? nullptr : detail::event_impl::create_device_event(*this);
 

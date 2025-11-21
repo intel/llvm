@@ -66,10 +66,6 @@ static void enableITTAnnotationsIfNeeded(const ur_program_handle_t &Prog,
   }
 }
 
-ProgramManager &ProgramManager::getInstance() {
-  return GlobalHandler::instance().getProgramManager();
-}
-
 static Managed<ur_program_handle_t>
 createBinaryProgram(context_impl &Context, devices_range Devices,
                     const uint8_t **Binaries, size_t *Lengths,
@@ -1798,14 +1794,6 @@ Managed<ur_program_handle_t> ProgramManager::build(
   return LinkedProg;
 }
 
-void ProgramManager::cacheKernelUsesAssertInfo(const RTDeviceBinaryImage &Img) {
-  const RTDeviceBinaryImage::PropertyRange &AssertUsedRange =
-      Img.getAssertUsed();
-  if (AssertUsedRange.isAvailable())
-    for (const auto &Prop : AssertUsedRange)
-      m_KernelUsesAssert.insert(Prop->Name);
-}
-
 void ProgramManager::cacheKernelImplicitLocalArg(
     const RTDeviceBinaryImage &Img) {
   const RTDeviceBinaryImage::PropertyRange &ImplicitLocalArgRange =
@@ -1815,14 +1803,6 @@ void ProgramManager::cacheKernelImplicitLocalArg(
       m_KernelImplicitLocalArgPos[Prop->Name] =
           DeviceBinaryProperty(Prop).asUint32();
     }
-}
-
-std::optional<int>
-ProgramManager::kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const {
-  auto it = m_KernelImplicitLocalArgPos.find(KernelName);
-  if (it != m_KernelImplicitLocalArgPos.end())
-    return it->second;
-  return {};
 }
 
 DeviceKernelInfo &ProgramManager::getOrCreateDeviceKernelInfo(
@@ -2048,8 +2028,6 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
     m_KernelNameRefCount[name]++;
   }
 
-  cacheKernelUsesAssertInfo(*Img);
-
   // check if kernel uses sanitizer
   {
     sycl_device_binary_property SanProp = Img->getProperty("sanUsed");
@@ -2237,7 +2215,6 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
       if (--RefCount == 0) {
         // TODO aggregate all these maps into a single one since their entries
         // share lifetime.
-        m_KernelUsesAssert.erase(Name);
         m_KernelImplicitLocalArgPos.erase(Name);
         m_DeviceKernelInfoMap.erase(Name);
         m_KernelNameRefCount.erase(RefCountIt);
@@ -2357,24 +2334,6 @@ ProgramManager::getBinImageState(const RTDeviceBinaryImage *BinImage) {
     return sycl::bundle_state::input;
   return BinImage->getImportedSymbols().empty() ? sycl::bundle_state::executable
                                                 : sycl::bundle_state::object;
-}
-
-std::optional<kernel_id>
-ProgramManager::tryGetSYCLKernelID(KernelNameStrRefT KernelName) {
-  std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
-
-  auto KernelID = m_KernelName2KernelIDs.find(KernelName);
-  if (KernelID == m_KernelName2KernelIDs.end())
-    return std::nullopt;
-
-  return KernelID->second;
-}
-
-kernel_id ProgramManager::getSYCLKernelID(KernelNameStrRefT KernelName) {
-  if (std::optional<kernel_id> MaybeKernelID = tryGetSYCLKernelID(KernelName))
-    return *MaybeKernelID;
-  throw exception(make_error_code(errc::runtime),
-                  "No kernel found with the specified name");
 }
 
 bool ProgramManager::hasCompatibleImage(const device_impl &DeviceImpl) {
@@ -2923,24 +2882,22 @@ ProgramManager::compile(const DevImgPlainWithDeps &ImgWithDeps,
 // Returns a merged device binary image, new set of kernel IDs and new
 // specialization constant data.
 static const RTDeviceBinaryImage *
-mergeImageData(const std::vector<device_image_plain> &Imgs,
-               std::vector<kernel_id> &KernelIDs,
+mergeImageData(device_images_range Imgs, std::vector<kernel_id> &KernelIDs,
                std::vector<unsigned char> &NewSpecConstBlob,
                device_image_impl::SpecConstMapT &NewSpecConstMap,
                std::unique_ptr<DynRTDeviceBinaryImage> &MergedImageStorage) {
-  for (const device_image_plain &Img : Imgs) {
-    device_image_impl &DeviceImageImpl = *getSyclObjImpl(Img);
+  for (device_image_impl &Img : Imgs) {
     // Duplicates are not expected here, otherwise urProgramLink should fail
-    KernelIDs.insert(KernelIDs.end(), DeviceImageImpl.get_kernel_ids().begin(),
-                     DeviceImageImpl.get_kernel_ids().end());
+    KernelIDs.insert(KernelIDs.end(), Img.get_kernel_ids().begin(),
+                     Img.get_kernel_ids().end());
     // To be able to answer queries about specialziation constants, the new
     // device image should have the specialization constants from all the linked
     // images.
     const std::lock_guard<std::mutex> SpecConstLock(
-        DeviceImageImpl.get_spec_const_data_lock());
+        Img.get_spec_const_data_lock());
     // Copy all map entries to the new map. Since the blob will be copied to
     // the end of the new blob we need to move the blob offset of each entry.
-    for (const auto &SpecConstIt : DeviceImageImpl.get_spec_const_data_ref()) {
+    for (const auto &SpecConstIt : Img.get_spec_const_data_ref()) {
       std::vector<device_image_impl::SpecConstDescT> &NewDescEntries =
           NewSpecConstMap[SpecConstIt.first];
 
@@ -2958,21 +2915,21 @@ mergeImageData(const std::vector<device_image_plain> &Imgs,
     // Copy the blob from the device image into the new blob. This moves the
     // offsets of the following blobs.
     NewSpecConstBlob.insert(NewSpecConstBlob.end(),
-                            DeviceImageImpl.get_spec_const_blob_ref().begin(),
-                            DeviceImageImpl.get_spec_const_blob_ref().end());
+                            Img.get_spec_const_blob_ref().begin(),
+                            Img.get_spec_const_blob_ref().end());
   }
   // device_image_impl expects kernel ids to be sorted for fast search
   std::sort(KernelIDs.begin(), KernelIDs.end(), LessByHash<kernel_id>{});
 
   // If there is only a single image, use it as the result.
   if (Imgs.size() == 1)
-    return getSyclObjImpl(Imgs[0])->get_bin_image_ref();
+    return Imgs.front().get_bin_image_ref();
 
   // Otherwise we create a dynamic image with the merged information.
   std::vector<const RTDeviceBinaryImage *> BinImgs;
   BinImgs.reserve(Imgs.size());
-  for (const device_image_plain &Img : Imgs) {
-    auto ImgBinRef = getSyclObjImpl(Img)->get_bin_image_ref();
+  for (device_image_impl &Img : Imgs) {
+    auto ImgBinRef = Img.get_bin_image_ref();
     // For some cases, like SYCL kernel compiler binaries, we don't have
     // binaries. For these we assume no properties associated, so they can be
     // safely ignored.
@@ -2984,25 +2941,21 @@ mergeImageData(const std::vector<device_image_plain> &Imgs,
 }
 
 std::vector<device_image_plain>
-ProgramManager::link(const std::vector<device_image_plain> &Imgs,
-                     devices_range Devs, const property_list &PropList) {
+ProgramManager::link(device_images_range Imgs, devices_range Devs,
+                     const property_list &PropList) {
   {
     auto NoAllowedPropertiesCheck = [](int) { return false; };
     detail::PropertyValidator::checkPropsAndThrow(
         PropList, NoAllowedPropertiesCheck, NoAllowedPropertiesCheck);
   }
 
-  std::vector<ur_program_handle_t> URPrograms;
-  URPrograms.reserve(Imgs.size());
-  for (const device_image_plain &Img : Imgs)
-    URPrograms.push_back(getSyclObjImpl(Img)->get_ur_program());
-
+  auto URPrograms = Imgs.to<std::vector<ur_program_handle_t>>();
   auto URDevices = Devs.to<std::vector<ur_device_handle_t>>();
 
   // FIXME: Linker options are picked from the first object, but is that safe?
   std::string LinkOptionsStr;
   applyLinkOptionsFromEnvironment(LinkOptionsStr);
-  device_image_impl &FirstImgImpl = *getSyclObjImpl(Imgs[0]);
+  device_image_impl &FirstImgImpl = Imgs.front();
   if (LinkOptionsStr.empty() && FirstImgImpl.get_bin_image_ref())
     appendLinkOptionsFromImage(LinkOptionsStr,
                                *(FirstImgImpl.get_bin_image_ref()));
@@ -3060,8 +3013,8 @@ ProgramManager::link(const std::vector<device_image_plain> &Imgs,
     // underlying program disposed of). Protecting from incorrect values by
     // removal of map entries with same handle (obviously invalid entries).
     std::ignore = NativePrograms.erase(LinkedProg);
-    for (const device_image_plain &Img : Imgs) {
-      if (auto BinImageRef = getSyclObjImpl(Img)->get_bin_image_ref())
+    for (device_image_impl &Img : Imgs) {
+      if (auto BinImageRef = Img.get_bin_image_ref())
         NativePrograms.insert(
             {LinkedProg, {ContextImpl.shared_from_this(), BinImageRef}});
     }
@@ -3077,15 +3030,14 @@ ProgramManager::link(const std::vector<device_image_plain> &Imgs,
   KernelNameSetT MergedKernelNames;
   std::map<std::string, KernelArgMask, std::less<>>
       MergedEliminatedKernelArgMasks;
-  for (const device_image_plain &DevImg : Imgs) {
-    device_image_impl &DevImgImpl = *getSyclObjImpl(DevImg);
-    CombinedOrigins |= DevImgImpl.getOriginMask();
-    RTCInfoPtrs.emplace_back(&(DevImgImpl.getRTCInfo()));
-    MergedKernelNames.insert(DevImgImpl.getKernelNames().begin(),
-                             DevImgImpl.getKernelNames().end());
+  for (device_image_impl &DevImg : Imgs) {
+    CombinedOrigins |= DevImg.getOriginMask();
+    RTCInfoPtrs.emplace_back(&(DevImg.getRTCInfo()));
+    MergedKernelNames.insert(DevImg.getKernelNames().begin(),
+                             DevImg.getKernelNames().end());
     MergedEliminatedKernelArgMasks.insert(
-        DevImgImpl.getEliminatedKernelArgMasks().begin(),
-        DevImgImpl.getEliminatedKernelArgMasks().end());
+        DevImg.getEliminatedKernelArgMasks().begin(),
+        DevImg.getEliminatedKernelArgMasks().end());
   }
   auto MergedRTCInfo = detail::KernelCompilerBinaryInfo::Merge(RTCInfoPtrs);
 

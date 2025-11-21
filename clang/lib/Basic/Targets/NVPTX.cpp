@@ -173,7 +173,7 @@ ArrayRef<const char *> NVPTXTargetInfo::getGCCRegNames() const {
 
 bool NVPTXTargetInfo::hasFeature(StringRef Feature) const {
   return llvm::StringSwitch<bool>(Feature)
-      .Cases("ptx", "nvptx", true)
+      .Cases({"ptx", "nvptx"}, true)
       .Default(false);
 }
 

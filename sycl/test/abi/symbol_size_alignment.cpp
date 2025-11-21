@@ -6,6 +6,7 @@
 
 #include <sycl/accessor.hpp>
 #include <sycl/buffer.hpp>
+#include <sycl/detail/nd_range_view.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_event.hpp>
 #include <sycl/device_selector.hpp>
@@ -58,6 +59,7 @@ int main() {
 #endif
   check<image<1>, 16, 8>();
   check<kernel, 16, 8>();
+  check<detail::nd_range_view, 32, 8>();
   check<platform, 16, 8>();
 #ifdef __SYCL_DEVICE_ONLY__
   check<private_memory<int, 1>, 4, 4>();

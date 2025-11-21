@@ -3,7 +3,7 @@
 # DO NOT EDIT IT MANUALLY. Refer to sycl/doc/developer/ABIPolicyGuide.md for more info.
 ################################################################################
 
-# RUN: env LLVM_BIN_PATH=%llvm_build_bin_dir %python %sycl_tools_src_dir/abi_check.py --mode check_symbols --reference %s %llvm_build_bin_dir/sycl8.dll
+# RUN: env LLVM_BIN_PATH=%llvm_build_bin_dir %python %sycl_tools_src_dir/abi_check.py --mode check_symbols --reference %s %llvm_build_bin_dir/sycl9.dll
 # REQUIRES: windows
 # UNSUPPORTED: libcxx
 
@@ -286,12 +286,6 @@
 ??$is_image_handle_supported@Usampled_image_handle@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA_NAEBUimage_descriptor@01234@W4image_memory_handle_type@01234@AEBVqueue@34@@Z
 ??$is_image_handle_supported@Uunsampled_image_handle@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA_NAEBUimage_descriptor@01234@W4image_memory_handle_type@01234@AEBVdevice@34@AEBVcontext@34@@Z
 ??$is_image_handle_supported@Uunsampled_image_handle@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA_NAEBUimage_descriptor@01234@W4image_memory_handle_type@01234@AEBVqueue@34@@Z
-??$submit_kernel_direct_with_event_impl@$00@_V1@sycl@@YA?AVevent@01@AEBVqueue@01@AEBV?$nd_range@$00@01@AEAVHostKernelRefBase@detail@01@PEAVDeviceKernelInfo@601@V?$span@$$CBVevent@_V1@sycl@@$0?0@01@AEBU?$PropsHolder@Uwork_group_scratch_size@experimental@oneapi@ext@_V1@sycl@@Ucache_config@2intel@456@Uuse_root_sync_key@23456@Uwork_group_progress_key@23456@Usub_group_progress_key@23456@Uwork_item_progress_key@23456@U?$cluster_size@$00@cuda@23456@U?$cluster_size@$01@cuda@23456@U?$cluster_size@$02@cuda@23456@@kernel_launch_properties_v1@601@AEBUcode_location@601@_N@Z
-??$submit_kernel_direct_with_event_impl@$01@_V1@sycl@@YA?AVevent@01@AEBVqueue@01@AEBV?$nd_range@$01@01@AEAVHostKernelRefBase@detail@01@PEAVDeviceKernelInfo@601@V?$span@$$CBVevent@_V1@sycl@@$0?0@01@AEBU?$PropsHolder@Uwork_group_scratch_size@experimental@oneapi@ext@_V1@sycl@@Ucache_config@2intel@456@Uuse_root_sync_key@23456@Uwork_group_progress_key@23456@Usub_group_progress_key@23456@Uwork_item_progress_key@23456@U?$cluster_size@$00@cuda@23456@U?$cluster_size@$01@cuda@23456@U?$cluster_size@$02@cuda@23456@@kernel_launch_properties_v1@601@AEBUcode_location@601@_N@Z
-??$submit_kernel_direct_with_event_impl@$02@_V1@sycl@@YA?AVevent@01@AEBVqueue@01@AEBV?$nd_range@$02@01@AEAVHostKernelRefBase@detail@01@PEAVDeviceKernelInfo@601@V?$span@$$CBVevent@_V1@sycl@@$0?0@01@AEBU?$PropsHolder@Uwork_group_scratch_size@experimental@oneapi@ext@_V1@sycl@@Ucache_config@2intel@456@Uuse_root_sync_key@23456@Uwork_group_progress_key@23456@Usub_group_progress_key@23456@Uwork_item_progress_key@23456@U?$cluster_size@$00@cuda@23456@U?$cluster_size@$01@cuda@23456@U?$cluster_size@$02@cuda@23456@@kernel_launch_properties_v1@601@AEBUcode_location@601@_N@Z
-??$submit_kernel_direct_without_event_impl@$00@_V1@sycl@@YAXAEBVqueue@01@AEBV?$nd_range@$00@01@AEAVHostKernelRefBase@detail@01@PEAVDeviceKernelInfo@501@V?$span@$$CBVevent@_V1@sycl@@$0?0@01@AEBU?$PropsHolder@Uwork_group_scratch_size@experimental@oneapi@ext@_V1@sycl@@Ucache_config@2intel@456@Uuse_root_sync_key@23456@Uwork_group_progress_key@23456@Usub_group_progress_key@23456@Uwork_item_progress_key@23456@U?$cluster_size@$00@cuda@23456@U?$cluster_size@$01@cuda@23456@U?$cluster_size@$02@cuda@23456@@kernel_launch_properties_v1@501@AEBUcode_location@501@_N@Z
-??$submit_kernel_direct_without_event_impl@$01@_V1@sycl@@YAXAEBVqueue@01@AEBV?$nd_range@$01@01@AEAVHostKernelRefBase@detail@01@PEAVDeviceKernelInfo@501@V?$span@$$CBVevent@_V1@sycl@@$0?0@01@AEBU?$PropsHolder@Uwork_group_scratch_size@experimental@oneapi@ext@_V1@sycl@@Ucache_config@2intel@456@Uuse_root_sync_key@23456@Uwork_group_progress_key@23456@Usub_group_progress_key@23456@Uwork_item_progress_key@23456@U?$cluster_size@$00@cuda@23456@U?$cluster_size@$01@cuda@23456@U?$cluster_size@$02@cuda@23456@@kernel_launch_properties_v1@501@AEBUcode_location@501@_N@Z
-??$submit_kernel_direct_without_event_impl@$02@_V1@sycl@@YAXAEBVqueue@01@AEBV?$nd_range@$02@01@AEAVHostKernelRefBase@detail@01@PEAVDeviceKernelInfo@501@V?$span@$$CBVevent@_V1@sycl@@$0?0@01@AEBU?$PropsHolder@Uwork_group_scratch_size@experimental@oneapi@ext@_V1@sycl@@Ucache_config@2intel@456@Uuse_root_sync_key@23456@Uwork_group_progress_key@23456@Usub_group_progress_key@23456@Uwork_item_progress_key@23456@U?$cluster_size@$00@cuda@23456@U?$cluster_size@$01@cuda@23456@U?$cluster_size@$02@cuda@23456@@kernel_launch_properties_v1@501@AEBUcode_location@501@_N@Z
 ??$update_nd_range@$00@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$nd_range@$00@45@@Z
 ??$update_nd_range@$01@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$nd_range@$01@45@@Z
 ??$update_nd_range@$02@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$nd_range@$02@45@@Z
@@ -388,8 +382,6 @@
 ??0event@_V1@sycl@@QEAA@AEBV012@@Z
 ??0event@_V1@sycl@@QEAA@PEAU_cl_event@@AEBVcontext@12@@Z
 ??0event@_V1@sycl@@QEAA@XZ
-??0exception@_V1@sycl@@IEAA@Verror_code@std@@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@4@H@Z
-??0exception@_V1@sycl@@IEAA@Verror_code@std@@PEBDH@Z
 ??0exception@_V1@sycl@@IEAA@Verror_code@std@@V?$shared_ptr@Vcontext@_V1@sycl@@@4@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@4@@Z
 ??0exception@_V1@sycl@@IEAA@Verror_code@std@@V?$shared_ptr@Vcontext@_V1@sycl@@@4@PEBD@Z
 ??0exception@_V1@sycl@@QEAA@AEBV012@@Z
@@ -3838,6 +3830,7 @@
 ?category@exception@_V1@sycl@@QEBAAEBVerror_category@std@@XZ
 ?checkNodePropertiesAndThrow@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@KAXAEBVproperty_list@67@@Z
 ?clearArgs@handler@_V1@sycl@@AEAAXXZ
+?close@ipc_memory@experimental@oneapi@ext@_V1@sycl@@YAXPEAXAEBVcontext@56@@Z
 ?code@exception@_V1@sycl@@QEBAAEBVerror_code@std@@XZ
 ?compile_from_source@detail@experimental@oneapi@ext@_V1@sycl@@YA?AV?$kernel_bundle@$00@56@AEAV?$kernel_bundle@$02@56@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@AEBV?$vector@Vstring_view@detail@_V1@sycl@@V?$allocator@Vstring_view@detail@_V1@sycl@@@std@@@std@@PEAVstring@156@2@Z
 ?compile_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBV?$kernel_bundle@$0A@@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@AEBVproperty_list@23@@Z
@@ -4051,6 +4044,7 @@
 ?frexp_impl@detail@_V1@sycl@@YANNPEAH@Z
 ?get@context@_V1@sycl@@QEBAPEAU_cl_context@@XZ
 ?get@device@_V1@sycl@@QEBAPEAU_cl_device_id@@XZ
+?get@ipc_memory@experimental@oneapi@ext@_V1@sycl@@YA?AUhandle@123456@PEAXAEBVcontext@56@@Z
 ?get@kernel@_V1@sycl@@QEBAPEAU_cl_kernel@@XZ
 ?get@platform@_V1@sycl@@QEBAPEAU_cl_platform_id@@XZ
 ?get@queue@_V1@sycl@@QEBAPEAU_cl_command_queue@@XZ
@@ -4358,6 +4352,7 @@
 ?modf_impl@detail@_V1@sycl@@YANNPEAN@Z
 ?name@SYCLCategory@detail@_V1@sycl@@UEBAPEBDXZ
 ?native_specialization_constant@kernel_bundle_plain@detail@_V1@sycl@@QEBA_NXZ
+?openIPCMemHandle@detail@_V1@sycl@@YAPEAXPEBW4byte@std@@_KAEBVcontext@23@AEBVdevice@23@@Z
 ?parallel_for@handler@_V1@sycl@@QEAAXV?$range@$00@23@Vkernel@23@@Z
 ?parallel_for@handler@_V1@sycl@@QEAAXV?$range@$01@23@Vkernel@23@@Z
 ?parallel_for@handler@_V1@sycl@@QEAAXV?$range@$02@23@Vkernel@23@@Z
@@ -4377,6 +4372,7 @@
 ?print_graph@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@IEBAXVstring_view@267@_N@Z
 ?print_graph@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEBAXV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@_N@Z
 ?processArg@handler@_V1@sycl@@AEAAXPEAXAEBW4kernel_param_kind_t@detail@23@H_KAEA_K_N4@Z
+?put@ipc_memory@experimental@oneapi@ext@_V1@sycl@@YAXAEAUhandle@123456@AEBVcontext@56@@Z
 ?query@tls_code_loc_t@detail@_V1@sycl@@QEAAAEBUcode_location@234@XZ
 ?reduComputeWGSize@detail@_V1@sycl@@YA_K_K0AEA_K@Z
 ?reduGetMaxNumConcurrentWorkGroups@detail@_V1@sycl@@YAIAEAVhandler@23@@Z
@@ -4475,7 +4471,6 @@
 ?start_fusion@fusion_wrapper@experimental@codeplay@ext@_V1@sycl@@QEAAXXZ
 ?storeRawArg@handler@_V1@sycl@@AEAAPEAXAEBVraw_kernel_arg@experimental@oneapi@ext@23@@Z
 ?storeRawArg@handler@_V1@sycl@@AEAAPEAXPEBX_K@Z
-?stringifyErrorCode@detail@_V1@sycl@@YAPEBDH@Z
 ?submit_impl@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@AEBUcode_location@detail@23@@Z
 ?submit_impl@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@AEBUcode_location@detail@23@_N@Z
 ?submit_impl@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@V123@AEBUcode_location@detail@23@@Z
@@ -4484,6 +4479,8 @@
 ?submit_impl_and_postprocess@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@AEBUcode_location@detail@23@AEBV?$function@$$A6AX_N0AEAVevent@_V1@sycl@@@Z@6@_N@Z
 ?submit_impl_and_postprocess@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@V123@AEBUcode_location@detail@23@AEBV?$function@$$A6AX_N0AEAVevent@_V1@sycl@@@Z@6@@Z
 ?submit_impl_and_postprocess@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@V123@AEBUcode_location@detail@23@AEBV?$function@$$A6AX_N0AEAVevent@_V1@sycl@@@Z@6@_N@Z
+?submit_kernel_direct_with_event_impl@_V1@sycl@@YA?AVevent@12@AEBVqueue@12@AEBVnd_range_view@nd_range_view_v1@detail@12@AEAVHostKernelRefBase@712@PEAVDeviceKernelInfo@712@V?$span@$$CBVevent@_V1@sycl@@$0?0@12@AEBU?$PropsHolder@Uwork_group_scratch_size@experimental@oneapi@ext@_V1@sycl@@Ucache_config@2intel@456@Uuse_root_sync_key@23456@Uwork_group_progress_key@23456@Usub_group_progress_key@23456@Uwork_item_progress_key@23456@U?$cluster_size@$00@cuda@23456@U?$cluster_size@$01@cuda@23456@U?$cluster_size@$02@cuda@23456@@kernel_launch_properties_v1@712@AEBUcode_location@712@_N@Z
+?submit_kernel_direct_without_event_impl@_V1@sycl@@YAXAEBVqueue@12@AEBVnd_range_view@nd_range_view_v1@detail@12@AEAVHostKernelRefBase@612@PEAVDeviceKernelInfo@612@V?$span@$$CBVevent@_V1@sycl@@$0?0@12@AEBU?$PropsHolder@Uwork_group_scratch_size@experimental@oneapi@ext@_V1@sycl@@Ucache_config@2intel@456@Uuse_root_sync_key@23456@Uwork_group_progress_key@23456@Usub_group_progress_key@23456@Uwork_item_progress_key@23456@U?$cluster_size@$00@cuda@23456@U?$cluster_size@$01@cuda@23456@U?$cluster_size@$02@cuda@23456@@kernel_launch_properties_v1@612@AEBUcode_location@612@_N@Z
 ?submit_with_event_impl@queue@_V1@sycl@@AEAA?AVevent@23@AEBVtype_erased_cgfo_ty@detail@23@AEBVSubmissionInfo@623@AEBUcode_location@623@_N@Z
 ?submit_with_event_impl@queue@_V1@sycl@@AEAA?AVevent@23@AEBVtype_erased_cgfo_ty@detail@23@AEBVSubmissionInfo@v1@623@AEBUcode_location@623@_N@Z
 ?submit_with_event_impl@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@AEBVSubmissionInfo@detail@23@AEBUcode_location@823@_N@Z
