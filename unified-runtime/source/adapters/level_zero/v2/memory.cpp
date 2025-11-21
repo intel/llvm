@@ -8,9 +8,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "memory.hpp"
 #include "../ur_interface_loader.hpp"
 #include "context.hpp"
+#include "memory.hpp"
 
 #include "../helpers/memory_helpers.hpp"
 #include "../image_common.hpp"
@@ -53,57 +53,69 @@ void ur_usm_handle_t::unmapHostPtr(void * /*pMappedPtr*/,
   /* nop */
 }
 
+static v2::raii::command_list_unique_handle
+getSyncCommandListForCopy(ur_context_handle_t hContext,
+                          ur_device_handle_t hDevice) {
+  v2::command_list_desc_t listDesc;
+  listDesc.IsInOrder = true;
+  listDesc.Ordinal =
+      hDevice
+          ->QueueGroup[ur_device_handle_t_::queue_group_info_t::type::Compute]
+          .ZeOrdinal;
+  listDesc.CopyOffloadEnable = true;
+  return hContext->getCommandListCache().getImmediateCommandList(
+      hDevice->ZeDevice, listDesc, ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS,
+      ZE_COMMAND_QUEUE_PRIORITY_NORMAL, std::nullopt);
+}
+
+static ur_result_t synchronousZeCopy(ur_context_handle_t hContext,
+                                     ur_device_handle_t hDevice, void *dst,
+                                     const void *src, size_t size) try {
+  auto commandList = getSyncCommandListForCopy(hContext, hDevice);
+
+  ZE2UR_CALL(zeCommandListAppendMemoryCopy,
+             (commandList.get(), dst, src, size, nullptr, 0, nullptr));
+
+  return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
 ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
     ur_context_handle_t hContext, void *hostPtr, size_t size,
     device_access_mode_t accessMode)
     : ur_mem_buffer_t(hContext, size, accessMode) {
-  if (hostPtr) {
-    // Host pointer provided - check if it's already USM or needs import
-    ZeStruct<ze_memory_allocation_properties_t> memProps;
-    auto ret =
-        getMemoryAttrs(hContext->getZeHandle(), hostPtr, nullptr, &memProps);
+  bool hostPtrImported =
+      maybeImportUSM(hContext->getPlatform()->ZeDriverHandleExpTranslated,
+                     hContext->getZeHandle(), hostPtr, size);
 
-    if (ret == UR_RESULT_SUCCESS && memProps.type != ZE_MEMORY_TYPE_UNKNOWN) {
-      // Already a USM allocation - just use it directly without import
-      this->ptr = usm_unique_ptr_t(hostPtr, [](void *) {});
-      return;
+  if (hostPtrImported) {
+    this->ptr = usm_unique_ptr_t(hostPtr, [hContext](void *ptr) {
+      ZeUSMImport.doZeUSMRelease(
+          hContext->getPlatform()->ZeDriverHandleExpTranslated, ptr);
+    });
+  } else {
+    void *rawPtr;
+    // Use HOST memory for integrated GPUs to enable zero-copy device access
+    UR_CALL_THROWS(hContext->getDefaultUSMPool()->allocate(
+        hContext, nullptr, nullptr, UR_USM_TYPE_HOST, size, &rawPtr));
+
+    this->ptr = usm_unique_ptr_t(rawPtr, [hContext](void *ptr) {
+      auto ret = hContext->getDefaultUSMPool()->free(ptr);
+      if (ret != UR_RESULT_SUCCESS) {
+        UR_LOG(ERR, "Failed to free host memory: {}", ret);
+      }
+    });
+
+    if (hostPtr) {
+      // Initial copy using Level Zero for USM HOST memory
+      auto hDevice = hContext->getDevices()[0];
+      UR_CALL_THROWS(
+          synchronousZeCopy(hContext, hDevice, this->ptr.get(), hostPtr, size));
+      // Set writeBackPtr to enable map/unmap copy-back (but NOT destructor
+      // copy-back)
+      writeBackPtr = hostPtr;
     }
-
-    // Not USM - try to import it
-    bool hostPtrImported =
-        maybeImportUSM(hContext->getPlatform()->ZeDriverHandleExpTranslated,
-                       hContext->getZeHandle(), hostPtr, size);
-
-    if (hostPtrImported) {
-      // Successfully imported - use it with release
-      this->ptr = usm_unique_ptr_t(hostPtr, [hContext](void *ptr) {
-        ZeUSMImport.doZeUSMRelease(
-            hContext->getPlatform()->ZeDriverHandleExpTranslated, ptr);
-      });
-      // No copy-back needed for imported pointers
-      return;
-    }
-
-    // Import failed - allocate backing buffer and set up copy-back
-  }
-
-  // No host pointer, or import failed - allocate new USM host memory
-  void *rawPtr;
-  UR_CALL_THROWS(hContext->getDefaultUSMPool()->allocate(
-      hContext, nullptr, nullptr, UR_USM_TYPE_HOST, size, &rawPtr));
-
-  this->ptr = usm_unique_ptr_t(rawPtr, [hContext](void *ptr) {
-    auto ret = hContext->getDefaultUSMPool()->free(ptr);
-    if (ret != UR_RESULT_SUCCESS) {
-      UR_LOG(ERR, "Failed to free host memory: {}", ret);
-    }
-  });
-
-  if (hostPtr) {
-    // Copy data from user pointer to our backing buffer
-    std::memcpy(this->ptr.get(), hostPtr, size);
-    // Remember to copy back on destruction
-    writeBackPtr = hostPtr;
   }
 }
 
@@ -117,12 +129,6 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
     }
     ZE_CALL_NOCHECK(zeMemFree, (hContext->getZeHandle(), ptr));
   });
-}
-
-ur_integrated_buffer_handle_t::~ur_integrated_buffer_handle_t() {
-  if (writeBackPtr) {
-    std::memcpy(writeBackPtr, ptr.get(), size);
-  }
 }
 
 void *ur_integrated_buffer_handle_t::getDevicePtr(
@@ -140,7 +146,11 @@ void *ur_integrated_buffer_handle_t::mapHostPtr(
     void *mappedPtr = ur_cast<char *>(writeBackPtr) + offset;
 
     if (flags & UR_MAP_FLAG_READ) {
-      std::memcpy(mappedPtr, ur_cast<char *>(ptr.get()) + offset, mapSize);
+      // Use Level Zero copy for USM HOST memory to ensure GPU visibility
+      auto hDevice = hContext->getDevices()[0];
+      UR_CALL_THROWS(synchronousZeCopy(hContext, hDevice, mappedPtr,
+                                       ur_cast<char *>(ptr.get()) + offset,
+                                       mapSize));
     }
 
     // Track this mapping for unmap
@@ -172,8 +182,11 @@ void ur_integrated_buffer_handle_t::unmapHostPtr(
 
     if (mappedRegion->flags &
         (UR_MAP_FLAG_WRITE | UR_MAP_FLAG_WRITE_INVALIDATE_REGION)) {
-      std::memcpy(ur_cast<char *>(ptr.get()) + mappedRegion->offset,
-                  mappedRegion->ptr.get(), mappedRegion->size);
+      // Use Level Zero copy for USM HOST memory to ensure GPU visibility
+      auto hDevice = hContext->getDevices()[0];
+      UR_CALL_THROWS(synchronousZeCopy(
+          hContext, hDevice, ur_cast<char *>(ptr.get()) + mappedRegion->offset,
+          mappedRegion->ptr.get(), mappedRegion->size));
     }
 
     mappedRegions.erase(mappedRegion);
@@ -182,32 +195,11 @@ void ur_integrated_buffer_handle_t::unmapHostPtr(
   // No op for zero-copy path, memory is synced
 }
 
-static v2::raii::command_list_unique_handle
-getSyncCommandListForCopy(ur_context_handle_t hContext,
-                          ur_device_handle_t hDevice) {
-  v2::command_list_desc_t listDesc;
-  listDesc.IsInOrder = true;
-  listDesc.Ordinal =
-      hDevice
-          ->QueueGroup[ur_device_handle_t_::queue_group_info_t::type::Compute]
-          .ZeOrdinal;
-  listDesc.CopyOffloadEnable = true;
-  return hContext->getCommandListCache().getImmediateCommandList(
-      hDevice->ZeDevice, listDesc, ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS,
-      ZE_COMMAND_QUEUE_PRIORITY_NORMAL, std::nullopt);
-}
-
-static ur_result_t synchronousZeCopy(ur_context_handle_t hContext,
-                                     ur_device_handle_t hDevice, void *dst,
-                                     const void *src, size_t size) try {
-  auto commandList = getSyncCommandListForCopy(hContext, hDevice);
-
-  ZE2UR_CALL(zeCommandListAppendMemoryCopy,
-             (commandList.get(), dst, src, size, nullptr, 0, nullptr));
-
-  return UR_RESULT_SUCCESS;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
+ur_integrated_buffer_handle_t::~ur_integrated_buffer_handle_t() {
+  // Do NOT do automatic copy-back in destructor - it causes heap corruption
+  // because writeBackPtr may be freed by SYCL runtime before buffer destructor
+  // runs. Copy-back happens via explicit map/unmap operations (see
+  // mapHostPtr/unmapHostPtr).
 }
 
 void *ur_discrete_buffer_handle_t::allocateOnDevice(ur_device_handle_t hDevice,

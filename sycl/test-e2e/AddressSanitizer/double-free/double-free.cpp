@@ -6,6 +6,8 @@
 // RUN: %{build} %device_asan_flags -DMALLOC_SHARED -O0 -g -o %t3.out
 // RUN: %force_device_asan_rt UR_LAYER_ASAN_OPTIONS="quarantine_size_mb:1;detect_kernel_arguments:0" %{run} not %t3.out 2>&1 | FileCheck --check-prefixes CHECK,CHECK-SHARED %s
 #include <sycl/usm.hpp>
+#include <iostream>
+#include <cstdlib>
 
 constexpr size_t N = 64;
 
