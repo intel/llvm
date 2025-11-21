@@ -1047,29 +1047,6 @@ sycl::kernel k_float = kb.ext_oneapi_get_kernel("bartmpl<float>");
 sycl::kernel k_int = kb.ext_oneapi_get_kernel("bartmpl<int>");
 ----
 
-=== Restrictions on the source code when language is `sycl`
-
-Currently, SYCL applications are linked with MSVC/GNU C/{cpp} runtimes on Win/Lin
-respectively. Unfortunately, we cannot distribute those headers together with
-SYCL applications using kernel compiler due to license restrictions. Instead, we
-distribute LLVM's {libcxx}/libc headers as part of the kernel compiler and
-default to using them for SPIR-V based targets. That results in a restriction
-not to pass any data that transitively uses any types defined in C/{cpp} headers
-(with the exception of `[u]intN_t` type aliases) as those might be
-ABI-incompatible between headers used to compiler device code and those used to
-compile the host part of the SYCL application.
-
-Technical implementation of that disables system include paths entirely (as
-having multiple C library implementation in include search paths would break
-things) and uses virtual file system containing in-memory copy of LLVM's
-{libcxx}/libc headers. That implicitly removes CUDA/HIP SDKs and would break
-online compilation for those targets, thus we do *not* employ that mechanism for
-those targets. Instead, end user's system is required to have a C/{cpp} toolchain
-installation.
-
-SYCL application can also pass `--sycl-rtc-use-system-includes` option to change
-the behavior for SPIR-V targets and force usage of the system toolchain.
-
 == Examples
 
 === Simple example
@@ -1376,11 +1353,49 @@ Some notes about the current behavior:
 
 ==== `--sycl-rtc-use-system-includes`
 
-Force usage of system C/C++ toolchain headers instead of the in-memory
-distribution of LLVM's libc\+\+/libc. Option has no effect if the target
-defaults to using system toolchain by default.
+Force usage of system C/C++ headers instead of the self-containted versions.
+Option has no effect if the target defaults to using system headers by
+default.
 
 === Known issues and limitations when the language is `sycl`
+
+==== C/{cpp} header files
+
+By default, the SYCL runtime compiler uses a self-contained set of C and {cpp}
+header files when compiling kernels in the `sycl` language (unless target has
+other dependencies in system includes). This means that SYCL applications using
+this feature can be run even on a system that does not have these headers
+installed. However, the self contained header files may not be the same as the C
+and {cpp} header files that were used to build the host part of the SYCL
+application. As a result, there are additional limitations around data that is
+shared between the host part of the application and the kernel. These
+limitations apply to arguments that are passed to the kernel and also to data
+shared through USM or through accessors. Additionally, other header files might
+be installed in the same location as system C headers (e.g., `/usr/include/`).
+Those will not be available as well.
+
+Types that are defined by the compiler (e.g. fundamental types like `int` and
+`float`) are guaranteed to have the same representation and alignment
+requirements in both the host compiler and in the compiler used to compile the
+kernel. Therefore data using these types can be safely shared. However, types
+defined by the C or {cpp} library (e.g. types in the `std` namespace) are not
+guaranteed to be the same, so data defined using these types cannot be safely
+shared. There are a few specific exceptions to this limitation. The following C
+/ {cpp} types are guaranteed to have the same representation and alignment
+requirements, so data defined as these types can be safely shared:
+
+* The following fixed-width integer types: `int8_t`, `int16_t`, `int32_t`,
+`int64_t`, `uint8_t`, `uint16_t`, `uint32_t`, `uint64_t`.
+* The types `size_t` and `ptrdiff_t`.
+
+Array and class types defined by your application are safe to share so long as
+the element types are safe. Pointer types are safe to share so long as the
+pointed-at type is safe. Enumeration types defined by your application are also
+safe.
+
+It is also possible to use the system C and C++ headers instead of the
+self-contained versions. See the description of the
+`--sycl-rtc-use-system-includes` option for more details.
 
 ==== Changing the compiler action or output
 
