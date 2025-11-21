@@ -208,7 +208,7 @@ public:
     // a host function.
     if (HostTarget)
       return HostTarget->checkCallingConvention(CC);
-    return CCCR_Warning;
+    return CC == CC_DeviceKernel ? CCCR_OK : CCCR_Warning;
   }
 
   void adjust(DiagnosticsEngine &Diags, LangOptions &Opts,

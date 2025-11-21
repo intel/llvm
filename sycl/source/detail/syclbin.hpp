@@ -128,6 +128,9 @@ struct SYCLBINBinaries {
   std::vector<const RTDeviceBinaryImage *>
   getBestCompatibleImages(devices_range Dev, bundle_state State);
 
+  std::vector<const RTDeviceBinaryImage *>
+  getNativeBinaryImages(device_impl &Dev);
+
   uint8_t getState() const {
     PropertySet &GlobalMetadata =
         (*ParsedSYCLBIN

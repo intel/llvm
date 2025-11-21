@@ -527,9 +527,6 @@ ur_result_t ur_platform_handle_t_::initialize() {
       ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage != nullptr;
 
   if (this->isDriverVersionNewerOrSimilar(1, 14, 36035)) {
-    ZeCommandListAppendLaunchKernelWithArgumentsExt
-        .zeCommandListAppendLaunchKernelWithArgumentsFunctionPtr =
-        zeCommandListAppendLaunchKernelWithArguments;
     ZeCommandListAppendLaunchKernelWithArgumentsExt.Supported = true;
   } else {
     ZeCommandListAppendLaunchKernelWithArgumentsExt.Supported = false;

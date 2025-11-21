@@ -996,6 +996,8 @@ cc_library(
     srcs = glob([
         "lib/Analysis/FlowSensitive/Models/*.cpp",
         "lib/Analysis/FlowSensitive/*.cpp",
+        "lib/Analysis/LifetimeSafety/*.cpp",
+        "lib/Analysis/LifetimeSafety/*.h",
         "lib/Analysis/*.cpp",
     ]) + [
         ":analysis_htmllogger_gen",
@@ -1445,6 +1447,7 @@ cc_library(
         ":crosstu",
         ":driver",
         ":frontend",
+        ":index",
         ":lex",
         ":rewrite",
         ":static_analyzer_checkers_gen",
@@ -1498,9 +1501,9 @@ cc_library(
 
 gentbl_cc_library(
     name = "driver_options_inc_gen",
-    tbl_outs = {"include/clang/Driver/Options.inc": ["-gen-opt-parser-defs"]},
+    tbl_outs = {"include/clang/Options/Options.inc": ["-gen-opt-parser-defs"]},
     tblgen = "//llvm:llvm-tblgen",
-    td_file = "include/clang/Driver/Options.td",
+    td_file = "include/clang/Options/Options.td",
     deps = ["//llvm:OptParserTdFiles"],
 )
 
@@ -2304,18 +2307,6 @@ cc_binary(
         "//llvm:Object",
         "//llvm:Support",
         "//llvm:TargetParser",
-    ],
-)
-
-cc_binary(
-    name = "clang-offload-packager",
-    srcs = glob(["tools/clang-offload-packager/*.cpp"]),
-    stamp = 0,
-    deps = [
-        ":basic",
-        "//llvm:BinaryFormat",
-        "//llvm:Object",
-        "//llvm:Support",
     ],
 )
 

@@ -27,24 +27,21 @@ using namespace llvm;
 
 namespace {
 
-constexpr StringRef SYCL_HOST_ACCESS_ATTR = "sycl-host-access";
-constexpr StringRef SYCL_PIPELINED_ATTR = "sycl-pipelined";
-constexpr StringRef SYCL_REGISTER_ALLOC_MODE_ATTR = "sycl-register-alloc-mode";
-constexpr StringRef SYCL_GRF_SIZE_ATTR = "sycl-grf-size";
+constexpr StringRef SyclHostAccessAttr = "sycl-host-access";
+constexpr StringRef SyclPipelinedAttr = "sycl-pipelined";
+constexpr StringRef SyclRegisterAllocModeAttr = "sycl-register-alloc-mode";
+constexpr StringRef SyclGrfSizeAttr = "sycl-grf-size";
 
-constexpr StringRef SPIRV_DECOR_MD_KIND = "spirv.Decorations";
-constexpr StringRef SPIRV_PARAM_DECOR_MD_KIND = "spirv.ParameterDecorations";
+constexpr StringRef SpirvDecorMdKind = "spirv.Decorations";
+constexpr StringRef SpirvParamDecorMdKind = "spirv.ParameterDecorations";
 // The corresponding SPIR-V OpCode for the host_access property is documented
 // in the SPV_INTEL_global_variable_decorations design document:
 // https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/DeviceGlobal/SPV_INTEL_global_variable_decorations.asciidoc#decoration
-constexpr uint32_t SPIRV_HOST_ACCESS_DECOR = 6147;
-constexpr uint32_t SPIRV_HOST_ACCESS_DEFAULT_VALUE = 2; // Read/Write
+constexpr uint32_t SpirvHostAccessDecor = 6147;
+constexpr uint32_t SpirvHostAccessDefaultValue = 2; // Read/Write
 
-constexpr uint32_t SPIRV_INITIATION_INTERVAL_DECOR = 5917;
-constexpr uint32_t SPIRV_PIPELINE_ENABLE_DECOR = 5919;
-
-constexpr uint32_t SPIRV_CACHE_CONTROL_READ_DECOR = 6442;
-constexpr uint32_t SPIRV_CACHE_CONTROL_WRITE_DECOR = 6443;
+constexpr uint32_t SpirvInitiationIntervalDecor = 5917;
+constexpr uint32_t SpirvPipelineEnableDecor = 5919;
 
 enum class DecorValueTy {
   uint32,
@@ -89,12 +86,12 @@ enum FloatControlMask {
 // These opcodes are specified in SPIRV specification (SPV_KHR_float_controls
 // and SPV_INTEL_float_controls2 extensions):
 // https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.pdf
-constexpr uint32_t SPIRV_ROUNDING_MODE_RTE = 4462;       // RoundingModeRTE
-constexpr uint32_t SPIRV_ROUNDING_MODE_RTZ = 4463;       // RoundingModeRTZ
-constexpr uint32_t SPIRV_ROUNDING_MODE_RTP_INTEL = 5620; // RoundingModeRTPINTEL
-constexpr uint32_t SPIRV_ROUNDING_MODE_RTN_INTEL = 5621; // RoundingModeRTNINTEL
-constexpr uint32_t SPIRV_DENORM_FLUSH_TO_ZERO = 4460;    // DenormFlushToZero
-constexpr uint32_t SPIRV_DENORM_PRESERVE = 4459;         // DenormPreserve
+constexpr uint32_t SpirvRoundingModeRte = 4462;      // RoundingModeRTE
+constexpr uint32_t SpirvRoundingModeRtz = 4463;      // RoundingModeRTZ
+constexpr uint32_t SpirvRoundingModeRtpIntel = 5620; // RoundingModeRTPINTEL
+constexpr uint32_t SpirvRoundingModeRtnIntel = 5621; // RoundingModeRTNINTEL
+constexpr uint32_t SpirvDenormFlushToZero = 4460;    // DenormFlushToZero
+constexpr uint32_t SpirvDenormPreserve = 4459;       // DenormPreserve
 
 /// Builds a metadata node for a SPIR-V decoration (decoration code is
 /// \c uint32_t integers) with no value.
@@ -147,7 +144,7 @@ MDNode *buildSpirvDecorCacheProp(LLVMContext &Ctx, StringRef Name,
                                  uint32_t OpCode, uint32_t CacheMode,
                                  uint32_t CacheLevel) {
   // SPIR-V encodings of read control
-  enum cache_control_read_type {
+  enum CacheControlReadType {
     read_uncached = 0,
     read_cached = 1,
     read_streaming = 2,
@@ -155,7 +152,7 @@ MDNode *buildSpirvDecorCacheProp(LLVMContext &Ctx, StringRef Name,
     read_const_cached = 4
   };
   // SPIR-V encodings of write control
-  enum cache_control_write_type {
+  enum CacheControlWriteType {
     write_uncached = 0,
     write_through = 1,
     write_back = 2,
@@ -338,28 +335,28 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
     };
 
     if (IsFPModeSet(RTE))
-      AddFPControlMetadata(SPIRV_ROUNDING_MODE_RTE);
+      AddFPControlMetadata(SpirvRoundingModeRte);
 
     if (IsFPModeSet(RTP))
-      AddFPControlMetadata(SPIRV_ROUNDING_MODE_RTP_INTEL);
+      AddFPControlMetadata(SpirvRoundingModeRtpIntel);
 
     if (IsFPModeSet(RTN))
-      AddFPControlMetadata(SPIRV_ROUNDING_MODE_RTN_INTEL);
+      AddFPControlMetadata(SpirvRoundingModeRtnIntel);
 
     if (IsFPModeSet(RTZ))
-      AddFPControlMetadata(SPIRV_ROUNDING_MODE_RTZ);
+      AddFPControlMetadata(SpirvRoundingModeRtz);
 
     if (IsFPModeSet(DENORM_FTZ))
-      AddFPControlMetadata(SPIRV_DENORM_FLUSH_TO_ZERO);
+      AddFPControlMetadata(SpirvDenormFlushToZero);
 
     if (IsFPModeSet(DENORM_HF_ALLOW))
-      AddFPControlMetadataForWidth(SPIRV_DENORM_PRESERVE, 16);
+      AddFPControlMetadataForWidth(SpirvDenormPreserve, 16);
 
     if (IsFPModeSet(DENORM_F_ALLOW))
-      AddFPControlMetadataForWidth(SPIRV_DENORM_PRESERVE, 32);
+      AddFPControlMetadataForWidth(SpirvDenormPreserve, 32);
 
     if (IsFPModeSet(DENORM_D_ALLOW))
-      AddFPControlMetadataForWidth(SPIRV_DENORM_PRESERVE, 64);
+      AddFPControlMetadataForWidth(SpirvDenormPreserve, 64);
   }
 
   static constexpr std::tuple<const char *, const char *> SimpleWGAttrs[] = {
@@ -483,12 +480,12 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
                                             MDNode::get(Ctx, ClusterMDArgs));
   }
 
-  if ((AttrKindStr == SYCL_REGISTER_ALLOC_MODE_ATTR ||
-       AttrKindStr == SYCL_GRF_SIZE_ATTR) &&
+  if ((AttrKindStr == SyclRegisterAllocModeAttr ||
+       AttrKindStr == SyclGrfSizeAttr) &&
       !llvm::esimd::isESIMD(F)) {
     // TODO: Remove SYCL_REGISTER_ALLOC_MODE_ATTR support in next ABI break.
     uint32_t PropVal = getAttributeAsInteger<uint32_t>(Attr);
-    if (AttrKindStr == SYCL_GRF_SIZE_ATTR) {
+    if (AttrKindStr == SyclGrfSizeAttr) {
       // The RegisterAllocMode metadata supports only 0, 128, and 256 for
       // PropVal.
       if (PropVal != 0 && PropVal != 128 && PropVal != 256)
@@ -570,9 +567,9 @@ void getUserListIgnoringCast(
 PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
                                                  ModuleAnalysisManager &MAM) {
   LLVMContext &Ctx = M.getContext();
-  unsigned MDKindID = Ctx.getMDKindID(SPIRV_DECOR_MD_KIND);
+  unsigned MDKindID = Ctx.getMDKindID(SpirvDecorMdKind);
   bool CompileTimePropertiesMet = false;
-  unsigned MDParamKindID = Ctx.getMDKindID(SPIRV_PARAM_DECOR_MD_KIND);
+  unsigned MDParamKindID = Ctx.getMDKindID(SpirvParamDecorMdKind);
 
   // Let's process all the globals
   for (auto &GV : M.globals()) {
@@ -594,19 +591,18 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
     // of the variable.
     if (isDeviceGlobalVariable(GV)) {
       auto HostAccessDecorValue =
-          GV.hasAttribute(SYCL_HOST_ACCESS_ATTR)
-              ? getAttributeAsInteger<uint32_t>(GV, SYCL_HOST_ACCESS_ATTR)
-              : SPIRV_HOST_ACCESS_DEFAULT_VALUE;
+          GV.hasAttribute(SyclHostAccessAttr)
+              ? getAttributeAsInteger<uint32_t>(GV, SyclHostAccessAttr)
+              : SpirvHostAccessDefaultValue;
       auto VarName = getGlobalVariableUniqueId(GV);
-      MDOps.push_back(buildSpirvDecorMetadata(Ctx, SPIRV_HOST_ACCESS_DECOR,
+      MDOps.push_back(buildSpirvDecorMetadata(Ctx, SpirvHostAccessDecor,
                                               HostAccessDecorValue, VarName));
     }
 
     if (isHostPipeVariable(GV)) {
       auto VarName = getGlobalVariableUniqueId(GV);
-      MDOps.push_back(buildSpirvDecorMetadata(Ctx, SPIRV_HOST_ACCESS_DECOR,
-                                              SPIRV_HOST_ACCESS_DEFAULT_VALUE,
-                                              VarName));
+      MDOps.push_back(buildSpirvDecorMetadata(
+          Ctx, SpirvHostAccessDecor, SpirvHostAccessDefaultValue, VarName));
     }
 
     // Add the generated metadata to the variable
@@ -668,26 +664,25 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
     for (const Attribute &Attribute : F.getAttributes().getFnAttrs()) {
       // Handle pipelined attribute as a special case.
       if (Attribute.isStringAttribute() &&
-          Attribute.getKindAsString() == SYCL_PIPELINED_ATTR) {
+          Attribute.getKindAsString() == SyclPipelinedAttr) {
         auto PipelineOrInitiationInterval =
             getAttributeAsInteger<int32_t>(Attribute);
         MDNode *SPIRVMetadata;
         if (PipelineOrInitiationInterval < 0) {
           // Default pipelining desired
           SPIRVMetadata =
-              buildSpirvDecorMetadata(Ctx, SPIRV_PIPELINE_ENABLE_DECOR, 1);
+              buildSpirvDecorMetadata(Ctx, SpirvPipelineEnableDecor, 1);
         } else if (PipelineOrInitiationInterval == 0) {
           // No pipelining desired
           SPIRVMetadata =
-              buildSpirvDecorMetadata(Ctx, SPIRV_PIPELINE_ENABLE_DECOR, 0);
+              buildSpirvDecorMetadata(Ctx, SpirvPipelineEnableDecor, 0);
         } else {
           // Pipelining desired, with specified Initiation Interval
           SPIRVMetadata =
-              buildSpirvDecorMetadata(Ctx, SPIRV_PIPELINE_ENABLE_DECOR, 1);
+              buildSpirvDecorMetadata(Ctx, SpirvPipelineEnableDecor, 1);
           MDOps.push_back(SPIRVMetadata);
-          SPIRVMetadata =
-              buildSpirvDecorMetadata(Ctx, SPIRV_INITIATION_INTERVAL_DECOR,
-                                      PipelineOrInitiationInterval);
+          SPIRVMetadata = buildSpirvDecorMetadata(
+              Ctx, SpirvInitiationIntervalDecor, PipelineOrInitiationInterval);
         }
         MDOps.push_back(SPIRVMetadata);
       } else if (MDNode *SPIRVMetadata =
@@ -946,7 +941,7 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
 
   if (CacheProp) {
     LLVMContext &Ctx = M.getContext();
-    unsigned MDKindID = Ctx.getMDKindID(SPIRV_DECOR_MD_KIND);
+    unsigned MDKindID = Ctx.getMDKindID(SpirvDecorMdKind);
     if (!FPGAProp && llvm::isa<llvm::Instruction>(IntrInst->getArgOperand(0))) {
       // Find all load/store instructions using the pointer being annotated and
       // apply the cache control metadata to them.

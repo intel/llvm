@@ -28,10 +28,69 @@ from utils.compute_runtime import *
 from utils.validate import Validate
 from utils.detect_versions import DetectVersion
 from utils.logger import log, initialize_logger
+from utils.workdir_version import INTERNAL_WORKDIR_VERSION
 from presets import enabled_suites, presets
 
-# Update this if you are changing the layout of the results files
-INTERNAL_WORKDIR_VERSION = "2.0"
+
+def generate_github_summary(execution_stats, failures):
+    """Generate GitHub workflow summary with execution statistics"""
+    gh_summary: list[str] = []
+    gh_summary.append("### Benchmarks Execution")
+
+    # Overall statistics
+    total_tests = execution_stats["total_tests"]
+    passed_tests = execution_stats["tests_passed"]
+    failed_tests = execution_stats["tests_failed"]
+    warnings = execution_stats["warnings"]
+    errors = len(failures)
+
+    gh_summary.append("#### Overall Statistics")
+    gh_summary.append(f"- **Total Number of benchmarks:** {total_tests}")
+    gh_summary.append(f"- **Tests Passed:** {passed_tests}")
+    gh_summary.append(f"- **Tests Failed:** {failed_tests}")
+    gh_summary.append(f"- **Errors:** {errors}")
+    gh_summary.append(f"- **Warnings:** {warnings}")
+    gh_summary.append("")
+
+    # Overall status of execution
+    if failed_tests == 0 and errors == 0:
+        gh_summary.append("#### ✅ Status: SUCCESS")
+        gh_summary.append("Benchmarks seem to have executed successfully!")
+    elif failed_tests > 0 or errors > 0:
+        gh_summary.append("#### ❌ Status: FAILURES DETECTED")
+        gh_summary.append("Some benchmarks failed or encountered errors.")
+
+    if warnings > 0:
+        gh_summary.append("#### ⚠️ Status: WARNINGS DETECTED")
+        gh_summary.append("Some benchmarks executed with warnings.")
+
+    gh_summary.append("")
+
+    # Detailed failures info
+    if failures:
+        gh_summary.append("#### Failure Details")
+        gh_summary.append(
+            f"<details><summary>{len(failures)} failed benchmarks:</summary>"
+        )
+        gh_summary.append("")
+
+        for benchmark_name, failure_reason in failures.items():
+            gh_summary.append(f"##### {benchmark_name}")
+            gh_summary.append(f"- **Reason:** {failure_reason}")
+            gh_summary.append("")
+
+        gh_summary.append("</details>")
+        gh_summary.append("")
+
+    # Write the summary to file
+    try:
+        with open(options.github_summary_execution_filename, "w") as f:
+            f.write("\n".join(gh_summary))
+        log.info(
+            f"GitHub summary with execution stats written to {options.github_summary_execution_filename}"
+        )
+    except Exception as e:
+        log.error(f"Failed to write GitHub summary with execution stats: {e}")
 
 
 def run_iterations(
@@ -42,7 +101,12 @@ def run_iterations(
     failures: dict[str, str],
     run_trace: TracingType = TracingType.NONE,
     force_trace: bool = False,
-):
+) -> bool:
+    """
+    Returns True if all iterations completed successfully, False otherwise.
+    Unless options.exit_on_failure is set, then exception is raised.
+    """
+
     for iter in range(iters):
         log.info(f"running {benchmark.name()}, iteration {iter}... ")
         try:
@@ -51,10 +115,10 @@ def run_iterations(
             )
             if bench_results is None:
                 if options.exit_on_failure:
-                    raise RuntimeError(f"Benchmark produced no results!")
+                    raise RuntimeError("Benchmark produced no results!")
                 else:
                     failures[benchmark.name()] = "benchmark produced no results!"
-                    break
+                    return False
 
             for bench_result in bench_results:
                 log.info(
@@ -75,9 +139,14 @@ def run_iterations(
                     f"Benchmark failed: {failure_label} verification failed: {str(e)}"
                 )
             else:
-                failures[failure_label] = f"verification failed: {str(e)}"
-                log.error(f"complete ({failure_label}: verification failed: {str(e)}).")
+                failures[failure_label] = (
+                    f"{failure_label}: verification failed: {str(e)}"
+                )
+                log.error(f"{failure_label}: verification failed: {str(e)}.")
                 continue
+
+    # Iterations completed successfully
+    return True
 
 
 # https://www.statology.org/modified-z-score/
@@ -112,7 +181,7 @@ def remove_outliers(
 
 
 def process_results(
-    results: dict[str, list[Result]], stddev_threshold_override
+    results: dict[str, list[Result]], stddev_threshold_override, execution_stats
 ) -> tuple[bool, list[Result]]:
     processed: list[Result] = []
     # technically, we can detect whether result is below or above threshold per
@@ -137,10 +206,14 @@ def process_results(
             stddev_threshold_override
             if stddev_threshold_override is not None
             else options.stddev_threshold
-        ) * mean_value
+        )
+        threshold_scaled = threshold * mean_value
 
-        if stddev > threshold:
-            log.warning(f"stddev {stddev} above the threshold {threshold} for {label}")
+        if stddev > threshold_scaled:
+            log.warning(
+                f"stddev {stddev} above the threshold {threshold_scaled} ({threshold} times {mean_value}) for {label}"
+            )
+            execution_stats["warnings"] += 1
             valid_results = False
 
         rlist.sort(key=lambda res: res.value)
@@ -169,7 +242,7 @@ def collect_metadata(suites):
     return metadata
 
 
-def main(directory, additional_env_vars, compare_names, filter):
+def main(directory, additional_env_vars, compare_names, filter, execution_stats):
     prepare_workdir(directory, INTERNAL_WORKDIR_VERSION)
 
     if options.dry_run:
@@ -217,7 +290,7 @@ def main(directory, additional_env_vars, compare_names, filter):
 
     # TODO: rename "s", rename setup in suite to suite_setup, rename setup in benchmark to benchmark_setup
     # TODO: do not add benchmarks whose suite setup failed
-    # TODO: add a mode where we fail etire script in case of setup (or other) failures and use in CI
+    # TODO: add a mode where we fail entire script in case of setup (or other) failures and use in CI
 
     for s in suites:
         if s.name() not in enabled_suites(options.preset):
@@ -228,6 +301,10 @@ def main(directory, additional_env_vars, compare_names, filter):
             benchmark for benchmark in s.benchmarks() if benchmark.enabled()
         ]
         if filter:
+            # log.info(f"all benchmarks:\n" + "\n".join([b.name() for b in suite_benchmarks]))
+            log.debug(
+                f"Filtering {len(suite_benchmarks)} benchmarks in {s.name()} suite for {filter.pattern}"
+            )
             suite_benchmarks = [
                 benchmark
                 for benchmark in suite_benchmarks
@@ -241,9 +318,9 @@ def main(directory, additional_env_vars, compare_names, filter):
             except Exception as e:
                 if options.exit_on_failure:
                     raise e
-                failures[s.name()] = f"Suite setup failure: {e}"
+                failures[s.name()] = f"Suite '{s.name()}' setup failure: {e}"
                 log.error(
-                    f"{type(s).__name__} setup failed. Benchmarks won't be added."
+                    f"Suite {type(s).__name__} setup failed. Benchmarks won't be added."
                 )
                 log.error(f"failed: {e}")
             else:
@@ -260,12 +337,15 @@ def main(directory, additional_env_vars, compare_names, filter):
             if options.exit_on_failure:
                 raise e
             else:
-                failures[benchmark.name()] = f"Benchmark setup failure: {e}"
+                failures[benchmark.name()] = (
+                    f"Benchmark '{benchmark.name()}' setup failure: {e}"
+                )
                 log.error(f"failed: {e}")
 
     results = []
     if benchmarks:
         log.info(f"Running {len(benchmarks)} benchmarks...")
+        execution_stats["total_tests"] = len(benchmarks)
     elif not options.dry_run:
         raise RuntimeError("No benchmarks to run.")
     for benchmark in benchmarks:
@@ -273,6 +353,7 @@ def main(directory, additional_env_vars, compare_names, filter):
             merged_env_vars = {**additional_env_vars}
             intermediate_results: dict[str, list[Result]] = {}
             processed: list[Result] = []
+            iterations_rc = False
 
             # Determine if we should run regular benchmarks
             # Run regular benchmarks if:
@@ -287,7 +368,7 @@ def main(directory, additional_env_vars, compare_names, filter):
 
             if should_run_regular:
                 for _ in range(options.iterations_stddev):
-                    run_iterations(
+                    iterations_rc = run_iterations(
                         benchmark,
                         merged_env_vars,
                         options.iterations,
@@ -296,7 +377,9 @@ def main(directory, additional_env_vars, compare_names, filter):
                         run_trace=TracingType.NONE,
                     )
                     valid, processed = process_results(
-                        intermediate_results, benchmark.stddev_threshold()
+                        intermediate_results,
+                        benchmark.stddev_threshold(),
+                        execution_stats,
                     )
                     if valid:
                         break
@@ -305,7 +388,7 @@ def main(directory, additional_env_vars, compare_names, filter):
             if options.unitrace and (
                 benchmark.traceable(TracingType.UNITRACE) or args.unitrace == "force"
             ):
-                run_iterations(
+                iterations_rc = run_iterations(
                     benchmark,
                     merged_env_vars,
                     1,
@@ -319,7 +402,7 @@ def main(directory, additional_env_vars, compare_names, filter):
                 benchmark.traceable(TracingType.FLAMEGRAPH)
                 or args.flamegraph == "force"
             ):
-                run_iterations(
+                iterations_rc = run_iterations(
                     benchmark,
                     merged_env_vars,
                     1,
@@ -330,18 +413,19 @@ def main(directory, additional_env_vars, compare_names, filter):
                 )
 
             results += processed
+            if iterations_rc:
+                execution_stats["tests_passed"] += 1
+            else:
+                execution_stats["tests_failed"] += 1
         except Exception as e:
+            execution_stats["tests_failed"] += 1
             if options.exit_on_failure:
                 raise e
             else:
-                failures[benchmark.name()] = f"Benchmark run failure: {e}"
+                failures[benchmark.name()] = (
+                    f"Benchmark '{benchmark.name()}' run failure: {e}"
+                )
                 log.error(f"failed: {e}")
-
-    for benchmark in benchmarks:
-        # this never has any useful information anyway, so hide it behind verbose
-        log.debug(f"tearing down {benchmark.name()}... ")
-        benchmark.teardown()
-        log.debug(f"{benchmark.name()} teardown complete.")
 
     this_name = options.current_run_name
     chart_data = {}
@@ -408,6 +492,10 @@ def main(directory, additional_env_vars, compare_names, filter):
 
         generate_html(history, compare_names, html_path, metadata)
         log.info(f"HTML with benchmark results has been generated")
+
+    # Generate GitHub summary
+    if options.produce_github_summary:
+        generate_github_summary(execution_stats, failures)
 
     if options.exit_on_failure and failures:
         # just in case code missed to raise earlier
@@ -692,6 +780,12 @@ if __name__ == "__main__":
         help="Set the logging level",
         default="info",
     )
+    parser.add_argument(
+        "--produce-github-summary",
+        action="store_true",
+        help=f"Produce execution stats summary for Github workflow, in file '{options.github_summary_execution_filename}'.",
+        default=False,
+    )
 
     args = parser.parse_args()
     additional_env_vars = validate_and_parse_env_args(args.env)
@@ -713,6 +807,7 @@ if __name__ == "__main__":
     options.dry_run = args.dry_run
     options.umf = args.umf
     options.iterations_stddev = args.iterations_stddev
+    options.stddev_threshold = args.stddev_threshold
     options.build_igc = args.build_igc
     options.current_run_name = args.relative_perf
     options.cudnn_directory = args.cudnn_directory
@@ -724,6 +819,7 @@ if __name__ == "__main__":
     options.flamegraph = args.flamegraph is not None
     options.archive_baseline_days = args.archive_baseline_after
     options.archive_pr_days = args.archive_pr_after
+    options.produce_github_summary = args.produce_github_summary
 
     # Initialize logger with command line arguments
     initialize_logger(args.verbose, args.log_level)
@@ -737,6 +833,14 @@ if __name__ == "__main__":
         if not os.path.isdir(args.output_dir):
             parser.error("Specified --output-dir is not a valid path")
         options.output_directory = os.path.abspath(args.output_dir)
+
+    # Initialize GitHub summary tracking
+    execution_stats = {
+        "total_tests": 0,
+        "tests_passed": 0,
+        "tests_failed": 0,
+        "warnings": 0,
+    }
 
     # Options intended for CI:
     options.timestamp_override = args.timestamp_override
@@ -780,6 +884,7 @@ if __name__ == "__main__":
         options.device_architecture = ""
         log.warning(f"Failed to fetch device architecture: {e}")
         log.warning("Defaulting to generic benchmark parameters.")
+        execution_stats["warnings"] += 1
 
     log.info(f"Selected device architecture: {options.device_architecture}")
 
@@ -788,4 +893,5 @@ if __name__ == "__main__":
         additional_env_vars,
         args.compare,
         benchmark_filter,
+        execution_stats,
     )

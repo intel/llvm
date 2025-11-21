@@ -8,7 +8,9 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: sanitize_address
 define spir_func void @test(ptr addrspace(4) byval(%struct.Input) %input) #0 {
 entry:
-  ; CHECK: inttoptr i64 %1 to ptr addrspace(4)
+  ; CHECK: [[REG1:%[0-9]+]] = getelementptr i8, ptr %MyAlloca
+  ; CHECK: [[REG2:%[0-9]+]] = addrspacecast ptr [[REG1]] to ptr addrspace(4)
+  ; CHECK: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 4 [[REG2]], ptr addrspace(4) align 4 %input, i64 44, i1 false)
   ret void
 }
 

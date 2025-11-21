@@ -14,7 +14,6 @@ Using oneAPI DPC++ for Application Development
    PreprocessorMacros
    cuda/contents
    Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/extensions>
-   syclcompat/README.md
    FAQ
    EnvironmentVariables
    MultiTileCardWithLevelZero
