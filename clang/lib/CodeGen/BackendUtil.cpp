@@ -1083,7 +1083,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
         MPM.addPass(SYCLLowerWGLocalMemoryPass());
         // Compile-time properties pass must create standard metadata as early
         // as possible to make them available for other passes.
-        MPM.addPass(CompileTimePropertiesPass(false /*ConvertCacheControls*/));
+        MPM.addPass(CompileTimePropertiesPass());
       });
     else if (LangOpts.SYCLIsHost && !LangOpts.SYCLESIMDBuildHostCode)
       PB.registerPipelineStartEPCallback(
@@ -1244,9 +1244,6 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
             "ITT annotations can only be added to a module with spir target");
         MPM.addPass(SPIRITTAnnotationsPass());
       }
-
-      // Process properties and annotations
-      MPM.addPass(CompileTimePropertiesPass());
 
       // Record SYCL aspect names (this should come after propagating aspects
       // and before cleaning up metadata)

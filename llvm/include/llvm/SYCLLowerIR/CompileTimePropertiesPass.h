@@ -30,8 +30,6 @@ class IntrinsicInst;
 class CompileTimePropertiesPass
     : public PassInfoMixin<CompileTimePropertiesPass> {
 public:
-  CompileTimePropertiesPass(bool ConvertCacheControls = true)
-      : ConvertCacheControls(ConvertCacheControls) {}
   // Enriches the module with metadata that describes the found variables for
   // the SPIRV-LLVM Translator.
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
@@ -50,8 +48,6 @@ private:
   // This allows reuse for annotations with the same generated annotation
   // strings.
   std::unordered_map<std::string, GlobalVariable *> ReusableAnnotStrings;
-
-  bool ConvertCacheControls;
 };
 
 namespace detail {
