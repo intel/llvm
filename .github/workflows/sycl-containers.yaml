@@ -23,6 +23,11 @@ on:
       - 'devops/scripts/install_build_tools.sh'
       - '.github/workflows/sycl-containers.yaml'
 
+concurrency:
+  #  Cancel a currently running workflow from the same PR, branch or tag.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
 permissions: read-all
 
 jobs:
