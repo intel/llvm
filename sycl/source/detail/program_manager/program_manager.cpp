@@ -1799,7 +1799,7 @@ DeviceKernelInfo &ProgramManager::getOrCreateDeviceKernelInfo(
     const CompileTimeKernelInfoTy &Info) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
   auto [Iter, Inserted] =
-      m_DeviceKernelInfoMap.try_emplace(Info.Name.data(), Info);
+      m_DeviceKernelInfoMap.try_emplace(Info.Name, Info);
   if (!Inserted)
     Iter->second.setCompileTimeInfoIfNeeded(Info);
   return Iter->second;
