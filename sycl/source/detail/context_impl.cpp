@@ -417,7 +417,7 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
       }
       // Write the pointer to the device global and store the event in the
       // initialize events list.
-      ur_event_handle_t InitEvent;
+      ur_event_handle_t InitEvent = nullptr;
       void *const &USMPtr = DeviceGlobalUSM.getPtr();
       Adapter.call<UrApiKind::urEnqueueDeviceGlobalVariableWrite>(
           QueueImpl.getHandleRef(), NativePrg,
