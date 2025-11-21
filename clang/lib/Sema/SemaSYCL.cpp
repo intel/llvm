@@ -7056,7 +7056,11 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   for (unsigned I = 0; I < KernelDescs.size(); I++) {
     O << KernelDescs[I].Params.size() << ", ";
   }
+  // Add a sentinel to avoid warning if the collection is empty
+  // (similar to what we do for kernel_signatures below).
+  O << std::numeric_limits<uint32_t>::max() << ", \n";
   O << "};\n\n";
+
   O << "// array representing signatures of all kernels defined in the\n";
   O << "// corresponding source\n";
   O << "static constexpr\n";
