@@ -26,6 +26,9 @@ using BarUsing = Bar<T1, float>;
 template<typename T1, typename T2>
 using BarUsing2 = Bar<Foo<T2>, T1>;
 
+template <typename T1>
+using BarUsingBarUsing2 = BarUsing2<T1, int>;
+
 class Baz {
 public:
   using type = BarUsing<double>;
@@ -70,6 +73,13 @@ void bar_using2(ns::BarUsing2<T1, T2> Arg) {}
 template void bar_using2(ns::BarUsing2<int, float>);
 
 // CHECK: template <typename T1, typename T2> void bar_using2(ns::Bar<ns::Foo<T2>, T1>);
+
+template<typename T1>
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]]
+void bar_using_bar_using2(ns::BarUsingBarUsing2<T1> Arg) {}
+template void bar_using_bar_using2(ns::BarUsingBarUsing2<int>);
+
+// CHECK: template <typename T1> void bar_using_bar_using2(ns::Bar<ns::Foo<int>, T1>);
 
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]]
 void baz_type(ns::Baz::type Arg) {}
