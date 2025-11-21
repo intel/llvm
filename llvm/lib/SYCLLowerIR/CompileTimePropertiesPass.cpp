@@ -852,6 +852,8 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
 
     // Handle cache control properties
     if ((*PropName).starts_with("sycl-cache-")) {
+      if (!ConvertCacheControls)
+        continue;
       CacheProp = true;
       auto DecorValue = PropVal;
       uint32_t AttrVal;
@@ -906,7 +908,7 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
   // If there are no other annotations (except "alignment") then there is no
   // reason to keep the original intrinsic, so replace it with the first operand
   // and mark it for removal.
-  if (!CacheProp && !FPGAProp) {
+  if (!CacheProp && !FPGAProp && ConvertCacheControls) {
     IntrInst->replaceAllUsesWith(IntrInst->getOperand(0));
     RemovableAnnotations.push_back(IntrInst);
     return true;

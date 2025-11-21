@@ -18,6 +18,7 @@
 // CHECK: SYCLMutatePrintfAddrspacePass
 // CHECK: SYCLPropagateAspectsUsagePass
 // CHECK: SYCLAddOptLevelAttributePass
+// CHECK: CompileTimePropertiesPass
 // CHECK: RecordSYCLAspectNamesPass
 // CHECK: CleanupSYCLMetadataPass
 //
