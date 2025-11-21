@@ -600,7 +600,7 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
       return {submit_kernel_scheduler_bypass(KData, CGData.MEvents,
                                              CallerNeedsEvent, nullptr, nullptr,
                                              CodeLoc, IsTopCodeLoc),
-              SchedulerBypass};
+              /*SchedulerBypass*/ true};
     }
     std::unique_ptr<detail::CG> CommandGroup;
     std::vector<std::shared_ptr<detail::stream_impl>> StreamStorage;
@@ -630,17 +630,17 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
     if (auto GraphImpl = getCommandGraph(); GraphImpl) {
       return {submit_command_to_graph(*GraphImpl, std::move(CommandGroup),
                                       detail::CGType::Kernel),
-              SchedulerBypass};
+              /*SchedulerBypass*/ false};
     }
 
     return {detail::Scheduler::getInstance().addCG(std::move(CommandGroup),
                                                    *this, true),
-            SchedulerBypass};
+            /*SchedulerBypass*/ false};
   };
 
   return submit_direct(CallerNeedsEvent, DepEvents, SubmitKernelFunc,
                        detail::CGType::Kernel,
-                       /*CommandFuncContainsHostTask*/ false);
+                       /*InsertBarrierForInOrderCommand*/ false);
 }
 
 EventImplPtr queue_impl::submit_graph_direct_impl(
@@ -672,6 +672,8 @@ EventImplPtr queue_impl::submit_graph_direct_impl(
       return ExecGraph->enqueue(*this, CGData, EventNeeded);
     }
   };
+  // If the graph contains a host task, we may need to insert a barrier prior
+  // to submission to ensure correct ordering with in-order queues.
   return submit_direct(CallerNeedsEvent, DepEvents, SubmitGraphFunc,
                        detail::CGType::ExecCommandBuffer,
                        ExecGraph->containsHostTask());
@@ -681,13 +683,10 @@ template <typename SubmitCommandFuncType>
 detail::EventImplPtr queue_impl::submit_direct(
     bool CallerNeedsEvent, sycl::span<const event> DepEvents,
     SubmitCommandFuncType &SubmitCommandFunc, detail::CGType Type,
-    bool CommandFuncContainsHostTask) {
+    bool InsertBarrierForInOrderCommand) {
   detail::CG::StorageInitHelper CGData;
   std::unique_lock<std::mutex> Lock(MMutex);
   const bool inOrder = isInOrder();
-
-  // Used by queue_empty() and getLastEvent()
-  MEmpty.store(false, std::memory_order_release);
 
   // Sync with an external event
   std::optional<event> ExternalEvent = popExternalEvent();
@@ -706,9 +705,9 @@ detail::EventImplPtr queue_impl::submit_direct(
     registerEventDependency</*LockQueue*/ false>(
         LastEvent, CGData.MEvents, this, getContextImpl(), getDeviceImpl(),
         hasCommandGraph() ? getCommandGraph().get() : nullptr, Type);
-  } else if (inOrder && MNoLastEventMode && CommandFuncContainsHostTask) {
-    // If we have a host task in an in-order queue with no last event mode, then
-    // we must add a barrier to ensure ordering.
+  } else if (inOrder && !MEmpty.load(std::memory_order_acquire) &&
+             InsertBarrierForInOrderCommand) {
+    // A barrier is injected to ensure ordering with prior commands
     auto ResEvent = insertHelperBarrier();
     registerEventDependency</*LockQueue*/ false>(
         ResEvent, CGData.MEvents, this, getContextImpl(), getDeviceImpl(),
@@ -735,6 +734,9 @@ detail::EventImplPtr queue_impl::submit_direct(
       CGData.MEvents.push_back(Deps.LastBarrier);
     }
   }
+
+  // Used by queue_empty() and getLastEvent()
+  MEmpty.store(false, std::memory_order_release);
 
   auto [EventImpl, SchedulerBypass] = SubmitCommandFunc(CGData);
 

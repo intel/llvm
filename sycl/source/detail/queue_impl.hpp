@@ -959,7 +959,7 @@ protected:
   EventImplPtr
   submit_direct(bool CallerNeedsEvent, sycl::span<const event> DepEvents,
                 SubmitCommandFuncType &SubmitCommandFunc, detail::CGType Type,
-                bool CommandFuncContainsHostTask);
+                bool InsertBarrierForInOrderCommand);
 
   /// Helper function for submitting a memory operation with a handler.
   /// \param DepEvents is a vector of dependencies of the operation.
