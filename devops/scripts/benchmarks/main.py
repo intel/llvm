@@ -108,7 +108,6 @@ def run_iterations(
     """
 
     for iter in range(iters):
-        log.info(f"running {benchmark.name()}, iteration {iter}... ")
         try:
             bench_results = benchmark.run(
                 env_vars, run_trace=run_trace, force_trace=force_trace
@@ -207,7 +206,9 @@ def process_results(
             if stddev_threshold_override is not None
             else options.stddev_threshold
         )
+        print("Threshold",threshold)
         threshold_scaled = threshold * mean_value
+        print(threshold_scaled)
 
         if stddev > threshold_scaled:
             log.warning(
@@ -293,6 +294,9 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
     # TODO: add a mode where we fail entire script in case of setup (or other) failures and use in CI
 
     for s in suites:
+        if isinstance(s, ComputeBench):
+            log.info(f"Benchmarks version - {s.name()}: {s.git_hash()}")
+   
         if s.name() not in enabled_suites(options.preset):
             continue
 
@@ -887,6 +891,7 @@ if __name__ == "__main__":
         execution_stats["warnings"] += 1
 
     log.info(f"Selected device architecture: {options.device_architecture}")
+    log.info("Benchmarks version", )
 
     main(
         args.benchmark_directory,
