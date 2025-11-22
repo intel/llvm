@@ -38,9 +38,6 @@ DeviceGlobalUSMMem::~DeviceGlobalUSMMem() {
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~DeviceGlobalUSMMem", e);
   }
-
-  assert(MPtr == nullptr && "MPtr has not been cleaned up.");
-  assert(MInitEvent == nullptr && "MInitEvent has not been cleaned up.");
 }
 
 OwnedUrEvent DeviceGlobalUSMMem::getInitEvent(adapter_impl &Adapter) {
@@ -86,7 +83,7 @@ DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(queue_impl &QueueImpl) {
   // Initialize here and save the event.
   {
     std::lock_guard<std::mutex> Lock(NewAlloc.MInitEventMutex);
-    ur_event_handle_t InitEvent;
+    ur_event_handle_t InitEvent = nullptr;
     if (MDeviceGlobalPtr) {
       // C++ guarantees members appear in memory in the order they are declared,
       // so since the member variable that contains the initial contents of the

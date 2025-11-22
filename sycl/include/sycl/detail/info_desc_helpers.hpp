@@ -123,28 +123,6 @@ template <typename T> struct is_backend_info_desc : std::false_type {};
 #undef __SYCL_PARAM_TRAITS_SPEC
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_PARTIAL_SPEC
 
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template <>                                                                  \
-  struct is_backend_info_desc<info::DescType::Desc> : std::true_type {         \
-    using return_type = info::DescType::Desc::return_type;                     \
-  };
-#include <sycl/info/sycl_backend_traits.def>
-#undef __SYCL_PARAM_TRAITS_SPEC
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <typename SyclObject, typename Param>
-constexpr int emit_get_backend_info_error() {
-  // Implementation of get_backend_info doesn't seem to be aligned with the
-  // spec and is likely going to be deprecated/removed. However, in pre-C++11
-  // ABI mode if result in ABI mismatch and causes crashes, so emit
-  // compile-time error under those conditions.
-  constexpr bool False = !std::is_same_v<Param, Param>;
-  static_assert(False,
-                "This interface is incompatible with _GLIBCXX_USE_CXX11_ABI=0");
-  return 0;
-}
-#endif
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

@@ -6814,12 +6814,17 @@ private:
       QualType T = Param->getType();
       QualType CT = T.getCanonicalType();
 
-      auto *TST = dyn_cast<TemplateSpecializationType>(T.getTypePtr());
-      auto *CTST = dyn_cast<TemplateSpecializationType>(CT.getTypePtr());
+      const auto *TST = dyn_cast<TemplateSpecializationType>(T.getTypePtr());
+      const auto *CTST = dyn_cast<TemplateSpecializationType>(CT.getTypePtr());
       if (!TST || !CTST) {
         ParmListOstream << T.getAsString(Policy);
         continue;
       }
+
+      const TemplateSpecializationType *TSTAsNonAlias =
+          TST->getAsNonAliasTemplateSpecializationType();
+      if (TSTAsNonAlias)
+        TST = TSTAsNonAlias;
 
       TemplateName CTN = CTST->getTemplateName();
       CTN.getAsTemplateDecl()->printQualifiedName(ParmListOstream);
@@ -7056,7 +7061,11 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   for (unsigned I = 0; I < KernelDescs.size(); I++) {
     O << KernelDescs[I].Params.size() << ", ";
   }
+  // Add a sentinel to avoid warning if the collection is empty
+  // (similar to what we do for kernel_signatures below).
+  O << std::numeric_limits<uint32_t>::max() << ", \n";
   O << "};\n\n";
+
   O << "// array representing signatures of all kernels defined in the\n";
   O << "// corresponding source\n";
   O << "static constexpr\n";
