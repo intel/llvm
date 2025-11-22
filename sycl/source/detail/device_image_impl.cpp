@@ -32,7 +32,7 @@ std::shared_ptr<kernel_impl> device_image_impl::tryGetExtensionKernel(
 
       auto UrProgram = get_ur_program();
       auto [UrKernel, CacheMutex, ArgMask] =
-          PM.getOrCreateKernel(Context, KernelNameStrT(AdjustedName),
+          PM.getOrCreateKernel(Context, AdjustedName,
                                /*PropList=*/{}, UrProgram);
       return std::make_shared<kernel_impl>(
           std::move(UrKernel), *getSyclObjImpl(Context), shared_from_this(),

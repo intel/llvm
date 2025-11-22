@@ -460,7 +460,7 @@ public:
 
   ur_kernel_handle_t completeSpecConstMaterialization(
       queue_impl &Queue, const RTDeviceBinaryImage *BinImage,
-      KernelNameStrRefT KernelName, std::vector<unsigned char> &SpecConstBlob);
+      std::string_view KernelName, std::vector<unsigned char> &SpecConstBlob);
 
   void releaseResources(BlockingT Blocking = BlockingT::BLOCKING);
   bool isDeferredMemObjectsEmpty();

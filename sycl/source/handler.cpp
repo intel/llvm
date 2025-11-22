@@ -569,7 +569,7 @@ event handler::finalize() {
       // in kernel bundle or free function cases).
       impl->MKernelData.setDeviceKernelInfoPtr(
           &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
-              toKernelNameStrT(MKernelName)));
+              std::string_view(MKernelName)));
     }
     assert(impl->MKernelData.getKernelName() == MKernelName);
 
@@ -985,7 +985,7 @@ void handler::extractArgsAndReqs() {
   if (impl->MKernelData.getDeviceKernelInfoPtr() == nullptr) {
     impl->MKernelData.setDeviceKernelInfoPtr(
         &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
-            detail::toKernelNameStrT(MKernel->getName())));
+            std::string_view(MKernel->getName())));
   }
 #endif
   assert(impl->MKernelData.getDeviceKernelInfoPtr() != nullptr);
@@ -1054,9 +1054,7 @@ void handler::extractArgsAndReqsFromLambda(
 // Calling methods of kernel_impl requires knowledge of class layout.
 // As this is impossible in header, there's a function that calls necessary
 // method inside the library and returns the result.
-detail::ABINeutralKernelNameStrT handler::getKernelName() {
-  return MKernel->getName();
-}
+detail::string_view handler::getKernelName() { return MKernel->getName(); }
 #endif
 
 void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {

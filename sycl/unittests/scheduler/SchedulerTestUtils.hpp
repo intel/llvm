@@ -13,7 +13,6 @@
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
 #include <sycl/detail/cl.h>
-#include <sycl/detail/kernel_name_str_t.hpp>
 
 #include <functional>
 #include <gmock/gmock.h>
