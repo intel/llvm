@@ -9081,6 +9081,7 @@ void CodeGenModule::moveLazyEmissionStates(CodeGenModule *NewBuilder) {
 
   NewBuilder->ABI->MangleCtx = std::move(ABI->MangleCtx);
 }
+<<<<<<< HEAD
 
 void CodeGenModule::getFPAccuracyFuncAttributes(StringRef Name,
                                                 llvm::AttributeList &AttrList,
@@ -9142,3 +9143,5 @@ void CodeGenModule::requireVectorDestructorDefinition(const CXXRecordDecl *RD) {
     addDeferredDeclToEmit(VectorDtorGD);
   }
 }
+=======
+>>>>>>> 54a4da9df6906b63878ad6d0ea6da3ed7d2d8432

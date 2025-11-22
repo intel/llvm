@@ -1610,6 +1610,10 @@ void JSONNodeDumper::VisitCXXDefaultInitExpr(const CXXDefaultInitExpr *Node) {
   attributeOnlyIfTrue("hasRewrittenInit", Node->hasRewrittenInit());
 }
 
+void JSONNodeDumper::VisitLambdaExpr(const LambdaExpr *LE) {
+  JOS.attribute("hasExplicitParameters", LE->hasExplicitParameters());
+}
+
 void JSONNodeDumper::VisitCXXDependentScopeMemberExpr(
     const CXXDependentScopeMemberExpr *DSME) {
   JOS.attribute("isArrow", DSME->isArrow());
