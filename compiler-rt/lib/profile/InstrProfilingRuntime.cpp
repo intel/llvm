@@ -10,6 +10,22 @@ extern "C" {
 
 #include "InstrProfiling.h"
 
+void __sycl_increment_profile_counters(uint64_t FnHash, size_t NumCounters,
+                                       const uint64_t *Increments) {
+  for (const __llvm_profile_data *DataVar = __llvm_profile_begin_data();
+       DataVar < __llvm_profile_end_data(); DataVar++) {
+    if (DataVar->NameRef != FnHash || DataVar->NumCounters != NumCounters)
+      continue;
+
+    uint64_t *const Counters = reinterpret_cast<uint64_t *>(
+        reinterpret_cast<uintptr_t>(DataVar) +
+        reinterpret_cast<uintptr_t>(DataVar->CounterPtr));
+    for (size_t i = 0; i < NumCounters; i++)
+      Counters[i] += Increments[i];
+    break;
+  }
+}
+
 static int RegisterRuntime() {
   __llvm_profile_initialize();
 #ifdef _AIX
