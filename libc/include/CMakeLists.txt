@@ -859,6 +859,8 @@ foreach(target IN LISTS all_install_header_targets)
 endforeach()
 
 if(LLVM_LIBC_FULL_BUILD)
+  add_custom_target(generate-libc-headers
+                    DEPENDS libc-headers)
   add_custom_target(install-libc-headers
                     DEPENDS libc-headers
                     COMMAND "${CMAKE_COMMAND}"

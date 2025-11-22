@@ -262,6 +262,103 @@ class SYCLToolchain {
       DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_offload_arch_EQ), CPU);
     }
 
+    // Reasons why the following is done here and not in the clang driver:
+    //
+    //  1) Unlike libcxx, upstream libc is installed directly into
+    //     `<toolchain>/include` or `<toolchain>/<target>/include` together with
+    //     other compiler headers meaning we can't magically turn it on or off
+    //     (unless we introduce a dedicated VFS overlay just for libc).
+    //  2) Having multiple C libraries in include search paths is unsupported,
+    //     so in order to use LLVM libc we have to remove default system
+    //     includes. That in turn excludes (at the very least) CUDA/HIP SDKs, so
+    //     we want that behavior to be optional. That, in turn, means that
+    //     because of (1) we have to have non-standard libc install location (we
+    //     chose `<toolchain>/include/libc`) and that has no support in the
+    //     clang driver, so we have to add libc headers to system include
+    //     directories manually.
+    //  3) However, libcxx headers search path must come *before* libc includes,
+    //     but `-isystem` and similar options prepend the list of search paths.
+    //     As such, we can't just have the driver do part of the job and then
+    //     adjust the behavior via extra options, so we need to maintain
+    //     everything on our own.
+    //   4) We could do everything via custom code in the clang driver, but the
+    //      location of `include/libc` is controlled in this `sycl-jit` project
+    //      and it was slightly more convenient to implement it here, at least
+    //      for the downstream implementation.
+    //   5) Once we upstream SYCL support there will be a use-case to move libc
+    //      headers installation to a separate directory (similar to libcxx), at
+    //      that time we might have support for this in the clang driver
+    //      directly and would be able to avoid doing that here.
+
+    // Prefer using in-memory as that's friendlier for the end users of SYCL
+    // applications as that mode doesn't require any C/C++ toolchain to be
+    // installed on the system.
+    bool UseInMemoryCxxCHeaders = true;
+
+    // Unless explicitly told not to:
+    if (UserArgList.hasArg(OPT_sycl_rtc_use_system_includes))
+      UseInMemoryCxxCHeaders = false;
+
+    // CUDA/HIP need SDK headers that we can't distribute ourselves, so we have
+    // to use system includes as well:
+    if (Format == BinaryFormat::PTX || Format == BinaryFormat::AMDGCN)
+      UseInMemoryCxxCHeaders = false;
+
+    if (UseInMemoryCxxCHeaders) {
+      DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_nostdlibinc));
+      auto AddInc = [&](auto RelPath) {
+        DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_isystem),
+                         (getPrefix() + RelPath).str());
+      };
+      // Must come before C/C++ headers as we're intercepting them in those
+      // wrappers:
+      AddInc("include/sycl/stl_wrappers");
+      // Extra headers we provide as part of jit-compiler, e.g.
+      // `__external_threading` and `linux/errno.h` that are needed to make
+      // LLVM's libc/libcxx work. As far as I know, can be anywhere in the
+      // includes search path as those files aren't provide anywhere else.
+      AddInc("include/sycl-rtc-standalone/");
+#if !defined(_WIN32)
+      // On Windows `LIBCXX_GENERATED_INCLUDE_TARGET_DIR` is off and thus we
+      // don't need this.
+      AddInc("include/x86_64-unknown-linux-gnu/c++/v1");
+#endif
+      // libcxx headers, must come before libc headers:
+      AddInc("include/c++/v1");
+      // libc headers, our (SYCL RTC) custom non-standard location:
+      AddInc("include/libc");
+      // SYCL/SYCL-related headers actually, because `<sycl/sycl.hpp>` and not
+      // just `<sycl.hpp>`. Can be argued that actual installation layout should
+      // actually be `include/sycl/ur_api.h` and `include/sycl/sycl/sycl.hpp`
+      // but that's outside the SYCL RTC scope. I think any relative order in
+      // relation to libcxx/libc is allowed.
+      AddInc("include/");
+      // NOTE: `include/lib/clang/<version>/include/` is added automatically (we
+      // use `--nostdlibinc` and not `--nostdinc`).
+
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_D),
+                       "_LIBCPP_REMOVE_TRANSITIVE_INCLUDES");
+#if defined(_WIN32)
+      // LLVM's libc implements very limited number of entrypoints on WIN,
+      // almost to be unusable, so nobody actually cares about using libcxx over
+      // LLVM libc on that platform. We only use declaration and not definition
+      // so we force libc to generate more header/entrypoints but it's not
+      // working well by default. Options below were find by trial-and-error.
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_D),
+                       "_LIBCPP_WCHAR_H_HAS_CONST_OVERLOADS");
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_D),
+                       "_LIBCPP_NO_VCRUNTIME");
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_U), "__ELF__");
+
+#endif
+      // Similarly to Windows case above, libcxx over libc isn't fully
+      // supported upstream, even on Linux. Faced some errors (mostly around
+      // `_LIBCPP_USING_IF_EXISTS`) if the files below aren't included early:
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_include), "stdio.h");
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_include), "wchar.h");
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_include), "time.h");
+    }
+
     ArgStringList ASL;
     for (Arg *A : DAL)
       A->render(DAL, ASL);
@@ -543,9 +640,15 @@ public:
     std::vector<std::string> CommandLine =
         createCommandLine(UserArgList, Format, SourceFilePath);
 
-    auto FS = llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(
-        llvm::vfs::getRealFileSystem());
-    FS->pushOverlay(getToolchainFS());
+    llvm::IntrusiveRefCntPtr<llvm::vfs::OverlayFileSystem> FS;
+    if (UserArgList.hasArg(OPT_sycl_rtc_in_memory_fs_only)) {
+      FS = llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(
+          getToolchainFS());
+    } else {
+      FS = llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(
+          llvm::vfs::getRealFileSystem());
+      FS->pushOverlay(getToolchainFS());
+    }
     if (FSOverlay)
       FS->pushOverlay(std::move(FSOverlay));
 

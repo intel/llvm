@@ -12,7 +12,8 @@
 
 #include <stdlib.h>
 
-#ifdef _WIN32
+#if defined(_WIN32) &&                                                         \
+    !(defined(__SYCL_DEVICE_ONLY__) && defined(__LLVM_LIBC__))
 #include <malloc.h>
 #else
 #ifndef __cplusplus
@@ -41,7 +42,8 @@ _mm_malloc(size_t __size, size_t __align) {
   void *__mallocedMemory;
 #if defined(__MINGW32__)
   __mallocedMemory = __mingw_aligned_malloc(__size, __align);
-#elif defined(_WIN32)
+#elif defined(_WIN32) &&                                                       \
+    !(defined(__SYCL_DEVICE_ONLY__) && defined(__LLVM_LIBC__))
   __mallocedMemory = _aligned_malloc(__size, __align);
 #else
   if (posix_memalign(&__mallocedMemory, __align, __size))
@@ -56,7 +58,8 @@ _mm_free(void *__p)
 {
 #if defined(__MINGW32__)
   __mingw_aligned_free(__p);
-#elif defined(_WIN32)
+#elif defined(_WIN32) &&                                                       \
+    !(defined(__SYCL_DEVICE_ONLY__) && defined(__LLVM_LIBC__))
   _aligned_free(__p);
 #else
   free(__p);

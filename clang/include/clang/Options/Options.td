@@ -7609,6 +7609,14 @@ let Visibility = [SYCLRTCOnlyOption] in {
         : Joined<["--"], "persistent-auto-pch=">,
           HelpText<"Use Persistent Auto-PCH cache located at <dir> for SYCL "
                    "RTC Compilation">;
+    def sycl_rtc_use_system_includes
+        : Flag<["--"], "sycl-rtc-use-system-includes">,
+          HelpText<"Use system includes instead of in-memory libcxx/libc">;
+    def sycl_rtc_in_memory_fs_only
+        : Flag<["--"], "sycl-rtc-in-memory-fs-only">,
+          HelpText<"Disable real filesystem access for SYCL RTC compilation, "
+                   "debugging/testing only">,
+          Flags<[HelpHidden]>;
   } // let Group = sycl_rtc_only_Group
 } // let Visibility = [SYCLRTCOnlyOption]
 

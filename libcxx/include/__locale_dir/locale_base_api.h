@@ -110,8 +110,9 @@
 // }
 
 #if _LIBCPP_HAS_LOCALIZATION
-
-#  if defined(__APPLE__)
+#  if defined(__SYCL_DEVICE_ONLY__)
+#    include <__locale_dir/support/fuchsia.h> // no_locale
+#  elif defined(__APPLE__)
 #    include <__locale_dir/support/apple.h>
 #  elif defined(__FreeBSD__)
 #    include <__locale_dir/support/freebsd.h>
