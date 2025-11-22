@@ -424,11 +424,7 @@ void handler::setHandlerKernelBundle(kernel Kernel) {
   setHandlerKernelBundle(std::move(KernelBundleImpl));
 }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 detail::EventImplPtr handler::finalize() {
-#else
-event handler::finalize() {
-#endif
   const auto &type = getType();
   detail::queue_impl *Queue = impl->get_queue_or_null();
   ext::oneapi::experimental::detail::graph_impl *Graph =
@@ -568,13 +564,7 @@ event handler::finalize() {
           impl->get_queue().submit_kernel_scheduler_bypass(
               impl->MKernelData, impl->CGData.MEvents, impl->MEventNeeded,
               MKernel.get(), KernelBundleImpPtr, MCodeLoc, impl->MIsTopCodeLoc);
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
       return ResultEvent;
-#else
-      return detail::createSyclObjFromImpl<event>(
-          ResultEvent ? ResultEvent
-                      : detail::event_impl::create_discarded_event());
-#endif
     }
   }
 
@@ -726,14 +716,7 @@ event handler::finalize() {
                           !impl->MExecGraph->containsHostTask();
       detail::EventImplPtr GraphCompletionEvent = impl->MExecGraph->enqueue(
           Queue, std::move(impl->CGData), !DiscardEvent);
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
       return GraphCompletionEvent;
-#else
-      return sycl::detail::createSyclObjFromImpl<sycl::event>(
-          GraphCompletionEvent
-              ? GraphCompletionEvent
-              : sycl::detail::event_impl::create_discarded_event());
-#endif
     }
   } break;
   case detail::CGType::CopyImage:
@@ -781,11 +764,7 @@ event handler::finalize() {
   if (impl->get_graph_or_null()) {
     impl->MGraphNodeCG = std::move(CommandGroup);
     auto EventImpl = detail::event_impl::create_completed_host_event();
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     return EventImpl;
-#else
-    return detail::createSyclObjFromImpl<event>(EventImpl);
-#endif
   }
 
   // Because graph case is handled right above.
@@ -794,14 +773,8 @@ event handler::finalize() {
   // If the queue has an associated graph then we need to take the CG and pass
   // it to the graph to create a node, rather than submit it to the scheduler.
   if (auto GraphImpl = Queue->getCommandGraph(); GraphImpl) {
-    auto EventImpl = Queue->submit_command_to_graph(
-        *GraphImpl, std::move(CommandGroup), type, impl->MUserFacingNodeType);
-
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-    return EventImpl;
-#else
-    return detail::createSyclObjFromImpl<event>(EventImpl);
-#endif
+    return Queue->submit_command_to_graph(*GraphImpl, std::move(CommandGroup),
+                                          type, impl->MUserFacingNodeType);
   }
 
   // For kernel submission, regardless of whether an event has been requested,
@@ -820,11 +793,7 @@ event handler::finalize() {
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
       std::move(CommandGroup), *Queue, !DiscardEvent);
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   return DiscardEvent ? nullptr : Event;
-#else
-  return detail::createSyclObjFromImpl<event>(Event);
-#endif
 }
 
 void handler::addReduction(const std::shared_ptr<const void> &ReduObj) {

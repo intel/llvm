@@ -504,11 +504,7 @@ private:
   ///
   /// Note: in preview mode, handler.finalize() is expected to return
   /// nullptr if the event is not needed (discarded).
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   detail::EventImplPtr finalize();
-#else
-  event finalize();
-#endif
 
   /// Constructs CG object of specific type, passes it to Scheduler and
   /// returns sycl::event object representing the command group.
