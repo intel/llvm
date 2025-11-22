@@ -505,6 +505,21 @@ event handler::finalize() {
   WRAP_BODY_BEGIN
 #endif
 
+  // ScopedInvalidation is used for invalidating the impl of this handler when
+  // finalize returns.
+  struct ScopedInvalidation {
+    ScopedInvalidation(handler &OwnerCGH) : Owner{OwnerCGH} {}
+    ~ScopedInvalidation() {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+      Owner.implOwner.reset();
+      Owner.impl = nullptr;
+#else
+      Owner.impl.reset();
+#endif
+    }
+    handler &Owner;
+  } ScopedInvalidator{*this};
+
   const auto &type = getType();
   detail::queue_impl *Queue = impl->get_queue_or_null();
   ext::oneapi::experimental::detail::graph_impl *Graph =
@@ -642,8 +657,9 @@ event handler::finalize() {
 
       detail::EventImplPtr ResultEvent =
           impl->get_queue().submit_kernel_scheduler_bypass(
-              impl->MKernelData, impl->CGData.MEvents, impl->MEventNeeded,
-              MKernel.get(), KernelBundleImpPtr, MCodeLoc, impl->MIsTopCodeLoc);
+              std::move(impl->MKernelData), std::move(impl->CGData.MEvents),
+              impl->MEventNeeded, MKernel.get(), KernelBundleImpPtr, MCodeLoc,
+              impl->MIsTopCodeLoc);
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
       return ResultEvent;
 #else
