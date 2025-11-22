@@ -800,7 +800,7 @@ event handler::finalize() {
       bool DiscardEvent = !impl->MEventNeeded &&
                           Queue.supportsDiscardingPiEvents() &&
                           !impl->MExecGraph->containsHostTask();
-      detail::EventImplPtr GraphCompletionEvent = impl->MExecGraph->enqueue(
+      auto [GraphCompletionEvent, Unused] = impl->MExecGraph->enqueue(
           Queue, std::move(impl->CGData), !DiscardEvent);
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
       return GraphCompletionEvent;
