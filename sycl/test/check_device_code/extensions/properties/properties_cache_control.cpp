@@ -171,57 +171,62 @@ SYCL_EXTERNAL void annotated_ptr_func_param_test(float *p) {
 }
 
 // CHECK: spir_func{{.*}}annotated_ptr_func_param_test
-// CHECK: {{.*}}call ptr addrspace(4) @llvm.ptr.annotation.p4.p1{{.*}}!spirv.Decorations [[WHINT:.*]]
+// CHECK:  store float 4.200000e+01, ptr addrspace(4) %{{.*}}, !spirv.Decorations ![[WHINT:[0-9]+]]
 // CHECK: ret void
 
 // CHECK: spir_kernel{{.*}}cache_control_read_hint_func
-// CHECK: {{.*}}addrspacecast ptr addrspace(1){{.*}}!spirv.Decorations [[RHINT:.*]]
+// CHECK:  store float 5.500000e+01, ptr addrspace(1) %{{.*}}, !spirv.Decorations ![[RHINT:[0-9]+]]
 // CHECK: ret void
 
 // CHECK: spir_kernel{{.*}}cache_control_read_assertion_func
-// CHECK: {{.*}}addrspacecast ptr addrspace(1){{.*}}!spirv.Decorations [[RASSERT:.*]]
+// CHECK:  store i32 66, ptr addrspace(1) %{{.*}}, !spirv.Decorations ![[RASSERT:[0-9]+]]
 // CHECK: ret void
 
 // CHECK: spir_kernel{{.*}}cache_control_write_hint_func
-// CHECK: {{.*}}addrspacecast ptr addrspace(1){{.*}}!spirv.Decorations [[WHINT]]
+// CHECK:  store float 7.700000e+01, ptr addrspace(1) %{{.*}}, !spirv.Decorations ![[WHINT]]
 // CHECK: ret void
 
 // CHECK: spir_kernel{{.*}}cache_control_read_write_func
-// CHECK: {{.*}}addrspacecast ptr addrspace(1){{.*}}!spirv.Decorations [[RWHINT:.*]]
+// CHECK:  store float 7.700000e+01, ptr addrspace(1) %{{.*}}, !spirv.Decorations ![[RWHINT:[0-9]+]]
 // CHECK: ret void
 
 // CHECK: spir_kernel{{.*}}cache_control_load_store_func
-// CHECK: {{.*}}getelementptr{{.*}}addrspace(4){{.*}}!spirv.Decorations [[LDSTHINT_A:.*]]
-// CHECK: {{.*}}getelementptr{{.*}}addrspace(4){{.*}}!spirv.Decorations [[LDSTHINT_B:.*]]
+// CHECK:  store double 1.000000e+00, ptr addrspace(1) %[[PTR_A:.*]], align 8{{.*}}, !spirv.Decorations ![[STHINT_A:[0-9]+]]
+// CHECK:  store double 1.000000e+00, ptr addrspace(1) %[[PTR_B:.*]], align 8{{.*}}, !spirv.Decorations ![[STHINT_B:[0-9]+]]
+// CHECK:  load double, ptr addrspace(1) %[[PTR_A]], align 8{{.*}}, !spirv.Decorations ![[LDHINT_A:[0-9]+]]
+// CHECK:  load double, ptr addrspace(1) %[[PTR_B]], align 8{{.*}}, !spirv.Decorations ![[LDHINT_B:[0-9]+]]
 // CHECK: ret void
 
-// CHECK: [[WHINT]] = !{[[WHINT1:.*]], [[WHINT2:.*]], [[WHINT3:.*]], [[WHINT4:.*]]}
+// CHECK: [[WHINT]] = !{[[WHINT1:.*]], [[WHINT2:.*]], [[WHINT3:.*]], [[WHINT4:.*]], i32 1}
 // CHECK: [[WHINT1]] = !{i32 6443, i32 3, i32 3}
 // CHECK: [[WHINT2]] = !{i32 6443, i32 0, i32 1}
 // CHECK: [[WHINT3]] = !{i32 6443, i32 1, i32 2}
 // CHECK: [[WHINT4]] = !{i32 6443, i32 2, i32 2}
 
-// CHECK: [[RHINT]] = !{[[RHINT1:.*]], [[RHINT2:.*]], [[RHINT3:.*]]}
+// CHECK: [[RHINT]] = !{[[RHINT1:.*]], [[RHINT2:.*]], [[RHINT3:.*]], i32 1}
 // CHECK: [[RHINT1]] = !{i32 6442, i32 1, i32 0}
 // CHECK: [[RHINT2]] = !{i32 6442, i32 2, i32 0}
 // CHECK: [[RHINT3]] = !{i32 6442, i32 0, i32 1}
 
-// CHECK: [[RASSERT]] = !{[[RASSERT1:.*]], [[RASSERT2:.*]], [[RASSERT3:.*]]}
+// CHECK: [[RASSERT]] = !{[[RASSERT1:.*]], [[RASSERT2:.*]], [[RASSERT3:.*]], i32 1}
 // CHECK: [[RASSERT1]] = !{i32 6442, i32 1, i32 3}
 // CHECK: [[RASSERT2]] = !{i32 6442, i32 2, i32 3}
 // CHECK: [[RASSERT3]] = !{i32 6442, i32 0, i32 4}
 
-// CHECK: [[RWHINT]] = !{[[RWHINT1:.*]], [[RWHINT2:.*]], [[RWHINT3:.*]]}
+// CHECK: [[RWHINT]] = !{[[RWHINT1:.*]], [[RWHINT2:.*]], [[RWHINT3:.*]], i32 1}
 // CHECK: [[RWHINT1]] = !{i32 6442, i32 2, i32 1}
 // CHECK: [[RWHINT2]] = !{i32 6442, i32 3, i32 4}
 // CHECK: [[RWHINT3]] = !{i32 6443, i32 3, i32 1}
 
-// CHECK: [[LDSTHINT_A]] = !{[[RHINT1]], [[RHINT2]], [[RHINT3]], [[LDSTHINT_A1:.*]], [[LDSTHINT_A2:.*]], [[LDSTHINT_A3:.*]]}
-// CHECK: [[LDSTHINT_A1]] = !{i32 6443, i32 0, i32 0}
-// CHECK: [[LDSTHINT_A2]] = !{i32 6443, i32 1, i32 0}
-// CHECK: [[LDSTHINT_A3]] = !{i32 6443, i32 2, i32 0}
+// CHECK: [[STHINT_A]] = !{[[STHINT_A1:.*]], [[STHINT_A2:.*]], [[STHINT_A3:.*]], i32 1}
+// CHECK: [[STHINT_A1]] = !{i32 6443, i32 0, i32 0}
+// CHECK: [[STHINT_A2]] = !{i32 6443, i32 1, i32 0}
+// CHECK: [[STHINT_A3]] = !{i32 6443, i32 2, i32 0}
 
-// CHECK: [[LDSTHINT_B]] = !{[[LDSTHINT_B1:.*]], [[RWHINT1]], [[LDSTHINT_B2:.*]], [[LDSTHINT_A2]], [[LDSTHINT_A3]], [[LDSTHINT_B3:.*]]}
-// CHECK: [[LDSTHINT_B1]] = !{i32 6442, i32 1, i32 1}
-// CHECK: [[LDSTHINT_B2]] = !{i32 6442, i32 0, i32 2}
-// CHECK: [[LDSTHINT_B3]] = !{i32 6443, i32 0, i32 2}
+// CHECK: [[STHINT_B]] = !{[[STHINT_A2]], [[STHINT_A3]], [[STHINT_B1:.*]], i32 1}
+// CHECK: [[STHINT_B1]] = !{i32 6443, i32 0, i32 2}
+
+// CHECK: [[LDHINT_A]] = !{[[RHINT1]], [[RHINT2]], [[RHINT3]], i32 0}
+// CHECK: [[LDHINT_B]] = !{[[LDHINT_B1:.*]], [[RWHINT1]], [[LDHINT_B2:.*]], i32 0}
+// CHECK: [[LDHINT_B1]] = !{i32 6442, i32 1, i32 1}
+// CHECK: [[LDHINT_B2]] = !{i32 6442, i32 0, i32 2}
