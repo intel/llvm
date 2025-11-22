@@ -444,8 +444,8 @@ struct ConflictingProperties<max_linear_work_group_size_key, Properties> {
   }();
 };
 
-// If the kernel (last element in the parameter pack) has a get(propereties_tag)
-// method, return the proeprty list specified by this getter. Otherwise, return
+// If the kernel (last element in the parameter pack) has a get(properties_tag)
+// method, return the property list specified by this getter. Otherwise, return
 // an empty properety list.
 template <typename... RestT>
 auto RetrieveGetMethodPropertiesOrEmpty(RestT &&...Rest) {
