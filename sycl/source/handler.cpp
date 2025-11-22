@@ -392,25 +392,6 @@ bool handler::isStateExplicitKernelBundle() const {
   return impl->isStateExplicitKernelBundle();
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-// Returns a shared_ptr to the kernel_bundle.
-// If there is no kernel_bundle created:
-// returns newly created kernel_bundle if Insert is true
-// returns shared_ptr(nullptr) if Insert is false
-std::shared_ptr<detail::kernel_bundle_impl>
-handler::getOrInsertHandlerKernelBundle(bool Insert) const {
-  if (impl->MKernelBundle || !Insert)
-    return impl->MKernelBundle;
-
-  context Ctx = detail::createSyclObjFromImpl<context>(impl->get_context());
-  impl->MKernelBundle =
-      detail::getSyclObjImpl(get_kernel_bundle<bundle_state::input>(
-          Ctx, {detail::createSyclObjFromImpl<device>(impl->get_device())},
-          {}));
-  return impl->MKernelBundle;
-}
-#endif
-
 // Returns a ptr to the kernel_bundle.
 // If there is no kernel_bundle created:
 // returns newly created kernel_bundle if Insert is true
@@ -433,13 +414,6 @@ template <typename SharedPtrT>
 void handler::setHandlerKernelBundle(SharedPtrT &&NewKernelBundleImpPtr) {
   impl->MKernelBundle = std::forward<SharedPtrT>(NewKernelBundleImpPtr);
 }
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-void handler::setHandlerKernelBundle(
-    const std::shared_ptr<detail::kernel_bundle_impl> &NewKernelBundleImpPtr) {
-  impl->MKernelBundle = NewKernelBundleImpPtr;
-}
-#endif
 
 void handler::setHandlerKernelBundle(kernel Kernel) {
   // Kernel may not have an associated kernel bundle if it is created from a
@@ -1698,16 +1672,6 @@ void handler::setKernelLaunchProperties(
       impl->get_device() /*device_impl*/);
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-const std::shared_ptr<detail::context_impl> &
-handler::getContextImplPtr() const {
-  if (auto *Graph = impl->get_graph_or_null()) {
-    return Graph->getContextImplPtr();
-  }
-  return impl->get_queue().getContextImplPtr();
-}
-#endif
-
 detail::context_impl &handler::getContextImpl() const {
   if (auto *Graph = impl->get_graph_or_null()) {
     return Graph->getContextImpl();
@@ -1765,10 +1729,6 @@ std::tuple<std::array<size_t, 3>, bool> handler::getMaxWorkGroups_v2() {
   return {std::array<size_t, 3>{0, 0, 0}, false};
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-void handler::setNDRangeUsed(bool Value) { (void)Value; }
-#endif
-
 void handler::registerDynamicParameter(
     ext::oneapi::experimental::detail::dynamic_parameter_impl *DynamicParamImpl,
     int ArgIndex) {
@@ -1787,18 +1747,6 @@ void handler::registerDynamicParameter(
 
   impl->MKernelData.addDynamicParameter(DynamicParamImpl, ArgIndex);
 }
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-// TODO: Remove in the next ABI-breaking window.
-void handler::registerDynamicParameter(
-    ext::oneapi::experimental::detail::dynamic_parameter_base &DynamicParamBase,
-    int ArgIndex) {
-  ext::oneapi::experimental::detail::dynamic_parameter_impl *DynParamImpl =
-      detail::getSyclObjImpl(DynamicParamBase).get();
-
-  registerDynamicParameter(DynParamImpl, ArgIndex);
-}
-#endif
 
 bool handler::eventNeeded() const { return impl->MEventNeeded; }
 
@@ -1821,17 +1769,6 @@ void handler::SetHostTask(std::function<void(interop_handle)> &&Func) {
   setType(detail::CGType::CodeplayHostTask);
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-// TODO: This function is not used anymore, remove it in the next
-// ABI-breaking window.
-void handler::addAccessorReq(detail::AccessorImplPtr Accessor) {
-  // Add accessor to the list of requirements.
-  impl->CGData.MRequirements.push_back(Accessor.get());
-  // Store copy of the accessor.
-  impl->CGData.MAccStorage.push_back(std::move(Accessor));
-}
-#endif
-
 void handler::addLifetimeSharedPtrStorage(std::shared_ptr<const void> SPtr) {
   impl->CGData.MSharedPtrStorage.push_back(std::move(SPtr));
 }
@@ -1840,10 +1777,6 @@ void handler::addArg(detail::kernel_param_kind_t ArgKind, void *Req,
                      int AccessTarget, int ArgIndex) {
   impl->MKernelData.addArg(ArgKind, Req, AccessTarget, ArgIndex);
 }
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-void handler::clearArgs() { impl->MKernelData.clearArgs(); }
-#endif
 
 void handler::setArgsToAssociatedAccessors() {
   impl->MKernelData.setArgs(impl->MAssociatedAccesors);
@@ -1912,34 +1845,6 @@ void handler::setNDRangeDescriptor(sycl::range<1> NumWorkItems,
   impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, LocalSize, Offset});
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-void handler::setKernelNameBasedCachePtr(
-    sycl::detail::KernelNameBasedCacheT *KernelNameBasedCachePtr) {
-  assert(!impl->MKernelData.getDeviceKernelInfoPtr() && "Already set!");
-  (void)KernelNameBasedCachePtr;
-  CompileTimeKernelInfoTy HandlerInfo;
-  HandlerInfo.Name = MKernelName;
-  HandlerInfo.NumParams = impl->MKernelNumArgs;
-  HandlerInfo.ParamDescGetter = impl->MKernelParamDescGetter;
-  HandlerInfo.IsESIMD = impl->MKernelIsESIMD;
-  HandlerInfo.HasSpecialCaptures = impl->MKernelHasSpecialCaptures;
-  impl->MKernelData.setDeviceKernelInfoPtr(
-      &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
-          HandlerInfo));
-}
-
-void handler::setKernelInfo(
-    void *KernelFuncPtr, int KernelNumArgs,
-    detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
-    bool KernelIsESIMD, bool KernelHasSpecialCaptures) {
-  impl->MKernelData.setKernelFunc(KernelFuncPtr);
-  impl->MKernelNumArgs = KernelNumArgs;
-  impl->MKernelParamDescGetter = KernelParamDescGetter;
-  impl->MKernelIsESIMD = KernelIsESIMD;
-  impl->MKernelHasSpecialCaptures = KernelHasSpecialCaptures;
-}
-#endif
-
 void handler::setDeviceKernelInfoPtr(
     sycl::detail::DeviceKernelInfo *DeviceKernelInfoPtr) {
   assert(!impl->MKernelData.getDeviceKernelInfoPtr() && "Already set!");
@@ -1960,12 +1865,7 @@ void handler::saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc) {
   MCodeLoc = CodeLoc;
   impl->MIsTopCodeLoc = IsTopCodeLoc;
 }
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-void handler::saveCodeLoc(detail::code_location CodeLoc) {
-  MCodeLoc = CodeLoc;
-  impl->MIsTopCodeLoc = true;
-}
-#endif
+
 void handler::copyCodeLoc(const handler &other) {
   MCodeLoc = other.MCodeLoc;
   impl->MIsTopCodeLoc = other.impl->MIsTopCodeLoc;

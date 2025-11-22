@@ -491,9 +491,7 @@ private:
 
   /// Saves the location of user's code passed in \p CodeLoc for future usage in
   /// finalize() method.
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  void saveCodeLoc(detail::code_location CodeLoc);
-#endif
+
   void saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc);
   void copyCodeLoc(const handler &other);
 
@@ -661,12 +659,8 @@ private:
 
 // Register the dynamic parameter with the handler for later association
 // with the node being added
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     registerDynamicParameter(detail::getSyclObjImpl(DynamicParam).get(),
                              ArgIndex);
-#else
-    registerDynamicParameter(DynamicParam, ArgIndex);
-#endif
   }
 
   template <typename DataT, typename PropertyListT>
@@ -717,14 +711,6 @@ private:
     addArg(detail::kernel_param_kind_t::kind_std_layout, StoredArg,
            Arg.MArgSize, ArgIndex);
   }
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // TODO: Remove in the next ABI-breaking window.
-  void registerDynamicParameter(
-      ext::oneapi::experimental::detail::dynamic_parameter_base
-          &DynamicParamBase,
-      int ArgIndex);
-#endif
 
   /// Registers a dynamic parameter with the handler for later association with
   /// the node being created.
@@ -1334,11 +1320,6 @@ private:
   void setStateSpecConstSet();
   bool isStateExplicitKernelBundle() const;
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  std::shared_ptr<detail::kernel_bundle_impl>
-  getOrInsertHandlerKernelBundle(bool Insert) const;
-#endif
-
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   // Rename to just getOrInsertHandlerKernelBundle
 #endif
@@ -1346,11 +1327,6 @@ private:
   getOrInsertHandlerKernelBundlePtr(bool Insert) const;
 
   void setHandlerKernelBundle(kernel Kernel);
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  void setHandlerKernelBundle(
-      const std::shared_ptr<detail::kernel_bundle_impl> &NewKernelBundleImpPtr);
-#endif
 
   template <typename SharedPtrT>
   void setHandlerKernelBundle(SharedPtrT &&NewKernelBundleImpPtr);
@@ -3171,9 +3147,6 @@ private:
         UserRange, KernelFunc};
   }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  const std::shared_ptr<detail::context_impl> &getContextImplPtr() const;
-#endif
   detail::context_impl &getContextImpl() const;
 
   // Checks if 2D memory operations are supported by the underlying platform.
@@ -3382,18 +3355,6 @@ private:
     }
   }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Exported on Windows for some reason, have to keep for backward ABI
-  // compatibility, at least formally.
-  void throwOnKernelParameterMisuseHelper(
-      int N, detail::kernel_param_desc_t (*f)(int)) const {
-    detail::CompileTimeKernelInfoTy Info{};
-    Info.NumParams = N;
-    Info.ParamDescGetter = f;
-    throwOnKernelParameterMisuse(Info);
-  }
-#endif
-
   template <typename T, int Dims, access::mode AccessMode,
             access::target AccessTarget,
             access::placeholder IsPlaceholder = access::placeholder::false_t,
@@ -3425,11 +3386,6 @@ private:
   }
 #endif
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Set that an ND Range was used during a call to parallel_for
-  void setNDRangeUsed(bool Value);
-#endif
-
   inline void internalProfilingTagImpl() {
     throwIfActionIsCreated();
     setType(detail::CGType::ProfilingTag);
@@ -3441,10 +3397,7 @@ private:
 
   void addArg(detail::kernel_param_kind_t ArgKind, void *Req, int AccessTarget,
               int ArgIndex);
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // TODO: remove in the next ABI-breaking window
-  void clearArgs();
-#endif
+
   void setArgsToAssociatedAccessors();
 
   bool HasAssociatedAccessor(detail::AccessorImplHost *Req,
@@ -3481,11 +3434,6 @@ private:
   void setNDRangeDescriptor(sycl::range<1> NumWorkItems, sycl::id<1> Offset);
   void setNDRangeDescriptor(sycl::range<1> NumWorkItems,
                             sycl::range<1> LocalSize, sycl::id<1> Offset);
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  void setKernelInfo(void *KernelFuncPtr, int KernelNumArgs,
-                     detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
-                     bool KernelIsESIMD, bool KernelHasSpecialCaptures);
-#endif
   void setKernelFunc(void *KernelFuncPtr);
 
   void instantiateKernelOnHost(void *InstantiateKernelOnHostPtr);
@@ -3506,10 +3454,6 @@ private:
       sycl::handler &h, size_t size,
       const ext::oneapi::experimental::memory_pool &pool);
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  void setKernelNameBasedCachePtr(
-      detail::KernelNameBasedCacheT *KernelNameBasedCachePtr);
-#endif
   void setDeviceKernelInfoPtr(detail::DeviceKernelInfo *DeviceKernelInfoPtr);
 
   queue getQueue();
