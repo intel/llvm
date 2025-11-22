@@ -16,6 +16,7 @@
 #include <helpers/MockKernelInfo.hpp>
 #include <helpers/UrMock.hpp>
 #include <sycl/detail/host_pipe_map.hpp>
+#include <detail/global_handler.hpp>
 
 class TestKernel;
 MOCK_INTEGRATION_HEADER(TestKernel)
@@ -31,6 +32,9 @@ using Pipe = sycl::ext::intel::experimental::pipe<PipeID, int, 10,
 
 static sycl::unittest::MockDeviceImage generateDefaultImage() {
   using namespace sycl::unittest;
+
+  if (!GlobalHandler::isInstanceAlive())
+      GlobalHandler::resetGlobalHandler();
 
   sycl::detail::host_pipe_map::add(Pipe::get_host_ptr(),
                                    "test_host_pipe_unique_id");

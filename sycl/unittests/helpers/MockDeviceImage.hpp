@@ -379,6 +379,10 @@ public:
   static constexpr size_t NumberOfImages = __NumberOfImages;
 
   MockDeviceImageArray(MockDeviceImage *Imgs) {
+
+    if (!GlobalHandler::isInstanceAlive())
+      GlobalHandler::resetGlobalHandler();
+
     for (size_t Idx = 0; Idx < NumberOfImages; ++Idx)
       MNativeImages[Idx] = Imgs[Idx].convertToNativeType();
 
