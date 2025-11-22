@@ -538,6 +538,10 @@ ur_result_t ur_platform_handle_t_::initialize() {
       .DriverSupportsCooperativeKernelLaunchWithArgs =
       this->isDriverVersionNewerOrSimilar(1, 6, 35005);
 
+  ZeCommandListAppendLaunchKernelWithArgumentsExt
+      .DisableZeLaunchKernelWithArgs =
+      getenv_tobool("UR_L0_V2_DISABLE_ZE_LAUNCH_KERNEL_WITH_ARGS", false);
+
   return UR_RESULT_SUCCESS;
 }
 
