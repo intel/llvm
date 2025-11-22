@@ -1457,8 +1457,8 @@ private:
   template <typename SharedPtrT>
   void setHandlerKernelBundle(SharedPtrT &&NewKernelBundleImpPtr);
 
-  void SetHostTask(std::function<void()> &&Func);
-  void SetHostTask(std::function<void(interop_handle)> &&Func);
+  void SetHostTask(std::function<void()> Func);
+  void SetHostTask(std::function<void(interop_handle)> Func);
 
   template <typename FuncT>
   std::enable_if_t<detail::check_fn_signature<std::remove_reference_t<FuncT>,
@@ -1472,7 +1472,7 @@ private:
     // accessors during finalize
     setArgsToAssociatedAccessors();
 
-    SetHostTask(std::move(Func));
+    SetHostTask(std::forward<FuncT>(Func));
   }
 
   template <typename FuncT>
@@ -1485,7 +1485,7 @@ private:
     // accessors during finalize
     setArgsToAssociatedAccessors();
 
-    SetHostTask(std::move(Func));
+    SetHostTask(std::forward<FuncT>(Func));
     setType(detail::CGType::EnqueueNativeCommand);
   }
 
@@ -1707,7 +1707,7 @@ public:
                    detail::check_fn_signature<std::remove_reference_t<FuncT>,
                                               void(interop_handle)>::value>
   host_task(FuncT &&Func) {
-    host_task_impl(Func);
+    host_task_impl(std::forward<FuncT>(Func));
   }
 
   /// Enqueues a command to the SYCL runtime to invoke \p Func immediately.
@@ -1716,7 +1716,7 @@ public:
                                               void(interop_handle)>::value>
   ext_codeplay_enqueue_native_command([[maybe_unused]] FuncT &&Func) {
 #ifndef __SYCL_DEVICE_ONLY__
-    ext_codeplay_enqueue_native_command_impl(Func);
+    ext_codeplay_enqueue_native_command_impl(std::forward<FuncT>(Func));
 #endif
   }
 

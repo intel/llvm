@@ -2045,13 +2045,13 @@ void *handler::storeRawArg(const void *Ptr, size_t Size) {
   return Storage;
 }
 
-void handler::SetHostTask(std::function<void()> &&Func) {
+void handler::SetHostTask(std::function<void()> Func) {
   setNDRangeDescriptor(range<1>(1));
   impl->MHostTask.reset(new detail::HostTask(std::move(Func)));
   setType(detail::CGType::CodeplayHostTask);
 }
 
-void handler::SetHostTask(std::function<void(interop_handle)> &&Func) {
+void handler::SetHostTask(std::function<void(interop_handle)> Func) {
   setNDRangeDescriptor(range<1>(1));
   impl->MHostTask.reset(new detail::HostTask(std::move(Func)));
   setType(detail::CGType::CodeplayHostTask);
