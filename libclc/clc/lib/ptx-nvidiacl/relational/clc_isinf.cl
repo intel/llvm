@@ -13,6 +13,15 @@ int __nv_isinfd(double);
 
 _CLC_OVERLOAD _CLC_DEF int __clc_isinf(float x) { return __nv_isinff(x); }
 
+// Simple implementation that doesn't require CUDA libdevice
+// Check if exponent is all 1s and mantissa is 0
+// _CLC_OVERLOAD _CLC_DEF int __clc_isinf(float x) {
+//  unsigned int bits = __builtin_bit_cast(unsigned int, x);
+//  // Infinity: sign bit (any), exponent (0xFF), mantissa (0x0)
+//  return ((bits & 0x7FFFFFFF) == 0x7F800000);
+//}
+// TODO double
+
 #ifdef cl_khr_fp64
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
