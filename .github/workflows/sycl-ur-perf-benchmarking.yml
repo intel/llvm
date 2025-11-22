@@ -24,6 +24,7 @@ on:
           - Full
           - SYCL
           - Minimal
+          - Core
           - Normal
           - Test
           - Gromacs

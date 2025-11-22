@@ -115,6 +115,7 @@ The available benchmarks options are:
 * `Full` (BenchDNN, Compute, Gromacs, llama, SYCL, Velocity and UMF benchmarks)
 * `SYCL` (Compute, llama, SYCL, Velocity)
 * `Minimal` (Compute)
+* `Core` (Compute: SubmitKernel)
 * `Normal` (BenchDNN, Compute, Gromacs, llama, Velocity)
 * `Gromacs` (Gromacs)
 * `OneDNN` (BenchDNN)
