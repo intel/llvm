@@ -334,6 +334,17 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 expanded = "env"
 
                 extra_env = get_extra_env([parsed_dev_name])
+                backend, device = parsed_dev_name.split(":", 1)
+                device_selector = parsed_dev_name
+                if backend == "level_zero" and device.isdigit():
+                    # When filtering to a specific Level Zero GPU via
+                    # ZE_AFFINITY_MASK, the remaining devices are
+                    # renumbered starting from zero. Keep the affinity mask
+                    # aligned with the resolved device index and address the
+                    # only visible device via selector index 0.
+                    extra_env.append(f"ZE_AFFINITY_MASK={device}")
+                    device_selector = f"{backend}:0"
+
                 if extra_env:
                     expanded += " {}".format(" ".join(extra_env))
 
@@ -343,7 +354,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                     expanded += " env UR_LOADER_USE_LEVEL_ZERO_V2=0"
 
                 expanded += " ONEAPI_DEVICE_SELECTOR={} {}".format(
-                    parsed_dev_name, test.config.run_launcher
+                    device_selector, test.config.run_launcher
                 )
                 cmd = directive.command.replace("%{run}", expanded)
                 # Expand device-specific condtions (%if ... %{ ... %}).

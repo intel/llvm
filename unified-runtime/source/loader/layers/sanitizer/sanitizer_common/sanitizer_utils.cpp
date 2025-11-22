@@ -211,6 +211,19 @@ DeviceType GetDeviceType(ur_context_handle_t Context,
     // TODO: Check fpga is fpga emulator
     return DeviceType::CPU;
   case UR_DEVICE_TYPE_GPU: {
+    // Check if this is an integrated GPU - they share system memory with CPU
+    // and should use CPU-style shadow memory layout
+    ur_bool_t IsIntegrated = false;
+    [[maybe_unused]] ur_result_t QueryResult =
+        getContext()->urDdiTable.Device.pfnGetInfo(
+            Device, UR_DEVICE_INFO_IS_INTEGRATED_GPU, sizeof(ur_bool_t),
+            &IsIntegrated, nullptr);
+    if (QueryResult == UR_RESULT_SUCCESS && IsIntegrated) {
+      UR_LOG_L(getContext()->logger, DEBUG,
+               "GetDeviceType: Integrated GPU detected, using CPU layout");
+      return DeviceType::CPU;
+    }
+
     uptr Ptr;
     [[maybe_unused]] ur_result_t Result =
         getContext()->urDdiTable.USM.pfnDeviceAlloc(Context, Device, nullptr,

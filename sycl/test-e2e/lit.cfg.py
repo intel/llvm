@@ -706,7 +706,7 @@ def remove_level_zero_suffix(devices):
 available_devices = {
     "opencl": ("cpu", "gpu", "fpga"),
     "cuda": "gpu",
-    "level_zero": "gpu",
+    "level_zero": ("gpu", "0", "1"),
     "hip": "gpu",
     "native_cpu": "cpu",
     "offload": "gpu",
@@ -917,12 +917,14 @@ for sycl_device in config.sycl_devices:
 
     env = copy.copy(llvm_config.config.environment)
 
+    backend_for_selector = backend.replace("_v2", "").replace("_v1", "")
+
     # Find all available devices under the backend
-    env["ONEAPI_DEVICE_SELECTOR"] = backend + ":*"
+    env["ONEAPI_DEVICE_SELECTOR"] = backend_for_selector + ":*"
 
     detected_architectures = []
 
-    platform_devices = remove_level_zero_suffix(backend + ":*")
+    platform_devices = backend_for_selector + ":*"
 
     for line in get_sycl_ls_verbose(platform_devices, env).stdout.splitlines():
         if re.match(r" *Architecture:", line):
@@ -1112,6 +1114,7 @@ for full_name, sycl_device in zip(
     features.update(sg_size_features)
     features.update(architecture_feature)
     features.update(device_family)
+    features.update(aspects)
 
     be, dev = sycl_device.split(":")
     features.add(dev.replace("fpga", "accelerator"))
