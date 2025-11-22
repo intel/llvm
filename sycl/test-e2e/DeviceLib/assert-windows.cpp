@@ -1,6 +1,4 @@
 // REQUIRES: windows
-// XFAIL: opencl && gpu
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/11364
 //
 // RUN: %{build} -o %t.out
 //
