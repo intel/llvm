@@ -2,7 +2,7 @@
 /// Verify --offload-new-driver option phases
 // RUN:  %clang --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda,spir64 --offload-new-driver -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=OFFLOAD-NEW-DRIVER %s
-// OFFLOAD-NEW-DRIVER: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
+// OFFLOAD-NEW-DRIVER: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
 // OFFLOAD-NEW_DRIVER: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
 // OFFLOAD-NEW_DRIVER: 2: compiler, {1}, ir, (host-sycl)
 // OFFLOAD-NEW_DRIVER: 3: input, "[[INPUT]]", c++, (device-sycl)
@@ -123,7 +123,7 @@
 // RUN:          -fsycl-targets=intel_gpu_dg1,intel_gpu_pvc \
 // RUN:          --offload-new-driver -ccc-print-phases %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=MULT_TARG_PHASES %s
-// MULT_TARG_PHASES: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
+// MULT_TARG_PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
 // MULT_TARG_PHASES: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
 // MULT_TARG_PHASES: 2: compiler, {1}, ir, (host-sycl)
 // MULT_TARG_PHASES: 3: input, "[[INPUT]]", c++, (device-sycl, dg1)
