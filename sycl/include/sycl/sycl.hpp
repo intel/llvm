@@ -122,6 +122,7 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #include <sycl/ext/oneapi/experimental/cuda/barrier.hpp>
 #include <sycl/ext/oneapi/experimental/cuda/non_uniform_algorithms.hpp>
 #include <sycl/ext/oneapi/experimental/current_device.hpp>
+#include <sycl/ext/oneapi/experimental/detail/properties/launch_config.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 #include <sycl/ext/oneapi/experimental/event_mode_property.hpp>
