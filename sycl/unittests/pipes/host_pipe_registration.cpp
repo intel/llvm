@@ -10,13 +10,13 @@
 #include <sycl/sycl.hpp>
 
 #include <detail/device_binary_image.hpp>
+#include <detail/global_handler.hpp>
 #include <detail/host_pipe_map_entry.hpp>
 #include <gtest/gtest.h>
 #include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
 #include <helpers/UrMock.hpp>
 #include <sycl/detail/host_pipe_map.hpp>
-#include <detail/global_handler.hpp>
 
 class TestKernel;
 MOCK_INTEGRATION_HEADER(TestKernel)
@@ -34,7 +34,7 @@ static sycl::unittest::MockDeviceImage generateDefaultImage() {
   using namespace sycl::unittest;
 
   if (!GlobalHandler::isInstanceAlive())
-      GlobalHandler::resetGlobalHandler();
+    GlobalHandler::resetGlobalHandler();
 
   sycl::detail::host_pipe_map::add(Pipe::get_host_ptr(),
                                    "test_host_pipe_unique_id");
