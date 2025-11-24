@@ -949,8 +949,7 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
       getUserListIgnoringCast<LoadInst>(IntrInst, TargetedInstList);
       getUserListIgnoringCast<StoreInst>(IntrInst, TargetedInstList);
       getUserListIgnoringCast<MemTransferInst>(IntrInst, TargetedInstList);
-      for (const auto &Pair : TargetedInstList) {
-        auto *Inst = Pair.first;
+      for (const auto &[Inst, MDVal] : TargetedInstList) {
         // Merge with existing metadata if present.
         SmallVector<Metadata *, 8> MDOps;
         if (MDNode *CurrentMD = Inst->getMetadata(MDKindID))
@@ -959,7 +958,7 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
         for (Metadata *Op : MDOpsCacheProp)
           MDOps.push_back(Op);
         MDOps.push_back(ConstantAsMetadata::get(Constant::getIntegerValue(
-            Type::getInt32Ty(Ctx), APInt(32, Pair.second))));
+            Type::getInt32Ty(Ctx), APInt(32, MDVal))));
         Inst->setMetadata(MDKindID, MDTuple::get(Ctx, MDOps));
       }
       // Replace all uses of ptr.annotations intrinsic with first operand and
