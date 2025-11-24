@@ -712,8 +712,8 @@
 ?SecondaryQueue@SubmissionInfo@detail@_V1@sycl@@QEBAAEBV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@XZ
 ?SecondaryQueue@SubmissionInfo@v1@detail@_V1@sycl@@QEAAAEAV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@XZ
 ?SecondaryQueue@SubmissionInfo@v1@detail@_V1@sycl@@QEBAAEBV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@XZ
-?SetHostTask@handler@_V1@sycl@@AEAAX$$QEAV?$function@$$A6AXVinterop_handle@_V1@sycl@@@Z@std@@@Z
-?SetHostTask@handler@_V1@sycl@@AEAAX$$QEAV?$function@$$A6AXXZ@std@@@Z
+?SetHostTask@handler@_V1@sycl@@AEAAXV?$function@$$A6AXVinterop_handle@_V1@sycl@@@Z@std@@@Z
+?SetHostTask@handler@_V1@sycl@@AEAAXV?$function@$$A6AXXZ@std@@@Z
 ?SetKernelLaunchpropertiesIfNotEmpty@handler@_V1@sycl@@AEAAXAEBU?$PropsHolder@Uwork_group_scratch_size@experimental@oneapi@ext@_V1@sycl@@Ucache_config@2intel@456@Uuse_root_sync_key@23456@Uwork_group_progress_key@23456@Usub_group_progress_key@23456@Uwork_item_progress_key@23456@U?$cluster_size@$00@cuda@23456@U?$cluster_size@$01@cuda@23456@U?$cluster_size@$02@cuda@23456@@kernel_launch_properties_v1@detail@23@@Z
 ?__abs_diff_impl@_V1@sycl@@YA?AV?$vec@C$00@12@V312@0@Z
 ?__abs_diff_impl@_V1@sycl@@YA?AV?$vec@C$01@12@V312@0@Z
