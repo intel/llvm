@@ -211,8 +211,8 @@ struct ur_command_list_manager {
   ur_result_t appendKernelLaunch(
       ur_kernel_handle_t hKernel, uint32_t workDim,
       const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-      const size_t *pLocalWorkSize, uint32_t numPropsInLaunchPropList,
-      const ur_kernel_launch_property_t *launchPropList,
+      const size_t *pLocalWorkSize,
+      const ur_kernel_launch_ext_properties_t *launchPropList,
       uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
       ur_event_handle_t phEvent);
   ur_result_t
@@ -238,8 +238,7 @@ struct ur_command_list_manager {
       const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
       const size_t *pLocalWorkSize, uint32_t numArgs,
       const ur_exp_kernel_arg_properties_t *pArgs,
-      uint32_t numPropsInLaunchPropList,
-      const ur_kernel_launch_property_t *launchPropList,
+      const ur_kernel_launch_ext_properties_t *launchPropList,
       uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
       ur_event_handle_t phEvent);
 
@@ -249,8 +248,7 @@ private:
       const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
       const size_t *pLocalWorkSize, uint32_t numArgs,
       const ur_exp_kernel_arg_properties_t *pArgs,
-      uint32_t numPropsInLaunchPropList,
-      const ur_kernel_launch_property_t *launchPropList,
+      const ur_kernel_launch_ext_properties_t *launchPropList,
       uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
       ur_event_handle_t phEvent);
 
@@ -258,9 +256,10 @@ private:
       ur_kernel_handle_t hKernel, uint32_t workDim,
       const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
       const size_t *pLocalWorkSize, uint32_t numArgs,
-      const ur_exp_kernel_arg_properties_t *pArgs, uint32_t numEventsInWaitList,
-      const ur_event_handle_t *phEventWaitList, ur_event_handle_t phEvent,
-      bool cooperativeKernelLaunchRequested);
+      const ur_exp_kernel_arg_properties_t *pArgs,
+      const ur_kernel_launch_ext_properties_t *launchPropList,
+      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+      ur_event_handle_t phEvent);
 
   ur_result_t appendGenericCommandListsExp(
       uint32_t numCommandLists, ze_command_list_handle_t *phCommandLists,
@@ -281,7 +280,7 @@ private:
       uint32_t workDim, const size_t *pGlobalWorkOffset,
       const size_t *pGlobalWorkSize, const size_t *pLocalWorkSize,
       wait_list_view &waitListView, ur_event_handle_t phEvent, bool cooperative,
-      std::vector<void *> *pKMemObj = nullptr, void *pNext = nullptr);
+      bool callWithArgs = false, void *pNext = nullptr);
 
   ur_result_t appendKernelLaunchUnlocked(
       ur_kernel_handle_t hKernel, uint32_t workDim,

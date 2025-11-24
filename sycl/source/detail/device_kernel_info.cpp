@@ -24,7 +24,6 @@ DeviceKernelInfo::DeviceKernelInfo(const CompileTimeKernelInfoTy &Info)
 
 void DeviceKernelInfo::init(KernelNameStrRefT KernelName) {
   auto &PM = detail::ProgramManager::getInstance();
-  MUsesAssert = PM.kernelUsesAssert(KernelName);
   MImplicitLocalArgPos = PM.kernelImplicitLocalArgPos(KernelName);
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   MInitialized.store(true);
@@ -72,27 +71,6 @@ void DeviceKernelInfo::setCompileTimeInfoIfNeeded(
   assert(isCompileTimeInfoSet());
 #endif
   assert(Info == *this);
-}
-
-FastKernelSubcacheT &DeviceKernelInfo::getKernelSubcache() {
-  assertInitialized();
-  return MFastKernelSubcache;
-}
-bool DeviceKernelInfo::usesAssert() {
-  assertInitialized();
-  return MUsesAssert;
-}
-const std::optional<int> &DeviceKernelInfo::getImplicitLocalArgPos() {
-  assertInitialized();
-  return MImplicitLocalArgPos;
-}
-
-bool DeviceKernelInfo::isCompileTimeInfoSet() const { return KernelSize != 0; }
-
-void DeviceKernelInfo::assertInitialized() {
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  assert(MInitialized.load() && "Data needs to be initialized before use");
-#endif
 }
 
 } // namespace detail

@@ -851,14 +851,22 @@ PreservedAnalyses SYCLLowerWGScopePass::run(Function &F,
         }
         continue;
       }
-      // In addition to an instruction not having side effects, we end the range
-      // if the instruction is a call that contains, possibly several layers
-      // down the stack, a call to a parallel_for_work_item. Such calls should
-      // not be subject to lowering since they must be executed by every work
-      // item.
+      // We also split the range if the instruction is a call that contains,
+      // possibly several layers down the stack, a call to a
+      // parallel_for_work_item. Such calls should not be subject to lowering
+      // since they must be executed by every work item.
       const CallInst *Call = dyn_cast<CallInst>(I);
-      if (!mayHaveSideEffects(I) ||
-          (Call && hasCallToAFuncWithPFWIMetadata(*Call->getCalledFunction())))
+      if (Call && hasCallToAFuncWithPFWIMetadata(*Call->getCalledFunction())) {
+        if (First) {
+          assert(Last && "range must have been closed 1");
+          Ranges.push_back(InstrRange{First, Last});
+          First = nullptr;
+          Last = nullptr;
+        }
+        continue;
+      }
+
+      if (!mayHaveSideEffects(I))
         continue;
       LLVM_DEBUG(llvm::dbgs() << "+++ Side effects: " << *I << "\n");
       if (!First)

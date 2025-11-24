@@ -445,7 +445,7 @@ void *MemoryManager::allocateMemSubBuffer(context_impl *TargetContext,
   ur_result_t Error = UR_RESULT_SUCCESS;
   ur_buffer_region_t Region = {UR_STRUCTURE_TYPE_BUFFER_REGION, nullptr, Offset,
                                SizeInBytes};
-  ur_mem_handle_t NewMem;
+  ur_mem_handle_t NewMem = nullptr;
   adapter_impl &Adapter = TargetContext->getAdapter();
   Error = Adapter.call_nocheck<UrApiKind::urMemBufferPartition>(
       ur::cast<ur_mem_handle_t>(ParentMemObj), UR_MEM_FLAG_READ_WRITE,

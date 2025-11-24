@@ -51,14 +51,6 @@ __SYCL_EXPORT std::error_code make_error_code(sycl::errc E) noexcept;
 __SYCL_EXPORT const std::error_category &sycl_category() noexcept;
 
 namespace detail {
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-__SYCL_EXPORT const char *stringifyErrorCode(int32_t error);
-
-inline std::string codeToString(int32_t code) {
-  return std::to_string(code) + " (" + std::string(stringifyErrorCode(code)) +
-         ")";
-}
-#endif
 
 class __SYCL_EXPORT SYCLCategory : public std::error_category {
 public:
@@ -82,34 +74,21 @@ public:
   virtual ~exception();
 
   exception(std::error_code Ec, const char *Msg)
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-      : exception(Ec, nullptr, Msg) {}
-#endif
-        ;
+      : exception(Ec, nullptr, Msg) {};
 
   exception(std::error_code Ec, const std::string &Msg)
       : exception(Ec, nullptr, Msg.c_str()) {}
 
-  exception(std::error_code Ec)
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-      : exception(Ec, nullptr, "") {}
-#endif
-        ;
+  exception(std::error_code Ec) : exception(Ec, nullptr, "") {};
 
   exception(int EV, const std::error_category &ECat, const std::string &WhatArg)
       : exception(std::error_code(EV, ECat), nullptr, WhatArg.c_str()) {}
 
   exception(int EV, const std::error_category &ECat, const char *WhatArg)
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-      : exception(std::error_code(EV, ECat), nullptr, WhatArg) {}
-#endif
-        ;
+      : exception(std::error_code(EV, ECat), nullptr, WhatArg) {};
 
   exception(int EV, const std::error_category &ECat)
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-      : exception(std::error_code(EV, ECat), nullptr, "") {}
-#endif
-        ;
+      : exception(std::error_code(EV, ECat), nullptr, "") {};
 
   // context.hpp depends on exception.hpp but we can't define these ctors in
   // exception.hpp while context is still an incomplete type.
@@ -140,17 +119,6 @@ private:
   std::error_code MErrC = make_error_code(sycl::errc::invalid);
 
 protected:
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // base constructors used by SYCL 1.2.1 exception subclasses
-  exception(std::error_code Ec, const char *Msg, const int32_t PIErr)
-      : exception(Ec, std::string(Msg), PIErr) {}
-
-  exception(std::error_code Ec, const std::string &Msg, const int32_t URErr)
-      : exception(Ec, nullptr, Msg + " " + detail::codeToString(URErr)) {
-    MErr = URErr;
-  }
-#endif
-
   // base constructor for all SYCL 2020 constructors
   // exception(context *, std::error_code, const std::string);
   exception(std::error_code Ec, std::shared_ptr<context> SharedPtrCtx,
