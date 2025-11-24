@@ -4474,7 +4474,6 @@
 ?use_kernel_bundle@handler@_V1@sycl@@QEAAXAEBV?$kernel_bundle@$01@23@@Z
 ?verifyReductionProps@detail@_V1@sycl@@YAXAEBVproperty_list@23@@Z
 ?verifyUSMAllocatorProperties@_V1@sycl@@YAXAEBVproperty_list@12@@Z
-?verifyUsedKernelBundle@handler@_V1@sycl@@AEAAXAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
 ?verifyUsedKernelBundleInternal@handler@_V1@sycl@@AEAAXVstring_view@detail@23@@Z
 ?wait@event@_V1@sycl@@QEAAXXZ
 ?wait@event@_V1@sycl@@SAXAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@@Z
