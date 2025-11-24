@@ -177,8 +177,7 @@ void foo(TYPE *in, TYPE *out, size_t *align_out, size_t *size_out, bool *equal_o
 
   TEST(sycl::id<1>, 0x1122334455667788)
   TEST2(sycl::id<2>, 0x1122334455667788, 0x1223344556677889)
-  TEST3(sycl::id<3>, 0x1122334455667788, 0x1223344556677889,
-        0x132435465768798A)
+  TEST3(sycl::id<3>, 0x1122334455667788, 0x1223344556677889, 0x132435465768798A)
 
   // Making these work with macros would be too much work:
   Test(sycl::nd_range<1>{{0x1122334455667788}, {0x1223344556677889}},
