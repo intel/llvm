@@ -52,7 +52,12 @@ public:
   }
 };
 
-template <> class imf_utils_default_equ<float> {
+template <class Ty> class imf_utils_fp_equ {
+public:
+  bool operator()(Ty x, Ty y) { return x == y; }
+};
+
+template <> class imf_utils_fp_equ<float> {
 public:
   bool operator()(float x, float y) {
     if ((__builtin_isinf_sign(x) * __builtin_isinf_sign(y)) == 1)
@@ -66,7 +71,7 @@ public:
   }
 };
 
-template <> class imf_utils_default_equ<sycl::half> {
+template <> class imf_utils_fp_equ<sycl::half> {
 public:
   bool operator()(sycl::half x, sycl::half y) {
     float xf = static_cast<float>(x);
@@ -82,9 +87,10 @@ public:
   }
 };
 
-template <> class imf_utils_default_equ<sycl::ext::oneapi::bfloat16> {
+template <> class imf_utils_fp_equ<sycl::ext::oneapi::bfloat16> {
 public:
-  bool operator()(sycl::ext::oneapi::bfloat16 x, sycl::ext::oneapi::bfloat16 y) {
+  bool operator()(sycl::ext::oneapi::bfloat16 x,
+                  sycl::ext::oneapi::bfloat16 y) {
     float xf = static_cast<float>(x);
     float yf = static_cast<float>(y);
     if ((__builtin_isinf_sign(xf) * __builtin_isinf_sign(yf)) == 1)
@@ -119,8 +125,7 @@ void test_host(std::initializer_list<InputTy> Input,
   }
 }
 
-template <class InputTy, class FuncTy,
-          class EquTy = imf_utils_default_equ<InputTy>>
+template <class InputTy, class FuncTy, class EquTy = imf_utils_fp_equ<InputTy>>
 void test(sycl::queue &q, std::initializer_list<InputTy> Input, FuncTy Func,
           int Line = __builtin_LINE()) {
   auto Size = Input.size();
