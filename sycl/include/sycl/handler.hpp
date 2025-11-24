@@ -653,8 +653,8 @@ private:
     // Set the arg in the handler as normal
     setArgHelper(ArgIndex, std::move(ArgValue));
 
-// Register the dynamic parameter with the handler for later association
-// with the node being added
+    // Register the dynamic parameter with the handler for later association
+    // with the node being added
     registerDynamicParameter(detail::getSyclObjImpl(DynamicParam).get(),
                              ArgIndex);
   }
