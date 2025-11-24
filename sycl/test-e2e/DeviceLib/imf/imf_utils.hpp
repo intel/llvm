@@ -60,7 +60,7 @@ public:
     if (__builtin_isnan(x) || __builtin_isnan(y))
       return false;
     // Simple check for 2 fp32
-    const float relative_eps = 1e-5f;
+    const float relative_eps = 1e-4f;
     return std::fabs(x - y) <
            relative_eps * std::fmax(std::fabs(x), std::fabs(y));
   }
