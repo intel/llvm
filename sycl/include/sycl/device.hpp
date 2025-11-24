@@ -38,6 +38,7 @@ namespace sycl {
 inline namespace _V1 {
 // Forward declarations
 class platform;
+class context;
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
@@ -352,6 +353,11 @@ public:
     detail::string profile = ext_oneapi_cl_profile_impl();
     return profile.c_str();
   }
+
+  /// Shortcut for get_platform().khr_get_default_context().
+  ///
+  /// \return the default context
+  context ext_oneapi_get_default_context();
 
 // TODO: Remove this diagnostics when __SYCL_WARN_IMAGE_ASPECT is removed.
 #if defined(__clang__)
