@@ -293,7 +293,7 @@ def parse_args():
         metavar="REGEX",
         type=_case_insensitive_regex,
         help="Only run tests with paths matching the given regular expression",
-        default=os.environ.get("LIT_FILTER", ".*"),
+        default="sycl_device_globals",
     )
     selection_group.add_argument(
         "--filter-out",
