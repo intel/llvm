@@ -337,6 +337,8 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 backend, device = parsed_dev_name.split(":", 1)
                 device_selector = parsed_dev_name
                 if backend == "level_zero" and device.isdigit():
+                    # level_zero:0 maps to a selector for the first GPU, so pin
+                    # execution to the requested device via ZE_AFFINITY_MASK.
                     extra_env.append(f"ZE_AFFINITY_MASK={device}")
                     device_selector = f"{backend}:0"
 
