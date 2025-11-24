@@ -16,9 +16,10 @@
 
 #pragma once
 
+#include "queue_extensions.hpp"
 #include <ur_api.h>
 
-struct ur_queue_t_ {
+struct ur_queue_t_ : ur_queue_extensions {
   virtual ~ur_queue_t_();
 
   virtual ur_result_t queueGetInfo(ur_queue_info_t, size_t, void *,
