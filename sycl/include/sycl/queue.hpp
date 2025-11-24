@@ -4065,7 +4065,8 @@ namespace detail {
 template <detail::WrapAs WrapAs, typename LambdaArgType, typename KernelName,
           bool EventNeeded, typename PropertiesT,
           typename KernelTypeUniversalRef, int Dims>
-auto submit_kernel_direct(const queue &Queue, detail::nd_range_view RangeView,
+auto submit_kernel_direct(const queue &Queue,
+                          const detail::nd_range_view &RangeView,
                           KernelTypeUniversalRef &&KernelFunc,
                           sycl::span<const event> DepEvents,
                           const PropertiesT &ExtraProps,
@@ -4233,8 +4234,8 @@ auto submit_kernel_direct_parallel_for(const queue &Queue, range<Dims> Range,
                                      KTypeWrapper, NameWT>;
 #ifndef __SYCL_DEVICE_ONLY__
     // We are executing over the rounded range, but there are still
-    // items/ids that are are constructed in ther range rounded
-    // kernel use items/ids in the user range, which means that
+    // items/ids that are constructed in the range rounded
+    // kernel, use items/ids in the user range, which means that
     // __SYCL_ASSUME_INT can still be violated. So check the bounds
     // of the user range, instead of the rounded range.
     detail::checkValueRange<Dims>(Range);

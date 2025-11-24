@@ -33,9 +33,13 @@ public:
   NDRDescT(const NDRDescT &Desc) = default;
   NDRDescT(NDRDescT &&Desc) = default;
 
-  NDRDescT(const detail::nd_range_view &NDRangeView) : Dims{NDRangeView.MDims} {
+  NDRDescT(const detail::nd_range_view &NDRangeView,
+           bool SetNumWorkGroups = false)
+      : Dims{NDRangeView.MDims} {
     if (!NDRangeView.MGlobalSize) {
       init();
+    } else if (!NDRangeView.MLocalSize) {
+      init(&(NDRangeView.MGlobalSize[0]), SetNumWorkGroups);
     } else {
       init(NDRangeView.MGlobalSize, NDRangeView.MLocalSize,
            NDRangeView.MOffset);
@@ -44,19 +48,7 @@ public:
 
   template <int Dims_>
   NDRDescT(sycl::range<Dims_> N, bool SetNumWorkGroups) : Dims{size_t(Dims_)} {
-    if (SetNumWorkGroups) {
-      for (size_t I = 0; I < Dims_; ++I) {
-        NumWorkGroups[I] = N[I];
-      }
-    } else {
-      for (size_t I = 0; I < Dims_; ++I) {
-        GlobalSize[I] = N[I];
-      }
-
-      for (size_t I = Dims_; I < 3; ++I) {
-        GlobalSize[I] = 1;
-      }
-    }
+    init(&(N[0]), SetNumWorkGroups);
   }
 
   template <int Dims_>
@@ -109,6 +101,22 @@ public:
   size_t Dims = 0;
 
 private:
+  void init(const size_t *N, bool SetNumWorkGroups) {
+    if (SetNumWorkGroups) {
+      for (size_t I = 0; I < Dims; ++I) {
+        NumWorkGroups[I] = N[I];
+      }
+    } else {
+      for (size_t I = 0; I < Dims; ++I) {
+        GlobalSize[I] = N[I];
+      }
+
+      for (size_t I = Dims; I < 3; ++I) {
+        GlobalSize[I] = 1;
+      }
+    }
+  }
+
   void init(const size_t *NumWorkItems, const size_t *LocalSizes,
             const size_t *Offset) {
     for (size_t I = 0; I < Dims; ++I) {
