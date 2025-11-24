@@ -1,3 +1,14 @@
+include(CPackComponent)
+cpack_add_component_group(libsycldevice
+  DISPLAY_NAME "libsycldevice"
+  DESCRIPTION "libsycldevice")
+# SYCL RTC needs to embed libsycldevice as a resource inside libsycl-jit.so, but
+# only .bc files are necessary:
+cpack_add_component_group(libsycldevice-bc
+  PARENT_GROUP libsycldevice
+  DISPLAY_NAME "libsycldevice-bc"
+  DESCRIPTION "libsycldevice-bc")
+
 include(CheckCXXCompilerFlag)
 set(obj_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 set(obj-new-offload_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
@@ -18,6 +29,10 @@ else()
 endif()
 set(spv-suffix spv)
 set(bc-suffix bc)
+set(obj-install-component libsycldevice)
+set(obj-new-offload-install-component libsycldevice)
+set(spv-install-component libsycldevice)
+set(bc-install-component libsycldevice-bc)
 set(bc_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 set(install_dest_obj lib${LLVM_LIBDIR_SUFFIX})
 set(install_dest_obj-new-offload lib${LLVM_LIBDIR_SUFFIX})
@@ -172,7 +187,7 @@ function(compile_lib_ext filename)
 
   install( FILES ${devicelib-file}
            DESTINATION ${install_dest_${ARG_FILETYPE}}
-           COMPONENT libsycldevice)
+           COMPONENT ${${ARG_FILETYPE}-install-component})
 endfunction()
 
 # Links together one or more bytecode files
@@ -453,7 +468,7 @@ if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   add_dependencies(libsycldevice-bc libsycl-nativecpu_utils-bc)
   install(FILES ${bc_binary_dir}/libsycl-nativecpu_utils.bc
           DESTINATION ${install_dest_bc}
-          COMPONENT libsycldevice)
+          COMPONENT libsycldevice-bc)
 endif()
 
 check_cxx_compiler_flag(-Wno-invalid-noreturn HAS_NO_INVALID_NORETURN_WARN_FLAG)
@@ -831,7 +846,7 @@ foreach(arch IN LISTS full_build_archs)
     $<TARGET_PROPERTY:prepare-devicelib-${arch}.bc,TARGET_FILE>)
   install( FILES ${complete_${arch}_libdev}
            DESTINATION ${install_dest_bc}
-           COMPONENT libsycldevice)
+           COMPONENT libsycldevice-bc)
 endforeach()
 
 # Add host device imf libraries for obj and new offload objects.
@@ -886,7 +901,7 @@ foreach(ftype IN ITEMS obj obj-new-offload)
 
   install( FILES ${obj_binary_dir}/${devicelib_host_static_${ftype}}
            DESTINATION ${install_dest_obj}
-           COMPONENT libsycldevice)
+           COMPONENT ${${ARG_FILETYPE}-install-component})
 endforeach()
 
 foreach(ftype IN LISTS filetypes)
@@ -895,7 +910,7 @@ foreach(ftype IN LISTS filetypes)
           ${${ftype}_binary_dir}/libsycl-fallback-imf-fp64.${${ftype}-suffix}
           ${${ftype}_binary_dir}/libsycl-fallback-imf-bf16.${${ftype}-suffix}
     DESTINATION ${install_dest_${ftype}}
-    COMPONENT libsycldevice)
+    COMPONENT ${${ARG_FILETYPE}-install-component})
 endforeach()
 
 set(libsycldevice_build_targets)

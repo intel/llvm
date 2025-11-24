@@ -18,12 +18,14 @@ set(SYCL_JIT_RESOURCE_INSTALL_COMPONENTS
   sycl-headers
   OpenCL-Headers
   clang-resource-headers
-  libsycldevice)
+  libsycldevice-bc)
+set(SYCL_JIT_RESOURCE_DEPS sycl-headers clang-resource-headers libsycldevice)
 
 if ("libclc" IN_LIST LLVM_ENABLE_PROJECTS)
   # If some targets required `libclc` then we should embed it for the
   # `sycl-jit`.
   list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS libspirv-builtins)
+  list(APPEND SYCL_JIT_RESOURCE_DEPS libspirv-builtins)
 endif()
 
 set(SYCL_JIT_RESOURCE_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-install)
@@ -35,9 +37,6 @@ foreach(component IN LISTS SYCL_JIT_RESOURCE_INSTALL_COMPONENTS)
   )
 endforeach()
 
-set(SYCL_JIT_RESOURCE_DEPS ${SYCL_JIT_RESOURCE_INSTALL_COMPONENTS})
-  # OpenCL-Headers doesn't have a corresponding build target:
-list(FILTER SYCL_JIT_RESOURCE_DEPS EXCLUDE REGEX "^OpenCL-Headers$")
 
 # This is very hacky and I don't quite know what I'm doing, but it's necessary
 # to have `resource.cpp` re-generated/re-built when some SYCL header changes.
