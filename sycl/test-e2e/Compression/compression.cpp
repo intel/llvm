@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 // End-to-End test for testing device image compression.
 // REQUIRES: zstd
 

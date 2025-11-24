@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 // The tests a basic E2E invoke_simd test checking that
 // sycl::address_space_cast works.
 

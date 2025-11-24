@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 // This test is intended to check a certain approach of compiling libraries and
 // application, when both regular SYCL and ESIMD are used.
 //

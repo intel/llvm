@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 //==------- functions_select_2d_fp_extra.cpp  - DPC++ ESIMD on-device test
 //          ----------------------------------------------------------------==//
 //

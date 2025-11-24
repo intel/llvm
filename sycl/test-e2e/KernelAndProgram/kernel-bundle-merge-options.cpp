@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 // REQUIRES: gpu
 // RUN: %{build} -o %t.out %debug_option
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s

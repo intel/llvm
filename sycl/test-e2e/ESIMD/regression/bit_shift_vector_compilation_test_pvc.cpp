@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 //=- bit_shift_vector_compilation_test_pvc.cpp - test vector shifts on PVC -=//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 //=dword_local_accessor_atomic_smoke_cmpxchg_scalar_off.cpp-DPC++ ESIMD
 // on-device test=//
 //

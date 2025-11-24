@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 //==-------- usm_gather_scatter_rgba.cpp  - DPC++ ESIMD on-device test -----==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

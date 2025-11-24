@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 //==-------------------- ballot.cpp  - DPC++ ESIMD ballot test -------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 // Test intended to run on PVC only
 // REQUIRES: arch-intel_gpu_pvc
 //

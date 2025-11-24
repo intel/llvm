@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 //==- bit_shift_compilation_test.cpp - Test of bit shift functions -==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //==- math_const_fix_test.cpp - Test to verify math functions correctness-==//

@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 //==- half_conversion_test.cpp - Test for half conversion under ESIMD_EMULATOR

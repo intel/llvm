@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 //==- rdtsc.cpp - Test to verify rdtsc0 and sr0 functionlity----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

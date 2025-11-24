@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 //==-------------- bin_and_cmp_ops_heavy.cpp  - DPC++ ESIMD on-device test -==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

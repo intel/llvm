@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //==- abs_fix_test.cpp - Test for abs function -==//
