@@ -716,7 +716,7 @@ static inline _iml_half __fsigm(_iml_half x) {
   return _iml_half(__float2half(res));
 #elif defined(__SPIR__) || defined(__SPIRV__)
   _iml_half_internal tmp_x = x.get_internal();
-  float res_f = 1.0f / (1.0f  + __half2float(__spirv_ocl_exp(-tmp_x)));
+  float res_f = 1.0f / (1.0f + __half2float(__spirv_ocl_exp(-tmp_x)));
   return __float2half(res_f);
 #endif
 }

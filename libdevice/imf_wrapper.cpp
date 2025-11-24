@@ -2355,7 +2355,7 @@ DEVICE_EXTERN_C_INLINE
 _iml_half_internal __devicelib_imf_fsigmf16(_iml_half_internal x);
 
 DEVICE_EXTERN_C_INLINE _iml_half_internal __imf_fsigmf16(_iml_half_internal x) {
-  return __devicelib_imf_fsigmf16 (x);
+  return __devicelib_imf_fsigmf16(x);
 }
 
 DEVICE_EXTERN_C_INLINE float __imf_fsigmf(float x) {
