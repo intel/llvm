@@ -167,5 +167,6 @@
 // CHECK-NEXT: ext/oneapi/device_global/properties.hpp
 // CHECK-NEXT: ext/oneapi/experimental/raw_kernel_arg.hpp
 // CHECK-NEXT: kernel.hpp
+// CHECK-NEXT: range_rounding.hpp
 // CHECK-NEXT: sampler.hpp
 // CHECK-EMPTY:

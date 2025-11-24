@@ -151,8 +151,8 @@
 // CHECK-NEXT: ext/oneapi/bindless_images_mem_handle.hpp
 // CHECK-NEXT: ext/oneapi/experimental/raw_kernel_arg.hpp
 // CHECK-NEXT: kernel.hpp
-// CHECK-NEXT: sampler.hpp
 // CHECK-NEXT: range_rounding.hpp
+// CHECK-NEXT: sampler.hpp
 // CHECK-NEXT: sycl_span.hpp
 // CHECK-NEXT: feature_test.hpp
 // CHECK-EMPTY:
