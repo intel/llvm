@@ -17,6 +17,22 @@
 #define STRINGIFY(x) #x
 #define EXPAND_AND_STRINGIFY(x) STRINGIFY(x)
 
+// Needs to be duplicated between host/device. @{
+
+// Comma would make preprocessor macro trickier.
+using mint3 = sycl::marray<int, 3>;
+
+enum E {
+  V0 = 0x12345689,
+};
+static_assert(sizeof(E) == 4);
+enum class ScopedE {
+  ScopedV0 = 0x12345689,
+};
+static_assert(sizeof(ScopedE) == 4);
+
+// }@
+
 namespace syclexp = sycl::ext::oneapi::experimental;
 int main() {
   sycl::queue q;
@@ -34,6 +50,15 @@ namespace syclext = sycl::ext::oneapi;
 namespace syclexp = sycl::ext::oneapi::experimental;
 
 using mint3 = sycl::marray<int, 3>;
+
+enum E {
+  V0 = 0x12345689,
+};
+static_assert(sizeof(E) == 4);
+enum class ScopedE {
+  ScopedV0 = 0x12345689,
+};
+static_assert(sizeof(ScopedE) == 4);
 
 extern "C"
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::single_task_kernel))
@@ -150,11 +175,34 @@ void foo(TYPE *in, TYPE *out, size_t *align_out, size_t *size_out, bool *equal_o
   TEST3(sycl::range<3>, 0x1122334455667788, 0x1223344556677889,
         0x132435465768798A)
 
+  TEST(sycl::id<1>, 0x1122334455667788)
+  TEST2(sycl::id<2>, 0x1122334455667788, 0x1223344556677889)
+  TEST3(sycl::id<3>, 0x1122334455667788, 0x1223344556677889,
+        0x132435465768798A)
+
+  // Making these work with macros would be too much work:
+  Test(sycl::nd_range<1>{{0x1122334455667788}, {0x1223344556677889}},
+       "sycl::nd_range<1>", "{0x1122334455667788}, {0x1223344556677889}");
+  Test(sycl::nd_range<2>{{0x1122334455667788, 0x2132435465768798},
+                         {0x1223344556677889, 0x2233445586778899}},
+       "sycl::nd_range<2>",
+       "{0x1122334455667788, 0x2132435465768798}, {0x1223344556677889, "
+       "0x2233445586778899}");
+  Test(
+      sycl::nd_range<3>{
+          {0x1122334455667788, 0x2132435465768798, 0x31525364758697A8},
+          {0x1223344556677889, 0x2233445586778899, 0x32435465768798A9}},
+      "sycl::nd_range<3>",
+      "{0x1122334455667788, 0x2132435465768798, 0x31525364758697A8}, "
+      "{0x1223344556677889, 0x2233445586778899, 0x32435465768798A9}");
+
   TEST2(sycl::short2, 0x1234, 0x2345)
   TEST3(sycl::short3, 0x1234, 0x2345, 0x3456)
 
-  using mint3 = sycl::marray<int, 3>;
   TEST3(mint3, 0x1234, 0x2345, 0x3456)
+
+  TEST(E, V0)
+  TEST(ScopedE, ScopedE::ScopedV0)
 
   sycl::free(align, q);
   sycl::free(size, q);

@@ -1199,6 +1199,44 @@ this extension.
 
 == Non-normative implementation notes for {dpcpp}
 
+=== C/{cpp} header files and limitations when the language is sycl
+
+By default, the SYCL runtime compiler uses a self-contained set of C and {cpp}
+header files when compiling kernels in the `sycl` language. This means that SYCL
+applications using this feature can be run even on a system that does not have
+these headers installed. However, the self contained header files may not be the
+same as the C and {cpp} header files that were used to build the host part of
+the SYCL application. As a result, there are additional limitations around data
+that is shared between the host part of the application and the kernel. These
+limitations apply to arguments that are passed to the kernel and also to data
+shared through USM or through accessors. Additionally, other header files might
+be installed in the same location as system C headers (e.g., `/usr/include/`).
+Those will not be available as well.
+
+Types that are defined by the compiler (e.g. fundamental types like `int` and
+`float`) are guaranteed to have the same representation and alignment
+requirements in both the host compiler and in the compiler used to compile the
+kernel. Therefore data using these types can be safely shared. However, types
+defined by the C or {cpp} library (e.g. types in the `std` namespace) are not
+guaranteed to be the same, so data defined using these types cannot be safely
+shared. There are a few specific exceptions to this limitation. The following C
+/ {cpp} types are guaranteed to have the same representation and alignment
+requirements, so data defined as these types can be safely shared:
+
+* The following fixed-width integer types: `int8_t`, `int16_t`, `int32_t`,
+`int64_t`, `uint8_t`, `uint16_t`, `uint32_t`, `uint64_t`.
+* The types `size_t` and `ptrdiff_t`.
+
+Array and class types defined by your application are safe to share so long as
+the element types are safe. Pointer types are safe to share so long as the
+pointed-at type is safe. Enumeration types defined by your application are also
+safe.
+
+It is also possible to use the system C and C++ headers instead of the
+self-contained versions. See the description of the
+`--sycl-rtc-use-system-includes` option for more details.
+
+
 === Supported `build_options` when the language is `sycl`
 
 The SYCL runtime compiler supports the following {dpcpp} options to be passed in
@@ -1358,44 +1396,6 @@ Option has no effect if the target defaults to using system headers by
 default.
 
 === Known issues and limitations when the language is `sycl`
-
-==== C/{cpp} header files
-
-By default, the SYCL runtime compiler uses a self-contained set of C and {cpp}
-header files when compiling kernels in the `sycl` language (unless target has
-other dependencies in system includes). This means that SYCL applications using
-this feature can be run even on a system that does not have these headers
-installed. However, the self contained header files may not be the same as the C
-and {cpp} header files that were used to build the host part of the SYCL
-application. As a result, there are additional limitations around data that is
-shared between the host part of the application and the kernel. These
-limitations apply to arguments that are passed to the kernel and also to data
-shared through USM or through accessors. Additionally, other header files might
-be installed in the same location as system C headers (e.g., `/usr/include/`).
-Those will not be available as well.
-
-Types that are defined by the compiler (e.g. fundamental types like `int` and
-`float`) are guaranteed to have the same representation and alignment
-requirements in both the host compiler and in the compiler used to compile the
-kernel. Therefore data using these types can be safely shared. However, types
-defined by the C or {cpp} library (e.g. types in the `std` namespace) are not
-guaranteed to be the same, so data defined using these types cannot be safely
-shared. There are a few specific exceptions to this limitation. The following C
-/ {cpp} types are guaranteed to have the same representation and alignment
-requirements, so data defined as these types can be safely shared:
-
-* The following fixed-width integer types: `int8_t`, `int16_t`, `int32_t`,
-`int64_t`, `uint8_t`, `uint16_t`, `uint32_t`, `uint64_t`.
-* The types `size_t` and `ptrdiff_t`.
-
-Array and class types defined by your application are safe to share so long as
-the element types are safe. Pointer types are safe to share so long as the
-pointed-at type is safe. Enumeration types defined by your application are also
-safe.
-
-It is also possible to use the system C and C++ headers instead of the
-self-contained versions. See the description of the
-`--sycl-rtc-use-system-includes` option for more details.
 
 ==== Changing the compiler action or output
 
