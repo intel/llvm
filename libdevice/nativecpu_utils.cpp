@@ -95,13 +95,9 @@ DefGenericCastToPtrExpl(ToGlobal, OCL_GLOBAL);
   DefSubgroupBlockINTEL_vt(Type, v8)
 
 namespace ncpu_types {
-template <typename T>
-using opencl_type_t =
-    decltype(sycl::detail::convertToOpenCLType(std::declval<T>()));
 template <typename DataT, int NumElements>
-using vector_t = std::conditional_t<
-    NumElements == 1, opencl_type_t<DataT>,
-    opencl_type_t<DataT __attribute__((ext_vector_type(NumElements)))>>;
+using vector_t =
+    sycl::detail::ConvertToOpenCLType_t<sycl::vec<DataT, NumElements>>;
 
 template <class T> struct vtypes {
   using v2 = vector_t<T, 2>;
