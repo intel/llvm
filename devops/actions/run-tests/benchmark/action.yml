@@ -298,19 +298,21 @@ runs:
         ${{ inputs.dry_run == 'true' && '--dry-run' || '' }} \
 
       echo "::endgroup::"
-
+  - name: Run benchmarks integration tests
+    shell: bash
+    if: ${{ github.event_name == 'pull_request' }}
+    run: |
       # Run benchmarks' integration tests
+
       # NOTE: Each integration test prints its own group name as part of test script
-      if [ '${{ github.event_name == 'pull_request' }}' = 'true' ]; then
-        export LLVM_BENCHMARKS_UNIT_TESTING=1
-        export COMPUTE_BENCHMARKS_BUILD_PATH=$WORKDIR/compute-benchmarks-build
-        python3 ./devops/scripts/benchmarks/tests/test_integration.py
-      fi
+      export LLVM_BENCHMARKS_UNIT_TESTING=1
+      export COMPUTE_BENCHMARKS_BUILD_PATH=$BENCH_WORKDIR/compute-benchmarks-build
+      python3 ./devops/scripts/benchmarks/tests/test_integration.py
   - name: Cache changes and upload github summary
     if: always()
     shell: bash
     run: |
-      # Cache changes and upload github summaries
+      # Upload github summaries and cache changes
       [ -f "github_summary_exe.md" ] && cat github_summary_exe.md >> $GITHUB_STEP_SUMMARY
       [ -f "github_summary_reg.md" ] && cat github_summary_reg.md >> $GITHUB_STEP_SUMMARY
 
