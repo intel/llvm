@@ -209,7 +209,7 @@ Descriptions should:
     * If adding to an existing category, modify the corresponding `Suite` class (e.g., `benches/compute.py`) to instantiate and return your new benchmark in its `benchmarks()` method.
     * If creating a new category, create a new `Suite` class inheriting from `benches.base.Suite`. Implement `name()` and `benchmarks()`. Add necessary `setup()` if the suite requires shared setup. Add group metadata via `additional_metadata()` if needed.
 3. **Register Suite:** Import and add your new `Suite` instance to the `suites` list in `main.py`.
-4. **Add to Presets:** If adding a new suite, add its `name()` to the relevant lists in `presets.py` (e.g., "Full", "Normal") so it runs with those presets. Update `README.md` and benchmarking workflow to include the new suite in presets' description/choices. Don't forget to create a new Suite object in `main.py`.
+4. **Add to Presets:** If adding a new suite, add its `name()` to the relevant lists in `presets.py` (e.g., "Full", "Normal") so it runs with those presets. Update `README.md` and benchmarking workflow to include the new suite in presets' description/choices.
 
 ## Recommendations
 
