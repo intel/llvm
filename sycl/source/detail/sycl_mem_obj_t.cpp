@@ -141,7 +141,7 @@ void SYCLMemObjT::updateHostMemory(void *const Ptr) {
 }
 
 void SYCLMemObjT::updateHostMemory() {
-  // Don't try updating host memory when stutting down.
+  // Don't try updating host memory when shutting down.
   if ((MUploadDataFunctor != nullptr) && MNeedWriteBack &&
       GlobalHandler::instance().isOkToDefer())
     MUploadDataFunctor();
@@ -156,7 +156,7 @@ void SYCLMemObjT::updateHostMemory() {
     std::ignore = Result; // for no assert build
 
     // removeMemoryObject might fail during shutdown because of not being
-    // able to hold write lock. This can happen if shutdown happen due to
+    // able to hold write lock. This can happen if shutdown happens due to
     // exception/termination while holding lock.
     assert(
         (Result || !GlobalHandler::instance().isOkToDefer()) &&
