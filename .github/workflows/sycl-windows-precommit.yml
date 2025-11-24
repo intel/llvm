@@ -57,6 +57,7 @@ jobs:
     with:
       changes: ${{ needs.detect_changes.outputs.filters }}
       e2e_binaries_artifact: sycl_windows_e2ebin
+      e2e_with_new_offload_model_binaries_artifact: sycl_windows_e2ebin_with_new_offload_model
 
   run_prebuilt_e2e_tests:
     needs: build
@@ -82,3 +83,29 @@ jobs:
       toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
       testing_mode: run-only
       binaries_artifact: sycl_windows_e2ebin
+
+  run_prebuilt_e2e_with_new_offload_model_tests:
+    needs: build
+    # Continue if build was successful.
+    if: |
+      !cancelled() &&
+      needs.build.outputs.build_conclusion == 'success' &&
+      contains(github.event.pull_request.labels.*.name, 'new-offload-model')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Intel GEN12 Graphics with Level Zero
+            runner: '["Windows","gen12"]'
+          - name: Intel Arc Graphics with Level Zero
+            runner: '["Windows","arc"]'
+          - name: Intel Battlemage Graphics with Level Zero
+            runner: '["Windows","bmg"]'
+    uses: ./.github/workflows/sycl-windows-run-tests.yml
+    with:
+      name: ${{ matrix.name }}
+      runner: ${{ matrix.runner }}
+      target_devices: "level_zero:gpu"
+      toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
+      testing_mode: run-only
+      binaries_artifact: sycl_windows_e2ebin_with_new_offload_model
