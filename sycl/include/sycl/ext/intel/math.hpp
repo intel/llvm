@@ -21,6 +21,8 @@ using _iml_half_internal = _Float16;
 using _iml_half_internal = uint16_t;
 #endif
 
+using _iml_bf16_internal = uint16_t;
+
 #include <sycl/bit_cast.hpp>
 #include <sycl/builtins.hpp>
 #include <sycl/ext/intel/math/imf_fp_conversions.hpp>
@@ -43,6 +45,9 @@ _iml_half_internal __imf_ceilf16(_iml_half_internal);
 float __imf_floorf(float);
 double __imf_floor(double);
 _iml_half_internal __imf_floorf16(_iml_half_internal);
+float __imf_fsigmf(float);
+_iml_half_internal __imf_fsigmf16(_iml_half_internal);
+_iml_bf16_internal __imf_fsigmbf16(_iml_bf16_internal x);
 float __imf_rintf(float);
 double __imf_rint(double);
 _iml_half_internal __imf_invf16(_iml_half_internal);
@@ -241,6 +246,33 @@ std::enable_if_t<std::is_same_v<Tp, sycl::half2>, sycl::half2> trunc(Tp x) {
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, double>, double> rcp64h(Tp x) {
   return __imf_rcp64h(x);
+}
+/// --------------------------------------------------------------------------
+/// sigmoid(x) function
+/// --------------------------------------------------------------------------
+extern "C" {
+_iml_bf16_internal __imf_fsigmbf16(_iml_bf16_internal x);
+_iml_half_internal __imf_fsigmf16(_iml_half_internal x);
+float __imf_fsigmf(float x);
+};
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, sycl::half>, sycl::half> sigmoid(Tp x) {
+  _iml_half_internal xi = sycl::bit_cast<_iml_half_internal>(x);
+  return sycl::bit_cast<sycl::half>(__imf_fsigmf16(xi));
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, sycl::ext::oneapi::bfloat16>,
+                 sycl::ext::oneapi::bfloat16>
+sigmoid(Tp x) {
+  _iml_bf16_internal xi = sycl::bit_cast<_iml_bf16_internal>(x);
+  return sycl::bit_cast<sycl::ext::oneapi::bfloat16>(__imf_fsigmbf16(xi));
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, float>, float> sigmoid(Tp x) {
+  return __imf_fsigmf(x);
 }
 
 } // namespace ext::intel::math
