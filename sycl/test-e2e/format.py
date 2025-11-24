@@ -343,6 +343,12 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 expanded = "env"
 
                 extra_env = get_extra_env([parsed_dev_name])
+                backend, device = parsed_dev_name.split(":", 1)
+                device_selector = parsed_dev_name
+                if backend == "level_zero" and device.isdigit():
+                    extra_env.append(f"ZE_AFFINITY_MASK={device}")
+                    device_selector = f"{backend}:0"
+
                 if extra_env:
                     expanded += " {}".format(" ".join(extra_env))
 

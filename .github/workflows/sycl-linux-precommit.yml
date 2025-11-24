@@ -193,6 +193,7 @@ jobs:
             runner: '["Linux", "bmg"]'
             # runner: '["Linux", "L0v2"]'
             target_devices: level_zero_v2:arch-intel_gpu_mtl_u
+            extra_lit_opts: -j 12 
 
           # We're in an ABI-breaking window, so these don't make sense for now.
           - name: ABI compatibility / sycl-rel-6_2
