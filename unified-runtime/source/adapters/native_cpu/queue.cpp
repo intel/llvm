@@ -21,6 +21,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
                                                    size_t *pPropSizeRet) {
 
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
+  ur_queue_flags_t flags = 0;
 
   switch (propName) {
   case UR_QUEUE_INFO_CONTEXT:
@@ -31,6 +32,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
     return ReturnValue(hQueue->getReferenceCount());
   case UR_QUEUE_INFO_EMPTY:
     return ReturnValue(hQueue->isEmpty());
+  case UR_QUEUE_INFO_FLAGS:
+    if (!hQueue->isInOrder()) {
+      flags |= UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+    }
+    if (hQueue->isProfiling()) {
+      flags |= UR_QUEUE_FLAG_PROFILING_ENABLE;
+    }
+
+    return ReturnValue(flags);
   default:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
