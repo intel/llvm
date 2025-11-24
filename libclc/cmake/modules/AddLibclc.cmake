@@ -253,10 +253,12 @@ endfunction()
 # Install libclc artifacts.
 #
 # Arguments:
+#  * COMPONENT <string>
+#      Installation component name.
 #  * FILES <string> ...
 #      List of libclc artifact files to be installed.
 function(libclc_install)
-  cmake_parse_arguments(ARG "" "" "FILES" ${ARGN})
+  cmake_parse_arguments(ARG "" "COMPONENT" "FILES" ${ARGN})
 
   if( NOT ARG_FILES )
     message( FATAL_ERROR "Must provide FILES" )
@@ -274,6 +276,7 @@ function(libclc_install)
   install(
     FILES ${files}
     DESTINATION ${LIBCLC_INSTALL_DIR}
+    COMPONENT ${ARG_COMPONENT}
   )
 endfunction()
 
@@ -509,7 +512,7 @@ function(add_libclc_builtin_set)
   # targets dependent on libclc.
   add_dependencies( ${ARG_PARENT_TARGET} prepare-${ARG_TRIPLE} )
 
-  libclc_install(FILES ${libclc_builtins_lib})
+  libclc_install( COMPONENT ${ARG_PARENT_TARGET} FILES ${libclc_builtins_lib} )
 
   # SPIR-V targets can exit early here
   if( ARG_ARCH STREQUAL spirv OR ARG_ARCH STREQUAL spirv64 )
@@ -556,7 +559,7 @@ function(add_libclc_builtin_set)
         add_dependencies( ${ARG_PARENT_TARGET} ${remangled_filename} )
 
         # Keep remangled variants
-        libclc_install( FILES ${builtins_remangle_path} )
+        libclc_install( COMPONENT ${ARG_PARENT_TARGET} FILES ${builtins_remangle_path} )
       endforeach()
     endforeach()
 
@@ -615,7 +618,9 @@ function(add_libclc_builtin_set)
     set_target_properties( alias-${alias_suffix}
       PROPERTIES FOLDER "libclc/Device IR/Aliases"
     )
-    libclc_install(FILES ${LIBCLC_OUTPUT_LIBRARY_DIR}/${alias_suffix})
+    libclc_install( COMPONENT ${ARG_PARENT_TARGET}
+      FILES ${LIBCLC_OUTPUT_LIBRARY_DIR}/${alias_suffix}
+    )
   endforeach( a )
 endfunction(add_libclc_builtin_set)
 
