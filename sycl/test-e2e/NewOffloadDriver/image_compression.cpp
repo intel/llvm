@@ -22,7 +22,7 @@
 // Make sure the clang-linker-wrapper is called with the --compress
 // option when using the new offloading model.
 // RUN: %{run-aux} %clangxx --offload-new-driver --offload-compress -fsycl -fsycl-link -fsycl-targets=spir64_x86_64 -fPIC %t_kernel1_aot.o %t_kernel2_aot.o -o %t_compressed_image.o -### &> %t_driver_opts.txt
-// RUN: FileCheck -input-file=%t_driver_opts.txt %s --check-prefix=CHECK-DRIVER-OPTS
+// RUN: %{run-aux} FileCheck -input-file=%t_driver_opts.txt %s --check-prefix=CHECK-DRIVER-OPTS
 
 // CHECK-DRIVER-OPTS: clang-linker-wrapper{{.*}} "--compress"
 
