@@ -1050,15 +1050,6 @@ void handler::extractArgsAndReqsFromLambda(
 }
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-// Calling methods of kernel_impl requires knowledge of class layout.
-// As this is impossible in header, there's a function that calls necessary
-// method inside the library and returns the result.
-detail::ABINeutralKernelNameStrT handler::getKernelName() {
-  return MKernel->getName();
-}
-#endif
-
 void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
   detail::kernel_bundle_impl *UsedKernelBundleImplPtr =
       getOrInsertHandlerKernelBundlePtr(/*Insert=*/false);
