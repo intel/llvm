@@ -165,7 +165,10 @@ void foo(TYPE *in, TYPE *out, size_t *align_out, size_t *size_out, bool *equal_o
   TEST(ptrdiff_t, 0x1122334455667788)
 
   TEST(float, 42.0f)
-  TEST(double, 42.0)
+  if (q.get_device().has(sycl::aspect::fp64)) {
+    TEST(double, 42.0)
+  }
+
 
   TEST(sycl::half, 42.0f)
   TEST(sycl::ext::oneapi::bfloat16, 42.0f)
