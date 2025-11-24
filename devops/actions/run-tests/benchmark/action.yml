@@ -63,6 +63,7 @@ runs:
       # TODO: in terms of security, is this overkill?
       if [ -z "$(printf '%s' "$RUNNER_NAME" | grep -oE '^[a-zA-Z0-9_-]+$')" ]; then
           echo "Bad runner name, please ensure runner name is [a-zA-Z0-9_-]."
+          echo "**Error:** Bad runner name '$RUNNER_NAME', please ensure runner name is [a-zA-Z0-9_-]." >> $GITHUB_STEP_SUMMARY
           exit 1
       fi
 
@@ -80,7 +81,11 @@ runs:
 
       # Make sure specified preset is a known value and is not malicious
       python3 ./devops/scripts/benchmarks/presets.py query "$PRESET"
-      [ "$?" -ne 0 ] && exit 1  # Stop workflow if invalid preset
+      if [ "$?" -ne 0 ]; then
+        echo "Unknown preset $PRESET!"
+        echo "**Error:** Unknown benchmark preset '$PRESET'! Please see /devops/scripts/benchmarks/presets.py for available presets." >> $GITHUB_STEP_SUMMARY
+        exit 1  # Stop workflow if invalid preset
+      fi
       echo "PRESET=$PRESET" >> $GITHUB_ENV
   - name: Set NUMA node to run benchmarks on
     shell: bash
@@ -203,6 +208,8 @@ runs:
         opencl:*) SAVE_SUFFIX="OCL" ;;
         *) SAVE_SUFFIX="${ONEAPI_DEVICE_SELECTOR%%:*}";;
       esac
+      # Reminder: MACHINE_TYPE determined here is used again below to ensure
+      # intended device is used for benchmarks.
       case "$RUNNER_TAG" in
         '["PVC_PERF"]') MACHINE_TYPE="PVC" ;;
         '["BMG_PERF"]') MACHINE_TYPE="BMG" ;;
@@ -212,6 +219,61 @@ runs:
           MACHINE_TYPE="${MACHINE_TYPE%_PERF=\"]}"
           ;;
       esac
+
+      # Explicitly ensure we are using the intended device, not i.e. an
+      # integrated GPU on the runner.
+      #
+      # Note that we already use ZE_AFFINITY_MASK, but in the offchance the
+      # intended device isn't available, ZE_AFFINITY_MASK would result in the
+      # benchmarks running on an unwanted device. 
+
+      echo "Searching for a $MACHINE_TYPE device..."
+      explicit_device_sel=""
+
+      sycl_ls_out="$(mktemp)"
+      sycl-ls 2>/dev/null > "$sycl_ls_out"
+      while IFS= read -r device; do
+        # Separate device selector id from e.g. '[level_zero:gpu][level_zero:0]'
+        if [ -n "$(echo "$device" | grep -E '^\[[a-z_]+:[a-z]+\] ')" ]; then
+          # Only 1 device exists: [backend:dev] device
+          device_sel=${device%%] *}
+          device_sel=${device_sel#[}
+        elif [ -n "$(echo "$device" | grep -E '^\[[a-z_]+:[a-z]+\]\[[a-z_]+:[0-9]+\] ')" ]; then
+          # Multiple devices exist: [backend:dev][backend:id] device
+          device_sel=${device%%] *}
+          device_sel=${device_sel#*][}
+        else
+          echo "Unknown sycl-ls format: Expecting '[backend:dev] device' or '[backend:dev][backend:id] device'."
+          sycl-ls
+          echo "**Error:** Unknown sycl-ls format: Expecting '[backend:dev] device' or '[backend:dev][backend:id] device':" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          sycl-ls >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          exit 1
+        fi
+        case "${device#* }" in
+          *'Data Center GPU Max'*) device_sel_type="PVC" ;;
+          *'B580 Graphics'*) device_sel_type="BMG" ;;
+          *) device_sel_type="unknown";;
+        esac
+        if [ "$device_sel_type" = "$MACHINE_TYPE" ]; then
+          echo "Device '$MACHINE_TYPE' found at $device_sel."
+          explicit_device_sel="$device_sel"
+          break
+        fi
+      done < "$sycl_ls_out"
+      if [ -z "$explicit_device_sel" ]; then
+        echo "Error: Unable to find MACHINE_TYPE '$MACHINE_TYPE' on runner!"
+        sycl-ls
+        echo "**Error:** Unable to find requested device '$MACHINE_TYPE' on runner $RUNNER_TAG! Devices available:" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        sycl-ls >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        exit 1
+      fi
+      export ONEAPI_DEVICE_SELECTOR="$explicit_device_sel"
+
+      # Construct save name for benchmark results:
       SAVE_NAME="${SAVE_PREFIX}_${MACHINE_TYPE}_${SAVE_SUFFIX}"
       echo "SAVE_NAME=$SAVE_NAME" >> $GITHUB_ENV
       SAVE_TIMESTAMP="$(date -u +'%Y%m%d_%H%M%S')"  # Timestamps are in UTC time
