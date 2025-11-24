@@ -1,7 +1,8 @@
 // End-to-End test for testing device image compression when we
 // separately compile and link device images.
-// This test is tested with the old offloading model and the image
-// compression test for the new offloading model is in NewOffloadDriver/image_compression.cpp
+// This test validates the old offloading model. 
+// The corresponding image compression test for the new offloading
+// model can be found in NewOffloadDriver/image_compression.cpp
 
 // REQUIRES: zstd, opencl-aot, cpu, linux
 
@@ -19,8 +20,8 @@
 //////////////////////   Link device images
 // RUN: %{run-aux} %clangxx --no-offload-new-driver --offload-compress -fsycl -fsycl-link -fsycl-targets=spir64_x86_64 -fPIC %t_kernel1_aot.o %t_kernel2_aot.o -o %t_compressed_image.o -v
 
-// Make sure the clang-offload-wrapper is called with the --offload-compress when using the old offloading model
-// option.
+// Make sure the clang-offload-wrapper is called with the --offload-compress
+// option when using the old offloading model.
 // RUN: %{run-aux} %clangxx --no-offload-new-driver --offload-compress -fsycl -fsycl-link -fsycl-targets=spir64_x86_64 -fPIC %t_kernel1_aot.o %t_kernel2_aot.o -o %t_compressed_image.o -### &> %t_driver_opts.txt
 // RUN: %{run-aux} FileCheck -input-file=%t_driver_opts.txt %s --check-prefix=CHECK-DRIVER-OPTS
 
