@@ -1,6 +1,6 @@
 // End-to-End test for testing device image compression when we
 // separately compile and link device images.
-// This test validates the old offloading model. 
+// This test validates the old offloading model.
 // The corresponding image compression test for the new offloading
 // model can be found in NewOffloadDriver/image_compression.cpp
 
