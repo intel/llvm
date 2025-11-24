@@ -38,10 +38,6 @@ using namespace sycl;
 
 constexpr size_t MagicY = 33, MagicZ = 64;
 
-range<1> Range1 = {0};
-range<2> Range2 = {0, 0};
-range<3> Range3 = {0, 0, 0};
-
 template <typename T> class Kernel1;
 template <typename T> class Kernel2;
 template <typename T> class Kernel3;
@@ -70,6 +66,8 @@ void try_1d_range(size_t size, bool useShortcutFunction) {
   range<1> *RangePtr = malloc_shared<range<1>>(1, Queue);
   int *CounterPtr = malloc_shared<int>(1, Queue);
   IndexCheckT *ItemIndexesPtr = malloc_shared<IndexCheckT>(Range[0], Queue);
+
+  (*CounterPtr) = 0;
 
   auto KernelFunc = [=](KernelIdT I) {
     auto atm = atomic_ref<int, sycl::memory_order::relaxed,
@@ -111,6 +109,8 @@ void try_2d_range(size_t size, bool useShortcutFunction) {
   int *CounterPtr = malloc_shared<int>(1, Queue);
   IndexCheckT *ItemIndexesPtr =
       malloc_shared<IndexCheckT>(Range[0] * Range[1], Queue);
+
+  (*CounterPtr) = 0;
 
   auto KernelFunc = [=](KernelIdT I) {
     auto atm = atomic_ref<int, sycl::memory_order::relaxed,
@@ -155,6 +155,8 @@ void try_3d_range(size_t size, bool useShortcutFunction) {
   IndexCheckT *ItemIndexesPtr =
       malloc_shared<IndexCheckT>(Range[0] * Range[1] * Range[2], Queue);
 
+  (*CounterPtr) = 0;
+
   auto KernelFunc = [=](KernelIdT I) {
     auto atm = atomic_ref<int, sycl::memory_order::relaxed,
                           sycl::memory_scope::device>(*CounterPtr);
@@ -166,7 +168,7 @@ void try_3d_range(size_t size, bool useShortcutFunction) {
     ItemIndexesPtr[Idx] = IndexCheckT(I[0], I[1], I[2]);
   };
 
-  command_submit_wrappers::parallel_for_wrapper<Kernel2<KernelIdT>>(
+  command_submit_wrappers::parallel_for_wrapper<Kernel3<KernelIdT>>(
       useShortcutFunction, Queue, Range, KernelFunc);
 
   Queue.wait();
@@ -196,6 +198,8 @@ void try_unnamed_lambda(size_t size, bool useShortcutFunction) {
 
   range<3> *RangePtr = malloc_shared<range<3>>(1, Queue);
   int *CounterPtr = malloc_shared<int>(1, Queue);
+
+  (*CounterPtr) = 0;
 
   auto KernelFunc = [=](id<3> ID) {
     auto atm = atomic_ref<int, sycl::memory_order::relaxed,

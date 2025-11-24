@@ -25,6 +25,7 @@ void try_rounding_off(size_t size, bool useShortcutFunction) {
   queue Queue;
   range<1> *RangePtr = malloc_shared<range<1>>(1, Queue);
   int *CounterPtr = malloc_shared<int>(1, Queue);
+  (*CounterPtr) = 0;
 
   std::cout << "Run parallel_for" << std::endl;
   auto KernelFunc = [=](item<1> id) {
