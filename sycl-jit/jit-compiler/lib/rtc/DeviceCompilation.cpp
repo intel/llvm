@@ -854,12 +854,14 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
 
   LLVMContext &Context = Module.getContext();
   for (const std::string &LibName : LibNames) {
-    std::string LibPath =
-        (SYCLToolchain::instance().getPrefix() + "/lib/" + LibName).str();
+    std::string LibPath;
     if (LibName.find("libspirv") != std::string::npos) {
-      SmallString<256> LibraryPath(D.GetResourcesPath(LibPath));
+      SmallString<256> LibraryPath(D.ResourceDir);
       sys::path::append(LibraryPath, "lib", "libclc", LibName);
-      LibPath = LibraryPath.str().str();
+      LibPath = LibraryPath.str();
+    } else {
+      LibPath =
+          (SYCLToolchain::instance().getPrefix() + "/lib/" + LibName).str();
     }
 
     ModuleUPtr LibModule;
