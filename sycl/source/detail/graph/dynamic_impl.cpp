@@ -309,12 +309,8 @@ void dynamic_command_group_impl::finalizeCGFList(
     const auto &CGF = CGFList[CGFIndex];
     // Handler defined inside the loop so it doesn't appear to the runtime
     // as a single command-group with multiple commands inside.
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     detail::handler_impl HandlerImpl{*MGraph};
     sycl::handler Handler{HandlerImpl};
-#else
-    sycl::handler Handler{MGraph};
-#endif
     CGF(Handler);
 
     if (Handler.getType() != sycl::detail::CGType::Kernel &&
