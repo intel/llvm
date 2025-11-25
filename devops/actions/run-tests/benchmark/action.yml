@@ -139,20 +139,24 @@ runs:
       NUMA_NODE=0
       echo "ZE_AFFINITY_MASK=$NUMA_NODE" >> $GITHUB_ENV
       echo "NUMA_NODE=$NUMA_NODE" >> $GITHUB_ENV
-  - name: Set env var for results branch
+  - name: Set env var for results branch and repo path
+    id: results_repo
     shell: bash
     run: |
       # Set env var for results branch
 
-      # Set BENCHMARK_RESULTS_BRANCH globally for all subsequent steps.
-      # This has to be done this way because of limits of composite actions.
+      # Set BENCHMARK_RESULTS_BRANCH as output var, for all subsequent steps to use.
+      # Done this way due to limits of composite actions and security reasons (output is better than env).
       BENCHMARK_RESULTS_BRANCH="sycl-benchmark-ci-results"
-      echo "BENCHMARK_RESULTS_BRANCH=$BENCHMARK_RESULTS_BRANCH" >> $GITHUB_ENV
+      echo "BENCHMARK_RESULTS_BRANCH=$BENCHMARK_RESULTS_BRANCH" >> $GITHUB_OUTPUT
+
+      BENCHMARK_RESULTS_REPO_PATH="./llvm-ci-perf-results"
+      echo "BENCHMARK_RESULTS_REPO_PATH=$BENCHMARK_RESULTS_REPO_PATH" >> $GITHUB_OUTPUT
   - name: Checkout results repo
     uses: actions/checkout@v5
     with:
-      ref: ${{ env.BENCHMARK_RESULTS_BRANCH }}
-      path: ./llvm-ci-perf-results
+      ref: ${{ steps.results_repo.outputs.BENCHMARK_RESULTS_BRANCH }}
+      path: ${{ steps.results_repo.outputs.BENCHMARK_RESULTS_REPO_PATH }}
       persist-credentials: true
   # Compute-benchmarks relies on UR static libraries, cmake config files, etc.
   # DPC++ doesn't ship with these files. The easiest way of obtaining these
@@ -273,8 +277,8 @@ runs:
         --adapter "$FORCELOAD_ADAPTER" \
         --save "$SAVE_NAME" \
         --output-html remote \
-        --results-dir "./llvm-ci-perf-results/" \
-        --output-dir "./llvm-ci-perf-results/" \
+        --results-dir "${{ steps.results_repo.outputs.BENCHMARK_RESULTS_REPO_PATH }}/" \
+        --output-dir "${{ steps.results_repo.outputs.BENCHMARK_RESULTS_REPO_PATH }}/" \
         --preset "$PRESET" \
         --timestamp-override "$SAVE_TIMESTAMP" \
         --detect-version sycl,compute_runtime \
@@ -289,8 +293,8 @@ runs:
         --avg-type EWMA \
         --cutoff "$(date -u -d '7 days ago' +'%Y%m%d_%H%M%S')" \
         --name "$SAVE_NAME" \
-        --compare-file "./llvm-ci-perf-results/results/${SAVE_NAME}_${SAVE_TIMESTAMP}.json" \
-        --results-dir "./llvm-ci-perf-results/results/" \
+        --compare-file "${{ steps.results_repo.outputs.BENCHMARK_RESULTS_REPO_PATH }}/results/${SAVE_NAME}_${SAVE_TIMESTAMP}.json" \
+        --results-dir "${{ steps.results_repo.outputs.BENCHMARK_RESULTS_REPO_PATH }}/results/" \
         --regression-filter '^[a-z_]+_sycl .* CPU count' \
         --regression-filter-type 'SYCL benchmark (measured using CPU cycle count)' \
         --verbose \
@@ -316,7 +320,7 @@ runs:
       [ -f "github_summary_exe.md" ] && cat github_summary_exe.md >> $GITHUB_STEP_SUMMARY
       [ -f "github_summary_reg.md" ] && cat github_summary_reg.md >> $GITHUB_STEP_SUMMARY
 
-      cd "./llvm-ci-perf-results"
+      cd "${{ steps.results_repo.outputs.BENCHMARK_RESULTS_REPO_PATH }}"
       git add .
       for diff in $(git diff HEAD --name-only); do
         mkdir -p "../cached_changes/$(dirname $diff)"
@@ -327,7 +331,7 @@ runs:
     shell: bash
     run: |
       # Push benchmarks results
-      cd "./llvm-ci-perf-results"
+      cd "${{ steps.results_repo.outputs.BENCHMARK_RESULTS_REPO_PATH }}"
       git config user.name "github-actions[bot]"
       git config user.email "github-actions[bot]@users.noreply.github.com"
 
@@ -352,7 +356,7 @@ runs:
           cached_result="$(mktemp -d)/$(basename $results_file)"
           mv "$results_file" "$cached_result"
 
-          git reset --hard "origin/$BENCHMARK_RESULTS_BRANCH"
+          git reset --hard "origin/${{ steps.results_repo.outputs.BENCHMARK_RESULTS_BRANCH }}"
           git pull
 
           mv "$cached_result" "$results_file"
@@ -363,8 +367,8 @@ runs:
         ./devops/scripts/benchmarks/main.py \
           "$(realpath ./llvm_test_workdir)" \
           --output-html remote \
-          --results-dir "./llvm-ci-perf-results/" \
-          --output-dir "./llvm-ci-perf-results/" \
+          --results-dir "${{ steps.results_repo.outputs.BENCHMARK_RESULTS_REPO_PATH }}/" \
+          --output-dir "${{ steps.results_repo.outputs.BENCHMARK_RESULTS_REPO_PATH }}/" \
           --dry-run
         cd -
       done
