@@ -132,6 +132,10 @@ runs:
         echo "Using SYCL from: $CMPLR_ROOT !"
         echo "CMPLR_ROOT=$CMPLR_ROOT" >> $GITHUB_ENV
       fi
+
+      # Set BENCH_WORKDIR env var
+      export BENCH_WORKDIR="$(realpath ./llvm_test_workdir)"
+      echo "BENCH_WORKDIR=$BENCH_WORKDIR" >> $GITHUB_ENV
   - name: Set NUMA node to run benchmarks on
     shell: bash
     run: |
@@ -255,12 +259,13 @@ runs:
       sycl-ls --verbose
   - name: Build and run benchmarks
     shell: bash
+    env:
+      BENCH_WORKDIR: ${{ env.BENCH_WORKDIR }}
+      BENCHMARK_RESULTS_REPO_PATH: ${{ steps.results_repo.outputs.BENCHMARK_RESULTS_REPO_PATH }}
     run: |
       # Build and run benchmarks
 
       echo "::group::setup_workdir"
-      export BENCH_WORKDIR="$(realpath ./llvm_test_workdir)"
-      echo "BENCH_WORKDIR=$BENCH_WORKDIR" >> $GITHUB_ENV
       if [ -n "$BENCH_WORKDIR" ] && [ -d "$BENCH_WORKDIR" ] && [[ "$BENCH_WORKDIR" == *llvm_test_workdir* ]]; then rm -rf "$BENCH_WORKDIR" ; fi
 
       # Clean up potentially existing, old summary files
@@ -277,8 +282,8 @@ runs:
         --adapter "$FORCELOAD_ADAPTER" \
         --save "$SAVE_NAME" \
         --output-html remote \
-        --results-dir "${{ steps.results_repo.outputs.BENCHMARK_RESULTS_REPO_PATH }}/" \
-        --output-dir "${{ steps.results_repo.outputs.BENCHMARK_RESULTS_REPO_PATH }}/" \
+        --results-dir "${BENCHMARK_RESULTS_REPO_PATH}/" \
+        --output-dir "${BENCHMARK_RESULTS_REPO_PATH}/" \
         --preset "$PRESET" \
         --timestamp-override "$SAVE_TIMESTAMP" \
         --detect-version sycl,compute_runtime \
@@ -293,8 +298,8 @@ runs:
         --avg-type EWMA \
         --cutoff "$(date -u -d '7 days ago' +'%Y%m%d_%H%M%S')" \
         --name "$SAVE_NAME" \
-        --compare-file "${{ steps.results_repo.outputs.BENCHMARK_RESULTS_REPO_PATH }}/results/${SAVE_NAME}_${SAVE_TIMESTAMP}.json" \
-        --results-dir "${{ steps.results_repo.outputs.BENCHMARK_RESULTS_REPO_PATH }}/results/" \
+        --compare-file "${BENCHMARK_RESULTS_REPO_PATH}/results/${SAVE_NAME}_${SAVE_TIMESTAMP}.json" \
+        --results-dir "${BENCHMARK_RESULTS_REPO_PATH}/results/" \
         --regression-filter '^[a-z_]+_sycl .* CPU count' \
         --regression-filter-type 'SYCL benchmark (measured using CPU cycle count)' \
         --verbose \
@@ -305,6 +310,8 @@ runs:
   - name: Run benchmarks integration tests
     shell: bash
     if: ${{ github.event_name == 'pull_request' }}
+    env:
+      BENCH_WORKDIR: ${{ env.BENCH_WORKDIR }}
     run: |
       # Run benchmarks' integration tests
 
@@ -320,7 +327,7 @@ runs:
       [ -f "github_summary_exe.md" ] && cat github_summary_exe.md >> $GITHUB_STEP_SUMMARY
       [ -f "github_summary_reg.md" ] && cat github_summary_reg.md >> $GITHUB_STEP_SUMMARY
 
-      cd "${{ steps.results_repo.outputs.BENCHMARK_RESULTS_REPO_PATH }}"
+      cd "${BENCHMARK_RESULTS_REPO_PATH}"
       git add .
       for diff in $(git diff HEAD --name-only); do
         mkdir -p "../cached_changes/$(dirname $diff)"
@@ -329,9 +336,12 @@ runs:
   - name: Push benchmarks results
     if: always() && inputs.upload_results == 'true'
     shell: bash
+    env:
+      BENCHMARK_RESULTS_REPO_PATH: ${{ steps.results_repo.outputs.BENCHMARK_RESULTS_REPO_PATH }}
+      BENCHMARK_RESULTS_BRANCH: ${{ steps.results_repo.outputs.BENCHMARK_RESULTS_BRANCH }}
     run: |
       # Push benchmarks results
-      cd "${{ steps.results_repo.outputs.BENCHMARK_RESULTS_REPO_PATH }}"
+      cd "${BENCHMARK_RESULTS_REPO_PATH}"
       git config user.name "github-actions[bot]"
       git config user.email "github-actions[bot]@users.noreply.github.com"
 
@@ -356,7 +366,7 @@ runs:
           cached_result="$(mktemp -d)/$(basename $results_file)"
           mv "$results_file" "$cached_result"
 
-          git reset --hard "origin/${{ steps.results_repo.outputs.BENCHMARK_RESULTS_BRANCH }}"
+          git reset --hard "origin/${BENCHMARK_RESULTS_BRANCH}"
           git pull
 
           mv "$cached_result" "$results_file"
@@ -367,8 +377,8 @@ runs:
         ./devops/scripts/benchmarks/main.py \
           "$(realpath ./llvm_test_workdir)" \
           --output-html remote \
-          --results-dir "${{ steps.results_repo.outputs.BENCHMARK_RESULTS_REPO_PATH }}/" \
-          --output-dir "${{ steps.results_repo.outputs.BENCHMARK_RESULTS_REPO_PATH }}/" \
+          --results-dir "${BENCHMARK_RESULTS_REPO_PATH}/" \
+          --output-dir "${BENCHMARK_RESULTS_REPO_PATH}/" \
           --dry-run
         cd -
       done
