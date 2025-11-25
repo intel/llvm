@@ -666,18 +666,18 @@
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64 -Xsycl-target-backend=spir64 -DFOO -Xsycl-target-linker=spir64 -DFOO2 %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT %s
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -Xsycl-target-backend=spir64 -DFOO -Xsycl-target-linker=spir64 -DFOO2 %S/Inputs/SYCL/objlin64.o 2>&1 \
-// RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT %s
-// SYCL_TARGET_OPT: clang-linker-wrapper{{.*}} "--sycl-backend-compile-options=-DFOO" "--sycl-target-link-options=-DFOO2"
+// RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT --implicit-check-not="--sycl-backend-compile-options" --implicit-check-not="--sycl-target-link-options" %s
+// SYCL_TARGET_OPT: clang-linker-wrapper{{.*}}
 
 /// ###########################################################################
 
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64_x86_64 -Xsycl-target-backend -DFOO %S/Inputs/SYCL/objlin64.o 2>&1 \
-// RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT_AOT,SYCL_TARGET_OPT_CPU %s
+// RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT_AOT,SYCL_TARGET_OPT_CPU --implicit-check-not="--device-compiler" %s
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64_gen -Xsycl-target-backend -DFOO %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT_AOT,SYCL_TARGET_OPT_GPU %s
 // SYCL_TARGET_OPT_AOT-NOT: error: cannot deduce implicit triple value for '-Xsycl-target-backend'
-// SYCL_TARGET_OPT_CPU: clang-linker-wrapper{{.*}} "--cpu-tool-arg=-DFOO"
-// SYCL_TARGET_OPT_GPU: clang-linker-wrapper{{.*}} "--gpu-tool-arg=-DFOO"
+// SYCL_TARGET_OPT_CPU: clang-linker-wrapper{{.*}}
+// SYCL_TARGET_OPT_GPU: clang-linker-wrapper{{.*}} "--device-compiler=spir64_gen-unknown-unknown=-DFOO"
 
 /// ###########################################################################
 

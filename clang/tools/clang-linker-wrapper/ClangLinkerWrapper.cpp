@@ -722,7 +722,7 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
 /// code and will be parsed to generate options required to be passed into the
 /// sycl-post-link tool.
 static Expected<std::vector<module_split::SplitModule>>
-runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
+runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args, bool HasGPUTool) {
   Expected<std::string> SYCLPostLinkPath =
       findProgram("sycl-post-link", {getMainExecutable("sycl-post-link")});
   if (!SYCLPostLinkPath)
@@ -737,14 +737,13 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
 
   // Enable the driver to invoke sycl-post-link with the device architecture
   // when Intel GPU targets are passed in -fsycl-targets.
-  // OPT_gpu_tool_arg_EQ is checked to ensure the device architecture is not
+  // HasGPUTool is checked to ensure the device architecture is not
   // passed through -Xsycl-target-backend=spir64_gen "-device <arch>" format
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
-  StringRef IsGPUTool = Args.getLastArgValue(OPT_gpu_tool_arg_EQ);
 
   if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen && !Arch.empty() &&
-      IsGPUTool.empty() && Arch != "*")
+      !HasGPUTool && Arch != "*")
     OutputPathWithArch = "intel_gpu_" + Arch.str() + "," + OutputPathWithArch;
   else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
     OutputPathWithArch = "spir64_x86_64," + OutputPathWithArch;
@@ -960,7 +959,6 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
 static void addSYCLBackendOptions(const ArgList &Args,
                                   SmallVector<StringRef, 8> &CmdArgs,
                                   bool IsCPU, StringRef BackendOptions) {
-  llvm::errs() << "[DEBUG] ClangLinkerWrapper.cpp: BackendOptions " << BackendOptions << "\n";
   if (IsCPU) {
     BackendOptions.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
   } else {
@@ -989,7 +987,6 @@ static void addSYCLBackendOptions(const ArgList &Args,
       CmdArgs.push_back(Args.MakeArgString(JoinedOptions));
     }
   }
-
   return;
 }
 
@@ -2228,6 +2225,17 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
           extractSYCLCompileLinkOptions(Input);
       if (!CompileLinkOptionsOrErr)
         return CompileLinkOptionsOrErr.takeError();
+    
+      // Append any additional backend compiler options specified at link time for GPU
+      const llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
+      for (StringRef Arg : LinkerArgs.getAllArgValues(OPT_device_compiler_args_EQ)) {
+        auto [ArgTriple, ArgValue] = Arg.split('=');
+        if (ArgTriple == LinkerArgs.getLastArgValue(OPT_triple_EQ) &&
+            Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
+            !ArgValue.empty()) {
+          CompileLinkOptionsOrErr->first += Twine(" ", ArgValue).str();
+        }
+      }
 
       SmallVector<StringRef> InputFiles;
       // Write device inputs to an output file for the linker.
@@ -2244,9 +2252,13 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         return TmpOutputOrErr.takeError();
       SmallVector<StringRef> InputFilesSYCL;
       InputFilesSYCL.emplace_back(*TmpOutputOrErr);
+
+      SmallVector<StringRef, 16> Args;
+      StringRef(CompileLinkOptionsOrErr->first).split(Args, ' ');
+      bool HasGPUTool = std::find(Args.begin(), Args.end(), "-device") != Args.end();
       auto SplitModulesOrErr =
           UseSYCLPostLinkTool
-              ? sycl::runSYCLPostLinkTool(InputFilesSYCL, LinkerArgs)
+              ? sycl::runSYCLPostLinkTool(InputFilesSYCL, LinkerArgs, HasGPUTool)
               : sycl::runSYCLSplitLibrary(InputFilesSYCL, LinkerArgs,
                                           *SYCLModuleSplitMode);
       if (!SplitModulesOrErr)

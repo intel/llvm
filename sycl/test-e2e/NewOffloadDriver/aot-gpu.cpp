@@ -1,7 +1,7 @@
 // REQUIRES: ocloc, gpu, target-spir, !gpu-intel-gen12
 // Test with `--offload-new-driver`
 //
-// RUN: %clangxx --no-offload-new-driver -fsycl -fsycl-device-code-split=per_source \
+// RUN: %clangxx -fsycl -fsycl-device-code-split=per_source \
 // RUN:   -fsycl-targets=spir64_gen \
 // RUN:   -Xsycl-target-backend=spir64_gen \
 // RUN:   "-device dg2" -I %S/Inputs -o %t.out \
