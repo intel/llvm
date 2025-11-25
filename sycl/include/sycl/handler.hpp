@@ -587,6 +587,8 @@ private:
       accessor<DataT, Dims, AccessMode, AccessTarget, IsPlaceholder> &&Arg) {
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Arg;
     const detail::AccessorImplPtr &AccImpl = detail::getSyclObjImpl(*AccBase);
+    // Ensure the data of AccImpl lives at least as long as the handler.
+    addLifetimeSharedPtrStorage(AccImpl);
     detail::AccessorImplHost *Req = AccImpl.get();
     // Add accessor to the list of arguments.
     addArg(detail::kernel_param_kind_t::kind_accessor, Req,
@@ -1370,8 +1372,8 @@ private:
   template <typename SharedPtrT>
   void setHandlerKernelBundle(SharedPtrT &&NewKernelBundleImpPtr);
 
-  void SetHostTask(std::function<void()> &&Func);
-  void SetHostTask(std::function<void(interop_handle)> &&Func);
+  void SetHostTask(std::function<void()> Func);
+  void SetHostTask(std::function<void(interop_handle)> Func);
 
   template <typename FuncT>
   std::enable_if_t<detail::check_fn_signature<std::remove_reference_t<FuncT>,
@@ -1385,7 +1387,7 @@ private:
     // accessors during finalize
     setArgsToAssociatedAccessors();
 
-    SetHostTask(std::move(Func));
+    SetHostTask(std::forward<FuncT>(Func));
   }
 
   template <typename FuncT>
@@ -1398,7 +1400,7 @@ private:
     // accessors during finalize
     setArgsToAssociatedAccessors();
 
-    SetHostTask(std::move(Func));
+    SetHostTask(std::forward<FuncT>(Func));
     setType(detail::CGType::EnqueueNativeCommand);
   }
 
@@ -1620,7 +1622,7 @@ public:
                    detail::check_fn_signature<std::remove_reference_t<FuncT>,
                                               void(interop_handle)>::value>
   host_task(FuncT &&Func) {
-    host_task_impl(Func);
+    host_task_impl(std::forward<FuncT>(Func));
   }
 
   /// Enqueues a command to the SYCL runtime to invoke \p Func immediately.
@@ -1629,7 +1631,7 @@ public:
                                               void(interop_handle)>::value>
   ext_codeplay_enqueue_native_command([[maybe_unused]] FuncT &&Func) {
 #ifndef __SYCL_DEVICE_ONLY__
-    ext_codeplay_enqueue_native_command_impl(Func);
+    ext_codeplay_enqueue_native_command_impl(std::forward<FuncT>(Func));
 #endif
   }
 

@@ -138,6 +138,7 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #include <sycl/ext/oneapi/experimental/reduction_properties.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
 #include <sycl/ext/oneapi/experimental/syclbin_kernel_bundle.hpp>
+#include <sycl/ext/oneapi/experimental/syclbin_properties.hpp>
 #include <sycl/ext/oneapi/experimental/tangle.hpp>
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/ext/oneapi/filter_selector.hpp>

@@ -190,9 +190,7 @@ public:
 
   /// Remove all queues which are recording to this graph, also sets all queues
   /// cleared back to the executing state.
-  ///
-  /// @return True if any queues were removed.
-  bool clearQueues();
+  void clearQueues(bool NeedsLock);
 
   /// Associate a sycl event with a node in the graph.
   /// @param EventImpl Event to associate with a node in map.
@@ -561,10 +559,12 @@ private:
   /// Device associated with this graph. All graph nodes will execute on this
   /// device.
   sycl::device MDevice;
+
+  using RecQueuesStorage =
+      std::set<std::weak_ptr<sycl::detail::queue_impl>,
+               std::owner_less<std::weak_ptr<sycl::detail::queue_impl>>>;
   /// Unique set of queues which are currently recording to this graph.
-  std::set<std::weak_ptr<sycl::detail::queue_impl>,
-           std::owner_less<std::weak_ptr<sycl::detail::queue_impl>>>
-      MRecordingQueues;
+  RecQueuesStorage MRecordingQueues;
   /// Map of events to their associated recorded nodes.
   std::unordered_map<std::shared_ptr<sycl::detail::event_impl>, node_impl *>
       MEventsMap;

@@ -554,56 +554,8 @@ ur_native_handle_t platform_impl::getNative() const {
   return Handle;
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::platform::version::return_type
-platform_impl::get_backend_info<info::platform::version>() const {
-  if (getBackend() != backend::opencl) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::platform::version info descriptor can "
-                          "only be queried with an OpenCL backend");
-  }
-  return get_info<info::platform::version>();
-}
-#endif
-
 device select_device(DSelectorInvocableType DeviceSelectorInvocable,
                      std::vector<device> &Devices);
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::device::version::return_type
-platform_impl::get_backend_info<info::device::version>() const {
-  if (getBackend() != backend::opencl) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::device::version info descriptor can only "
-                          "be queried with an OpenCL backend");
-  }
-  auto Devices = get_devices();
-  if (Devices.empty()) {
-    return "No available device";
-  }
-  // Use default selector to pick a device.
-  return select_device(default_selector_v, Devices)
-      .get_info<info::device::version>();
-}
-#endif
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::device::backend_version::return_type
-platform_impl::get_backend_info<info::device::backend_version>() const {
-  if (getBackend() != backend::ext_oneapi_level_zero) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::device::backend_version info descriptor "
-                          "can only be queried with a Level Zero backend");
-  }
-  return "";
-  // Currently The Level Zero backend does not define the value of this
-  // information descriptor and implementations are encouraged to return the
-  // empty string as per specification.
-}
-#endif
 
 // All devices on the platform must have the given aspect.
 bool platform_impl::has(aspect Aspect) const {
