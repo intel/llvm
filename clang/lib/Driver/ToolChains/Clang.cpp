@@ -11512,8 +11512,12 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     for (auto &ToolChainMember :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       const ToolChain *TC = ToolChainMember.second;
+      bool IsJIT = false;
       StringRef WrapperOption;
       if (TC->getTriple().isSPIROrSPIRV()) {
+         if (TC->getTriple().getSubArch() == llvm::Triple::NoSubArch) {
+          IsJIT = true;
+        }
         if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen)
           WrapperOption = "--gpu-tool-arg=";
         if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
@@ -11521,6 +11525,18 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         Args.MakeArgString(Twine(WrapperOption));
       } else
         continue;
+
+      ArgStringList BuildArgs;
+      SmallString<128> BackendOptString;
+      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
+      for (const auto &A : BuildArgs){
+        appendOption(BackendOptString, A);
+      }
+
+      if (!BackendOptString.empty() && !IsJIT){
+        StringRef ArgString = Args.MakeArgString(Twine(WrapperOption) + BackendOptString);
+        CmdArgs.push_back(ArgString.data());
+      }
     }
   
     // Add option to enable creating of the .syclbin file.

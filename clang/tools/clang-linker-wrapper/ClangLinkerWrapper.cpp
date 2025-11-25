@@ -960,6 +960,7 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
 static void addSYCLBackendOptions(const ArgList &Args,
                                   SmallVector<StringRef, 8> &CmdArgs,
                                   bool IsCPU, StringRef BackendOptions) {
+  llvm::errs() << "[DEBUG] ClangLinkerWrapper.cpp: BackendOptions " << BackendOptions << "\n";
   if (IsCPU) {
     BackendOptions.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
   } else {
@@ -989,9 +990,6 @@ static void addSYCLBackendOptions(const ArgList &Args,
     }
   }
 
-  StringRef OptTool = (IsCPU) ? Args.getLastArgValue(OPT_cpu_tool_arg_EQ)
-                              : Args.getLastArgValue(OPT_gpu_tool_arg_EQ);
-  OptTool.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
   return;
 }
 
