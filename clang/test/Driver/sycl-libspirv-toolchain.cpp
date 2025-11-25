@@ -3,10 +3,10 @@
 // DEFINE: %{resource_dir} = %/S/Inputs/SYCL/lib/clang/resource_dir
 
 // RUN: %clang -### -resource-dir %{resource_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda -nocudalib -target x86_64-unknown-windows-msvc %s 2>&1 \
-// RUN: | FileCheck %s -DRESOURCE_DIR=%{resource_dir} --check-prefixes=CHECK-WINDOWS
+// RUN: | FileCheck %s --check-prefixes=CHECK-WINDOWS
 // RUN: %clang -### -resource-dir %{resource_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda -nocudalib -target x86_64-unknown-windows-gnu %s 2>&1 \
-// RUN: | FileCheck %s -DRESOURCE_DIR=%{resource_dir} --check-prefixes=CHECK-WINDOWS
-// CHECK-WINDOWS: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode" "[[RESOURCE_DIR]]{{.*[\\/]}}remangled-l32-signed_char.libspirv-nvptx64-nvidia-cuda.bc"
+// RUN: | FileCheck %s --check-prefixes=CHECK-WINDOWS
+// CHECK-WINDOWS: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode" "{{.*[\\/]}}remangled-l32-signed_char.libspirv-nvptx64-nvidia-cuda.bc"
 //
 // RUN: %clang -### -resource-dir %{resource_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda -nocudalib -target x86_64-unknown-linux-gnu %s 2>&1 \
 // RUN: | FileCheck %s -DRESOURCE_DIR=%{resource_dir} --check-prefixes=CHECK-LINUX
