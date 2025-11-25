@@ -162,13 +162,6 @@ private:
 
 } // namespace v1
 
-template <int Dims, typename LambdaArgType> struct TransformUserItemType {
-  using type = std::conditional_t<
-      std::is_convertible_v<nd_item<Dims>, LambdaArgType>, nd_item<Dims>,
-      std::conditional_t<std::is_convertible_v<item<Dims>, LambdaArgType>,
-                         item<Dims>, LambdaArgType>>;
-};
-
 template <detail::WrapAs WrapAs, typename LambdaArgType, typename KernelName,
           bool EventNeeded = false,
           typename PropertiesT = ext::oneapi::experimental::empty_properties_t,
@@ -4199,7 +4192,7 @@ auto submit_kernel_direct_parallel_for(const queue &Queue, range<Dims> Range,
   // sycl::item/sycl::nd_item to transport item information
   using TransformedArgType = std::conditional_t<
       std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
-      typename TransformUserItemType<Dims, LambdaArgType>::type>;
+      typename detail::TransformUserItemType<Dims, LambdaArgType>::type>;
 
   static_assert(!std::is_same_v<TransformedArgType, sycl::nd_item<Dims>>,
                 "Kernel argument cannot have a sycl::nd_item type in "
