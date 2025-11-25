@@ -64,19 +64,25 @@ const char *SYCLInstallationDetector::findLibspirvPath(
 
   const SmallString<64> Basename =
       getLibSpirvBasename(DeviceTriple, HostTriple);
-  auto searchAt = [&](StringRef Path, const Twine &a = "", const Twine &b = "",
-                      const Twine &c = "") -> const char * {
-    SmallString<128> LibraryPath(Path);
-    llvm::sys::path::append(LibraryPath, a, b, c, Basename);
-
+  auto searchAt = [&](StringRef Path) -> const char * {
+    SmallString<256> LibraryPath(Path);
+    llvm::sys::path::append(LibraryPath, "lib", "libclc", Basename);
     if (D.getVFS().exists(LibraryPath))
       return Args.MakeArgString(LibraryPath);
 
     return nullptr;
   };
 
-  if (const char *R = searchAt(D.ResourceDir, "lib", "libclc"))
+  if (const char *R = searchAt(D.ResourceDir))
     return R;
+
+  // For sycl-jit
+  for (const auto &IC : InstallationCandidates) {
+    SmallString<256> ICPath(IC);
+    llvm::sys::path::append(ICPath, "dummy", "dummy");
+    if (const char *R = searchAt(D.GetResourcesPath(ICPath)))
+      return R;
+  }
 
   return nullptr;
 }
