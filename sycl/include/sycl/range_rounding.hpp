@@ -8,11 +8,15 @@
 
 #pragma once
 
+#include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/device.hpp>
+#include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/id.hpp>
+#include <sycl/item.hpp>
+#include <sycl/kernel_handler.hpp>
 #include <sycl/range.hpp>
 
 #include <tuple>
