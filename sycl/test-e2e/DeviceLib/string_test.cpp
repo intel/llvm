@@ -112,32 +112,54 @@ bool kernel_test_strncpy(sycl::queue &deviceQueue) {
   }
 
   size_t idx;
+  std::cout << std::endl << "kernel_test_strncpy: test 1" << std::endl;
   for (idx = 0; idx < 19; ++idx) {
-    if (dst[0][idx] != src[idx])
-      return false;
-  }
-
-  if (dst[0][19] != 'A')
-    return false;
-
-  for (idx = 0; idx < 20; ++idx) {
-    if (dst[1][idx] != src[idx])
-      return false;
-  }
-
-  for (idx = 0; idx < 7; ++idx) {
-    if (dst[2][idx] != src[idx])
-      return false;
-  }
-  for (idx = 7; idx < 11; ++idx) {
-    if (dst[2][idx] != '\0') {
+    std::cout << "dst: " << dst[0][idx] << " src: " << src[idx] << std::endl;
+    if (dst[0][idx] != src[idx]) {
+      std::cout << "kernel_test_strncpy: test 1 failed" << std::endl;
       return false;
     }
   }
 
-  if (dst[2][11] != 'A')
-    return false;
+  std::cout << "dst: " << dst[0][19] << " src: " << src[19] << std::endl;
 
+  if (dst[0][19] != 'A') {
+      std::cout << "kernel_test_strncpy: test 1 failed" << std::endl;
+      return false;
+    }
+    
+  std::cout << std::endl << "kernel_test_strncpy: test 2" << std::endl;
+  for (idx = 0; idx < 20; ++idx) {
+    std::cout << "dst: " << dst[1][idx] << " src: " << src[idx] << std::endl;
+    if (dst[1][idx] != src[idx]){
+      std::cout << "kernel_test_strncpy: test 2 failed" << std::endl;
+      return false;
+    }
+  }
+
+  std::cout << std::endl << "kernel_test_strncpy: test 3" << std::endl;
+  for (idx = 0; idx < 7; ++idx) {
+    std::cout << "dst: " << dst[2][idx] << " src: " << src[idx] << std::endl;
+    if (dst[2][idx] != src[idx]) {
+      std::cout << "kernel_test_strncpy: test 3 failed" << std::endl;
+      return false;
+    }
+  }
+  for (idx = 7; idx < 11; ++idx) {
+    std::cout << "dst[" << idx << "]: " << dst[2][idx] << std::endl;
+    if (dst[2][idx] != '\0') {
+      std::cout << "kernel_test_strncpy: test 3 failed" << std::endl;
+      return false;
+    }
+  }
+
+  std::cout << "dst[11]: " << dst[2][11] << std::endl;
+  if (dst[2][11] != 'A') {
+    std::cout << "kernel_test_strncpy: test 3 failed" << std::endl;
+    return false;
+  }
+
+  std::cout << std::endl << "kernel_test_strncpy: passed" << std::endl;
   return true;
 }
 
