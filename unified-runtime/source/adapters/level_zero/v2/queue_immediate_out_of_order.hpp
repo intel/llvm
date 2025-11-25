@@ -603,32 +603,29 @@ public:
             createEventIfRequested(eventPool.get(), phEvent, this));
   }
 
-  // Graph capture experimental APIs - not supported on Level Zero adapter v2
   ur_result_t queueBeginGraphCapteExp() override {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
+
   ur_result_t
-  queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t hGraph) override {
-    (void)hGraph;
+  queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t /* hGraph */) override {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
-  ur_result_t queueEndGraphCapteExp(ur_exp_graph_handle_t *phGraph) override {
-    (void)phGraph;
+
+  ur_result_t
+  queueEndGraphCapteExp(ur_exp_graph_handle_t * /* phGraph */) override {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
-  ur_result_t queueAppendGraphExp(ur_exp_executable_graph_handle_t hGraph,
-                                  ur_event_handle_t hSignalEvent,
-                                  uint32_t numWaitEvents,
-                                  ur_event_handle_t *phWaitEvents) override {
-    (void)hGraph;
-    (void)hSignalEvent;
-    (void)numWaitEvents;
-    (void)phWaitEvents;
+
+  ur_result_t
+  queueAppendGraphExp(ur_exp_executable_graph_handle_t /* hGraph */,
+                      ur_event_handle_t /* hSignalEvent */,
+                      uint32_t /* numWaitEvents */,
+                      ur_event_handle_t * /* phWaitEvents */) override {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
-  ur_result_t queueIsGraphCapteEnabledExp(bool *pResult) override {
-    if (pResult)
-      *pResult = false;
+
+  ur_result_t queueIsGraphCapteEnabledExp(bool * /* pResult */) override {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
