@@ -5,9 +5,6 @@
 
 // REQUIRES: zstd, opencl-aot, cpu, linux
 
-// XFAIL: run-mode && preview-mode
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20397
-
 // XFAIL: target-native_cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20397
 
