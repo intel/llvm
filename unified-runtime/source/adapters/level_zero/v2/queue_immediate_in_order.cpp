@@ -105,16 +105,26 @@ ur_result_t ur_queue_immediate_in_order_t::queueFinish() {
 
   auto lockedCommandListManager = commandListManager.lock();
 
-  ZE2UR_CALL(zeCommandListHostSynchronize,
-             (lockedCommandListManager->getZeCommandList(), UINT64_MAX));
+  {
+    TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::hostSynchronize");
+    ZE2UR_CALL(zeCommandListHostSynchronize,
+               (lockedCommandListManager->getZeCommandList(), UINT64_MAX));
+  }
 
-  hContext->getAsyncPool()->cleanupPoolsForQueue(this);
-  hContext->forEachUsmPool([this](ur_usm_pool_handle_t hPool) {
-    hPool->cleanupPoolsForQueue(this);
-    return true;
-  });
+  {
+    TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::asyncPools");
+    hContext->getAsyncPool()->cleanupPoolsForQueue(this);
+    hContext->forEachUsmPool([this](ur_usm_pool_handle_t hPool) {
+      hPool->cleanupPoolsForQueue(this);
+      return true;
+    });
+  }
 
-  UR_CALL(lockedCommandListManager->releaseSubmittedKernels());
+  {
+    TRACK_SCOPE_LATENCY(
+        "ur_queue_immediate_in_order_t::releaseSubmittedKernels");
+    UR_CALL(lockedCommandListManager->releaseSubmittedKernels());
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -142,14 +152,15 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrier(
   // in this queue are completed when the signal is started. However, we do
   // need to use barrier if profiling is enabled: see
   // zeCommandListAppendWaitOnEvents
+  wait_list_view waitListView =
+      wait_list_view(phEventWaitList, numEventsInWaitList);
+
   if ((flags & UR_QUEUE_FLAG_PROFILING_ENABLE) != 0) {
     return commandListManager.lock()->appendEventsWaitWithBarrier(
-        numEventsInWaitList, phEventWaitList,
-        createEventIfRequested(eventPool.get(), phEvent, this));
+        waitListView, createEventIfRequested(eventPool.get(), phEvent, this));
   } else {
     return commandListManager.lock()->appendEventsWait(
-        numEventsInWaitList, phEventWaitList,
-        createEventIfRequested(eventPool.get(), phEvent, this));
+        waitListView, createEventIfRequested(eventPool.get(), phEvent, this));
   }
 }
 
