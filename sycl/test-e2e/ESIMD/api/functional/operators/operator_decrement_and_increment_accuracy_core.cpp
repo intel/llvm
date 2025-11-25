@@ -1,3 +1,6 @@
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
+
 //==------- operator_decrement_and_increment_accuracy_core.cpp  - DPC++ ESIMD
 //          on-device test -------------------------------------------------==//
 //

@@ -1,3 +1,6 @@
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
+
 //==---------------- hardware_dispatch.cpp  - ESIMD hardware dispatch test -==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

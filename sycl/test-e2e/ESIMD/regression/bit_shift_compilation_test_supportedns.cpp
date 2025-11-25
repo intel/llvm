@@ -1,3 +1,6 @@
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
+
 //==- bit_shift_compilation_test_supportedns.cpp - Test for bit shift functions
 //-==//
 //

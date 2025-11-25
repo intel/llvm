@@ -1,6 +1,3 @@
-// XFAIL: new-offload-model
-// XFAIL-TRACKER: CMPLRLLVM-71777
-
 // REQUIRES: target-spir
 //
 // FIXME Disabled fallback assert as it'll require either online linking or

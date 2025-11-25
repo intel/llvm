@@ -1,3 +1,6 @@
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
+
 //
 // REQUIRES-INTEL-DRIVER: lin: 28454, win: 101.5333
 // RUN: %{build} -o %t.1.out

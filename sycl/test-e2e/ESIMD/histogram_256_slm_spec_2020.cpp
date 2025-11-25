@@ -1,3 +1,6 @@
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
+
 // TODO enable on Windows
 // REQUIRES: linux
 // RUN: %{build} -o %t.out

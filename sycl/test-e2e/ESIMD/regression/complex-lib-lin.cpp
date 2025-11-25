@@ -1,3 +1,6 @@
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
+
 // This test is intended to check a certain approach of compiling libraries and
 // application, when both regular SYCL and ESIMD are used.
 //

@@ -1,3 +1,6 @@
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
+
 // GPU driver had an error in handling of SLM aligned block_loads/stores,
 // which has been fixed only in "1.3.26816", and in win/opencl version going
 // _after_ 101.4575.

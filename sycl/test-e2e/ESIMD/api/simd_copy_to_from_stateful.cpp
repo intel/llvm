@@ -1,3 +1,6 @@
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
+
 //==- simd_copy_to_from_stateful.cpp  - DPC++ ESIMD simd::copy_to/from test ==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

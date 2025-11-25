@@ -1,3 +1,6 @@
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
+
 // REQUIRES: gpu
 // RUN: %{build} -o %t.out %debug_option
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s

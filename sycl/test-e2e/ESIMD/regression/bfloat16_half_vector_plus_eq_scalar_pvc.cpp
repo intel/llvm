@@ -1,3 +1,6 @@
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
+
 //= bfloat16_half_vector_plus_eq_scalar_pvc.cpp - Test for bfloat16 operators=//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

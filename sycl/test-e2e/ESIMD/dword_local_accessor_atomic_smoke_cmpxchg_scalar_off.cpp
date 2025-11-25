@@ -1,3 +1,6 @@
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
+
 //=dword_local_accessor_atomic_smoke_cmpxchg_scalar_off.cpp-DPC++ ESIMD
 // on-device test=//
 //

@@ -1,3 +1,6 @@
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //==- abs_fix_test.cpp - Test for abs function -==//

@@ -1,3 +1,6 @@
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
+
 // End-to-End test for testing device image compression when we have two
 // translation units, one compressed and one not compressed.
 // REQUIRES: zstd, linux

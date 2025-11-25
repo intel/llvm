@@ -1,3 +1,6 @@
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //= bfloat16_half_vector_plus_eq_scalar.cpp - Test for bfloat16 operators =//

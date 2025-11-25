@@ -1,3 +1,6 @@
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
+
 //==---------------- reduction.cpp  - DPC++ ESIMD on-device test
 //------------==//
 //

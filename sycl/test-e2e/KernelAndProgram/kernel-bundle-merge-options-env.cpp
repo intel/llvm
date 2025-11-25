@@ -1,3 +1,6 @@
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
+
 // REQUIRES: gpu
 // Disable fallback assert here so, that build process isn't affected
 // RUN: %{build} -DSYCL_DISABLE_FALLBACK_ASSERT=1 -o %t1.out %debug_option

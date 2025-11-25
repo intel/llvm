@@ -1,3 +1,6 @@
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
+
 //==------- exec_in_order_branched.cpp - DPC++ ESIMD on-device test -------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

@@ -1,3 +1,6 @@
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
+
 // The test checks that invoke_simd implementation performs proper conversions
 // on the actual arguments of 'double' type.
 

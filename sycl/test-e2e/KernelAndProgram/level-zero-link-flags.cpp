@@ -1,3 +1,6 @@
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
+
 // REQUIRES: target-spir, level_zero
 // RUN: %{build} -Xsycl-target-linker=spir64 -foo -o %t.out
 // RUN: %{run} %t.out

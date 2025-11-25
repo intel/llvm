@@ -1,3 +1,6 @@
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
+
 // Test intended to run on PVC only
 // REQUIRES: arch-intel_gpu_pvc
 //

@@ -1,3 +1,6 @@
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
+
 // The tests a basic E2E invoke_simd test checking that invoke_simd
 // compiles and executes correctly on GPU, where the SIMD target is a
 // ESIMD function.

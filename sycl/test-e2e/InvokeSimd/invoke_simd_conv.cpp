@@ -1,3 +1,6 @@
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
+
 // The test checks that invoke_simd implementation performs proper conversions
 // on the actual arguments:
 // - Case1: actual type is uniform<T>, formal - T1 (scalar)

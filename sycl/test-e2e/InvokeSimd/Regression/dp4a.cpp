@@ -1,3 +1,6 @@
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
+
 // REQUIRES: arch-intel_gpu_dg1 || gpu-intel-dg2 || arch-intel_gpu_pvc
 //
 // Check that full compilation works:
