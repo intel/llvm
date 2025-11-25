@@ -41,7 +41,7 @@ inputs:
     required: True
 
 runs:
-  # composite actions don't make use of 'name', so copy-paste names as a comment in the first line of each step
+  # composite actions don't make use of 'name', so copy-paste steps' names as a comment in the first line of each step
   using: "composite"
   steps:
   - name: Check inputs and set up environment
@@ -52,7 +52,7 @@ runs:
       PRESET: ${{ inputs.preset }}
       SYCL_DIR: ${{ inputs.sycl_dir }}
       RUNNER_TAG: ${{ inputs.runner }}
-      # Will append "_<device>_<backend>" to that prefix, as the save name
+      # Will append "_<device>_<backend>" to that prefix and use it as the full save name
       SAVE_PREFIX: ${{ inputs.save_name }}
     run: |
       # Check inputs and set up environment
@@ -79,7 +79,10 @@ runs:
       esac
 
       case "$TARGET_DEVICE" in
-        level_zero:*) SAVE_SUFFIX="L0" ;;
+        level_zero:*)
+          SAVE_SUFFIX="L0"
+          ONEAPI_DEVICE_SELECTOR="level_zero:gpu"
+          ;;
         level_zero_v2:*)
           SAVE_SUFFIX="L0v2"
           ONEAPI_DEVICE_SELECTOR="level_zero:gpu"
@@ -96,7 +99,7 @@ runs:
       esac
 
       # Export variables with machine type, save name, device selector, etc.
-      export ONEAPI_DEVICE_SELECTOR=$TARGET_DEVICE
+      [ -z "$ONEAPI_DEVICE_SELECTOR" ] && ONEAPI_DEVICE_SELECTOR=$TARGET_DEVICE
       echo "ONEAPI_DEVICE_SELECTOR=$ONEAPI_DEVICE_SELECTOR" >> $GITHUB_ENV
       export SAVE_SUFFIX=$SAVE_SUFFIX
       echo "SAVE_SUFFIX=$SAVE_SUFFIX" >> $GITHUB_ENV
@@ -154,7 +157,7 @@ runs:
       BENCHMARK_RESULTS_BRANCH="sycl-benchmark-ci-results"
       echo "BENCHMARK_RESULTS_BRANCH=$BENCHMARK_RESULTS_BRANCH" >> $GITHUB_OUTPUT
 
-      BENCHMARK_RESULTS_REPO_PATH="./llvm-ci-perf-results"
+      BENCHMARK_RESULTS_REPO_PATH="$(realpath ./llvm-ci-perf-results)"
       echo "BENCHMARK_RESULTS_REPO_PATH=$BENCHMARK_RESULTS_REPO_PATH" >> $GITHUB_OUTPUT
   - name: Checkout results repo
     uses: actions/checkout@v5
@@ -319,9 +322,11 @@ runs:
       export LLVM_BENCHMARKS_UNIT_TESTING=1
       export COMPUTE_BENCHMARKS_BUILD_PATH=$BENCH_WORKDIR/compute-benchmarks-build
       python3 ./devops/scripts/benchmarks/tests/test_integration.py
-  - name: Cache changes and upload github summary
+  - name: Upload github summaries and cache changes
     if: always()
     shell: bash
+    env:
+      BENCHMARK_RESULTS_REPO_PATH: ${{ steps.results_repo.outputs.BENCHMARK_RESULTS_REPO_PATH }}
     run: |
       # Upload github summaries and cache changes
       [ -f "github_summary_exe.md" ] && cat github_summary_exe.md >> $GITHUB_STEP_SUMMARY
@@ -337,6 +342,7 @@ runs:
     if: always() && inputs.upload_results == 'true'
     shell: bash
     env:
+      BENCH_WORKDIR: ${{ env.BENCH_WORKDIR }}
       BENCHMARK_RESULTS_REPO_PATH: ${{ steps.results_repo.outputs.BENCHMARK_RESULTS_REPO_PATH }}
       BENCHMARK_RESULTS_BRANCH: ${{ steps.results_repo.outputs.BENCHMARK_RESULTS_BRANCH }}
     run: |
@@ -375,7 +381,7 @@ runs:
         echo "Regenerating data.json..."
         cd ../
         ./devops/scripts/benchmarks/main.py \
-          "$(realpath ./llvm_test_workdir)" \
+          "${BENCH_WORKDIR}" \
           --output-html remote \
           --results-dir "${BENCHMARK_RESULTS_REPO_PATH}/" \
           --output-dir "${BENCHMARK_RESULTS_REPO_PATH}/" \
