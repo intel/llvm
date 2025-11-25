@@ -10,31 +10,32 @@
 
 #include <ur_api.h>
 
-UR_APIEXPORT ur_result_t urGraphCreateExp(
+UR_APIEXPORT ur_result_t UR_APICALL urGraphCreateExp(
     ur_context_handle_t /* hContext */, ur_exp_graph_handle_t * /* phGraph */) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t urGraphDestroyExp(ur_exp_graph_handle_t /* hGraph */) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urGraphDestroyExp(ur_exp_graph_handle_t /* hGraph */) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t urGraphExecutableGraphDestroyExp(
+UR_APIEXPORT ur_result_t UR_APICALL urGraphExecutableGraphDestroyExp(
     ur_exp_executable_graph_handle_t /* hExecutableGraph */) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t urGraphIsEmptyExp(ur_exp_graph_handle_t /* hGraph */,
-                                           bool * /* pIsEmpty */) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urGraphIsEmptyExp(ur_exp_graph_handle_t /* hGraph */, bool * /* pIsEmpty */) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t urGraphDumpContentsExp(
+UR_APIEXPORT ur_result_t UR_APICALL urGraphDumpContentsExp(
     ur_exp_graph_handle_t /* hGraph */, const char * /* pDotFilePath */) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t urGraphInstantiateGraphExp(
+UR_APIEXPORT ur_result_t UR_APICALL urGraphInstantiateGraphExp(
     ur_exp_graph_handle_t /* hGraph */,
     ur_exp_executable_graph_handle_t * /* phExecutableGraph */) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
