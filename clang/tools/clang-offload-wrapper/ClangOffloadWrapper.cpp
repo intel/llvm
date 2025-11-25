@@ -1770,11 +1770,11 @@ int main(int argc, const char **argv) {
   cl::ParseCommandLineOptions(
       argc, argv,
       "A tool to create a wrapper bitcode for offload target binaries.\n"
-      "Takes offload target binaries as input\n"
-      "and produces bitcode file containing target binaries packaged as data\n"
-      "and initialization code which registers target binaries in the offload\n"
-      "runtime. Options annotating a device binary have effect on all\n"
-      "subsequent input, until redefined.\n"
+      "Takes offload target binaries as input and produces bitcode file\n"
+      "containing target binaries packaged as data and initialization code\n"
+      "which registers target binaries in the offload runtime. Options\n"
+      "annotating a device binary have effect on all subsequent input,\n"
+      "until redefined.\n"
       "\n"
       "For example:\n"
       "  clang-offload-wrapper                   \\\n"

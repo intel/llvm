@@ -5,12 +5,12 @@
 //
 
 // RUN: clang-offload-wrapper --help | FileCheck %s --check-prefix CHECK-HELP
-// CHECK-HELP: OVERVIEW: A tool to create a wrapper bitcode for offload target binaries.
-// CHECK-HELP: Takes offload target binaries as input
-// CHECK-HELP: and produces bitcode file containing target binaries packaged as data
-// CHECK-HELP: and initialization code which registers target binaries in the offload
-// CHECK-HELP: runtime. Options annotating a device binary have effect on all
-// CHECK-HELP: subsequent input, until redefined.
+// CHECK-HELP: OVERVIEW: A tool to create a wrapper bitcode for offload target binaries
+// CHECK-HELP: Takes offload target binaries as input and produces bitcode file
+// CHECK-HELP: containing target binaries packaged as data and initialization code
+// CHECK-HELP: which registers target binaries in the offload runtime. Options
+// CHECK-HELP: annotating a device binary have effect on all subsequent input,
+// CHECK-HELP: until redefined.
 // CHECK-HELP: For example:
 // CHECK-HELP:   clang-offload-wrapper                   \
 // CHECK-HELP:       -host x86_64-pc-linux-gnu           \

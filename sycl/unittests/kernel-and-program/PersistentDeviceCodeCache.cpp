@@ -485,9 +485,7 @@ TEST_P(PersistentDeviceCodeCache, LockFile) {
   EXPECT_FALSE(llvm::sys::fs::exists(LockFile)) << "Cache item locked";
 
   // Create lock file for the 1st cache item
-  {
-    std::ofstream File{LockFile};
-  }
+  { std::ofstream File{LockFile}; }
 
   // Cache item is locked, cache miss happens on read
   auto Res = detail::PersistentDeviceCodeCache::getItemFromDisc(
@@ -500,9 +498,7 @@ TEST_P(PersistentDeviceCodeCache, LockFile) {
   EXPECT_TRUE(llvm::sys::fs::exists(ItemDir + "/1.bin")) << "No file created";
 
   // Second cache item is locked, cache miss happens on read
-  {
-    std::ofstream File{ItemDir + "/1.lock"};
-  }
+  { std::ofstream File{ItemDir + "/1.lock"}; }
   Res = detail::PersistentDeviceCodeCache::getItemFromDisc({Dev}, {&Img}, {},
                                                            BuildOptions);
 
