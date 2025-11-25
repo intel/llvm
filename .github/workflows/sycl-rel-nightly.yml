@@ -6,19 +6,19 @@ on:
 permissions: read-all
 
 jobs:
-  ubuntu2204_build:
-    uses: ./.github/workflows/sycl-linux-build.yml
-    secrets: inherit
-    with:
-      build_cache_root: "/__w/"
-      build_artifact_suffix: default
-      build_configure_extra_args: '-DCMAKE_INSTALL_LIBDIR=lib --disable-jit --no-assertions --add_security_flags=sanitize --hip --cuda'
-      build_image: ghcr.io/intel/llvm/release_build:latest
-      pack_release: 'true'
+  # ubuntu2204_build:
+  #   uses: ./.github/workflows/sycl-linux-build.yml
+  #   secrets: inherit
+  #   with:
+  #     build_cache_root: "/__w/"
+  #     build_artifact_suffix: default
+  #     build_configure_extra_args: '-DCMAKE_INSTALL_LIBDIR=lib --disable-jit --no-assertions --add_security_flags=sanitize --hip --cuda'
+  #     build_image: ghcr.io/intel/llvm/release_build:latest
+  #     pack_release: 'true'
 
-      # We upload the build for people to download/use, override its name and
-      # prefer widespread gzip compression.
-      artifact_archive_name: sycl_linux.tar.gz
+  #     # We upload the build for people to download/use, override its name and
+  #     # prefer widespread gzip compression.
+  #     artifact_archive_name: sycl_linux.tar.gz
 
   # ubuntu2204_test:
   #   needs: [ubuntu2204_build]

@@ -154,6 +154,7 @@ jobs:
       run: |
         cmake --build build --target ${{ inputs.build_target }}
     - name: Check if --offload-compress works
+      shell: bash
       run: |
         cat <<EOF > source.cpp
         #include <iostream>
