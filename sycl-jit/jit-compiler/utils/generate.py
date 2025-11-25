@@ -32,11 +32,11 @@ namespace jit_compiler::resource {
 const resource_file ToolchainFiles[] = {"""
         )
 
-        def process_file(file_path):
+        def process_file(file_path, relative_to):
             out.write(
                 f"""
 {{
-    {{"{args.prefix}{os.path.relpath(file_path, toolchain_dir).replace(os.sep, "/")}"}} ,
+    {{"{args.prefix}{os.path.relpath(file_path, relative_to).replace(os.sep, "/")}"}} ,
     []() {{
     static const char data[] = {{
     #embed "{file_path}" if_empty(0)
@@ -50,9 +50,17 @@ const resource_file ToolchainFiles[] = {"""
             for root, _, files in os.walk(dir):
                 for file in files:
                     file_path = os.path.join(root, file)
-                    process_file(file_path)
+                    process_file(file_path, dir)
 
         process_dir(args.toolchain_dir)
+        process_dir(
+            os.path.realpath(
+                os.path.join(
+                    os.path.dirname(os.path.realpath(__file__)),
+                    "../lib/resource-includes/",
+                )
+            )
+        )
 
         out.write(
             f"""

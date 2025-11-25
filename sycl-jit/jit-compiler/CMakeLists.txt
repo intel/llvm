@@ -39,6 +39,60 @@ set(SYCL_JIT_RESOURCE_DEPS ${SYCL_JIT_RESOURCE_INSTALL_COMPONENTS})
   # OpenCL-Headers doesn't have a corresponding build target:
 list(FILTER SYCL_JIT_RESOURCE_DEPS EXCLUDE REGEX "^OpenCL-Headers$")
 
+# We also want to embed LLVM's libc/libcxx headers into resource. We don't want
+# to use them through LLVM_ENABLE_RUNTIMES for a few reasons though:
+#   * We configure them in a way that might be incompatible with their normal
+#     usage
+#   * We don't want to include them in all/install targets
+# As such, configure libc/libcxx via explicit `llvm_ExternalProject_Add` in a
+# separate location.
+set(SYCL_JIT_RUNTIME_PROJECTS "libc;libcxx")
+if (NOT WIN32)
+  list(APPEND SYCL_JIT_RUNTIME_PROJECTS libcxxabi libunwind)
+endif()
+
+# Couldn't pass -DLLVM_ENABLE_RUNTIMES=<libc;libcxx;...> through CMAKE_ARGS
+# below because semicolon is used as a separate for CMAKE_ARGS itself.
+# Workaround by passing it through PASSTHROUGH_PREFIXES by saving/restoring that
+# variable's original value.
+set(SYCL_JIT_LLVM_ENABLE_RUNTIMES_COPY ${LLVM_ENABLE_RUNTIMES})
+set(LLVM_ENABLE_RUNTIMES ${SYCL_JIT_RUNTIME_PROJECTS})
+llvm_ExternalProject_Add(sycl-jit-extra-headers
+                           ${CMAKE_CURRENT_SOURCE_DIR}/../../runtimes
+                           CMAKE_ARGS -DCOMPILER_RT_BUILD_BUILTINS=Off
+                                      -DLLVM_INCLUDE_TESTS=Off
+                                      -DLLVM_DEFAULT_TARGET_TRIPLE=${LLVM_TARGET_TRIPLE}
+                                      -DLLVM_ENABLE_PROJECTS_USED=${LLVM_ENABLE_PROJECTS_USED}
+                                      -DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR=${LLVM_ENABLE_PER_TARGET_RUNTIME_DIR}
+                                      -DLLVM_BUILD_TOOLS=${LLVM_BUILD_TOOLS}
+                                      -DCMAKE_C_COMPILER_WORKS=ON
+                                      -DCMAKE_CXX_COMPILER_WORKS=ON
+                                      -DCMAKE_Fortran_COMPILER_WORKS=ON
+                                      -DCMAKE_ASM_COMPILER_WORKS=ON
+                                      # libc config options:
+                                      -DLLVM_LIBC_FULL_BUILD=ON
+                                      -DLLVM_LIBC_ALL_HEADERS=1
+                                      -DLIBC_CONFIG_PATH=${CMAKE_CURRENT_SOURCE_DIR}/lib/libc-config
+                                      # libcxx config options:
+                                      -DLIBCXX_HAS_EXTERNAL_THREAD_API=ON
+                           TARGET_TRIPLE ${LLVM_TARGET_TRIPLE}
+                           USE_TOOLCHAIN
+                           PASSTHROUGH_PREFIXES LLVM_ENABLE_RUNTIMES
+                           EXCLUDE_FROM_ALL
+                           NO_INSTALL
+                         )
+set(LLVM_ENABLE_RUNTIMES ${SYCL_JIT_LLVM_ENABLE_RUNTIMES_COPY})
+list(APPEND SYCL_JIT_RESOURCE_DEPS sycl-jit-extra-headers-configure)
+list(APPEND SYCL_JIT_PREPARE_RESOURCE_COMMANDS
+  # libc
+  COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}/tools/sycl-jit/jit-compiler/sycl-jit-extra-headers-bins --target generate-libc-headers
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/tools/sycl-jit/jit-compiler/sycl-jit-extra-headers-bins/libc/include ${SYCL_JIT_RESOURCE_INSTALL_DIR}/include/libc
+
+  # libcxx
+  COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}/tools/sycl-jit/jit-compiler/sycl-jit-extra-headers-bins --target generate-cxx-headers
+  COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR}/tools/sycl-jit/jit-compiler/sycl-jit-extra-headers-bins --prefix ${SYCL_JIT_RESOURCE_INSTALL_DIR} --component cxx-headers
+)
+
 # This is very hacky and I don't quite know what I'm doing, but it's necessary
 # to have `resource.cpp` re-generated/re-built when some SYCL header changes.
 #

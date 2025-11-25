@@ -70,7 +70,10 @@ public:
 
   /// Checks if specified path is present.
   static bool isPathPresent(const std::string &Path) {
-#ifdef __SYCL_RT_OS_WINDOWS
+#ifdef __SYCL_DEVICE_ONLY__
+    (void)Path;
+    return false;
+#elif defined(__SYCL_RT_OS_WINDOWS)
     struct _stat Stat;
     return !_stat(Path.c_str(), &Stat);
 #else
