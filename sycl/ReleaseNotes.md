@@ -272,9 +272,11 @@ Release notes for commit range
 
 ### Documentation
 
+This extension would need to be updated:
 - Proposed the
   [`sycl_ext_oneapi_syclbin`](https://github.com/intel/llvm/blob/b23d69e2c3fda1d69351137991897c96bf6a586d/sycl/doc/extensions/proposed/sycl_ext_oneapi_syclbin.asciidoc)
   extension. intel/llvm#16784
+
 - Updated the
   [`sycl_ext_intel_device_info`](https://github.com/intel/llvm/blob/b23d69e2c3fda1d69351137991897c96bf6a586d/sycl/doc/extensions/supported/sycl_ext_intel_device_info.md)
   extension specification to clarify that no additional environment variables
