@@ -1156,6 +1156,13 @@ for full_name, sycl_device in zip(
     else:
         config.intel_driver_ver[full_name] = {}
 
+# When running with a single device, merge device-specific features into global
+# available_features so that %if conditionals work correctly, even if device is not :gpu or :cpu
+if len(config.sycl_devices) == 1:
+    single_device = list(config.sycl_dev_features.keys())[0]
+    device_features = config.sycl_dev_features[single_device]
+    config.available_features.update(device_features)
+
 if lit_config.params.get("compatibility_testing", "False") != "False":
     config.substitutions.append(("%clangxx", " true "))
     config.substitutions.append(("%clang", " true "))

@@ -368,6 +368,11 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                     "linux",
                     "windows",
                     "preview-breaking-changes-supported",
+                    # the following entries are used by architecture-based filtering
+                    # (:arch- device, not :gpu or :cpu)
+                    "cpu",
+                    "gpu",
+                    "accelerator",
                 ]:
                     if cond_features in test.config.available_features:
                         conditions[cond_features] = True
