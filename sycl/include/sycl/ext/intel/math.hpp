@@ -47,7 +47,7 @@ double __imf_floor(double);
 _iml_half_internal __imf_floorf16(_iml_half_internal);
 float __imf_fsigmf(float);
 _iml_half_internal __imf_fsigmf16(_iml_half_internal);
-_iml_bf16_internal __imf_fsigmbf16(_iml_bf16_internal x);
+_iml_bf16_internal __imf_fsigmbf16(_iml_bf16_internal);
 float __imf_rintf(float);
 double __imf_rint(double);
 _iml_half_internal __imf_invf16(_iml_half_internal);
