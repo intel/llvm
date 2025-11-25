@@ -331,7 +331,7 @@ public:
   template <typename MsgType>
   static inline void traceProgram(const MsgType &Msg,
                                   const ProgramCacheKeyT &CacheKey) {
-    if (!SYCLConfigTrace::isTraceInMemCache())
+    if (!SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache())
       return;
 
     int ImageId = CacheKey.first.second;
@@ -368,7 +368,8 @@ public:
   // set.
   static void traceKernel(const char *Msg, KernelNameStrRefT KernelName,
                           bool isFastKernelCache = false) {
-    if (__builtin_expect(SYCLConfigTrace::isTraceInMemCache(), false))
+    if (__builtin_expect(SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache(),
+                         false))
       traceKernelImpl(Msg, KernelName, isFastKernelCache);
   }
 
@@ -507,7 +508,8 @@ public:
         auto LockedCacheKP = acquireKernelsPerProgramCache();
         // List kernels that are to be removed from the cache, if tracing is
         // enabled.
-        if (__builtin_expect(SYCLConfigTrace::isTraceInMemCache(), false)) {
+        if (__builtin_expect(SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache(),
+                             false)) {
           for (const auto &Kernel : LockedCacheKP.get()[NativePrg])
             traceKernel("Kernel evicted.", Kernel.first);
         }

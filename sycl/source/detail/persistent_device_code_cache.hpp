@@ -222,7 +222,8 @@ public:
 
   /* Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is set*/
   static void trace(const std::string &msg, const std::string &path = "") {
-    if (__builtin_expect(SYCLConfigTrace::isTraceDiskCache(), false)) {
+    if (__builtin_expect(SYCLConfig<SYCL_CACHE_TRACE>::isTraceDiskCache(),
+                         false)) {
       auto outputPath = path;
       std::replace(outputPath.begin(), outputPath.end(), '\\', '/');
       std::cerr << "[Persistent Cache]: " << msg << outputPath << std::endl;
@@ -230,7 +231,8 @@ public:
   }
   static void trace_KernelCompiler(const std::string &msg,
                                    const std::string &path = "") {
-    if (__builtin_expect(SYCLConfigTrace::isTraceKernelCompiler(), false)) {
+    if (__builtin_expect(SYCLConfig<SYCL_CACHE_TRACE>::isTraceKernelCompiler(),
+                         false)) {
       auto outputPath = path;
       std::replace(outputPath.begin(), outputPath.end(), '\\', '/');
       std::cerr << "[kernel_compiler Persistent Cache]: " << msg << outputPath

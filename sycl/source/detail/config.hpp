@@ -709,7 +709,7 @@ private:
 // tracing of the corresponding caches. If the input value is not null and
 // not a valid number, the disk cache tracing will be enabled (depreciated
 // behavior). The default value is 0 and no tracing is enabled.
-class SYCLConfigTrace {
+template <> class SYCLConfig<SYCL_CACHE_TRACE> {
   using BaseT = SYCLConfigBase<SYCL_CACHE_TRACE>;
   enum TraceBitmask { DiskCache = 1, InMemCache = 2, KernelCompiler = 4 };
 

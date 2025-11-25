@@ -204,10 +204,12 @@ unsigned int parseLevel(const char *ValStr) {
 
 } // namespace
 
-void SYCLConfigTrace::reset() { Level = parseLevel(BaseT::getRawValue()); }
+void SYCLConfig<SYCL_CACHE_TRACE>::reset() {
+  Level = parseLevel(BaseT::getRawValue());
+}
 
-unsigned int SYCLConfigTrace::Level =
-    parseLevel(SYCLConfigTrace::BaseT::getRawValue());
+unsigned int SYCLConfig<SYCL_CACHE_TRACE>::Level =
+    parseLevel(BaseT::getRawValue());
 
 } // namespace detail
 } // namespace _V1
