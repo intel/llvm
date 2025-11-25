@@ -20,6 +20,8 @@ namespace object {
 
 // Representation of a SYCLBIN binary object. This is intended for use as an
 // image inside a OffloadBinary.
+// should we name it kernel_bundle or something like that?
+// should we inherit it from OffloadBinary? What would we actually need on top of offload binary???
 class SYCLBIN {
 public:
   SYCLBIN(MemoryBufferRef Source) : Data{Source} {}
@@ -40,6 +42,7 @@ public:
     std::vector<module_split::SplitModule> SplitModules;
   };
 
+  // this class will need to be updated
   class SYCLBINDesc {
   public:
     SYCLBINDesc(BundleState State, ArrayRef<SYCLBINModuleDesc> ModuleDescs);
@@ -73,15 +76,19 @@ public:
   };
 
   /// The current version of the binary used for backwards compatibility.
+  // this we would deprecate and remove later...
+  // Basically, syclbin as format would be discontinued.
   static constexpr uint32_t CurrentVersion = 1;
 
   /// Magic number used to identify SYCLBIN files.
   static constexpr uint32_t MagicNumber = 0x53594249;
 
   /// Serialize \p Desc to \p OS .
+  // this would need to be updated. We would need to support 2 formats for some time...
   static Error write(const SYCLBIN::SYCLBINDesc &Desc, raw_ostream &OS);
 
   /// Deserialize the contents of \p Source to produce a SYCLBIN object.
+  // this would need to be updated. We would need to support 2 formats for some time...
   static Expected<std::unique_ptr<SYCLBIN>> read(MemoryBufferRef Source);
 
   struct IRModule {
@@ -104,6 +111,8 @@ public:
   SmallVector<AbstractModule, 4> AbstractModules;
 
 private:
+// I guess we can keep all these structures below for now for prototype
+// but for final implementation and upstreaming we should just use offload binary directly...
   MemoryBufferRef Data;
 
   struct alignas(8) FileHeaderType {

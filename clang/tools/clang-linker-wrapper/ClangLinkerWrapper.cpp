@@ -1234,6 +1234,8 @@ static Expected<StringRef> runCompile(StringRef &InputFile,
 
 /// Write an OffloadBinary containing the serialized SYCLBIN resulting from
 /// \p ModuleDescs to the ExecutableName file with the .syclbin extension.
+// Rewrite this function. SYCLBIN serialization would return OffloadBinary,
+// no need to serialize SYCLBIN and then wrap into OffloadBinary as an entry.
 static Expected<StringRef>
 packageSYCLBIN(SYCLBIN::BundleState State,
                const ArrayRef<SYCLBIN::SYCLBINModuleDesc> Modules) {
@@ -1288,6 +1290,7 @@ Error copyFileToFinalExecutable(StringRef File, const ArgList &Args) {
   return Error::success();
 }
 
+// if we use OffloadBinary instead of SYCLBIN, do we get merging for free???
 Error mergeSYCLBIN(ArrayRef<StringRef> Files, const ArgList &Args) {
   // Fast path for the general case where there's only one file. In this case we
   // do not need to parse it and can instead simply copy it.

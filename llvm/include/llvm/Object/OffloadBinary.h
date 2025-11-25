@@ -49,7 +49,7 @@ enum ImageKind : uint16_t {
   IMG_Fatbinary,
   IMG_PTX,
   IMG_SPIRV,
-  IMG_SYCLBIN,
+  IMG_SYCLBIN, // this will not be needed.
   IMG_LAST,
 };
 
