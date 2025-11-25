@@ -264,21 +264,9 @@ jobs:
           - name: Intel / Arc A-Series Graphics
             runner: '["Linux", "arc"]'
             target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
-          - name: Intel Dev IGC / Arc A-Series Graphics
-            runner: '["Linux", "arc"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
-            target_devices: level_zero:gpu
-            use_igc_dev: true
-            env: '{"LIT_FILTER":"Matrix/"}'
           - name: Intel / Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
             target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
-          - name: Intel Dev IGC / Ponte Vecchio GPU
-            runner: '["Linux", "pvc"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
-            target_devices: level_zero:gpu
-            use_igc_dev: true
-            env: '{"LIT_FILTER":"Matrix/"}'
           - name: Intel / Battlemage Graphics
             runner: '["Linux", "bmg"]'
             target_devices: level_zero_v1:gpu;level_zero_v2:gpu
@@ -298,20 +286,6 @@ jobs:
       binaries_artifact: ${{ matrix.binaries_artifact || 'e2e_bin_with_new_offload_model' }}
       testing_mode: ${{ matrix.testing_mode || 'run-only' }}
 
-      # Do not install drivers on AMD and CUDA runners.
-      install_igc_driver: >-
-        ${{ !contains(matrix.target_devices, 'cuda') &&
-        !contains(matrix.target_devices, 'hip') &&
-        contains(needs.detect_changes.outputs.filters, 'drivers') }}
-      install_dev_igc_driver: >-
-        ${{ !contains(matrix.target_devices, 'cuda') &&
-        !contains(matrix.target_devices, 'hip') &&
-        matrix.use_igc_dev &&
-        (contains(needs.detect_changes.outputs.filters, 'devigccfg') || contains(needs.detect_changes.outputs.filters, 'drivers')) ||
-        'false' }}
-      # Run only if the PR does not have the 'ci-no-devigc' label.
-      skip_run: ${{matrix.use_igc_dev && contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') || matrix.skip_run || 'false'}}
-      env: ${{ matrix.env || (contains(needs.detect_changes.outputs.filters, 'esimd') && '{}' || '{"LIT_FILTER_OUT":"ESIMD/"}') }}
 
   test-perf:
     needs: [build, detect_changes]
