@@ -84,29 +84,6 @@ void __SYCL_EXPORT submit_kernel_direct_without_event_impl(
 namespace detail {
 class queue_impl;
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-using SubmitPostProcessF = std::function<void(bool, bool, event &)>;
-
-struct SubmissionInfoImpl;
-
-class __SYCL_EXPORT SubmissionInfo {
-public:
-  SubmissionInfo();
-
-  sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc();
-  const sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() const;
-
-  std::shared_ptr<detail::queue_impl> &SecondaryQueue();
-  const std::shared_ptr<detail::queue_impl> &SecondaryQueue() const;
-
-  ext::oneapi::experimental::event_mode_enum &EventMode();
-  const ext::oneapi::experimental::event_mode_enum &EventMode() const;
-
-private:
-  std::shared_ptr<SubmissionInfoImpl> impl = nullptr;
-};
-#endif
-
 namespace v1 {
 
 // This class is a part of the ABI, so it's moved to a separate namespace to
@@ -126,25 +103,6 @@ class __SYCL_EXPORT SubmissionInfo {
 public:
   SubmissionInfo() {}
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  SubmissionInfo(const detail::SubmissionInfo &SI)
-      : MSecondaryQueue(SI.SecondaryQueue()), MEventMode(SI.EventMode()) {}
-
-  sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() {
-    return MPostProcessorFunc;
-  }
-  const sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() const {
-    return MPostProcessorFunc;
-  }
-
-  std::shared_ptr<detail::queue_impl> &SecondaryQueue() {
-    return MSecondaryQueue;
-  }
-  const std::shared_ptr<detail::queue_impl> &SecondaryQueue() const {
-    return MSecondaryQueue;
-  }
-#endif
-
   ext::oneapi::experimental::event_mode_enum &EventMode() { return MEventMode; }
   const ext::oneapi::experimental::event_mode_enum &EventMode() const {
     return MEventMode;
@@ -152,7 +110,6 @@ public:
 
 private:
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  optional<detail::SubmitPostProcessF> MPostProcessorFunc = std::nullopt;
   std::shared_ptr<detail::queue_impl> MSecondaryQueue = nullptr;
 #endif
   ext::oneapi::experimental::event_mode_enum MEventMode =
@@ -536,21 +493,9 @@ public:
   /// Queries SYCL queue for SYCL backend-specific information.
   ///
   /// The return type depends on information being queried.
-  template <typename Param
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-#if defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI == 0
-            ,
-            int = detail::emit_get_backend_info_error<queue, Param>()
-#endif
-#endif
-            >
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  __SYCL_DEPRECATED(
-      "All current implementations of get_backend_info() are to be removed. "
-      "Use respective variants of get_info() instead.")
-#endif
+  template <typename Param>
   typename detail::is_backend_info_desc<Param>::return_type
-      get_backend_info() const;
+  get_backend_info() const;
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 private:
@@ -3840,71 +3785,6 @@ private:
     }
   }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  /// TODO: Unused. Remove these when ABI-break window is open.
-  /// Not using `type_erased_cgfo_ty` on purpose.
-  event submit_impl(std::function<void(handler &)> CGH,
-                    const detail::code_location &CodeLoc);
-  event submit_impl(std::function<void(handler &)> CGH,
-                    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
-  event submit_impl(std::function<void(handler &)> CGH, queue secondQueue,
-                    const detail::code_location &CodeLoc);
-  event submit_impl(std::function<void(handler &)> CGH, queue secondQueue,
-                    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
-  void submit_without_event_impl(std::function<void(handler &)> CGH,
-                                 const detail::code_location &CodeLoc);
-  void submit_without_event_impl(std::function<void(handler &)> CGH,
-                                 const detail::code_location &CodeLoc,
-                                 bool IsTopCodeLoc);
-  event
-  submit_impl_and_postprocess(std::function<void(handler &)> CGH,
-                              const detail::code_location &CodeLoc,
-                              const detail::SubmitPostProcessF &PostProcess);
-  event submit_impl_and_postprocess(
-      std::function<void(handler &)> CGH, const detail::code_location &CodeLoc,
-      const detail::SubmitPostProcessF &PostProcess, bool IsTopCodeLoc);
-  event
-  submit_impl_and_postprocess(std::function<void(handler &)> CGH,
-                              queue secondQueue,
-                              const detail::code_location &CodeLoc,
-                              const detail::SubmitPostProcessF &PostProcess);
-  event submit_impl_and_postprocess(
-      std::function<void(handler &)> CGH, queue secondQueue,
-      const detail::code_location &CodeLoc,
-      const detail::SubmitPostProcessF &PostProcess, bool IsTopCodeLoc);
-
-  // Old version when `std::function` was used in place of
-  // `std::function<void(handler &)>`.
-  event submit_with_event_impl(std::function<void(handler &)> CGH,
-                               const detail::SubmissionInfo &SubmitInfo,
-                               const detail::code_location &CodeLoc,
-                               bool IsTopCodeLoc);
-
-  void submit_without_event_impl(std::function<void(handler &)> CGH,
-                                 const detail::SubmissionInfo &SubmitInfo,
-                                 const detail::code_location &CodeLoc,
-                                 bool IsTopCodeLoc);
-  event submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
-                               const detail::SubmissionInfo &SubmitInfo,
-                               const detail::code_location &CodeLoc,
-                               bool IsTopCodeLoc);
-  void submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
-                                 const detail::SubmissionInfo &SubmitInfo,
-                                 const detail::code_location &CodeLoc,
-                                 bool IsTopCodeLoc);
-
-  /// A template-free versions of submit.
-  event submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
-                               const detail::v1::SubmissionInfo &SubmitInfo,
-                               const detail::code_location &CodeLoc,
-                               bool IsTopCodeLoc);
-  /// A template-free version of submit_without_event.
-  void submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
-                                 const detail::v1::SubmissionInfo &SubmitInfo,
-                                 const detail::code_location &CodeLoc,
-                                 bool IsTopCodeLoc);
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
   /// A template-free version of submit as const member function.
   event submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
                                const detail::v1::SubmissionInfo &SubmitInfo,
@@ -3925,9 +3805,6 @@ private:
   /// \param CodeLoc is the code location of the submit call (default argument)
   /// \return a SYCL event object for the submitted command group.
   //
-  // UseFallBackAssert as template param vs `#if` in function body is necessary
-  // to prevent ODR-violation between TUs built with different fallback assert
-  // modes.
   template <typename PropertiesT>
   event submit_with_event(PropertiesT Props,
                           const detail::type_erased_cgfo_ty &CGF,
@@ -3947,9 +3824,6 @@ private:
   /// \param CGF is a function object containing command group.
   /// \param CodeLoc is the code location of the submit call (default argument)
   //
-  // UseFallBackAssert as template param vs `#if` in function body is necessary
-  // to prevent ODR-violation between TUs built with different fallback assert
-  // modes.
   template <typename PropertiesT>
   void submit_without_event(PropertiesT Props,
                             const detail::type_erased_cgfo_ty &CGF,
