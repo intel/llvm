@@ -831,6 +831,10 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   DiagnosticsEngine Diags(DiagID, DiagOpts, Wrapper.consumer(),
                           /* ShouldOwnClient=*/false);
 
+  Triple T{Module.getTargetTriple()};
+  Driver D{(SYCLToolchain::instance().getPrefix() + "/bin/clang++").str(),
+           T.getTriple(), Diags};
+
   SmallVector<std::string> LibNames;
   getDeviceLibraries(UserArgList, LibNames, Format);
   const bool IsCudaHIP =
@@ -838,14 +842,11 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   if (IsCudaHIP) {
     // Based on the OS and the format decide on the version of libspirv.
     // NOTE: this will be problematic if cross-compiling between OSes.
-    std::string Libclc{"clc/"};
-    Libclc.append(
 #ifdef _WIN32
-        "remangled-l32-signed_char.libspirv-"
+    std::string Libclc = "remangled-l32-signed_char.libspirv-";
 #else
-        "remangled-l64-signed_char.libspirv-"
+    std::string Libclc = "remangled-l64-signed_char.libspirv-";
 #endif
-    );
     Libclc.append(Format == BinaryFormat::PTX ? "nvptx64-nvidia-cuda.bc"
                                               : "amdgcn-amd-amdhsa.bc");
     LibNames.push_back(Libclc);
@@ -855,6 +856,11 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   for (const std::string &LibName : LibNames) {
     std::string LibPath =
         (SYCLToolchain::instance().getPrefix() + "/lib/" + LibName).str();
+    if (LibName.find("libspirv") != std::string::npos) {
+      SmallString<256> LibraryPath(D.GetResourcesPath(LibPath));
+      sys::path::append(LibraryPath, "lib", "libclc", LibName);
+      LibPath = LibraryPath.str().str();
+    }
 
     ModuleUPtr LibModule;
     if (auto Error = SYCLToolchain::instance()
@@ -872,9 +878,6 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
 
   // For GPU targets we need to link against vendor provided libdevice.
   if (IsCudaHIP) {
-    Triple T{Module.getTargetTriple()};
-    Driver D{(SYCLToolchain::instance().getPrefix() + "/bin/clang++").str(),
-             T.getTriple(), Diags};
     auto [CPU, Features] =
         Translator::getTargetCPUAndFeatureAttrs(&Module, "", Format);
     (void)Features;
