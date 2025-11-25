@@ -1853,6 +1853,9 @@ public:
     }
   }
 
+  /// Set features that depend on other features.
+  virtual void setDependentOpenCLOpts();
+
   /// Get supported OpenCL extensions and optional core features.
   llvm::StringMap<bool> &getSupportedOpenCLOpts() {
     return getTargetOpts().OpenCLFeaturesMap;
