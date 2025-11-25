@@ -9,18 +9,18 @@
 // CHECK-WINDOWS: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode" "{{.*[\\/]}}remangled-l32-signed_char.libspirv-nvptx64-nvidia-cuda.bc"
 //
 // RUN: %clang -### -resource-dir %{resource_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda -nocudalib -target x86_64-unknown-linux-gnu %s 2>&1 \
-// RUN: | FileCheck %s -DRESOURCE_DIR=%{resource_dir} --check-prefixes=CHECK-LINUX
+// RUN: | FileCheck %s --check-prefixes=CHECK-LINUX
 // RUN: %clang -### -resource-dir %{resource_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda -nocudalib -target x86_64-unknown-windows-cygnus %s 2>&1 \
-// RUN: | FileCheck %s -DRESOURCE_DIR=%{resource_dir} --check-prefixes=CHECK-LINUX
-// CHECK-LINUX: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode" "[[RESOURCE_DIR]]{{.*[\\/]}}remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc"
+// RUN: | FileCheck %s --check-prefixes=CHECK-LINUX
+// CHECK-LINUX: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode" "{{.*[\\/]}}remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc"
 //
 // RUN: %clang -### -resource-dir %{resource_dir} -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=gfx908 -nogpulib -target x86_64-unknown-windows-msvc %s 2>&1 \
-// RUN: | FileCheck %s -DRESOURCE_DIR=%{resource_dir} --check-prefixes=CHECK-AMDGCN-WINDOWS
-// CHECK-AMDGCN-WINDOWS: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode" "[[RESOURCE_DIR]]{{.*[\\/]}}remangled-l32-signed_char.libspirv-amdgcn-amd-amdhsa.bc"
+// RUN: | FileCheck %s --check-prefixes=CHECK-AMDGCN-WINDOWS
+// CHECK-AMDGCN-WINDOWS: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode" "{{.*[\\/]}}remangled-l32-signed_char.libspirv-amdgcn-amd-amdhsa.bc"
 //
 // RUN: %clang -### -resource-dir %{resource_dir} -fsycl -fsycl-device-only -fsycl-targets=nvptx64-nvidia-cuda -nocudalib %s 2>&1 \
-// RUN: | FileCheck %s -DRESOURCE_DIR=%{resource_dir} --check-prefixes=CHECK-DEVICE-ONLY
-// CHECK-DEVICE-ONLY: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode" "[[RESOURCE_DIR]]{{.*[\\/]}}remangled-{{.*}}.libspirv-nvptx64-nvidia-cuda.bc"
+// RUN: | FileCheck %s --check-prefixes=CHECK-DEVICE-ONLY
+// CHECK-DEVICE-ONLY: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode" "{{.*[\\/]}}remangled-{{.*}}.libspirv-nvptx64-nvidia-cuda.bc"
 //
 // Only link libspirv in SYCL language mode, `-fno-sycl-libspirv` should result in a warning
 // RUN: %clang -### -x cu -fno-sycl-libspirv -nocudainc -nocudalib %s 2>&1 | FileCheck %s --check-prefixes=CHECK-CUDA
