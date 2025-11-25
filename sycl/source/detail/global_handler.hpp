@@ -92,6 +92,11 @@ public:
   // For testing purposes only
   void attachScheduler(Scheduler *Scheduler);
 
+  // Used in SYCL unit tests to reset the GlobalHandler instance.
+  static void resetGlobalHandler() {
+    RTGlobalObjHandler = new GlobalHandler();
+  };
+
 private:
   // Constructor and destructor are declared out-of-line to allow incomplete
   // types as template arguments to unique_ptr.
