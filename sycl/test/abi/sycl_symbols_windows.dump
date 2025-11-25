@@ -4031,7 +4031,6 @@
 ?getElementSize@image_plain@detail@_V1@sycl@@IEBA_KXZ
 ?getEndTime@HostProfilingInfo@detail@_V1@sycl@@QEBA_KXZ
 ?getKernelBundle@handler@_V1@sycl@@AEBA?AV?$kernel_bundle@$0A@@23@XZ
-?getKernelName@handler@_V1@sycl@@AEAA?AVstring@detail@23@XZ
 ?getMaxWorkGroups@handler@_V1@sycl@@AEAA?AV?$optional@V?$array@_K$02@std@@@std@@XZ
 ?getMaxWorkGroups_v2@handler@_V1@sycl@@AEAA?AV?$tuple@V?$array@_K$02@std@@_N@std@@XZ
 ?getMemoryObject@AccessorBaseHost@detail@_V1@sycl@@QEBAPEAXXZ
