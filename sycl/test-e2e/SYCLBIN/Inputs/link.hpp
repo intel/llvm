@@ -4,6 +4,12 @@
 
 namespace syclex = sycl::ext::oneapi::experimental;
 
+#ifdef SYCLBIN_USE_FAST_LINK
+static constexpr bool USE_FAST_LINK = true;
+#else
+static constexpr bool USE_FAST_LINK = false;
+#endif
+
 static constexpr size_t NUM = 10;
 
 int main(int argc, char *argv[]) {
@@ -34,7 +40,8 @@ int main(int argc, char *argv[]) {
 #endif
 
   // Link the bundles.
-  auto KBExe = sycl::link({KBObj1, KBObj2});
+  auto KBExe = syclexp::link(
+      {KBObj1, KBObj2}, syclexp::properties{syclexp::fast_link{USE_FAST_LINK}});
 
   // TestKernel1 does not have any requirements, so should be there always.
   assert(KBExe.ext_oneapi_has_kernel("TestKernel1"));

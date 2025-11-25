@@ -217,72 +217,8 @@ context_impl::get_info<info::context::atomic_fence_scope_capabilities>() const {
   return CapabilityList;
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::platform::version::return_type
-context_impl::get_backend_info<info::platform::version>() const {
-  if (getBackend() != backend::opencl) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::platform::version info descriptor can "
-                          "only be queried with an OpenCL backend");
-  }
-  return MDevices[0]->get_platform().get_info<info::platform::version>();
-}
-#endif
-
 device select_device(DSelectorInvocableType DeviceSelectorInvocable,
                      std::vector<device> &Devices);
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::device::version::return_type
-context_impl::get_backend_info<info::device::version>() const {
-  if (getBackend() != backend::opencl) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::device::version info descriptor can only "
-                          "be queried with an OpenCL backend");
-  }
-  auto Devices = get_info<info::context::devices>();
-  if (Devices.empty()) {
-    return "No available device";
-  }
-  // Use default selector to pick a device.
-  return select_device(default_selector_v, Devices)
-      .get_info<info::device::version>();
-}
-#endif
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::device::backend_version::return_type
-context_impl::get_backend_info<info::device::backend_version>() const {
-  if (getBackend() != backend::ext_oneapi_level_zero) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::device::backend_version info descriptor "
-                          "can only be queried with a Level Zero backend");
-  }
-  return "";
-  // Currently The Level Zero backend does not define the value of this
-  // information descriptor and implementations are encouraged to return the
-  // empty string as per specification.
-}
-#endif
-
-ur_context_handle_t &context_impl::getHandleRef() { return MContext; }
-const ur_context_handle_t &context_impl::getHandleRef() const {
-  return MContext;
-}
-
-KernelProgramCache &context_impl::getKernelProgramCache() const {
-  return MKernelProgramCache;
-}
-
-bool context_impl::hasDevice(const detail::device_impl &Device) const {
-  for (device_impl *D : MDevices)
-    if (D == &Device)
-      return true;
-  return false;
-}
 
 device_impl *
 context_impl::findMatchingDeviceImpl(ur_device_handle_t &DeviceUR) const {
@@ -438,7 +374,7 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
       }
       // Write the pointer to the device global and store the event in the
       // initialize events list.
-      ur_event_handle_t InitEvent;
+      ur_event_handle_t InitEvent = nullptr;
       void *const &USMPtr = DeviceGlobalUSM.getPtr();
       Adapter.call<UrApiKind::urEnqueueDeviceGlobalVariableWrite>(
           QueueImpl.getHandleRef(), NativePrg,
