@@ -9,9 +9,6 @@ import textwrap
 import shlex
 import shutil
 
-import lit.formats
-import lit.util
-
 from lit.llvm import llvm_config
 from lit.llvm.subst import ToolSubst, FindTool
 
@@ -949,6 +946,16 @@ if not filtered_sycl_devices and not config.test_mode == "build-only":
     )
 
 config.sycl_devices = filtered_sycl_devices
+
+# Determine ZE_AFFINITY_MASK for Level Zero devices.
+# Sanitizer tests need to set ZE_AFFINITY_MASK to a single device index
+config.ze_affinity_mask = None
+for sycl_device in remove_level_zero_suffix(config.sycl_devices):
+    be, dev = sycl_device.split(":")
+    if be == "level_zero" and dev.isdigit():
+        if config.ze_affinity_mask is None:
+            config.ze_affinity_mask = dev
+            break
 
 for sycl_device in remove_level_zero_suffix(config.sycl_devices):
     be, dev = sycl_device.split(":")

@@ -283,6 +283,15 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             # so that device might still be accessible to some of the tests yet
             # we won't set the environment variable below for such scenario.
             extra_env = []
+
+            # Include ZE_AFFINITY_MASK if set by lit.local.cfg (e.g., for sanitizer tests)
+            if "ZE_AFFINITY_MASK" in test.config.environment:
+                extra_env.append(
+                    "ZE_AFFINITY_MASK={}".format(
+                        test.config.environment["ZE_AFFINITY_MASK"]
+                    )
+                )
+
             if "level_zero:gpu" in sycl_devices and litConfig.params.get("ur_l0_debug"):
                 extra_env.append("UR_L0_DEBUG={}".format(test.config.ur_l0_debug))
 
@@ -334,14 +343,6 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 expanded = "env"
 
                 extra_env = get_extra_env([parsed_dev_name])
-                backend, device = parsed_dev_name.split(":", 1)
-                device_selector = parsed_dev_name
-                if backend == "level_zero" and device.isdigit():
-                    # level_zero:0 maps to a selector for the first GPU, so pin
-                    # execution to the requested device via ZE_AFFINITY_MASK.
-                    extra_env.append(f"ZE_AFFINITY_MASK={device}")
-                    device_selector = f"{backend}:0"
-
                 if extra_env:
                     expanded += " {}".format(" ".join(extra_env))
 
@@ -349,6 +350,12 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                     expanded += " env UR_LOADER_USE_LEVEL_ZERO_V2=1"
                 elif "level_zero_v1" in full_dev_name:
                     expanded += " env UR_LOADER_USE_LEVEL_ZERO_V2=0"
+
+                # If ZE_AFFINITY_MASK is set, it filters devices so we should use :0
+                device_selector = parsed_dev_name
+                if "ZE_AFFINITY_MASK" in test.config.environment:
+                    backend, _ = parsed_dev_name.split(":", 1)
+                    device_selector = f"{backend}:0"
 
                 expanded += " ONEAPI_DEVICE_SELECTOR={} {}".format(
                     device_selector, test.config.run_launcher
