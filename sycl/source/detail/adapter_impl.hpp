@@ -296,7 +296,11 @@ public:
     if (!R)
       return;
 
-    Adapter->call<Release>(R);
+    try {
+      Adapter->call<Release>(R);
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~Managed", e);
+    }
   }
 
   Managed retain() {

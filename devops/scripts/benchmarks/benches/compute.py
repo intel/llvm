@@ -353,6 +353,41 @@ class ComputeBench(Suite):
         return benches
 
 
+class ComputeBenchCoreSuite(ComputeBench):
+    """
+    A suite for core compute benchmarks scenarios for quick runs.
+    """
+
+    def name(self) -> str:
+        return "Compute Benchmarks Core"
+
+    def benchmarks(self) -> list[Benchmark]:
+        core_benches = []
+        submit_kernel_params = product(
+            list(RUNTIMES),
+            [0, 1],  # in_order_queue
+            [0, 1],  # measure_completion
+            [0, 1],  # use_events
+        )
+        for (
+            runtime,
+            in_order_queue,
+            measure_completion,
+            use_events,
+        ) in submit_kernel_params:
+            core_benches.append(
+                SubmitKernel(
+                    self,
+                    runtime,
+                    in_order_queue,
+                    measure_completion,
+                    use_events,
+                    KernelExecTime=1,
+                )
+            )
+        return core_benches
+
+
 class ComputeBenchmark(Benchmark):
     def __init__(
         self,

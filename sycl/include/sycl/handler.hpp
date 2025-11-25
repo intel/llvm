@@ -421,7 +421,6 @@ template <int Dims> bool range_size_fits_in_size_t(const range<Dims> &r) {
 /// \ingroup sycl_api
 class __SYCL_EXPORT handler {
 private:
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Constructs SYCL handler from the pre-constructed stack-allocated
   /// `handler_impl` (not enforced, but meaningless to do a heap allocation
   /// outside handler instance).
@@ -431,39 +430,6 @@ private:
   // Can't provide this overload outside preview because `handler` lacks
   // required data members.
   handler(detail::handler_impl &HandlerImpl);
-#else
-  /// Constructs SYCL handler from queue.
-  ///
-  /// \param Queue is a SYCL queue.
-  /// \param CallerNeedsEvent indicates if the event resulting from this handler
-  ///        is needed by the caller.
-  handler(std::shared_ptr<detail::queue_impl> Queue, bool CallerNeedsEvent);
-  /// Constructs SYCL handler from the associated queue and the submission's
-  /// primary and secondary queue.
-  ///
-  /// \param Queue is a SYCL queue. This is equal to either PrimaryQueue or
-  ///        SecondaryQueue.
-  /// \param PrimaryQueue is the primary SYCL queue of the submission.
-  /// \param SecondaryQueue is the secondary SYCL queue of the submission. This
-  ///        is null if no secondary queue is associated with the submission.
-  /// \param CallerNeedsEvent indicates if the event resulting from this handler
-  ///        is needed by the caller.
-  handler(std::shared_ptr<detail::queue_impl> Queue,
-          std::shared_ptr<detail::queue_impl> PrimaryQueue,
-          std::shared_ptr<detail::queue_impl> SecondaryQueue,
-          bool CallerNeedsEvent);
-  __SYCL_DLL_LOCAL handler(std::shared_ptr<detail::queue_impl> Queue,
-                           detail::queue_impl *SecondaryQueue,
-                           bool CallerNeedsEvent);
-
-  /// Constructs SYCL handler from Graph.
-  ///
-  /// The handler will add the command-group as a node to the graph rather than
-  /// enqueueing it straight away.
-  ///
-  /// \param Graph is a SYCL command_graph
-  handler(std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph);
-#endif
   handler(std::unique_ptr<detail::handler_impl> &&HandlerImpl);
 
   ~handler();
@@ -502,31 +468,8 @@ private:
 
   void setDeviceKernelInfo(kernel &&Kernel);
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // TODO: Those functions are not used anymore, remove it in the next
-  // ABI-breaking window.
-  void extractArgsAndReqsFromLambda(
-      char *LambdaPtr,
-      const std::vector<detail::kernel_param_desc_t> &ParamDescs, bool IsESIMD);
-  void
-  extractArgsAndReqsFromLambda(char *LambdaPtr, size_t KernelArgsNum,
-                               const detail::kernel_param_desc_t *KernelArgs,
-                               bool IsESIMD);
-  /// Extracts and prepares kernel arguments from the lambda using information
-  /// from the built-ins or integration header.
-  void extractArgsAndReqsFromLambda(
-      char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
-      size_t NumKernelParams, bool IsESIMD);
-#endif
   /// Extracts and prepares kernel arguments set via set_arg(s).
   void extractArgsAndReqs();
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // TODO: remove in the next ABI-breaking window.
-  void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
-                  const int Size, const size_t Index, size_t &IndexShift,
-                  bool IsKernelCreatedFromSource, bool IsESIMD);
-#endif
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// \return a string containing name of SYCL kernel.
@@ -548,9 +491,7 @@ private:
 
   /// Saves the location of user's code passed in \p CodeLoc for future usage in
   /// finalize() method.
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  void saveCodeLoc(detail::code_location CodeLoc);
-#endif
+
   void saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc);
   void copyCodeLoc(const handler &other);
 
@@ -563,11 +504,7 @@ private:
   ///
   /// Note: in preview mode, handler.finalize() is expected to return
   /// nullptr if the event is not needed (discarded).
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   detail::EventImplPtr finalize();
-#else
-  event finalize();
-#endif
 
   /// Constructs CG object of specific type, passes it to Scheduler and
   /// returns sycl::event object representing the command group.
@@ -679,6 +616,8 @@ private:
       accessor<DataT, Dims, AccessMode, AccessTarget, IsPlaceholder> &&Arg) {
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Arg;
     const detail::AccessorImplPtr &AccImpl = detail::getSyclObjImpl(*AccBase);
+    // Ensure the data of AccImpl lives at least as long as the handler.
+    addLifetimeSharedPtrStorage(AccImpl);
     detail::AccessorImplHost *Req = AccImpl.get();
     // Add accessor to the list of arguments.
     addArg(detail::kernel_param_kind_t::kind_accessor, Req,
@@ -716,14 +655,10 @@ private:
     // Set the arg in the handler as normal
     setArgHelper(ArgIndex, std::move(ArgValue));
 
-// Register the dynamic parameter with the handler for later association
-// with the node being added
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    // Register the dynamic parameter with the handler for later association
+    // with the node being added
     registerDynamicParameter(detail::getSyclObjImpl(DynamicParam).get(),
                              ArgIndex);
-#else
-    registerDynamicParameter(DynamicParam, ArgIndex);
-#endif
   }
 
   template <typename DataT, typename PropertyListT>
@@ -775,14 +710,6 @@ private:
            Arg.MArgSize, ArgIndex);
   }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // TODO: Remove in the next ABI-breaking window.
-  void registerDynamicParameter(
-      ext::oneapi::experimental::detail::dynamic_parameter_base
-          &DynamicParamBase,
-      int ArgIndex);
-#endif
-
   /// Registers a dynamic parameter with the handler for later association with
   /// the node being created.
   /// @param DynamicParamImpl The dynamic parameter impl object.
@@ -801,11 +728,6 @@ private:
   /// \param KernelName is the name of the SYCL kernel to check that the used
   ///                   kernel bundle contains.
   void verifyUsedKernelBundleInternal(detail::string_view KernelName);
-
-  // TODO: Legacy symbol, remove when ABI breaking is allowed.
-  void verifyUsedKernelBundle(const std::string &KernelName) {
-    verifyUsedKernelBundleInternal(detail::string_view{KernelName});
-  }
 
   /// Stores lambda to the template-free object
   ///
@@ -876,51 +798,6 @@ private:
       getOrInsertHandlerKernelBundlePtr(/*Insert=*/true);
     }
   }
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  void verifyDeviceHasProgressGuarantee(
-      sycl::ext::oneapi::experimental::forward_progress_guarantee guarantee,
-      sycl::ext::oneapi::experimental::execution_scope threadScope,
-      sycl::ext::oneapi::experimental::execution_scope coordinationScope);
-
-  template <typename Properties>
-  void checkAndSetClusterRange(const Properties &Props) {
-    namespace syclex = sycl::ext::oneapi::experimental;
-    constexpr std::size_t ClusterDim =
-        syclex::detail::getClusterDim<Properties>();
-    if constexpr (ClusterDim > 0) {
-      auto ClusterSize = Props
-                             .template get_property<
-                                 syclex::cuda::cluster_size_key<ClusterDim>>()
-                             .get_cluster_size();
-      setKernelClusterLaunch(ClusterSize);
-    }
-  }
-
-  /// Process runtime kernel properties.
-  ///
-  /// Stores information about kernel properties into the handler.
-  template <typename PropertiesT>
-  void processLaunchProperties(PropertiesT Props) {
-    SetKernelLaunchpropertiesIfNotEmpty(detail::extractKernelProperties(Props));
-  }
-
-  /// Process kernel properties.
-  ///
-  /// Stores information about kernel properties into the handler.
-  ///
-  /// Note: it is important that this function *does not* depend on kernel
-  /// name or kernel type, because then it will be instantiated for every
-  /// kernel, even though body of those instantiated functions could be almost
-  /// the same, thus unnecessary increasing compilation time.
-  template <
-      bool IsESIMDKernel,
-      typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
-  void processProperties(PropertiesT Props) {
-    SetKernelLaunchpropertiesIfNotEmpty(
-        detail::extractKernelProperties<IsESIMDKernel>(Props));
-  }
-#endif // INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Checks whether it is possible to copy the source shape to the destination
   /// shape(the shapes are described by the accessor ranges) by using
@@ -1436,11 +1313,6 @@ private:
   void setStateSpecConstSet();
   bool isStateExplicitKernelBundle() const;
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  std::shared_ptr<detail::kernel_bundle_impl>
-  getOrInsertHandlerKernelBundle(bool Insert) const;
-#endif
-
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   // Rename to just getOrInsertHandlerKernelBundle
 #endif
@@ -1449,16 +1321,11 @@ private:
 
   void setHandlerKernelBundle(kernel Kernel);
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  void setHandlerKernelBundle(
-      const std::shared_ptr<detail::kernel_bundle_impl> &NewKernelBundleImpPtr);
-#endif
-
   template <typename SharedPtrT>
   void setHandlerKernelBundle(SharedPtrT &&NewKernelBundleImpPtr);
 
-  void SetHostTask(std::function<void()> &&Func);
-  void SetHostTask(std::function<void(interop_handle)> &&Func);
+  void SetHostTask(std::function<void()> Func);
+  void SetHostTask(std::function<void(interop_handle)> Func);
 
   template <typename FuncT>
   std::enable_if_t<detail::check_fn_signature<std::remove_reference_t<FuncT>,
@@ -1472,7 +1339,7 @@ private:
     // accessors during finalize
     setArgsToAssociatedAccessors();
 
-    SetHostTask(std::move(Func));
+    SetHostTask(std::forward<FuncT>(Func));
   }
 
   template <typename FuncT>
@@ -1485,7 +1352,7 @@ private:
     // accessors during finalize
     setArgsToAssociatedAccessors();
 
-    SetHostTask(std::move(Func));
+    SetHostTask(std::forward<FuncT>(Func));
     setType(detail::CGType::EnqueueNativeCommand);
   }
 
@@ -1707,7 +1574,7 @@ public:
                    detail::check_fn_signature<std::remove_reference_t<FuncT>,
                                               void(interop_handle)>::value>
   host_task(FuncT &&Func) {
-    host_task_impl(Func);
+    host_task_impl(std::forward<FuncT>(Func));
   }
 
   /// Enqueues a command to the SYCL runtime to invoke \p Func immediately.
@@ -1716,7 +1583,7 @@ public:
                                               void(interop_handle)>::value>
   ext_codeplay_enqueue_native_command([[maybe_unused]] FuncT &&Func) {
 #ifndef __SYCL_DEVICE_ONLY__
-    ext_codeplay_enqueue_native_command_impl(Func);
+    ext_codeplay_enqueue_native_command_impl(std::forward<FuncT>(Func));
 #endif
   }
 
@@ -3140,15 +3007,8 @@ public:
       uint64_t SignalValue);
 
 private:
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   std::unique_ptr<detail::handler_impl> implOwner;
   detail::handler_impl *impl;
-#else
-  std::shared_ptr<detail::handler_impl> impl;
-
-  // Use impl->get_queue*() instead:
-  std::shared_ptr<detail::queue_impl> MQueueDoNotUse;
-#endif
   std::vector<detail::LocalAccessorImplPtr> MLocalAccStorage;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreamStorage;
   detail::ABINeutralKernelNameStrT MKernelName;
@@ -3166,11 +3026,6 @@ private:
   std::unique_ptr<detail::HostKernelBase> MHostKernel;
 
   detail::code_location MCodeLoc = {};
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Was used for the previous reduction implementation (via `withAuxHandler`).
-  bool MIsFinalizedDoNotUse = false;
-  event MLastEventDoNotUse;
-#endif
 
   // Make queue_impl class friend to be able to call finalize method.
   friend class detail::queue_impl;
@@ -3285,9 +3140,6 @@ private:
         UserRange, KernelFunc};
   }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  const std::shared_ptr<detail::context_impl> &getContextImplPtr() const;
-#endif
   detail::context_impl &getContextImpl() const;
 
   // Checks if 2D memory operations are supported by the underlying platform.
@@ -3447,30 +3299,6 @@ private:
                                       bool IsDeviceImageScoped, size_t NumBytes,
                                       size_t Offset);
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Modeled after ur_kernel_cache_config_t
-  // Used as an argument to setKernelCacheConfig that's part of the ABI.
-  enum class StableKernelCacheConfig : int32_t {
-    Default = 0,
-    LargeSLM = 1,
-    LargeData = 2
-  };
-
-  // Set value of the gpu cache configuration for the kernel.
-  void setKernelCacheConfig(StableKernelCacheConfig);
-  // Set value of the kernel is cooperative flag
-  void setKernelIsCooperative(bool);
-
-  // Set using cuda thread block cluster launch flag and set the launch bounds.
-  void setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims);
-  void setKernelClusterLaunch(sycl::range<3> ClusterSize);
-  void setKernelClusterLaunch(sycl::range<2> ClusterSize);
-  void setKernelClusterLaunch(sycl::range<1> ClusterSize);
-
-  // Set the request work group memory size (work_group_static ext).
-  void setKernelWorkGroupMem(size_t Size);
-#endif
-
   void setKernelLaunchProperties(
       const detail::KernelPropertyHolderStructTy &KernelLaunchProperties);
 
@@ -3520,18 +3348,6 @@ private:
     }
   }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Exported on Windows for some reason, have to keep for backward ABI
-  // compatibility, at least formally.
-  void throwOnKernelParameterMisuseHelper(
-      int N, detail::kernel_param_desc_t (*f)(int)) const {
-    detail::CompileTimeKernelInfoTy Info{};
-    Info.NumParams = N;
-    Info.ParamDescGetter = f;
-    throwOnKernelParameterMisuse(Info);
-  }
-#endif
-
   template <typename T, int Dims, access::mode AccessMode,
             access::target AccessTarget,
             access::placeholder IsPlaceholder = access::placeholder::false_t,
@@ -3563,11 +3379,6 @@ private:
   }
 #endif
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Set that an ND Range was used during a call to parallel_for
-  void setNDRangeUsed(bool Value);
-#endif
-
   inline void internalProfilingTagImpl() {
     throwIfActionIsCreated();
     setType(detail::CGType::ProfilingTag);
@@ -3579,24 +3390,11 @@ private:
 
   void addArg(detail::kernel_param_kind_t ArgKind, void *Req, int AccessTarget,
               int ArgIndex);
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // TODO: remove in the next ABI-breaking window
-  void clearArgs();
-#endif
+
   void setArgsToAssociatedAccessors();
 
   bool HasAssociatedAccessor(detail::AccessorImplHost *Req,
                              access::target AccessTarget) const;
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  void setNDRangeDescriptorPadded(sycl::range<3> N, bool SetNumWorkGroups,
-                                  int Dims);
-  void setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
-                                  sycl::id<3> Offset, int Dims);
-  void setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
-                                  sycl::range<3> LocalSize, sycl::id<3> Offset,
-                                  int Dims);
-#endif
 
   template <int Dims>
   void setNDRangeDescriptor(sycl::range<Dims> N,
@@ -3629,22 +3427,14 @@ private:
   void setNDRangeDescriptor(sycl::range<1> NumWorkItems, sycl::id<1> Offset);
   void setNDRangeDescriptor(sycl::range<1> NumWorkItems,
                             sycl::range<1> LocalSize, sycl::id<1> Offset);
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  void setKernelInfo(void *KernelFuncPtr, int KernelNumArgs,
-                     detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
-                     bool KernelIsESIMD, bool KernelHasSpecialCaptures);
-#endif
   void setKernelFunc(void *KernelFuncPtr);
 
   void instantiateKernelOnHost(void *InstantiateKernelOnHostPtr);
 
   friend class detail::HandlerAccess;
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   __SYCL_DLL_LOCAL detail::handler_impl *get_impl() { return impl; }
-#else
-  __SYCL_DLL_LOCAL detail::handler_impl *get_impl() { return impl.get(); }
-#endif
+
   // Friend free-functions for asynchronous allocation and freeing.
   __SYCL_EXPORT friend void
   ext::oneapi::experimental::async_free(sycl::handler &h, void *ptr);
@@ -3657,10 +3447,6 @@ private:
       sycl::handler &h, size_t size,
       const ext::oneapi::experimental::memory_pool &pool);
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  void setKernelNameBasedCachePtr(
-      detail::KernelNameBasedCacheT *KernelNameBasedCachePtr);
-#endif
   void setDeviceKernelInfoPtr(detail::DeviceKernelInfo *DeviceKernelInfoPtr);
 
   queue getQueue();
@@ -3686,13 +3472,8 @@ public:
   }
 
   static void swap(handler &LHS, handler &RHS) {
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     std::swap(LHS.implOwner, RHS.implOwner);
-#endif
     std::swap(LHS.impl, RHS.impl);
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    std::swap(LHS.MQueueDoNotUse, RHS.MQueueDoNotUse);
-#endif
     std::swap(LHS.MLocalAccStorage, RHS.MLocalAccStorage);
     std::swap(LHS.MStreamStorage, RHS.MStreamStorage);
     std::swap(LHS.MKernelName, RHS.MKernelName);
@@ -3703,10 +3484,6 @@ public:
     std::swap(LHS.MPattern, RHS.MPattern);
     std::swap(LHS.MHostKernel, RHS.MHostKernel);
     std::swap(LHS.MCodeLoc, RHS.MCodeLoc);
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    std::swap(LHS.MIsFinalizedDoNotUse, RHS.MIsFinalizedDoNotUse);
-    std::swap(LHS.MLastEventDoNotUse, RHS.MLastEventDoNotUse);
-#endif
   }
 
   // pre/postProcess are used only for reductions right now, but the

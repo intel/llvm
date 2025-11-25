@@ -451,6 +451,10 @@ mergeDeviceRequirements(const std::vector<const RTDeviceBinaryImage *> &Imgs) {
         size_t Pos = 0;
         do {
           const size_t NextPos = Contents.find(';', Pos);
+          if (NextPos == std::string::npos) {
+            Set.emplace(Contents.substr(Pos));
+            break;
+          }
           if (NextPos != Pos)
             Set.emplace(Contents.substr(Pos, NextPos - Pos));
           Pos = NextPos + 1;

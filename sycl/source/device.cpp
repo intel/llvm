@@ -205,14 +205,6 @@ device::get_backend_info() const {
   return impl->get_backend_info<Param>();
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, Picode)              \
-  template __SYCL_EXPORT ReturnT                                               \
-  device::get_backend_info<info::DescType::Desc>() const;
-
-#include <sycl/info/sycl_backend_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-
 backend device::get_backend() const noexcept { return impl->getBackend(); }
 
 ur_native_handle_t device::getNative() const { return impl->getNative(); }
@@ -345,6 +337,10 @@ detail::string device::ext_oneapi_cl_profile_impl() const {
   std::string profile =
       ext::oneapi::experimental::detail::OpenCLC_Profile(ipVersion);
   return detail::string{profile};
+}
+
+context device::ext_oneapi_get_default_context() {
+  return impl->get_platform().khr_get_default_context();
 }
 
 size_t device::ext_oneapi_index_within_platform() const {
