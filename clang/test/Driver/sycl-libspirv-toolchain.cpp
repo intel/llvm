@@ -28,7 +28,7 @@
 // CHECK-CUDA: "-cc1"{{.*}} "-fcuda-is-device"
 // CHECK-CUDA-NOT: "-mlink-builtin-bitcode" "{{.*}}.libspirv-{{.*}}.bc"
 //
-// The path to the remangled libspirv bitcode file is determined by the installation directory
+// The path to the remangled libspirv bitcode file is determined by the resource directory
 // RUN: %clang -### -resource-dir %{resource_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda -nocudalib %s 2>&1 \
 // RUN: | FileCheck %s -DRESOURCE_DIR=%{resource_dir} --check-prefixes=CHECK-DIR
 // CHECK-DIR: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode" "[[RESOURCE_DIR]]{{.*[\\/]}}remangled-{{.*}}.libspirv-nvptx64-nvidia-cuda.bc"
