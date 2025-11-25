@@ -191,7 +191,6 @@ RTDeviceBinaryImage::RTDeviceBinaryImage(sycl_device_binary Bin) {
   DeviceLibReqMask.init(Bin, __SYCL_PROPERTY_SET_DEVICELIB_REQ_MASK);
   DeviceLibMetadata.init(Bin, __SYCL_PROPERTY_SET_DEVICELIB_METADATA);
   KernelParamOptInfo.init(Bin, __SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO);
-  AssertUsed.init(Bin, __SYCL_PROPERTY_SET_SYCL_ASSERT_USED);
   MallocUsed.init(Bin, __SYCL_PROPERTY_SET_SYCL_MALLOC_USED);
   ImplicitLocalArg.init(Bin, __SYCL_PROPERTY_SET_SYCL_IMPLICIT_LOCAL_ARG);
   ProgramMetadata.init(Bin, __SYCL_PROPERTY_SET_PROGRAM_METADATA);
@@ -453,6 +452,10 @@ mergeDeviceRequirements(const std::vector<const RTDeviceBinaryImage *> &Imgs) {
         size_t Pos = 0;
         do {
           const size_t NextPos = Contents.find(';', Pos);
+          if (NextPos == std::string::npos) {
+            Set.emplace(Contents.substr(Pos));
+            break;
+          }
           if (NextPos != Pos)
             Set.emplace(Contents.substr(Pos, NextPos - Pos));
           Pos = NextPos + 1;
@@ -518,8 +521,6 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
       naiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
         return Img.getKernelParamOptInfo();
       });
-  auto MergedAssertUsed = naiveMergeBinaryProperties(
-      Imgs, [](const RTDeviceBinaryImage &Img) { return Img.getAssertUsed(); });
   auto MergedDeviceGlobals =
       naiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
         return Img.getDeviceGlobals();
@@ -547,13 +548,12 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
         return Img.getRegisteredKernels();
       });
 
-  std::array<const std::vector<sycl_device_binary_property> *, 11> MergedVecs{
+  std::array<const std::vector<sycl_device_binary_property> *, 10> MergedVecs{
       &MergedSpecConstants,      &MergedSpecConstantsDefaultValues,
-      &MergedKernelParamOptInfo, &MergedAssertUsed,
-      &MergedDeviceGlobals,      &MergedHostPipes,
-      &MergedVirtualFunctions,   &MergedImplicitLocalArg,
-      &MergedKernelNames,        &MergedExportedSymbols,
-      &MergedRegisteredKernels};
+      &MergedKernelParamOptInfo, &MergedDeviceGlobals,
+      &MergedHostPipes,          &MergedVirtualFunctions,
+      &MergedImplicitLocalArg,   &MergedKernelNames,
+      &MergedExportedSymbols,    &MergedRegisteredKernels};
 
   // Exclusive merges.
   auto MergedDeviceLibReqMask =
@@ -673,7 +673,6 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
   CopyPropertiesVec(MergedSpecConstantsDefaultValues,
                     SpecConstDefaultValuesMap);
   CopyPropertiesVec(MergedKernelParamOptInfo, KernelParamOptInfo);
-  CopyPropertiesVec(MergedAssertUsed, AssertUsed);
   CopyPropertiesVec(MergedDeviceGlobals, DeviceGlobals);
   CopyPropertiesVec(MergedHostPipes, HostPipes);
   CopyPropertiesVec(MergedVirtualFunctions, VirtualFunctions);

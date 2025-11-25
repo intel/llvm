@@ -82,7 +82,6 @@
 // CHECK-NEXT: info/ext_intel_kernel_info_traits.def
 // CHECK-NEXT: info/ext_oneapi_device_traits.def
 // CHECK-NEXT: info/ext_oneapi_kernel_queue_specific_traits.def
-// CHECK-NEXT: info/sycl_backend_traits.def
 // CHECK-NEXT: usm/usm_enums.hpp
 // CHECK-NEXT: properties/buffer_properties.def
 // CHECK-NEXT: queue.hpp
@@ -98,6 +97,7 @@
 // CHECK-NEXT: nd_item.hpp
 // CHECK-NEXT: nd_range.hpp
 // CHECK-NEXT: detail/id_queries_fit_in_int.hpp
+// CHECK-NEXT: detail/nd_range_view.hpp
 // CHECK-NEXT: detail/optional.hpp
 // CHECK-NEXT: device.hpp
 // CHECK-NEXT: detail/string_view.hpp
@@ -151,5 +151,6 @@
 // CHECK-NEXT: ext/oneapi/experimental/raw_kernel_arg.hpp
 // CHECK-NEXT: kernel.hpp
 // CHECK-NEXT: sampler.hpp
+// CHECK-NEXT: sycl_span.hpp
 // CHECK-NEXT: feature_test.hpp
 // CHECK-EMPTY:

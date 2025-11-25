@@ -526,21 +526,21 @@ ur_result_t ur_platform_handle_t_::initialize() {
   ZeMemGetPitchFor2dImageExt.Supported =
       ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage != nullptr;
 
-  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
-                  (ZeDriver, "zeCommandListAppendLaunchKernelWithArguments",
-                   reinterpret_cast<void **>(
-                       &ZeCommandListAppendLaunchKernelWithArgumentsExt
-                            .zeCommandListAppendLaunchKernelWithArguments)));
-
-  ZeCommandListAppendLaunchKernelWithArgumentsExt.Supported =
-      ZeCommandListAppendLaunchKernelWithArgumentsExt
-          .zeCommandListAppendLaunchKernelWithArguments != nullptr;
+  if (this->isDriverVersionNewerOrSimilar(1, 14, 36035)) {
+    ZeCommandListAppendLaunchKernelWithArgumentsExt.Supported = true;
+  } else {
+    ZeCommandListAppendLaunchKernelWithArgumentsExt.Supported = false;
+  }
 
   // Check if the driver supports zeCommandListAppendLaunchKernelWithArguments()
   // with cooperative mode (version >= 1.6.35005)
   ZeCommandListAppendLaunchKernelWithArgumentsExt
       .DriverSupportsCooperativeKernelLaunchWithArgs =
       this->isDriverVersionNewerOrSimilar(1, 6, 35005);
+
+  ZeCommandListAppendLaunchKernelWithArgumentsExt
+      .DisableZeLaunchKernelWithArgs =
+      getenv_tobool("UR_L0_V2_DISABLE_ZE_LAUNCH_KERNEL_WITH_ARGS", false);
 
   return UR_RESULT_SUCCESS;
 }

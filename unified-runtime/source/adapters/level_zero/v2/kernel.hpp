@@ -94,6 +94,12 @@ public:
   ur_result_t addPendingPointerArgument(uint32_t argIndex,
                                         const void *pArgValue);
 
+  // Compute a zePtr pointer for the given memory handle and store it in *pZePtr
+  ur_result_t computeZePtr(ur_mem_handle_t hMem, ur_device_handle_t hDevice,
+                           ur_mem_buffer_t::device_access_mode_t accessMode,
+                           ze_command_list_handle_t zeCommandList,
+                           wait_list_view &waitListView, void **pZePtr);
+
   // Set all required values for the kernel before submission (including pending
   // memory allocations).
   // The kMemObj argument must be a non-empty vector
@@ -104,8 +110,7 @@ public:
                                    uint32_t workDim, uint32_t groupSizeX,
                                    uint32_t groupSizeY, uint32_t groupSizeZ,
                                    ze_command_list_handle_t cmdList,
-                                   wait_list_view &waitListView,
-                                   std::vector<void *> *kMemObj = nullptr);
+                                   wait_list_view &waitListView);
 
   // Get context of the kernel.
   ur_context_handle_t getContext() const { return hProgram->Context; }

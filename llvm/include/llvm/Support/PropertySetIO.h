@@ -216,7 +216,6 @@ public:
   static constexpr char SYCL_KERNEL_PARAM_OPT_INFO[] = "SYCL/kernel param opt";
   static constexpr char SYCL_PROGRAM_METADATA[] = "SYCL/program metadata";
   static constexpr char SYCL_MISC_PROP[] = "SYCL/misc properties";
-  static constexpr char SYCL_ASSERT_USED[] = "SYCL/assert used";
   static constexpr char SYCL_MALLOC_USED[] = "SYCL/malloc used";
   static constexpr char SYCL_KERNEL_NAMES[] = "SYCL/kernel names";
   static constexpr char SYCL_EXPORTED_SYMBOLS[] = "SYCL/exported symbols";

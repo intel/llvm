@@ -31,7 +31,6 @@
 #include <sycl/sampler.hpp>
 
 #include <cassert>
-#include <iostream>
 #include <optional>
 #include <string>
 #include <vector>
@@ -360,12 +359,14 @@ class DispatchHostTask {
         AdapterWithEvents.first->call<UrApiKind::urEventWait>(RawEvents.size(),
                                                               RawEvents.data());
       } catch (const sycl::exception &) {
-        MThisCmd->MEvent->getSubmittedQueue()->reportAsyncException(
-            std::current_exception());
+        auto QueuePtr = MThisCmd->MEvent->getSubmittedQueue();
+        Scheduler::getInstance().reportAsyncException(QueuePtr,
+                                                      std::current_exception());
         return false;
       } catch (...) {
-        MThisCmd->MEvent->getSubmittedQueue()->reportAsyncException(
-            std::current_exception());
+        auto QueuePtr = MThisCmd->MEvent->getSubmittedQueue();
+        Scheduler::getInstance().reportAsyncException(QueuePtr,
+                                                      std::current_exception());
         return false;
       }
     }
@@ -408,10 +409,12 @@ public:
           make_error_code(errc::runtime),
           std::string("Couldn't wait for host-task's dependencies")));
 
-      MThisCmd->MEvent->getSubmittedQueue()->reportAsyncException(EPtr);
+      auto QueuePtr = MThisCmd->MEvent->getSubmittedQueue();
+      auto &SchedulerInst = Scheduler::getInstance();
+      SchedulerInst.reportAsyncException(QueuePtr, EPtr);
       // reset host-task's lambda and quit
       HostTask.MHostTask.reset();
-      Scheduler::getInstance().NotifyHostTaskCompletion(MThisCmd);
+      SchedulerInst.NotifyHostTaskCompletion(MThisCmd);
       return;
     }
 
@@ -470,8 +473,8 @@ public:
         }
       }
 #endif
-      MThisCmd->MEvent->getSubmittedQueue()->reportAsyncException(
-          CurrentException);
+      auto QueuePtr = MThisCmd->MEvent->getSubmittedQueue();
+      Scheduler::getInstance().reportAsyncException(QueuePtr, CurrentException);
     }
 
     HostTask.MHostTask.reset();
@@ -488,8 +491,8 @@ public:
       Scheduler::getInstance().NotifyHostTaskCompletion(MThisCmd);
     } catch (...) {
       auto CurrentException = std::current_exception();
-      MThisCmd->MEvent->getSubmittedQueue()->reportAsyncException(
-          CurrentException);
+      auto QueuePtr = MThisCmd->MEvent->getSubmittedQueue();
+      Scheduler::getInstance().reportAsyncException(QueuePtr, CurrentException);
     }
   }
 };
@@ -564,7 +567,8 @@ Command::Command(
       MCommandBuffer(CommandBuffer), MSyncPointDeps(SyncPoints) {
   MWorkerQueue = MQueue;
   MEvent->setWorkerQueue(MWorkerQueue);
-  MEvent->setSubmittedQueue(MWorkerQueue);
+  if (Queue)
+    MEvent->setSubmittedQueue(Queue);
   MEvent->setCommand(this);
   if (MQueue)
     MEvent->setContextImpl(MQueue->getContextImpl());
@@ -1959,7 +1963,7 @@ ExecCGCommand::ExecCGCommand(
     assert(SubmitQueue &&
            "Host task command group must have a valid submit queue");
 
-    MEvent->setSubmittedQueue(SubmitQueue->weak_from_this());
+    MEvent->setSubmittedQueue(SubmitQueue);
     // Initialize host profiling info if the queue has profiling enabled.
     if (SubmitQueue->MIsProfilingEnabled)
       MEvent->initHostProfilingInfo();
@@ -2275,23 +2279,6 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, ur_kernel_handle_t Kernel,
   }
 }
 
-// We have the following mapping between dimensions with SPIR-V builtins:
-// 1D: id[0] -> x
-// 2D: id[0] -> y, id[1] -> x
-// 3D: id[0] -> z, id[1] -> y, id[2] -> x
-// So in order to ensure the correctness we update all the kernel
-// parameters accordingly.
-// Initially we keep the order of NDRDescT as it provided by the user, this
-// simplifies overall handling and do the reverse only when
-// the kernel is enqueued.
-void ReverseRangeDimensionsForKernel(NDRDescT &NDR) {
-  if (NDR.Dims > 1) {
-    std::swap(NDR.GlobalSize[0], NDR.GlobalSize[NDR.Dims - 1]);
-    std::swap(NDR.LocalSize[0], NDR.LocalSize[NDR.Dims - 1]);
-    std::swap(NDR.GlobalOffset[0], NDR.GlobalOffset[NDR.Dims - 1]);
-  }
-}
-
 ur_mem_flags_t AccessModeToUr(access::mode AccessorMode) {
   switch (AccessorMode) {
   case access::mode::read:
@@ -2411,7 +2398,8 @@ static ur_result_t SetKernelParamsAndLaunch(
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     bool IsCooperative, bool KernelUsesClusterLaunch,
     uint32_t WorkGroupMemorySize, const RTDeviceBinaryImage *BinImage,
-    DeviceKernelInfo &DeviceKernelInfo, void *KernelFuncPtr = nullptr) {
+    DeviceKernelInfo &DeviceKernelInfo, ur_program_handle_t Program,
+    void *KernelFuncPtr = nullptr) {
   adapter_impl &Adapter = Queue.getAdapter();
 
   if (SYCLConfig<SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
@@ -2466,8 +2454,7 @@ static ur_result_t SetKernelParamsAndLaunch(
   }
 
   std::optional<int> ImplicitLocalArg =
-      ProgramManager::getInstance().kernelImplicitLocalArgPos(
-          DeviceKernelInfo.Name);
+      DeviceKernelInfo.getImplicitLocalArgPos();
   // Set the implicit local memory buffer to support
   // get_work_group_scratch_memory. This is for backend not supporting
   // CUDA-style local memory setting. Note that we may have -1 as a position,
@@ -2510,44 +2497,46 @@ static ur_result_t SetKernelParamsAndLaunch(
                          NDRDesc.GlobalOffset[1] != 0 ||
                          NDRDesc.GlobalOffset[2] != 0;
 
-  std::vector<ur_kernel_launch_property_t> property_list;
+  ur_kernel_launch_ext_properties_t property_list = {
+      UR_STRUCTURE_TYPE_KERNEL_LAUNCH_EXT_PROPERTIES, nullptr, 0};
+  ur_kernel_launch_cluster_property_t launch_property_cluster_range;
+  ur_kernel_launch_workgroup_property_t workgroup_property;
+  void **last_pNext = &property_list.pNext;
 
   if (KernelUsesClusterLaunch) {
-    ur_kernel_launch_property_value_t launch_property_value_cluster_range;
-    launch_property_value_cluster_range.clusterDim[0] =
-        NDRDesc.ClusterDimensions[0];
-    launch_property_value_cluster_range.clusterDim[1] =
-        NDRDesc.ClusterDimensions[1];
-    launch_property_value_cluster_range.clusterDim[2] =
-        NDRDesc.ClusterDimensions[2];
-
-    property_list.push_back({UR_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION,
-                             launch_property_value_cluster_range});
+    launch_property_cluster_range.stype =
+        UR_STRUCTURE_TYPE_KERNEL_LAUNCH_CLUSTER_PROPERTY;
+    launch_property_cluster_range.pNext = nullptr;
+    launch_property_cluster_range.clusterDim[0] = NDRDesc.ClusterDimensions[0];
+    launch_property_cluster_range.clusterDim[1] = NDRDesc.ClusterDimensions[1];
+    launch_property_cluster_range.clusterDim[2] = NDRDesc.ClusterDimensions[2];
+    *last_pNext = &launch_property_cluster_range;
+    last_pNext = &launch_property_cluster_range.pNext;
   }
   if (IsCooperative) {
-    ur_kernel_launch_property_value_t launch_property_value_cooperative;
-    launch_property_value_cooperative.cooperative = 1;
-    property_list.push_back({UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE,
-                             launch_property_value_cooperative});
+    property_list.flags |= UR_KERNEL_LAUNCH_FLAG_COOPERATIVE;
   }
   // If there is no implicit arg, let the driver handle it via a property
   if (WorkGroupMemorySize && !ImplicitLocalArg.has_value()) {
-    property_list.push_back({UR_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY,
-                             {{WorkGroupMemorySize}}});
+    workgroup_property.stype =
+        UR_STRUCTURE_TYPE_KERNEL_LAUNCH_WORKGROUP_PROPERTY;
+    workgroup_property.pNext = nullptr;
+    workgroup_property.workgroup_mem_size = WorkGroupMemorySize;
+    *last_pNext = &workgroup_property;
+    last_pNext = &workgroup_property.pNext;
   }
 
   if (DeviceKernelInfo.usesMalloc())
-    std::cout << "enqueue Kernel with Malloc launch for " << DeviceKernelInfo.Name.data() << std::endl;
-  else
-    std::cout << "enqueue Kernel without Malloc launch for " << DeviceKernelInfo.Name.data() << std::endl;
+    Queue.getContextImpl().createMallocPool(
+        Queue.getDeviceImpl().getHandleRef(), Queue.getHandleRef(), Program);
   ur_event_handle_t UREvent = nullptr;
   ur_result_t Error =
       Adapter.call_nocheck<UrApiKind::urEnqueueKernelLaunchWithArgsExp>(
           Queue.getHandleRef(), Kernel, NDRDesc.Dims,
           HasOffset ? &NDRDesc.GlobalOffset[0] : nullptr,
           &NDRDesc.GlobalSize[0], LocalSize, UrArgs.size(), UrArgs.data(),
-          property_list.size(),
-          property_list.empty() ? nullptr : property_list.data(),
+          (property_list.flags || property_list.pNext) ? &property_list
+                                                       : nullptr,
           RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
           OutEventImpl ? &UREvent : nullptr);
   if (Error == UR_RESULT_SUCCESS && OutEventImpl) {
@@ -2875,7 +2864,7 @@ void enqueueImpKernel(
         Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList,
         OutEventImpl, EliminatedArgMask, getMemAllocationFunc,
         KernelIsCooperative, KernelUsesClusterLaunch, WorkGroupMemorySize,
-        BinImage, DeviceKernelInfo, KernelFuncPtr);
+        BinImage, DeviceKernelInfo, Program, KernelFuncPtr);
   }
   if (UR_RESULT_SUCCESS != Error) {
     // If we have got non-success error code, let's analyze it to emit nice
@@ -3347,16 +3336,6 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     const std::shared_ptr<detail::kernel_impl> &SyclKernel =
         ExecKernel->MSyclKernel;
     KernelNameStrRefT KernelName = ExecKernel->MDeviceKernelInfo.Name;
-
-    if (!EventImpl) {
-      // Kernel only uses assert if it's non interop one
-      bool KernelUsesAssert = (!SyclKernel || SyclKernel->hasSYCLMetadata()) &&
-                              ExecKernel->MDeviceKernelInfo.usesAssert();
-      if (KernelUsesAssert) {
-        EventImpl = MEvent.get();
-      }
-    }
-
     const RTDeviceBinaryImage *BinImage = nullptr;
     if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
       BinImage = retrieveKernelBinary(*MQueue, KernelName);

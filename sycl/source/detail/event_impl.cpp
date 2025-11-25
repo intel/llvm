@@ -211,8 +211,8 @@ void event_impl::initHostProfilingInfo() {
   MHostProfilingInfo->setDevice(&Device);
 }
 
-void event_impl::setSubmittedQueue(std::weak_ptr<queue_impl> SubmittedQueue) {
-  MSubmittedQueue = std::move(SubmittedQueue);
+void event_impl::setSubmittedQueue(queue_impl *SubmittedQueue) {
+  MSubmittedQueue = SubmittedQueue->weak_from_this();
 }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -307,9 +307,7 @@ void event_impl::wait(bool *Success) {
 
 void event_impl::wait_and_throw() {
   wait();
-
-  if (std::shared_ptr<queue_impl> SubmittedQueue = MSubmittedQueue.lock())
-    SubmittedQueue->throw_asynchronous();
+  Scheduler::getInstance().flushAsyncExceptions();
 }
 
 void event_impl::checkProfilingPreconditions() const {
@@ -440,68 +438,6 @@ event_impl::get_info<info::event::command_execution_status>() {
              ? sycl::info::event_command_status::submitted
              : info::event_command_status::complete;
 }
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::platform::version::return_type
-event_impl::get_backend_info<info::platform::version>() const {
-  if (!MContext) {
-    return "Context not initialized, no backend info available";
-  }
-  if (MContext->getBackend() != backend::opencl) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::platform::version info descriptor can "
-                          "only be queried with an OpenCL backend");
-  }
-  if (std::shared_ptr<queue_impl> Queue = MQueue.lock()) {
-    return Queue->getDeviceImpl()
-        .get_platform()
-        .get_info<info::platform::version>();
-  }
-  // If the queue has been released, no platform will be associated
-  // so return empty string.
-  return "";
-}
-#endif
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::device::version::return_type
-event_impl::get_backend_info<info::device::version>() const {
-  if (!MContext) {
-    return "Context not initialized, no backend info available";
-  }
-  if (MContext->getBackend() != backend::opencl) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::device::version info descriptor can only "
-                          "be queried with an OpenCL backend");
-  }
-  if (std::shared_ptr<queue_impl> Queue = MQueue.lock()) {
-    return Queue->getDeviceImpl().get_info<info::device::version>();
-  }
-  return ""; // If the queue has been released, no device will be associated so
-             // return empty string
-}
-#endif
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::device::backend_version::return_type
-event_impl::get_backend_info<info::device::backend_version>() const {
-  if (!MContext) {
-    return "Context not initialized, no backend info available";
-  }
-  if (MContext->getBackend() != backend::ext_oneapi_level_zero) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::device::backend_version info descriptor "
-                          "can only be queried with a Level Zero backend");
-  }
-  return "";
-  // Currently The Level Zero backend does not define the value of this
-  // information descriptor and implementations are encouraged to return the
-  // empty string as per specification.
-}
-#endif
 
 void HostProfilingInfo::start() { StartTime = getTimestamp(Device); }
 

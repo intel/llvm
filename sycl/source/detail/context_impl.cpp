@@ -9,6 +9,7 @@
 #include <detail/context_impl.hpp>
 #include <detail/context_info.hpp>
 #include <detail/event_info.hpp>
+#include <detail/malloc_meta.hpp>
 #include <detail/memory_pool_impl.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/queue_impl.hpp>
@@ -23,6 +24,7 @@
 #include <sycl/property_list.hpp>
 
 #include <algorithm>
+#include <iostream>
 #include <set>
 
 namespace sycl {
@@ -212,72 +214,8 @@ context_impl::get_info<info::context::atomic_fence_scope_capabilities>() const {
   return CapabilityList;
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::platform::version::return_type
-context_impl::get_backend_info<info::platform::version>() const {
-  if (getBackend() != backend::opencl) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::platform::version info descriptor can "
-                          "only be queried with an OpenCL backend");
-  }
-  return MDevices[0]->get_platform().get_info<info::platform::version>();
-}
-#endif
-
 device select_device(DSelectorInvocableType DeviceSelectorInvocable,
                      std::vector<device> &Devices);
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::device::version::return_type
-context_impl::get_backend_info<info::device::version>() const {
-  if (getBackend() != backend::opencl) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::device::version info descriptor can only "
-                          "be queried with an OpenCL backend");
-  }
-  auto Devices = get_info<info::context::devices>();
-  if (Devices.empty()) {
-    return "No available device";
-  }
-  // Use default selector to pick a device.
-  return select_device(default_selector_v, Devices)
-      .get_info<info::device::version>();
-}
-#endif
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::device::backend_version::return_type
-context_impl::get_backend_info<info::device::backend_version>() const {
-  if (getBackend() != backend::ext_oneapi_level_zero) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::device::backend_version info descriptor "
-                          "can only be queried with a Level Zero backend");
-  }
-  return "";
-  // Currently The Level Zero backend does not define the value of this
-  // information descriptor and implementations are encouraged to return the
-  // empty string as per specification.
-}
-#endif
-
-ur_context_handle_t &context_impl::getHandleRef() { return MContext; }
-const ur_context_handle_t &context_impl::getHandleRef() const {
-  return MContext;
-}
-
-KernelProgramCache &context_impl::getKernelProgramCache() const {
-  return MKernelProgramCache;
-}
-
-bool context_impl::hasDevice(const detail::device_impl &Device) const {
-  for (device_impl *D : MDevices)
-    if (D == &Device)
-      return true;
-  return false;
-}
 
 device_impl *
 context_impl::findMatchingDeviceImpl(ur_device_handle_t &DeviceUR) const {
@@ -433,7 +371,7 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
       }
       // Write the pointer to the device global and store the event in the
       // initialize events list.
-      ur_event_handle_t InitEvent;
+      ur_event_handle_t InitEvent = nullptr;
       void *const &USMPtr = DeviceGlobalUSM.getPtr();
       Adapter.call<UrApiKind::urEnqueueDeviceGlobalVariableWrite>(
           QueueImpl.getHandleRef(), NativePrg,
@@ -600,6 +538,58 @@ context_impl::get_default_memory_pool(const context &Context,
   MMemPoolImplPtrs.push_back(std::pair(Device, MemPoolImplPtr));
 
   return MemPoolImplPtr;
+}
+
+void context_impl::createMallocPool(ur_device_handle_t Device,
+                                    ur_queue_handle_t Queue,
+                                    ur_program_handle_t Program) {
+  void *SuperBlkPtr = nullptr;
+  void *RandomWalkParamPtr = nullptr;
+  void *DeviceHeapPtr = nullptr;
+  getAdapter().call<UrApiKind::urUSMSharedAlloc>(
+      MContext, Device, nullptr, nullptr, sizeof(superblk), &SuperBlkPtr);
+  getAdapter().call<UrApiKind::urUSMSharedAlloc>(
+      MContext, Device, nullptr, nullptr, sizeof(random_walk_params_t),
+      &RandomWalkParamPtr);
+  getAdapter().call<UrApiKind::urUSMSharedAlloc>(MContext, Device, nullptr,
+                                                 nullptr, sizeof(device_heap_t),
+                                                 &DeviceHeapPtr);
+  if (!SuperBlkPtr || !RandomWalkParamPtr || !DeviceHeapPtr) {
+    std::cout << "Shared USM alloc failed for malloc meta!" << std::endl;
+    return;
+  }
+
+  device_heap_t *DevHPtr = reinterpret_cast<device_heap_t *>(DeviceHeapPtr);
+  DevHPtr->ptr_superblk = reinterpret_cast<unsigned long *>(SuperBlkPtr);
+  DevHPtr->prwalkparams =
+      reinterpret_cast<random_walk_params_t *>(RandomWalkParamPtr);
+
+  // For debug purpose, we initialize random walks fields in host side and print
+  // them in device code to see whether matches.
+  DevHPtr->prwalkparams->num_walks = 100;
+  DevHPtr->prwalkparams->walk_length = 999;
+  DevHPtr->prwalkparams->index_range_start = 111;
+  DevHPtr->prwalkparams->index_range_end = 222;
+  DevHPtr->prwalkparams->step_size = 555;
+  void *HeapBase = nullptr;
+  // Alloc Heap for malloc, make it 20M for each device
+  getAdapter().call<UrApiKind::urUSMSharedAlloc>(MContext, Device, nullptr,
+                                                 nullptr, 0x1400000, &HeapBase);
+  if (!HeapBase) {
+    std::cout << "Malloc Heap alloc failed!" << std::endl;
+    return;
+  }
+  std::cout << "Malloc Heap At: 0x" << std::hex
+            << reinterpret_cast<unsigned long long>(HeapBase) << std::endl;
+
+  DevHPtr->base = reinterpret_cast<unsigned long>(HeapBase);
+  DevHPtr->size = 0x1400000;
+
+  // Write DeviceHeap address to device scope
+  getAdapter().call<UrApiKind::urEnqueueDeviceGlobalVariableWrite>(
+      Queue, Program, "__DeviceHeapPtr", true, sizeof(DeviceHeapPtr), 0,
+      &DeviceHeapPtr, 0, nullptr, nullptr);
+  return;
 }
 
 } // namespace detail

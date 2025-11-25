@@ -449,13 +449,7 @@ PropSetRegTy computeModuleProperties(const Module &M,
     if (OptLevel != -1)
       PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "optLevel", OptLevel);
   }
-  {
-    std::vector<StringRef> AssertFuncNames{"__devicelib_assert_fail"};
-    std::vector<StringRef> FuncNames =
-        getKernelNamesUsingSpecialFunctions(M, AssertFuncNames);
-    for (const StringRef &FName : FuncNames)
-      PropSet.add(PropSetRegTy::SYCL_ASSERT_USED, FName, true);
-  }
+
   {
     std::vector<StringRef> MallocFuncNames{"malloc", "free"};
     std::vector<StringRef> FuncNames =
@@ -463,6 +457,7 @@ PropSetRegTy computeModuleProperties(const Module &M,
     for (const StringRef &FName : FuncNames)
       PropSet.add(PropSetRegTy::SYCL_MALLOC_USED, FName, true);
   }
+
   {
     std::vector<std::pair<StringRef, int>> ArgPos =
         getKernelNamesUsingImplicitLocalMem(M);

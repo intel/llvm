@@ -47,7 +47,10 @@ jobs:
 
   e2e-lin:
     needs: [detect_changes, build-lin]
-    if: ${{ always() && !cancelled() && needs.build-lin.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.build-lin.outputs.build_conclusion == 'success' }}
+    permissions:
+      contents: write
+      packages: read
     strategy:
       fail-fast: false
       matrix:
@@ -78,8 +81,8 @@ jobs:
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             extra_lit_opts: --param spirv-backend=True
-            e2e_binaries_artifact: e2e_bin_spirv_backend
-            e2e_testing_mode: 'run-only'
+            binaries_artifact: e2e_bin_spirv_backend
+            testing_mode: 'run-only'
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}
@@ -96,8 +99,8 @@ jobs:
       toolchain_artifact_filename: ${{ needs.build-lin.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.build-lin.outputs.toolchain_decompress_command }}
 
-      e2e_binaries_artifact: ${{ matrix.e2e_binaries_artifact }}
-      e2e_testing_mode: ${{ matrix.e2e_testing_mode || 'full' }}
+      binaries_artifact: ${{ matrix.binaries_artifact }}
+      testing_mode: ${{ matrix.testing_mode || 'full' }}
 
       # Do not install drivers on AMD and CUDA runners.
       install_igc_driver: >-
@@ -108,9 +111,8 @@ jobs:
 
   build-win:
     if: |
-      always()
-      && success()
-      && github.repository == 'intel/llvm'
+      success() &&
+      github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
       cxx: icx
@@ -121,9 +123,8 @@ jobs:
     needs: build-win
     # Continue if build was successful.
     if: |
-      always()
-      && !cancelled()
-      && needs.build-win.outputs.build_conclusion == 'success'
+      !cancelled() &&
+      needs.build-win.outputs.build_conclusion == 'success'
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: Intel GEN12 Graphics with Level Zero

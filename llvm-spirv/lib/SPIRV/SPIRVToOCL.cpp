@@ -676,6 +676,13 @@ void SPIRVToOCLBase::visitCallGenericCastToPtrExplicitBuiltIn(CallInst *CI,
 
 void SPIRVToOCLBase::visitCallSPIRVCvtBuiltin(CallInst *CI, Op OC,
                                               StringRef DemangledName) {
+  if (auto *TET =
+          dyn_cast<TargetExtType>(CI->getFunctionType()->getReturnType())) {
+    // Preserve any cooperative matrix type conversions as SPIR-V calls.
+    if (TET->getName() == "spirv.CooperativeMatrixKHR") {
+      return;
+    }
+  }
   std::string CastBuiltInName;
   if (isCvtFromUnsignedOpCode(OC))
     CastBuiltInName = "u";

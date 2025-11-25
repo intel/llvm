@@ -190,7 +190,7 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
         return {Error};
       return {Result};
     } else {
-      ur_ret_t Result;
+      ur_ret_t Result{};
       ur_result_t Error = getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
           getHandleRef(), Desc, sizeof(Result), &Result, nullptr);
       if (Error == UR_RESULT_SUCCESS)
@@ -220,7 +220,7 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
             getHandleRef(), Desc, ResultSize, Result.data(), nullptr);
         return Result;
       } else {
-        ur_ret_t Result;
+        ur_ret_t Result{};
         getAdapter().call<UrApiKind::urDeviceGetInfo>(
             getHandleRef(), Desc, sizeof(Result), &Result, nullptr);
         return Result;
@@ -1478,8 +1478,9 @@ public:
           arch::intel_cpu_dmr,     arch::intel_gpu_pvc,
           arch::intel_gpu_dg2_g10, arch::intel_gpu_dg2_g11,
           arch::intel_gpu_dg2_g12, arch::intel_gpu_bmg_g21,
-          arch::intel_gpu_lnl_m,   arch::intel_gpu_arl_h,
-          arch::intel_gpu_ptl_h,   arch::intel_gpu_ptl_u,
+          arch::intel_gpu_bmg_g31, arch::intel_gpu_lnl_m,
+          arch::intel_gpu_arl_h,   arch::intel_gpu_ptl_h,
+          arch::intel_gpu_ptl_u,
       };
       try {
         return std::any_of(
@@ -1596,6 +1597,10 @@ public:
       return is_gpu() &&
              get_info_impl_nocheck<UR_DEVICE_INFO_IS_INTEGRATED_GPU>().value_or(
                  0);
+    }
+    CASE(ext_oneapi_ipc_memory) {
+      return get_info_impl_nocheck<UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP>()
+          .value_or(0);
     }
     else {
       return false; // This device aspect has not been implemented yet.
@@ -2023,6 +2028,7 @@ public:
       };
     else if ((architecture::intel_gpu_pvc == DeviceArch) ||
              (architecture::intel_gpu_bmg_g21 == DeviceArch) ||
+             (architecture::intel_gpu_bmg_g31 == DeviceArch) ||
              (architecture::intel_gpu_lnl_m == DeviceArch) ||
              (architecture::intel_gpu_ptl_h == DeviceArch) ||
              (architecture::intel_gpu_ptl_u == DeviceArch)) {

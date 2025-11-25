@@ -55,8 +55,6 @@
 #define __SYCL_PROPERTY_SET_PROGRAM_METADATA "SYCL/program metadata"
 /// PropertySetRegistry::SYCL_MISC_PROP defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_SYCL_MISC_PROP "SYCL/misc properties"
-/// PropertySetRegistry::SYCL_ASSERT_USED defined in PropertySetIO.h
-#define __SYCL_PROPERTY_SET_SYCL_ASSERT_USED "SYCL/assert used"
 /// PropertySetRegistry::SYCL_MALLOC_USED defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_SYCL_MALLOC_USED "SYCL/malloc used"
 /// PropertySetRegistry::SYCL_KERNEL_NAMES defined in PropertySetIO.h

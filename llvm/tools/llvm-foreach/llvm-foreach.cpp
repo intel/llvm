@@ -268,7 +268,7 @@ int main(int argc, char **argv) {
 
     JobsSubmitted.emplace_back(
         sys::ExecuteNoWait(Prog, Args, /*Env=*/std::nullopt,
-                           /*Redirects=*/std::nullopt, /*MemoryLimit=*/0));
+                           /*Redirects=*/{}, /*MemoryLimit=*/0));
   }
 
   // Wait for all commands to be executed.

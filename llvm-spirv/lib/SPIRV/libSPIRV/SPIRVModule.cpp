@@ -641,6 +641,8 @@ private:
       FloatTypeMap;
   SmallDenseMap<std::pair<unsigned, SPIRVType *>, SPIRVTypePointer *, 4>
       PointerTypeMap;
+  SmallDenseMap<std::pair<SPIRVType *, SPIRVWord>, SPIRVTypeVector *, 4>
+      VectorTypeMap;
   std::unordered_map<unsigned, SPIRVConstant *> LiteralMap;
   std::vector<SPIRVExtInst *> DebugInstVec;
   std::vector<SPIRVExtInst *> AuxDataInstVec;
@@ -659,12 +661,6 @@ SPIRVModuleImpl::~SPIRVModuleImpl() {
 
   for (auto I : IdEntryMap)
     delete I.second;
-
-  for (auto C : CapMap)
-    delete C.second;
-
-  for (auto C : ConditionalCapMap)
-    delete C.second;
 
   for (auto *M : ModuleProcessedVec)
     delete M;
@@ -784,10 +780,12 @@ void SPIRVModuleImpl::addCapability(SPIRVCapabilityKind Cap) {
   addCapabilities(SPIRV::getCapability(Cap));
   SPIRVDBG(spvdbgs() << "addCapability: " << SPIRVCapabilityNameMap::map(Cap)
                      << '\n');
-  if (hasCapability(Cap))
+
+  auto [It, Inserted] = CapMap.try_emplace(Cap);
+  if (!Inserted)
     return;
 
-  auto *CapObj = new SPIRVCapability(this, Cap);
+  auto CapObj = std::make_unique<SPIRVCapability>(this, Cap);
   if (AutoAddExtensions) {
     // While we are reading existing SPIR-V we need to read it as-is and don't
     // add required extensions for each entry automatically
@@ -796,15 +794,16 @@ void SPIRVModuleImpl::addCapability(SPIRVCapabilityKind Cap) {
       addExtension(Ext.value());
   }
 
-  CapMap.insert(std::make_pair(Cap, CapObj));
+  It->second = std::move(CapObj);
 }
 
 void SPIRVModuleImpl::addCapabilityInternal(SPIRVCapabilityKind Cap) {
   if (AutoAddCapability) {
-    if (hasCapability(Cap))
+    auto [It, Inserted] = CapMap.try_emplace(Cap);
+    if (!Inserted)
       return;
 
-    CapMap.insert(std::make_pair(Cap, new SPIRVCapability(this, Cap)));
+    It->second = std::make_unique<SPIRVCapability>(this, Cap);
   }
 }
 
@@ -813,18 +812,19 @@ void SPIRVModuleImpl::addConditionalCapability(SPIRVId Condition,
   SPIRVDBG(spvdbgs() << "addConditionalCapability: "
                      << SPIRVCapabilityNameMap::map(Cap)
                      << ", condition: " << Condition << '\n');
-  if (ConditionalCapMap.find(std::make_pair(Condition, Cap)) !=
-      ConditionalCapMap.end()) {
+  auto Key = std::make_pair(Condition, Cap);
+  auto [It, Inserted] = ConditionalCapMap.try_emplace(Key);
+  if (!Inserted) {
     return;
   }
 
-  auto *CapObj = new SPIRVConditionalCapabilityINTEL(this, Condition, Cap);
+  auto CapObj =
+      std::make_unique<SPIRVConditionalCapabilityINTEL>(this, Condition, Cap);
   if (AutoAddExtensions) {
     assert(false && "Auto adding conditional extensions is not supported.");
   }
 
-  ConditionalCapMap.insert(
-      std::make_pair(std::make_pair(Condition, Cap), CapObj));
+  It->second = std::move(CapObj);
 }
 
 void SPIRVModuleImpl::eraseConditionalCapability(SPIRVId Condition,
@@ -1160,7 +1160,13 @@ void SPIRVModuleImpl::closeStructType(SPIRVTypeStruct *T, bool Packed) {
 
 SPIRVTypeVector *SPIRVModuleImpl::addVectorType(SPIRVType *CompType,
                                                 SPIRVWord CompCount) {
-  return addType(new SPIRVTypeVector(this, getId(), CompType, CompCount));
+  auto Desc = std::make_pair(CompType, CompCount);
+  auto Loc = VectorTypeMap.find(Desc);
+  if (Loc != VectorTypeMap.end())
+    return Loc->second;
+  auto *Ty = new SPIRVTypeVector(this, getId(), CompType, CompCount);
+  VectorTypeMap[Desc] = Ty;
+  return addType(Ty);
 }
 
 SPIRVTypeJointMatrixINTEL *

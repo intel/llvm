@@ -73,8 +73,6 @@ public:
     return m_EliminatedKernelArgMasks;
   }
 
-  KernelUsesAssertSet &getKernelUsesAssert() { return m_KernelUsesAssert; }
-
   std::unordered_map<sycl::detail::KernelNameStrT, int> &
   getKernelImplicitLocalArgPos() {
     return m_KernelImplicitLocalArgPos;
@@ -184,8 +182,6 @@ sycl::unittest::MockDeviceImage generateImage(const std::string &ImageId,
 
   PropSet.insert(__SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS,
                  createVFPropertySet(VirtualFunctions));
-  setKernelUsesAssert(std::vector<std::string>{KernelNames.begin()[0]},
-                      PropSet);
 
   PropSet.insert(__SYCL_PROPERTY_SET_SYCL_IMPLICIT_LOCAL_ARG,
                  createPropertySet(ImplicitLocalArg));
@@ -311,9 +307,6 @@ void checkAllInvolvedContainers(ProgramManagerExposed &PM,
                  "Kernel name reference count " + CommentPostfix);
   EXPECT_EQ(PM.getEliminatedKernelArgMask().size(), ExpectedImgCount)
       << "Eliminated kernel arg mask " + CommentPostfix;
-  checkContainer(PM.getKernelUsesAssert(), ExpectedEntryCount,
-                 generateRefNames(ImgIds, "Kernel"),
-                 "KernelUsesAssert " + CommentPostfix);
   EXPECT_EQ(PM.getKernelImplicitLocalArgPos().size(), ExpectedEntryCount)
       << "Kernel implicit local arg pos " + CommentPostfix;
 

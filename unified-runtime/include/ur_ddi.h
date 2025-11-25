@@ -891,9 +891,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetPhysicalMemProcAddrTable_t)(
 /// @brief Function-pointer for urEnqueueKernelLaunch
 typedef ur_result_t(UR_APICALL *ur_pfnEnqueueKernelLaunch_t)(
     ur_queue_handle_t, ur_kernel_handle_t, uint32_t, const size_t *,
-    const size_t *, const size_t *, uint32_t,
-    const ur_kernel_launch_property_t *, uint32_t, const ur_event_handle_t *,
-    ur_event_handle_t *);
+    const size_t *, const size_t *, const ur_kernel_launch_ext_properties_t *,
+    uint32_t, const ur_event_handle_t *, ur_event_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urEnqueueEventsWait
@@ -1108,9 +1107,9 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetEnqueueProcAddrTable_t)(
 typedef ur_result_t(UR_APICALL *ur_pfnEnqueueKernelLaunchWithArgsExp_t)(
     ur_queue_handle_t, ur_kernel_handle_t, uint32_t, const size_t *,
     const size_t *, const size_t *, uint32_t,
-    const ur_exp_kernel_arg_properties_t *, uint32_t,
-    const ur_kernel_launch_property_t *, uint32_t, const ur_event_handle_t *,
-    ur_event_handle_t *);
+    const ur_exp_kernel_arg_properties_t *,
+    const ur_kernel_launch_ext_properties_t *, uint32_t,
+    const ur_event_handle_t *, ur_event_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urEnqueueUSMDeviceAllocExp
@@ -1806,7 +1805,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetCommandBufferExpProcAddrTable_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urIPCGetMemHandleExp
 typedef ur_result_t(UR_APICALL *ur_pfnIPCGetMemHandleExp_t)(ur_context_handle_t,
-                                                            void *, void *,
+                                                            void *, void **,
                                                             size_t *);
 
 ///////////////////////////////////////////////////////////////////////////////

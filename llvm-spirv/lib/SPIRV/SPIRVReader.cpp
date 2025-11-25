@@ -251,23 +251,6 @@ translateSEVMetadata(SPIRVValue *BV, llvm::LLVMContext &Context) {
   return RetAttr;
 }
 
-IntrinsicInst *SPIRVToLLVM::getLifetimeStartIntrinsic(Instruction *I) {
-  auto *II = dyn_cast<IntrinsicInst>(I);
-  if (II && II->getIntrinsicID() == Intrinsic::lifetime_start)
-    return II;
-  // Bitcast might be inserted during translation of OpLifetimeStart
-  auto *BC = dyn_cast<BitCastInst>(I);
-  if (BC) {
-    for (const auto &U : BC->users()) {
-      II = dyn_cast<IntrinsicInst>(U);
-      if (II && II->getIntrinsicID() == Intrinsic::lifetime_start)
-        return II;
-      ;
-    }
-  }
-  return nullptr;
-}
-
 SPIRVErrorLog &SPIRVToLLVM::getErrorLog() { return BM->getErrorLog(); }
 
 void SPIRVToLLVM::setCallingConv(CallInst *Call) {
@@ -316,6 +299,9 @@ std::optional<uint64_t> SPIRVToLLVM::getAlignment(SPIRVValue *V) {
 
 Type *SPIRVToLLVM::transFPType(SPIRVType *T) {
   switch (T->getFloatBitWidth()) {
+  case 8:
+    // No LLVM IR counter part for FP8 - map it on i8
+    return Type::getIntNTy(*Context, 8);
   case 16:
     if (T->isTypeFloat(16, FPEncodingBFloat16KHR))
       return Type::getBFloatTy(*Context);
@@ -1068,6 +1054,22 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
   CastInst::CastOps CO = Instruction::BitCast;
   bool IsExt =
       Dst->getScalarSizeInBits() > Src->getType()->getScalarSizeInBits();
+
+  auto GetFPEncoding = [](SPIRVType *Ty) -> FPEncodingWrap {
+    if (Ty->isTypeFloat()) {
+      unsigned Enc =
+          static_cast<SPIRVTypeFloat *>(Ty)->getFloatingPointEncoding();
+      return static_cast<FPEncodingWrap>(Enc);
+    }
+    if (Ty->isTypeInt())
+      return FPEncodingWrap::Integer;
+    return FPEncodingWrap::IEEE754;
+  };
+
+  auto IsFP8Encoding = [](FPEncodingWrap Encoding) -> bool {
+    return Encoding == FPEncodingWrap::E4M3 || Encoding == FPEncodingWrap::E5M2;
+  };
+
   switch (BC->getOpCode()) {
   case OpPtrCastToGeneric:
   case OpGenericCastToPtr:
@@ -1089,10 +1091,58 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
   case OpUConvert:
     CO = IsExt ? Instruction::ZExt : Instruction::Trunc;
     break;
-  case OpFConvert:
-    CO = IsExt ? Instruction::FPExt : Instruction::FPTrunc;
+  case OpConvertSToF:
+  case OpConvertFToS:
+  case OpConvertUToF:
+  case OpConvertFToU:
+  case OpFConvert: {
+    const auto OC = BC->getOpCode();
+    {
+      auto SPVOps = BC->getOperands();
+      auto *SPVSrcTy = SPVOps[0]->getType();
+      auto *SPVDstTy = BC->getType();
+
+      auto GetEncodingAndUpdateType =
+          [GetFPEncoding](SPIRVType *&SPVTy) -> FPEncodingWrap {
+        if (SPVTy->isTypeVector()) {
+          SPVTy = SPVTy->getVectorComponentType();
+        } else if (SPVTy->isTypeCooperativeMatrixKHR()) {
+          auto *MT = static_cast<SPIRVTypeCooperativeMatrixKHR *>(SPVTy);
+          SPVTy = MT->getCompType();
+        }
+        return GetFPEncoding(SPVTy);
+      };
+
+      FPEncodingWrap SrcEnc = GetEncodingAndUpdateType(SPVSrcTy);
+      FPEncodingWrap DstEnc = GetEncodingAndUpdateType(SPVDstTy);
+      if (IsFP8Encoding(SrcEnc) || IsFP8Encoding(DstEnc) ||
+          SPVSrcTy->isTypeInt(4) || SPVDstTy->isTypeInt(4)) {
+        FPConversionDesc FPDesc = {SrcEnc, DstEnc, BC->getOpCode()};
+        auto Conv = SPIRV::FPConvertToEncodingMap::rmap(FPDesc);
+        std::vector<Value *> Ops = {Src};
+        std::vector<Type *> OpsTys = {Src->getType()};
+
+        std::string BuiltinName =
+            kSPIRVName::InternalBuiltinPrefix + std::string(Conv);
+        BuiltinFuncMangleInfo Info;
+        std::string MangledName = mangleBuiltin(BuiltinName, OpsTys, &Info);
+
+        FunctionType *FTy = FunctionType::get(Dst, OpsTys, false);
+        FunctionCallee Func = M->getOrInsertFunction(MangledName, FTy);
+        return CallInst::Create(Func, Ops, "", BB);
+      }
+    }
+
+    if (OC == OpFConvert) {
+      CO = IsExt ? Instruction::FPExt : Instruction::FPTrunc;
+      break;
+    }
+    CO = static_cast<CastInst::CastOps>(OpCodeMap::rmap(OC));
     break;
+  }
   case OpBitcast:
+    if (!Dst->isPointerTy() && Dst == Src->getType())
+      return Src;
     // OpBitcast need to be handled as a special-case when the source is a
     // pointer and the destination is not a pointer, and where the source is not
     // a pointer and the destination is a pointer. This is supported by the
@@ -1887,9 +1937,6 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     IRBuilder<> Builder(BB);
     auto *Var = transValue(LTStop->getObject(), F, BB);
     Var = Var->stripPointerCasts();
-    for (const auto &I : Var->users())
-      if (auto *II = getLifetimeStartIntrinsic(dyn_cast<Instruction>(I)))
-        return mapValue(BV, Builder.CreateLifetimeEnd(II->getOperand(0)));
     return mapValue(BV, Builder.CreateLifetimeEnd(Var));
   }
 
@@ -2993,11 +3040,29 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     if (isCvtOpCode(OC) && OC != OpGenericCastToPtrExplicit) {
       auto *BI = static_cast<SPIRVInstruction *>(BV);
       Value *Inst = nullptr;
-      if (BI->hasFPRoundingMode() || BI->isSaturatedConversion() ||
-          BI->getType()->isTypeCooperativeMatrixKHR())
+      if (BI->hasFPRoundingMode() || BI->isSaturatedConversion()) {
         Inst = transSPIRVBuiltinFromInst(BI, BB);
-      else
+      } else if (BI->getType()->isTypeCooperativeMatrixKHR()) {
+        // For cooperative matrix conversions generate __builtin_spirv
+        // conversions instead of __spirv_FConvert in case of mini-float
+        // type element type.
+        auto *OutMatrixElementTy =
+            static_cast<SPIRVTypeCooperativeMatrixKHR *>(BI->getType())
+                ->getCompType();
+        auto *InMatrixElementTy =
+            static_cast<SPIRVTypeCooperativeMatrixKHR *>(
+                static_cast<SPIRVUnary *>(BI)->getOperand(0)->getType())
+                ->getCompType();
+        if (OutMatrixElementTy->isTypeFloat(8, FPEncodingFloat8E4M3EXT) ||
+            OutMatrixElementTy->isTypeFloat(8, FPEncodingFloat8E5M2EXT) ||
+            InMatrixElementTy->isTypeFloat(8, FPEncodingFloat8E4M3EXT) ||
+            InMatrixElementTy->isTypeFloat(8, FPEncodingFloat8E5M2EXT))
+          Inst = transConvertInst(BV, F, BB);
+        else
+          Inst = transSPIRVBuiltinFromInst(BI, BB);
+      } else {
         Inst = transConvertInst(BV, F, BB);
+      }
       return mapValue(BV, Inst);
     }
     return mapValue(

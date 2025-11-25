@@ -58,7 +58,7 @@ on:
         default: ''
         required: False
 
-      e2e_binaries_artifact:
+      binaries_artifact:
         description: |
           When set in modes other than `run-only` results in artifact upload.
           For `run-only` mode, if specified, means downloading pre-built
@@ -68,9 +68,9 @@ on:
         type: string
         default: ''
         required: False
-      e2e_testing_mode:
+      testing_mode:
         description: |
-          Testing mode to run E2E tests in, can be either `full`, `build-only`
+          Testing mode to run E2E/CTS tests in, can be either `full`, `build-only`
           or `run-only`.
         type: string
         default: 'full'
@@ -93,19 +93,6 @@ on:
       skip_run:
         type: string
         default: 'false'
-        required: False
-
-      cts_testing_mode:
-        description: |
-          Testing mode to run SYCL-CTS in, can be either `full`, `build-only`
-          or `run-only`. In `build-only` mode an artifact of the CTS binaries
-          will be uploaded.
-        type: string
-        default: 'full'
-
-      sycl_cts_artifact:
-        type: string
-        default: ''
         required: False
 
       benchmark_upload_results:
@@ -147,6 +134,16 @@ on:
         type: string
         default: 'false'
         required: False
+
+      in_workflow_call_mode:
+        description: |
+          Unlike `github.event_type` that captures the original trigger, we use
+          this to determine how this particular workflow has been called. This
+          isn't supposed to be specified by a caller and only relies on the
+          default value.
+        default: 'true'
+        required: False
+        type: string
 
   workflow_dispatch:
     inputs:
@@ -211,7 +208,7 @@ on:
           Extra options to be added to LIT_OPTS.
         default: ''
 
-      e2e_testing_mode:
+      testing_mode:
         type: choice
         options:
           - "full"
@@ -233,6 +230,9 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || inputs.skip_run == 'false'
     name: ${{ inputs.name }}
     runs-on: ${{ fromJSON(inputs.runner) }}
+    permissions:
+      contents: write
+      packages: read
     container:
       image: ${{ inputs.image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'}}
       options: ${{ inputs.image_options }}
@@ -248,7 +248,7 @@ jobs:
     - name: Reset Intel GPU
       uses: ./devops/actions/reset_gpu
     - name: Install drivers
-      if: inputs.e2e_binaries_artifact != 'in-container' && (inputs.install_igc_driver == 'true' || inputs.install_dev_igc_driver == 'true')
+      if: inputs.binaries_artifact != 'in-container' && (inputs.install_igc_driver == 'true' || inputs.install_dev_igc_driver == 'true')
       env:
         GITHUB_TOKEN: ${{ github.token }}
       run: |
@@ -275,7 +275,7 @@ jobs:
         rm env_before env_after
     - name: Download SYCL toolchain
       if: inputs.toolchain_artifact != '' && github.event_name != 'workflow_run'
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         name: ${{ inputs.toolchain_artifact }}
     - name: Download SYCL toolchain [workflow_run]
@@ -330,7 +330,8 @@ jobs:
     - run: which clang++ sycl-ls
     - run: sycl-ls --verbose
     - run: SYCL_UR_TRACE=1 sycl-ls
-    - run: |
+    - name: Print IGC version
+      run: |
           if [ -f /usr/local/lib/igc/IGCTAG.txt ]; then
             cat /usr/local/lib/igc/IGCTAG.txt
           fi
@@ -341,8 +342,10 @@ jobs:
       timeout-minutes: 60
       with:
         ref: ${{ inputs.tests_ref || inputs.repo_ref || github.sha }}
-        binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
-        testing_mode: ${{ inputs.e2e_testing_mode }}
+        binaries_artifact: ${{ inputs.in_workflow_call_mode && inputs.binaries_artifact
+                               || inputs.testing_mode == 'run-only' && 'in-container'
+                               || '' }}
+        testing_mode: ${{ inputs.testing_mode }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
         target_devices: ${{ inputs.target_devices }}
         extra_lit_opts: ${{ inputs.extra_lit_opts }}
@@ -357,8 +360,10 @@ jobs:
       with:
         ref: ${{ inputs.tests_ref || 'main' }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
-        cts_testing_mode: ${{ inputs.cts_testing_mode }}
-        sycl_cts_artifact: ${{ inputs.sycl_cts_artifact }}
+        testing_mode: ${{ inputs.testing_mode }}
+        binaries_artifact: ${{ inputs.in_workflow_call_mode && inputs.binaries_artifact
+                               || inputs.testing_mode == 'run-only' && 'in-container'
+                               || '' }}
         target_devices: ${{ inputs.target_devices }}
         retention-days: ${{ inputs.retention-days }}
 
@@ -375,4 +380,3 @@ jobs:
         build_ref: ${{ inputs.repo_ref }}
       env:
         RUNNER_TAG: ${{ inputs.runner }}
-        GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}

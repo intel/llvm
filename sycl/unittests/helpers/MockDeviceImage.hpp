@@ -379,6 +379,10 @@ public:
   static constexpr size_t NumberOfImages = __NumberOfImages;
 
   MockDeviceImageArray(MockDeviceImage *Imgs) {
+
+    if (!GlobalHandler::isInstanceAlive())
+      GlobalHandler::resetGlobalHandler();
+
     for (size_t Idx = 0; Idx < NumberOfImages; ++Idx)
       MNativeImages[Idx] = Imgs[Idx].convertToNativeType();
 
@@ -485,15 +489,6 @@ inline MockProperty makeSpecConstant(std::vector<char> &ValData,
   MockProperty Prop{Name, DescData, SYCL_PROPERTY_TYPE_BYTE_ARRAY};
 
   return Prop;
-}
-
-/// Utility function to mark kernel as the one using assert
-inline void setKernelUsesAssert(const std::vector<std::string> &Names,
-                                MockPropertySet &Set) {
-  std::vector<MockProperty> Value;
-  for (const std::string &N : Names)
-    Value.push_back({N, {0, 0, 0, 0}, SYCL_PROPERTY_TYPE_UINT32});
-  Set.insert(__SYCL_PROPERTY_SET_SYCL_ASSERT_USED, std::move(Value));
 }
 
 /// Utility function to add specialization constants to property set.

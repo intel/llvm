@@ -267,7 +267,7 @@ public:
   /// Sets original queue used for submission.
   ///
   /// @return
-  void setSubmittedQueue(std::weak_ptr<queue_impl> SubmittedQueue);
+  void setSubmittedQueue(queue_impl *SubmittedQueue);
 
   /// Indicates if this event is not associated with any command and doesn't
   /// have native handle.
@@ -318,7 +318,8 @@ public:
   ur_exp_command_buffer_sync_point_t getSyncPoint() const { return MSyncPoint; }
 
   void setCommandGraph(
-      std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
+      const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+          &Graph) {
     MGraph = Graph;
   }
 

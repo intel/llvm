@@ -76,6 +76,7 @@ class device_impl;
 class devices_range;
 class queue_impl;
 class event_impl;
+class device_images_range;
 // DeviceLibExt is shared between sycl runtime and sycl-post-link tool.
 // If any update is made here, need to sync with DeviceLibExt definition
 // in llvm/tools/sycl-post-link/sycl-post-link.cpp
@@ -133,7 +134,9 @@ class ProgramManager {
 public:
   // Returns the single instance of the program manager for the entire
   // process. Can only be called after staticInit is done.
-  static ProgramManager &getInstance();
+  static ProgramManager &getInstance() {
+    return GlobalHandler::instance().getProgramManager();
+  }
 
   const RTDeviceBinaryImage &getDeviceImage(KernelNameStrRefT KernelName,
                                             context_impl &ContextImpl,
@@ -235,11 +238,24 @@ public:
 
   // The function returns the unique SYCL kernel identifier associated with a
   // kernel name or nullopt if there is no such ID.
-  std::optional<kernel_id> tryGetSYCLKernelID(KernelNameStrRefT KernelName);
+  std::optional<kernel_id> tryGetSYCLKernelID(KernelNameStrRefT KernelName) {
+    std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+
+    auto KernelID = m_KernelName2KernelIDs.find(KernelName);
+    if (KernelID == m_KernelName2KernelIDs.end())
+      return std::nullopt;
+
+    return KernelID->second;
+  }
 
   // The function returns the unique SYCL kernel identifier associated with a
   // kernel name or throws a sycl exception if there is no such ID.
-  kernel_id getSYCLKernelID(KernelNameStrRefT KernelName);
+  kernel_id getSYCLKernelID(KernelNameStrRefT KernelName) {
+    if (std::optional<kernel_id> MaybeKernelID = tryGetSYCLKernelID(KernelName))
+      return *MaybeKernelID;
+    throw exception(make_error_code(errc::runtime),
+                    "No kernel found with the specified name");
+  }
 
   // The function returns a vector containing all unique SYCL kernel identifiers
   // in SYCL device images.
@@ -257,6 +273,12 @@ public:
   // The function inserts or initializes a kernel global desc into the
   // kernel global map.
   void registerKernelGlobalInfo(
+      std::unordered_map<std::string_view, unsigned> &&GlobalInfoToCopy);
+
+  // The function removes kernel global descriptors from the
+  // kernel global map when a shared library consisting of SYCL kernels
+  // is unloaded.
+  void unRegisterKernelGlobalInfo(
       std::unordered_map<std::string_view, unsigned> &&GlobalInfoToCopy);
 
   // The function returns a pointer to the kernel global desc identified by
@@ -349,9 +371,13 @@ public:
 
   // Produces set of device images by convering input device images to object
   // the executable state
-  std::vector<device_image_plain>
-  link(const std::vector<device_image_plain> &Imgs, devices_range Devs,
-       const property_list &PropList);
+  std::vector<device_image_plain> link(device_images_range Imgs,
+                                       devices_range Devs,
+                                       const property_list &PropList,
+                                       bool AllowUnresolvedSymbols = false);
+
+  // Dynamically links images in executable state.
+  void dynamicLink(device_images_range Imgs);
 
   // Produces new device image by converting input device image to the
   // executable state
@@ -366,11 +392,6 @@ public:
   ~ProgramManager() = default;
 
   template <typename NameT>
-  bool kernelUsesAssert(const NameT &KernelName) const {
-    return m_KernelUsesAssert.find(KernelName) != m_KernelUsesAssert.end();
-  }
-
-  template <typename NameT>
   bool kernelUsesMalloc(const NameT &KernelName) const {
     return m_KernelUsesMalloc.find(KernelName) != m_KernelUsesMalloc.end();
   }
@@ -378,7 +399,12 @@ public:
   SanitizerType kernelUsesSanitizer() const { return m_SanitizerFoundInImage; }
 
   std::optional<int>
-  kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const;
+  kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const {
+    auto it = m_KernelImplicitLocalArgPos.find(KernelName);
+    if (it != m_KernelImplicitLocalArgPos.end())
+      return it->second;
+    return {};
+  }
 
   DeviceKernelInfo &
   getOrCreateDeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
@@ -411,10 +437,6 @@ private:
   /// Dumps image to current directory
   void dumpImage(const RTDeviceBinaryImage &Img, uint32_t SequenceID = 0) const;
 
-  /// Add info on kernels using assert into cache
-  void cacheKernelUsesAssertInfo(const RTDeviceBinaryImage &Img);
-
-  /// Add info on kernels using assert into cache
   void cacheKernelUsesMallocInfo(const RTDeviceBinaryImage &Img);
 
   /// Add info on kernels using local arg into cache
@@ -531,7 +553,6 @@ protected:
   // standard overloads, such as comparison between std::string and
   // std::string_view or just char*.
   using KernelUsesFnSet = std::set<KernelNameStrT, std::less<>>;
-  KernelUsesFnSet m_KernelUsesAssert;
   KernelUsesFnSet m_KernelUsesMalloc;
   std::unordered_map<KernelNameStrT, int> m_KernelImplicitLocalArgPos;
 
@@ -574,6 +595,7 @@ protected:
 
   friend class ::ProgramManagerTest;
 };
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

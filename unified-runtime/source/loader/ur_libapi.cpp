@@ -5136,7 +5136,9 @@ ur_result_t UR_APICALL urEventSetCallback(
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pGlobalWorkSize`
-///         + `launchPropList == NULL && numPropsInLaunchPropList > 0`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `NULL != launchPropList && ::UR_KERNEL_LAUNCH_FLAGS_MASK &
+///         launchPropList->flags`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
@@ -5173,11 +5175,8 @@ ur_result_t UR_APICALL urEnqueueKernelLaunch(
     /// execute the kernel function.
     /// If nullptr, the runtime implementation will choose the work-group size.
     const size_t *pLocalWorkSize,
-    /// [in] size of the launch prop list
-    uint32_t numPropsInLaunchPropList,
-    /// [in][optional][range(0, numPropsInLaunchPropList)] pointer to a list
-    /// of launch properties
-    const ur_kernel_launch_property_t *launchPropList,
+    /// [in][optional] pointer to a single linked list of launch properties
+    const ur_kernel_launch_ext_properties_t *launchPropList,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -5196,8 +5195,7 @@ ur_result_t UR_APICALL urEnqueueKernelLaunch(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   return pfnKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
-                         pGlobalWorkSize, pLocalWorkSize,
-                         numPropsInLaunchPropList, launchPropList,
+                         pGlobalWorkSize, pLocalWorkSize, launchPropList,
                          numEventsInWaitList, phEventWaitList, phEvent);
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -10097,7 +10095,7 @@ ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pIPCMemHandleData`
+///         + `NULL == ppIPCMemHandleData`
 ///         + `NULL == pIPCMemHandleDataSizeRet`
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -10107,7 +10105,7 @@ ur_result_t UR_APICALL urIPCGetMemHandleExp(
     /// [in] pointer to device USM memory
     void *pMem,
     /// [out][optional] a pointer to the IPC memory handle data
-    void *pIPCMemHandleData,
+    void **ppIPCMemHandleData,
     /// [out][optional] size of the resulting IPC memory handle data
     size_t *pIPCMemHandleDataSizeRet) try {
   auto pfnGetMemHandleExp =
@@ -10115,7 +10113,7 @@ ur_result_t UR_APICALL urIPCGetMemHandleExp(
   if (nullptr == pfnGetMemHandleExp)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
-  return pfnGetMemHandleExp(hContext, pMem, pIPCMemHandleData,
+  return pfnGetMemHandleExp(hContext, pMem, ppIPCMemHandleData,
                             pIPCMemHandleDataSizeRet);
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -10237,14 +10235,11 @@ ur_result_t UR_APICALL urIPCCloseMemHandleExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
-///         + `(hDevice == nullptr) || (hContext == nullptr)`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE <
 ///         handleTypeToExport`
-///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
-///     - ::UR_RESULT_ERROR_INVALID_DEVICE
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `ppMem == nullptr`
+///         + `NULL == ppMem`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT
 ///         + `alignment != 0 && ((alignment & (alignment-1)) != 0)`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
@@ -10253,6 +10248,8 @@ ur_result_t UR_APICALL urIPCCloseMemHandleExp(
 ///         + `size == 0`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_SIZE
 ///         + `size` is greater than ::UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE.
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
 ///     -
 ///     ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE:DEVICE_INFO_MEMORY_EXPORT_LINEAR_MEMORY_EXPORT_SUPPORT_EXP
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
@@ -10294,11 +10291,10 @@ ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
-///         + `(hDevice == nullptr) || (hContext == nullptr)`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `pMem == nullptr`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
@@ -10336,14 +10332,13 @@ ur_result_t UR_APICALL urMemoryExportFreeExportableMemoryExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
-///         + `(hDevice == nullptr) || (hContext == nullptr)`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE <
 ///         handleTypeToExport`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pMemHandleRet || NULL == pMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `pMemHandleRet == nullptr || pMem == nullptr`
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
@@ -10819,10 +10814,11 @@ ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pGlobalWorkSize`
-///         + `launchPropList == NULL && numPropsInLaunchPropList > 0`
 ///         + `pArgs == NULL && numArgs > 0`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `NULL != pArgs && ::UR_EXP_KERNEL_ARG_TYPE_SAMPLER < pArgs->type`
+///         + `NULL != launchPropList && ::UR_KERNEL_LAUNCH_FLAGS_MASK &
+///         launchPropList->flags`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
@@ -10870,11 +10866,8 @@ ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
     /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
     /// properties.
     const ur_exp_kernel_arg_properties_t *pArgs,
-    /// [in] size of the launch prop list
-    uint32_t numPropsInLaunchPropList,
-    /// [in][optional][range(0, numPropsInLaunchPropList)] pointer to a list
-    /// of launch properties
-    const ur_kernel_launch_property_t *launchPropList,
+    /// [in][optional] pointer to a single linked list of launch properties
+    const ur_kernel_launch_ext_properties_t *launchPropList,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -10892,10 +10885,10 @@ ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
   if (nullptr == pfnKernelLaunchWithArgsExp)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
-  return pfnKernelLaunchWithArgsExp(
-      hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      pLocalWorkSize, numArgs, pArgs, numPropsInLaunchPropList, launchPropList,
-      numEventsInWaitList, phEventWaitList, phEvent);
+  return pfnKernelLaunchWithArgsExp(hQueue, hKernel, workDim, pGlobalWorkOffset,
+                                    pGlobalWorkSize, pLocalWorkSize, numArgs,
+                                    pArgs, launchPropList, numEventsInWaitList,
+                                    phEventWaitList, phEvent);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }

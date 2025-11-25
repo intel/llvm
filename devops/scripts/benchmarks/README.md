@@ -52,6 +52,21 @@ $ cmake --build ~/ur_build -j $(nproc)
 $ cmake --install ~/ur_build
 ```
 
+## Testing
+
+There is a test which can execute benchmarking code and do some checks
+of internal data structures. In order to use it one should
+- prepare environment on its own (Level Zero, OneAPI or somehow SYCL
+`clang++` compiler)
+- have CMPLR_ROOT set and pointing to directory with `clang++`
+- have COMPUTE_BENCHMARKS_BUILD_PATH variable pointing to build directory of compute-benchmarks
+- set LLVM_BENCHMARKS_UNIT_TESTING=1
+
+Then tests can be executed by
+```
+python3 ./devops/scripts/benchmarks/tests/test_integration.py
+```
+
 ## Results
 
 By default, the benchmark results are not stored.  
@@ -100,6 +115,7 @@ The available benchmarks options are:
 * `Full` (BenchDNN, Compute, Gromacs, llama, SYCL, Velocity and UMF benchmarks)
 * `SYCL` (Compute, llama, SYCL, Velocity)
 * `Minimal` (Compute)
+* `Core` (Compute: SubmitKernel)
 * `Normal` (BenchDNN, Compute, Gromacs, llama, Velocity)
 * `Gromacs` (Gromacs)
 * `OneDNN` (BenchDNN)

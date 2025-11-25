@@ -634,6 +634,7 @@ def MissingFieldInitializers : DiagGroup<"missing-field-initializers",
 def ModuleLock : DiagGroup<"module-lock">;
 def ModuleBuild : DiagGroup<"module-build">;
 def ModuleImport : DiagGroup<"module-import">;
+def ModuleValidation : DiagGroup<"module-validation">;
 def ModuleConflict : DiagGroup<"module-conflict">;
 def ModuleFileExtension : DiagGroup<"module-file-extension">;
 def ModuleIncludeDirectiveTranslation : DiagGroup<"module-include-translation">;
@@ -1409,7 +1410,7 @@ def C23 : DiagGroup<"c23-extensions", [VariadicMacroArgumentsOmitted]>;
 def : DiagGroup<"c2x-extensions", [C23]>;
 
 // A warning group for warnings about using C2y features as extensions.
-def C2y : DiagGroup<"c2y-extensions">;
+def C2y : DiagGroup<"c2y-extensions", [StaticInInline]>;
 
 // Previously supported warning group which is no longer pertinent as binary
 // literals are a C++14 and C23 extension now instead of a GNU extension.
@@ -1444,6 +1445,7 @@ def MicrosoftDrectveSection : DiagGroup<"microsoft-drectve-section">;
 def MicrosoftInclude : DiagGroup<"microsoft-include">;
 def MicrosoftCppMacro : DiagGroup<"microsoft-cpp-macro">;
 def MicrosoftFixedEnum : DiagGroup<"microsoft-fixed-enum">;
+def MicrosoftEmptyEnum : DiagGroup<"microsoft-empty-enum">;
 def MicrosoftSealed : DiagGroup<"microsoft-sealed">;
 def MicrosoftAbstract : DiagGroup<"microsoft-abstract">;
 def MicrosoftUnqualifiedFriend : DiagGroup<"microsoft-unqualified-friend">;
@@ -1497,7 +1499,8 @@ def Microsoft : DiagGroup<"microsoft",
      MicrosoftConstInit, MicrosoftVoidPseudoDtor, MicrosoftAnonTag,
      MicrosoftCommentPaste, MicrosoftEndOfFile,
      MicrosoftInitFromPredefined, MicrosoftStringLiteralFromPredefined,
-     MicrosoftInconsistentDllImport, MicrosoftInlineOnNonFunction]>;
+     MicrosoftInconsistentDllImport, MicrosoftInlineOnNonFunction,
+     MicrosoftEmptyEnum]>;
 
 def ClangClPch : DiagGroup<"clang-cl-pch">;
 
@@ -1777,7 +1780,8 @@ def ReadOnlyPlacementChecks : DiagGroup<"read-only-types">;
 // Warnings and fixes to support the "safe buffers" programming model.
 def UnsafeBufferUsageInContainer : DiagGroup<"unsafe-buffer-usage-in-container">;
 def UnsafeBufferUsageInLibcCall : DiagGroup<"unsafe-buffer-usage-in-libc-call">;
-def UnsafeBufferUsage : DiagGroup<"unsafe-buffer-usage", [UnsafeBufferUsageInContainer, UnsafeBufferUsageInLibcCall]>;
+def UnsafeBufferUsageInUniquePtrArrayAccess : DiagGroup<"unsafe-buffer-usage-in-unique-ptr-array-access">;
+def UnsafeBufferUsage : DiagGroup<"unsafe-buffer-usage", [UnsafeBufferUsageInContainer, UnsafeBufferUsageInLibcCall, UnsafeBufferUsageInUniquePtrArrayAccess]>;
 
 // Warnings and notes InstallAPI verification.
 def InstallAPIViolation : DiagGroup<"installapi-violation">;

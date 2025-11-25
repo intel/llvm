@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/event_deps.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
@@ -74,48 +75,6 @@ template <> context queue_impl::get_info<info::queue::context>() const {
 template <> device queue_impl::get_info<info::queue::device>() const {
   return get_device();
 }
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::platform::version::return_type
-queue_impl::get_backend_info<info::platform::version>() const {
-  if (getContextImpl().getBackend() != backend::opencl) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::platform::version info descriptor can "
-                          "only be queried with an OpenCL backend");
-  }
-  return get_device().get_platform().get_info<info::platform::version>();
-}
-#endif
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::device::version::return_type
-queue_impl::get_backend_info<info::device::version>() const {
-  if (getContextImpl().getBackend() != backend::opencl) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::device::version info descriptor can only "
-                          "be queried with an OpenCL backend");
-  }
-  return get_device().get_info<info::device::version>();
-}
-#endif
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::device::backend_version::return_type
-queue_impl::get_backend_info<info::device::backend_version>() const {
-  if (getContextImpl().getBackend() != backend::ext_oneapi_level_zero) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::device::backend_version info descriptor "
-                          "can only be queried with a Level Zero backend");
-  }
-  return "";
-  // Currently The Level Zero backend does not define the value of this
-  // information descriptor and implementations are encouraged to return the
-  // empty string as per specification.
-}
-#endif
 
 static event
 prepareSYCLEventAssociatedWithQueue(detail::queue_impl &QueueImpl) {
@@ -434,13 +393,6 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
   }
 
   bool DiscardEvent = !EventNeeded && supportsDiscardingPiEvents();
-  if (DiscardEvent) {
-    // Kernel only uses assert if it's non interop one
-    bool KernelUsesAssert =
-        !(KernelImplPtr && KernelImplPtr->isInterop()) && KData.usesAssert();
-    DiscardEvent = !KernelUsesAssert;
-  }
-
   std::shared_ptr<detail::event_impl> ResultEvent =
       DiscardEvent ? nullptr : detail::event_impl::create_device_event(*this);
 
@@ -514,7 +466,7 @@ EventImplPtr queue_impl::submit_command_to_graph(
     std::unique_ptr<detail::CG> CommandGroup, sycl::detail::CGType CGType,
     sycl::ext::oneapi::experimental::node_type UserFacingNodeType) {
   auto EventImpl = detail::event_impl::create_completed_host_event();
-  EventImpl->setSubmittedQueue(weak_from_this());
+  EventImpl->setSubmittedQueue(this);
   ext::oneapi::experimental::detail::node_impl *NodeImpl = nullptr;
 
   // GraphImpl is read and written in this scope so we lock this graph
@@ -567,6 +519,8 @@ EventImplPtr queue_impl::submit_command_to_graph(
 EventImplPtr queue_impl::submit_kernel_direct_impl(
     const NDRDescT &NDRDesc, detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo, bool CallerNeedsEvent,
+    sycl::span<const event> DepEvents,
+    const detail::KernelPropertyHolderStructTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
 
   KernelData KData;
@@ -574,7 +528,11 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
   KData.setDeviceKernelInfoPtr(DeviceKernelInfo);
   KData.setNDRDesc(NDRDesc);
 
-  auto SubmitKernelFunc = [&](detail::CG::StorageInitHelper &CGData,
+  // Validate and set kernel launch properties.
+  KData.validateAndSetKernelLaunchProperties(Props, hasCommandGraph(),
+                                             getDeviceImpl());
+
+  auto SubmitKernelFunc = [&](detail::CG::StorageInitHelper &&CGData,
                               bool SchedulerBypass) -> EventImplPtr {
     if (SchedulerBypass) {
       // No need to copy/move the kernel function, so we set
@@ -619,12 +577,13 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
                                                   *this, true);
   };
 
-  return submit_direct(CallerNeedsEvent, SubmitKernelFunc);
+  return submit_direct(CallerNeedsEvent, DepEvents, SubmitKernelFunc);
 }
 
 template <typename SubmitCommandFuncType>
 detail::EventImplPtr
 queue_impl::submit_direct(bool CallerNeedsEvent,
+                          sycl::span<const event> DepEvents,
                           SubmitCommandFuncType &SubmitCommandFunc) {
   detail::CG::StorageInitHelper CGData;
   std::unique_lock<std::mutex> Lock(MMutex);
@@ -635,7 +594,10 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
   // Sync with an external event
   std::optional<event> ExternalEvent = popExternalEvent();
   if (ExternalEvent) {
-    CGData.MEvents.push_back(getSyclObjImpl(*ExternalEvent));
+    registerEventDependency</*LockQueue*/ false>(
+        getSyclObjImpl(*ExternalEvent), CGData.MEvents, this, getContextImpl(),
+        getDeviceImpl(), hasCommandGraph() ? getCommandGraph().get() : nullptr,
+        detail::CGType::Kernel);
   }
 
   auto &Deps = hasCommandGraph() ? MExtGraphDeps : MDefaultGraphDeps;
@@ -643,7 +605,17 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
   // Sync with the last event for in order queue
   EventImplPtr &LastEvent = Deps.LastEventPtr;
   if (isInOrder() && LastEvent) {
-    CGData.MEvents.push_back(LastEvent);
+    registerEventDependency</*LockQueue*/ false>(
+        LastEvent, CGData.MEvents, this, getContextImpl(), getDeviceImpl(),
+        hasCommandGraph() ? getCommandGraph().get() : nullptr,
+        detail::CGType::Kernel);
+  }
+
+  for (event e : DepEvents) {
+    registerEventDependency</*LockQueue*/ false>(
+        getSyclObjImpl(e), CGData.MEvents, this, getContextImpl(),
+        getDeviceImpl(), hasCommandGraph() ? getCommandGraph().get() : nullptr,
+        detail::CGType::Kernel);
   }
 
   // Barrier and un-enqueued commands synchronization for out or order queue
@@ -672,7 +644,8 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
   MNoLastEventMode.store(isInOrder() && SchedulerBypass,
                          std::memory_order_relaxed);
 
-  EventImplPtr EventImpl = SubmitCommandFunc(CGData, SchedulerBypass);
+  EventImplPtr EventImpl =
+      SubmitCommandFunc(std::move(CGData), SchedulerBypass);
 
   // Sync with the last event for in order queue. For scheduler-bypass flow,
   // the ordering is done at the layers below the SYCL runtime,
@@ -687,7 +660,7 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
     Deps.UnenqueuedCmdEvents.push_back(EventImpl);
   }
 
-  return CallerNeedsEvent ? EventImpl : nullptr;
+  return CallerNeedsEvent ? std::move(EventImpl) : nullptr;
 }
 
 template <typename HandlerFuncT>
