@@ -17,6 +17,8 @@
 using namespace llvm;
 using namespace llvm::object;
 
+// code here would need to be updated. We would need to support 2 formats for some time...
+
 namespace {
 
 class SYCLBINBlockReader {
