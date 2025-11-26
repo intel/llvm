@@ -3,7 +3,7 @@
 
 // Had to increase inline threashold for this test to force inline of the vec<>
 // math builtins.
-// RUN: %clangxx -I %sycl_include -mllvm -inline-threshold=400 -fno-discard-value-names -S -emit-llvm -fno-sycl-instrument-device-code -Xclang -disable-lifetime-markers -O3 -fsycl-device-only %s -o - | FileCheck %s
+// RUN: %clangxx -D__SYCL_USE_LIBSYCL8_VEC_IMPL=1 -I %sycl_include -mllvm -inline-threshold=400 -fno-discard-value-names -S -emit-llvm -fno-sycl-instrument-device-code -Xclang -disable-lifetime-markers -O3 -fsycl-device-only %s -o - | FileCheck %s
 
 // Windows/linux have some slight differences in IR generation (function
 // arguments passing and long/long long differences/mangling) that could

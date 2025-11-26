@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsyntax-only %s
-// RUN: %clangxx -fsycl -fpreview-breaking-changes -fsyntax-only %s
+// RUN: %clangxx -fsycl -D__SYCL_USE_LIBSYCL8_VEC_IMPL=1 -fsyntax-only %s
 
 #include <sycl/sycl.hpp>
 
