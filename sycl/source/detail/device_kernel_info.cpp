@@ -20,21 +20,7 @@ DeviceKernelInfo::DeviceKernelInfo(const CompileTimeKernelInfoTy &Info)
 void DeviceKernelInfo::init(std::string_view KernelName) {
   auto &PM = detail::ProgramManager::getInstance();
   MImplicitLocalArgPos = PM.kernelImplicitLocalArgPos(KernelName);
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  MInitialized.store(true);
-#endif
 }
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-void DeviceKernelInfo::initIfEmpty(const CompileTimeKernelInfoTy &Info) {
-  if (MInitialized.load())
-    return;
-
-  CompileTimeKernelInfoTy::operator=(Info);
-  Name = Info.Name.data();
-  init(Name.data());
-}
-#endif
 
 template <typename OtherTy>
 inline constexpr bool operator==(const CompileTimeKernelInfoTy &LHS,
@@ -60,11 +46,7 @@ void DeviceKernelInfo::setCompileTimeInfoIfNeeded(
     const CompileTimeKernelInfoTy &Info) {
   if (!isCompileTimeInfoSet())
     CompileTimeKernelInfoTy::operator=(Info);
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  // In case of 6.3 compatibility mode the KernelSize is not passed to the
-  // runtime. So, it will always be 0 and this assert fails.
   assert(isCompileTimeInfoSet());
-#endif
   assert(Info == *this);
 }
 
