@@ -50,7 +50,7 @@ on:
         type: string
         required: false
 
-      e2e_with_new_offload_model_binaries_artifact:
+      e2e_binaries_new_offload_model_artifact:
         type: string
         required: false
 
@@ -270,7 +270,7 @@ jobs:
         ref: ${{ inputs.ref || github.sha }}
         testing_mode: build-only
         target_devices: all
-        binaries_artifact: ${{ inputs.e2e_with_new_offload_model_binaries_artifact }}
+        binaries_artifact: ${{ inputs.e2e_binaries_new_offload_model_artifact }}
         extra_lit_opts: --param sycl_build_targets="spir" --param enable_new_offload_model=True
         cxx: ${{ inputs.cxx }}
 
