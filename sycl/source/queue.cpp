@@ -20,48 +20,6 @@
 namespace sycl {
 inline namespace _V1 {
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-namespace detail {
-SubmissionInfo::SubmissionInfo()
-    : impl{std::make_shared<SubmissionInfoImpl>()} {}
-
-optional<SubmitPostProcessF> &SubmissionInfo::PostProcessorFunc() {
-  // No longer in use, but needs to be exposed for use in SYCL programs built
-  // with the old headers.
-  static optional<SubmitPostProcessF> DoNotUsePostProcessorFunc;
-  return DoNotUsePostProcessorFunc;
-}
-
-const optional<SubmitPostProcessF> &SubmissionInfo::PostProcessorFunc() const {
-  // No longer in use, but needs to be exposed for use in SYCL programs built
-  // with the old headers.
-  static optional<SubmitPostProcessF> DoNotUsePostProcessorFunc;
-  return DoNotUsePostProcessorFunc;
-}
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-std::shared_ptr<detail::queue_impl> &SubmissionInfo::SecondaryQueue() {
-  return impl->MSecondaryQueue;
-}
-
-const std::shared_ptr<detail::queue_impl> &
-SubmissionInfo::SecondaryQueue() const {
-  return impl->MSecondaryQueue;
-}
-#endif
-
-ext::oneapi::experimental::event_mode_enum &SubmissionInfo::EventMode() {
-  return impl->MEventMode;
-}
-
-const ext::oneapi::experimental::event_mode_enum &
-SubmissionInfo::EventMode() const {
-  return impl->MEventMode;
-}
-} // namespace detail
-
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
 queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
              const async_handler &AsyncHandler, const property_list &PropList) {
   const std::vector<device> Devs = SyclContext.get_devices();
@@ -205,113 +163,6 @@ event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                           /*CallerNeedsEvent=*/true);
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-/// TODO: Unused. Remove these when ABI-break window is open.
-event queue::submit_impl(std::function<void(handler &)> CGH,
-                         const detail::code_location &CodeLoc) {
-  return submit_with_event_impl(std::move(CGH), {}, CodeLoc, true);
-}
-event queue::submit_impl(std::function<void(handler &)> CGH,
-                         const detail::code_location &CodeLoc,
-                         bool IsTopCodeLoc) {
-  return submit_with_event_impl(std::move(CGH), {}, CodeLoc, IsTopCodeLoc);
-}
-
-event queue::submit_impl(std::function<void(handler &)> CGH,
-                         [[maybe_unused]] queue SecondQueue,
-                         const detail::code_location &CodeLoc) {
-  return impl->submit(CGH, CodeLoc, true);
-}
-event queue::submit_impl(std::function<void(handler &)> CGH,
-                         [[maybe_unused]] queue SecondQueue,
-                         const detail::code_location &CodeLoc,
-                         bool IsTopCodeLoc) {
-  return impl->submit(CGH, CodeLoc, IsTopCodeLoc);
-}
-
-void queue::submit_without_event_impl(std::function<void(handler &)> CGH,
-                                      const detail::code_location &CodeLoc) {
-  submit_without_event_impl(std::move(CGH), {}, CodeLoc, true);
-}
-void queue::submit_without_event_impl(std::function<void(handler &)> CGH,
-                                      const detail::code_location &CodeLoc,
-                                      bool IsTopCodeLoc) {
-  submit_without_event_impl(std::move(CGH), {}, CodeLoc, IsTopCodeLoc);
-}
-
-event queue::submit_impl_and_postprocess(std::function<void(handler &)> CGH,
-                                         const detail::code_location &CodeLoc,
-                                         const detail::SubmitPostProcessF &) {
-  return submit_with_event_impl(std::move(CGH), {}, CodeLoc, true);
-}
-event queue::submit_impl_and_postprocess(std::function<void(handler &)> CGH,
-                                         const detail::code_location &CodeLoc,
-                                         const detail::SubmitPostProcessF &,
-                                         bool IsTopCodeLoc) {
-  return submit_with_event_impl(std::move(CGH), {}, CodeLoc, IsTopCodeLoc);
-}
-
-event queue::submit_impl_and_postprocess(std::function<void(handler &)> CGH,
-                                         [[maybe_unused]] queue SecondQueue,
-                                         const detail::code_location &CodeLoc,
-                                         const detail::SubmitPostProcessF &) {
-  return impl->submit(CGH, CodeLoc, true);
-}
-event queue::submit_impl_and_postprocess(std::function<void(handler &)> CGH,
-                                         [[maybe_unused]] queue SecondQueue,
-                                         const detail::code_location &CodeLoc,
-                                         const detail::SubmitPostProcessF &,
-                                         bool IsTopCodeLoc) {
-  return impl->submit(CGH, CodeLoc, IsTopCodeLoc);
-}
-
-event queue::submit_with_event_impl(std::function<void(handler &)> CGH,
-                                    const detail::SubmissionInfo &SubmitInfo,
-                                    const detail::code_location &CodeLoc,
-                                    bool IsTopCodeLoc) {
-  return impl->submit_with_event(CGH, SubmitInfo, CodeLoc, IsTopCodeLoc);
-}
-
-void queue::submit_without_event_impl(std::function<void(handler &)> CGH,
-                                      const detail::SubmissionInfo &SubmitInfo,
-                                      const detail::code_location &CodeLoc,
-                                      bool IsTopCodeLoc) {
-  impl->submit_without_event(CGH, SubmitInfo, CodeLoc, IsTopCodeLoc);
-}
-
-event queue::submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
-                                    const detail::SubmissionInfo &SubmitInfo,
-                                    const detail::code_location &CodeLoc,
-                                    bool IsTopCodeLoc) {
-  detail::v1::SubmissionInfo SI{SubmitInfo};
-  return impl->submit_with_event(CGH, SI, CodeLoc, IsTopCodeLoc);
-}
-
-void queue::submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
-                                      const detail::SubmissionInfo &SubmitInfo,
-                                      const detail::code_location &CodeLoc,
-                                      bool IsTopCodeLoc) {
-  detail::v1::SubmissionInfo SI{SubmitInfo};
-  impl->submit_without_event(CGH, SI, CodeLoc, IsTopCodeLoc);
-}
-
-event queue::submit_with_event_impl(
-    const detail::type_erased_cgfo_ty &CGH,
-    const detail::v1::SubmissionInfo &SubmitInfo,
-    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
-  return std::as_const(*this).submit_with_event_impl(CGH, SubmitInfo, CodeLoc,
-                                                     IsTopCodeLoc);
-}
-
-void queue::submit_without_event_impl(
-    const detail::type_erased_cgfo_ty &CGH,
-    const detail::v1::SubmissionInfo &SubmitInfo,
-    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
-  std::as_const(*this).submit_without_event_impl(CGH, SubmitInfo, CodeLoc,
-                                                 IsTopCodeLoc);
-}
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
 event queue::submit_with_event_impl(
     const detail::type_erased_cgfo_ty &CGH,
     const detail::v1::SubmissionInfo &SubmitInfo,
@@ -391,14 +242,6 @@ typename detail::is_backend_info_desc<Param>::return_type
 queue::get_backend_info() const {
   return impl->get_backend_info<Param>();
 }
-
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, Picode)              \
-  template __SYCL_EXPORT ReturnT                                               \
-  queue::get_backend_info<info::DescType::Desc>() const;
-
-#include <sycl/info/sycl_backend_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
 
 bool queue::is_in_order() const {
   return has_property<property::queue::in_order>();

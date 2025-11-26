@@ -373,7 +373,11 @@ public:
   // the executable state
   std::vector<device_image_plain> link(device_images_range Imgs,
                                        devices_range Devs,
-                                       const property_list &PropList);
+                                       const property_list &PropList,
+                                       bool AllowUnresolvedSymbols = false);
+
+  // Dynamically links images in executable state.
+  void dynamicLink(device_images_range Imgs);
 
   // Produces new device image by converting input device image to the
   // executable state

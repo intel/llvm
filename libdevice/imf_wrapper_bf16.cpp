@@ -571,4 +571,12 @@ DEVICE_EXTERN_C_INLINE
 _iml_bf16_internal __imf_truncbf16(_iml_bf16_internal a) {
   return __devicelib_imf_truncbf16(a);
 }
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_fsigmbf16(_iml_bf16_internal x);
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __imf_fsigmbf16(_iml_bf16_internal x) {
+  return __devicelib_imf_fsigmbf16(x);
+}
 #endif // __LIBDEVICE_IMF_ENABLED__

@@ -218,10 +218,6 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage()
   Bin->Kind = SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
   Bin->CompileOptions = "";
   Bin->LinkOptions = "";
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  Bin->ManifestStart = nullptr;
-  Bin->ManifestEnd = nullptr;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   Bin->BinaryStart = nullptr;
   Bin->BinaryEnd = nullptr;
   Bin->EntriesBegin = nullptr;
@@ -451,6 +447,10 @@ mergeDeviceRequirements(const std::vector<const RTDeviceBinaryImage *> &Imgs) {
         size_t Pos = 0;
         do {
           const size_t NextPos = Contents.find(';', Pos);
+          if (NextPos == std::string::npos) {
+            Set.emplace(Contents.substr(Pos));
+            break;
+          }
           if (NextPos != Pos)
             Set.emplace(Contents.substr(Pos, NextPos - Pos));
           Pos = NextPos + 1;

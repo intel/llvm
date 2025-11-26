@@ -76,48 +76,6 @@ template <> device queue_impl::get_info<info::queue::device>() const {
   return get_device();
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::platform::version::return_type
-queue_impl::get_backend_info<info::platform::version>() const {
-  if (getContextImpl().getBackend() != backend::opencl) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::platform::version info descriptor can "
-                          "only be queried with an OpenCL backend");
-  }
-  return get_device().get_platform().get_info<info::platform::version>();
-}
-#endif
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::device::version::return_type
-queue_impl::get_backend_info<info::device::version>() const {
-  if (getContextImpl().getBackend() != backend::opencl) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::device::version info descriptor can only "
-                          "be queried with an OpenCL backend");
-  }
-  return get_device().get_info<info::device::version>();
-}
-#endif
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::device::backend_version::return_type
-queue_impl::get_backend_info<info::device::backend_version>() const {
-  if (getContextImpl().getBackend() != backend::ext_oneapi_level_zero) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::device::backend_version info descriptor "
-                          "can only be queried with a Level Zero backend");
-  }
-  return "";
-  // Currently The Level Zero backend does not define the value of this
-  // information descriptor and implementations are encouraged to return the
-  // empty string as per specification.
-}
-#endif
-
 static event
 prepareSYCLEventAssociatedWithQueue(detail::queue_impl &QueueImpl) {
   auto EventImpl = detail::event_impl::create_device_event(QueueImpl);
@@ -331,12 +289,8 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                         bool CallerNeedsEvent, const detail::code_location &Loc,
                         bool IsTopCodeLoc,
                         const v1::SubmissionInfo &SubmitInfo) {
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   detail::handler_impl HandlerImplVal(*this, CallerNeedsEvent);
   handler Handler(HandlerImplVal);
-#else
-  handler Handler(shared_from_this(), CallerNeedsEvent);
-#endif
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
@@ -574,7 +528,7 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
   KData.validateAndSetKernelLaunchProperties(Props, hasCommandGraph(),
                                              getDeviceImpl());
 
-  auto SubmitKernelFunc = [&](detail::CG::StorageInitHelper &CGData,
+  auto SubmitKernelFunc = [&](detail::CG::StorageInitHelper &&CGData,
                               bool SchedulerBypass) -> EventImplPtr {
     if (SchedulerBypass) {
       // No need to copy/move the kernel function, so we set
@@ -686,7 +640,8 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
   MNoLastEventMode.store(isInOrder() && SchedulerBypass,
                          std::memory_order_relaxed);
 
-  EventImplPtr EventImpl = SubmitCommandFunc(CGData, SchedulerBypass);
+  EventImplPtr EventImpl =
+      SubmitCommandFunc(std::move(CGData), SchedulerBypass);
 
   // Sync with the last event for in order queue. For scheduler-bypass flow,
   // the ordering is done at the layers below the SYCL runtime,
@@ -701,7 +656,7 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
     Deps.UnenqueuedCmdEvents.push_back(EventImpl);
   }
 
-  return CallerNeedsEvent ? EventImpl : nullptr;
+  return CallerNeedsEvent ? std::move(EventImpl) : nullptr;
 }
 
 template <typename HandlerFuncT>

@@ -360,21 +360,16 @@ public:
               << "][Program Cache]" << Identifier << Msg << std::endl;
   }
 
+  static void traceKernelImpl(const char *Msg, KernelNameStrRefT KernelName,
+                              bool IsFastKernelCache);
+
   // Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is
   // set.
-  template <typename MsgType>
-  static inline void traceKernel(const MsgType &Msg,
-                                 std::string_view KernelName,
-                                 bool IsFastKernelCache = false) {
-    if (!SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache())
-      return;
-
-    std::string Identifier =
-        "[IsFastCache: " + std::to_string(IsFastKernelCache) +
-        "][Key:{Name = " + KernelName.data() + "}]: ";
-
-    std::cerr << "[In-Memory Cache][Thread Id:" << std::this_thread::get_id()
-              << "][Kernel Cache]" << Identifier << Msg << std::endl;
+  static void traceKernel(const char *Msg, std::string_view KernelName,
+                          bool isFastKernelCache = false) {
+    if (__builtin_expect(SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache(),
+                         false))
+      traceKernelImpl(Msg, KernelName, isFastKernelCache);
   }
 
   Locked<ProgramCache> acquireCachedPrograms() {
@@ -512,7 +507,8 @@ public:
         auto LockedCacheKP = acquireKernelsPerProgramCache();
         // List kernels that are to be removed from the cache, if tracing is
         // enabled.
-        if (SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache()) {
+        if (__builtin_expect(SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache(),
+                             false)) {
           for (const auto &Kernel : LockedCacheKP.get()[NativePrg])
             traceKernel("Kernel evicted.", Kernel.first);
         }
