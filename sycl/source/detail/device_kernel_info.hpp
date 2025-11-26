@@ -89,39 +89,20 @@ struct FastKernelSubcacheT {
 // into this structure and get rid of the other KernelName -> * maps.
 class DeviceKernelInfo : public CompileTimeKernelInfoTy {
 public:
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  DeviceKernelInfo() = default;
-#endif
   DeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
 
   void init(std::string_view KernelName);
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Initialize default-created entry that has no data recorded:
-  void initIfEmpty(const CompileTimeKernelInfoTy &Info);
-#endif
   void setCompileTimeInfoIfNeeded(const CompileTimeKernelInfoTy &Info);
 
-  FastKernelSubcacheT &getKernelSubcache() {
-    assertInitialized();
-    return MFastKernelSubcache;
-  }
+  FastKernelSubcacheT &getKernelSubcache() { return MFastKernelSubcache; }
 
   std::optional<int> getImplicitLocalArgPos() const {
-    assertInitialized();
     return MImplicitLocalArgPos;
   }
 
 private:
-  void assertInitialized() const {
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    assert(MInitialized.load() && "Data needs to be initialized before use");
-#endif
-  }
   bool isCompileTimeInfoSet() const { return KernelSize != 0; }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  std::atomic<bool> MInitialized = false;
-#endif
   FastKernelSubcacheT MFastKernelSubcache;
   std::optional<int> MImplicitLocalArgPos;
 };
