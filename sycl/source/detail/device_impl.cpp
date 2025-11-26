@@ -467,62 +467,6 @@ device_impl::getImmediateProgressGuarantee(
   return forward_progress_guarantee::weakly_parallel;
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-#define EXPORT_GET_INFO(PARAM)                                                 \
-  template <>                                                                  \
-  __SYCL_EXPORT PARAM::return_type device_impl::get_info<PARAM>() const {      \
-    return get_info_abi_workaround<PARAM>();                                   \
-  }
-
-// clang-format off
-EXPORT_GET_INFO(ext::intel::info::device::device_id)
-EXPORT_GET_INFO(ext::intel::info::device::pci_address)
-EXPORT_GET_INFO(ext::intel::info::device::gpu_eu_count)
-EXPORT_GET_INFO(ext::intel::info::device::gpu_eu_simd_width)
-EXPORT_GET_INFO(ext::intel::info::device::gpu_slices)
-EXPORT_GET_INFO(ext::intel::info::device::gpu_subslices_per_slice)
-EXPORT_GET_INFO(ext::intel::info::device::gpu_eu_count_per_subslice)
-EXPORT_GET_INFO(ext::intel::info::device::gpu_hw_threads_per_eu)
-EXPORT_GET_INFO(ext::intel::info::device::max_mem_bandwidth)
-EXPORT_GET_INFO(ext::intel::info::device::uuid)
-EXPORT_GET_INFO(ext::intel::info::device::free_memory)
-EXPORT_GET_INFO(ext::intel::info::device::memory_clock_rate)
-EXPORT_GET_INFO(ext::intel::info::device::memory_bus_width)
-EXPORT_GET_INFO(ext::intel::info::device::max_compute_queue_indices)
-EXPORT_GET_INFO(ext::intel::esimd::info::device::has_2d_block_io_support)
-EXPORT_GET_INFO(ext::intel::info::device::current_clock_throttle_reasons)
-EXPORT_GET_INFO(ext::intel::info::device::fan_speed)
-EXPORT_GET_INFO(ext::intel::info::device::min_power_limit)
-EXPORT_GET_INFO(ext::intel::info::device::max_power_limit)
-
-EXPORT_GET_INFO(ext::codeplay::experimental::info::device::supports_fusion)
-EXPORT_GET_INFO(ext::codeplay::experimental::info::device::max_registers_per_work_group)
-
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_global_work_groups)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_work_groups<1>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_work_groups<2>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_work_groups<3>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_group_progress_capabilities<ext::oneapi::experimental::execution_scope::root_group>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::sub_group_progress_capabilities<ext::oneapi::experimental::execution_scope::root_group>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::sub_group_progress_capabilities<ext::oneapi::experimental::execution_scope::work_group>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_item_progress_capabilities<ext::oneapi::experimental::execution_scope::root_group>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_item_progress_capabilities<ext::oneapi::experimental::execution_scope::work_group>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_item_progress_capabilities<ext::oneapi::experimental::execution_scope::sub_group>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::architecture)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::matrix_combinations)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::image_row_pitch_align)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_image_linear_row_pitch)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_image_linear_width)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_image_linear_height)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::mipmap_max_anisotropy)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::component_devices)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::composite_device)
-EXPORT_GET_INFO(ext::oneapi::info::device::num_compute_units)
-// clang-format on
-
-#undef EXPORT_GET_INFO
-#endif
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
