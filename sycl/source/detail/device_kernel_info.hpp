@@ -94,9 +94,7 @@ public:
   void init(std::string_view KernelName);
   void setCompileTimeInfoIfNeeded(const CompileTimeKernelInfoTy &Info);
 
-  FastKernelSubcacheT &getKernelSubcache() {
-    return MFastKernelSubcache;
-  }
+  FastKernelSubcacheT &getKernelSubcache() { return MFastKernelSubcache; }
 
   std::optional<int> getImplicitLocalArgPos() const {
     return MImplicitLocalArgPos;
