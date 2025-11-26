@@ -279,7 +279,7 @@ jobs:
       image: ${{ matrix.image }}
       image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
       target_devices: ${{ matrix.target_devices }}
-      extra_lit_opts: ${{ matrix.extra_lit_opts }} " --param enable_new_offload_model=True"
+      extra_lit_opts: ${{ matrix.extra_lit_opts }}
       repo_ref: ${{ github.sha }}
       toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
