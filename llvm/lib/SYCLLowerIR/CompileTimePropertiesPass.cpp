@@ -33,6 +33,8 @@ constexpr StringRef SyclRegisterAllocModeAttr = "sycl-register-alloc-mode";
 constexpr StringRef SyclGrfSizeAttr = "sycl-grf-size";
 
 constexpr StringRef SpirvDecorMdKind = "spirv.Decorations";
+constexpr StringRef SpirvDecorCacheControlMdKind =
+    "spirv.DecorationCacheControlINTEL";
 constexpr StringRef SpirvParamDecorMdKind = "spirv.ParameterDecorations";
 // The corresponding SPIR-V OpCode for the host_access property is documented
 // in the SPV_INTEL_global_variable_decorations design document:
@@ -128,21 +130,7 @@ MDNode *buildSpirvDecorMetadata(LLVMContext &Ctx, uint32_t OpCode,
   return MDNode::get(Ctx, MD);
 }
 
-/// Builds a metadata node for a SPIR-V decoration for cache controls
-/// where decoration code and value are both uint32_t integers.
-/// The value encodes a cache level and a cache control type.
-///
-/// @param Ctx        [in] the LLVM Context.
-/// @param Name       [in] the SPIR-V property string name.
-/// @param OpCode     [in] the SPIR-V opcode.
-/// @param CacheMode  [in] whether read or write.
-/// @param CacheLevel [in] the cache level.
-///
-/// @returns a pointer to the metadata node created for the required decoration
-/// and its values.
-MDNode *buildSpirvDecorCacheProp(LLVMContext &Ctx, StringRef Name,
-                                 uint32_t OpCode, uint32_t CacheMode,
-                                 uint32_t CacheLevel) {
+static uint32_t getCacheProperty(StringRef Name, uint32_t CacheMode) {
   // SPIR-V encodings of read control
   enum CacheControlReadType {
     read_uncached = 0,
@@ -177,12 +165,25 @@ MDNode *buildSpirvDecorCacheProp(LLVMContext &Ctx, StringRef Name,
       write_uncached, write_through,  write_back};
 
   // Map SYCL encoding to SPIR-V
-  uint32_t CacheProp;
   if (Name.starts_with("sycl-cache-read"))
-    CacheProp = SPIRVReadControl[CacheMode];
-  else
-    CacheProp = SPIRVWriteControl[CacheMode];
+    return SPIRVReadControl[CacheMode];
 
+  return SPIRVWriteControl[CacheMode];
+}
+
+/// Builds a metadata node for a SPIR-V decoration for cache controls.
+///
+/// @param Ctx        [in] the LLVM Context.
+/// @param OpCode     [in] the SPIR-V opcode.
+/// @param CacheLevel [in] the cache level.
+/// @param CacheProp  [in] the cache property.
+/// @param OperandNum [in] the operand number to decorate.
+///
+/// @returns a pointer to the metadata node created for the required decoration
+/// and its values.
+MDNode *buildSpirvDecorCacheProp(LLVMContext &Ctx, uint32_t OpCode,
+                                 uint32_t CacheLevel, uint32_t CacheProp,
+                                 uint32_t OperandNum) {
   auto *Ty = Type::getInt32Ty(Ctx);
   SmallVector<Metadata *, 3> MD;
   MD.push_back(ConstantAsMetadata::get(
@@ -191,6 +192,8 @@ MDNode *buildSpirvDecorCacheProp(LLVMContext &Ctx, StringRef Name,
       Constant::getIntegerValue(Ty, APInt(32, CacheLevel))));
   MD.push_back(ConstantAsMetadata::get(
       Constant::getIntegerValue(Ty, APInt(32, CacheProp))));
+  MD.push_back(ConstantAsMetadata::get(
+      Constant::getIntegerValue(Ty, APInt(32, OperandNum))));
   return MDNode::get(Ctx, MD);
 }
 
@@ -831,7 +834,7 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
   // Read the annotation values and create new annotation strings.
   std::string NewAnnotString = "";
   auto Properties = parseSYCLPropertiesString(M, IntrInst);
-  SmallVector<Metadata *, 8> MDOpsCacheProp;
+  SmallVector<std::array<uint32_t, 3>, 8> MDOpsCacheProp;
   bool CacheProp = false;
   bool FPGAProp = false;
   for (const auto &[PropName, PropVal] : Properties) {
@@ -856,7 +859,6 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
       // !CC1 = !{i32 Load/Store, i32 Level, i32 Control}
       // !CC2 = !{i32 Load/Store, i32 Level, i32 Control}
       // ...
-      LLVMContext &Ctx = M.getContext();
       uint32_t CacheMode = 0;
       while (AttrVal) {
         // The attribute value encodes cache control and levels.
@@ -869,8 +871,8 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
         uint32_t LevelMask = AttrVal & 0xf;
         while (LevelMask) {
           if (LevelMask & 1)
-            MDOpsCacheProp.push_back(buildSpirvDecorCacheProp(
-                Ctx, *PropName, DecorCode, CacheMode, CacheLevel));
+            MDOpsCacheProp.push_back({DecorCode, CacheLevel,
+                                      getCacheProperty(*PropName, CacheMode)});
           ++CacheLevel;
           LevelMask >>= 1;
         }
@@ -941,23 +943,39 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
 
   if (CacheProp) {
     LLVMContext &Ctx = M.getContext();
-    unsigned MDKindID = Ctx.getMDKindID(SpirvDecorMdKind);
+    unsigned MDKindID = Ctx.getMDKindID(SpirvDecorCacheControlMdKind);
     if (!FPGAProp && llvm::isa<llvm::Instruction>(IntrInst->getArgOperand(0))) {
-      // If there are no annotations other than cache controls we can apply the
-      // controls to the pointer and remove the intrinsic.
+      // Find all load/store instructions using the pointer being annotated and
+      // apply the cache control metadata to them.
+      SmallVector<std::pair<Instruction *, int>, 8> TargetedInstList;
+      getUserListIgnoringCast<LoadInst>(IntrInst, TargetedInstList);
+      getUserListIgnoringCast<StoreInst>(IntrInst, TargetedInstList);
+      getUserListIgnoringCast<MemTransferInst>(IntrInst, TargetedInstList);
+      for (const auto &[Inst, MDVal] : TargetedInstList) {
+        assert(MDVal >= 0 && "Invalid operand number for instruction.");
+        // Merge with existing metadata if present.
+        SmallVector<Metadata *, 8> MDOps;
+        if (MDNode *CurrentMD = Inst->getMetadata(MDKindID))
+          for (Metadata *Op : CurrentMD->operands())
+            MDOps.push_back(Op);
+        for (const std::array<uint32_t, 3> &Op : MDOpsCacheProp)
+          MDOps.push_back(buildSpirvDecorCacheProp(Ctx, Op[0], Op[1], Op[2],
+                                                   uint32_t(MDVal)));
+        Inst->setMetadata(MDKindID, MDTuple::get(Ctx, MDOps));
+      }
+      // Replace all uses of ptr.annotations intrinsic with first operand and
+      // delete the original intrinsic.
       Instruction *PtrInstr = cast<Instruction>(IntrInst->getArgOperand(0));
-      if (MDNode *CurrentMD = PtrInstr->getMetadata(MDKindID))
-        for (Metadata *Op : CurrentMD->operands())
-          MDOpsCacheProp.push_back(Op);
-      PtrInstr->setMetadata(MDKindID, MDTuple::get(Ctx, MDOpsCacheProp));
-      // Replace all uses of IntrInst with first operand
       IntrInst->replaceAllUsesWith(PtrInstr);
-      // Delete the original IntrInst
       RemovableAnnotations.push_back(IntrInst);
     } else {
       // If there were FPGA annotations then we retain the original intrinsic
       // and apply the cache control properties to its result.
-      IntrInst->setMetadata(MDKindID, MDTuple::get(Ctx, MDOpsCacheProp));
+      SmallVector<Metadata *, 8> MDOps;
+      for (const std::array<uint32_t, 3> &Op : MDOpsCacheProp)
+        MDOps.push_back(
+            buildSpirvDecorCacheProp(Ctx, Op[0], Op[1], Op[2], uint32_t(0)));
+      IntrInst->setMetadata(MDKindID, MDTuple::get(Ctx, MDOps));
     }
   }
 

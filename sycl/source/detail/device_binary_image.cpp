@@ -218,10 +218,6 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage()
   Bin->Kind = SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
   Bin->CompileOptions = "";
   Bin->LinkOptions = "";
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  Bin->ManifestStart = nullptr;
-  Bin->ManifestEnd = nullptr;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   Bin->BinaryStart = nullptr;
   Bin->BinaryEnd = nullptr;
   Bin->EntriesBegin = nullptr;
