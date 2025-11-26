@@ -929,13 +929,13 @@ public:
     CASE(ext::oneapi::experimental::info::device::max_work_groups<2>) {
       id<3> max_3d =
           get_info<ext::oneapi::experimental::info::device::max_work_groups<3>,
-          DependentFalse>();
+                   DependentFalse>();
       return id<2>{max_3d[1], max_3d[2]};
     }
     CASE(ext::oneapi::experimental::info::device::max_work_groups<1>) {
       id<3> max_3d =
           get_info<ext::oneapi::experimental::info::device::max_work_groups<3>,
-          DependentFalse>();
+                   DependentFalse>();
       return id<1>{max_3d[2]};
     }
 
