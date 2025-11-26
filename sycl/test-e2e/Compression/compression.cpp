@@ -1,5 +1,5 @@
-// UNSUPPORTED: new-offload-model
-// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
+// XFAIL: new-offload-model
+// XFAIL-TRACKER: CMPLRLLVM-61170
 
 // End-to-End test for testing device image compression.
 // REQUIRES: zstd

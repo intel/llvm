@@ -1,5 +1,5 @@
-// UNSUPPORTED: new-offload-model
-// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
+// XFAIL: new-offload-model
+// XFAIL-TRACKER: CMPLRLLVM-61170
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
