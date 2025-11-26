@@ -689,19 +689,6 @@ public:
     return ResEvent;
   }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // CMPLRLLVM-66082
-  // These methods are for accessing a member that should live in the
-  // sycl::interop_handle class and will be moved on next ABI breaking window.
-  ur_exp_command_buffer_handle_t getInteropGraph() const {
-    return MInteropGraph;
-  }
-
-  void setInteropGraph(ur_exp_command_buffer_handle_t Graph) {
-    MInteropGraph = Graph;
-  }
-#endif
-
   /// Returns the async_handler associated with the queue.
   const async_handler &getAsynchHandler() const noexcept {
     return MAsyncHandler;
