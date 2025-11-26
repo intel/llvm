@@ -360,7 +360,7 @@ public:
               << "][Program Cache]" << Identifier << Msg << std::endl;
   }
 
-  static void traceKernelImpl(const char *Msg, KernelNameStrRefT KernelName,
+  static void traceKernelImpl(const char *Msg, std::string_view KernelName,
                               bool IsFastKernelCache);
 
   // Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is
