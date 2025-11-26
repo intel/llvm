@@ -700,5 +700,36 @@ template <typename Ty> static inline Ty __srhadd(Ty x, Ty y) {
   return __spirv_ocl_s_rhadd(x, y);
 #endif
 }
+
+static inline float __fsigm(float x) {
+#if defined(__LIBDEVICE_HOST_IMPL__)
+  return 1.0f / (1.0f + __builtin_expf(-x));
+#elif defined(__SPIR__) || defined(__SPIRV__)
+  return 1.0f / (1.0f + __spirv_ocl_exp(-x));
+#endif
+}
+
+static inline _iml_half __fsigm(_iml_half x) {
+#if defined(__LIBDEVICE_HOST_IMPL__)
+  float tmp_x = __half2float(x.get_internal());
+  float res = 1.0f / (1.0f + __builtin_expf(-tmp_x));
+  return _iml_half(__float2half(res));
+#elif defined(__SPIR__) || defined(__SPIRV__)
+  _iml_half_internal tmp_x = x.get_internal();
+  float res_f = 1.0f / (1.0f + __half2float(__spirv_ocl_exp(-tmp_x)));
+  return __float2half(res_f);
+#endif
+}
+
+static inline uint16_t __fsigm(uint16_t x) {
+  float tmp_x = __bfloat162float(x);
+  float res;
+#if defined(__LIBDEVICE_HOST_IMPL__)
+  res = 1.0f / (1.0f + __builtin_expf(-tmp_x));
+#elif defined(__SPIR__) || defined(__SPIRV__)
+  res = 1.0f / (1.0f + __spirv_ocl_exp(-tmp_x));
+#endif
+  return __float2bfloat16(res, __IML_RTE);
+}
 #endif // __LIBDEVICE_IMF_ENABLED__
 #endif // __LIBDEVICE_DEVICE_IMF_H__
