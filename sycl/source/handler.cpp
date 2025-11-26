@@ -60,11 +60,11 @@ markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl) {
 // TODO: Check if two ABI exports below are still necessary.
 #endif
 device_impl &getDeviceImplFromHandler(handler &CGH) {
-  return getSyclObjImpl(CGH)->get_device();
+  return *getSyclObjImpl(getSyclObjImpl(CGH)->get_device());
 }
 
-device getDeviceFromHandler(handler &CGH) {
-  return createSyclObjFromImpl<device>(getSyclObjImpl(CGH)->get_device());
+device &getDeviceFromHandler(handler &CGH) {
+  return getSyclObjImpl(CGH)->get_device();
 }
 
 bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr) {
@@ -402,10 +402,8 @@ handler::getOrInsertHandlerKernelBundlePtr(bool Insert) const {
     return impl->MKernelBundle.get();
 
   context Ctx = detail::createSyclObjFromImpl<context>(impl->get_context());
-  impl->MKernelBundle =
-      detail::getSyclObjImpl(get_kernel_bundle<bundle_state::input>(
-          Ctx, {detail::createSyclObjFromImpl<device>(impl->get_device())},
-          {}));
+  impl->MKernelBundle = detail::getSyclObjImpl(
+      get_kernel_bundle<bundle_state::input>(Ctx, {impl->get_device()}, {}));
   return impl->MKernelBundle.get();
 }
 
@@ -503,12 +501,11 @@ detail::EventImplPtr handler::finalize() {
           (KernelBundleImpPtr->empty() ||
            KernelBundleImpPtr->hasSYCLOfflineImages()) &&
           !KernelBundleImpPtr->tryGetKernel(impl->getKernelName())) {
-        detail::device_impl &Dev = impl->get_device();
+        device &Dev = impl->get_device();
         kernel_id KernelID =
             detail::ProgramManager::getInstance().getSYCLKernelID(
                 impl->getKernelName());
-        bool KernelInserted = KernelBundleImpPtr->add_kernel(
-            KernelID, detail::createSyclObjFromImpl<device>(Dev));
+        bool KernelInserted = KernelBundleImpPtr->add_kernel(KernelID, Dev);
         // If kernel was not inserted and the bundle is in input mode we try
         // building it and trying to find the kernel in executable mode
         if (!KernelInserted &&
@@ -522,8 +519,7 @@ detail::EventImplPtr handler::finalize() {
           // Raw ptr KernelBundleImpPtr is valid, because we saved the
           // shared_ptr to the handler
           setHandlerKernelBundle(KernelBundleImpPtr->shared_from_this());
-          KernelInserted = KernelBundleImpPtr->add_kernel(
-              KernelID, detail::createSyclObjFromImpl<device>(Dev));
+          KernelInserted = KernelBundleImpPtr->add_kernel(KernelID, Dev);
         }
         // If the kernel was not found in executable mode we throw an exception
         if (!KernelInserted)
@@ -880,8 +876,7 @@ void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
     return;
 
   kernel_id KernelID = detail::get_kernel_id_impl(KernelName);
-  if (!UsedKernelBundleImplPtr->has_kernel(
-          KernelID, detail::createSyclObjFromImpl<device>(impl->get_device())))
+  if (!UsedKernelBundleImplPtr->has_kernel(KernelID, impl->get_device()))
     throw sycl::exception(
         make_error_code(errc::kernel_not_supported),
         "The kernel bundle in use does not contain the kernel");
@@ -1493,8 +1488,8 @@ void handler::depends_on(const std::vector<event> &Events) {
 void handler::depends_on(const detail::EventImplPtr &EventImpl) {
   registerEventDependency(EventImpl, impl->CGData.MEvents,
                           impl->get_queue_or_null(), impl->get_context(),
-                          impl->get_device(), getCommandGraph().get(),
-                          getType());
+                          *getSyclObjImpl(impl->get_device()),
+                          getCommandGraph().get(), getType());
 }
 
 void handler::depends_on(const std::vector<detail::EventImplPtr> &Events) {
@@ -1535,7 +1530,7 @@ bool handler::supportsUSMMemset2D() {
 }
 
 id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
-  device_impl &Dev = impl->get_device();
+  device_impl &Dev = *getSyclObjImpl(impl->get_device());
   range<2> ItemLimit = Dev.get_info<info::device::max_work_item_sizes<2>>() *
                        Dev.get_info<info::device::max_compute_units>();
   return id<2>{std::min(ItemLimit[0], Height), std::min(ItemLimit[1], Width)};
@@ -1543,7 +1538,7 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
 
 // TODO: do we need this still?
 backend handler::getDeviceBackend() const {
-  return impl->get_device().getBackend();
+  return getSyclObjImpl(impl->get_device()).get()->getBackend();
 }
 
 void handler::ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
@@ -1595,7 +1590,7 @@ void handler::memcpyToHostOnlyDeviceGlobal(const void *DeviceGlobalPtr,
                                            size_t DeviceGlobalTSize,
                                            bool IsDeviceImageScoped,
                                            size_t NumBytes, size_t Offset) {
-  host_task([=, &Dev = impl->get_device(),
+  host_task([=, &Dev = *getSyclObjImpl(impl->get_device()),
              WeakContextImpl = impl->get_context().weak_from_this()] {
     // Capture context as weak to avoid keeping it alive for too long. If it is
     // dead by the time this executes, the operation would not have been visible
@@ -1614,7 +1609,7 @@ void handler::memcpyFromHostOnlyDeviceGlobal(void *Dest,
                                              bool IsDeviceImageScoped,
                                              size_t NumBytes, size_t Offset) {
   host_task([=, Context = impl->get_context().shared_from_this(),
-             &Dev = impl->get_device()] {
+             &Dev = *getSyclObjImpl(impl->get_device())] {
     // Unlike memcpy to device_global, we need to keep the context alive in the
     // capture of this operation as we must be able to correctly copy the value
     // to the user-specified pointer. Device is guaranteed to live until SYCL RT
@@ -1629,7 +1624,7 @@ void handler::setKernelLaunchProperties(
     const detail::KernelPropertyHolderStructTy &Kprop) {
   impl->MKernelData.validateAndSetKernelLaunchProperties(
       Kprop, getCommandGraph() != nullptr /*hasGraph?*/,
-      impl->get_device() /*device_impl*/);
+      *getSyclObjImpl(impl->get_device()) /*device_impl*/);
 }
 
 detail::context_impl &handler::getContextImpl() const {
@@ -1669,7 +1664,7 @@ kernel_bundle<bundle_state::input> handler::getKernelBundle() const {
 }
 
 std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
-  device_impl &DeviceImpl = impl->get_device();
+  device_impl &DeviceImpl = *getSyclObjImpl(impl->get_device());
   std::array<size_t, 3> UrResult = {};
   auto Ret = DeviceImpl.getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
       DeviceImpl.getHandleRef(),

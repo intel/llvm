@@ -100,10 +100,10 @@ public:
   /// to the queue.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties to use for queue construction.
-  queue_impl(device_impl &Device, const async_handler &AsyncHandler,
+  queue_impl(const device &Device, const async_handler &AsyncHandler,
              const property_list &PropList, private_tag tag)
-      : queue_impl(Device, getDefaultOrNew(Device), AsyncHandler, PropList,
-                   tag) {};
+      : queue_impl(Device, getDefaultOrNew(*getSyclObjImpl(Device)),
+                   AsyncHandler, PropList, tag) {};
 
   /// Constructs a SYCL queue with an async_handler and property_list provided
   /// form a device and a context.
@@ -114,7 +114,7 @@ public:
   /// constructed.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties to use for queue construction.
-  queue_impl(device_impl &Device, std::shared_ptr<context_impl> &&Context,
+  queue_impl(const device &Device, std::shared_ptr<context_impl> &&Context,
              const async_handler &AsyncHandler, const property_list &PropList,
              private_tag)
       : MDevice(Device), MContext(std::move(Context)),
@@ -143,7 +143,7 @@ public:
             "Queue compute index must be a non-negative number less than "
             "device's number of available compute queue indices.");
     }
-    if (!MContext->isDeviceValid(Device)) {
+    if (!MContext->isDeviceValid(*getSyclObjImpl(Device))) {
       if (MContext->getBackend() == backend::opencl)
         throw sycl::exception(
             make_error_code(errc::invalid),
@@ -174,7 +174,7 @@ public:
     trySwitchingToNoEventsMode();
   }
 
-  queue_impl(device_impl &Device, context_impl &Context,
+  queue_impl(const device &Device, context_impl &Context,
              const async_handler &AsyncHandler, const property_list &PropList,
              private_tag Tag)
       : queue_impl(Device, Context.shared_from_this(), AsyncHandler, PropList,
@@ -192,7 +192,7 @@ public:
   queue_impl(ur_queue_handle_t UrQueue, context_impl &Context,
              const async_handler &AsyncHandler, const property_list &PropList,
              private_tag)
-      : MDevice([&]() -> device_impl & {
+      : MDevice([&]() -> device {
           ur_device_handle_t DeviceUr{};
           adapter_impl &Adapter = Context.getAdapter();
           // TODO catch an exception and put it to list of asynchronous
@@ -206,7 +206,7 @@ public:
                 make_error_code(errc::invalid),
                 "Device provided by native Queue not found in Context.");
           }
-          return *Device;
+          return createSyclObjFromImpl<device>(*Device);
         }()),
         MContext(Context.shared_from_this()), MAsyncHandler(AsyncHandler),
         MPropList(PropList), MQueue(UrQueue),
@@ -297,10 +297,13 @@ public:
 
   std::weak_ptr<context_impl> getContextImplWeakPtr() const { return MContext; }
 
-  device_impl &getDeviceImpl() const { return MDevice; }
+  device_impl &getDeviceImpl() { return *getSyclObjImpl(MDevice); }
+
+  /// \return an associated SYCL device by reference.
+  device &get_device() { return MDevice; }
 
   /// \return an associated SYCL device.
-  device get_device() const { return createSyclObjFromImpl<device>(MDevice); }
+  device get_device() const { return MDevice; }
 
   /// \return true if this queue allows for discarded events.
   bool supportsDiscardingPiEvents() const { return MIsInorder; }
@@ -499,7 +502,7 @@ public:
   ur_queue_handle_t createQueue(QueueOrder Order) {
     ur_queue_handle_t Queue{};
     ur_context_handle_t Context = MContext->getHandleRef();
-    ur_device_handle_t Device = MDevice.getHandleRef();
+    ur_device_handle_t Device = getSyclObjImpl(MDevice).get()->getHandleRef();
     /*
         sycl::detail::pi::PiQueueProperties Properties[] = {
             PI_QUEUE_FLAGS, createPiQueueProperties(MPropList, Order), 0, 0, 0};
@@ -984,7 +987,7 @@ protected:
   /// Protects all the fields that can be changed by class' methods.
   mutable std::mutex MMutex;
 
-  device_impl &MDevice;
+  device MDevice;
   const std::shared_ptr<context_impl> MContext;
 
   /// These events are tracked, but not owned, by the queue.

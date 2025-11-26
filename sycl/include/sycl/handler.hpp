@@ -251,7 +251,7 @@ template <typename Type> struct get_kernel_wrapper_name_t {
   using name = __pf_kernel_wrapper<Type>;
 };
 
-__SYCL_EXPORT device getDeviceFromHandler(handler &);
+__SYCL_EXPORT device &getDeviceFromHandler(handler &);
 device_impl &getDeviceImplFromHandler(handler &);
 
 // Checks if a device_global has any registered kernel usage.
@@ -2818,7 +2818,7 @@ private:
             access::target AccTarget, access::placeholder isPlaceholder,
             typename PropertyListT>
   friend class accessor;
-  friend device detail::getDeviceFromHandler(handler &);
+  friend device &detail::getDeviceFromHandler(handler &);
   friend detail::device_impl &detail::getDeviceImplFromHandler(handler &);
 
   template <typename DataT, int Dimensions, access::mode AccessMode,

@@ -174,12 +174,12 @@ public:
 
   // Make the following methods templates to avoid circular dependencies for the
   // includes.
-  template <typename Self = handler_impl> detail::device_impl &get_device() {
+  template <typename Self = handler_impl> device &get_device() {
     Self *self = this;
     if (auto *Queue = self->get_queue_or_null())
-      return Queue->getDeviceImpl();
+      return Queue->get_device();
     else
-      return self->get_graph().getDeviceImpl();
+      return self->get_graph().getDevice();
   }
   template <typename Self = handler_impl> context_impl &get_context() {
     Self *self = this;

@@ -287,6 +287,10 @@ public:
   /// @return Device associated with graph.
   sycl::device getDevice() const { return MDevice; }
 
+  /// Query for the device tied to this graph.
+  /// @return Device associated with graph by reference.
+  sycl::device &getDevice() { return MDevice; }
+
   /// List of root nodes.
   std::set<node_impl *> MRoots;
 
