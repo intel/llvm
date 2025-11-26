@@ -16,9 +16,10 @@
 
 #pragma once
 
+#include "queue_extensions.hpp"
 #include <ur_api.h>
 
-struct ur_queue_t_ {
+struct ur_queue_t_ : ur_queue_extensions {
   virtual ~ur_queue_t_();
 
   virtual ur_result_t queueGetInfo(ur_queue_info_t, size_t, void *,
@@ -27,12 +28,11 @@ struct ur_queue_t_ {
                                            ur_native_handle_t *) = 0;
   virtual ur_result_t queueFinish() = 0;
   virtual ur_result_t queueFlush() = 0;
-  virtual ur_result_t enqueueKernelLaunch(ur_kernel_handle_t, uint32_t,
-                                          const size_t *, const size_t *,
-                                          const size_t *, uint32_t,
-                                          const ur_kernel_launch_property_t *,
-                                          uint32_t, const ur_event_handle_t *,
-                                          ur_event_handle_t *) = 0;
+  virtual ur_result_t
+  enqueueKernelLaunch(ur_kernel_handle_t, uint32_t, const size_t *,
+                      const size_t *, const size_t *,
+                      const ur_kernel_launch_ext_properties_t *, uint32_t,
+                      const ur_event_handle_t *, ur_event_handle_t *) = 0;
   virtual ur_result_t enqueueEventsWait(uint32_t, const ur_event_handle_t *,
                                         ur_event_handle_t *) = 0;
   virtual ur_result_t enqueueEventsWaitWithBarrier(uint32_t,
@@ -166,7 +166,7 @@ struct ur_queue_t_ {
   virtual ur_result_t enqueueKernelLaunchWithArgsExp(
       ur_kernel_handle_t, uint32_t, const size_t *, const size_t *,
       const size_t *, uint32_t, const ur_exp_kernel_arg_properties_t *,
-      uint32_t, const ur_kernel_launch_property_t *, uint32_t,
+      const ur_kernel_launch_ext_properties_t *, uint32_t,
       const ur_event_handle_t *, ur_event_handle_t *) = 0;
   virtual ur_result_t
   enqueueEventsWaitWithBarrierExt(const ur_exp_enqueue_ext_properties_t *,

@@ -223,7 +223,7 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
       sizeof(ur_device_handle_t) * NumDevices, ProgramDevices.data(), nullptr);
 
   for (auto &Dev : ProgramDevices) {
-    ur_program_binary_type_t BinaryType;
+    ur_program_binary_type_t BinaryType = UR_PROGRAM_BINARY_TYPE_NONE;
     Adapter.call<UrApiKind::urProgramGetBuildInfo>(
         UrProgram, Dev, UR_PROGRAM_BUILD_INFO_BINARY_TYPE,
         sizeof(ur_program_binary_type_t), &BinaryType, nullptr);

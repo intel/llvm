@@ -116,6 +116,15 @@ template <>
 struct stype_map<ur_physical_mem_properties_t>
     : stype_map_impl<UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES> {};
 template <>
+struct stype_map<ur_kernel_launch_ext_properties_t>
+    : stype_map_impl<UR_STRUCTURE_TYPE_KERNEL_LAUNCH_EXT_PROPERTIES> {};
+template <>
+struct stype_map<ur_kernel_launch_cluster_property_t>
+    : stype_map_impl<UR_STRUCTURE_TYPE_KERNEL_LAUNCH_CLUSTER_PROPERTY> {};
+template <>
+struct stype_map<ur_kernel_launch_workgroup_property_t>
+    : stype_map_impl<UR_STRUCTURE_TYPE_KERNEL_LAUNCH_WORKGROUP_PROPERTY> {};
+template <>
 struct stype_map<ur_exp_command_buffer_desc_t>
     : stype_map_impl<UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC> {};
 template <>

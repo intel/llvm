@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/detail/nd_range_view.hpp>
 #include <sycl/nd_range.hpp>
 #include <sycl/range.hpp>
 
@@ -32,6 +33,15 @@ public:
   NDRDescT(const NDRDescT &Desc) = default;
   NDRDescT(NDRDescT &&Desc) = default;
 
+  NDRDescT(const detail::nd_range_view &NDRangeView) : Dims{NDRangeView.MDims} {
+    if (!NDRangeView.MGlobalSize) {
+      init();
+    } else {
+      init(NDRangeView.MGlobalSize, NDRangeView.MLocalSize,
+           NDRangeView.MOffset);
+    }
+  }
+
   template <int Dims_>
   NDRDescT(sycl::range<Dims_> N, bool SetNumWorkGroups) : Dims{size_t(Dims_)} {
     if (SetNumWorkGroups) {
@@ -43,7 +53,7 @@ public:
         GlobalSize[I] = N[I];
       }
 
-      for (int I = Dims_; I < 3; ++I) {
+      for (size_t I = Dims_; I < 3; ++I) {
         GlobalSize[I] = 1;
       }
     }
@@ -53,19 +63,7 @@ public:
   NDRDescT(sycl::range<Dims_> NumWorkItems, sycl::range<Dims_> LocalSizes,
            sycl::id<Dims_> Offset)
       : Dims{size_t(Dims_)} {
-    for (size_t I = 0; I < Dims_; ++I) {
-      GlobalSize[I] = NumWorkItems[I];
-      LocalSize[I] = LocalSizes[I];
-      GlobalOffset[I] = Offset[I];
-    }
-
-    for (int I = Dims_; I < 3; ++I) {
-      LocalSize[I] = LocalSizes[0] ? 1 : 0;
-    }
-
-    for (int I = Dims_; I < 3; ++I) {
-      GlobalSize[I] = 1;
-    }
+    init(&(NumWorkItems[0]), &(LocalSizes[0]), &(Offset[0]));
   }
 
   template <int Dims_>
@@ -109,6 +107,29 @@ public:
   std::array<size_t, 3> NumWorkGroups{0, 0, 0};
   std::array<size_t, 3> ClusterDimensions{1, 1, 1};
   size_t Dims = 0;
+
+private:
+  void init(const size_t *NumWorkItems, const size_t *LocalSizes,
+            const size_t *Offset) {
+    for (size_t I = 0; I < Dims; ++I) {
+      GlobalSize[I] = NumWorkItems[I];
+      LocalSize[I] = LocalSizes[I];
+      GlobalOffset[I] = Offset[I];
+    }
+
+    for (size_t I = Dims; I < 3; ++I) {
+      LocalSize[I] = LocalSizes[0] ? 1 : 0;
+    }
+
+    for (size_t I = Dims; I < 3; ++I) {
+      GlobalSize[I] = 1;
+    }
+  }
+
+  void init() {
+    size_t GlobalS = 1, LocalS = 1, Offset = 0;
+    init(&GlobalS, &LocalS, &Offset);
+  }
 };
 
 } // namespace detail
