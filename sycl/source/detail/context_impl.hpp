@@ -128,6 +128,9 @@ public:
   /// \return an instance of raw UR context handle.
   const ur_context_handle_t &getHandleRef() const { return MContext; }
 
+  void createMallocPool(ur_device_handle_t, ur_queue_handle_t,
+                        ur_program_handle_t);
+
   devices_range getDevices() const { return MDevices; }
 
   using CachedLibProgramsT =

@@ -649,6 +649,8 @@ __glibcxx_assert_fail(const char *file, int line, const char *func,
                       const char *cond) noexcept;
 } // namespace std
 extern "C" {
+extern __DPCPP_SYCL_EXTERNAL_LIBC void *malloc(size_t size);
+extern __DPCPP_SYCL_EXTERNAL_LIBC void free(void *ptr);
 extern __DPCPP_SYCL_EXTERNAL_LIBC void __assert_fail(const char *expr,
                                                      const char *file,
                                                      unsigned int line,

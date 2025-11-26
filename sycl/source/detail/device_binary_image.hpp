@@ -223,6 +223,7 @@ public:
   const PropertyRange &getKernelParamOptInfo() const {
     return KernelParamOptInfo;
   }
+  const PropertyRange &getMallocUsed() const { return MallocUsed; }
   const PropertyRange &getProgramMetadata() const { return ProgramMetadata; }
   const std::vector<ur_program_metadata_t> &getProgramMetadataUR() const {
     return ProgramMetadataUR;
@@ -258,6 +259,7 @@ protected:
   RTDeviceBinaryImage::PropertyRange DeviceLibReqMask;
   RTDeviceBinaryImage::PropertyRange DeviceLibMetadata;
   RTDeviceBinaryImage::PropertyRange KernelParamOptInfo;
+  RTDeviceBinaryImage::PropertyRange MallocUsed;
   RTDeviceBinaryImage::PropertyRange ProgramMetadata;
   RTDeviceBinaryImage::PropertyRange KernelNames;
   RTDeviceBinaryImage::PropertyRange ExportedSymbols;

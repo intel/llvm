@@ -24,6 +24,7 @@ DeviceKernelInfo::DeviceKernelInfo(const CompileTimeKernelInfoTy &Info)
 
 void DeviceKernelInfo::init(KernelNameStrRefT KernelName) {
   auto &PM = detail::ProgramManager::getInstance();
+  MUsesMalloc = PM.kernelUsesMalloc(KernelName);
   MImplicitLocalArgPos = PM.kernelImplicitLocalArgPos(KernelName);
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   MInitialized.store(true);
@@ -72,7 +73,6 @@ void DeviceKernelInfo::setCompileTimeInfoIfNeeded(
 #endif
   assert(Info == *this);
 }
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

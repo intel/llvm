@@ -9,6 +9,7 @@
 #include <detail/context_impl.hpp>
 #include <detail/context_info.hpp>
 #include <detail/event_info.hpp>
+#include <detail/malloc_meta.hpp>
 #include <detail/memory_pool_impl.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/queue_impl.hpp>
@@ -23,6 +24,7 @@
 #include <sycl/property_list.hpp>
 
 #include <algorithm>
+#include <iostream>
 #include <set>
 
 namespace sycl {
@@ -536,6 +538,58 @@ context_impl::get_default_memory_pool(const context &Context,
   MMemPoolImplPtrs.push_back(std::pair(Device, MemPoolImplPtr));
 
   return MemPoolImplPtr;
+}
+
+void context_impl::createMallocPool(ur_device_handle_t Device,
+                                    ur_queue_handle_t Queue,
+                                    ur_program_handle_t Program) {
+  void *SuperBlkPtr = nullptr;
+  void *RandomWalkParamPtr = nullptr;
+  void *DeviceHeapPtr = nullptr;
+  getAdapter().call<UrApiKind::urUSMSharedAlloc>(
+      MContext, Device, nullptr, nullptr, sizeof(superblk), &SuperBlkPtr);
+  getAdapter().call<UrApiKind::urUSMSharedAlloc>(
+      MContext, Device, nullptr, nullptr, sizeof(random_walk_params_t),
+      &RandomWalkParamPtr);
+  getAdapter().call<UrApiKind::urUSMSharedAlloc>(MContext, Device, nullptr,
+                                                 nullptr, sizeof(device_heap_t),
+                                                 &DeviceHeapPtr);
+  if (!SuperBlkPtr || !RandomWalkParamPtr || !DeviceHeapPtr) {
+    std::cout << "Shared USM alloc failed for malloc meta!" << std::endl;
+    return;
+  }
+
+  device_heap_t *DevHPtr = reinterpret_cast<device_heap_t *>(DeviceHeapPtr);
+  DevHPtr->ptr_superblk = reinterpret_cast<unsigned long *>(SuperBlkPtr);
+  DevHPtr->prwalkparams =
+      reinterpret_cast<random_walk_params_t *>(RandomWalkParamPtr);
+
+  // For debug purpose, we initialize random walks fields in host side and print
+  // them in device code to see whether matches.
+  DevHPtr->prwalkparams->num_walks = 100;
+  DevHPtr->prwalkparams->walk_length = 999;
+  DevHPtr->prwalkparams->index_range_start = 111;
+  DevHPtr->prwalkparams->index_range_end = 222;
+  DevHPtr->prwalkparams->step_size = 555;
+  void *HeapBase = nullptr;
+  // Alloc Heap for malloc, make it 20M for each device
+  getAdapter().call<UrApiKind::urUSMSharedAlloc>(MContext, Device, nullptr,
+                                                 nullptr, 0x1400000, &HeapBase);
+  if (!HeapBase) {
+    std::cout << "Malloc Heap alloc failed!" << std::endl;
+    return;
+  }
+  std::cout << "Malloc Heap At: 0x" << std::hex
+            << reinterpret_cast<unsigned long long>(HeapBase) << std::endl;
+
+  DevHPtr->base = reinterpret_cast<unsigned long>(HeapBase);
+  DevHPtr->size = 0x1400000;
+
+  // Write DeviceHeap address to device scope
+  getAdapter().call<UrApiKind::urEnqueueDeviceGlobalVariableWrite>(
+      Queue, Program, "__DeviceHeapPtr", true, sizeof(DeviceHeapPtr), 0,
+      &DeviceHeapPtr, 0, nullptr, nullptr);
+  return;
 }
 
 } // namespace detail

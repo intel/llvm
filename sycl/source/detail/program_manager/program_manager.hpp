@@ -391,6 +391,11 @@ public:
   ProgramManager();
   ~ProgramManager() = default;
 
+  template <typename NameT>
+  bool kernelUsesMalloc(const NameT &KernelName) const {
+    return m_KernelUsesMalloc.find(KernelName) != m_KernelUsesMalloc.end();
+  }
+
   SanitizerType kernelUsesSanitizer() const { return m_SanitizerFoundInImage; }
 
   std::optional<int>
@@ -431,6 +436,8 @@ private:
 
   /// Dumps image to current directory
   void dumpImage(const RTDeviceBinaryImage &Img, uint32_t SequenceID = 0) const;
+
+  void cacheKernelUsesMallocInfo(const RTDeviceBinaryImage &Img);
 
   /// Add info on kernels using local arg into cache
   void cacheKernelImplicitLocalArg(const RTDeviceBinaryImage &Img);
@@ -545,6 +552,8 @@ protected:
   // different types without temporary key_type object creation. This includes
   // standard overloads, such as comparison between std::string and
   // std::string_view or just char*.
+  using KernelUsesFnSet = std::set<KernelNameStrT, std::less<>>;
+  KernelUsesFnSet m_KernelUsesMalloc;
   std::unordered_map<KernelNameStrT, int> m_KernelImplicitLocalArgPos;
 
   // Map for storing device kernel information. Runtime lookup should be avoided

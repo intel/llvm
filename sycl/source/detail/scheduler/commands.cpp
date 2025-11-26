@@ -2398,7 +2398,8 @@ static ur_result_t SetKernelParamsAndLaunch(
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     bool IsCooperative, bool KernelUsesClusterLaunch,
     uint32_t WorkGroupMemorySize, const RTDeviceBinaryImage *BinImage,
-    DeviceKernelInfo &DeviceKernelInfo, void *KernelFuncPtr = nullptr) {
+    DeviceKernelInfo &DeviceKernelInfo, ur_program_handle_t Program,
+    void *KernelFuncPtr = nullptr) {
   adapter_impl &Adapter = Queue.getAdapter();
 
   if (SYCLConfig<SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
@@ -2524,6 +2525,10 @@ static ur_result_t SetKernelParamsAndLaunch(
     *last_pNext = &workgroup_property;
     last_pNext = &workgroup_property.pNext;
   }
+
+  if (DeviceKernelInfo.usesMalloc())
+    Queue.getContextImpl().createMallocPool(
+        Queue.getDeviceImpl().getHandleRef(), Queue.getHandleRef(), Program);
   ur_event_handle_t UREvent = nullptr;
   ur_result_t Error =
       Adapter.call_nocheck<UrApiKind::urEnqueueKernelLaunchWithArgsExp>(
@@ -2859,7 +2864,7 @@ void enqueueImpKernel(
         Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList,
         OutEventImpl, EliminatedArgMask, getMemAllocationFunc,
         KernelIsCooperative, KernelUsesClusterLaunch, WorkGroupMemorySize,
-        BinImage, DeviceKernelInfo, KernelFuncPtr);
+        BinImage, DeviceKernelInfo, Program, KernelFuncPtr);
   }
   if (UR_RESULT_SUCCESS != Error) {
     // If we have got non-success error code, let's analyze it to emit nice

@@ -344,7 +344,7 @@ set(sycl-compiler_deps
   ${clang-offload-bundler_target} ${llvm-offload-binary_target}
   ${file-table-tform_target} ${llvm-foreach_target} ${llvm-spirv_target}
   ${sycl-post-link_target})
-set(crt_obj_deps wrapper.h device.h spirv_vars.h ${sycl-compiler_deps})
+set(crt_obj_deps wrapper.h device.h spirv_vars.h malloc.hpp ${sycl-compiler_deps})
 set(complex_obj_deps device_complex.h device.h ${sycl-compiler_deps})
 set(cmath_obj_deps device_math.h device.h ${sycl-compiler_deps})
 set(imf_obj_deps device_imf.hpp imf_half.hpp imf_bf16.hpp imf_rounding_op.hpp imf_impl_utils.hpp device.h ${sycl-compiler_deps})

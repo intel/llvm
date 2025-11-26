@@ -1794,6 +1794,14 @@ Managed<ur_program_handle_t> ProgramManager::build(
   return LinkedProg;
 }
 
+void ProgramManager::cacheKernelUsesMallocInfo(const RTDeviceBinaryImage &Img) {
+  const RTDeviceBinaryImage::PropertyRange &MallocUsedRange =
+      Img.getMallocUsed();
+  if (MallocUsedRange.isAvailable())
+    for (const auto &Prop : MallocUsedRange)
+      m_KernelUsesMalloc.insert(Prop->Name);
+}
+
 void ProgramManager::cacheKernelImplicitLocalArg(
     const RTDeviceBinaryImage &Img) {
   const RTDeviceBinaryImage::PropertyRange &ImplicitLocalArgRange =
@@ -2027,6 +2035,8 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
     // Keep track of image to kernel name reference count for cleanup.
     m_KernelNameRefCount[name]++;
   }
+
+  cacheKernelUsesMallocInfo(*Img);
 
   // check if kernel uses sanitizer
   {

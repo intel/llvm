@@ -117,6 +117,11 @@ public:
     return MImplicitLocalArgPos;
   }
 
+  bool usesMalloc() const {
+    assertInitialized();
+    return MUsesMalloc;
+  }
+
 private:
   void assertInitialized() const {
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
@@ -130,6 +135,7 @@ private:
 #endif
   FastKernelSubcacheT MFastKernelSubcache;
   std::optional<int> MImplicitLocalArgPos;
+  bool MUsesMalloc;
 };
 
 } // namespace detail
