@@ -9,6 +9,9 @@ import textwrap
 import shlex
 import shutil
 
+import lit.formats
+import lit.util
+
 from lit.llvm import llvm_config
 from lit.llvm.subst import ToolSubst, FindTool
 
@@ -93,6 +96,7 @@ possibly_dangerous_env_vars = [
     "LIBCLANG_NOTHREADS",
     "LIBCLANG_RESOURCE_USAGE",
     "LIBCLANG_CODE_COMPLETION_LOGGING",
+    "ZE_AFFINITY_MASK",
 ]
 
 # Names of the Release and Debug versions of the XPTIFW library
@@ -953,9 +957,8 @@ config.ze_affinity_mask = None
 for sycl_device in remove_level_zero_suffix(config.sycl_devices):
     be, dev = sycl_device.split(":")
     if be == "level_zero" and dev.isdigit():
-        if config.ze_affinity_mask is None:
-            config.ze_affinity_mask = dev
-            break
+        config.ze_affinity_mask = dev
+        break
 
 for sycl_device in remove_level_zero_suffix(config.sycl_devices):
     be, dev = sycl_device.split(":")
@@ -1121,9 +1124,15 @@ for full_name, sycl_device in zip(
     features.update(sg_size_features)
     features.update(architecture_feature)
     features.update(device_family)
-    features.update(aspects)
 
     be, dev = sycl_device.split(":")
+    if dev.isdigit():
+        backend_devices = available_devices.get(be, "gpu")
+        if isinstance(backend_devices, tuple):
+            # arch-selection is typically used to select gpu device
+            dev = "gpu"
+        else:
+            dev = backend_devices
     features.add(dev.replace("fpga", "accelerator"))
     if "level_zero_v2" in full_name:
         features.add("level_zero_v2_adapter")

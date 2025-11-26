@@ -351,9 +351,9 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 elif "level_zero_v1" in full_dev_name:
                     expanded += " env UR_LOADER_USE_LEVEL_ZERO_V2=0"
 
-                # If ZE_AFFINITY_MASK is set, it filters devices so we should use :0
+                # If ZE_AFFINITY_MASK is set in local config, it filters devices so we should use :0
                 device_selector = parsed_dev_name
-                if "ZE_AFFINITY_MASK" in test.config.environment:
+                if test.config.ze_affinity_mask is not None:
                     backend, _ = parsed_dev_name.split(":", 1)
                     device_selector = f"{backend}:0"
 
