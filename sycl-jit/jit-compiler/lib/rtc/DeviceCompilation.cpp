@@ -615,12 +615,14 @@ public:
 
   std::string_view getPrefix() const { return Prefix; }
   std::string_view getClangXXExe() const { return ClangXXExe; }
+  std::string_view getLibclcDir() const { return LibclcDir; }
 
 private:
   clang::IgnoringDiagConsumer IgnoreDiag;
   std::string_view Prefix{jit_compiler::resource::ToolchainPrefix.S,
                           jit_compiler::resource::ToolchainPrefix.Size};
   std::string ClangXXExe = (Prefix + "/bin/clang++").str();
+  std::string LibclcDir = Driver::GetResourcesPath(ClangXXExe) + "/lib/libclc/";
 
   PrecompiledPreambles Preambles;
 };
@@ -831,10 +833,6 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   DiagnosticsEngine Diags(DiagID, DiagOpts, Wrapper.consumer(),
                           /* ShouldOwnClient=*/false);
 
-  Triple T{Module.getTargetTriple()};
-  Driver D{(SYCLToolchain::instance().getPrefix() + "/bin/clang++").str(),
-           T.getTriple(), Diags};
-
   SmallVector<std::string> LibNames;
   getDeviceLibraries(UserArgList, LibNames, Format);
   const bool IsCudaHIP =
@@ -853,21 +851,18 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   }
 
   LLVMContext &Context = Module.getContext();
+  SYCLToolchain &TC = SYCLToolchain::instance();
   for (const std::string &LibName : LibNames) {
     std::string LibPath;
     if (LibName.find("libspirv") != std::string::npos) {
-      SmallString<256> LibraryPath(D.ResourceDir);
-      sys::path::append(LibraryPath, "lib", "libclc", LibName);
-      LibPath = LibraryPath.str();
+      LibPath = (TC.getLibclcDir() + LibName).str();
     } else {
-      LibPath =
-          (SYCLToolchain::instance().getPrefix() + "/lib/" + LibName).str();
+      LibPath = (TC.getPrefix() + "/lib/" + LibName).str();
     }
 
     ModuleUPtr LibModule;
-    if (auto Error = SYCLToolchain::instance()
-                         .loadBitcodeLibrary(LibPath, Context)
-                         .moveInto(LibModule)) {
+    if (auto Error =
+            TC.loadBitcodeLibrary(LibPath, Context).moveInto(LibModule)) {
       return Error;
     }
 
@@ -880,14 +875,15 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
 
   // For GPU targets we need to link against vendor provided libdevice.
   if (IsCudaHIP) {
+    Triple T{Module.getTargetTriple()};
+    Driver D{TC.getClangXXExe(), T.getTriple(), Diags};
     auto [CPU, Features] =
         Translator::getTargetCPUAndFeatureAttrs(&Module, "", Format);
     (void)Features;
     // Helper lambda to link modules.
     auto LinkInLib = [&](const StringRef LibDevice) -> Error {
       ModuleUPtr LibDeviceModule;
-      if (auto Error = SYCLToolchain::instance()
-                           .loadBitcodeLibrary(LibDevice, Context)
+      if (auto Error = TC.loadBitcodeLibrary(LibDevice, Context)
                            .moveInto(LibDeviceModule)) {
         return Error;
       }
