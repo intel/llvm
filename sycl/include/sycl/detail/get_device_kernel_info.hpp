@@ -17,7 +17,7 @@ namespace detail {
 class DeviceKernelInfo;
 // Lifetime of the underlying `DeviceKernelInfo` is tied to the availability of
 // the `sycl_device_binaries` corresponding to this kernel. In other words, once
-// user library is unloaded (see __sycl_unregister_lib), program manager destoys
+// user library is unloaded (see __sycl_unregister_lib), program manager destroys
 // this `DeviceKernelInfo` object and the reference returned from here becomes
 // stale.
 __SYCL_EXPORT DeviceKernelInfo &
