@@ -18,7 +18,6 @@
 #include <sycl/backend_types.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/device.hpp>
 #include <sycl/kernel_bundle.hpp>
 
@@ -27,6 +26,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <string_view>
 #include <unordered_set>
 #include <vector>
 
@@ -1132,8 +1132,7 @@ public:
         std::move(SelectedImage), *this, ArgMask, UrProgram, CacheMutex);
   }
 
-  std::shared_ptr<kernel_impl>
-  tryGetKernel(detail::KernelNameStrRefT Name) const {
+  std::shared_ptr<kernel_impl> tryGetKernel(std::string_view Name) const {
     // TODO: For source-based kernels, it may be faster to keep a map between
     //       {kernel_name, device} and their corresponding image.
     // First look through the kernels registered in source-based images.
