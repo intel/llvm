@@ -3906,6 +3906,7 @@
 ?ext_oneapi_copy@queue@_V1@sycl@@QEAA?AVevent@23@Uimage_mem_handle@experimental@oneapi@ext@23@V?$range@$02@23@AEBUimage_descriptor@67823@U567823@121AEBUcode_location@detail@23@@Z
 ?ext_oneapi_copy@queue@_V1@sycl@@QEAA?AVevent@23@Uimage_mem_handle@experimental@oneapi@ext@23@V?$range@$02@23@AEBUimage_descriptor@67823@U567823@121AEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@AEBUcode_location@detail@23@@Z
 ?ext_oneapi_copy@queue@_V1@sycl@@QEAA?AVevent@23@Uimage_mem_handle@experimental@oneapi@ext@23@V?$range@$02@23@AEBUimage_descriptor@67823@U567823@121V423@AEBUcode_location@detail@23@@Z
+?ext_oneapi_device_at_index@platform@_V1@sycl@@QEBA?AVdevice@23@_K@Z
 ?ext_oneapi_disable_peer_access@device@_V1@sycl@@QEAAXAEBV123@@Z
 ?ext_oneapi_empty@queue@_V1@sycl@@QEBA_NXZ
 ?ext_oneapi_enable_peer_access@device@_V1@sycl@@QEAAXAEBV123@@Z
@@ -3936,6 +3937,7 @@
 ?ext_oneapi_has_device_global@kernel_bundle_plain@detail@_V1@sycl@@QEAA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
 ?ext_oneapi_has_kernel@kernel_bundle_plain@detail@_V1@sycl@@AEAA_NVstring_view@234@@Z
 ?ext_oneapi_has_kernel@kernel_bundle_plain@detail@_V1@sycl@@QEAA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
+?ext_oneapi_index_within_platform@device@_V1@sycl@@QEBA_KXZ
 ?ext_oneapi_memcpy2d_impl@handler@_V1@sycl@@AEAAXPEAX_KPEBX111@Z
 ?ext_oneapi_memset2d_impl@handler@_V1@sycl@@AEAAXPEAX_KH11@Z
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vcontext@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBV?$weak_object_base@Vcontext@_V1@sycl@@@2oneapi@ext@34@@Z
