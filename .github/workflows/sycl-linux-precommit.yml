@@ -66,6 +66,7 @@ jobs:
       toolchain_artifact: sycl_linux_default
       e2e_binaries_artifact: e2e_bin
       e2e_binaries_preview_artifact: e2e_bin_preview
+      e2e_binaries_new_offload_model_artifact: e2e_bin_new_offload_model
 
   # Build and run native cpu e2e tests separately as cannot currently
   # build all the e2e tests
@@ -283,7 +284,7 @@ jobs:
       toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}
-      binaries_artifact: ${{ matrix.binaries_artifact || 'e2e_bin_with_new_offload_model' }}
+      binaries_artifact: 'e2e_bin_new_offload_model'
       testing_mode: 'run-only'
 
 
