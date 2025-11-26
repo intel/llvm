@@ -1,6 +1,3 @@
-// UNSUPPORTED: new-offload-model
-// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
-
 //==------- operator_assignment_move_and_copy_core.cpp  - DPC++ ESIMD on-device
 //          test -----------------------------------------------------------==//
 //

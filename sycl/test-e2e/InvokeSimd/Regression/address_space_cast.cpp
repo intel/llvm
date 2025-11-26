@@ -1,6 +1,3 @@
-// UNSUPPORTED: new-offload-model
-// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
-
 // The tests a basic E2E invoke_simd test checking that
 // sycl::address_space_cast works.
 

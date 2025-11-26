@@ -1,6 +1,3 @@
-// UNSUPPORTED: new-offload-model
-// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
-
 //==---------------- asm_simd_mask.cpp  - DPC++ ESIMD on-device test
 //-------------==//
 //

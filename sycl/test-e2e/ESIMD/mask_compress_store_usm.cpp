@@ -1,6 +1,3 @@
-// UNSUPPORTED: new-offload-model
-// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
-
 //=mask_compress_store_usm.cpp-Test to verify compressed store functionality=//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

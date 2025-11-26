@@ -1,6 +1,3 @@
-// UNSUPPORTED: new-offload-model
-// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
-
 //==---------------- simd_mask.cpp  - DPC++ ESIMD simd_mask API test -------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

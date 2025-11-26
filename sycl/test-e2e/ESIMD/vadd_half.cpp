@@ -1,6 +1,3 @@
-// UNSUPPORTED: new-offload-model
-// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
-
 //==---------------- vadd_half.cpp  - DPC++ ESIMD on-device test
 //------------==//
 //

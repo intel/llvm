@@ -1,6 +1,3 @@
-// UNSUPPORTED: new-offload-model
-// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
-
 // NOTE: named barrier supported only since PVC
 // REQUIRES: arch-intel_gpu_pvc
 //

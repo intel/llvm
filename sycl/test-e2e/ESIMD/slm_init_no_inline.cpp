@@ -1,6 +1,3 @@
-// UNSUPPORTED: new-offload-model
-// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
-
 // TODO: Investigate fail of this test on Gen12 platform
 // REQUIRES-INTEL-DRIVER: lin: 27427, win: 101.4827
 // REQUIRES: arch-intel_gpu_pvc

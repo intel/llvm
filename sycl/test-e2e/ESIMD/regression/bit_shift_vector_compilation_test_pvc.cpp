@@ -1,6 +1,3 @@
-// UNSUPPORTED: new-offload-model
-// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
-
 //=- bit_shift_vector_compilation_test_pvc.cpp - test vector shifts on PVC -=//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

@@ -1,6 +1,3 @@
-// UNSUPPORTED: new-offload-model
-// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
-
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //==- rol_ror_compilation_test.cpp - Test for compilation of rol/ror functions

@@ -1,6 +1,3 @@
-// UNSUPPORTED: new-offload-model
-// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
-
 //==---- ext_math_saturate_pvc.cpp  - DPC++ ESIMD extended math test ----==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

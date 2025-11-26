@@ -1,6 +1,3 @@
-// UNSUPPORTED: new-offload-model
-// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
-
 //==------- operator_decrement_and_increment_fp_extra.cpp  - DPC++ ESIMD
 //          on-device test -------------------------------------------------==//
 //

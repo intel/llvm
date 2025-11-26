@@ -1,6 +1,3 @@
-// UNSUPPORTED: new-offload-model
-// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
-
 //==------- functions_select_simd_view_rval_fp_extra.cpp  - DPC++ ESIMD
 //          on-device test -------------------------------------------------==//
 //

@@ -1,6 +1,3 @@
-// UNSUPPORTED: new-offload-model
-// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
-
 //==---------------- srnd.cpp - DPC++ ESIMD srnd function test -----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM

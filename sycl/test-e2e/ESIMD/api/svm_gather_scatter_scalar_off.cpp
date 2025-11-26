@@ -1,6 +1,3 @@
-// UNSUPPORTED: new-offload-model
-// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
-
 //==------ svm_gather_scatter_scalar_off.cpp  - DPC++ ESIMD on-device test -==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
