@@ -43,7 +43,7 @@ int main() {
 
   // Check if the index matches the index of the device’s underlying handle
   // within the list of handles returned from zeDeviceGet/clGetDeviceIDs.
-  const char *selector = env::getVal("ONEAPI_DEVICE_SELECTOR");
+  std::string selector = env::getVal("ONEAPI_DEVICE_SELECTOR");
   if (selector) {
     assert(orig_dev_index_within_plt == ext_oneapi_index_within_platform &&
            "The index returned from device::ext_oneapi_index_within_platform "
