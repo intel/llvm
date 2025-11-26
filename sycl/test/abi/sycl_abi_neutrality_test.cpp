@@ -25,7 +25,3 @@
 // https://github.com/intel/llvm/pull/16176
 // CHECK:_ZN4sycl3_V16opencl13has_extensionERKNS0_6deviceERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE
 // CHECK:_ZN4sycl3_V16opencl13has_extensionERKNS0_8platformERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE
-//
-// https://github.com/intel/llvm/pull/15694 and
-// https://github.com/intel/llvm/pull/16194
-// CHECK:_ZNK4sycl3_V13ext6oneapi12experimental6detail24modifiable_command_graph11print_graphENSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEb

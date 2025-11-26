@@ -348,13 +348,12 @@
 ??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@$$QEAV0123456@@Z
 ??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBV0123456@@Z
 ??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBV?$shared_ptr@Vdynamic_parameter_impl@detail@experimental@oneapi@ext@_V1@sycl@@@std@@@Z
-??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@V?$command_graph@$0A@@23456@@Z
-??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@V?$command_graph@$0A@@23456@_KPEBX@Z
 ??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@XZ
+??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@_KPEBX@Z
 ??0dynamic_work_group_memory_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@$$QEAV0123456@@Z
 ??0dynamic_work_group_memory_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBV0123456@@Z
-??0dynamic_work_group_memory_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@V?$command_graph@$0A@@23456@_K@Z
 ??0dynamic_work_group_memory_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@XZ
+??0dynamic_work_group_memory_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@_K@Z
 ??0event@_V1@sycl@@AEAA@V?$shared_ptr@Vevent_impl@detail@_V1@sycl@@@std@@@Z
 ??0event@_V1@sycl@@QEAA@$$QEAV012@@Z
 ??0event@_V1@sycl@@QEAA@AEBV012@@Z
