@@ -853,12 +853,9 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   LLVMContext &Context = Module.getContext();
   SYCLToolchain &TC = SYCLToolchain::instance();
   for (const std::string &LibName : LibNames) {
-    std::string LibPath;
-    if (LibName.find("libspirv") != std::string::npos) {
-      LibPath = (TC.getLibclcDir() + LibName).str();
-    } else {
-      LibPath = (TC.getPrefix() + "/lib/" + LibName).str();
-    }
+    std::string LibPath = (LibName.find("libspirv") != std::string::npos)
+                              ? (TC.getLibclcDir() + LibName).str()
+                              : (TC.getPrefix() + "/lib/" + LibName).str();
 
     ModuleUPtr LibModule;
     if (auto Error =
