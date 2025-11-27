@@ -75,9 +75,6 @@ public:
   ods_target_list &getOneapiDeviceSelectorTargets(const std::string &InitValue);
   XPTIRegistry &getXPTIRegistry();
   ThreadPool &getHostTaskThreadPool();
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  KernelNameBasedCacheT *createKernelNameBasedCache();
-#endif
   static void registerStaticVarShutdownHandler();
 
   bool isOkToDefer() const;
@@ -91,6 +88,11 @@ public:
 
   // For testing purposes only
   void attachScheduler(Scheduler *Scheduler);
+
+  // Used in SYCL unit tests to reset the GlobalHandler instance.
+  static void resetGlobalHandler() {
+    RTGlobalObjHandler = new GlobalHandler();
+  };
 
 private:
   // Constructor and destructor are declared out-of-line to allow incomplete

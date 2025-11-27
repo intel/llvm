@@ -51,7 +51,6 @@
 // CHECK-NEXT: info/ext_intel_kernel_info_traits.def
 // CHECK-NEXT: info/ext_oneapi_device_traits.def
 // CHECK-NEXT: info/ext_oneapi_kernel_queue_specific_traits.def
-// CHECK-NEXT: info/sycl_backend_traits.def
 // CHECK-NEXT: detail/owner_less_base.hpp
 // CHECK-NEXT: detail/impl_utils.hpp
 // CHECK-NEXT: __spirv/spirv_vars.hpp
@@ -140,7 +139,6 @@
 // CHECK-NEXT: ext/oneapi/kernel_properties/properties.hpp
 // CHECK-NEXT: ext/oneapi/work_group_scratch_memory.hpp
 // CHECK-NEXT: detail/sycl_local_mem_builtins.hpp
-// CHECK-NEXT: detail/kernel_name_str_t.hpp
 // CHECK-NEXT: detail/reduction_forward.hpp
 // CHECK-NEXT: event.hpp
 // CHECK-NEXT: ext/oneapi/bindless_images_interop.hpp

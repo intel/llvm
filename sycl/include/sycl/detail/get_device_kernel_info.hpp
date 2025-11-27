@@ -29,11 +29,6 @@ template <class Kernel> DeviceKernelInfo &getDeviceKernelInfo() {
   return Info;
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-struct KernelNameBasedCacheT;
-__SYCL_EXPORT KernelNameBasedCacheT *createKernelNameBasedCache();
-#endif
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
