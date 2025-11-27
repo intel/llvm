@@ -20,14 +20,14 @@
 ; CHECK-SPIRV: TypeArray [[Int8x4:[0-9]+]] [[Int8]] [[Lenmemset21]]
 ; CHECK-SPIRV-TYPED-PTR: TypePointer [[Int8Ptr:[0-9]+]] 8 [[Int8]]
 ; CHECK-SPIRV: TypeArray [[Int8x12:[0-9]+]] [[Int8]] [[Lenmemset0]]
-; CHECK-SPIRV-TYPED-PTR: TypePointer [[Int8PtrConst:[0-9]+]] 0 [[Int8]]
-; CHECK-SPIRV-UNTYPED-PTR: TypeUntypedPointerKHR [[Int8PtrConst:[0-9]+]] 0
+; CHECK-SPIRV-TYPED-PTR: TypePointer [[Int8PtrConst:[0-9]+]] 7 [[Int8]]
+; CHECK-SPIRV-UNTYPED-PTR: TypeUntypedPointerKHR [[Int8PtrConst:[0-9]+]] 7
 
 ; CHECK-SPIRV: ConstantNull [[Int8x12]] [[Init:[0-9]+]]
-; CHECK-SPIRV: Variable {{[0-9]+}} [[Val:[0-9]+]] 0 [[Init]]
 ; CHECK-SPIRV: 7 ConstantComposite [[Int8x4]] [[InitComp:[0-9]+]] [[Const21]] [[Const21]] [[Const21]] [[Const21]]
-; CHECK-SPIRV: Variable {{[0-9]+}} [[ValComp:[0-9]+]] 0 [[InitComp]]
 ; CHECK-SPIRV: ConstantFalse [[#]] [[#False:]]
+; CHECK-SPIRV: Variable {{[0-9]+}} [[Val:[0-9]+]] 7 [[Init]]
+; CHECK-SPIRV: Variable {{[0-9]+}} [[ValComp:[0-9]+]] 7 [[InitComp]]
 
 ; CHECK-SPIRV: Bitcast [[Int8Ptr]] [[Target:[0-9]+]] {{[0-9]+}}
 ; CHECK-SPIRV: Bitcast [[Int8PtrConst]] [[Source:[0-9]+]] [[Val]]
@@ -68,16 +68,18 @@ target triple = "spir"
 
 %struct.S1 = type { i32, i32, i32 }
 
-; CHECK-LLVM-OPAQUE: internal unnamed_addr addrspace(2) constant [12 x i8] zeroinitializer
-; CHECK-LLVM-OPAQUE: internal unnamed_addr addrspace(2) constant [4 x i8] c"\15\15\15\15"
+; CHECK-LLVM-OPAQUE: %{{[0-9]+}} = alloca [12 x i8], align 4
+; CHECK-LLVM-OPAQUE: store [12 x i8] zeroinitializer, ptr %{{[0-9]+}}, align 1
+; CHECK-LLVM-OPAQUE: %{{[0-9]+}} = alloca [4 x i8], align 4
+; CHECK-LLVM-OPAQUE: store [4 x i8] c"\15\15\15\15", ptr %{{[0-9]+}}, align 1
 
 ; Function Attrs: nounwind
 define spir_func void @_Z5foo11v(ptr addrspace(4) noalias captures(none) sret(%struct.S1) %agg.result, i32 %s1, i64 %s2, i8 %v) #0 {
   %x = alloca [4 x i8]
   tail call void @llvm.memset.p4.i32(ptr addrspace(4) align 4 %agg.result, i8 0, i32 12, i1 false)
-; CHECK-LLVM-OPAQUE: call void @llvm.memcpy.p4.p2.i32(ptr addrspace(4) align 4 %1, ptr addrspace(2) align 4 %2, i32 12, i1 false)
+; CHECK-LLVM-OPAQUE: call void @llvm.memcpy.p4.p0.i32(ptr addrspace(4) align 4 %{{[0-9]+}}, ptr align 4 %{{[0-9]+}}, i32 12, i1 false)
   tail call void @llvm.memset.p0.i32(ptr align 4 %x, i8 21, i32 4, i1 false)
-; CHECK-LLVM-OPAQUE: call void @llvm.memcpy.p0.p2.i32(ptr align 4 %3, ptr addrspace(2) align 4 %4, i32 4, i1 false)
+; CHECK-LLVM-OPAQUE: call void @llvm.memcpy.p0.p0.i32(ptr align 4 %{{[0-9]+}}, ptr align 4 %{{[0-9]+}}, i32 4, i1 false)
 
   ; non-const value
   tail call void @llvm.memset.p0.i32(ptr align 4 %x, i8 %v, i32 3, i1 false)

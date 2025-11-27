@@ -48,14 +48,11 @@ class DeviceKernelInfo;
 /// construction or destruction is generated anyway.
 class GlobalHandler {
 public:
-  /// \return a reference to a GlobalHandler singleton instance. Memory for
-  /// storing objects is allocated on first call. The reference is valid as long
-  /// as runtime library is loaded (i.e. untill `DllMain` or
+  static bool isInstanceAlive() { return RTGlobalObjHandler != nullptr; }
+  /// \return a reference to a GlobalHandler singleton instance. The reference
+  /// is valid as long as runtime library is loaded (i.e. untill `DllMain` or
   /// `__attribute__((destructor))` is called).
-  static GlobalHandler &instance();
-
-  /// \return true if the instance has not been deallocated yet.
-  static bool isInstanceAlive();
+  static GlobalHandler &instance() { return *RTGlobalObjHandler; }
 
   GlobalHandler(const GlobalHandler &) = delete;
   GlobalHandler(GlobalHandler &&) = delete;
@@ -78,9 +75,6 @@ public:
   ods_target_list &getOneapiDeviceSelectorTargets(const std::string &InitValue);
   XPTIRegistry &getXPTIRegistry();
   ThreadPool &getHostTaskThreadPool();
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  KernelNameBasedCacheT *createKernelNameBasedCache();
-#endif
   static void registerStaticVarShutdownHandler();
 
   bool isOkToDefer() const;
@@ -95,19 +89,23 @@ public:
   // For testing purposes only
   void attachScheduler(Scheduler *Scheduler);
 
+  // Used in SYCL unit tests to reset the GlobalHandler instance.
+  static void resetGlobalHandler() {
+    RTGlobalObjHandler = new GlobalHandler();
+  };
+
 private:
+  // Constructor and destructor are declared out-of-line to allow incomplete
+  // types as template arguments to unique_ptr.
+  GlobalHandler();
+  ~GlobalHandler();
+
   bool OkToDefer = true;
 
   friend void shutdown_early(bool);
   friend void shutdown_late();
   friend class ObjectUsageCounter;
-  static GlobalHandler *&getInstancePtr();
   static SpinLock MSyclGlobalHandlerProtector;
-
-  // Constructor and destructor are declared out-of-line to allow incomplete
-  // types as template arguments to unique_ptr.
-  GlobalHandler();
-  ~GlobalHandler();
 
   template <typename T> struct InstWithLock {
     std::unique_ptr<T> Inst;
@@ -135,7 +133,10 @@ private:
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   InstWithLock<std::deque<DeviceKernelInfo>> MDeviceKernelInfoStorage;
 #endif
+
+  static GlobalHandler *RTGlobalObjHandler;
 };
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
