@@ -1126,7 +1126,8 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
       FPEncodingWrap DstEnc = GetEncodingAndUpdateType(SPVDstTy);
       if (IsFP4OrFP8Encoding(SrcEnc) || IsFP4OrFP8Encoding(DstEnc) ||
           SPVSrcTy->isTypeInt(4) || SPVDstTy->isTypeInt(4)) {
-        FPConversionDesc FPDesc = {SrcEnc, DstEnc, BC->getOpCode()};
+        FPConversionDesc FPDesc = {
+            SrcEnc, DstEnc, static_cast<SPIRV::SPIRVWord>(BC->getOpCode())};
         auto Conv = SPIRV::FPConvertToEncodingMap::rmap(FPDesc);
         std::vector<Value *> Ops = {Src};
         std::vector<Type *> OpsTys = {Src->getType()};
