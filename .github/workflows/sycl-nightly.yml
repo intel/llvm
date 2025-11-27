@@ -224,21 +224,18 @@ jobs:
         include:
           - name: Intel L0 Gen12 GPU
             runner: '["Windows", "gen12"]'
-            target_devices: level_zero:gpu
 
           - name: Intel L0 Arc GPU
             runner: '["Windows", "arc"]'
-            target_devices: level_zero:gpu
 
           - name: Intel L0 Battlemage GPU
             runner: '["Windows", "bmg"]'
-            target_devices: level_zero:gpu
 
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
-      target_devices: ${{ matrix.target_devices }}
+      target_devices: level_zero:gpu
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
 
   cuda-aws-start:
