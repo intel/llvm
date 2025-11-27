@@ -35,7 +35,7 @@ __SYCL_EXPORT void waitEvents(std::vector<sycl::event> DepEvents) {
 #endif
 
 const RTDeviceBinaryImage *retrieveKernelBinary(queue_impl &Queue,
-                                                KernelNameStrRefT KernelName,
+                                                std::string_view KernelName,
                                                 CGExecKernel *KernelCG) {
   device_impl &Dev = Queue.getDeviceImpl();
   bool isNvidia = Dev.getBackend() == backend::ext_oneapi_cuda;

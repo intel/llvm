@@ -88,15 +88,6 @@ public:
     return MDeviceKernelInfoPtr->ParamDescGetter;
   }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // TODO: remove this method in the next ABI-breaking window
-  //       it is used by handler code that will be removed in the next
-  //       ABI-breaking window
-  void setESIMD(bool IsESIMD) {
-    assert(MDeviceKernelInfoPtr);
-    MDeviceKernelInfoPtr->IsESIMD = IsESIMD;
-  }
-#endif
   bool isESIMD() const {
     assert(MDeviceKernelInfoPtr);
     return MDeviceKernelInfoPtr->IsESIMD;
@@ -114,26 +105,6 @@ public:
   void setDeviceKernelInfoPtr(DeviceKernelInfo *Ptr) {
     MDeviceKernelInfoPtr = Ptr;
   }
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  void setKernelInfo(void *KernelFuncPtr, int KernelNumArgs,
-                     KernelParamDescGetterT KernelParamDescGetter,
-                     bool KernelIsESIMD, bool KernelHasSpecialCaptures) {
-    MKernelFuncPtr = KernelFuncPtr;
-
-    assert(MDeviceKernelInfoPtr &&
-           "MDeviceKernelInfoPtr must be set before calling setKernelInfo");
-
-    detail::CompileTimeKernelInfoTy Info;
-    Info.Name = MDeviceKernelInfoPtr->Name;
-    Info.NumParams = KernelNumArgs;
-    Info.ParamDescGetter = KernelParamDescGetter;
-    Info.IsESIMD = KernelIsESIMD;
-    Info.HasSpecialCaptures = KernelHasSpecialCaptures;
-
-    MDeviceKernelInfoPtr->initIfEmpty(Info);
-  }
-#endif
 
   void setKernelFunc(void *KernelFuncPtr) { MKernelFuncPtr = KernelFuncPtr; }
 
@@ -306,19 +277,14 @@ public:
         Kprop.get<cuda::cluster_size_key<3>>()->MProperty);
   }
 
-  KernelNameStrRefT getKernelName() const {
+  std::string_view getKernelName() const {
     assert(MDeviceKernelInfoPtr);
-    return static_cast<KernelNameStrRefT>(MDeviceKernelInfoPtr->Name);
+    return MDeviceKernelInfoPtr->Name;
   }
 
   void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                   const int Size, const size_t Index, size_t &IndexShift,
-                  bool IsKernelCreatedFromSource
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-                  ,
-                  bool IsESIMD
-#endif
-  );
+                  bool IsKernelCreatedFromSource);
 
   void extractArgsAndReqs(bool IsKernelCreatedFromSource);
 
