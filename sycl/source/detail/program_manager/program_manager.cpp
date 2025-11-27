@@ -842,7 +842,7 @@ static void setSpecializationConstants(device_image_impl &InputImpl,
 // its ref count incremented.
 Managed<ur_program_handle_t> ProgramManager::getBuiltURProgram(
     context_impl &ContextImpl, device_impl &DeviceImpl,
-    KernelNameStrRefT KernelName, const NDRDescT &NDRDesc) {
+    std::string_view KernelName, const NDRDescT &NDRDesc) {
   device_impl *BuildDev = &DeviceImpl;
   // Check if we can optimize program builds for sub-devices by using a program
   // built for the root device
@@ -1098,13 +1098,7 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
 
   Managed<ur_program_handle_t> Program = getBuiltURProgram(
       ContextImpl, DeviceImpl, DeviceKernelInfo.Name, NDRDesc);
-
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-// Simplify this once `DeviceKernelInfo.Name`'s type is known.
-// Using `decltype(auto)` instead of just `auto` to get reference when
-// possible.
-#endif
-  decltype(auto) KernelName = KernelNameStrRefT{DeviceKernelInfo.Name};
+  std::string_view KernelName = DeviceKernelInfo.Name;
   auto BuildF = [this, &Program, &KernelName, &ContextImpl] {
     adapter_impl &Adapter = ContextImpl.getAdapter();
     Managed<ur_kernel_handle_t> Kernel{Adapter};
@@ -1502,7 +1496,7 @@ const RTDeviceBinaryImage *getBinImageFromMultiMap(
 }
 
 const RTDeviceBinaryImage &
-ProgramManager::getDeviceImage(KernelNameStrRefT KernelName,
+ProgramManager::getDeviceImage(std::string_view KernelName,
                                context_impl &ContextImpl,
                                const device_impl &DeviceImpl) {
   if constexpr (DbgProgMgr > 0) {
@@ -1808,17 +1802,16 @@ void ProgramManager::cacheKernelImplicitLocalArg(
 DeviceKernelInfo &ProgramManager::getOrCreateDeviceKernelInfo(
     const CompileTimeKernelInfoTy &Info) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
-  auto [Iter, Inserted] =
-      m_DeviceKernelInfoMap.try_emplace(KernelNameStrT{Info.Name.data()}, Info);
+  auto [Iter, Inserted] = m_DeviceKernelInfoMap.try_emplace(Info.Name, Info);
   if (!Inserted)
     Iter->second.setCompileTimeInfoIfNeeded(Info);
   return Iter->second;
 }
 
 DeviceKernelInfo &
-ProgramManager::getOrCreateDeviceKernelInfo(KernelNameStrRefT KernelName) {
+ProgramManager::getOrCreateDeviceKernelInfo(std::string_view KernelName) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
-  CompileTimeKernelInfoTy DefaultCompileTimeInfo{std::string_view(KernelName)};
+  CompileTimeKernelInfoTy DefaultCompileTimeInfo{KernelName};
   auto Result =
       m_DeviceKernelInfoMap.try_emplace(KernelName, DefaultCompileTimeInfo);
   return Result.first->second;
@@ -2194,7 +2187,7 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
     // Unmap the unique kernel IDs for the offload entries
     for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
          EntriesIt = EntriesIt->Increment()) {
-      detail::KernelNameStrT Name = EntriesIt->GetName();
+      std::string_view Name = EntriesIt->GetName();
       // Exported device functions won't have a kernel ID
       if (m_ExportedSymbolImages.find(std::string(Name)) !=
           m_ExportedSymbolImages.end()) {
@@ -2283,7 +2276,7 @@ uint32_t ProgramManager::getDeviceLibReqMask(const RTDeviceBinaryImage &Img) {
 
 const KernelArgMask *
 ProgramManager::getEliminatedKernelArgMask(ur_program_handle_t NativePrg,
-                                           KernelNameStrRefT KernelName) {
+                                           std::string_view KernelName) {
   // Bail out if there are no eliminated kernel arg masks in our images
   if (m_EliminatedKernelArgMasks.empty())
     return nullptr;
@@ -2351,13 +2344,14 @@ std::vector<kernel_id> ProgramManager::getAllSYCLKernelIDs() {
 
   std::vector<sycl::kernel_id> AllKernelIDs;
   AllKernelIDs.reserve(m_KernelName2KernelIDs.size());
-  for (std::pair<KernelNameStrT, kernel_id> KernelID : m_KernelName2KernelIDs) {
+  for (std::pair<std::string_view, kernel_id> KernelID :
+       m_KernelName2KernelIDs) {
     AllKernelIDs.push_back(KernelID.second);
   }
   return AllKernelIDs;
 }
 
-kernel_id ProgramManager::getBuiltInKernelID(KernelNameStrRefT KernelName) {
+kernel_id ProgramManager::getBuiltInKernelID(std::string_view KernelName) {
   std::lock_guard<std::mutex> BuiltInKernelIDsGuard(m_BuiltInKernelIDsMutex);
 
   auto KernelID = m_BuiltInKernelIDs.find(KernelName);
@@ -3151,7 +3145,7 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
 // its ref count incremented.
 std::tuple<Managed<ur_kernel_handle_t>, std::mutex *, const KernelArgMask *>
 ProgramManager::getOrCreateKernel(const context &Context,
-                                  KernelNameStrRefT KernelName,
+                                  std::string_view KernelName,
                                   const property_list &PropList,
                                   ur_program_handle_t Program) {
 
@@ -3213,7 +3207,7 @@ ProgramManager::getOrCreateKernel(const context &Context,
 }
 
 ur_kernel_handle_t ProgramManager::getCachedMaterializedKernel(
-    KernelNameStrRefT KernelName,
+    std::string_view KernelName,
     const std::vector<unsigned char> &SpecializationConsts) {
   if constexpr (DbgProgMgr > 0)
     std::cerr << ">>> ProgramManager::getCachedMaterializedKernel\n"
@@ -3244,7 +3238,7 @@ ur_kernel_handle_t ProgramManager::getCachedMaterializedKernel(
 
 ur_kernel_handle_t ProgramManager::getOrCreateMaterializedKernel(
     const RTDeviceBinaryImage &Img, const context &Context,
-    const device &Device, KernelNameStrRefT KernelName,
+    const device &Device, std::string_view KernelName,
     const std::vector<unsigned char> &SpecializationConsts) {
   // Check if we already have the kernel in the cache.
   if constexpr (DbgProgMgr > 0)

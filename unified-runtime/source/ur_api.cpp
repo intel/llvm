@@ -9584,3 +9584,259 @@ ur_result_t UR_APICALL urEnqueueNativeCommandExp(
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
 }
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Create a new record & replay graph instance explicitly.
+///
+/// @details
+///     - Create a new record & replay graph instance explicitly.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phGraph`
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+ur_result_t UR_APICALL urGraphCreateExp(
+    /// [in] Handle of the context object.
+    ur_context_handle_t hContext,
+    /// [out][alloc] Pointer to the handle of the created graph object.
+    ur_exp_graph_handle_t *phGraph) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Begin graph capture on the specified immediate queue.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+ur_result_t UR_APICALL urQueueBeginGraphCaptureExp(
+    /// [in] Handle of the queue on which to begin graph capture.
+    ur_queue_handle_t hQueue) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Begin capturing commands into an existing graph on the specified
+///        immediate queue.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///         + `NULL == hGraph`
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+ur_result_t UR_APICALL urQueueBeginCaptureIntoGraphExp(
+    /// [in] Handle of the queue on which to begin graph capture.
+    ur_queue_handle_t hQueue,
+    /// [in] Handle of the graph object to capture into.
+    ur_exp_graph_handle_t hGraph) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief End graph capture on the specified immediate queue.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phGraph`
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+ur_result_t UR_APICALL urQueueEndGraphCaptureExp(
+    /// [in] Handle of the queue on which to end graph capture.
+    ur_queue_handle_t hQueue,
+    /// [out] Pointer to the handle of the recorded graph object. If
+    /// ::urQueueBeginCaptureIntoGraphExp was used to begin the capture, then
+    /// phGraph will contain the same graph that was passed to it.
+    ur_exp_graph_handle_t *phGraph) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Instantiate an executable graph from a recorded graph.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hGraph`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phExecGraph`
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+ur_result_t UR_APICALL urGraphInstantiateGraphExp(
+    /// [in] Handle of the recorded graph to instantiate.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] Pointer to the handle of the instantiated executable graph.
+    ur_exp_executable_graph_handle_t *phExecGraph) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Append an executable graph to the queue.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///         + `NULL == hGraph`
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+ur_result_t UR_APICALL urQueueAppendGraphExp(
+    /// [in] Handle of the queue to append the graph to.
+    ur_queue_handle_t hQueue,
+    /// [in] Handle of the executable graph to append.
+    ur_exp_executable_graph_handle_t hGraph,
+    /// [in][optional] Event to be signaled on completion.
+    ur_event_handle_t hSignalEvent,
+    /// [in][optional] Number of events to wait on before executing.
+    uint32_t numWaitEvents,
+    /// [in][optional][range(0, numWaitEvents)] Handle of the events to wait
+    /// on before launching.
+    ur_event_handle_t *phWaitEvents) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Destroy a recorded graph object. All executable graph instances
+///        created from this recorded graph must be destroyed before calling
+///        this function.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hGraph`
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+ur_result_t UR_APICALL urGraphDestroyExp(
+    /// [in] Handle of the graph object to destroy.
+    ur_exp_graph_handle_t hGraph) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Destroy an instantiated executable graph object. The graph instance
+///        must not be executing on any queue.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hExecutableGraph`
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+ur_result_t UR_APICALL urGraphExecutableGraphDestroyExp(
+    /// [in] Handle of the executable graph object to destroy.
+    ur_exp_executable_graph_handle_t hExecutableGraph) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Query whether graph capture is currently enabled on the given queue.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == hResult`
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
+    /// [in] Native queue to query.
+    ur_queue_handle_t hQueue,
+    /// [out] Pointer to a boolean where the result will be stored.
+    bool *hResult) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Return whether the given recorded graph contains any nodes.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hGraph`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == hResult`
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urGraphIsEmptyExp(
+    /// [in] Handle of the graph to query.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] Pointer to a boolean where the result will be stored.
+    bool *hResult) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Dump the contents of the recorded graph to the provided file path.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hGraph`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == filePath`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urGraphDumpContentsExp(
+    /// [in] Handle of the graph to dump.
+    ur_exp_graph_handle_t hGraph,
+    /// [in] Path to the file to write the dumped graph contents.
+    const char *filePath) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}

@@ -19,7 +19,6 @@
 #include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/detail/kernel_launch_helper.hpp>
-#include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/detail/reduction_forward.hpp>
 #include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
@@ -1789,27 +1788,33 @@ public:
   std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value &&
                    (sizeof...(RestT) > 1)>
   parallel_for(range<1> Range, RestT &&...Rest) {
-    parallel_for<KernelName>(Range,
-                             ext::oneapi::experimental::empty_properties_t{},
-                             std::forward<RestT>(Rest)...);
+    parallel_for<KernelName>(
+        Range,
+        ext::oneapi::experimental::detail::RetrieveGetMethodPropertiesOrEmpty(
+            Rest...),
+        std::forward<RestT>(Rest)...);
   }
 
   template <typename KernelName = detail::auto_name, typename... RestT>
   std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value &&
                    (sizeof...(RestT) > 1)>
   parallel_for(range<2> Range, RestT &&...Rest) {
-    parallel_for<KernelName>(Range,
-                             ext::oneapi::experimental::empty_properties_t{},
-                             std::forward<RestT>(Rest)...);
+    parallel_for<KernelName>(
+        Range,
+        ext::oneapi::experimental::detail::RetrieveGetMethodPropertiesOrEmpty(
+            Rest...),
+        std::forward<RestT>(Rest)...);
   }
 
   template <typename KernelName = detail::auto_name, typename... RestT>
   std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value &&
                    (sizeof...(RestT) > 1)>
   parallel_for(range<3> Range, RestT &&...Rest) {
-    parallel_for<KernelName>(Range,
-                             ext::oneapi::experimental::empty_properties_t{},
-                             std::forward<RestT>(Rest)...);
+    parallel_for<KernelName>(
+        Range,
+        ext::oneapi::experimental::detail::RetrieveGetMethodPropertiesOrEmpty(
+            Rest...),
+        std::forward<RestT>(Rest)...);
   }
 
   template <typename KernelName = detail::auto_name, int Dims,
@@ -1834,7 +1839,20 @@ public:
 
   template <typename KernelName = detail::auto_name, int Dims,
             typename... RestT>
-  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value &&
+                   (sizeof...(RestT) > 1)> // variant with reductions
+  parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
+    parallel_for<KernelName>(
+        Range,
+        ext::oneapi::experimental::detail::RetrieveGetMethodPropertiesOrEmpty(
+            Rest...),
+        std::forward<RestT>(Rest)...);
+  }
+
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename... RestT>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value &&
+                   (sizeof...(RestT) == 1)> // variant without reductions
   parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
     parallel_for<KernelName>(Range,
                              ext::oneapi::experimental::empty_properties_t{},
@@ -2776,7 +2794,9 @@ private:
   detail::handler_impl *impl;
   std::vector<detail::LocalAccessorImplPtr> MLocalAccStorage;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreamStorage;
-  detail::ABINeutralKernelNameStrT MKernelName;
+  // std::string_view ABI differs under `-D_GLIBCXX_USE_CXX11_ABI=0`,
+  // use our implementation instead.
+  detail::string_view MKernelName;
   /// Storage for a sycl::kernel object.
   std::shared_ptr<detail::kernel_impl> MKernel;
   /// Pointer to the source host memory or accessor(depending on command type).
