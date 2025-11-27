@@ -5,16 +5,12 @@
 //
 
 // RUN: clang-offload-wrapper --help | FileCheck %s --check-prefix CHECK-HELP
-// CHECK-HELP: OVERVIEW: A tool to create a wrapper bitcode for offload target binaries.
-// CHECK-HELP: Takes offload target binaries and optional manifest files as input
-// CHECK-HELP: and produces bitcode file containing target binaries packaged as data
-// CHECK-HELP: and initialization code which registers target binaries in the offload
-// CHECK-HELP: runtime. Manifest files format and contents are not restricted and are
-// CHECK-HELP: a subject of agreement between the device compiler and the native
-// CHECK-HELP: runtime for that device. When present, manifest file name should
-// CHECK-HELP: immediately follow the corresponding device image filename on the
-// CHECK-HELP: command line. Options annotating a device binary have effect on all
-// CHECK-HELP: subsequent input, until redefined.
+// CHECK-HELP: OVERVIEW: A tool to create a wrapper bitcode for offload target binaries
+// CHECK-HELP: Takes offload target binaries as input and produces bitcode file
+// CHECK-HELP: containing target binaries packaged as data and initialization code
+// CHECK-HELP: which registers target binaries in the offload runtime. Options
+// CHECK-HELP: annotating a device binary have effect on all subsequent input,
+// CHECK-HELP: until redefined.
 // CHECK-HELP: For example:
 // CHECK-HELP:   clang-offload-wrapper                   \
 // CHECK-HELP:       -host x86_64-pc-linux-gnu           \
@@ -26,7 +22,6 @@
 // CHECK-HELP:           -entries=sym.txt                \
 // CHECK-HELP:           -properties=props.txt           \
 // CHECK-HELP:           a.spv                           \
-// CHECK-HELP:           a_mf.txt                        \
 // CHECK-HELP:         -target=xxx                       \
 // CHECK-HELP:           -format=native                  \
 // CHECK-HELP:           -compile-opts=""                \
@@ -34,17 +29,16 @@
 // CHECK-HELP:           -entries=""                     \
 // CHECK-HELP:           -properties=""                  \
 // CHECK-HELP:           b.bin                           \
-// CHECK-HELP:           b_mf.txt                        \
 // CHECK-HELP:       -kind=openmp                        \
 // CHECK-HELP:           c.bin\n
 // CHECK-HELP: This command generates an x86 wrapper object (.bc) enclosing the
 // CHECK-HELP: following tuples describing a single device binary each:
-// CHECK-HELP: |offload|target|data  |data |manifest|compile|entries|properties|...|
-// CHECK-HELP: |  kind |      |format|     |        |options|       |          |...|
-// CHECK-HELP: |-------|------|------|-----|--------|-------|-------|----------|---|
-// CHECK-HELP: |sycl   |spir64|spirv |a.spv|a_mf.txt|  -g   |sym.txt|props.txt |...|
-// CHECK-HELP: |sycl   |xxx   |native|b.bin|b_mf.txt|       |       |          |...|
-// CHECK-HELP: |openmp |xxx   |native|c.bin|        |       |       |          |...|
+// CHECK-HELP: |offload|target|data  |data |compile|entries|properties|...|
+// CHECK-HELP: |  kind |      |format|     |options|       |          |...|
+// CHECK-HELP: |-------|------|------|-----|-------|-------|----------|---|
+// CHECK-HELP: |sycl   |spir64|spirv |a.spv|  -g   |sym.txt|props.txt |...|
+// CHECK-HELP: |sycl   |xxx   |native|b.bin|       |       |          |...|
+// CHECK-HELP: |openmp |xxx   |native|c.bin|       |       |          |...|
 // CHECK-HELP: |...|    link            |
 // CHECK-HELP: |...|    options         |
 // CHECK-HELP: |---|--------------------|
@@ -62,8 +56,8 @@
 // CHECK-HELP:                             Table files consist of a table of filenames that provide
 // CHECK-HELP:                             Code, Symbols, Properties, etc.
 // CHECK-HELP:                             Example input table file in batch mode:
-// CHECK-HELP:                               [Code|Symbols|Properties|Manifest]
-// CHECK-HELP:                               a_0.bc|a_0.sym|a_0.props|a_0.mnf
+// CHECK-HELP:                               [Code|Symbols|Properties]
+// CHECK-HELP:                               a_0.bc|a_0.sym|a_0.props
 // CHECK-HELP:                               a_1.bin|||
 // CHECK-HELP:                             Example usage:
 // CHECK-HELP:                               clang-offload-wrapper -batch -host=x86_64-unknown-linux-gnu
@@ -99,14 +93,13 @@
 // RUN: echo 'Content of device file1' > %t1.tgt
 // RUN: echo 'Content of device file2' > %t2.tgt
 // RUN: echo 'Content of device file3' > %t3.tgt
-// RUN: echo 'Content of manifest file1' > %t1_mf.txt
 //
 // -------
 // Check bitcode produced by the wrapper tool.
 //
 // RUN: clang-offload-wrapper -add-omp-offload-notes                                  \
 // RUN:   -host=x86_64-pc-linux-gnu                                                   \
-// RUN:     -kind=openmp -target=tg2                -format=native %t3.tgt %t1_mf.txt \
+// RUN:     -kind=openmp -target=tg2                -format=native %t3.tgt            \
 // RUN:     -kind=sycl   -target=tg1 -compile-opts=-g -link-opts=-cl-denorms-are-zero \
 // RUN:                  -format spirv  %t1.tgt                                       \
 // RUN:                  -target=tg2 -compile-opts= -link-opts=                       \
@@ -123,7 +116,7 @@
 // CHECK-IR-DAG: [[DESCTY:%.+]] = type { i32, ptr, ptr, ptr }
 
 // --- SYCL device binary image descriptor structure
-// CHECK-IR-DAG: [[SYCL_IMAGETY:%.+]] = type { i16, i8, i8, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr }
+// CHECK-IR-DAG: [[SYCL_IMAGETY:%.+]] = type { i16, i8, i8, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr }
 // CHECK-IR-DAG: [[SYCL_DESCTY:%.+]] = type { i16, i16, ptr, ptr, ptr }
 
 // CHECK-IR: [[ENTBEGIN:@.+]] = external hidden constant [[ENTTY]]
@@ -150,7 +143,9 @@
 // CHECK-IR: [[SYCL_BIN1:@.+]] = internal unnamed_addr constant [[SYCL_BIN1TY:\[[0-9]+ x i8\]]] c"Content of device file2{{.+}}"
 // CHECK-IR: [[SYCL_INFO1:@.+]] = internal local_unnamed_addr constant [2 x i64] [i64 ptrtoint (ptr [[SYCL_BIN1]] to i64), i64 24], section ".tgtimg", align 16
 
-// CHECK-IR: [[SYCL_IMAGES:@.+]] = internal unnamed_addr constant [2 x [[SYCL_IMAGETY]]] [{{.*}} { i16 2, i8 4, i8 2, ptr [[SYCL_TGT0]], ptr [[SYCL_COMPILE_OPTS0]], ptr [[SYCL_LINK_OPTS0]], ptr null, ptr null, ptr [[SYCL_BIN0]], ptr getelementptr ([[SYCL_BIN0TY]], ptr [[SYCL_BIN0]], i64 0, i64 24), ptr null, ptr null, ptr null, ptr null }, [[SYCL_IMAGETY]] { i16 2, i8 4, i8 1, ptr [[SYCL_TGT1]], ptr [[SYCL_COMPILE_OPTS1]], ptr [[SYCL_LINK_OPTS1]], ptr null, ptr null, ptr [[SYCL_BIN1]], ptr getelementptr ([[SYCL_BIN1TY]], ptr [[SYCL_BIN1]], i64 0, i64 24), ptr null, ptr null, ptr null, ptr null }]
+// CHECK-IR: @llvm.used = appending global [3 x ptr] [ptr [[OMP_INFO]], ptr [[SYCL_INFO]], ptr [[SYCL_INFO1]]]
+
+// CHECK-IR: [[SYCL_IMAGES:@.+]] = internal unnamed_addr constant [2 x [[SYCL_IMAGETY]]] [{{.*}} { i16 3, i8 4, i8 2, ptr [[SYCL_TGT0]], ptr [[SYCL_COMPILE_OPTS0]], ptr [[SYCL_LINK_OPTS0]], ptr [[SYCL_BIN0]], ptr getelementptr ([24 x i8], ptr [[SYCL_BIN0]], i64 0, i64 24), ptr null, ptr null, ptr null, ptr null }, [[SYCL_IMAGETY]] { i16 3, i8 4, i8 1, ptr [[SYCL_TGT1]], ptr [[SYCL_COMPILE_OPTS1]], ptr [[SYCL_LINK_OPTS1]], ptr [[SYCL_BIN1]], ptr getelementptr ([24 x i8], ptr [[SYCL_BIN1]], i64 0, i64 24), ptr null, ptr null, ptr null, ptr null }]
 
 // CHECK-IR: [[SYCL_DESC:@.+]] = internal constant [[SYCL_DESCTY]] { i16 1, i16 2, ptr [[SYCL_IMAGES]], ptr null, ptr null }
 
@@ -189,7 +184,7 @@
 //
 // RUN: clang-offload-wrapper -kind sycl -host=x86_64-pc-linux-gnu -emit-reg-funcs=0 -desc-name=lalala -o - %t.tgt | llvm-dis | FileCheck %s --check-prefix CHECK-IR1
 // CHECK-IR1: source_filename = "offload.wrapper.object"
-// CHECK-IR1: [[IMAGETY:%.+]] = type { i16, i8, i8, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr }
+// CHECK-IR1: [[IMAGETY:%.+]] = type { i16, i8, i8, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr }
 // CHECK-IR1: [[DESCTY:%.+]] = type { i16, i16, ptr, ptr, ptr }
 // CHECK-IR1-NOT: @llvm.global_ctors
 // CHECK-IR1-NOT: @llvm.global_dtors
