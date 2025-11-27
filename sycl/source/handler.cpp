@@ -489,7 +489,7 @@ detail::EventImplPtr handler::finalize() {
       // in kernel bundle or free function cases).
       impl->MKernelData.setDeviceKernelInfoPtr(
           &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
-              toKernelNameStrT(MKernelName)));
+              std::string_view(MKernelName)));
     }
     assert(impl->MKernelData.getKernelName() == MKernelName);
 
@@ -862,7 +862,7 @@ void handler::extractArgsAndReqs() {
   if (impl->MKernelData.getDeviceKernelInfoPtr() == nullptr) {
     impl->MKernelData.setDeviceKernelInfoPtr(
         &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
-            detail::toKernelNameStrT(MKernel->getName())));
+            std::string_view(MKernel->getName())));
   }
 #endif
   assert(impl->MKernelData.getDeviceKernelInfoPtr() != nullptr);
