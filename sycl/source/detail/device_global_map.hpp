@@ -9,13 +9,13 @@
 #pragma once
 
 #include <mutex>
+#include <string_view>
 #include <unordered_map>
 
 #include <detail/compiler.hpp>
 #include <detail/device_binary_image.hpp>
 #include <detail/device_global_map_entry.hpp>
 #include <sycl/detail/defines_elementary.hpp>
-#include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/kernel_bundle.hpp>
 
 namespace sycl {
@@ -171,7 +171,7 @@ public:
 
   size_t size() const { return MDeviceGlobals.size(); }
 
-  size_t count(const KernelNameStrT &UniqueId) const {
+  size_t count(std::string_view UniqueId) const {
     return MDeviceGlobals.count(UniqueId);
   }
 
@@ -183,7 +183,7 @@ private:
   bool MOwnerControlledCleanup = true;
 
   // Maps between device_global identifiers and associated information.
-  std::unordered_map<KernelNameStrT, std::unique_ptr<DeviceGlobalMapEntry>>
+  std::unordered_map<std::string_view, std::unique_ptr<DeviceGlobalMapEntry>>
       MDeviceGlobals;
   std::unordered_map<const void *, DeviceGlobalMapEntry *> MPtr2DeviceGlobal;
 
