@@ -310,10 +310,6 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
           __SYCL_DEVICE_BINARY_TARGET_SPIRV64; // TODO: Determine.
       DeviceBinary.CompileOptions = nullptr;
       DeviceBinary.LinkOptions = nullptr;
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-      DeviceBinary.ManifestStart = nullptr;
-      DeviceBinary.ManifestEnd = nullptr;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
       DeviceBinary.BinaryStart =
           reinterpret_cast<const unsigned char *>(IRM.RawIRBytes.data());
       DeviceBinary.BinaryEnd = reinterpret_cast<const unsigned char *>(
@@ -347,10 +343,6 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
           getDeviceTargetSpecFromTriple(TargetTriple);
       DeviceBinary.CompileOptions = nullptr;
       DeviceBinary.LinkOptions = nullptr;
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-      DeviceBinary.ManifestStart = nullptr;
-      DeviceBinary.ManifestEnd = nullptr;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
       DeviceBinary.BinaryStart = reinterpret_cast<const unsigned char *>(
           NDCI.RawDeviceCodeImageBytes.data());
       DeviceBinary.BinaryEnd = reinterpret_cast<const unsigned char *>(

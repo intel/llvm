@@ -625,7 +625,7 @@ void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {
 ur_kernel_handle_t Scheduler::completeSpecConstMaterialization(
     [[maybe_unused]] queue_impl &Queue,
     [[maybe_unused]] const RTDeviceBinaryImage *BinImage,
-    [[maybe_unused]] KernelNameStrRefT KernelName,
+    [[maybe_unused]] std::string_view KernelName,
     [[maybe_unused]] std::vector<unsigned char> &SpecConstBlob) {
 #if SYCL_EXT_JIT_ENABLE && !_WIN32
   return detail::jit_compiler::get_instance().materializeSpecConstants(

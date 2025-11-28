@@ -602,7 +602,8 @@ public:
                                bool CallerNeedsEvent);
 
   void setCommandGraphUnlocked(
-      std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
+      const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+          &Graph) {
     MGraph = Graph;
     MExtGraphDeps.reset();
 
@@ -614,7 +615,8 @@ public:
   }
 
   void setCommandGraph(
-      std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
+      const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+          &Graph) {
     std::lock_guard<std::mutex> Lock(MMutex);
     setCommandGraphUnlocked(Graph);
   }
@@ -727,18 +729,11 @@ protected:
       Handler.depends_on(*ExternalEvent);
   }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   inline const detail::EventImplPtr &
   parseEvent(const detail::EventImplPtr &Event) {
     assert(!Event || !Event->isDiscarded());
     return Event;
   }
-#else
-  inline detail::EventImplPtr parseEvent(const event &Event) {
-    const detail::EventImplPtr &EventImpl = getSyclObjImpl(Event);
-    return EventImpl->isDiscarded() ? nullptr : EventImpl;
-  }
-#endif
 
   bool trySwitchingToNoEventsMode() {
     if (MNoLastEventMode.load(std::memory_order_relaxed))

@@ -52,6 +52,7 @@ if(UR_BUILD_ADAPTER_L0)
         ${CMAKE_CURRENT_SOURCE_DIR}/sampler.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/image.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/image_common.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/graph.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/kernel_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/memory_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/mutable_helpers.cpp
@@ -148,6 +149,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/physical_mem.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/program.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/kernel_helpers.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/graph.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/memory_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/mutable_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/usm_p2p.cpp
@@ -171,6 +173,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/memory.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/lockable.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_api.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_batched.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_out_of_order.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/usm.hpp
@@ -187,6 +190,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/kernel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/memory.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_api.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_batched.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_create.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_out_of_order.cpp
