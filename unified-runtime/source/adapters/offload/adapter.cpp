@@ -56,7 +56,7 @@ ur_result_t ur_adapter_handle_t_::init() {
               ->Devices.push_back(
                   std::make_unique<ur_device_handle_t_>(URPlatform->get(), D));
         }
-        return false;
+        return true;
       },
       &Adapter->Platforms);
 
