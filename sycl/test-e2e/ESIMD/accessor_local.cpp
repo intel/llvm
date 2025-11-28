@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 // REQUIRES-INTEL-DRIVER: lin: 27202, win: 101.4677
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

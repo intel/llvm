@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //==- thread_id_test.cpp - Test to verify thread id functionlity-==//

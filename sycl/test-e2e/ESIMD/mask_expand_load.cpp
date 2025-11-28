@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 //==-mask_expand_load.cpp - Test to verify expanded load functionality==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

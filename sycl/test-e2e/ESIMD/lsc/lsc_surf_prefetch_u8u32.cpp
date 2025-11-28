@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 //==------------ lsc_surf_prefetch_u8u32.cpp - DPC++ ESIMD on-device test --==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

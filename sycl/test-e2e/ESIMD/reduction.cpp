@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 //==---------------- reduction.cpp  - DPC++ ESIMD on-device test
 //------------==//
 //

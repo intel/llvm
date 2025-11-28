@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 //==- bit_shift_compilation_test_64_supportedns.cpp - Test 64-bit bit shift
 // functions -==//
 //

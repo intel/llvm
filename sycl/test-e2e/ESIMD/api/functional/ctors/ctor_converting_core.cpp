@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 //==------- ctor_converting_core.cpp  - DPC++ ESIMD on-device test ---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

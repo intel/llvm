@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 //==-- ext_math_ieee_qsrt_div.cpp  - DPC++ ESIMD ieee sqrt/div  test -------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

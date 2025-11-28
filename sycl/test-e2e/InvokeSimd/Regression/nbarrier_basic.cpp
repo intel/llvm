@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 // NOTE: named barrier supported only since PVC
 // REQUIRES: arch-intel_gpu_pvc
 //

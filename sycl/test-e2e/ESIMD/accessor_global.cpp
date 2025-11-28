@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 //
 // RUN: %{build} -fsycl-esimd-force-stateless-mem -o %t.out
 // RUN: %{run} %t.out

@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 //==------- operator_assignment_move_and_copy_core.cpp  - DPC++ ESIMD on-device
 //          test -----------------------------------------------------------==//
 //

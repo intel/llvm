@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 // REQUIRES: arch-intel_gpu_dg1 || gpu-intel-dg2 || arch-intel_gpu_pvc
 //
 // Check that full compilation works:

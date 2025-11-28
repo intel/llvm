@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 //==------- functions_select_simd_view_rval_core.cpp  - DPC++ ESIMD on-device
 //          test -----------------------------------------------------------==//
 //

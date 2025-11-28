@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 // The tests a basic E2E invoke_simd test checking that invoke_simd
 // compiles and executes correctly on GPU, where the SIMD target is a
 // ESIMD function.

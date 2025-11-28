@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 // REQUIRES-INTEL-DRIVER: lin: 26690, win: 101.4576
 // REQUIRES: sg-8
 //

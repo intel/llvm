@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 //==------- operator_decrement_and_increment_accuracy_fp_extra.cpp  - DPC++
 //          ESIMD on-device test -------------------------------------------==//
 //

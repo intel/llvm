@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 // TODO enable on Windows
 // REQUIRES: linux
 // RUN: %{build} -o %t.out

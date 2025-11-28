@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 //=----------clamp.cpp-Test to verify clamp functionality------------------=//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

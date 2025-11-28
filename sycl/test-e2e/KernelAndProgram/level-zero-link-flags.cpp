@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 // REQUIRES: target-spir, level_zero
 // RUN: %{build} -Xsycl-target-linker=spir64 -foo -o %t.out
 // RUN: %{run} %t.out

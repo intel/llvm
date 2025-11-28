@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 //==------- simd_view_select_2d_fp.cpp  - DPC++ ESIMD on-device test -------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

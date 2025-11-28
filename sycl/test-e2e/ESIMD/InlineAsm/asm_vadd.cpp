@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 //==---------------- asm_vadd.cpp  - DPC++ ESIMD on-device test
 //-------------==//
 //

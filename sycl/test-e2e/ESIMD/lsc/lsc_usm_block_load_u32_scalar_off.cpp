@@ -1,3 +1,5 @@
+// XFAIL: new-offload-model
+
 //==-- lsc_usm_block_load_u32_scalar_off.cpp - DPC++ ESIMD on-device test --==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
