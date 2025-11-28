@@ -11,12 +11,12 @@
 #include <detail/kernel_arg_mask.hpp>
 #include <hash_table8.hpp>
 #include <sycl/detail/compile_time_kernel_info.hpp>
-#include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/ur.hpp>
 
 #include <mutex>
 #include <optional>
+#include <string_view>
 
 namespace sycl {
 inline namespace _V1 {
@@ -89,45 +89,20 @@ struct FastKernelSubcacheT {
 // into this structure and get rid of the other KernelName -> * maps.
 class DeviceKernelInfo : public CompileTimeKernelInfoTy {
 public:
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Needs to own the kernel name string in non-preview builds since we pass it
-  // using a temporary string instead of a string view there.
-  std::string Name;
-#endif
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  DeviceKernelInfo() = default;
-#endif
   DeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
 
-  void init(KernelNameStrRefT KernelName);
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Initialize default-created entry that has no data recorded:
-  void initIfEmpty(const CompileTimeKernelInfoTy &Info);
-#endif
+  void init(std::string_view KernelName);
   void setCompileTimeInfoIfNeeded(const CompileTimeKernelInfoTy &Info);
 
-  FastKernelSubcacheT &getKernelSubcache() {
-    assertInitialized();
-    return MFastKernelSubcache;
-  }
+  FastKernelSubcacheT &getKernelSubcache() { return MFastKernelSubcache; }
 
   std::optional<int> getImplicitLocalArgPos() const {
-    assertInitialized();
     return MImplicitLocalArgPos;
   }
 
 private:
-  void assertInitialized() const {
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    assert(MInitialized.load() && "Data needs to be initialized before use");
-#endif
-  }
   bool isCompileTimeInfoSet() const { return KernelSize != 0; }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  std::atomic<bool> MInitialized = false;
-#endif
   FastKernelSubcacheT MFastKernelSubcache;
   std::optional<int> MImplicitLocalArgPos;
 };

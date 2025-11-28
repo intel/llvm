@@ -61,9 +61,7 @@ public:
            HandlerSubmissionState::EXPLICIT_KERNEL_BUNDLE_STATE;
   }
 
-  KernelNameStrRefT getKernelName() const {
-    return MKernelData.getKernelName();
-  }
+  std::string_view getKernelName() const { return MKernelData.getKernelName(); }
 
   /// Registers mutually exclusive submission states.
   HandlerSubmissionState MSubmissionState = HandlerSubmissionState::NO_STATE;

@@ -75,9 +75,6 @@ public:
   ods_target_list &getOneapiDeviceSelectorTargets(const std::string &InitValue);
   XPTIRegistry &getXPTIRegistry();
   ThreadPool &getHostTaskThreadPool();
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  KernelNameBasedCacheT *createKernelNameBasedCache();
-#endif
   static void registerStaticVarShutdownHandler();
 
   bool isOkToDefer() const;

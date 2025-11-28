@@ -29,6 +29,10 @@ on:
         required: true
         type: string
         default: ""
+      install_igc_driver:
+        required: false
+        type: string
+        default: ""
   workflow_dispatch:
     inputs:
       adapter_name:
@@ -55,6 +59,10 @@ on:
         default: ""
       image_options:
         required: true
+        type: string
+        default: ""
+      install_igc_driver:
+        required: false
         type: string
         default: ""
 
@@ -130,6 +138,13 @@ jobs:
         echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
         sudo apt-get update
         sudo apt-get install -y intel-oneapi-runtime-opencl
+
+    - name: Install Intel GPU driver
+      if: ${{ inputs.install_igc_driver && (inputs.adapter_name == 'OPENCL' || contains(inputs.adapter_name,'L0')) }}
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        sudo -E bash devops/scripts/install_drivers.sh devops/dependencies.json  --igfx
 
     - name: Configure Unified Runtime project
       # ">" is used to avoid adding "\" at the end of each line; this command is quite long
