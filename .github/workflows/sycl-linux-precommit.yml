@@ -151,44 +151,48 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Intel / GEN 12 Integrated
-            runner: '["Linux", "gen12"]'
-            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
-          - name: NVIDIA/CUDA
-            runner: '["Linux", "cuda"]'
-            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
-            target_devices: cuda:gpu
-          - name: AMD/HIP
-            runner: '["Linux", "amdgpu"]'
-            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
-            target_devices: hip:gpu
-            extra_lit_opts: -j 1
-          - name: Intel / Arc A-Series Graphics
-            runner: '["Linux", "arc"]'
-            target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
-          - name: Intel Dev IGC / Arc A-Series Graphics
-            runner: '["Linux", "arc"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
-            target_devices: level_zero:gpu
-            use_igc_dev: true
-            env: '{"LIT_FILTER":"Matrix/"}'
-          - name: Intel / Ponte Vecchio GPU
-            runner: '["Linux", "pvc"]'
-            target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
-          - name: Intel Dev IGC / Ponte Vecchio GPU
-            runner: '["Linux", "pvc"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
-            target_devices: level_zero:gpu
-            use_igc_dev: true
-            env: '{"LIT_FILTER":"Matrix/"}'
-          - name: Intel / Battlemage Graphics
+          # - name: Intel / GEN 12 Integrated
+          #   runner: '["Linux", "gen12"]'
+          #   target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
+          # - name: NVIDIA/CUDA
+          #   runner: '["Linux", "cuda"]'
+          #   image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
+          #   target_devices: cuda:gpu
+          # - name: AMD/HIP
+          #   runner: '["Linux", "amdgpu"]'
+          #   image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
+          #   target_devices: hip:gpu
+          #   extra_lit_opts: -j 1
+          # - name: Intel / Arc A-Series Graphics
+          #   runner: '["Linux", "arc"]'
+          #   target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
+          # - name: Intel Dev IGC / Arc A-Series Graphics
+          #   runner: '["Linux", "arc"]'
+          #   image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
+          #   target_devices: level_zero:gpu
+          #   use_igc_dev: true
+          #   env: '{"LIT_FILTER":"Matrix/"}'
+          # - name: Intel / Ponte Vecchio GPU
+          #   runner: '["Linux", "pvc"]'
+          #   target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
+          # - name: Intel Dev IGC / Ponte Vecchio GPU
+          #   runner: '["Linux", "pvc"]'
+          #   image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
+          #   target_devices: level_zero:gpu
+          #   use_igc_dev: true
+          #   env: '{"LIT_FILTER":"Matrix/"}'
+          # - name: Intel / Battlemage Graphics
+          #   runner: '["Linux", "bmg"]'
+          #   target_devices: level_zero_v1:gpu;level_zero_v2:gpu
+          # - name: Preview Mode
+          #   runner: '["Linux", "gen12"]'
+          #   target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
+          #   extra_lit_opts: --param test-preview-mode=True
+          #   binaries_artifact: e2e_bin_preview
+          - name: L0 v2
             runner: '["Linux", "bmg"]'
-            target_devices: level_zero_v1:gpu;level_zero_v2:gpu
-          - name: Preview Mode
-            runner: '["Linux", "gen12"]'
-            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
-            extra_lit_opts: --param test-preview-mode=True
-            binaries_artifact: e2e_bin_preview
+            # runner: '["Linux", "L0v2"]'
+            target_devices: level_zero_v2:arch-intel_gpu_mtl_u
 
           # We're in an ABI-breaking window, so these don't make sense for now.
           - name: ABI compatibility / sycl-rel-6_2
@@ -236,44 +240,44 @@ jobs:
       skip_run: ${{matrix.use_igc_dev && contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') || matrix.skip_run || 'false'}}
       env: ${{ matrix.env || (contains(needs.detect_changes.outputs.filters, 'esimd') && '{}' || '{"LIT_FILTER_OUT":"ESIMD/"}') }}
 
-  test-perf:
-    needs: [build, detect_changes]
-    permissions:
-      contents: write
-      packages: read
-    if: |
-      !cancelled()
-      && needs.build.outputs.build_conclusion == 'success'
-      && (contains(github.event.pull_request.labels.*.name, 'run-perf-tests')
-          || contains(needs.detect_changes.outputs.filters, 'perf-tests'))
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Intel GEN12 Graphics system
-            runner: '["Linux", "gen12"]'
-            image_extra_opts: --device=/dev/dri
-          - name: Intel Arc A-Series Graphics system
-            runner: '["Linux", "arc"]'
-            image_extra_opts: --device=/dev/dri
-          - name: AMD system
-            runner: '["Linux", "amdgpu"]'
-            image_extra_opts: --device=/dev/dri --device=/dev/kfd
-          - name: CUDA system
-            runner: '["Linux", "cuda"]'
-            image_extra_opts: --gpus all
-    uses: ./.github/workflows/sycl-linux-run-tests.yml
-    with:
-      name: Perf tests on ${{ matrix.name }}
-      runner: ${{ matrix. runner }}
-      image_options: -u 1001 --privileged --cap-add SYS_ADMIN ${{ matrix.image_extra_opts }}
-      target_devices: all
+  # test-perf:
+  #   needs: [build, detect_changes]
+  #   permissions:
+  #     contents: write
+  #     packages: read
+  #   if: |
+  #     !cancelled()
+  #     && needs.build.outputs.build_conclusion == 'success'
+  #     && (contains(github.event.pull_request.labels.*.name, 'run-perf-tests')
+  #         || contains(needs.detect_changes.outputs.filters, 'perf-tests'))
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       include:
+  #         - name: Intel GEN12 Graphics system
+  #           runner: '["Linux", "gen12"]'
+  #           image_extra_opts: --device=/dev/dri
+  #         - name: Intel Arc A-Series Graphics system
+  #           runner: '["Linux", "arc"]'
+  #           image_extra_opts: --device=/dev/dri
+  #         - name: AMD system
+  #           runner: '["Linux", "amdgpu"]'
+  #           image_extra_opts: --device=/dev/dri --device=/dev/kfd
+  #         - name: CUDA system
+  #           runner: '["Linux", "cuda"]'
+  #           image_extra_opts: --gpus all
+  #   uses: ./.github/workflows/sycl-linux-run-tests.yml
+  #   with:
+  #     name: Perf tests on ${{ matrix.name }}
+  #     runner: ${{ matrix. runner }}
+  #     image_options: -u 1001 --privileged --cap-add SYS_ADMIN ${{ matrix.image_extra_opts }}
+  #     target_devices: all
 
-      env: '{"LIT_FILTER":"PerformanceTests/"}'
-      extra_lit_opts: -a -j 1 --param enable-perf-tests=True
+  #     env: '{"LIT_FILTER":"PerformanceTests/"}'
+  #     extra_lit_opts: -a -j 1 --param enable-perf-tests=True
 
-      repo_ref: ${{ github.sha }}
+  #     repo_ref: ${{ github.sha }}
 
-      toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
-      toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
-      toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}
+  #     toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
+  #     toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
+  #     toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}

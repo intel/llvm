@@ -206,6 +206,7 @@ jobs:
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DLLVM_INSTALL_UTILS=ON \
           -DSYCL_UR_FORCE_FETCH_LEVEL_ZERO=ON
+    # DSYCL_UR_USE_LEVEL_ZERO_V2=1
     - name: Compile
       id: build
       # Emulate default value for manual dispatch as we've run out of available arguments.
