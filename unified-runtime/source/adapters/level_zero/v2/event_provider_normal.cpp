@@ -17,8 +17,9 @@
 #include "event_provider.hpp"
 #include "event_provider_normal.hpp"
 
-#include "../common.hpp"
 #include "../common/latency_tracker.hpp"
+
+#include "../common.hpp"
 
 namespace v2 {
 static constexpr int EVENTS_BURST = 64;
