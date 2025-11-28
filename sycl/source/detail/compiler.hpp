@@ -44,9 +44,6 @@
 /// PropertySetIO.h
 #define __SYCL_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP                      \
   "SYCL/specialization constants default values"
-/// TODO: remove req mask when sycl devicelib online linking path is removed.
-/// PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK defined in PropertySetIO.h
-#define __SYCL_PROPERTY_SET_DEVICELIB_REQ_MASK "SYCL/devicelib req mask"
 /// PropertySetRegistry::SYCL_DEVICELIB_METADATA defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_DEVICELIB_METADATA "SYCL/devicelib metadata"
 /// PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO defined in PropertySetIO.h

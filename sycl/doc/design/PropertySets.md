@@ -72,20 +72,6 @@ constant.
 
 See also [SYCL2020-SpecializationConstants.md](./SYCL2020-SpecializationConstants.md).
 
-
-### [SYCL/devicelib req mask]
-
-__Key:__ At most one entry with "DeviceLibReqMask".
-
-__Value type:__ 32 bit integer. ("1")
-
-__Value:__ A bitmask of which device libraries the binary uses.
-
-__Notes:__
-
-1. If this property set is missing, no device libraries are used by the binary.
-
-
 ### [SYCL/kernel param opt]
 
 __Key:__ Kernel name.

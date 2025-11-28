@@ -128,7 +128,6 @@ context_impl::~context_impl() {
       if (DGEntry != nullptr)
         DGEntry->removeAssociatedResources(this);
     }
-    MCachedLibPrograms.clear();
     // TODO catch an exception and put it to list of asynchronous exceptions
     getAdapter().call_nocheck<UrApiKind::urContextRelease>(MContext);
   } catch (std::exception &e) {

@@ -161,38 +161,7 @@ template <typename T> LifetimeExtender(std::vector<T>) -> LifetimeExtender<T>;
 /// Convenience wrapper for sycl_device_binary_property_set.
 class MockPropertySet {
 public:
-  MockPropertySet(const std::vector<DeviceLibExt> &DeviceLibExts = {}) {
-    // Most of unit-tests are statically linked with SYCL RT. On Linux and Mac
-    // systems that causes incorrect RT installation directory detection, which
-    // prevents proper loading of fallback libraries. See intel/llvm#6945
-    //
-    // Fallback libraries are automatically loaded and linked into device image
-    // unless there is a special property attached to it or special env variable
-    // is set which forces RT to skip fallback libraries.
-    //
-    // By default, property is set to empty mask here so that unit-tests can be
-    // launched under any environment. Some unit tests might create dummy
-    // fallback libaries and require fallback libraries to be loaded, in such
-    // case input vector will be non-empty.
-
-    std::vector<char> Data(/* four elements */ 4,
-                           /* each element is zero */ 0);
-    if (!DeviceLibExts.empty()) {
-      uint32_t DeviceLibReqMask = 0;
-      for (auto Ext : DeviceLibExts) {
-        DeviceLibReqMask |= 0x1
-                            << (static_cast<uint32_t>(Ext) -
-                                static_cast<uint32_t>(
-                                    DeviceLibExt::cl_intel_devicelib_assert));
-      }
-      std::memcpy(Data.data(), &DeviceLibReqMask, sizeof(DeviceLibReqMask));
-    }
-    // Name doesn't matter here, it is not used by RT
-    // Value must be an all-zero 32-bit mask, which would mean that no fallback
-    // libraries are needed to be loaded.
-    MockProperty DeviceLibReqMask("", Data, SYCL_PROPERTY_TYPE_UINT32);
-    insert(__SYCL_PROPERTY_SET_DEVICELIB_REQ_MASK, std::move(DeviceLibReqMask));
-  }
+  MockPropertySet() = default;
 
   /// Adds a new property to the set.
   ///
