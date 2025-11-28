@@ -1,141 +1,141 @@
-name: SYCL Post Commit
+# name: SYCL Post Commit
 
-on:
-  workflow_dispatch:
+# on:
+#   workflow_dispatch:
 
-  push:
-    branches:
-    - sycl
-    - sycl-rel-**
+#   push:
+#     branches:
+#     - sycl
+#     - sycl-rel-**
 
-  pull_request:
-    branches:
-    - sycl
-    paths:
-    - .github/workflows/sycl-post-commit.yml
-    - .github/workflows/sycl-linux-build.yml
-    - .github/workflows/sycl-linux-run-tests.yml
-    - .github/workflows/sycl-macos-build-and-test.yml
-    - ./devops/actions/cleanup
-    - ./devops/actions/cached_checkout
-    - ./devops/dependencies.json
-    - ./devops/dependencies-igc-dev.json
+#   pull_request:
+#     branches:
+#     - sycl
+#     paths:
+#     - .github/workflows/sycl-post-commit.yml
+#     - .github/workflows/sycl-linux-build.yml
+#     - .github/workflows/sycl-linux-run-tests.yml
+#     - .github/workflows/sycl-macos-build-and-test.yml
+#     - ./devops/actions/cleanup
+#     - ./devops/actions/cached_checkout
+#     - ./devops/dependencies.json
+#     - ./devops/dependencies-igc-dev.json
 
-concurrency:
-  #  Cancel a currently running workflow from the same PR or commit hash.
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: true
+# concurrency:
+#   #  Cancel a currently running workflow from the same PR or commit hash.
+#   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+#   cancel-in-progress: true
 
-permissions: read-all
+# permissions: read-all
 
-jobs:
-  detect_changes:
-    if: ${{ github.event_name == 'pull_request' }}
-    uses: ./.github/workflows/sycl-detect-changes.yml
+# jobs:
+#   detect_changes:
+#     if: ${{ github.event_name == 'pull_request' }}
+#     uses: ./.github/workflows/sycl-detect-changes.yml
 
-  build-lin:
-    name: Linux (GCC + no-assertions)
-    if: github.repository == 'intel/llvm'
-    uses: ./.github/workflows/sycl-linux-build.yml
-    with:
-      build_cache_root: "/__w/llvm"
-      build_cache_suffix: default
-      build_configure_extra_args: --no-assertions --hip --cuda --native_cpu -DSYCL_ENABLE_STACK_PRINTING=ON -DSYCL_LIB_WITH_DEBUG_SYMBOL=ON
+#   build-lin:
+#     name: Linux (GCC + no-assertions)
+#     if: github.repository == 'intel/llvm'
+#     uses: ./.github/workflows/sycl-linux-build.yml
+#     with:
+#       build_cache_root: "/__w/llvm"
+#       build_cache_suffix: default
+#       build_configure_extra_args: --no-assertions --hip --cuda --native_cpu -DSYCL_ENABLE_STACK_PRINTING=ON -DSYCL_LIB_WITH_DEBUG_SYMBOL=ON
 
-      toolchain_artifact: sycl_linux_default
-      e2e_binaries_spirv_backend_artifact: e2e_bin_spirv_backend
+#       toolchain_artifact: sycl_linux_default
+#       e2e_binaries_spirv_backend_artifact: e2e_bin_spirv_backend
 
-  e2e-lin:
-    needs: [detect_changes, build-lin]
-    if: ${{ !cancelled() && needs.build-lin.outputs.build_conclusion == 'success' }}
-    permissions:
-      contents: write
-      packages: read
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Intel GEN12 Graphics with Level Zero
-            runner: '["Linux", "gen12"]'
-            target_devices: level_zero:gpu
-          - name: Intel Arc A-Series Graphics with Level Zero
-            runner: '["Linux", "arc"]'
-          # Performance tests below. Specifics:
-          #  - only run performance tests (use LIT_FILTER env)
-          #  - ask llvm-lit to show all the output, even for PASS (-a)
-          #  - run in single thread (-j 1)
-          #  - enable the tests in LIT (--param enable-perf-tests=True)
-          #  - run on all available devices.
-          - name: Perf tests on Intel GEN12 Graphics system
-            runner: '["Linux", "gen12"]'
-            env: '{"LIT_FILTER":"PerformanceTests/"}'
-            extra_lit_opts: -a -j 1 --param enable-perf-tests=True
-            target_devices: all
-          - name: Perf tests on Intel Arc A-Series Graphics system
-            runner: '["Linux", "arc"]'
-            env: '{"LIT_FILTER":"PerformanceTests/"}'
-            extra_lit_opts: -a -j 1 --param enable-perf-tests=True
-            target_devices: all
-          - name: SPIR-V Backend / Intel Battlemage Graphics
-            runner: '["Linux", "bmg"]'
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
-            extra_lit_opts: --param spirv-backend=True
-            binaries_artifact: e2e_bin_spirv_backend
-            testing_mode: 'run-only'
-    uses: ./.github/workflows/sycl-linux-run-tests.yml
-    with:
-      name: ${{ matrix.name }}
-      runner: ${{ matrix. runner }}
-      image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
-      target_devices: ${{ matrix.target_devices || 'level_zero:gpu' }}
+#   e2e-lin:
+#     needs: [detect_changes, build-lin]
+#     if: ${{ !cancelled() && needs.build-lin.outputs.build_conclusion == 'success' }}
+#     permissions:
+#       contents: write
+#       packages: read
+#     strategy:
+#       fail-fast: false
+#       matrix:
+#         include:
+#           - name: Intel GEN12 Graphics with Level Zero
+#             runner: '["Linux", "gen12"]'
+#             target_devices: level_zero:gpu
+#           - name: Intel Arc A-Series Graphics with Level Zero
+#             runner: '["Linux", "arc"]'
+#           # Performance tests below. Specifics:
+#           #  - only run performance tests (use LIT_FILTER env)
+#           #  - ask llvm-lit to show all the output, even for PASS (-a)
+#           #  - run in single thread (-j 1)
+#           #  - enable the tests in LIT (--param enable-perf-tests=True)
+#           #  - run on all available devices.
+#           - name: Perf tests on Intel GEN12 Graphics system
+#             runner: '["Linux", "gen12"]'
+#             env: '{"LIT_FILTER":"PerformanceTests/"}'
+#             extra_lit_opts: -a -j 1 --param enable-perf-tests=True
+#             target_devices: all
+#           - name: Perf tests on Intel Arc A-Series Graphics system
+#             runner: '["Linux", "arc"]'
+#             env: '{"LIT_FILTER":"PerformanceTests/"}'
+#             extra_lit_opts: -a -j 1 --param enable-perf-tests=True
+#             target_devices: all
+#           - name: SPIR-V Backend / Intel Battlemage Graphics
+#             runner: '["Linux", "bmg"]'
+#             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+#             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
+#             extra_lit_opts: --param spirv-backend=True
+#             binaries_artifact: e2e_bin_spirv_backend
+#             testing_mode: 'run-only'
+#     uses: ./.github/workflows/sycl-linux-run-tests.yml
+#     with:
+#       name: ${{ matrix.name }}
+#       runner: ${{ matrix. runner }}
+#       image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
+#       target_devices: ${{ matrix.target_devices || 'level_zero:gpu' }}
 
-      extra_lit_opts: ${{ matrix.extra_lit_opts }}
-      env: ${{ matrix.env || '{}' }}
+#       extra_lit_opts: ${{ matrix.extra_lit_opts }}
+#       env: ${{ matrix.env || '{}' }}
 
-      repo_ref: ${{ github.sha }}
+#       repo_ref: ${{ github.sha }}
 
-      toolchain_artifact: ${{ needs.build-lin.outputs.toolchain_artifact }}
-      toolchain_artifact_filename: ${{ needs.build-lin.outputs.toolchain_artifact_filename }}
-      toolchain_decompress_command: ${{ needs.build-lin.outputs.toolchain_decompress_command }}
+#       toolchain_artifact: ${{ needs.build-lin.outputs.toolchain_artifact }}
+#       toolchain_artifact_filename: ${{ needs.build-lin.outputs.toolchain_artifact_filename }}
+#       toolchain_decompress_command: ${{ needs.build-lin.outputs.toolchain_decompress_command }}
 
-      binaries_artifact: ${{ matrix.binaries_artifact }}
-      testing_mode: ${{ matrix.testing_mode || 'full' }}
+#       binaries_artifact: ${{ matrix.binaries_artifact }}
+#       testing_mode: ${{ matrix.testing_mode || 'full' }}
 
-      # Do not install drivers on AMD and CUDA runners.
-      install_igc_driver: >-
-        ${{ github.event_name == 'pull_request' }} &&
-        ${{ !contains(matrix.target_devices, 'cuda') &&
-        !contains(matrix.target_devices, 'hip') &&
-        contains(needs.detect_changes.outputs.filters, 'drivers') }}
+#       # Do not install drivers on AMD and CUDA runners.
+#       install_igc_driver: >-
+#         ${{ github.event_name == 'pull_request' }} &&
+#         ${{ !contains(matrix.target_devices, 'cuda') &&
+#         !contains(matrix.target_devices, 'hip') &&
+#         contains(needs.detect_changes.outputs.filters, 'drivers') }}
 
-  build-win:
-    if: |
-      success() &&
-      github.repository == 'intel/llvm'
-    uses: ./.github/workflows/sycl-windows-build.yml
-    with:
-      cxx: icx
-      build_configure_extra_args: -DCMAKE_C_FLAGS="/fp:precise /clang:-Wno-nonportable-include-path /clang:-Wno-cast-function-type-mismatch" -DCMAKE_CXX_FLAGS="/fp:precise /clang:-Wno-nonportable-include-path /clang:-Wno-cast-function-type-mismatch" -DCMAKE_EXE_LINKER_FLAGS=/manifest:no -DCMAKE_MODULE_LINKER_FLAGS=/manifest:no -DCMAKE_SHARED_LINKER_FLAGS=/manifest:no
-      build_cache_suffix: icx
+#   build-win:
+#     if: |
+#       success() &&
+#       github.repository == 'intel/llvm'
+#     uses: ./.github/workflows/sycl-windows-build.yml
+#     with:
+#       cxx: icx
+#       build_configure_extra_args: -DCMAKE_C_FLAGS="/fp:precise /clang:-Wno-nonportable-include-path /clang:-Wno-cast-function-type-mismatch" -DCMAKE_CXX_FLAGS="/fp:precise /clang:-Wno-nonportable-include-path /clang:-Wno-cast-function-type-mismatch" -DCMAKE_EXE_LINKER_FLAGS=/manifest:no -DCMAKE_MODULE_LINKER_FLAGS=/manifest:no -DCMAKE_SHARED_LINKER_FLAGS=/manifest:no
+#       build_cache_suffix: icx
 
-  e2e-win:
-    needs: build-win
-    # Continue if build was successful.
-    if: |
-      !cancelled() &&
-      needs.build-win.outputs.build_conclusion == 'success'
-    uses: ./.github/workflows/sycl-windows-run-tests.yml
-    with:
-      name: Intel GEN12 Graphics with Level Zero
-      runner: '["Windows","gen12"]'
-      target_devices: "level_zero:gpu"
-      toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
-      cxx: icx
-      # https://github.com/intel/llvm/issues/18458
-      env: "{'LIT_FILTER_OUT':'std_array.cpp|compile_on_win_with_mdd.cpp'}"
+#   e2e-win:
+#     needs: build-win
+#     # Continue if build was successful.
+#     if: |
+#       !cancelled() &&
+#       needs.build-win.outputs.build_conclusion == 'success'
+#     uses: ./.github/workflows/sycl-windows-run-tests.yml
+#     with:
+#       name: Intel GEN12 Graphics with Level Zero
+#       runner: '["Windows","gen12"]'
+#       target_devices: "level_zero:gpu"
+#       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
+#       cxx: icx
+#       # https://github.com/intel/llvm/issues/18458
+#       env: "{'LIT_FILTER_OUT':'std_array.cpp|compile_on_win_with_mdd.cpp'}"
 
-  macos_default:
-    name: macOS
-    if: github.repository == 'intel/llvm'
-    uses: ./.github/workflows/sycl-macos-build-and-test.yml
+#   macos_default:
+#     name: macOS
+#     if: github.repository == 'intel/llvm'
+#     uses: ./.github/workflows/sycl-macos-build-and-test.yml
