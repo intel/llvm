@@ -1013,17 +1013,16 @@ bool queue_impl::queue_empty() const {
   if (isInOrder())
     return true;
 
-  // We may have events like host tasks which are not submitted to the backend
-  // queue so we need to get their status separately.
+  // We should also check the status of the events in the event list for
+  // out-of-order queues
   std::lock_guard<std::mutex> Lock(MMutex);
   for (auto EventImplWeakPtrIt = MEventsWeak.begin();
        EventImplWeakPtrIt != MEventsWeak.end(); ++EventImplWeakPtrIt)
     if (std::shared_ptr<event_impl> EventImplSharedPtr =
             EventImplWeakPtrIt->lock())
-      if (EventImplSharedPtr->isHost() &&
-          EventImplSharedPtr
-                  ->get_info<info::event::command_execution_status>() !=
-              info::event_command_status::complete)
+      if (EventImplSharedPtr
+              ->get_info<info::event::command_execution_status>() !=
+          info::event_command_status::complete)
         return false;
 
   // If we didn't exit early above then it means that all events in the queue
