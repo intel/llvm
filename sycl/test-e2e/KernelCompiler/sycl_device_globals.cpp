@@ -30,7 +30,7 @@ struct MyStruct{
 
 namespace syclex = sycl::ext::oneapi::experimental;
 
-syclex::device_global<MyStruct> DG;
+syclex::device_global<int64_t> DG;
 
 syclex::device_global<int64_t, decltype(syclex::properties(syclex::device_image_scope))> DG_DIS;
 
