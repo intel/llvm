@@ -74,7 +74,7 @@ if(NOT DEFINED CUDA_LIBS_DIR AND NOT DEFINED CUDA_INCLUDE)
     set(CUDA_INCLUDE "${CUDAToolkit_INCLUDE_DIRS}")
   set(CUPTI_INCLUDE_DIR "${CUDAToolkit_ROOT}/extras/CUPTI/include")
   set(CUPTI_LIBRARY "${CUDAToolkit_ROOT}/extras/CUPTI/lib64/libcupti.so")
-  message(STATUS "TESTTESTTESTTESTTEST ${CUDAToolkit_ROOT})
+  message(STATUS "TESTTESTTESTTESTTEST ${CUDAToolkit_ROOT}")
   endif()
 endif()
 
