@@ -330,6 +330,28 @@ void submit_kernel_direct_without_event_impl(
       IsTopCodeLoc);
 }
 
+event submit_graph_direct_with_event_impl(
+    const queue &Queue,
+    ext::oneapi::experimental::command_graph<
+        ext::oneapi::experimental::graph_state::executable> &G,
+    sycl::span<const event> DepEvents, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return getSyclObjImpl(Queue)->submit_graph_direct_with_event(
+      getSyclObjImpl(G), DepEvents, TlsCodeLocCapture.query(),
+      TlsCodeLocCapture.isToplevel());
+}
+
+void submit_graph_direct_without_event_impl(
+    const queue &Queue,
+    ext::oneapi::experimental::command_graph<
+        ext::oneapi::experimental::graph_state::executable> &G,
+    sycl::span<const event> DepEvents, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  getSyclObjImpl(Queue)->submit_graph_direct_without_event(
+      getSyclObjImpl(G), DepEvents, TlsCodeLocCapture.query(),
+      TlsCodeLocCapture.isToplevel());
+}
+
 } // namespace _V1
 } // namespace sycl
 
