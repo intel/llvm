@@ -27,8 +27,8 @@ auto constexpr DGSource = R"===(
 struct MyStruct{
   int32_t dg;
 
-  MyStruct operator+(int32_t val){
-  dg += val;
+  MyStruct operator+(int32_t val) const{
+   return MyStruct(dg + val);
   }
 };
 
