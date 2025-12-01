@@ -37,7 +37,7 @@ struct KernelInfo<TestKernelWithIntPtr> : public unittest::MockKernelInfoBase {
 
 private:
   static constexpr detail::kernel_param_desc_t IntParamDesc = {
-      detail::kernel_param_kind_t::kind_std_layout, 0, 0};
+      detail::kernel_param_kind_t::kind_std_layout, sizeof(int), 0};
 };
 
 } // namespace detail
@@ -50,11 +50,13 @@ static sycl::unittest::MockDeviceImageArray<1> ImgArray{&Img};
 
 static int ArgInt = 123;
 
-ur_result_t redefined_urKernelSetArgValue(void *pParams) {
-  auto params = *static_cast<ur_kernel_set_arg_value_params_t *>(pParams);
+ur_result_t redefined_EnqueueKernelLaunchWithArgsExp(void *pParams) {
+  auto params =
+      *static_cast<ur_enqueue_kernel_launch_with_args_exp_params_t *>(pParams);
+  auto args = *params.ppArgs;
+  int value = *static_cast<const int *>(args[0].value.value);
 
-  int ArgValue = *static_cast<const int *>(*params.ppArgValue);
-  EXPECT_EQ(ArgValue, ArgInt);
+  EXPECT_EQ(value, ArgInt);
 
   return UR_RESULT_SUCCESS;
 }
@@ -77,8 +79,9 @@ void runKernelWithArgs(queue &Queue, int ArgI) {
 // of the kernel lambda is deallocated.
 TEST(KernelArgsTest, KernelCopy) {
   sycl::unittest::UrMock<> Mock;
-  mock::getCallbacks().set_before_callback("urKernelSetArgValue",
-                                           &redefined_urKernelSetArgValue);
+  mock::getCallbacks().set_before_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_EnqueueKernelLaunchWithArgsExp);
 
   platform Plt = sycl::platform();
 
