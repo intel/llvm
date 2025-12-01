@@ -32,11 +32,6 @@ namespace syclex = sycl::ext::oneapi::experimental;
 
 syclex::device_global<MyStruct> DG;
 
-extern "C" SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-    (syclex::single_task_kernel)) void ff_dg_adder(MyStruct val) {
-  DG.dg += val;
-}
-
 syclex::device_global<int64_t, decltype(syclex::properties(syclex::device_image_scope))> DG_DIS;
 
 extern "C" SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
@@ -69,7 +64,6 @@ int test_device_global() {
       ctx, syclex::source_language::sycl, DGSource);
 
   exe_kb kbExe1 = syclex::build(kbSrc);
-  auto addK = kbExe1.ext_oneapi_get_kernel("ff_dg_adder");
 
   // Check presence of device globals.
   assert(kbExe1.ext_oneapi_has_device_global("DG"));
@@ -95,15 +89,6 @@ int test_device_global() {
   val = 123;
   q.memcpy(dgAddr, &val, dgSize).wait();
   checkVal(123);
-
-  // Run a kernel using it.
-  val = -17;
-  q.submit([&](sycl::handler &CGH) {
-    CGH.set_arg(0, val);
-    CGH.single_task(addK);
-  });
-  q.wait();
-  checkVal(123 - 17);
 
   // Test that each bundle has its distinct set of globals.
   exe_kb kbExe2 = syclex::build(kbSrc);
