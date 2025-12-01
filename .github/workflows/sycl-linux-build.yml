@@ -328,35 +328,29 @@ jobs:
         comm -13 env_before env_after >> $GITHUB_ENV
         rm env_before env_after
 
-    - name: Build E2E tests
-      if: ${{ inputs.e2e_binaries_artifact && !cancelled() && steps.build.conclusion == 'success' }}
-      uses: ./devops/actions/run-tests/e2e
-      with:
-        ref: ${{ inputs.ref || github.sha }}
-        testing_mode: build-only
-        target_devices: all
-        binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
-        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
-        extra_lit_opts: --param sycl_build_targets="spir;nvidia;amd"
+  build-e2e:
+    name: Build E2E tests
+    needs: [build]
+    if: ${{ !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+    permissions:
+      contents: write
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Build E2E tests
+            extra_lit_opts: --param sycl_build_targets="spir;nvidia;amd"
+          - name: Build E2E tests with SPIR-V Backend
+            extra_lit_opts: --param spirv-backend=True
+          - name: Build E2E tests in Preview Mode
+            extra_lit_opts: --param test-preview-mode=True
 
-    - name: Build E2E tests with SPIR-V Backend
-      if: ${{ inputs.e2e_binaries_spirv_backend_artifact && !cancelled() && steps.build.conclusion == 'success' }}
-      uses: ./devops/actions/run-tests/e2e
-      with:
-        ref: ${{ inputs.ref || github.sha }}
-        testing_mode: build-only
-        target_devices: all
-        binaries_artifact: ${{ inputs.e2e_binaries_spirv_backend_artifact }}
-        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
-        extra_lit_opts: --param spirv-backend=True
-
-    - name: Build E2E tests in Preview Mode
-      if: ${{ inputs.e2e_binaries_preview_artifact && !cancelled() && steps.build.conclusion == 'success' }}
-      uses: ./devops/actions/run-tests/e2e
-      with:
-        ref: ${{ inputs.ref || github.sha }}
-        testing_mode: build-only
-        target_devices: all
-        binaries_artifact: ${{ inputs.e2e_binaries_preview_artifact }}
-        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
-        extra_lit_opts: --param test-preview-mode=True
+    uses: ./devops/actions/run-tests/e2e
+    with:
+      ref: ${{ inputs.ref || github.sha }}
+      testing_mode: build-only
+      target_devices: all
+      binaries_artifact: ${{ matrix.binaries_artifact }}
+      sycl_compiler: $GITBUN_WORKSPACE/toolchain/bin/clang++
+      extra_lit_opts: ${{ matrix.extra_lit_opts }}
