@@ -21,6 +21,8 @@
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
 
+#include <cupti.h>
+
 auto constexpr DGSource = R"===(
 #include <sycl/sycl.hpp>
 
