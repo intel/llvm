@@ -26,14 +26,15 @@ auto constexpr DGSource = R"===(
 
 struct MyStruct{
   int32_t dg;
-}
+};
+
 namespace syclex = sycl::ext::oneapi::experimental;
 
 syclex::device_global<MyStruct> DG;
 
 extern "C" SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-    (syclex::single_task_kernel)) void ff_dg_adder(int val) {
-  DG += val;
+    (syclex::single_task_kernel)) void ff_dg_adder(MyStruct val) {
+  DG.dg += val;
 }
 
 syclex::device_global<int64_t, decltype(syclex::properties(syclex::device_image_scope))> DG_DIS;
