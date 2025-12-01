@@ -203,7 +203,6 @@ variables in production code.</span>
 | `SYCL_PRINT_EXECUTION_GRAPH` | Described [below](#sycl_print_execution_graph-options) | Print execution graph to DOT text file. |
 | `SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP` | Any(\*) | Disable regular cleanup of enqueued (or finished, in case of host tasks) non-leaf command nodes. If disabled, command nodes will be cleaned up only during the destruction of the last remaining memory object used by them. |
 | `SYCL_DISABLE_POST_ENQUEUE_CLEANUP` (deprecated) | Any(\*) | Use `SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP` instead. |
-| `SYCL_DEVICELIB_INHIBIT_NATIVE` | String of device library extensions (separated by a whitespace) | Do not rely on device native support for devicelib extensions listed in this option. |
 | `SYCL_PROGRAM_COMPILE_OPTIONS` | String of valid compile options | Override compile options for all programs. |
 | `SYCL_PROGRAM_LINK_OPTIONS` | String of valid link options | Override link options for all programs. |
 | `SYCL_PROGRAM_APPEND_COMPILE_OPTIONS` | String of valid compile options | Append to the end of compile options for all programs. |
