@@ -802,6 +802,7 @@ event handler::finalize() {
                           !impl->MExecGraph->containsHostTask();
       auto [GraphCompletionEvent, Unused] = impl->MExecGraph->enqueue(
           Queue, std::move(impl->CGData), !DiscardEvent);
+      (void)Unused;
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
       return GraphCompletionEvent;
 #else
