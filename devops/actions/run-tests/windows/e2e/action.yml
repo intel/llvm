@@ -121,3 +121,6 @@ runs:
       name: ${{ inputs.binaries_artifact }}
       path: e2e_bin.tar.gz
       retention-days: ${{ inputs.retention-days }}
+  - name: Cleanup E2E tests
+    if: {{ !cancelled() }}
+    run: rm -rf build-e2e
