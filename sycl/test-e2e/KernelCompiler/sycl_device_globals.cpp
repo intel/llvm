@@ -27,7 +27,7 @@ auto constexpr DGSource = R"===(
 struct MyStruct{
   int32_t dg;
 
-  MyStruct& operator+=(const int32_t& val){
+  MyStruct& operator+=(const int& val){
   dg += val;
    return *this;
   }
