@@ -74,6 +74,7 @@ if(NOT DEFINED CUDA_LIBS_DIR AND NOT DEFINED CUDA_INCLUDE)
     set(CUDA_INCLUDE "${CUDAToolkit_INCLUDE_DIRS}")
   set(CUPTI_INCLUDE_DIR "${CUDAToolkit_ROOT}/extras/CUPTI/include")
   set(CUPTI_LIBRARY "${CUDAToolkit_ROOT}/extras/CUPTI/lib64/libcupti.so")
+  message(STATUS "TESTTESTTESTTESTTEST ${CUDAToolkit_ROOT})
   endif()
 endif()
 
@@ -102,6 +103,8 @@ if(NOT SYCL_TEST_E2E_STANDALONE)
     not
   )
 endif() # Standalone.
+
+target_link_libraries(check-sycl-e2e PRIVATE ${CUPTI_LIBRARY})
 
 add_custom_target(check-sycl-e2e
   COMMAND ${Python3_EXECUTABLE} ${LLVM_LIT} ${SYCL_E2E_TESTS_LIT_FLAGS} .
