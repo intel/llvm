@@ -222,13 +222,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Intel L0 Gen12 GPU
+          - name: Intel Gen12 GPU
             runner: '["Windows", "gen12"]'
 
-          - name: Intel L0 Arc GPU
+          - name: Intel Arc GPU
             runner: '["Windows", "arc"]'
 
-          - name: Intel L0 Battlemage GPU
+          - name: Intel Battlemage GPU
             runner: '["Windows", "bmg"]'
 
     uses: ./.github/workflows/sycl-windows-run-tests.yml
