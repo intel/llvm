@@ -14,7 +14,7 @@ inputs:
     default: all
   extra_lit_opts:
     required: false
-  retention-days:
+  retention_days:
     required: false
   sycl_compiler:
     required: false
@@ -105,4 +105,4 @@ runs:
     with:
       name: ${{ inputs.binaries_artifact }}
       path: e2e_binaries.tar.zst
-      retention-days: ${{ inputs.retention-days }}
+      retention-days: ${{ inputs.retention_days }}

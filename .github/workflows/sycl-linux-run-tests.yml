@@ -74,7 +74,7 @@ on:
           or `run-only`.
         type: string
         default: 'full'
-      retention-days:
+      retention_days:
         description: 'E2E/SYCL-CTS binaries artifact retention period.'
         type: string
         default: 1
@@ -349,7 +349,7 @@ jobs:
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
         target_devices: ${{ inputs.target_devices }}
         extra_lit_opts: ${{ inputs.extra_lit_opts }}
-        retention-days: ${{ inputs.retention-days }}
+        retention_days: ${{ inputs.retention_days }}
 
     - name: Run SYCL CTS Tests
       if: inputs.tests_selector == 'cts'
@@ -365,7 +365,7 @@ jobs:
                                || inputs.testing_mode == 'run-only' && 'in-container'
                                || '' }}
         target_devices: ${{ inputs.target_devices }}
-        retention-days: ${{ inputs.retention-days }}
+        retention_days: ${{ inputs.retention_days }}
 
     - name: Run benchmarks
       if: inputs.tests_selector == 'benchmarks'

@@ -151,7 +151,7 @@ jobs:
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
         target_devices: ${{ inputs.target_devices }}
         extra_lit_opts: ${{ inputs.extra_lit_opts }}
-        retention-days: ${{ inputs.artifact_retention_days }}
+        retention_days: ${{ inputs.artifact_retention_days }}
         cxx: ${{ inputs.cxx }}
 
     - name: Run SYCL CTS Tests
@@ -163,7 +163,7 @@ jobs:
         testing_mode: ${{ inputs.testing_mode }}
         binaries_artifact: ${{ inputs.binaries_artifact }}
         target_devices: ${{ inputs.target_devices }}
-        retention-days: ${{ inputs.artifact_retention_days }}
+        retention_days: ${{ inputs.artifact_retention_days }}
 
     - name:  Detect hung tests
       if: always()

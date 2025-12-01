@@ -43,7 +43,7 @@ jobs:
       build_configure_extra_args: '--hip --cuda -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}"'
       build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
 
-      retention-days: 90
+      retention_days: 90
       toolchain_artifact: sycl_linux_default
       # We upload the build for people to download/use, override its name and
       # prefer widespread gzip compression.
@@ -204,7 +204,7 @@ jobs:
     uses: ./.github/workflows/sycl-windows-build.yml
     if: github.repository == 'intel/llvm'
     with:
-      retention-days: 90
+      retention_days: 90
       # We upload both Linux/Windows build via Github's "Releases"
       # functionality, make sure Linux/Windows names follow the same pattern.
       toolchain_artifact_filename: sycl_windows.tar.gz

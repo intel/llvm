@@ -12,7 +12,7 @@ inputs:
     require: false
   target_devices:
     required: true
-  retention-days:
+  retention_days:
     required: false
 
 runs:
@@ -78,7 +78,7 @@ runs:
     with:
       name: ${{ inputs.binaries_artifact }}
       path: sycl_cts_bin.tar.zst
-      retention-days: ${{ inputs.retention-days }}
+      retention-days: ${{ inputs.retention_days }}
 
   - name: Download SYCL-CTS binaries
     if: inputs.testing_mode == 'run-only'

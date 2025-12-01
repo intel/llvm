@@ -46,7 +46,7 @@ on:
 
       # Artifacts:
 
-      retention-days:
+      retention_days:
         description: 'Artifacts retention period'
         type: string
         default: 3
@@ -123,7 +123,7 @@ on:
         options:
           - "default"
 
-      retention-days:
+      retention_days:
         type: choice
         options:
           - 3
@@ -284,7 +284,7 @@ jobs:
       with:
         name: ${{ inputs.release_toolchain_artifact }}
         path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
-        retention-days: ${{ inputs.retention-days }}
+        retention-days: ${{ inputs.retention_days }}
 
     - name: Install utilities
       if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
@@ -306,7 +306,7 @@ jobs:
       with:
         name: ${{ inputs.toolchain_artifact }}
         path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
-        retention-days: ${{ inputs.retention-days }}
+        retention-days: ${{ inputs.retention_days }}
 
 
     - name: Source OneAPI TBB vars.sh
