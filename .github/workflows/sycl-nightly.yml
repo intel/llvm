@@ -100,6 +100,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        enable_new_offload_model: ['False', 'True']
         include:
           - name: AMD/HIP
             runner: '["Linux", "amdgpu"]'
@@ -111,6 +112,7 @@ jobs:
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: hip:gpu
             extra_lit_opts: --param test-preview-mode=True
+            enable_new_offload_model: 'False'
 
           - name: NVIDIA/CUDA
             runner: '["Linux", "cuda"]'
@@ -122,6 +124,7 @@ jobs:
             image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
             target_devices: cuda:gpu
             extra_lit_opts: --param test-preview-mode=True
+            enable_new_offload_model: 'False'
 
           - name: Intel L0 Gen12 GPU
             runner: '["Linux", "gen12"]'
@@ -139,6 +142,7 @@ jobs:
             runner: '["Linux", "bmg"]'
             target_devices: level_zero:gpu
             extra_lit_opts: --param test-preview-mode=True
+            enable_new_offload_model: 'False'
 
           - name: Intel L0 Arc A-Series GPU
             runner: '["Linux", "arc"]'
@@ -167,66 +171,7 @@ jobs:
             runner: '["Linux", "pvc"]'
             target_devices: level_zero:gpu
             extra_lit_opts: --param test-preview-mode=True
-
-          - name: AMD/HIP with NewOffloadModel
-            runner: '["Linux", "amdgpu"]'
-            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
-            target_devices: hip:gpu
-            extra_lit_opts: --param enable_new_offload_model=True --param enable_new_offload_model=True
-
-          - name: NVIDIA/CUDA with NewOffloadModel
-            runner: '["Linux", "cuda"]'
-            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
-            target_devices: cuda:gpu
-            extra_lit_opts: --param enable_new_offload_model=True
-
-          - name: Intel L0 Gen12 GPU with NewOffloadModel
-            runner: '["Linux", "gen12"]'
-            target_devices: level_zero:gpu
-            extra_lit_opts: --param enable_new_offload_model=True
-
-          - name: Intel L0 Ponte Vecchio GPU with NewOffloadModel
-            runner: '["Linux", "pvc"]'
-            target_devices: level_zero:gpu
-            extra_lit_opts: --param enable_new_offload_model=True
-
-          - name: Intel L0 Battlemage GPU with NewOffloadModel
-            runner: '["Linux", "bmg"]'
-            target_devices: level_zero:gpu
-            extra_lit_opts: --param enable_new_offload_model=True
-
-          - name: Preview mode on Intel L0 Battlemage GPU with NewOffloadModel
-            runner: '["Linux", "bmg"]'
-            target_devices: level_zero:gpu
-            extra_lit_opts: --param test-preview-mode=True
-
-          - name: Intel L0 Arc A-Series GPU with NewOffloadModel
-            runner: '["Linux", "arc"]'
-            target_devices: level_zero:gpu
-            extra_lit_opts: --param enable_new_offload_model=True
-
-          - name: Intel OCL Gen12 GPU with NewOffloadModel
-            runner: '["Linux", "gen12"]'
-            target_devices: opencl:gpu
-            extra_lit_opts: --param enable_new_offload_model=True
-
-          - name: OCL CPU (AMD) with NewOffloadModel
-            runner: '["Linux", "amdcpu"]'
-            image_options: -u 1001
-            target_devices: opencl:cpu
-            extra_lit_opts: --param enable_new_offload_model=True
-
-          - name: OCL CPU (Intel/GEN12) with NewOffloadModel
-            runner: '["Linux", "gen12"]'
-            image_options: -u 1001 --privileged --cap-add SYS_ADMIN
-            target_devices: opencl:cpu
-            extra_lit_opts: --param enable_new_offload_model=True
-
-          - name: OCL CPU (Intel/Arc) with NewOffloadModel
-            runner: '["Linux", "arc"]'
-            image_options: -u 1001
-            target_devices: opencl:cpu
-            extra_lit_opts: --param enable_new_offload_model=True
+            enable_new_offload_model: 'False'
 
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
@@ -235,7 +180,7 @@ jobs:
       image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
       target_devices: ${{ matrix.target_devices }}
       tests_selector: e2e
-      extra_lit_opts: "--param 'cxx_flags=-D_GLIBCXX_USE_CXX11_ABI=0' ${{ matrix.extra_lit_opts }}"
+      extra_lit_opts: "--param 'cxx_flags=-D_GLIBCXX_USE_CXX11_ABI=0' ${{ matrix.extra_lit_opts }} --param enable_new_offload_model={{ matrix.enable_new_offload_model}}"
       repo_ref: ${{ github.sha }}
       toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
