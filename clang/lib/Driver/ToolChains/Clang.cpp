@@ -10027,7 +10027,8 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   // and enabling preview breaking changes.
   auto addCLIOptions = [&](ArgStringList &Args) -> void {
     // -offload-compress
-    if (C.getInputArgs().getLastArg(options::OPT_offload_compress)) {
+    if (C.getInputArgs().hasFlag(options::OPT_offload_compress,
+                                 options::OPT_no_offload_compress, false)) {
       Args.push_back(C.getArgs().MakeArgString(Twine("-offload-compress")));
       // -offload-compression-level=<>
       if (Arg *A = C.getInputArgs().getLastArg(
