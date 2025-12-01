@@ -3971,8 +3971,7 @@ static bool constructAggregate(EvalInfo &Info, const FPOptions FPO,
       if (auto *CXXRD = dyn_cast<CXXRecordDecl>(RD))
         NumBases = CXXRD->getNumBases();
 
-      *Res = APValue(APValue::UninitStruct(), NumBases,
-                     std::distance(RD->field_begin(), RD->field_end()));
+      *Res = APValue(APValue::UninitStruct(), NumBases, RD->getNumFields());
 
       SmallVector<std::tuple<APValue *, QualType, unsigned>> ReverseList;
       // we need to traverse backwards
@@ -5529,8 +5528,8 @@ static bool handleDefaultInitValue(QualType T, APValue &Result) {
       Result = APValue((const FieldDecl *)nullptr);
       return true;
     }
-    Result = APValue(APValue::UninitStruct(), RD->getNumBases(),
-                     std::distance(RD->field_begin(), RD->field_end()));
+    Result =
+        APValue(APValue::UninitStruct(), RD->getNumBases(), RD->getNumFields());
 
     unsigned Index = 0;
     for (CXXRecordDecl::base_class_const_iterator I = RD->bases_begin(),
@@ -7184,7 +7183,7 @@ static bool HandleConstructorCall(const Expr *E, const LValue &This,
   if (!Result.hasValue()) {
     if (!RD->isUnion())
       Result = APValue(APValue::UninitStruct(), RD->getNumBases(),
-                       std::distance(RD->field_begin(), RD->field_end()));
+                       RD->getNumFields());
     else
       // A union starts with no active member.
       Result = APValue((const FieldDecl*)nullptr);
@@ -8135,8 +8134,7 @@ class BufferToAPValueConverter {
     if (auto *CXXRD = dyn_cast<CXXRecordDecl>(RD))
       NumBases = CXXRD->getNumBases();
 
-    APValue ResultVal(APValue::UninitStruct(), NumBases,
-                      std::distance(RD->field_begin(), RD->field_end()));
+    APValue ResultVal(APValue::UninitStruct(), NumBases, RD->getNumFields());
 
     // Visit the base classes.
     if (auto *CXXRD = dyn_cast<CXXRecordDecl>(RD)) {
@@ -11164,7 +11162,7 @@ static bool HandleClassZeroInitialization(EvalInfo &Info, const Expr *E,
   assert(!RD->isUnion() && "Expected non-union class type");
   const CXXRecordDecl *CD = dyn_cast<CXXRecordDecl>(RD);
   Result = APValue(APValue::UninitStruct(), CD ? CD->getNumBases() : 0,
-                   std::distance(RD->field_begin(), RD->field_end()));
+                   RD->getNumFields());
 
   if (RD->isInvalidDecl()) return false;
   const ASTRecordLayout &Layout = Info.Ctx.getASTRecordLayout(RD);
@@ -11360,7 +11358,7 @@ bool RecordExprEvaluator::VisitCXXParenListOrInitListExpr(
 
   if (!Result.hasValue())
     Result = APValue(APValue::UninitStruct(), CXXRD ? CXXRD->getNumBases() : 0,
-                     std::distance(RD->field_begin(), RD->field_end()));
+                     RD->getNumFields());
   unsigned ElementNo = 0;
   bool Success = true;
 
@@ -11567,8 +11565,7 @@ bool RecordExprEvaluator::VisitLambdaExpr(const LambdaExpr *E) {
   if (ClosureClass->isInvalidDecl())
     return false;
 
-  const size_t NumFields =
-      std::distance(ClosureClass->field_begin(), ClosureClass->field_end());
+  const size_t NumFields = ClosureClass->getNumFields();
 
   assert(NumFields == (size_t)std::distance(E->capture_init_begin(),
                                             E->capture_init_end()) &&
@@ -16981,6 +16978,16 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
     return isSYCLFreeFunctionKernel(*this, Info, E, "sycl-nd-range-kernel", "",
                                     /*CheckNDRangeDim=*/true);
   }
+  case X86::BI__builtin_ia32_kmovb:
+  case X86::BI__builtin_ia32_kmovw:
+  case X86::BI__builtin_ia32_kmovd:
+  case X86::BI__builtin_ia32_kmovq: {
+    APSInt Val;
+    if (!EvaluateInteger(E->getArg(0), Val, Info))
+      return false;
+    return Success(Val, E);
+  }
+
   case clang::X86::BI__builtin_ia32_vec_ext_v4hi:
   case clang::X86::BI__builtin_ia32_vec_ext_v16qi:
   case clang::X86::BI__builtin_ia32_vec_ext_v8hi:
