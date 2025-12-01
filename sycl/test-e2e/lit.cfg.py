@@ -96,6 +96,7 @@ possibly_dangerous_env_vars = [
     "LIBCLANG_NOTHREADS",
     "LIBCLANG_RESOURCE_USAGE",
     "LIBCLANG_CODE_COMPLETION_LOGGING",
+    "ZE_AFFINITY_MASK",
 ]
 
 # Names of the Release and Debug versions of the XPTIFW library
@@ -576,7 +577,7 @@ if cl_options:
         (
             "%sycl_options",
             " "
-            + os.path.normpath(os.path.join(config.sycl_libs_dir + "/../lib/sycl8.lib"))
+            + os.path.normpath(os.path.join(config.sycl_libs_dir + "/../lib/sycl9.lib"))
             + " -Xclang -isystem -Xclang "
             + config.sycl_include
             + " -Xclang -isystem -Xclang "
@@ -594,7 +595,7 @@ else:
     config.substitutions.append(
         (
             "%sycl_options",
-            (" -lsycl8" if platform.system() == "Windows" else " -lsycl")
+            (" -lsycl9" if platform.system() == "Windows" else " -lsycl")
             + " -isystem "
             + config.sycl_include
             + " -isystem "
@@ -917,12 +918,14 @@ for sycl_device in config.sycl_devices:
 
     env = copy.copy(llvm_config.config.environment)
 
+    backend_for_selector = backend.replace("_v2", "").replace("_v1", "")
+
     # Find all available devices under the backend
-    env["ONEAPI_DEVICE_SELECTOR"] = backend + ":*"
+    env["ONEAPI_DEVICE_SELECTOR"] = backend_for_selector + ":*"
 
     detected_architectures = []
 
-    platform_devices = remove_level_zero_suffix(backend + ":*")
+    platform_devices = backend_for_selector + ":*"
 
     for line in get_sycl_ls_verbose(platform_devices, env).stdout.splitlines():
         if re.match(r" *Architecture:", line):
@@ -947,6 +950,15 @@ if not filtered_sycl_devices and not config.test_mode == "build-only":
     )
 
 config.sycl_devices = filtered_sycl_devices
+
+# Determine ZE_AFFINITY_MASK for Level Zero devices.
+# Sanitizer tests need to set ZE_AFFINITY_MASK to a single device index
+config.ze_affinity_mask = None
+for sycl_device in remove_level_zero_suffix(config.sycl_devices):
+    be, dev = sycl_device.split(":")
+    if be == "level_zero" and dev.isdigit():
+        config.ze_affinity_mask = dev
+        break
 
 for sycl_device in remove_level_zero_suffix(config.sycl_devices):
     be, dev = sycl_device.split(":")
@@ -1114,6 +1126,13 @@ for full_name, sycl_device in zip(
     features.update(device_family)
 
     be, dev = sycl_device.split(":")
+    if dev.isdigit():
+        backend_devices = available_devices.get(be, "gpu")
+        if isinstance(backend_devices, tuple):
+            # arch-selection is typically used to select gpu device
+            dev = "gpu"
+        else:
+            dev = backend_devices
     features.add(dev.replace("fpga", "accelerator"))
     if "level_zero_v2" in full_name:
         features.add("level_zero_v2_adapter")
@@ -1145,6 +1164,13 @@ for full_name, sycl_device in zip(
         config.intel_driver_ver[full_name] = intel_driver_ver
     else:
         config.intel_driver_ver[full_name] = {}
+
+# When running with a single device, merge device-specific features into global
+# available_features so that %if conditionals work correctly, even if device is not :gpu or :cpu
+if len(config.sycl_devices) == 1:
+    single_device = list(config.sycl_dev_features.keys())[0]
+    device_features = config.sycl_dev_features[single_device]
+    config.available_features.update(device_features)
 
 if lit_config.params.get("compatibility_testing", "False") != "False":
     config.substitutions.append(("%clangxx", " true "))

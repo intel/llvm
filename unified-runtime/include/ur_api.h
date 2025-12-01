@@ -489,6 +489,28 @@ typedef enum ur_function_t {
   UR_FUNCTION_PROGRAM_DYNAMIC_LINK_EXP = 294,
   /// Enumerator for ::urEnqueueKernelLaunchWithArgsExp
   UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP = 295,
+  /// Enumerator for ::urGraphCreateExp
+  UR_FUNCTION_GRAPH_CREATE_EXP = 296,
+  /// Enumerator for ::urQueueBeginGraphCaptureExp
+  UR_FUNCTION_QUEUE_BEGIN_GRAPH_CAPTURE_EXP = 297,
+  /// Enumerator for ::urQueueBeginCaptureIntoGraphExp
+  UR_FUNCTION_QUEUE_BEGIN_CAPTURE_INTO_GRAPH_EXP = 298,
+  /// Enumerator for ::urQueueEndGraphCaptureExp
+  UR_FUNCTION_QUEUE_END_GRAPH_CAPTURE_EXP = 299,
+  /// Enumerator for ::urQueueAppendGraphExp
+  UR_FUNCTION_QUEUE_APPEND_GRAPH_EXP = 301,
+  /// Enumerator for ::urGraphDestroyExp
+  UR_FUNCTION_GRAPH_DESTROY_EXP = 302,
+  /// Enumerator for ::urGraphExecutableGraphDestroyExp
+  UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_DESTROY_EXP = 303,
+  /// Enumerator for ::urQueueIsGraphCaptureEnabledExp
+  UR_FUNCTION_QUEUE_IS_GRAPH_CAPTURE_ENABLED_EXP = 304,
+  /// Enumerator for ::urGraphIsEmptyExp
+  UR_FUNCTION_GRAPH_IS_EMPTY_EXP = 305,
+  /// Enumerator for ::urGraphDumpContentsExp
+  UR_FUNCTION_GRAPH_DUMP_CONTENTS_EXP = 306,
+  /// Enumerator for ::urGraphInstantiateGraphExp
+  UR_FUNCTION_GRAPH_INSTANTIATE_GRAPH_EXP = 307,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -570,6 +592,12 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_USM_POOL_BUFFER_DESC = 36,
   /// ::ur_physical_mem_properties_t
   UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES = 37,
+  /// ::ur_kernel_launch_ext_properties_t
+  UR_STRUCTURE_TYPE_KERNEL_LAUNCH_EXT_PROPERTIES = 38,
+  /// ::ur_kernel_launch_cluster_property_t
+  UR_STRUCTURE_TYPE_KERNEL_LAUNCH_CLUSTER_PROPERTY = 40,
+  /// ::ur_kernel_launch_workgroup_property_t
+  UR_STRUCTURE_TYPE_KERNEL_LAUNCH_WORKGROUP_PROPERTY = 41,
   /// ::ur_exp_command_buffer_desc_t
   UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC = 0x1000,
   /// ::ur_exp_command_buffer_update_kernel_launch_desc_t
@@ -900,6 +928,8 @@ typedef enum ur_result_t {
   UR_RESULT_ERROR_DEVICE_NOT_AVAILABLE = 69,
   /// A specialization constant identifier is not valid.
   UR_RESULT_ERROR_INVALID_SPEC_ID = 70,
+  /// A graph object is not valid.
+  UR_RESULT_ERROR_INVALID_GRAPH = 71,
   /// Invalid Command-Buffer
   UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP = 0x1000,
   /// Sync point is not valid for the command-buffer
@@ -2459,6 +2489,9 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP = 0x2062,
   /// [::ur_bool_t] returns true if the device is integrated GPU.
   UR_DEVICE_INFO_IS_INTEGRATED_GPU = 0x2070,
+  /// [::ur_bool_t] returns true if the device supports graph record and replay
+  /// functionality.
+  UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP = 0x2080,
   /// [::ur_bool_t] Returns true if the device supports the USM P2P
   /// experimental feature.
   UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP = 0x4000,
@@ -3051,14 +3084,14 @@ typedef enum ur_device_throttle_reasons_flag_t {
 /// @brief Kernel launch properties support
 typedef uint32_t ur_kernel_launch_properties_flags_t;
 typedef enum ur_kernel_launch_properties_flag_t {
-  /// Supports ::UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE and
+  /// Supports ::UR_KERNEL_LAUNCH_FLAG_COOPERATIVE and
   /// ::urKernelSuggestMaxCooperativeGroupCount
   UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE = UR_BIT(0),
-  /// Supports ::UR_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION
+  /// Supports ::ur_kernel_launch_cluster_property_t
   UR_KERNEL_LAUNCH_PROPERTIES_FLAG_CLUSTER_DIMENSION = UR_BIT(1),
-  /// Supports ::UR_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY
+  /// Supports ::ur_kernel_launch_workgroup_property_t
   UR_KERNEL_LAUNCH_PROPERTIES_FLAG_WORK_GROUP_MEMORY = UR_BIT(2),
-  /// Supports ::UR_KERNEL_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE
+  /// Supports ::UR_KERNEL_LAUNCH_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE
   UR_KERNEL_LAUNCH_PROPERTIES_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE = UR_BIT(3),
   /// @cond
   UR_KERNEL_LAUNCH_PROPERTIES_FLAG_FORCE_UINT32 = 0x7fffffff
@@ -7750,64 +7783,77 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventSetCallback(
 #pragma region enqueue
 #endif
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Specifies a launch property id
-///
-/// @remarks
-///   _Analogues_
-///     - **CUlaunchAttributeID**
-typedef enum ur_kernel_launch_property_id_t {
-  /// The property has no effect.
-  UR_KERNEL_LAUNCH_PROPERTY_ID_IGNORE = 0,
+/// @brief Kernel launch flags
+typedef uint32_t ur_kernel_launch_flags_t;
+typedef enum ur_kernel_launch_flag_t {
   /// Whether to launch a cooperative kernel.
-  UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE = 1,
-  /// work-group cluster dimensions.
-  UR_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION = 2,
-  /// Implicit work group memory allocation.
-  UR_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY = 3,
+  UR_KERNEL_LAUNCH_FLAG_COOPERATIVE = UR_BIT(0),
   /// Whether to opportunistically execute kernel launches serially on a
   /// native queue
-  UR_KERNEL_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE = 4,
+  UR_KERNEL_LAUNCH_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE = UR_BIT(1),
   /// @cond
-  UR_KERNEL_LAUNCH_PROPERTY_ID_FORCE_UINT32 = 0x7fffffff
+  UR_KERNEL_LAUNCH_FLAG_FORCE_UINT32 = 0x7fffffff
   /// @endcond
 
-} ur_kernel_launch_property_id_t;
+} ur_kernel_launch_flag_t;
+/// @brief Bit Mask for validating ur_kernel_launch_flags_t
+#define UR_KERNEL_LAUNCH_FLAGS_MASK 0xfffffffc
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Specifies a launch property value
-///
-/// @remarks
-///   _Analogues_
-///     - **CUlaunchAttributeValue**
-typedef union ur_kernel_launch_property_value_t {
-  /// [in] dimensions of the cluster (units of work-group) (x, y, z). Each
-  /// value must be a divisor of the corresponding global work-size
-  /// dimension (in units of work-group).
-  uint32_t clusterDim[3];
-  /// [in] non-zero value indicates a cooperative kernel
-  int cooperative;
-  /// [in] non-zero value indicates the amount of work group memory to
-  /// allocate in bytes
-  size_t workgroup_mem_size;
-  /// [in] non-zero value indicates an opportunistic native queue serialized
-  /// kernel
-  int opportunistic_queue_serialize;
-
-} ur_kernel_launch_property_value_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Kernel launch property
+/// @brief Extended kernel launch properties
 ///
 /// @remarks
 ///   _Analogues_
 ///     - **cuLaunchAttribute**
-typedef struct ur_kernel_launch_property_t {
-  /// [in] launch property id
-  ur_kernel_launch_property_id_t id;
-  /// [in][tagged_by(id)] launch property value
-  ur_kernel_launch_property_value_t value;
+typedef struct ur_kernel_launch_ext_properties_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_KERNEL_LAUNCH_EXT_PROPERTIES
+  ur_structure_type_t stype;
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
+  /// [in] Kernel launch flags. Allowed values are:
+  /// ::UR_KERNEL_LAUNCH_FLAG_COOPERATIVE,
+  /// ::UR_KERNEL_LAUNCH_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE.
+  ur_kernel_launch_flags_t flags;
 
-} ur_kernel_launch_property_t;
+} ur_kernel_launch_ext_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Kernel launch cluster property
+///
+/// @remarks
+///   _Analogues_
+///     - **CUlaunchAttributeValue**
+typedef struct ur_kernel_launch_cluster_property_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_KERNEL_LAUNCH_CLUSTER_PROPERTY
+  ur_structure_type_t stype;
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
+  /// [in] dimensions of the cluster (units of work-group) (x, y, z). Each
+  /// value must be a divisor of the corresponding global work-size
+  /// dimension (in units of work-group).
+  uint32_t clusterDim[3];
+
+} ur_kernel_launch_cluster_property_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Kernel launch work group memory property
+///
+/// @remarks
+///   _Analogues_
+///     - **CUlaunchAttributeValue**
+typedef struct ur_kernel_launch_workgroup_property_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_KERNEL_LAUNCH_WORKGROUP_PROPERTY
+  ur_structure_type_t stype;
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
+  /// [in] non-zero value indicates the amount of work group memory to
+  /// allocate in bytes
+  size_t workgroup_mem_size;
+
+} ur_kernel_launch_workgroup_property_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue a command to execute a kernel
@@ -7829,7 +7875,9 @@ typedef struct ur_kernel_launch_property_t {
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pGlobalWorkSize`
-///         + `launchPropList == NULL && numPropsInLaunchPropList > 0`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `NULL != launchPropList && ::UR_KERNEL_LAUNCH_FLAGS_MASK &
+///         launchPropList->flags`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
@@ -7866,11 +7914,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     /// execute the kernel function.
     /// If nullptr, the runtime implementation will choose the work-group size.
     const size_t *pLocalWorkSize,
-    /// [in] size of the launch prop list
-    uint32_t numPropsInLaunchPropList,
-    /// [in][optional][range(0, numPropsInLaunchPropList)] pointer to a list
-    /// of launch properties
-    const ur_kernel_launch_property_t *launchPropList,
+    /// [in][optional] pointer to a single linked list of launch properties
+    const ur_kernel_launch_ext_properties_t *launchPropList,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -13213,10 +13258,11 @@ typedef struct ur_exp_kernel_arg_properties_t {
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pGlobalWorkSize`
-///         + `launchPropList == NULL && numPropsInLaunchPropList > 0`
 ///         + `pArgs == NULL && numArgs > 0`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `NULL != pArgs && ::UR_EXP_KERNEL_ARG_TYPE_SAMPLER < pArgs->type`
+///         + `NULL != launchPropList && ::UR_KERNEL_LAUNCH_FLAGS_MASK &
+///         launchPropList->flags`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
@@ -13264,11 +13310,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
     /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
     /// properties.
     const ur_exp_kernel_arg_properties_t *pArgs,
-    /// [in] size of the launch prop list
-    uint32_t numPropsInLaunchPropList,
-    /// [in][optional][range(0, numPropsInLaunchPropList)] pointer to a list
-    /// of launch properties
-    const ur_kernel_launch_property_t *launchPropList,
+    /// [in][optional] pointer to a single linked list of launch properties
+    const ur_kernel_launch_ext_properties_t *launchPropList,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -13463,6 +13506,245 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     /// not NULL, phEvent must not refer to an element of the phEventWaitList
     /// array.
     ur_event_handle_t *phEvent);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
+// Intel 'oneAPI' Unified Runtime Experimental APIs for Graph Record and Replay
+#if !defined(__GNUC__)
+#pragma region graph_(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Handle of record & replay graph object
+typedef struct ur_exp_graph_handle_t_ *ur_exp_graph_handle_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Handle of record & replay executable graph object
+typedef struct ur_exp_executable_graph_handle_t_
+    *ur_exp_executable_graph_handle_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Create a new record & replay graph instance explicitly.
+///
+/// @details
+///     - Create a new record & replay graph instance explicitly.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phGraph`
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+UR_APIEXPORT ur_result_t UR_APICALL urGraphCreateExp(
+    /// [in] Handle of the context object.
+    ur_context_handle_t hContext,
+    /// [out][alloc] Pointer to the handle of the created graph object.
+    ur_exp_graph_handle_t *phGraph);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Begin graph capture on the specified immediate queue.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+UR_APIEXPORT ur_result_t UR_APICALL urQueueBeginGraphCaptureExp(
+    /// [in] Handle of the queue on which to begin graph capture.
+    ur_queue_handle_t hQueue);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Begin capturing commands into an existing graph on the specified
+///        immediate queue.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///         + `NULL == hGraph`
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+UR_APIEXPORT ur_result_t UR_APICALL urQueueBeginCaptureIntoGraphExp(
+    /// [in] Handle of the queue on which to begin graph capture.
+    ur_queue_handle_t hQueue,
+    /// [in] Handle of the graph object to capture into.
+    ur_exp_graph_handle_t hGraph);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief End graph capture on the specified immediate queue.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phGraph`
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+UR_APIEXPORT ur_result_t UR_APICALL urQueueEndGraphCaptureExp(
+    /// [in] Handle of the queue on which to end graph capture.
+    ur_queue_handle_t hQueue,
+    /// [out] Pointer to the handle of the recorded graph object. If
+    /// ::urQueueBeginCaptureIntoGraphExp was used to begin the capture, then
+    /// phGraph will contain the same graph that was passed to it.
+    ur_exp_graph_handle_t *phGraph);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Instantiate an executable graph from a recorded graph.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hGraph`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phExecGraph`
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+UR_APIEXPORT ur_result_t UR_APICALL urGraphInstantiateGraphExp(
+    /// [in] Handle of the recorded graph to instantiate.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] Pointer to the handle of the instantiated executable graph.
+    ur_exp_executable_graph_handle_t *phExecGraph);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Append an executable graph to the queue.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///         + `NULL == hGraph`
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+UR_APIEXPORT ur_result_t UR_APICALL urQueueAppendGraphExp(
+    /// [in] Handle of the queue to append the graph to.
+    ur_queue_handle_t hQueue,
+    /// [in] Handle of the executable graph to append.
+    ur_exp_executable_graph_handle_t hGraph,
+    /// [in][optional] Event to be signaled on completion.
+    ur_event_handle_t hSignalEvent,
+    /// [in][optional] Number of events to wait on before executing.
+    uint32_t numWaitEvents,
+    /// [in][optional][range(0, numWaitEvents)] Handle of the events to wait
+    /// on before launching.
+    ur_event_handle_t *phWaitEvents);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Destroy a recorded graph object. All executable graph instances
+///        created from this recorded graph must be destroyed before calling
+///        this function.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hGraph`
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+UR_APIEXPORT ur_result_t UR_APICALL urGraphDestroyExp(
+    /// [in] Handle of the graph object to destroy.
+    ur_exp_graph_handle_t hGraph);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Destroy an instantiated executable graph object. The graph instance
+///        must not be executing on any queue.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hExecutableGraph`
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+UR_APIEXPORT ur_result_t UR_APICALL urGraphExecutableGraphDestroyExp(
+    /// [in] Handle of the executable graph object to destroy.
+    ur_exp_executable_graph_handle_t hExecutableGraph);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Query whether graph capture is currently enabled on the given queue.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == hResult`
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+UR_APIEXPORT ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
+    /// [in] Native queue to query.
+    ur_queue_handle_t hQueue,
+    /// [out] Pointer to a boolean where the result will be stored.
+    bool *hResult);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Return whether the given recorded graph contains any nodes.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hGraph`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == hResult`
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL urGraphIsEmptyExp(
+    /// [in] Handle of the graph to query.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] Pointer to a boolean where the result will be stored.
+    bool *hResult);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Dump the contents of the recorded graph to the provided file path.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hGraph`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == filePath`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL urGraphDumpContentsExp(
+    /// [in] Handle of the graph to dump.
+    ur_exp_graph_handle_t hGraph,
+    /// [in] Path to the file to write the dumped graph contents.
+    const char *filePath);
 
 #if !defined(__GNUC__)
 #pragma endregion
@@ -14284,6 +14566,53 @@ typedef struct ur_queue_flush_params_t {
 } ur_queue_flush_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urQueueBeginGraphCaptureExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_queue_begin_graph_capture_exp_params_t {
+  ur_queue_handle_t *phQueue;
+} ur_queue_begin_graph_capture_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urQueueBeginCaptureIntoGraphExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_queue_begin_capture_into_graph_exp_params_t {
+  ur_queue_handle_t *phQueue;
+  ur_exp_graph_handle_t *phGraph;
+} ur_queue_begin_capture_into_graph_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urQueueEndGraphCaptureExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_queue_end_graph_capture_exp_params_t {
+  ur_queue_handle_t *phQueue;
+  ur_exp_graph_handle_t **pphGraph;
+} ur_queue_end_graph_capture_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urQueueAppendGraphExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_queue_append_graph_exp_params_t {
+  ur_queue_handle_t *phQueue;
+  ur_exp_executable_graph_handle_t *phGraph;
+  ur_event_handle_t *phSignalEvent;
+  uint32_t *pnumWaitEvents;
+  ur_event_handle_t **pphWaitEvents;
+} ur_queue_append_graph_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urQueueIsGraphCaptureEnabledExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_queue_is_graph_capture_enabled_exp_params_t {
+  ur_queue_handle_t *phQueue;
+  bool **phResult;
+} ur_queue_is_graph_capture_enabled_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urSamplerCreate
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -14503,8 +14832,7 @@ typedef struct ur_enqueue_kernel_launch_params_t {
   const size_t **ppGlobalWorkOffset;
   const size_t **ppGlobalWorkSize;
   const size_t **ppLocalWorkSize;
-  uint32_t *pnumPropsInLaunchPropList;
-  const ur_kernel_launch_property_t **plaunchPropList;
+  const ur_kernel_launch_ext_properties_t **plaunchPropList;
   uint32_t *pnumEventsInWaitList;
   const ur_event_handle_t **pphEventWaitList;
   ur_event_handle_t **pphEvent;
@@ -14910,8 +15238,7 @@ typedef struct ur_enqueue_kernel_launch_with_args_exp_params_t {
   const size_t **ppLocalWorkSize;
   uint32_t *pnumArgs;
   const ur_exp_kernel_arg_properties_t **ppArgs;
-  uint32_t *pnumPropsInLaunchPropList;
-  const ur_kernel_launch_property_t **plaunchPropList;
+  const ur_kernel_launch_ext_properties_t **plaunchPropList;
   uint32_t *pnumEventsInWaitList;
   const ur_event_handle_t **pphEventWaitList;
   ur_event_handle_t **pphEvent;
@@ -15888,6 +16215,58 @@ typedef struct ur_command_buffer_get_native_handle_exp_params_t {
   ur_exp_command_buffer_handle_t *phCommandBuffer;
   ur_native_handle_t **pphNativeCommandBuffer;
 } ur_command_buffer_get_native_handle_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urGraphCreateExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_graph_create_exp_params_t {
+  ur_context_handle_t *phContext;
+  ur_exp_graph_handle_t **pphGraph;
+} ur_graph_create_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urGraphInstantiateGraphExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_graph_instantiate_graph_exp_params_t {
+  ur_exp_graph_handle_t *phGraph;
+  ur_exp_executable_graph_handle_t **pphExecGraph;
+} ur_graph_instantiate_graph_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urGraphDestroyExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_graph_destroy_exp_params_t {
+  ur_exp_graph_handle_t *phGraph;
+} ur_graph_destroy_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urGraphExecutableGraphDestroyExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_graph_executable_graph_destroy_exp_params_t {
+  ur_exp_executable_graph_handle_t *phExecutableGraph;
+} ur_graph_executable_graph_destroy_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urGraphIsEmptyExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_graph_is_empty_exp_params_t {
+  ur_exp_graph_handle_t *phGraph;
+  bool **phResult;
+} ur_graph_is_empty_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urGraphDumpContentsExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_graph_dump_contents_exp_params_t {
+  ur_exp_graph_handle_t *phGraph;
+  const char **pfilePath;
+} ur_graph_dump_contents_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urIPCGetMemHandleExp

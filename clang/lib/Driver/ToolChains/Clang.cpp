@@ -29,10 +29,10 @@
 #include "clang/Driver/CommonArgs.h"
 #include "clang/Driver/Distro.h"
 #include "clang/Driver/InputInfo.h"
-#include "clang/Driver/Options.h"
 #include "clang/Driver/SanitizerArgs.h"
 #include "clang/Driver/Types.h"
 #include "clang/Driver/XRayArgs.h"
+#include "clang/Options/Options.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringExtras.h"
@@ -74,7 +74,7 @@ static bool isSYCLCudaCompatEnabled(const ArgList &Args) {
 }
 
 static void CheckPreprocessingOptions(const Driver &D, const ArgList &Args) {
-  if (Arg *A = Args.getLastArg(clang::driver::options::OPT_C, options::OPT_CC,
+  if (Arg *A = Args.getLastArg(options::OPT_C, options::OPT_CC,
                                options::OPT_fminimize_whitespace,
                                options::OPT_fno_minimize_whitespace,
                                options::OPT_fkeep_system_includes,
@@ -1740,7 +1740,7 @@ void Clang::AddAArch64TargetArgs(const ArgList &Args,
 
   AddAAPCSVolatileBitfieldArgs(Args, CmdArgs);
 
-  if (const Arg *A = Args.getLastArg(clang::driver::options::OPT_mtune_EQ)) {
+  if (const Arg *A = Args.getLastArg(options::OPT_mtune_EQ)) {
     CmdArgs.push_back("-tune-cpu");
     if (strcmp(A->getValue(), "native") == 0)
       CmdArgs.push_back(Args.MakeArgString(llvm::sys::getHostCPUName()));
@@ -2146,7 +2146,7 @@ void Clang::AddSparcTargetArgs(const ArgList &Args,
     CmdArgs.push_back("hard");
   }
 
-  if (const Arg *A = Args.getLastArg(clang::driver::options::OPT_mtune_EQ)) {
+  if (const Arg *A = Args.getLastArg(options::OPT_mtune_EQ)) {
     StringRef Name = A->getValue();
     std::string TuneCPU;
     if (Name == "native")
@@ -2252,12 +2252,11 @@ void Clang::AddX86TargetArgs(const ArgList &Args,
 
   // Default to "generic" unless -march is present or targetting the PS4/PS5.
   std::string TuneCPU;
-  if (!Args.hasArg(clang::driver::options::OPT_march_EQ) &&
-      !getToolChain().getTriple().isPS())
+  if (!Args.hasArg(options::OPT_march_EQ) && !getToolChain().getTriple().isPS())
     TuneCPU = "generic";
 
   // Override based on -mtune.
-  if (const Arg *A = Args.getLastArg(clang::driver::options::OPT_mtune_EQ)) {
+  if (const Arg *A = Args.getLastArg(options::OPT_mtune_EQ)) {
     StringRef Name = A->getValue();
 
     if (Name == "native") {
@@ -3880,6 +3879,7 @@ static void RenderHLSLOptions(const ArgList &Args, ArgStringList &CmdArgs,
       options::OPT_emit_obj,
       options::OPT_disable_llvm_passes,
       options::OPT_fnative_half_type,
+      options::OPT_fnative_int16_type,
       options::OPT_hlsl_entrypoint,
       options::OPT_fdx_rootsignature_define,
       options::OPT_fdx_rootsignature_version,
@@ -5032,24 +5032,26 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   if (IsMSVCHostCompiler)
     HostCompileArgs.push_back("/external:W0");
 
-  // Add default header search directories.
-  SmallString<128> BaseDir(C.getDriver().Dir);
-  llvm::sys::path::append(BaseDir, "..", "include");
-  SmallString<128> SYCLDir(BaseDir);
-  llvm::sys::path::append(SYCLDir, "sycl");
-  // This is used to provide our wrappers around STL headers that provide
-  // additional functions/template specializations when the user includes those
-  // STL headers in their programs (e.g., <complex>).
-  SmallString<128> STLWrappersDir(SYCLDir);
-  llvm::sys::path::append(STLWrappersDir, "stl_wrappers");
-  // Add the SYCL specific header directories as system directories for non
-  // MSVC compilers.
-  HostCompileArgs.push_back(IsMSVCHostCompiler ? "/external:I" : "-isystem");
-  HostCompileArgs.push_back(TCArgs.MakeArgString(SYCLDir));
-  HostCompileArgs.push_back(IsMSVCHostCompiler ? "/external:I" : "-isystem");
-  HostCompileArgs.push_back(TCArgs.MakeArgString(STLWrappersDir));
-  HostCompileArgs.push_back(IsMSVCHostCompiler ? "/external:I" : "-isystem");
-  HostCompileArgs.push_back(TCArgs.MakeArgString(BaseDir));
+  if (!TCArgs.hasArg(options::OPT_nostdlibinc, options::OPT_nostdinc)) {
+    // Add default header search directories.
+    SmallString<128> BaseDir(C.getDriver().Dir);
+    llvm::sys::path::append(BaseDir, "..", "include");
+    SmallString<128> SYCLDir(BaseDir);
+    llvm::sys::path::append(SYCLDir, "sycl");
+    // This is used to provide our wrappers around STL headers that provide
+    // additional functions/template specializations when the user includes
+    // those STL headers in their programs (e.g., <complex>).
+    SmallString<128> STLWrappersDir(SYCLDir);
+    llvm::sys::path::append(STLWrappersDir, "stl_wrappers");
+    // Add the SYCL specific header directories as system directories for non
+    // MSVC compilers.
+    HostCompileArgs.push_back(IsMSVCHostCompiler ? "/external:I" : "-isystem");
+    HostCompileArgs.push_back(TCArgs.MakeArgString(SYCLDir));
+    HostCompileArgs.push_back(IsMSVCHostCompiler ? "/external:I" : "-isystem");
+    HostCompileArgs.push_back(TCArgs.MakeArgString(STLWrappersDir));
+    HostCompileArgs.push_back(IsMSVCHostCompiler ? "/external:I" : "-isystem");
+    HostCompileArgs.push_back(TCArgs.MakeArgString(BaseDir));
+  }
 
   if (!OutputAdded) {
     // Add output file to the command line.  This is assumed to be prefaced
@@ -5083,7 +5085,7 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   const Tool *T = TC.SelectTool(JA);
   auto Cmd = std::make_unique<Command>(JA, *T, ResponseFileSupport::None(),
                                        TCArgs.MakeArgString(ExecPath),
-                                       HostCompileArgs, std::nullopt);
+                                       HostCompileArgs, ArrayRef<InputInfo>{});
 
   C.addCommand(std::move(Cmd));
 }
@@ -8761,10 +8763,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                        !TC.getTriple().isAndroid() && TC.useIntegratedAs()))
     CmdArgs.push_back("-faddrsig");
 
-  if ((Triple.isOSBinFormatELF() || Triple.isOSBinFormatMachO()) &&
+  const bool HasDefaultDwarf2CFIASM =
+      (Triple.isOSBinFormatELF() || Triple.isOSBinFormatMachO()) &&
       (EH || UnwindTables || AsyncUnwindTables ||
-       DebugInfoKind != llvm::codegenoptions::NoDebugInfo))
-    CmdArgs.push_back("-D__GCC_HAVE_DWARF2_CFI_ASM=1");
+       DebugInfoKind != llvm::codegenoptions::NoDebugInfo);
+  if (Args.hasFlag(options::OPT_fdwarf2_cfi_asm,
+                   options::OPT_fno_dwarf2_cfi_asm, HasDefaultDwarf2CFIASM))
+    CmdArgs.push_back("-fdwarf2-cfi-asm");
 
   if (Arg *A = Args.getLastArg(options::OPT_fsymbol_partition_EQ)) {
     std::string Str = A->getAsString(Args);
@@ -9144,6 +9149,30 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
      D.Diag(diag::err_drv_argument_not_allowed_with) << "/GR"
                                                      << "/kernel";
  }
+
+  if (const Arg *A = Args.getLastArg(options::OPT__SLASH_vlen,
+                                     options::OPT__SLASH_vlen_EQ_256,
+                                     options::OPT__SLASH_vlen_EQ_512)) {
+    llvm::Triple::ArchType AT = getToolChain().getArch();
+    StringRef Default = AT == llvm::Triple::x86 ? "IA32" : "SSE2";
+    StringRef Arch = Args.getLastArgValue(options::OPT__SLASH_arch, Default);
+
+    if (A->getOption().matches(options::OPT__SLASH_vlen_EQ_512)) {
+      if (Arch == "AVX512F" || Arch == "AVX512")
+        CmdArgs.push_back("-mprefer-vector-width=512");
+      else
+        D.Diag(diag::warn_drv_argument_not_allowed_with)
+            << "/vlen=512" << std::string("/arch:").append(Arch);
+    }
+
+    if (A->getOption().matches(options::OPT__SLASH_vlen_EQ_256)) {
+      if (Arch == "AVX512F" || Arch == "AVX512")
+        CmdArgs.push_back("-mprefer-vector-width=256");
+      else if (Arch != "AVX" && Arch != "AVX2")
+        D.Diag(diag::warn_drv_argument_not_allowed_with)
+            << "/vlen=256" << std::string("/arch:").append(Arch);
+    }
+  }
 
   Arg *MostGeneralArg = Args.getLastArg(options::OPT__SLASH_vmg);
   Arg *BestCaseArg = Args.getLastArg(options::OPT__SLASH_vmb);
@@ -10019,13 +10048,8 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // clang-offload-wrapper
     //   -o=<outputfile>.bc
     //   -host=x86_64-pc-linux-gnu -kind=sycl
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    //   -format=spirv <inputfile1>.spv <manifest1>(optional)
-    //   -format=spirv <inputfile2>.spv <manifest2>(optional)
-#else
     //   -format=spirv <inputfile1>.spv
     //   -format=spirv <inputfile2>.spv
-#endif
     //  ...
     ArgStringList WrapperArgs;
 
@@ -10097,7 +10121,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     auto Cmd = std::make_unique<Command>(
         JA, *this, ResponseFileSupport::None(),
         TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
-        WrapperArgs, std::nullopt);
+        WrapperArgs, ArrayRef<InputInfo>{});
     C.addCommand(std::move(Cmd));
 
     if (WrapperCompileEnabled) {
@@ -10123,7 +10147,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       const char *Clang = C.getArgs().MakeArgString(ClangPath);
       auto PostWrapCompileCmd =
           std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
-                                    Clang, ClangArgs, std::nullopt);
+                                    Clang, ClangArgs, ArrayRef<InputInfo>{});
       C.addCommand(std::move(PostWrapCompileCmd));
     }
     return;
@@ -10248,6 +10272,18 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
         "kind=" + Kind.str(),
     };
 
+    // When compiling like -fsycl-targets=spir64_gen -Xsycl-target-backend
+    // "-device pvc,bdw", the offloading arch will be "pvc,bdw", which
+    // contains a comma. Because the comma is used to separate fields
+    // within the --image option, we cannot pass arch=pvc,bdw directly.
+    // Instead, we pass it like arch=pvc,arch=bdw, then
+    // llvm-offload-binary joins them back to arch=pvc,bdw.
+    SmallVector<StringRef> Archs;
+    Arch.split(Archs, ',');
+    if (Archs.size() > 1) {
+      Parts[2] = "arch=" + llvm::join(Archs, ",arch=");
+    }
+
     if (TC->getDriver().isUsingOffloadLTO())
       for (StringRef Feature : FeatureArgs)
         Parts.emplace_back("feature=" + Feature.str());
@@ -10271,7 +10307,13 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
           AL += " ";
           AL += A;
         }
-        Parts.emplace_back(C.getArgs().MakeArgString(Twine(Opt) + AL));
+        // As mentioned earlier, we cannot pass a value with commas directly,
+        // but llvm-offload-binary joins multiple occurrences of the same
+        // option separated by commas, so we split the value on
+        // all commas and pass them as separate arguments.
+        for (StringRef Split : llvm::split(AL, ',')) {
+          Parts.emplace_back(C.getArgs().MakeArgString(Twine(Opt) + Split));
+        }
       };
       const ArgList &Args =
           C.getArgsForToolChain(nullptr, StringRef(), Action::OFK_SYCL);
@@ -10280,10 +10322,10 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
           static_cast<const toolchains::SYCLToolChain &>(*TC);
       SYCLTC.AddImpliedTargetArgs(TC->getTriple(), Args, BuildArgs, JA, *HostTC,
                                   Arch);
-      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs, Arch);
+      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
       createArgString("compile-opts=");
       BuildArgs.clear();
-      SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs, Arch);
+      SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);
       createArgString("link-opts=");
     }
 
@@ -10398,7 +10440,7 @@ void OffloadDeps::constructJob(Compilation &C, const JobAction &JA,
   C.addCommand(std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),
       TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
-      CmdArgs, std::nullopt, Outputs));
+      CmdArgs, ArrayRef<InputInfo>{}, Outputs));
 }
 
 void OffloadDeps::ConstructJob(Compilation &C, const JobAction &JA,
@@ -10610,7 +10652,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
   auto Cmd = std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),
       TCArgs.MakeArgString(getToolChain().GetProgramPath(ToolName)),
-      TranslatorArgs, std::nullopt);
+      TranslatorArgs, ArrayRef<InputInfo>{});
 
   if (!ForeachArgs.empty()) {
     // Construct llvm-foreach command.
@@ -10657,7 +10699,8 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     llvm::sys::path::append(ForeachPath, "llvm-foreach");
     const char *Foreach = C.getArgs().MakeArgString(ForeachPath);
     C.addCommand(std::make_unique<Command>(
-        JA, *this, ResponseFileSupport::None(), Foreach, ForeachArgs, std::nullopt));
+        JA, *this, ResponseFileSupport::None(), Foreach, ForeachArgs,
+        ArrayRef<InputInfo>{}));
   } else
     C.addCommand(std::move(Cmd));
 }
@@ -11048,7 +11091,7 @@ void AppendFooter::ConstructJob(Compilation &C, const JobAction &JA,
   C.addCommand(std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),
       TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
-      CmdArgs, std::nullopt));
+      CmdArgs, ArrayRef<InputInfo>{}));
 }
 
 void SpirvToIrWrapper::ConstructJob(Compilation &C, const JobAction &JA,
@@ -11093,7 +11136,7 @@ void SpirvToIrWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   auto Cmd = std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),
       TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
-      CmdArgs, std::nullopt);
+      CmdArgs, ArrayRef<InputInfo>{});
   if (!ForeachInputs.empty()) {
     StringRef ParallelJobs =
         TCArgs.getLastArgValue(options::OPT_fsycl_max_parallel_jobs_EQ);

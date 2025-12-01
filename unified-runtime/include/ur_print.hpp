@@ -42,6 +42,9 @@ template <>
 struct is_handle<ur_exp_command_buffer_handle_t> : std::true_type {};
 template <>
 struct is_handle<ur_exp_command_buffer_command_handle_t> : std::true_type {};
+template <> struct is_handle<ur_exp_graph_handle_t> : std::true_type {};
+template <>
+struct is_handle<ur_exp_executable_graph_handle_t> : std::true_type {};
 template <typename T> inline constexpr bool is_handle_v = is_handle<T>::value;
 template <typename T>
 inline ur_result_t printPtr(std::ostream &os, const T *ptr);
@@ -223,10 +226,9 @@ template <>
 inline ur_result_t printTagged(std::ostream &os, const void *ptr,
                                ur_profiling_info_t value, size_t size);
 
-inline ur_result_t
-printUnion(std::ostream &os,
-           const union ur_kernel_launch_property_value_t params,
-           const enum ur_kernel_launch_property_id_t tag);
+template <>
+inline ur_result_t printFlag<ur_kernel_launch_flag_t>(std::ostream &os,
+                                                      uint32_t flag);
 
 template <>
 inline ur_result_t printFlag<ur_map_flag_t>(std::ostream &os, uint32_t flag);
@@ -524,10 +526,16 @@ operator<<(std::ostream &os,
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_execution_info_t value);
 inline std::ostream &operator<<(std::ostream &os,
-                                enum ur_kernel_launch_property_id_t value);
-inline std::ostream &
-operator<<(std::ostream &os,
-           [[maybe_unused]] const struct ur_kernel_launch_property_t params);
+                                enum ur_kernel_launch_flag_t value);
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_kernel_launch_ext_properties_t params);
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_kernel_launch_cluster_property_t params);
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_kernel_launch_workgroup_property_t params);
 inline std::ostream &operator<<(std::ostream &os, enum ur_map_flag_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_usm_migration_flag_t value);
@@ -1317,6 +1325,39 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP:
     os << "UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP";
     break;
+  case UR_FUNCTION_GRAPH_CREATE_EXP:
+    os << "UR_FUNCTION_GRAPH_CREATE_EXP";
+    break;
+  case UR_FUNCTION_QUEUE_BEGIN_GRAPH_CAPTURE_EXP:
+    os << "UR_FUNCTION_QUEUE_BEGIN_GRAPH_CAPTURE_EXP";
+    break;
+  case UR_FUNCTION_QUEUE_BEGIN_CAPTURE_INTO_GRAPH_EXP:
+    os << "UR_FUNCTION_QUEUE_BEGIN_CAPTURE_INTO_GRAPH_EXP";
+    break;
+  case UR_FUNCTION_QUEUE_END_GRAPH_CAPTURE_EXP:
+    os << "UR_FUNCTION_QUEUE_END_GRAPH_CAPTURE_EXP";
+    break;
+  case UR_FUNCTION_QUEUE_APPEND_GRAPH_EXP:
+    os << "UR_FUNCTION_QUEUE_APPEND_GRAPH_EXP";
+    break;
+  case UR_FUNCTION_GRAPH_DESTROY_EXP:
+    os << "UR_FUNCTION_GRAPH_DESTROY_EXP";
+    break;
+  case UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_DESTROY_EXP:
+    os << "UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_DESTROY_EXP";
+    break;
+  case UR_FUNCTION_QUEUE_IS_GRAPH_CAPTURE_ENABLED_EXP:
+    os << "UR_FUNCTION_QUEUE_IS_GRAPH_CAPTURE_ENABLED_EXP";
+    break;
+  case UR_FUNCTION_GRAPH_IS_EMPTY_EXP:
+    os << "UR_FUNCTION_GRAPH_IS_EMPTY_EXP";
+    break;
+  case UR_FUNCTION_GRAPH_DUMP_CONTENTS_EXP:
+    os << "UR_FUNCTION_GRAPH_DUMP_CONTENTS_EXP";
+    break;
+  case UR_FUNCTION_GRAPH_INSTANTIATE_GRAPH_EXP:
+    os << "UR_FUNCTION_GRAPH_INSTANTIATE_GRAPH_EXP";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -1437,6 +1478,15 @@ inline std::ostream &operator<<(std::ostream &os,
     break;
   case UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES:
     os << "UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES";
+    break;
+  case UR_STRUCTURE_TYPE_KERNEL_LAUNCH_EXT_PROPERTIES:
+    os << "UR_STRUCTURE_TYPE_KERNEL_LAUNCH_EXT_PROPERTIES";
+    break;
+  case UR_STRUCTURE_TYPE_KERNEL_LAUNCH_CLUSTER_PROPERTY:
+    os << "UR_STRUCTURE_TYPE_KERNEL_LAUNCH_CLUSTER_PROPERTY";
+    break;
+  case UR_STRUCTURE_TYPE_KERNEL_LAUNCH_WORKGROUP_PROPERTY:
+    os << "UR_STRUCTURE_TYPE_KERNEL_LAUNCH_WORKGROUP_PROPERTY";
     break;
   case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC:
     os << "UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC";
@@ -1708,6 +1758,24 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
   case UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES: {
     const ur_physical_mem_properties_t *pstruct =
         (const ur_physical_mem_properties_t *)ptr;
+    printPtr(os, pstruct);
+  } break;
+
+  case UR_STRUCTURE_TYPE_KERNEL_LAUNCH_EXT_PROPERTIES: {
+    const ur_kernel_launch_ext_properties_t *pstruct =
+        (const ur_kernel_launch_ext_properties_t *)ptr;
+    printPtr(os, pstruct);
+  } break;
+
+  case UR_STRUCTURE_TYPE_KERNEL_LAUNCH_CLUSTER_PROPERTY: {
+    const ur_kernel_launch_cluster_property_t *pstruct =
+        (const ur_kernel_launch_cluster_property_t *)ptr;
+    printPtr(os, pstruct);
+  } break;
+
+  case UR_STRUCTURE_TYPE_KERNEL_LAUNCH_WORKGROUP_PROPERTY: {
+    const ur_kernel_launch_workgroup_property_t *pstruct =
+        (const ur_kernel_launch_workgroup_property_t *)ptr;
     printPtr(os, pstruct);
   } break;
 
@@ -2033,6 +2101,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value) {
     break;
   case UR_RESULT_ERROR_INVALID_SPEC_ID:
     os << "UR_RESULT_ERROR_INVALID_SPEC_ID";
+    break;
+  case UR_RESULT_ERROR_INVALID_GRAPH:
+    os << "UR_RESULT_ERROR_INVALID_GRAPH";
     break;
   case UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP:
     os << "UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP";
@@ -3185,6 +3256,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     break;
   case UR_DEVICE_INFO_IS_INTEGRATED_GPU:
     os << "UR_DEVICE_INFO_IS_INTEGRATED_GPU";
+    break;
+  case UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP";
     break;
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP";
@@ -5383,6 +5457,19 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     os << ")";
   } break;
   case UR_DEVICE_INFO_IS_INTEGRATED_GPU: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -11020,26 +11107,17 @@ inline std::ostream &operator<<(std::ostream &os,
   return os;
 }
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_kernel_launch_property_id_t type
+/// @brief Print operator for the ur_kernel_launch_flag_t type
 /// @returns
 ///     std::ostream &
 inline std::ostream &operator<<(std::ostream &os,
-                                enum ur_kernel_launch_property_id_t value) {
+                                enum ur_kernel_launch_flag_t value) {
   switch (value) {
-  case UR_KERNEL_LAUNCH_PROPERTY_ID_IGNORE:
-    os << "UR_KERNEL_LAUNCH_PROPERTY_ID_IGNORE";
+  case UR_KERNEL_LAUNCH_FLAG_COOPERATIVE:
+    os << "UR_KERNEL_LAUNCH_FLAG_COOPERATIVE";
     break;
-  case UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE:
-    os << "UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE";
-    break;
-  case UR_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION:
-    os << "UR_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION";
-    break;
-  case UR_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY:
-    os << "UR_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY";
-    break;
-  case UR_KERNEL_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE:
-    os << "UR_KERNEL_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE";
+  case UR_KERNEL_LAUNCH_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE:
+    os << "UR_KERNEL_LAUNCH_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE";
     break;
   default:
     os << "unknown enumerator";
@@ -11047,68 +11125,123 @@ inline std::ostream &operator<<(std::ostream &os,
   }
   return os;
 }
+
 namespace ur::details {
-
 ///////////////////////////////////////////////////////////////////////////////
-// @brief Print ur_kernel_launch_property_value_t union
-inline ur_result_t
-printUnion(std::ostream &os,
-           const union ur_kernel_launch_property_value_t params,
-           const enum ur_kernel_launch_property_id_t tag) {
-  os << "(union ur_kernel_launch_property_value_t){";
+/// @brief Print ur_kernel_launch_flag_t flag
+template <>
+inline ur_result_t printFlag<ur_kernel_launch_flag_t>(std::ostream &os,
+                                                      uint32_t flag) {
+  uint32_t val = flag;
+  bool first = true;
 
-  switch (tag) {
-  case UR_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION:
-
-    os << ".clusterDim = {";
-    ur::details::printArray<3>(os, params.clusterDim);
-    os << "}";
-
-    break;
-  case UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE:
-
-    os << ".cooperative = ";
-
-    os << (params.cooperative);
-
-    break;
-  case UR_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY:
-
-    os << ".workgroup_mem_size = ";
-
-    os << (params.workgroup_mem_size);
-
-    break;
-  case UR_KERNEL_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE:
-
-    os << ".opportunistic_queue_serialize = ";
-
-    os << (params.opportunistic_queue_serialize);
-
-    break;
-  default:
-    os << "<unknown>";
-    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  if ((val & UR_KERNEL_LAUNCH_FLAG_COOPERATIVE) ==
+      (uint32_t)UR_KERNEL_LAUNCH_FLAG_COOPERATIVE) {
+    val ^= (uint32_t)UR_KERNEL_LAUNCH_FLAG_COOPERATIVE;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_KERNEL_LAUNCH_FLAG_COOPERATIVE;
   }
-  os << "}";
+
+  if ((val & UR_KERNEL_LAUNCH_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE) ==
+      (uint32_t)UR_KERNEL_LAUNCH_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE) {
+    val ^= (uint32_t)UR_KERNEL_LAUNCH_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_KERNEL_LAUNCH_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE;
+  }
+  if (val != 0) {
+    std::bitset<32> bits(val);
+    if (!first) {
+      os << " | ";
+    }
+    os << "unknown bit flags " << bits;
+  } else if (first) {
+    os << "0";
+  }
   return UR_RESULT_SUCCESS;
 }
 } // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_kernel_launch_property_t type
+/// @brief Print operator for the ur_kernel_launch_ext_properties_t type
 /// @returns
 ///     std::ostream &
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_kernel_launch_property_t params) {
-  os << "(struct ur_kernel_launch_property_t){";
+operator<<(std::ostream &os,
+           const struct ur_kernel_launch_ext_properties_t params) {
+  os << "(struct ur_kernel_launch_ext_properties_t){";
 
-  os << ".id = ";
+  os << ".stype = ";
 
-  os << (params.id);
+  os << (params.stype);
 
   os << ", ";
-  os << ".value = ";
-  ur::details::printUnion(os, (params.value), params.id);
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, (params.pNext));
+
+  os << ", ";
+  os << ".flags = ";
+
+  ur::details::printFlag<ur_kernel_launch_flag_t>(os, (params.flags));
+
+  os << "}";
+  return os;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_kernel_launch_cluster_property_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_kernel_launch_cluster_property_t params) {
+  os << "(struct ur_kernel_launch_cluster_property_t){";
+
+  os << ".stype = ";
+
+  os << (params.stype);
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, (params.pNext));
+
+  os << ", ";
+  os << ".clusterDim = {";
+  ur::details::printArray<3>(os, params.clusterDim);
+  os << "}";
+
+  os << "}";
+  return os;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_kernel_launch_workgroup_property_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_kernel_launch_workgroup_property_t params) {
+  os << "(struct ur_kernel_launch_workgroup_property_t){";
+
+  os << ".stype = ";
+
+  os << (params.stype);
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, (params.pNext));
+
+  os << ", ";
+  os << ".workgroup_mem_size = ";
+
+  os << (params.workgroup_mem_size);
 
   os << "}";
   return os;
@@ -15115,6 +15248,133 @@ operator<<(std::ostream &os,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_begin_graph_capture_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_queue_begin_graph_capture_exp_params_t
+        *params) {
+
+  os << ".hQueue = ";
+
+  ur::details::printPtr(os, *(params->phQueue));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_begin_capture_into_graph_exp_params_t
+/// type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_queue_begin_capture_into_graph_exp_params_t
+        *params) {
+
+  os << ".hQueue = ";
+
+  ur::details::printPtr(os, *(params->phQueue));
+
+  os << ", ";
+  os << ".hGraph = ";
+
+  ur::details::printPtr(os, *(params->phGraph));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_end_graph_capture_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_queue_end_graph_capture_exp_params_t
+               *params) {
+
+  os << ".hQueue = ";
+
+  ur::details::printPtr(os, *(params->phQueue));
+
+  os << ", ";
+  os << ".phGraph = ";
+
+  ur::details::printPtr(os, *(params->pphGraph));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_append_graph_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_queue_append_graph_exp_params_t *params) {
+
+  os << ".hQueue = ";
+
+  ur::details::printPtr(os, *(params->phQueue));
+
+  os << ", ";
+  os << ".hGraph = ";
+
+  ur::details::printPtr(os, *(params->phGraph));
+
+  os << ", ";
+  os << ".hSignalEvent = ";
+
+  ur::details::printPtr(os, *(params->phSignalEvent));
+
+  os << ", ";
+  os << ".numWaitEvents = ";
+
+  os << *(params->pnumWaitEvents);
+
+  os << ", ";
+  os << ".phWaitEvents = ";
+  ur::details::printPtr(
+      os, reinterpret_cast<const void *>(*(params->pphWaitEvents)));
+  if (*(params->pphWaitEvents) != NULL) {
+    os << " {";
+    for (size_t i = 0; i < *params->pnumWaitEvents; ++i) {
+      if (i != 0) {
+        os << ", ";
+      }
+
+      ur::details::printPtr(os, (*(params->pphWaitEvents))[i]);
+    }
+    os << "}";
+  }
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_is_graph_capture_enabled_exp_params_t
+/// type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_queue_is_graph_capture_enabled_exp_params_t
+        *params) {
+
+  os << ".hQueue = ";
+
+  ur::details::printPtr(os, *(params->phQueue));
+
+  os << ", ";
+  os << ".hResult = ";
+
+  ur::details::printPtr(os, *(params->phResult));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_sampler_create_params_t type
 /// @returns
 ///     std::ostream &
@@ -15703,25 +15963,9 @@ inline std::ostream &operator<<(
   ur::details::printPtr(os, *(params->ppLocalWorkSize));
 
   os << ", ";
-  os << ".numPropsInLaunchPropList = ";
-
-  os << *(params->pnumPropsInLaunchPropList);
-
-  os << ", ";
   os << ".launchPropList = ";
-  ur::details::printPtr(
-      os, reinterpret_cast<const void *>(*(params->plaunchPropList)));
-  if (*(params->plaunchPropList) != NULL) {
-    os << " {";
-    for (size_t i = 0; i < *params->pnumPropsInLaunchPropList; ++i) {
-      if (i != 0) {
-        os << ", ";
-      }
 
-      os << (*(params->plaunchPropList))[i];
-    }
-    os << "}";
-  }
+  ur::details::printPtr(os, *(params->plaunchPropList));
 
   os << ", ";
   os << ".numEventsInWaitList = ";
@@ -17407,25 +17651,9 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
   }
 
   os << ", ";
-  os << ".numPropsInLaunchPropList = ";
-
-  os << *(params->pnumPropsInLaunchPropList);
-
-  os << ", ";
   os << ".launchPropList = ";
-  ur::details::printPtr(
-      os, reinterpret_cast<const void *>(*(params->plaunchPropList)));
-  if (*(params->plaunchPropList) != NULL) {
-    os << " {";
-    for (size_t i = 0; i < *params->pnumPropsInLaunchPropList; ++i) {
-      if (i != 0) {
-        os << ", ";
-      }
 
-      os << (*(params->plaunchPropList))[i];
-    }
-    os << "}";
-  }
+  ur::details::printPtr(os, *(params->plaunchPropList));
 
   os << ", ";
   os << ".numEventsInWaitList = ";
@@ -20784,6 +21012,119 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_graph_create_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_graph_create_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".phGraph = ";
+
+  ur::details::printPtr(os, *(params->pphGraph));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_graph_instantiate_graph_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_graph_instantiate_graph_exp_params_t
+               *params) {
+
+  os << ".hGraph = ";
+
+  ur::details::printPtr(os, *(params->phGraph));
+
+  os << ", ";
+  os << ".phExecGraph = ";
+
+  ur::details::printPtr(os, *(params->pphExecGraph));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_graph_destroy_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_graph_destroy_exp_params_t *params) {
+
+  os << ".hGraph = ";
+
+  ur::details::printPtr(os, *(params->phGraph));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_graph_executable_graph_destroy_exp_params_t
+/// type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_graph_executable_graph_destroy_exp_params_t
+        *params) {
+
+  os << ".hExecutableGraph = ";
+
+  ur::details::printPtr(os, *(params->phExecutableGraph));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_graph_is_empty_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_graph_is_empty_exp_params_t *params) {
+
+  os << ".hGraph = ";
+
+  ur::details::printPtr(os, *(params->phGraph));
+
+  os << ", ";
+  os << ".hResult = ";
+
+  ur::details::printPtr(os, *(params->phResult));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_graph_dump_contents_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_graph_dump_contents_exp_params_t *params) {
+
+  os << ".hGraph = ";
+
+  ur::details::printPtr(os, *(params->phGraph));
+
+  os << ", ";
+  os << ".filePath = ";
+
+  ur::details::printPtr(os, *(params->pfilePath));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_ipc_get_mem_handle_exp_params_t type
 /// @returns
 ///     std::ostream &
@@ -21987,6 +22328,21 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   case UR_FUNCTION_QUEUE_FLUSH: {
     os << (const struct ur_queue_flush_params_t *)params;
   } break;
+  case UR_FUNCTION_QUEUE_BEGIN_GRAPH_CAPTURE_EXP: {
+    os << (const struct ur_queue_begin_graph_capture_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_QUEUE_BEGIN_CAPTURE_INTO_GRAPH_EXP: {
+    os << (const struct ur_queue_begin_capture_into_graph_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_QUEUE_END_GRAPH_CAPTURE_EXP: {
+    os << (const struct ur_queue_end_graph_capture_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_QUEUE_APPEND_GRAPH_EXP: {
+    os << (const struct ur_queue_append_graph_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_QUEUE_IS_GRAPH_CAPTURE_ENABLED_EXP: {
+    os << (const struct ur_queue_is_graph_capture_enabled_exp_params_t *)params;
+  } break;
   case UR_FUNCTION_SAMPLER_CREATE: {
     os << (const struct ur_sampler_create_params_t *)params;
   } break;
@@ -22393,6 +22749,24 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   case UR_FUNCTION_COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP: {
     os << (const struct ur_command_buffer_get_native_handle_exp_params_t *)
             params;
+  } break;
+  case UR_FUNCTION_GRAPH_CREATE_EXP: {
+    os << (const struct ur_graph_create_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_GRAPH_INSTANTIATE_GRAPH_EXP: {
+    os << (const struct ur_graph_instantiate_graph_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_GRAPH_DESTROY_EXP: {
+    os << (const struct ur_graph_destroy_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_DESTROY_EXP: {
+    os << (const struct ur_graph_executable_graph_destroy_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_GRAPH_IS_EMPTY_EXP: {
+    os << (const struct ur_graph_is_empty_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_GRAPH_DUMP_CONTENTS_EXP: {
+    os << (const struct ur_graph_dump_contents_exp_params_t *)params;
   } break;
   case UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP: {
     os << (const struct ur_ipc_get_mem_handle_exp_params_t *)params;

@@ -4552,11 +4552,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     /// execute the kernel function.
     /// If nullptr, the runtime implementation will choose the work-group size.
     const size_t *pLocalWorkSize,
-    /// [in] size of the launch prop list
-    uint32_t numPropsInLaunchPropList,
-    /// [in][optional][range(0, numPropsInLaunchPropList)] pointer to a list
-    /// of launch properties
-    const ur_kernel_launch_property_t *launchPropList,
+    /// [in][optional] pointer to a single linked list of launch properties
+    const ur_kernel_launch_ext_properties_t *launchPropList,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -4579,14 +4576,15 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     if (NULL == pGlobalWorkSize)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
-    if (launchPropList == NULL && numPropsInLaunchPropList > 0)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
     if (NULL == hQueue)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hKernel)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL != launchPropList &&
+        UR_KERNEL_LAUNCH_FLAGS_MASK & launchPropList->flags)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -4613,10 +4611,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     URLOG_CTX_INVALID_REFERENCE(hKernel);
   }
 
-  ur_result_t result = pfnKernelLaunch(
-      hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      pLocalWorkSize, numPropsInLaunchPropList, launchPropList,
-      numEventsInWaitList, phEventWaitList, phEvent);
+  ur_result_t result =
+      pfnKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
+                      pGlobalWorkSize, pLocalWorkSize, launchPropList,
+                      numEventsInWaitList, phEventWaitList, phEvent);
 
   if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
       phEvent) {
@@ -11124,11 +11122,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
     /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
     /// properties.
     const ur_exp_kernel_arg_properties_t *pArgs,
-    /// [in] size of the launch prop list
-    uint32_t numPropsInLaunchPropList,
-    /// [in][optional][range(0, numPropsInLaunchPropList)] pointer to a list
-    /// of launch properties
-    const ur_kernel_launch_property_t *launchPropList,
+    /// [in][optional] pointer to a single linked list of launch properties
+    const ur_kernel_launch_ext_properties_t *launchPropList,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -11152,9 +11147,6 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
     if (NULL == pGlobalWorkSize)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
-    if (launchPropList == NULL && numPropsInLaunchPropList > 0)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
     if (pArgs == NULL && numArgs > 0)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -11165,6 +11157,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL != pArgs && UR_EXP_KERNEL_ARG_TYPE_SAMPLER < pArgs->type)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+
+    if (NULL != launchPropList &&
+        UR_KERNEL_LAUNCH_FLAGS_MASK & launchPropList->flags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
@@ -11202,8 +11198,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
 
   ur_result_t result = pfnKernelLaunchWithArgsExp(
       hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      pLocalWorkSize, numArgs, pArgs, numPropsInLaunchPropList, launchPropList,
-      numEventsInWaitList, phEventWaitList, phEvent);
+      pLocalWorkSize, numArgs, pArgs, launchPropList, numEventsInWaitList,
+      phEventWaitList, phEvent);
 
   if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
       phEvent) {
@@ -11350,6 +11346,329 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
       phEvent) {
     getContext()->refCountContext->createRefCount(*phEvent);
   }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphCreateExp
+__urdlllocal ur_result_t UR_APICALL urGraphCreateExp(
+    /// [in] Handle of the context object.
+    ur_context_handle_t hContext,
+    /// [out][alloc] Pointer to the handle of the created graph object.
+    ur_exp_graph_handle_t *phGraph) {
+  auto pfnCreateExp = getContext()->urDdiTable.GraphExp.pfnCreateExp;
+
+  if (nullptr == pfnCreateExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == phGraph)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  ur_result_t result = pfnCreateExp(hContext, phGraph);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urQueueBeginGraphCaptureExp
+__urdlllocal ur_result_t UR_APICALL urQueueBeginGraphCaptureExp(
+    /// [in] Handle of the queue on which to begin graph capture.
+    ur_queue_handle_t hQueue) {
+  auto pfnBeginGraphCaptureExp =
+      getContext()->urDdiTable.QueueExp.pfnBeginGraphCaptureExp;
+
+  if (nullptr == pfnBeginGraphCaptureExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hQueue)) {
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
+  }
+
+  ur_result_t result = pfnBeginGraphCaptureExp(hQueue);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urQueueBeginCaptureIntoGraphExp
+__urdlllocal ur_result_t UR_APICALL urQueueBeginCaptureIntoGraphExp(
+    /// [in] Handle of the queue on which to begin graph capture.
+    ur_queue_handle_t hQueue,
+    /// [in] Handle of the graph object to capture into.
+    ur_exp_graph_handle_t hGraph) {
+  auto pfnBeginCaptureIntoGraphExp =
+      getContext()->urDdiTable.QueueExp.pfnBeginCaptureIntoGraphExp;
+
+  if (nullptr == pfnBeginCaptureIntoGraphExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hGraph)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hQueue)) {
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
+  }
+
+  ur_result_t result = pfnBeginCaptureIntoGraphExp(hQueue, hGraph);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urQueueEndGraphCaptureExp
+__urdlllocal ur_result_t UR_APICALL urQueueEndGraphCaptureExp(
+    /// [in] Handle of the queue on which to end graph capture.
+    ur_queue_handle_t hQueue,
+    /// [out] Pointer to the handle of the recorded graph object. If
+    /// ::urQueueBeginCaptureIntoGraphExp was used to begin the capture, then
+    /// phGraph will contain the same graph that was passed to it.
+    ur_exp_graph_handle_t *phGraph) {
+  auto pfnEndGraphCaptureExp =
+      getContext()->urDdiTable.QueueExp.pfnEndGraphCaptureExp;
+
+  if (nullptr == pfnEndGraphCaptureExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == phGraph)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hQueue)) {
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
+  }
+
+  ur_result_t result = pfnEndGraphCaptureExp(hQueue, phGraph);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphInstantiateGraphExp
+__urdlllocal ur_result_t UR_APICALL urGraphInstantiateGraphExp(
+    /// [in] Handle of the recorded graph to instantiate.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] Pointer to the handle of the instantiated executable graph.
+    ur_exp_executable_graph_handle_t *phExecGraph) {
+  auto pfnInstantiateGraphExp =
+      getContext()->urDdiTable.GraphExp.pfnInstantiateGraphExp;
+
+  if (nullptr == pfnInstantiateGraphExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == phExecGraph)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hGraph)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  ur_result_t result = pfnInstantiateGraphExp(hGraph, phExecGraph);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urQueueAppendGraphExp
+__urdlllocal ur_result_t UR_APICALL urQueueAppendGraphExp(
+    /// [in] Handle of the queue to append the graph to.
+    ur_queue_handle_t hQueue,
+    /// [in] Handle of the executable graph to append.
+    ur_exp_executable_graph_handle_t hGraph,
+    /// [in][optional] Event to be signaled on completion.
+    ur_event_handle_t hSignalEvent,
+    /// [in][optional] Number of events to wait on before executing.
+    uint32_t numWaitEvents,
+    /// [in][optional][range(0, numWaitEvents)] Handle of the events to wait
+    /// on before launching.
+    ur_event_handle_t *phWaitEvents) {
+  auto pfnAppendGraphExp = getContext()->urDdiTable.QueueExp.pfnAppendGraphExp;
+
+  if (nullptr == pfnAppendGraphExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hGraph)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hQueue)) {
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hSignalEvent)) {
+    URLOG_CTX_INVALID_REFERENCE(hSignalEvent);
+  }
+
+  ur_result_t result = pfnAppendGraphExp(hQueue, hGraph, hSignalEvent,
+                                         numWaitEvents, phWaitEvents);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphDestroyExp
+__urdlllocal ur_result_t UR_APICALL urGraphDestroyExp(
+    /// [in] Handle of the graph object to destroy.
+    ur_exp_graph_handle_t hGraph) {
+  auto pfnDestroyExp = getContext()->urDdiTable.GraphExp.pfnDestroyExp;
+
+  if (nullptr == pfnDestroyExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hGraph)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  ur_result_t result = pfnDestroyExp(hGraph);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphExecutableGraphDestroyExp
+__urdlllocal ur_result_t UR_APICALL urGraphExecutableGraphDestroyExp(
+    /// [in] Handle of the executable graph object to destroy.
+    ur_exp_executable_graph_handle_t hExecutableGraph) {
+  auto pfnExecutableGraphDestroyExp =
+      getContext()->urDdiTable.GraphExp.pfnExecutableGraphDestroyExp;
+
+  if (nullptr == pfnExecutableGraphDestroyExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hExecutableGraph)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  ur_result_t result = pfnExecutableGraphDestroyExp(hExecutableGraph);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urQueueIsGraphCaptureEnabledExp
+__urdlllocal ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
+    /// [in] Native queue to query.
+    ur_queue_handle_t hQueue,
+    /// [out] Pointer to a boolean where the result will be stored.
+    bool *hResult) {
+  auto pfnIsGraphCaptureEnabledExp =
+      getContext()->urDdiTable.QueueExp.pfnIsGraphCaptureEnabledExp;
+
+  if (nullptr == pfnIsGraphCaptureEnabledExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hResult)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hQueue)) {
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
+  }
+
+  ur_result_t result = pfnIsGraphCaptureEnabledExp(hQueue, hResult);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphIsEmptyExp
+__urdlllocal ur_result_t UR_APICALL urGraphIsEmptyExp(
+    /// [in] Handle of the graph to query.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] Pointer to a boolean where the result will be stored.
+    bool *hResult) {
+  auto pfnIsEmptyExp = getContext()->urDdiTable.GraphExp.pfnIsEmptyExp;
+
+  if (nullptr == pfnIsEmptyExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hResult)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hGraph)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  ur_result_t result = pfnIsEmptyExp(hGraph, hResult);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphDumpContentsExp
+__urdlllocal ur_result_t UR_APICALL urGraphDumpContentsExp(
+    /// [in] Handle of the graph to dump.
+    ur_exp_graph_handle_t hGraph,
+    /// [in] Path to the file to write the dumped graph contents.
+    const char *filePath) {
+  auto pfnDumpContentsExp =
+      getContext()->urDdiTable.GraphExp.pfnDumpContentsExp;
+
+  if (nullptr == pfnDumpContentsExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == filePath)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hGraph)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  ur_result_t result = pfnDumpContentsExp(hGraph, filePath);
 
   return result;
 }
@@ -11936,6 +12255,56 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's GraphExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_graph_exp_dditable_t *pDdiTable) {
+  auto &dditable = ur_validation_layer::getContext()->urDdiTable.GraphExp;
+
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (UR_MAJOR_VERSION(ur_validation_layer::getContext()->version) !=
+          UR_MAJOR_VERSION(version) ||
+      UR_MINOR_VERSION(ur_validation_layer::getContext()->version) >
+          UR_MINOR_VERSION(version))
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  dditable.pfnCreateExp = pDdiTable->pfnCreateExp;
+  pDdiTable->pfnCreateExp = ur_validation_layer::urGraphCreateExp;
+
+  dditable.pfnInstantiateGraphExp = pDdiTable->pfnInstantiateGraphExp;
+  pDdiTable->pfnInstantiateGraphExp =
+      ur_validation_layer::urGraphInstantiateGraphExp;
+
+  dditable.pfnDestroyExp = pDdiTable->pfnDestroyExp;
+  pDdiTable->pfnDestroyExp = ur_validation_layer::urGraphDestroyExp;
+
+  dditable.pfnExecutableGraphDestroyExp =
+      pDdiTable->pfnExecutableGraphDestroyExp;
+  pDdiTable->pfnExecutableGraphDestroyExp =
+      ur_validation_layer::urGraphExecutableGraphDestroyExp;
+
+  dditable.pfnIsEmptyExp = pDdiTable->pfnIsEmptyExp;
+  pDdiTable->pfnIsEmptyExp = ur_validation_layer::urGraphIsEmptyExp;
+
+  dditable.pfnDumpContentsExp = pDdiTable->pfnDumpContentsExp;
+  pDdiTable->pfnDumpContentsExp = ur_validation_layer::urGraphDumpContentsExp;
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's IPCExp table
 ///        with current process' addresses
 ///
@@ -12432,6 +12801,54 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueProcAddrTable(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's QueueExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_queue_exp_dditable_t *pDdiTable) {
+  auto &dditable = ur_validation_layer::getContext()->urDdiTable.QueueExp;
+
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (UR_MAJOR_VERSION(ur_validation_layer::getContext()->version) !=
+          UR_MAJOR_VERSION(version) ||
+      UR_MINOR_VERSION(ur_validation_layer::getContext()->version) >
+          UR_MINOR_VERSION(version))
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  dditable.pfnBeginGraphCaptureExp = pDdiTable->pfnBeginGraphCaptureExp;
+  pDdiTable->pfnBeginGraphCaptureExp =
+      ur_validation_layer::urQueueBeginGraphCaptureExp;
+
+  dditable.pfnBeginCaptureIntoGraphExp = pDdiTable->pfnBeginCaptureIntoGraphExp;
+  pDdiTable->pfnBeginCaptureIntoGraphExp =
+      ur_validation_layer::urQueueBeginCaptureIntoGraphExp;
+
+  dditable.pfnEndGraphCaptureExp = pDdiTable->pfnEndGraphCaptureExp;
+  pDdiTable->pfnEndGraphCaptureExp =
+      ur_validation_layer::urQueueEndGraphCaptureExp;
+
+  dditable.pfnAppendGraphExp = pDdiTable->pfnAppendGraphExp;
+  pDdiTable->pfnAppendGraphExp = ur_validation_layer::urQueueAppendGraphExp;
+
+  dditable.pfnIsGraphCaptureEnabledExp = pDdiTable->pfnIsGraphCaptureEnabledExp;
+  pDdiTable->pfnIsGraphCaptureEnabledExp =
+      ur_validation_layer::urQueueIsGraphCaptureEnabledExp;
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Sampler table
 ///        with current process' addresses
 ///
@@ -12854,6 +13271,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
   }
 
   if (UR_RESULT_SUCCESS == result) {
+    result = ur_validation_layer::urGetGraphExpProcAddrTable(
+        UR_API_VERSION_CURRENT, &dditable->GraphExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
     result = ur_validation_layer::urGetIPCExpProcAddrTable(
         UR_API_VERSION_CURRENT, &dditable->IPCExp);
   }
@@ -12896,6 +13318,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
   if (UR_RESULT_SUCCESS == result) {
     result = ur_validation_layer::urGetQueueProcAddrTable(
         UR_API_VERSION_CURRENT, &dditable->Queue);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = ur_validation_layer::urGetQueueExpProcAddrTable(
+        UR_API_VERSION_CURRENT, &dditable->QueueExp);
   }
 
   if (UR_RESULT_SUCCESS == result) {

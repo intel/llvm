@@ -714,47 +714,14 @@ template <> class SYCLConfig<SYCL_CACHE_TRACE> {
   enum TraceBitmask { DiskCache = 1, InMemCache = 2, KernelCompiler = 4 };
 
 public:
-  static unsigned int get() { return getCachedValue(); }
-  static void reset() { (void)getCachedValue(true); }
-  static bool isTraceDiskCache() {
-    return getCachedValue() & TraceBitmask::DiskCache;
-  }
-  static bool isTraceInMemCache() {
-    return getCachedValue() & TraceBitmask::InMemCache;
-  }
-  static bool isTraceKernelCompiler() {
-    return getCachedValue() & TraceBitmask::KernelCompiler;
-  }
+  static unsigned int get() { return Level; }
+  static void reset();
+  static bool isTraceDiskCache() { return Level & DiskCache; }
+  static bool isTraceInMemCache() { return Level & InMemCache; }
+  static bool isTraceKernelCompiler() { return Level & KernelCompiler; }
 
 private:
-  static unsigned int getCachedValue(bool ResetCache = false) {
-    const auto Parser = []() {
-      const char *ValStr = BaseT::getRawValue();
-      int intVal = 0;
-
-      if (ValStr) {
-        try {
-          intVal = std::stoi(ValStr);
-        } catch (...) {
-          // If the value is not null and not a number, it is considered
-          // to enable disk cache tracing. This is the legacy behavior.
-          intVal = 1;
-        }
-      }
-
-      // Legacy behavior.
-      if (intVal > 7)
-        intVal = 1;
-
-      return intVal;
-    };
-
-    static unsigned int Level = Parser();
-    if (ResetCache)
-      Level = Parser();
-
-    return Level;
-  }
+  static unsigned int Level;
 };
 
 // SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD accepts an integer that specifies

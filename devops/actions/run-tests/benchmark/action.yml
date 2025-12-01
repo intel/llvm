@@ -231,6 +231,10 @@ runs:
       WORKDIR="$(realpath ./llvm_test_workdir)"
       if [ -n "$WORKDIR" ] && [ -d "$WORKDIR" ] && [[ "$WORKDIR" == *llvm_test_workdir* ]]; then rm -rf "$WORKDIR" ; fi
 
+      # Clean up potentially existing, old summary files
+      [ -f "github_summary_exe.md" ] && rm github_summary_exe.md
+      [ -f "github_summary_reg.md" ] && rm github_summary_reg.md
+
       numactl --cpunodebind "$NUMA_NODE" --membind "$NUMA_NODE" \
       ./devops/scripts/benchmarks/main.py "$WORKDIR" \
         --sycl "$(realpath ./toolchain)" \
@@ -243,6 +247,7 @@ runs:
         --preset "$PRESET" \
         --timestamp-override "$SAVE_TIMESTAMP" \
         --detect-version sycl,compute_runtime \
+        --produce-github-summary \
         ${{ inputs.exit_on_failure == 'true' && '--exit-on-failure --iterations 1' || '' }}
       # TODO: add back: "--flamegraph inclusive" once works properly
 
@@ -261,19 +266,21 @@ runs:
         ${{ inputs.dry_run == 'true' && '--dry-run' || '' }} \
 
       echo "::endgroup::"
-      
-      # Run integration tests
-      # NOTE: Each integration test prints its own group name as part of test script
-      export LLVM_BENCHMARKS_UNIT_TESTING=1
-      export COMPUTE_BENCHMARKS_BUILD_PATH=$WORKDIR/compute-benchmarks-build
-      python3 ./devops/scripts/benchmarks/tests/test_integration.py
 
+      # Run benchmarks' integration tests
+      # NOTE: Each integration test prints its own group name as part of test script
+      if [ '${{ github.event_name == 'pull_request' }}' = 'true' ]; then
+        export LLVM_BENCHMARKS_UNIT_TESTING=1
+        export COMPUTE_BENCHMARKS_BUILD_PATH=$WORKDIR/compute-benchmarks-build
+        python3 ./devops/scripts/benchmarks/tests/test_integration.py
+      fi
   - name: Cache changes and upload github summary
     if: always()
     shell: bash
     run: |
-      # Cache changes and upload github summary
-      [ -f "github_summary.md" ] && cat github_summary.md >> $GITHUB_STEP_SUMMARY
+      # Cache changes and upload github summaries
+      [ -f "github_summary_exe.md" ] && cat github_summary_exe.md >> $GITHUB_STEP_SUMMARY
+      [ -f "github_summary_reg.md" ] && cat github_summary_reg.md >> $GITHUB_STEP_SUMMARY
 
       cd "./llvm-ci-perf-results"
       git add .

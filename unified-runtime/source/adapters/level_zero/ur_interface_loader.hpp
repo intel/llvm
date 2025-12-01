@@ -342,8 +342,8 @@ ur_result_t urEventSetCallback(ur_event_handle_t hEvent,
 ur_result_t urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numPropsInLaunchPropList,
-    const ur_kernel_launch_property_t *launchPropList,
+    const size_t *pLocalWorkSize,
+    const ur_kernel_launch_ext_properties_t *launchPropList,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent);
 ur_result_t urEnqueueEventsWait(ur_queue_handle_t hQueue,
@@ -828,8 +828,7 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     const size_t *pLocalWorkSize, uint32_t numArgs,
     const ur_exp_kernel_arg_properties_t *pArgs,
-    uint32_t numPropsInLaunchPropList,
-    const ur_kernel_launch_property_t *launchPropList,
+    const ur_kernel_launch_ext_properties_t *launchPropList,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent);
 ur_result_t urEnqueueEventsWaitWithBarrierExt(
@@ -844,6 +843,29 @@ ur_result_t urEnqueueNativeCommandExp(
     const ur_exp_enqueue_native_command_properties_t *pProperties,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent);
+ur_result_t urGraphCreateExp(ur_context_handle_t hContext,
+                             ur_exp_graph_handle_t *phGraph);
+ur_result_t urQueueBeginGraphCaptureExp(ur_queue_handle_t hQueue);
+ur_result_t urQueueBeginCaptureIntoGraphExp(ur_queue_handle_t hQueue,
+                                            ur_exp_graph_handle_t hGraph);
+ur_result_t urQueueEndGraphCaptureExp(ur_queue_handle_t hQueue,
+                                      ur_exp_graph_handle_t *phGraph);
+ur_result_t
+urGraphInstantiateGraphExp(ur_exp_graph_handle_t hGraph,
+                           ur_exp_executable_graph_handle_t *phExecGraph);
+ur_result_t urQueueAppendGraphExp(ur_queue_handle_t hQueue,
+                                  ur_exp_executable_graph_handle_t hGraph,
+                                  ur_event_handle_t hSignalEvent,
+                                  uint32_t numWaitEvents,
+                                  ur_event_handle_t *phWaitEvents);
+ur_result_t urGraphDestroyExp(ur_exp_graph_handle_t hGraph);
+ur_result_t urGraphExecutableGraphDestroyExp(
+    ur_exp_executable_graph_handle_t hExecutableGraph);
+ur_result_t urQueueIsGraphCaptureEnabledExp(ur_queue_handle_t hQueue,
+                                            bool *hResult);
+ur_result_t urGraphIsEmptyExp(ur_exp_graph_handle_t hGraph, bool *hResult);
+ur_result_t urGraphDumpContentsExp(ur_exp_graph_handle_t hGraph,
+                                   const char *filePath);
 #ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
 ur_result_t urAdapterGetDdiTables(ur_dditable_t *ddi);
 #endif

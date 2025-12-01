@@ -10,6 +10,7 @@
 #include <sycl/sycl.hpp>
 
 #include <detail/device_binary_image.hpp>
+#include <detail/global_handler.hpp>
 #include <detail/host_pipe_map_entry.hpp>
 #include <gtest/gtest.h>
 #include <helpers/MockDeviceImage.hpp>
@@ -31,6 +32,9 @@ using Pipe = sycl::ext::intel::experimental::pipe<PipeID, int, 10,
 
 static sycl::unittest::MockDeviceImage generateDefaultImage() {
   using namespace sycl::unittest;
+
+  if (!GlobalHandler::isInstanceAlive())
+    GlobalHandler::resetGlobalHandler();
 
   sycl::detail::host_pipe_map::add(Pipe::get_host_ptr(),
                                    "test_host_pipe_unique_id");

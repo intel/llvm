@@ -61,7 +61,6 @@ public:
 #endif
 
   context_t();
-  ~context_t();
 
   std::once_flag initOnce;
 
@@ -117,7 +116,7 @@ public:
   void tearDownLayers() const;
 };
 
-context_t *getContext();
+inline context_t *getContext() { return context_t::get_direct(); }
 
 ur_result_t urLoaderConfigCreate(ur_loader_config_handle_t *phLoaderConfig);
 ur_result_t urLoaderConfigRetain(ur_loader_config_handle_t hLoaderConfig);

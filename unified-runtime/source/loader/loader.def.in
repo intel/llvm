@@ -121,6 +121,7 @@ EXPORTS
 	urGetEnqueueExpProcAddrTable
 	urGetEnqueueProcAddrTable
 	urGetEventProcAddrTable
+	urGetGraphExpProcAddrTable
 	urGetIPCExpProcAddrTable
 	urGetKernelProcAddrTable
 	urGetMemProcAddrTable
@@ -129,12 +130,19 @@ EXPORTS
 	urGetPlatformProcAddrTable
 	urGetProgramExpProcAddrTable
 	urGetProgramProcAddrTable
+	urGetQueueExpProcAddrTable
 	urGetQueueProcAddrTable
 	urGetSamplerProcAddrTable
 	urGetUSMExpProcAddrTable
 	urGetUSMProcAddrTable
 	urGetUsmP2PExpProcAddrTable
 	urGetVirtualMemProcAddrTable
+	urGraphCreateExp
+	urGraphDestroyExp
+	urGraphDumpContentsExp
+	urGraphExecutableGraphDestroyExp
+	urGraphInstantiateGraphExp
+	urGraphIsEmptyExp
 	urIPCCloseMemHandleExp
 	urIPCGetMemHandleExp
 	urIPCOpenMemHandleExp
@@ -371,6 +379,12 @@ EXPORTS
 	urPrintExpWin32Handle
 	urPrintFunction
 	urPrintFunctionParams
+	urPrintGraphCreateExpParams
+	urPrintGraphDestroyExpParams
+	urPrintGraphDumpContentsExpParams
+	urPrintGraphExecutableGraphDestroyExpParams
+	urPrintGraphInstantiateGraphExpParams
+	urPrintGraphIsEmptyExpParams
 	urPrintImageChannelOrder
 	urPrintImageChannelType
 	urPrintImageDesc
@@ -397,9 +411,11 @@ EXPORTS
 	urPrintKernelGetSuggestedLocalWorkSizeParams
 	urPrintKernelGroupInfo
 	urPrintKernelInfo
+	urPrintKernelLaunchClusterProperty
+	urPrintKernelLaunchExtProperties
+	urPrintKernelLaunchFlags
 	urPrintKernelLaunchPropertiesFlags
-	urPrintKernelLaunchProperty
-	urPrintKernelLaunchPropertyId
+	urPrintKernelLaunchWorkgroupProperty
 	urPrintKernelNativeProperties
 	urPrintKernelReleaseParams
 	urPrintKernelRetainParams
@@ -485,8 +501,12 @@ EXPORTS
 	urPrintProgramReleaseParams
 	urPrintProgramRetainParams
 	urPrintProgramSetSpecializationConstantsParams
+	urPrintQueueAppendGraphExpParams
+	urPrintQueueBeginCaptureIntoGraphExpParams
+	urPrintQueueBeginGraphCaptureExpParams
 	urPrintQueueCreateParams
 	urPrintQueueCreateWithNativeHandleParams
+	urPrintQueueEndGraphCaptureExpParams
 	urPrintQueueFinishParams
 	urPrintQueueFlags
 	urPrintQueueFlushParams
@@ -494,6 +514,7 @@ EXPORTS
 	urPrintQueueGetNativeHandleParams
 	urPrintQueueIndexProperties
 	urPrintQueueInfo
+	urPrintQueueIsGraphCaptureEnabledExpParams
 	urPrintQueueNativeDesc
 	urPrintQueueNativeProperties
 	urPrintQueueProperties
@@ -582,12 +603,17 @@ EXPORTS
 	urProgramRelease
 	urProgramRetain
 	urProgramSetSpecializationConstants
+	urQueueAppendGraphExp
+	urQueueBeginCaptureIntoGraphExp
+	urQueueBeginGraphCaptureExp
 	urQueueCreate
 	urQueueCreateWithNativeHandle
+	urQueueEndGraphCaptureExp
 	urQueueFinish
 	urQueueFlush
 	urQueueGetInfo
 	urQueueGetNativeHandle
+	urQueueIsGraphCaptureEnabledExp
 	urQueueRelease
 	urQueueRetain
 	urSamplerCreate
