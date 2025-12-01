@@ -2489,6 +2489,9 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP = 0x2062,
   /// [::ur_bool_t] returns true if the device is integrated GPU.
   UR_DEVICE_INFO_IS_INTEGRATED_GPU = 0x2070,
+  /// [::ur_bool_t] returns true if the device supports graph record and replay
+  /// functionality.
+  UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP = 0x2080,
   /// [::ur_bool_t] Returns true if the device supports the USM P2P
   /// experimental feature.
   UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP = 0x4000,
