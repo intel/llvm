@@ -24,15 +24,12 @@
 auto constexpr DGSource = R"===(
 #include <sycl/sycl.hpp>
 
-struct MyStruct{
-  int32_t dg;
-}
 namespace syclex = sycl::ext::oneapi::experimental;
 
-syclex::device_global<MyStruct> DG;
+syclex::device_global<int64_t> DG;
 
 extern "C" SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-    (syclex::single_task_kernel)) void ff_dg_adder(int val) {
+    (syclex::single_task_kernel)) void ff_dg_adder(int64_t val) {
   DG += val;
 }
 
@@ -51,7 +48,7 @@ int test_device_global() {
   namespace syclex = sycl::ext::oneapi::experimental;
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
   using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
-
+  
   sycl::queue q;
   sycl::context ctx = q.get_context();
   sycl::device d = q.get_device();
@@ -63,10 +60,10 @@ int test_device_global() {
               << d.get_info<sycl::info::device::name>() << std::endl;
     return -1;
   }
-
+  //trace2
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
       ctx, syclex::source_language::sycl, DGSource);
-
+  
   exe_kb kbExe1 = syclex::build(kbSrc);
   auto addK = kbExe1.ext_oneapi_get_kernel("ff_dg_adder");
 
@@ -77,13 +74,13 @@ int test_device_global() {
 
   void *dgAddr = kbExe1.ext_oneapi_get_device_global_address("DG", d);
   size_t dgSize = kbExe1.ext_oneapi_get_device_global_size("DG");
-  assert(dgSize == 4);
+  assert(dgSize == 8);
 
   int32_t val;
   auto checkVal = [&](int32_t expected) {
     val = -1;
     q.memcpy(&val, dgAddr, dgSize).wait();
-    std::cout << "val: " << val << " == " << expected << '\n';
+    std::cerr << "val: " << val << " == " << expected << '\n';
     assert(val == expected);
   };
 
@@ -92,7 +89,9 @@ int test_device_global() {
 
   // Set the DG.
   val = 123;
+  //trace3
   q.memcpy(dgAddr, &val, dgSize).wait();
+  //trace1
   checkVal(123);
 
   // Run a kernel using it.
@@ -100,8 +99,7 @@ int test_device_global() {
   q.submit([&](sycl::handler &CGH) {
     CGH.set_arg(0, val);
     CGH.single_task(addK);
-  });
-  q.wait();
+  }).wait();
   checkVal(123 - 17);
 
   // Test that each bundle has its distinct set of globals.

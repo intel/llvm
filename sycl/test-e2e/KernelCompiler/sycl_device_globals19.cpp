@@ -24,12 +24,9 @@
 auto constexpr DGSource = R"===(
 #include <sycl/sycl.hpp>
 
-struct MyStruct{
-  int32_t dg;
-}
 namespace syclex = sycl::ext::oneapi::experimental;
 
-syclex::device_global<MyStruct> DG;
+syclex::device_global<int32_t> DG;
 
 extern "C" SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (syclex::single_task_kernel)) void ff_dg_adder(int val) {
@@ -83,7 +80,7 @@ int test_device_global() {
   auto checkVal = [&](int32_t expected) {
     val = -1;
     q.memcpy(&val, dgAddr, dgSize).wait();
-    std::cout << "val: " << val << " == " << expected << '\n';
+    std::cerr << "val: " << val << " == " << expected << '\n';
     assert(val == expected);
   };
 
