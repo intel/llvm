@@ -123,4 +123,5 @@ runs:
       retention-days: ${{ inputs.retention-days }}
   - name: Cleanup E2E tests
     if: ${{ !cancelled() }}
+    shell: bash
     run: rm -rf build-e2e
