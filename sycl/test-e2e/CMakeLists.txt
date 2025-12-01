@@ -104,7 +104,7 @@ if(NOT SYCL_TEST_E2E_STANDALONE)
   )
 endif() # Standalone.
 
-target_link_libraries(check-sycl-e2e PRIVATE ${CUPTI_LIBRARY})
+
 
 add_custom_target(check-sycl-e2e
   COMMAND ${Python3_EXECUTABLE} ${LLVM_LIT} ${SYCL_E2E_TESTS_LIT_FLAGS} .
@@ -113,6 +113,8 @@ add_custom_target(check-sycl-e2e
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   USES_TERMINAL
 )
+
+target_link_libraries(check-sycl-e2e PRIVATE ${CUPTI_LIBRARY})
 
 add_subdirectory(External)
 add_subdirectory(ExtraTests)
