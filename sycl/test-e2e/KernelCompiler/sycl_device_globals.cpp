@@ -46,6 +46,34 @@ extern "C" SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
 
 )===";
 
+void CUPTIAPI apiCallback(
+  void *userdata,
+  CUpti_CallbackDomain domain,
+  CUpti_CallbackId cbid,
+  const CUpti_CallbackData* cbInfo)
+  {
+    if (cbInfo ->callbackSite == CUPTI_API_ENTER) {
+      std::cerr << "[CUPTI] Enter: " <<cbInfo->functionName << std::endl;
+    } else{
+      std::cerr << "[CUPTI] Exit: " << cbInfo->functionName << std::endl;
+    }
+  }
+
+static CUpti_SubscriberHandle subscriber;
+
+void initCupti(){
+  CUptiResult status;
+  status = cuptiSubscribe(&subscriber, (CUpti_CallbackFunc)apiCallback, nullptr);
+  if(status != CUPTI_SUCCESS) {
+    std::cerr << "cupti failed\n";
+    return;
+  }
+
+  cuptiEnableDomain(1, subscriber, CUPTI_CB_DOMAIN_DRIVER_API);
+
+  std::cerr << "cupti started \n";
+}
+
 int test_device_global() {
   namespace syclex = sycl::ext::oneapi::experimental;
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
@@ -165,6 +193,7 @@ int test_error() {
 }
 
 int main() {
+  initCupti();
 #ifdef SYCL_EXT_ONEAPI_KERNEL_COMPILER
   return test_device_global() || test_error();
 #else
