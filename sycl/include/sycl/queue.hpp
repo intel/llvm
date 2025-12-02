@@ -3719,13 +3719,6 @@ public:
   bool khr_empty() const;
 #endif
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // TODO: to be made private in the next ABI-breaking window
-  __SYCL_DEPRECATED(
-      "This is a non-standard method, use sycl::get_native instead")
-  ur_native_handle_t getNative(int32_t &NativeHandleDesc) const;
-#endif
-
   std::optional<event> ext_oneapi_get_last_event() const {
     return static_cast<std::optional<event>>(ext_oneapi_get_last_event_impl());
   }
@@ -3733,9 +3726,7 @@ public:
   void ext_oneapi_set_external_event(const event &external_event);
 
 private:
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   ur_native_handle_t getNative(int32_t &NativeHandleDesc) const;
-#endif
 
   std::shared_ptr<detail::queue_impl> impl;
   queue(std::shared_ptr<detail::queue_impl> impl) : impl(impl) {}
