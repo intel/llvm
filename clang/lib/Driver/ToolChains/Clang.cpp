@@ -11286,6 +11286,16 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       if (Kind == Action::OFK_OpenMP && !Args.hasArg(OPT_no_offloadlib) &&
           (TC->getTriple().isAMDGPU() || TC->getTriple().isNVPTX()))
         LinkerArgs.emplace_back("-lompdevice");
+      
+      // Forward all of these to the appropriate toolchain.
+      if (!C.hasOffloadToolChain<Action::OFK_SYCL>()) {
+        for (StringRef Arg : CompilerArgs)
+          CmdArgs.push_back(Args.MakeArgString(
+              "--device-compiler=" + TC->getTripleString() + "=" + Arg));
+        for (StringRef Arg : LinkerArgs)
+          CmdArgs.push_back(Args.MakeArgString(
+              "--device-linker=" + TC->getTripleString() + "=" + Arg));
+      }
 
       // Forward the LTO mode relying on the Driver's parsing.
       if (C.getDriver().getOffloadLTOMode() == LTOK_Full)

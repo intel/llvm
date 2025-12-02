@@ -672,11 +672,11 @@
 /// ###########################################################################
 
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64_x86_64 -Xsycl-target-backend -DFOO %S/Inputs/SYCL/objlin64.o 2>&1 \
-// RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT_AOT,SYCL_TARGET_OPT_CPU --implicit-check-not="--device-compiler" %s
+// RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT_AOT,SYCL_TARGET_OPT_CPU %s
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64_gen -Xsycl-target-backend -DFOO %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT_AOT,SYCL_TARGET_OPT_GPU %s
 // SYCL_TARGET_OPT_AOT-NOT: error: cannot deduce implicit triple value for '-Xsycl-target-backend'
-// SYCL_TARGET_OPT_CPU: clang-linker-wrapper{{.*}}
+// SYCL_TARGET_OPT_CPU: clang-linker-wrapper{{.*}} "--device-compiler=spir64_x86_64-unknown-unknown=-DFOO"
 // SYCL_TARGET_OPT_GPU: clang-linker-wrapper{{.*}} "--device-compiler=spir64_gen-unknown-unknown=-DFOO"
 
 /// ###########################################################################

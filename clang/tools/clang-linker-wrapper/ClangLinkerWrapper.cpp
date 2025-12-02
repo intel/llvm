@@ -2226,7 +2226,7 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       if (!CompileLinkOptionsOrErr)
         return CompileLinkOptionsOrErr.takeError();
     
-      // Append any additional backend compiler options specified at link time for GPU
+      // Append any additional backend compiler options specified at link time.
       const llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
       for (StringRef Arg : LinkerArgs.getAllArgValues(OPT_device_compiler_args_EQ)) {
         auto [ArgTriple, ArgValue] = Arg.split('=');
