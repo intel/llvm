@@ -32,7 +32,6 @@
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>
-#include <sycl/ext/oneapi/experimental/detail/properties/launch_config.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
 #include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
