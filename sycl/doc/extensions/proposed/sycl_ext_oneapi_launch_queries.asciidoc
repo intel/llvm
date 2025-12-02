@@ -121,22 +121,6 @@ namespace sycl {
 class kernel {
  public:
 
-  // Only available if Param is max_work_item_sizes<1>
-  template <typename Param>
-  id<1> ext_oneapi_get_info(sycl::queue q) const;
-
-  // Only available if Param is max_work_item_sizes<2>
-  template <typename Param>
-  id<2> ext_oneapi_get_info(sycl::queue q) const;
-
-  // Only available if Param is max_work_item_sizes<3>
-  template <typename Param>
-  id<3> ext_oneapi_get_info(sycl::queue q) const;
-
-  // Only available if Param is max_work_group_size
-  template <typename Param>
-  size_t ext_oneapi_get_info(sycl::queue q) const;
-
   // Only available if Param is max_num_work_groups
   template <typename Param>
   uint32_t ext_oneapi_get_info(sycl::queue q, sycl::range<1> r, size_t bytes = 0) const;
@@ -177,10 +161,6 @@ class kernel {
 
 namespace ext::oneapi::experimental::info::kernel {
 
-template <uint32_t Dimensions>
-struct max_work_item_sizes;
-
-struct max_work_group_size;
 struct max_num_work_groups;
 
 struct max_sub_group_size;
@@ -209,46 +189,6 @@ If certain properties (e.g. forward progress guarantees, cross-work-group
 synchronization) are being used as part of a performance optimization,
 developers should check that the values returned by these queries is not
 1._{endnote}_]
-
-'''
-
-[source,c++]
-----
-template <typename Param>
-id<1> ext_oneapi_get_info(sycl::queue q) const; // (1)
-
-template <typename Param>
-id<2> ext_oneapi_get_info(sycl::queue q) const; // (2)
-
-template <typename Param>
-id<3> ext_oneapi_get_info(sycl::queue q) const; // (3)
-----
-_Constraints (1)_: `Param` is `max_work_item_sizes<1>`.
-
-_Constraints (2)_: `Param` is `max_work_item_sizes<2>`.
-
-_Constraints (3)_: `Param` is `max_work_item_sizes<3>`.
-
-_Returns_: The maximum number of work-items that are permitted in each
-dimension of a work-group, when the kernel is submitted to the specified queue,
-accounting for any kernel properties or features.
-If the kernel can be submitted to the specified queue without an error, the
-minimum value returned by this query is 1, otherwise it is 0.
-
-'''
-
-[source,c++]
-----
-template <typename Param>
-size_t ext_oneapi_get_info(sycl::queue q) const;
-----
-_Constraints_: `Param` is `max_work_group_size`.
-
-_Returns_: The maximum number of work-items that are permitted in a work-group,
-when the kernel is submitted to the specified queue, accounting for any
-kernel properties or features.
-If the kernel can be submitted to the specified queue without an error, the
-minimum value returned by this query is 1, otherwise it is 0.
 
 '''
 

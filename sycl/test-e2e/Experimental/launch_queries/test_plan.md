@@ -16,10 +16,6 @@ in the relevant section of the spec.
 
 Param must be one of the following types defined in 
 `sycl::ext::oneapi::experiemntal::info::kernel` namespace:
-- `max_work_item_sizes<1>`
-- `max_work_item_sizes<2>`
-- `max_work_item_sizes<3>`
-- `max_work_group_size`
 - `max_num_work_groups`
 - `max_sub_group_size`
 - `num_sub_groups`
@@ -56,9 +52,6 @@ device-specific queries.
 
 For example, 
 
-- `max_work_item_sizes<dim>` can be compared with 
-`sycl::info::device::max_work_item_sizes<dim>`
-- `max_work_group_size` can be compared with `sycl::info::device::max_work_group_size`
 - `max_num_work_groups` can be compared with `sycl::ext::oneapi::experimental::info::device::max_work_groups<dim>`
 - `max_sub_group_size` can be compared with `sycl::info::kernel_device_specific::max_sub_group_size`
 - `num_sub_groups` can be compared with `sycl::info::device::max_num_sub_groups`
