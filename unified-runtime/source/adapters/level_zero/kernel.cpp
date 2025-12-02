@@ -168,11 +168,8 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
     /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
     /// properties.
     const ur_exp_kernel_arg_properties_t *Args,
-    /// [in] size of the launch prop list
-    uint32_t NumPropsInLaunchPropList,
-    /// [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
-    /// properties
-    const ur_kernel_launch_property_t *LaunchPropList,
+    /// [in][optional] pointer to a single linked list of launch properties
+    const ur_kernel_launch_ext_properties_t *LaunchPropList,
     uint32_t NumEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
     /// events that must be complete before the kernel execution. If
@@ -219,8 +216,7 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
   // Normalize so each dimension has at least one work item
   return level_zero::urEnqueueKernelLaunch(
       Queue, Kernel, workDim, GlobalWorkOffset, GlobalWorkSize, LocalWorkSize,
-      NumPropsInLaunchPropList, LaunchPropList, NumEventsInWaitList,
-      EventWaitList, OutEvent);
+      LaunchPropList, NumEventsInWaitList, EventWaitList, OutEvent);
 }
 
 ur_result_t urEnqueueKernelLaunch(
@@ -243,11 +239,8 @@ ur_result_t urEnqueueKernelLaunch(
     /// will execute the kernel function. If nullptr, the runtime
     /// implementation will choose the work-group size.
     const size_t *LocalWorkSize,
-    /// [in] size of the launch prop list
-    uint32_t NumPropsInLaunchPropList,
-    /// [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
-    /// properties
-    const ur_kernel_launch_property_t *LaunchPropList,
+    /// [in][optional] pointer to a single linked list of launch properties
+    const ur_kernel_launch_ext_properties_t *LaunchPropList,
     /// [in] size of the event wait list
     uint32_t NumEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -262,20 +255,30 @@ ur_result_t urEnqueueKernelLaunch(
       ze_command_list_handle_t, ze_kernel_handle_t, const ze_group_count_t *,
       ze_event_handle_t, uint32_t, ze_event_handle_t *);
   ZeKernelLaunchFuncT ZeKernelLaunchFunc = &zeCommandListAppendLaunchKernel;
-  for (uint32_t PropIndex = 0; PropIndex < NumPropsInLaunchPropList;
-       PropIndex++) {
-    if (LaunchPropList[PropIndex].id ==
-            UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE &&
-        LaunchPropList[PropIndex].value.cooperative) {
-      ZeKernelLaunchFunc = &zeCommandListAppendLaunchCooperativeKernel;
-    }
-    if (LaunchPropList[PropIndex].id != UR_KERNEL_LAUNCH_PROPERTY_ID_IGNORE &&
-        LaunchPropList[PropIndex].id !=
-            UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE) {
+
+  ur_kernel_launch_ext_properties_t *_launchPropList =
+      const_cast<ur_kernel_launch_ext_properties_t *>(LaunchPropList);
+  if (_launchPropList &&
+      _launchPropList->flags & ~UR_KERNEL_LAUNCH_FLAG_COOPERATIVE) {
+    // We don't support any other flags.
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  if (_launchPropList &&
+      _launchPropList->flags & UR_KERNEL_LAUNCH_FLAG_COOPERATIVE) {
+    ZeKernelLaunchFunc = &zeCommandListAppendLaunchCooperativeKernel;
+  }
+
+  while (_launchPropList != nullptr) {
+    if (_launchPropList->stype !=
+        as_stype<ur_kernel_launch_ext_properties_t>()) {
       // We don't support any other properties.
       return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
+    _launchPropList = static_cast<ur_kernel_launch_ext_properties_t *>(
+        _launchPropList->pNext);
   }
+
   UR_ASSERT(WorkDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(WorkDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 

@@ -237,7 +237,7 @@
 
 // Verify for multiple targets with -Xsycl-target-backend= with commas in the values
 // are passed correctly to llvm-offload-binary.
-// RUN: %clangxx -fsycl -### --offload-new-driver \
+// RUN: %clangxx -fsycl -### --offload-new-driver -fno-sycl-libspirv \
 // RUN:  -fsycl-targets=nvptx64-nvidia-cuda,amdgcn-amd-amdhsa,spir64_gen \
 // RUN:  -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx908,gfx1010 \
 // RUN:  -Xsycl-target-backend=nvptx64-nvidia-cuda --offload-arch=sm_86,sm_87,sm_89 \

@@ -60,6 +60,7 @@ int main() {
   syclexp::nd_launch(
       Q, ::sycl::nd_range<1>(::sycl::range<1>(SIZE), ::sycl::range<1>(SIZE)),
       syclexp::kernel_function<initialize>, Src);
+  Q.wait();
 
   syclexp::launch_config Config{
       ::sycl::nd_range<1>(::sycl::range<1>(SIZE), ::sycl::range<1>(SIZE)),
