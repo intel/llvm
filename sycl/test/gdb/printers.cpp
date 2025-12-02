@@ -77,7 +77,7 @@ sycl::item<2, false> item_wo_offset =
 // DEVICE:       16 |   class sycl::range<> MemRange
 
 // CHECK:         0 | class sycl::detail::queue_impl
-// CHECK:        56 |   device_impl & MDevice
+// CHECK:        56 |   class sycl::device MDevice
 
 // CHECK:         0 | class sycl::accessor<int>
 // HOST:          0 |     {{.*}} sycl::detail::AccessorImplHost{{.*}} impl

@@ -22,8 +22,7 @@ using ::testing::An;
 
 class MockQueueImpl : public sycl::detail::queue_impl {
 public:
-  MockQueueImpl(sycl::detail::device_impl &Device,
-                const sycl::async_handler &AsyncHandler,
+  MockQueueImpl(sycl::device &Device, const sycl::async_handler &AsyncHandler,
                 const sycl::property_list &PropList)
       : sycl::detail::queue_impl(Device, AsyncHandler, PropList,
                                  sycl::detail::queue_impl::private_tag{}) {}
@@ -80,10 +79,9 @@ TEST_F(SchedulerTest, InOrderQueueSyncCheck) {
   sycl::unittest::UrMock<> Mock;
   platform Plt = sycl::platform();
 
-  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::device Dev = Plt.get_devices()[0];
   auto Queue = std::make_shared<MockQueueImpl>(
-      *sycl::detail::getSyclObjImpl(Dev), sycl::async_handler{},
-      sycl::property::queue::in_order());
+      Dev, sycl::async_handler{}, sycl::property::queue::in_order());
 
   // Check that tasks submitted to an in-order queue implicitly depend_on the
   // previous task, this is needed to properly sync blocking & blocked tasks.

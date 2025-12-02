@@ -63,7 +63,7 @@ uint32_t reduGetMaxNumConcurrentWorkGroups(device_impl &Dev) {
 // Returns the estimated number of physical threads on the device associated
 // with the given queue.
 __SYCL_EXPORT uint32_t reduGetMaxNumConcurrentWorkGroups(handler &cgh) {
-  return reduGetMaxNumConcurrentWorkGroups(getSyclObjImpl(cgh)->get_device());
+  return reduGetMaxNumConcurrentWorkGroups(getDeviceImplFromHandler(cgh));
 }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
@@ -125,7 +125,7 @@ size_t reduGetMaxWGSize(device_impl &Dev, size_t LocalMemBytesPerWorkItem) {
 }
 __SYCL_EXPORT size_t reduGetMaxWGSize(handler &cgh,
                                       size_t LocalMemBytesPerWorkItem) {
-  return reduGetMaxWGSize(getSyclObjImpl(cgh)->get_device(),
+  return reduGetMaxWGSize(getDeviceImplFromHandler(cgh),
                           LocalMemBytesPerWorkItem);
 }
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
@@ -181,7 +181,7 @@ size_t reduGetPreferredWGSize(device_impl &Dev,
 }
 __SYCL_EXPORT size_t reduGetPreferredWGSize(handler &cgh,
                                             size_t LocalMemBytesPerWorkItem) {
-  return reduGetPreferredWGSize(getSyclObjImpl(cgh)->get_device(),
+  return reduGetPreferredWGSize(getDeviceImplFromHandler(cgh),
                                 LocalMemBytesPerWorkItem);
 }
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES

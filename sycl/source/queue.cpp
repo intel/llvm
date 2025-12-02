@@ -30,22 +30,19 @@ queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
 
   const device &SyclDevice = *std::max_element(Devs.begin(), Devs.end(), Comp);
 
-  impl = detail::queue_impl::create(*detail::getSyclObjImpl(SyclDevice),
-                                    *detail::getSyclObjImpl(SyclContext),
-                                    AsyncHandler, PropList);
+  impl = detail::queue_impl::create(
+      SyclDevice, *detail::getSyclObjImpl(SyclContext), AsyncHandler, PropList);
 }
 
 queue::queue(const context &SyclContext, const device &SyclDevice,
              const async_handler &AsyncHandler, const property_list &PropList) {
-  impl = detail::queue_impl::create(*detail::getSyclObjImpl(SyclDevice),
-                                    *detail::getSyclObjImpl(SyclContext),
-                                    AsyncHandler, PropList);
+  impl = detail::queue_impl::create(
+      SyclDevice, *detail::getSyclObjImpl(SyclContext), AsyncHandler, PropList);
 }
 
 queue::queue(const device &SyclDevice, const async_handler &AsyncHandler,
              const property_list &PropList) {
-  impl = detail::queue_impl::create(*detail::getSyclObjImpl(SyclDevice),
-                                    AsyncHandler, PropList);
+  impl = detail::queue_impl::create(SyclDevice, AsyncHandler, PropList);
 }
 
 queue::queue(const context &SyclContext, const device_selector &deviceSelector,
