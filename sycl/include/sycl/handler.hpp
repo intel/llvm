@@ -147,15 +147,6 @@ class pipe;
 }
 
 namespace ext ::oneapi ::experimental {
-template <auto *> struct kernel_function_s;
-template <auto *Func, typename... Args>
-void single_task(handler &, kernel_function_s<Func>, Args &&...);
-template <auto *Func, int Dimensions, typename... Args>
-void nd_launch(handler &, nd_range<Dimensions>, kernel_function_s<Func>,
-               Args &&...);
-template <auto *Func, int Dimensions, typename Properties, typename... Args>
-void nd_launch(handler &, launch_config<nd_range<Dimensions>, Properties>,
-               kernel_function_s<Func>, Args &&...);
 template <typename, typename> class work_group_memory;
 template <typename, typename> class dynamic_work_group_memory;
 struct image_descriptor;
@@ -3239,23 +3230,6 @@ private:
   friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
 
-  template <auto *Func, typename... Args>
-  friend void ext::oneapi::experimental::single_task(
-      handler &, ext::oneapi::experimental::kernel_function_s<Func>,
-      Args &&...);
-
-  template <auto *Func, int Dimensions, typename... Args>
-  friend void ext::oneapi::experimental::nd_launch(
-      handler &, nd_range<Dimensions>,
-      ext::oneapi::experimental::kernel_function_s<Func>, Args &&...);
-
-  template <auto *Func, int Dimensions, typename Properties, typename... Args>
-  friend void ext::oneapi::experimental::nd_launch(
-      handler &,
-      ext::oneapi::experimental::launch_config<nd_range<Dimensions>,
-                                               Properties>,
-      ext::oneapi::experimental::kernel_function_s<Func>, Args &&...);
-
   /// Read from a host pipe given a host address and
   /// \param Name name of the host pipe to be passed into lower level runtime
   /// \param Ptr host pointer of host pipe as identified by address of its const
@@ -3711,6 +3685,8 @@ public:
                               kernel Kernel) {
     Handler.parallel_for_impl(Range, Props, Kernel);
   }
+
+  __SYCL_EXPORT static queue getQueue(handler &Handler);
 
   static void swap(handler &LHS, handler &RHS) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
