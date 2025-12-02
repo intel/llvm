@@ -3733,7 +3733,6 @@
 ?add@host_pipe_map@detail@_V1@sycl@@YAXPEBXPEBD@Z
 ?add@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAA?AVnode@34567@AEBVproperty_list@67@@Z
 ?addArg@handler@_V1@sycl@@AEAAXW4kernel_param_kind_t@detail@23@PEAXHH@Z
-?addCounterInit@detail@_V1@sycl@@YAXAEAVhandler@23@AEAV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@AEAV?$shared_ptr@H@6@@Z
 ?addGraphLeafDependencies@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@IEAAXVnode@34567@@Z
 ?addHostAccessorAndWait@detail@_V1@sycl@@YAXPEAVAccessorImplHost@123@@Z
 ?addHostSampledImageAccessorAndWait@detail@_V1@sycl@@YAXPEAVSampledImageAccessorImplHost@123@@Z
@@ -4328,10 +4327,7 @@
 ?query@tls_code_loc_t@detail@_V1@sycl@@QEAAAEBUcode_location@234@XZ
 ?reduComputeWGSize@detail@_V1@sycl@@YA_K_K0AEA_K@Z
 ?reduGetMaxNumConcurrentWorkGroups@detail@_V1@sycl@@YAIAEAVhandler@23@@Z
-?reduGetMaxNumConcurrentWorkGroups@detail@_V1@sycl@@YAIV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@@Z
 ?reduGetMaxWGSize@detail@_V1@sycl@@YA_KAEAVhandler@23@_K@Z
-?reduGetMaxWGSize@detail@_V1@sycl@@YA_KV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_K@Z
-?reduGetPreferredWGSize@detail@_V1@sycl@@YA_KAEAV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_K@Z
 ?reduGetPreferredWGSize@detail@_V1@sycl@@YA_KAEAVhandler@23@_K@Z
 ?registerDynamicParameter@handler@_V1@sycl@@AEAAXPEAVdynamic_parameter_impl@detail@experimental@oneapi@ext@23@H@Z
 ?release_external_memory@experimental@oneapi@ext@_V1@sycl@@YAXUexternal_mem@12345@AEBVdevice@45@AEBVcontext@45@@Z
