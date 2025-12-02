@@ -65,8 +65,8 @@ void foo() {
 // CHECK-NEXT:   144 |   struct sycl::detail::code_location MCodeLoc
 // CHECK-NEXT:   144 |     const char * MFileName
 // CHECK-NEXT:   152 |     const char * MFunctionName
-// CHECK-NEXT:   160 |     unsigned long MLineNo
-// CHECK-NEXT:   168 |     unsigned long MColumnNo
-// CHECK-NEXT:     | [sizeof=176, dsize=176, align=8,
-// CHECK-NEXT:     |  nvsize=176, nvalign=8]
+// CHECK-NEXT:   160 |     uint32_t MLineNo
+// CHECK-NEXT:   164 |     uint32_t MColumnNo
+// CHECK-NEXT:     | [sizeof=168, dsize=168, align=8,
+// CHECK-NEXT:     |  nvsize=168, nvalign=8]
 // clang-format on
