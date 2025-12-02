@@ -325,6 +325,11 @@
 // CHK-NO-FSYCL-TARGET-ERROR-NOT: clang{{.*}} error: cannot deduce implicit triple value for '-Xsycl-target-frontend', specify triple using '-Xsycl-target-frontend=<triple>'
 
 /// ###########################################################################
+
+// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-TOOLS-OPTS %s
+// CHK-TOOLS-OPTS: clang-linker-wrapper{{.*}} "--device-compiler=spir64-unknown-unknown=-DFOO1 -DFOO2"
+
 /// Check for implied options (-g -O0)
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -g -O0 -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS %s
@@ -340,6 +345,10 @@
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64 -O0 -O2 %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS-O0 %s
 // CHK-TOOLS-IMPLIED-OPTS-O0-NOT: llvm-offload-binary{{.*}} {{.*}}compile-opts={{.*}}-cl-opt-disable"
+
+// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -Xsycl-target-linker "-DFOO1 -DFOO2" %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-TOOLS-OPTS2 %s
+// CHK-TOOLS-OPTS2: clang-linker-wrapper{{.*}} "--device-linker=-DFOO1 -DFOO2"
 
 /// -fsycl-range-rounding settings
 ///

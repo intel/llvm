@@ -52,6 +52,14 @@
 // RUN:    | FileCheck -check-prefix DEFAULT_LINK %s
 // DEFAULT_LINK: clang-linker-wrapper{{.*}}
 
+/// Passing in the default triple should allow for -Xsycl-target options, both the
+/// "=<triple>" and the default spelling
+// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64 -Xsycl-target-backend=spir64 -DFOO -Xsycl-target-linker=spir64 -DFOO2 %S/Inputs/SYCL/objlin64.o 2>&1 \
+// RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT %s
+// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -Xsycl-target-backend=spir64 -DFOO -Xsycl-target-linker=spir64 -DFOO2 %S/Inputs/SYCL/objlin64.o 2>&1 \
+// RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT %s
+// SYCL_TARGET_OPT: clang-linker-wrapper{{.*}} "--device-compiler=spir64-unknown-unknown=-DFOO" "--device-linker=-DFOO2"
+
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64_x86_64 -Xsycl-target-backend -DFOO %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT_AOT,SYCL_TARGET_OPT_CPU %s
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64_gen -Xsycl-target-backend -DFOO %S/Inputs/SYCL/objlin64.o 2>&1 \

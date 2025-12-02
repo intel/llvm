@@ -721,8 +721,12 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
 /// 'Args' encompasses all arguments required for linking and wrapping device
 /// code and will be parsed to generate options required to be passed into the
 /// sycl-post-link tool.
+/// 'IsDevicePassedWithSyclTargetBackend' indicates whether the device
+/// architecture is already specified through -Xsycl-target-backend=spir64_gen
+/// "-device <arch>" format.
 static Expected<std::vector<module_split::SplitModule>>
-runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args, bool HasGPUTool) {
+runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args,
+                    bool IsDevicePassedWithSyclTargetBackend) {
   Expected<std::string> SYCLPostLinkPath =
       findProgram("sycl-post-link", {getMainExecutable("sycl-post-link")});
   if (!SYCLPostLinkPath)
@@ -737,13 +741,13 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args, bool Ha
 
   // Enable the driver to invoke sycl-post-link with the device architecture
   // when Intel GPU targets are passed in -fsycl-targets.
-  // HasGPUTool is checked to ensure the device architecture is not
+  // IsDevicePassedWithSyclTargetBackend is checked to ensure the device architecture is not
   // passed through -Xsycl-target-backend=spir64_gen "-device <arch>" format
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
 
   if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen && !Arch.empty() &&
-      !HasGPUTool && Arch != "*")
+      !IsDevicePassedWithSyclTargetBackend && Arch != "*")
     OutputPathWithArch = "intel_gpu_" + Arch.str() + "," + OutputPathWithArch;
   else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
     OutputPathWithArch = "spir64_x86_64," + OutputPathWithArch;
@@ -950,14 +954,11 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
 
 /// Adds all AOT backend options required for SYCL AOT compilation step to
 /// \p CmdArgs.
-/// \p Args encompasses all arguments required for linking and wrapping device
-/// code.
 /// \p IsCPU is a bool used to distinguish whether the target is an Intel GPU or
 /// Intel CPU.
 /// \p BackendOptions is a string containing backend compilation options. For
 /// example, "-options -cl-opt-disable".
-static void addSYCLBackendOptions(const ArgList &Args,
-                                  SmallVector<StringRef, 8> &CmdArgs,
+static void addSYCLBackendOptions(SmallVector<StringRef, 8> &CmdArgs,
                                   bool IsCPU, StringRef BackendOptions) {
   if (IsCPU) {
     BackendOptions.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
@@ -983,11 +984,11 @@ static void addSYCLBackendOptions(const ArgList &Args,
       // Split the options string by spaces and rejoin to normalize whitespace
       SmallVector<StringRef, 8> AfterArgs;
       AfterOptions.split(AfterArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-      std::string JoinedOptions = llvm::join(AfterArgs, " ");
-      CmdArgs.push_back(Args.MakeArgString(JoinedOptions));
+      static std::vector<std::string> StringStorage;
+      StringStorage.emplace_back(llvm::join(AfterArgs, " "));
+      CmdArgs.push_back(StringStorage.back());
     }
   }
-  return;
 }
 
 /// Run AOT compilation for Intel CPU.
@@ -1009,7 +1010,7 @@ static Expected<StringRef> runAOTCompileIntelCPU(StringRef InputFile,
 
   CmdArgs.push_back(*OpenCLAOTPath);
   CmdArgs.push_back("--device=cpu");
-  addSYCLBackendOptions(Args, CmdArgs, /* IsCPU */ true, BackendOptions);
+  addSYCLBackendOptions(CmdArgs, /* IsCPU */ true, BackendOptions);
   // Create a new file to write the translated file to.
   auto TempFileOrErr =
       createOutputFile(sys::path::filename(ExecutableName), "out");
@@ -1049,7 +1050,7 @@ static Expected<StringRef> runAOTCompileIntelGPU(StringRef InputFile,
     CmdArgs.push_back("-device");
     CmdArgs.push_back(Arch);
   }
-  addSYCLBackendOptions(Args, CmdArgs, /* IsCPU */ false, BackendOptions);
+  addSYCLBackendOptions(CmdArgs, /* IsCPU */ false, BackendOptions);
   // Create a new file to write the translated file to.
   auto TempFileOrErr =
       createOutputFile(sys::path::filename(ExecutableName), "out");
@@ -2225,14 +2226,22 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
           extractSYCLCompileLinkOptions(Input);
       if (!CompileLinkOptionsOrErr)
         return CompileLinkOptionsOrErr.takeError();
-    
+
       // Append any additional backend compiler options specified at link time.
       const llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
-      for (StringRef Arg : LinkerArgs.getAllArgValues(OPT_device_compiler_args_EQ)) {
+      for (StringRef Arg :
+           LinkerArgs.getAllArgValues(OPT_device_compiler_args_EQ)) {
         auto [ArgTriple, ArgValue] = Arg.split('=');
         if (ArgTriple == Triple.getTriple() && !ArgValue.empty()) {
           CompileLinkOptionsOrErr->first += Twine(" ", ArgValue).str();
         }
+      }
+
+      // Append any additional linker options specified at link time.
+      for (StringRef Arg :
+           LinkerArgs.getAllArgValues(OPT_device_linker_args_EQ)) {
+        auto [ArgKey, ArgValue] = Arg.split(' ');
+        CompileLinkOptionsOrErr->second += Twine(" ", ArgValue).str();
       }
 
       SmallVector<StringRef> InputFiles;
@@ -2253,10 +2262,12 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
 
       SmallVector<StringRef, 16> Args;
       StringRef(CompileLinkOptionsOrErr->first).split(Args, ' ');
-      bool HasGPUTool = std::find(Args.begin(), Args.end(), "-device") != Args.end();
+      bool IsDevicePassedWithSyclTargetBackend =
+          std::find(Args.begin(), Args.end(), "-device") != Args.end();
       auto SplitModulesOrErr =
           UseSYCLPostLinkTool
-              ? sycl::runSYCLPostLinkTool(InputFilesSYCL, LinkerArgs, HasGPUTool)
+              ? sycl::runSYCLPostLinkTool(InputFilesSYCL, LinkerArgs,
+                                          IsDevicePassedWithSyclTargetBackend)
               : sycl::runSYCLSplitLibrary(InputFilesSYCL, LinkerArgs,
                                           *SYCLModuleSplitMode);
       if (!SplitModulesOrErr)
