@@ -1,7 +1,5 @@
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: %{run} %t.out
-// RUN: %if preview-breaking-changes-supported %{ %{build} %level_zero_options -fpreview-breaking-changes -o %t2.out %}
-// RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
 // REQUIRES: level_zero, level_zero_dev_kit
 
 // UNSUPPORTED: level_zero_v2_adapter
