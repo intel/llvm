@@ -1480,7 +1480,7 @@ public:
           arch::intel_gpu_dg2_g12, arch::intel_gpu_bmg_g21,
           arch::intel_gpu_bmg_g31, arch::intel_gpu_lnl_m,
           arch::intel_gpu_arl_h,   arch::intel_gpu_ptl_h,
-          arch::intel_gpu_ptl_u,   intel_gpu_wcl,
+          arch::intel_gpu_ptl_u,   arch::intel_gpu_wcl,
       };
       try {
         return std::any_of(
