@@ -81,6 +81,20 @@ void __SYCL_EXPORT submit_kernel_direct_without_event_impl(
     const detail::KernelPropertyHolderStructTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
+event __SYCL_EXPORT submit_graph_direct_with_event_impl(
+    const queue &Queue,
+    ext::oneapi::experimental::command_graph<
+        ext::oneapi::experimental::graph_state::executable> &G,
+    sycl::span<const event> DepEvents,
+    const detail::code_location &CodeLoc = detail::code_location::current());
+
+void __SYCL_EXPORT submit_graph_direct_without_event_impl(
+    const queue &Queue,
+    ext::oneapi::experimental::command_graph<
+        ext::oneapi::experimental::graph_state::executable> &G,
+    sycl::span<const event> DepEvents,
+    const detail::code_location &CodeLoc = detail::code_location::current());
+
 namespace detail {
 class queue_impl;
 
@@ -3651,7 +3665,8 @@ public:
           ext::oneapi::experimental::graph_state::executable>
           Graph,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit([&](handler &CGH) { CGH.ext_oneapi_graph(Graph); }, CodeLoc);
+    return submit_graph_direct_with_event_impl(*this, Graph, /*DepEvents*/ {},
+                                               CodeLoc);
   }
 
   /// Shortcut for executing a graph of commands with a single dependency.
@@ -3666,12 +3681,8 @@ public:
           Graph,
       event DepEvent,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvent);
-          CGH.ext_oneapi_graph(Graph);
-        },
-        CodeLoc);
+    return submit_graph_direct_with_event_impl(
+        *this, Graph, sycl::span<const event>(&DepEvent, 1), CodeLoc);
   }
 
   /// Shortcut for executing a graph of commands with multiple dependencies.
@@ -3686,12 +3697,8 @@ public:
           Graph,
       const std::vector<event> &DepEvents,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvents);
-          CGH.ext_oneapi_graph(Graph);
-        },
-        CodeLoc);
+    return submit_graph_direct_with_event_impl(*this, Graph, DepEvents,
+                                               CodeLoc);
   }
 
   /// Provides a hint to the  runtime that previously issued commands to this

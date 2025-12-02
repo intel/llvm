@@ -14,11 +14,7 @@
 #include <sycl/detail/defines_elementary.hpp>
 
 #ifndef __SYCL_USE_LIBSYCL8_VEC_IMPL
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 #define __SYCL_USE_LIBSYCL8_VEC_IMPL 0
-#else
-#define __SYCL_USE_LIBSYCL8_VEC_IMPL 1
-#endif
 #endif
 
 namespace sycl {
