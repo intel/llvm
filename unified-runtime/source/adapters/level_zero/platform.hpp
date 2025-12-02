@@ -10,7 +10,7 @@
 #pragma once
 
 #include "common.hpp"
-#include "external/driver_experimental/zex_graph.h"
+#include "level_zero/driver_experimental/zex_api.h"
 #include "ur_api.h"
 #include "ze_api.h"
 #include "ze_ddi.h"
