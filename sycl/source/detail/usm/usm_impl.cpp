@@ -245,7 +245,7 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
 #endif
   void *RetVal =
       alignedAllocInternal(Alignment, Size, getSyclObjImpl(Ctxt).get(),
-                           getSyclObjImpl(Dev).get(), Kind, PropList);
+                           getSyclObjImpl(Dev), Kind, PropList);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Once the allocation is complete, update metadata with the memory pointer
   // before the mem_alloc_end event is sent
