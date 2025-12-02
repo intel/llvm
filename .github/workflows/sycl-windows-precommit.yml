@@ -57,7 +57,7 @@ jobs:
     with:
       changes: ${{ needs.detect_changes.outputs.filters }}
       e2e_binaries_artifact: sycl_windows_e2ebin
-      e2e_with_new_offload_model_binaries_artifact: sycl_windows_e2ebin_with_new_offload_model
+      e2e_binaries_new_offload_model_artifact: sycl_windows_e2ebin_with_new_offload_model
 
   run_prebuilt_e2e_tests:
     needs: build
