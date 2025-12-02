@@ -3,6 +3,9 @@
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
 // RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 //
+// UNSUPPORTED: level_zero && windows && gpu-intel-gen12
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20696
+//
 // REQUIRES: aspect-usm_host_allocations
 
 // Tests injected barrier between an in-order operation in no event mode and a
