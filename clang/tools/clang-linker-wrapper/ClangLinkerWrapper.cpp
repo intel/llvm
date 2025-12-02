@@ -2230,9 +2230,7 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       const llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
       for (StringRef Arg : LinkerArgs.getAllArgValues(OPT_device_compiler_args_EQ)) {
         auto [ArgTriple, ArgValue] = Arg.split('=');
-        if (ArgTriple == LinkerArgs.getLastArgValue(OPT_triple_EQ) &&
-            Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
-            !ArgValue.empty()) {
+        if (ArgTriple == Triple.getTriple() && !ArgValue.empty()) {
           CompileLinkOptionsOrErr->first += Twine(" ", ArgValue).str();
         }
       }

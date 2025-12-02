@@ -11287,14 +11287,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
           (TC->getTriple().isAMDGPU() || TC->getTriple().isNVPTX()))
         LinkerArgs.emplace_back("-lompdevice");
 
-      // Forward all of these to the appropriate toolchain.
-      for (StringRef Arg : CompilerArgs)
-        CmdArgs.push_back(Args.MakeArgString(
-            "--device-compiler=" + TC->getTripleString() + "=" + Arg));
-      for (StringRef Arg : LinkerArgs)
-        CmdArgs.push_back(Args.MakeArgString(
-            "--device-linker=" + TC->getTripleString() + "=" + Arg));
-
       // Forward the LTO mode relying on the Driver's parsing.
       if (C.getDriver().getOffloadLTOMode() == LTOK_Full)
         CmdArgs.push_back(Args.MakeArgString(
@@ -11508,8 +11500,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       const ToolChain *TC = ToolChainMember.second;
       ArgStringList BuildArgs;
       SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
-      if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen) {
-        SmallString<128> BackendOptString;
+      SmallString<128> BackendOptString;
+      if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen || (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_x86_64)) {
         for (const auto &A : BuildArgs)
           appendOption(BackendOptString, A);
         CmdArgs.push_back(Args.MakeArgString(
