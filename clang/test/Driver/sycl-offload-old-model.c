@@ -605,7 +605,7 @@
 /// Verify that triple-boundarch pairs are correct with multi-targetting
 // RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib \
 // RUN:    -fsycl-targets=nvptx64-nvidia-cuda,spir64 -ccc-print-phases --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
-// RUN:    -fsycl-libspirv-path=%S/Inputs/SYCL/share/clc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc %s 2>&1 \
+// RUN:    -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/libclc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG-BOUND-ARCH %s
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -644,7 +644,7 @@
 // RUN:    -fno-sycl-instrument-device-code --no-offloadlib \
 // RUN:    -fsycl-targets=nvptx64-nvidia-cuda,spir64_gen \
 // RUN:    --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
-// RUN:    -fsycl-libspirv-path=%S/Inputs/SYCL/share/clc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
+// RUN:    -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/libclc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
 // RUN:     -Xsycl-target-backend=spir64_gen "-device skl" \
 // RUN:     -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG-BOUND-ARCH2 %s
@@ -686,7 +686,7 @@
 // RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver \
 // RUN:    -fno-sycl-instrument-device-code --no-offloadlib \
 // RUN:    --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
-// RUN:    -fsycl-libspirv-path=%S/Inputs/SYCL/share/clc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
+// RUN:    -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/libclc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
 // RUN:    -fsycl-targets=spir64,nvptx64-nvidia-cuda -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED %s
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
@@ -728,7 +728,7 @@
 // RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver \
 // RUN:    -fno-sycl-instrument-device-code --no-offloadlib \
 // RUN:    --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
-// RUN:    -fsycl-libspirv-path=%S/Inputs/SYCL/share/clc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
+// RUN:    -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/libclc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
 // RUN:    -fsycl-targets=spir64,nvptx64-nvidia-cuda,amdgcn-amd-amdhsa \
 // RUN:    -Xsycl-target-backend=nvptx64-nvidia-cuda --offload-arch=sm_75 \
 // RUN:    -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx908 -ccc-print-phases %s 2>&1 \
