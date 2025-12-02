@@ -415,7 +415,7 @@ void PointerReplacer::replace(Instruction *I) {
                               LT->getAlign(), LT->getOrdering(),
                               LT->getSyncScopeID());
     NewI->takeName(LT);
-    copyMetadataForLoad(*NewI, *LT);
+    copyMetadataForAccess(*NewI, *LT);
 
     IC.InsertNewInstWith(NewI, LT->getIterator());
     IC.replaceInstUsesWith(*LT, NewI);
@@ -607,7 +607,7 @@ LoadInst *InstCombinerImpl::combineLoadToNewType(LoadInst &LI, Type *NewTy,
                                 LI.isVolatile(), LI.getName() + Suffix);
 
   NewLoad->setAtomic(LI.getOrdering(), LI.getSyncScopeID());
-  copyMetadataForLoad(*NewLoad, LI);
+  copyMetadataForAccess(*NewLoad, LI);
   return NewLoad;
 }
 
