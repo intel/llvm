@@ -1,5 +1,5 @@
 // XFAIL: new-offload-model
-// XFAIL-TRACKER: CMPLRLLVM-61170
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20797
 
 // REQUIRES: gpu
 // Disable fallback assert here so, that build process isn't affected

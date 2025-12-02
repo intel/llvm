@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: new-offload-model
-// UNSUPPORTED-TRACKER: CMPLRLLVM-61170
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20797
 
 // REQUIRES: opencl-aot, ocloc, any-device-is-cpu, any-device-is-gpu, target-spir, opencl-cpu-rt
 

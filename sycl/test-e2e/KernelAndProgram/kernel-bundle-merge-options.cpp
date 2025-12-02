@@ -1,5 +1,5 @@
 // XFAIL: new-offload-model
-// XFAIL-TRACKER: CMPLRLLVM-61170
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20797
 
 // REQUIRES: gpu
 // RUN: %{build} -o %t.out %debug_option

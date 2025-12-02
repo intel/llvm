@@ -1,5 +1,5 @@
 // XFAIL: new-offload-model
-// XFAIL-TRACKER: CMPLRLLVM-61170
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20797
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
