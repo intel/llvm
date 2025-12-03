@@ -11502,22 +11502,27 @@ __urdlllocal ur_result_t UR_APICALL urGraphInstantiateGraphExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urQueueAppendGraphExp
-__urdlllocal ur_result_t UR_APICALL urQueueAppendGraphExp(
-    /// [in] Handle of the queue to append the graph to.
+/// @brief Intercept function for urEnqueueGraphExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueGraphExp(
+    /// [in] Handle of the queue to which the graph will be enqueued.
     ur_queue_handle_t hQueue,
-    /// [in] Handle of the executable graph to append.
+    /// [in] Handle of the executable graph to be enqueued.
     ur_exp_executable_graph_handle_t hGraph,
-    /// [in][optional] Event to be signaled on completion.
-    ur_event_handle_t hSignalEvent,
     /// [in][optional] Number of events to wait on before executing.
-    uint32_t numWaitEvents,
-    /// [in][optional][range(0, numWaitEvents)] Handle of the events to wait
-    /// on before launching.
-    ur_event_handle_t *phWaitEvents) {
-  auto pfnAppendGraphExp = getContext()->urDdiTable.QueueExp.pfnAppendGraphExp;
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] Pointer to a list of
+    /// events that must be complete before this command can be executed.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] Event object that identifies this particular
+    /// command instance.
+    /// If phEventWaitList and phEvent are not nullptr, phEvent must not refer
+    /// to an element of the phEventWaitList array.
+    ur_event_handle_t *phEvent) {
+  auto pfnGraphExp = getContext()->urDdiTable.EnqueueExp.pfnGraphExp;
 
-  if (nullptr == pfnAppendGraphExp) {
+  if (nullptr == pfnGraphExp) {
     return UR_RESULT_ERROR_UNINITIALIZED;
   }
 
@@ -11527,6 +11532,20 @@ __urdlllocal ur_result_t UR_APICALL urQueueAppendGraphExp(
 
     if (NULL == hGraph)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (phEventWaitList == NULL && numEventsInWaitList > 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
+    if (phEventWaitList != NULL && numEventsInWaitList == 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
+    if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+      for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+        if (phEventWaitList[i] == NULL) {
+          return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+      }
+    }
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -11534,13 +11553,13 @@ __urdlllocal ur_result_t UR_APICALL urQueueAppendGraphExp(
     URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
-  if (getContext()->enableLifetimeValidation &&
-      !getContext()->refCountContext->isReferenceValid(hSignalEvent)) {
-    URLOG_CTX_INVALID_REFERENCE(hSignalEvent);
-  }
+  ur_result_t result = pfnGraphExp(hQueue, hGraph, numEventsInWaitList,
+                                   phEventWaitList, phEvent);
 
-  ur_result_t result = pfnAppendGraphExp(hQueue, hGraph, hSignalEvent,
-                                         numWaitEvents, phWaitEvents);
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -11594,7 +11613,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
     /// [in] Native queue to query.
     ur_queue_handle_t hQueue,
     /// [out] Pointer to a boolean where the result will be stored.
-    bool *hResult) {
+    bool *pResult) {
   auto pfnIsGraphCaptureEnabledExp =
       getContext()->urDdiTable.QueueExp.pfnIsGraphCaptureEnabledExp;
 
@@ -11603,7 +11622,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hResult)
+    if (NULL == pResult)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == hQueue)
@@ -11615,7 +11634,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
     URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
-  ur_result_t result = pfnIsGraphCaptureEnabledExp(hQueue, hResult);
+  ur_result_t result = pfnIsGraphCaptureEnabledExp(hQueue, pResult);
 
   return result;
 }
@@ -11626,7 +11645,7 @@ __urdlllocal ur_result_t UR_APICALL urGraphIsEmptyExp(
     /// [in] Handle of the graph to query.
     ur_exp_graph_handle_t hGraph,
     /// [out] Pointer to a boolean where the result will be stored.
-    bool *hResult) {
+    bool *pResult) {
   auto pfnIsEmptyExp = getContext()->urDdiTable.GraphExp.pfnIsEmptyExp;
 
   if (nullptr == pfnIsEmptyExp) {
@@ -11634,14 +11653,14 @@ __urdlllocal ur_result_t UR_APICALL urGraphIsEmptyExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hResult)
+    if (NULL == pResult)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == hGraph)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
-  ur_result_t result = pfnIsEmptyExp(hGraph, hResult);
+  ur_result_t result = pfnIsEmptyExp(hGraph, pResult);
 
   return result;
 }
@@ -12196,6 +12215,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   dditable.pfnNativeCommandExp = pDdiTable->pfnNativeCommandExp;
   pDdiTable->pfnNativeCommandExp =
       ur_validation_layer::urEnqueueNativeCommandExp;
+
+  dditable.pfnGraphExp = pDdiTable->pfnGraphExp;
+  pDdiTable->pfnGraphExp = ur_validation_layer::urEnqueueGraphExp;
 
   return result;
 }
@@ -12837,9 +12859,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueExpProcAddrTable(
   dditable.pfnEndGraphCaptureExp = pDdiTable->pfnEndGraphCaptureExp;
   pDdiTable->pfnEndGraphCaptureExp =
       ur_validation_layer::urQueueEndGraphCaptureExp;
-
-  dditable.pfnAppendGraphExp = pDdiTable->pfnAppendGraphExp;
-  pDdiTable->pfnAppendGraphExp = ur_validation_layer::urQueueAppendGraphExp;
 
   dditable.pfnIsGraphCaptureEnabledExp = pDdiTable->pfnIsGraphCaptureEnabledExp;
   pDdiTable->pfnIsGraphCaptureEnabledExp =

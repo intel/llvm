@@ -9588,9 +9588,6 @@ ur_result_t UR_APICALL urEnqueueNativeCommandExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Create a new record & replay graph instance explicitly.
 ///
-/// @details
-///     - Create a new record & replay graph instance explicitly.
-///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
@@ -9600,8 +9597,6 @@ ur_result_t UR_APICALL urEnqueueNativeCommandExp(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phGraph`
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
 ur_result_t UR_APICALL urGraphCreateExp(
     /// [in] Handle of the context object.
     ur_context_handle_t hContext,
@@ -9612,7 +9607,7 @@ ur_result_t UR_APICALL urGraphCreateExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Begin graph capture on the specified immediate queue.
+/// @brief Begin graph capture on the specified queue.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -9621,8 +9616,6 @@ ur_result_t UR_APICALL urGraphCreateExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hQueue`
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
 ur_result_t UR_APICALL urQueueBeginGraphCaptureExp(
     /// [in] Handle of the queue on which to begin graph capture.
     ur_queue_handle_t hQueue) {
@@ -9632,7 +9625,7 @@ ur_result_t UR_APICALL urQueueBeginGraphCaptureExp(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Begin capturing commands into an existing graph on the specified
-///        immediate queue.
+///        queue.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -9642,8 +9635,6 @@ ur_result_t UR_APICALL urQueueBeginGraphCaptureExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hQueue`
 ///         + `NULL == hGraph`
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
 ur_result_t UR_APICALL urQueueBeginCaptureIntoGraphExp(
     /// [in] Handle of the queue on which to begin graph capture.
     ur_queue_handle_t hQueue,
@@ -9654,7 +9645,7 @@ ur_result_t UR_APICALL urQueueBeginCaptureIntoGraphExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief End graph capture on the specified immediate queue.
+/// @brief End graph capture on the specified queue.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -9665,8 +9656,6 @@ ur_result_t UR_APICALL urQueueBeginCaptureIntoGraphExp(
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phGraph`
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
 ur_result_t UR_APICALL urQueueEndGraphCaptureExp(
     /// [in] Handle of the queue on which to end graph capture.
     ur_queue_handle_t hQueue,
@@ -9690,8 +9679,6 @@ ur_result_t UR_APICALL urQueueEndGraphCaptureExp(
 ///         + `NULL == hGraph`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phExecGraph`
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
 ur_result_t UR_APICALL urGraphInstantiateGraphExp(
     /// [in] Handle of the recorded graph to instantiate.
     ur_exp_graph_handle_t hGraph,
@@ -9702,7 +9689,7 @@ ur_result_t UR_APICALL urGraphInstantiateGraphExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Append an executable graph to the queue.
+/// @brief Enqueue an executable graph onto the queue.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -9712,20 +9699,27 @@ ur_result_t UR_APICALL urGraphInstantiateGraphExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hQueue`
 ///         + `NULL == hGraph`
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
-ur_result_t UR_APICALL urQueueAppendGraphExp(
-    /// [in] Handle of the queue to append the graph to.
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+ur_result_t UR_APICALL urEnqueueGraphExp(
+    /// [in] Handle of the queue to which the graph will be enqueued.
     ur_queue_handle_t hQueue,
-    /// [in] Handle of the executable graph to append.
+    /// [in] Handle of the executable graph to be enqueued.
     ur_exp_executable_graph_handle_t hGraph,
-    /// [in][optional] Event to be signaled on completion.
-    ur_event_handle_t hSignalEvent,
     /// [in][optional] Number of events to wait on before executing.
-    uint32_t numWaitEvents,
-    /// [in][optional][range(0, numWaitEvents)] Handle of the events to wait
-    /// on before launching.
-    ur_event_handle_t *phWaitEvents) {
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] Pointer to a list of
+    /// events that must be complete before this command can be executed.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] Event object that identifies this particular
+    /// command instance.
+    /// If phEventWaitList and phEvent are not nullptr, phEvent must not refer
+    /// to an element of the phEventWaitList array.
+    ur_event_handle_t *phEvent) {
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
 }
@@ -9742,8 +9736,6 @@ ur_result_t UR_APICALL urQueueAppendGraphExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hGraph`
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
 ur_result_t UR_APICALL urGraphDestroyExp(
     /// [in] Handle of the graph object to destroy.
     ur_exp_graph_handle_t hGraph) {
@@ -9762,8 +9754,6 @@ ur_result_t UR_APICALL urGraphDestroyExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hExecutableGraph`
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
 ur_result_t UR_APICALL urGraphExecutableGraphDestroyExp(
     /// [in] Handle of the executable graph object to destroy.
     ur_exp_executable_graph_handle_t hExecutableGraph) {
@@ -9782,14 +9772,12 @@ ur_result_t UR_APICALL urGraphExecutableGraphDestroyExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == hResult`
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+///         + `NULL == pResult`
 ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
     /// [in] Native queue to query.
     ur_queue_handle_t hQueue,
     /// [out] Pointer to a boolean where the result will be stored.
-    bool *hResult) {
+    bool *pResult) {
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
 }
@@ -9805,14 +9793,13 @@ ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hGraph`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == hResult`
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///         + `NULL == pResult`
+///     - ::UR_RESULT_ERROR_INVALID_GRAPH
 ur_result_t UR_APICALL urGraphIsEmptyExp(
     /// [in] Handle of the graph to query.
     ur_exp_graph_handle_t hGraph,
     /// [out] Pointer to a boolean where the result will be stored.
-    bool *hResult) {
+    bool *pResult) {
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
 }
@@ -9829,9 +9816,6 @@ ur_result_t UR_APICALL urGraphIsEmptyExp(
 ///         + `NULL == hGraph`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == filePath`
-///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urGraphDumpContentsExp(
     /// [in] Handle of the graph to dump.
     ur_exp_graph_handle_t hGraph,

@@ -3,13 +3,13 @@
 
 // Had to increase inline threashold for this test to force inline of the vec<>
 // math builtins.
-// RUN: %clangxx -I %sycl_include -fpreview-breaking-changes -mllvm -inline-threshold=400 -fno-discard-value-names -S -emit-llvm -fno-sycl-instrument-device-code -Xclang -disable-lifetime-markers -O3 -fsycl-device-only %s -o - | FileCheck %s
+// RUN: %clangxx -I %sycl_include -mllvm -inline-threshold=400 -fno-discard-value-names -S -emit-llvm -fno-sycl-instrument-device-code -Xclang -disable-lifetime-markers -O3 -fsycl-device-only %s -o - | FileCheck %s
 
 // Windows/linux have some slight differences in IR generation (function
 // arguments passing and long/long long differences/mangling) that could
 // complicate test updates while not improving test coverage. Limiting to linux
 // should be fine.
-// REQUIRES: linux && preview-breaking-changes-supported
+// REQUIRES: linux
 
 // This test checks the device code generated for vec<bfloat16> math builtins.
 #include <sycl/detail/core.hpp>
