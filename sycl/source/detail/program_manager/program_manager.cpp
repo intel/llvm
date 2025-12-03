@@ -1788,18 +1788,6 @@ Managed<ur_program_handle_t> ProgramManager::build(
   return LinkedProg;
 }
 
-void ProgramManager::cacheKernelImplicitLocalArg(
-    const RTDeviceBinaryImage &Img) {
-  const RTDeviceBinaryImage::PropertyRange &ImplicitLocalArgRange =
-      Img.getImplicitLocalArg();
-  if (ImplicitLocalArgRange.isAvailable())
-    for (auto Prop : ImplicitLocalArgRange) {
-      auto It = m_DeviceKernelInfoMap.find(Prop->Name);
-      assert(It != m_DeviceKernelInfoMap.end());
-      It->second.setImplicitLocalArgPos(DeviceBinaryProperty(Prop).asUint32());
-    }
-}
-
 DeviceKernelInfo &
 ProgramManager::getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
@@ -2000,6 +1988,16 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
       m_BinImg2KernelIDs[Img.get()];
   KernelIDs.reset(new std::vector<kernel_id>);
 
+  std::unordered_map<std::string_view, int> ImplicitLocalArgPositions;
+  const RTDeviceBinaryImage::PropertyRange &ImplicitLocalArgRange =
+      Img->getImplicitLocalArg();
+  if (ImplicitLocalArgRange.isAvailable())
+    for (auto Prop : ImplicitLocalArgRange) {
+      auto Result = ImplicitLocalArgPositions.try_emplace(
+          Prop->Name, DeviceBinaryProperty(Prop).asUint32());
+      assert(Result.second && "Duplicate implicit arg property");
+    }
+
   for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
        EntriesIt = EntriesIt->Increment()) {
 
@@ -2024,10 +2022,14 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
     m_KernelIDs2BinImage.insert(std::make_pair(It->second, Img.get()));
     KernelIDs->push_back(It->second);
 
-    CompileTimeKernelInfoTy DefaultCompileTimeInfo{std::string_view(name)};
-    m_DeviceKernelInfoMap.try_emplace(std::string_view(name),
-                                      DefaultCompileTimeInfo);
-
+    std::optional<int> ImplicitLocalArgPos;
+    auto ImplicitLocalArgPosIt = ImplicitLocalArgPositions.find(name);
+    if (ImplicitLocalArgPosIt != ImplicitLocalArgPositions.end())
+      ImplicitLocalArgPos = ImplicitLocalArgPosIt->second;
+    auto Result =
+        m_DeviceKernelInfoMap.try_emplace(name, name, ImplicitLocalArgPos);
+    assert(ImplicitLocalArgPos == Result->first.getImplicitLocalArgPos() &&
+           "Conflicting values of implicit local arg positions");
     // Keep track of image to kernel name reference count for cleanup.
     m_KernelNameRefCount[name]++;
   }
@@ -2047,8 +2049,6 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
       }
     }
   }
-
-  cacheKernelImplicitLocalArg(*Img);
 
   // Sort kernel ids for faster search
   std::sort(KernelIDs->begin(), KernelIDs->end(), LessByHash<kernel_id>{});

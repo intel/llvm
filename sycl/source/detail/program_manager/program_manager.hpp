@@ -393,8 +393,6 @@ public:
 
   SanitizerType kernelUsesSanitizer() const { return m_SanitizerFoundInImage; }
 
-  void cacheKernelImplicitLocalArg(const RTDeviceBinaryImage &Img);
-
   DeviceKernelInfo &getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
   DeviceKernelInfo &getDeviceKernelInfo(std::string_view KernelName);
   DeviceKernelInfo *tryGetDeviceKernelInfo(std::string_view KernelName);
