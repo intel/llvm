@@ -327,7 +327,7 @@ graph_impl::graph_impl(const sycl::context &SyclContext,
 
 graph_impl::~graph_impl() {
   try {
-    clearQueues();
+    clearQueues(false /*Needs lock*/);
     for (auto &MemObj : MMemObjs) {
       MemObj->markNoLongerBeingUsedInGraph();
     }
@@ -416,12 +416,8 @@ node_impl &graph_impl::add(std::function<void(handler &)> CGF,
                            const std::vector<sycl::detail::ArgDesc> &Args,
                            nodes_range Deps) {
   (void)Args;
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   detail::handler_impl HandlerImpl{*this};
   sycl::handler Handler{HandlerImpl};
-#else
-  sycl::handler Handler{shared_from_this()};
-#endif
 
   // Pass the node deps to the handler so they are available when processing the
   // CGF, need for async_malloc nodes.
@@ -564,17 +560,21 @@ void graph_impl::removeQueue(sycl::detail::queue_impl &RecordingQueue) {
   MRecordingQueues.erase(RecordingQueue.weak_from_this());
 }
 
-bool graph_impl::clearQueues() {
-  bool AnyQueuesCleared = false;
-  for (auto &Queue : MRecordingQueues) {
+void graph_impl::clearQueues(bool NeedsLock) {
+  graph_impl::RecQueuesStorage SwappedQueues;
+  {
+    graph_impl::WriteLock Guard(MMutex, std::defer_lock);
+    if (NeedsLock) {
+      Guard.lock();
+    }
+    std::swap(MRecordingQueues, SwappedQueues);
+  }
+
+  for (auto &Queue : SwappedQueues) {
     if (auto ValidQueue = Queue.lock(); ValidQueue) {
       ValidQueue->setCommandGraph(nullptr);
-      AnyQueuesCleared = true;
     }
   }
-  MRecordingQueues.clear();
-
-  return AnyQueuesCleared;
 }
 
 bool graph_impl::checkForCycles() {
@@ -1204,7 +1204,7 @@ exec_graph_impl::enqueuePartitions(sycl::detail::queue_impl &Queue,
   return SignalEvent;
 }
 
-EventImplPtr
+std::pair<EventImplPtr, bool>
 exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
                          sycl::detail::CG::StorageInitHelper CGData,
                          bool EventNeeded) {
@@ -1213,19 +1213,17 @@ exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
   cleanupExecutionEvents(MSchedulerDependencies);
   CGData.MEvents.insert(CGData.MEvents.end(), MSchedulerDependencies.begin(),
                         MSchedulerDependencies.end());
-
   bool IsCGDataSafeForSchedulerBypass =
       detail::Scheduler::areEventsSafeForSchedulerBypass(
           CGData.MEvents, Queue.getContextImpl()) &&
       CGData.MRequirements.empty();
+  bool SkipScheduler = IsCGDataSafeForSchedulerBypass && !MContainsHostTask;
 
   // This variable represents the returned event. It will always be nullptr if
   // EventNeeded is false.
   EventImplPtr SignalEvent;
-
   if (!MContainsHostTask) {
-    bool SkipScheduler =
-        IsCGDataSafeForSchedulerBypass && MPartitions[0]->MRequirements.empty();
+    SkipScheduler = SkipScheduler && MPartitions[0]->MRequirements.empty();
     if (SkipScheduler) {
       SignalEvent = enqueuePartitionDirectly(MPartitions[0], Queue,
                                              CGData.MEvents, EventNeeded);
@@ -1258,7 +1256,7 @@ exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
     SignalEvent->setProfilingEnabled(MEnableProfiling);
   }
 
-  return SignalEvent;
+  return {SignalEvent, SkipScheduler};
 }
 
 void exec_graph_impl::duplicateNodes() {
@@ -1970,8 +1968,7 @@ void modifiable_command_graph::begin_recording(
 }
 
 void modifiable_command_graph::end_recording() {
-  graph_impl::WriteLock Lock(impl->MMutex);
-  impl->clearQueues();
+  impl->clearQueues(true /*Needs lock*/);
 }
 
 void modifiable_command_graph::end_recording(queue &RecordingQueue) {

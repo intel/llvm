@@ -67,7 +67,7 @@ runs:
       cmake -GNinja -B build-e2e -S./llvm/sycl/test-e2e -DCMAKE_CXX_COMPILER="${{ inputs.sycl_compiler || '$(which clang++).exe' }}" -DLEVEL_ZERO_LIBS_DIR="D:\\github\\level-zero_win-sdk\\lib" -DLEVEL_ZERO_INCLUDE="D:\\github\\level-zero_win-sdk\\include" -DLLVM_LIT="..\\llvm\\llvm\\utils\\lit\\lit.py" ${{ steps.cmake_opts.outputs.opts }}
 
   - name: Keep track of files after configuring E2E step
-    if: ${{ always() && !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only'}}
+    if: ${{ !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only' }}
     shell: bash
     run: ls build-e2e > e2econf_files.txt
 
@@ -103,19 +103,19 @@ runs:
   # CMake issues related to absolute paths we reconfigure the build-e2e
   # folder on the run system.
   - name: Remove E2E configuration files
-    if: ${{ always() && !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only'}}
+    if: ${{ !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only' }}
     shell: bash
     run: |
       for FILE in $(cat e2econf_files.txt); do rm -r build-e2e/$FILE; done
       rm e2econf_files.txt
 
   - name: Pack E2E test binaries
-    if: ${{ always() && !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only'}}
+    if: ${{ !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only' }}
     shell: bash
     run: |
       tar -czf e2e_bin.tar.gz -C build-e2e .
   - name: Upload E2E test binaries
-    if: ${{ always() && !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only'}}
+    if: ${{ !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only' }}
     uses: actions/upload-artifact@v4
     with:
       name: ${{ inputs.binaries_artifact }}

@@ -13,6 +13,7 @@
 #include <detail/kernel_compiler/kernel_compiler_sycl.hpp>
 #include <detail/kernel_id_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <sycl/ext/oneapi/experimental/syclbin_kernel_bundle.hpp>
 
 #include <cstddef>
 #include <set>
@@ -311,7 +312,20 @@ compile_impl(const kernel_bundle<bundle_state::input> &InputBundle,
 std::shared_ptr<detail::kernel_bundle_impl>
 link_impl(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
           const std::vector<device> &Devs, const property_list &PropList) {
-  return detail::kernel_bundle_impl::create(ObjectBundles, Devs, PropList);
+  sycl::span<const kernel_bundle<bundle_state::object>> ObjectBundlesView(
+      ObjectBundles.data(), ObjectBundles.size());
+  return detail::kernel_bundle_impl::create(ObjectBundlesView, Devs, PropList,
+                                            /*FastLink=*/false);
+}
+
+std::shared_ptr<detail::kernel_bundle_impl>
+link_impl(const kernel_bundle<bundle_state::object> *ObjectBundles,
+          size_t NumObjectBundles, const std::vector<device> &Devs,
+          bool FastLink) {
+  sycl::span<const kernel_bundle<bundle_state::object>> ObjectBundlesView(
+      ObjectBundles, NumObjectBundles);
+  return detail::kernel_bundle_impl::create(ObjectBundlesView, Devs,
+                                            property_list{}, FastLink);
 }
 
 std::shared_ptr<detail::kernel_bundle_impl>

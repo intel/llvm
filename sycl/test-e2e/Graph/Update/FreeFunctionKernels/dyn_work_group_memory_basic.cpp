@@ -19,7 +19,7 @@ int main() {
   std::vector<int> HostDataA(Size);
 
   exp_ext::command_graph Graph{Ctxt, Queue.get_device()};
-  exp_ext::dynamic_work_group_memory<int[]> DynLocalMem{Graph, LocalSize};
+  exp_ext::dynamic_work_group_memory<int[]> DynLocalMem{LocalSize};
 
   Queue.memset(PtrA, 0, Size * sizeof(int)).wait();
 

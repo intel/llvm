@@ -23,6 +23,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2_g10,intel_gpu_dg2_g11,intel_gpu_dg2_g12,intel_gpu_pvc,intel_gpu_mtl_h,intel_gpu_mtl_u -fsycl-fp64-conv-emu %O0 %s -o %t.out
 // RUN: %{run} %t.out
 
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2_g10,intel_gpu_dg2_g11,intel_gpu_dg2_g12,intel_gpu_pvc,intel_gpu_mtl_h,intel_gpu_mtl_u -fsycl-fp64-conv-emu -g %O0 %s -o %t.debug.out
+// RUN: %{run} %t.debug.out
+
 #include <sycl/detail/core.hpp>
 using namespace sycl;
 

@@ -1110,7 +1110,7 @@ def AVRSignal : InheritableAttr, TargetSpecificAttr<TargetAVR> {
 }
 
 def AsmLabel : InheritableAttr {
-  let Spellings = [CustomKeyword<"asm">, CustomKeyword<"__asm__">];
+  let Spellings = [CustomKeyword<"asm">, CustomKeyword<"__asm">, CustomKeyword<"__asm__">];
   let Args = [
       // Label specifies the mangled name for the decl.
       StringArgument<"Label">, ];
@@ -6070,6 +6070,10 @@ def HLSLUnparsedSemantic : HLSLAnnotationAttr {
               DefaultBoolArgument<"ExplicitIndex", 0>];
   let Subjects = SubjectList<[ParmVar, Field, Function]>;
   let LangOpts = [HLSL];
+  let Documentation = [InternalOnly];
+}
+
+def HLSLUserSemantic : HLSLSemanticAttr</* Indexable= */ 1> {
   let Documentation = [InternalOnly];
 }
 

@@ -61,8 +61,8 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        # Nov 7, 2025
-        return "d985da634fc1a9416ca0bd067cfb9886b02d0211"
+        # Nov 17, 2025
+        return "932ae79f7cca7e156285fc10a59610927c769e89"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -351,6 +351,41 @@ class ComputeBench(Suite):
         ]
 
         return benches
+
+
+class ComputeBenchCoreSuite(ComputeBench):
+    """
+    A suite for core compute benchmarks scenarios for quick runs.
+    """
+
+    def name(self) -> str:
+        return "Compute Benchmarks Core"
+
+    def benchmarks(self) -> list[Benchmark]:
+        core_benches = []
+        submit_kernel_params = product(
+            list(RUNTIMES),
+            [0, 1],  # in_order_queue
+            [0, 1],  # measure_completion
+            [0, 1],  # use_events
+        )
+        for (
+            runtime,
+            in_order_queue,
+            measure_completion,
+            use_events,
+        ) in submit_kernel_params:
+            core_benches.append(
+                SubmitKernel(
+                    self,
+                    runtime,
+                    in_order_queue,
+                    measure_completion,
+                    use_events,
+                    KernelExecTime=1,
+                )
+            )
+        return core_benches
 
 
 class ComputeBenchmark(Benchmark):
@@ -860,6 +895,7 @@ class StreamMemory(ComputeBenchmark):
             "--multiplier=1",
             "--vectorSize=1",
             "--lws=256",
+            "--prefetch=0",
         ]
 
 

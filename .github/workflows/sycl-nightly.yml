@@ -11,7 +11,9 @@ jobs:
   check_abi_symbols:
     name: Check ABI symbols tests match release branch
     runs-on: [Linux, build]
-    if: github.repository == 'intel/llvm'
+    # We're in the ABI breaking window now, disabling until the next major
+    # release.
+    if: github.repository == 'intel/llvm' && false
     container: ghcr.io/intel/llvm/ubuntu2404_build
     steps:
     - uses: actions/checkout@v5

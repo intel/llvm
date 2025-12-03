@@ -23,13 +23,19 @@ on:
       - 'devops/scripts/install_build_tools.sh'
       - '.github/workflows/sycl-containers.yaml'
 
+concurrency:
+  #  Cancel a currently running workflow from the same PR, branch or tag.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
 permissions: read-all
 
 jobs:
-  build_and_push_images:
+  # First build "Base" and "Build" images
+  build_and_push_non_driver_images:
     if: github.repository == 'intel/llvm'
     name: "Containers"
-    runs-on: ubuntu-latest
+    runs-on: [Linux, docker-builder]
     permissions:
       packages: write
     strategy:
@@ -51,6 +57,36 @@ jobs:
             file: ubuntu2404_build
             tag: latest
             build_args: ""
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+      - name: Build and Push Container
+        uses: ./devops/actions/build_container
+        with:
+          push: ${{ github.event_name != 'pull_request' }}
+          file: ${{ matrix.file }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          tags: |
+            ghcr.io/${{ github.repository }}/${{ matrix.file }}:${{ matrix.tag }}-${{ github.sha }}
+            ghcr.io/${{ github.repository }}/${{ matrix.file }}:${{ matrix.tag }}
+          build-args: ${{ matrix.build_args }}
+
+  # Then build "Intel Drivers" images that depend on previous images.
+  #
+  # Note: Building these images on PR means using old "Base" and "Build" images,
+  # as the ones above were not yet pushed.
+  build_and_push_driver_images:
+    needs: build_and_push_non_driver_images
+    name: "Containers"
+    runs-on: [Linux, docker-builder]
+    permissions:
+      packages: write
+    strategy:
+      matrix:
+        include:
           - name: Intel Drivers Ubuntu 22.04 Docker image
             file: ubuntu2204_intel_drivers
             tag: latest
@@ -87,4 +123,3 @@ jobs:
             ghcr.io/${{ github.repository }}/${{ matrix.file }}:${{ matrix.tag }}-${{ github.sha }}
             ghcr.io/${{ github.repository }}/${{ matrix.file }}:${{ matrix.tag }}
           build-args: ${{ matrix.build_args }}
-

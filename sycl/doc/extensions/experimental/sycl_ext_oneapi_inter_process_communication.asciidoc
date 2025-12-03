@@ -1,0 +1,476 @@
+= sycl_ext_oneapi_inter_process_communication
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2025 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+:khr-default-context: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:khr-default-context
+
+This extension is written against the SYCL 2020 revision 10 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+[_Note:_ The APIs in this extension uses the concept of a per-platform
+default context as specified in section 4.6.2 "Platform class" of the core SYCL
+specification.
+As a convenience, this extension specification describes the behavior of its
+APIs by using the `khr_get_default_context` function from {khr-default-context}[
+sycl_khr_default_context], however there is no true dependency on that
+extension.
+An implementation could still implement
+sycl_ext_oneapi_inter_process_communication even without implementing
+sycl_khr_default_context because the core SYCL specification still requires
+there to be a per-platform default context even if the core SYCL specification
+does not provide a convenient way to get it.
+_{endnote}_]
+
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+
+== Overview
+
+This extension adds the ability for SYCL programs to share device USM memory
+allocations between processes. This is done by the allocating process creating
+a new IPC memory handle through the new free functions and transferring the
+returned handle data to the other processes. The other processes can use the
+handle data to retrieve the corresponding device USM memory.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_INTER_PROCESS_COMMUNICATION` to one of the values defined
+in the table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's features the
+implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== Extension to `enum class aspect`
+
+[source]
+----
+namespace sycl {
+enum class aspect {
+  ...
+  ext_oneapi_ipc_memory
+}
+}
+----
+
+If a SYCL device has this aspect, that device supports the `get` and `open`
+functions specified in the following section.
+
+
+=== Inter-process communicable memory
+
+This extension adds a new type aliases `handle_data_t` and `handle_data_view_t`
+as well as a new IPC memory handle type `handle` under the `ipc_memory`
+experimental namespace.
+
+```
+namespace sycl::ext::oneapi::experimental::ipc_memory {
+
+using handle_data_t = std::vector<std::byte>;
+
+// Requires C++20
+using handle_data_view_t = std::span<const std::byte, std::dynamic_extent>;
+
+struct handle {
+  handle_data_t data() const;
+
+  // Requires C++20
+  handle_data_view_t data_view() const;
+};
+
+}
+```
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+handle_data_t data() const;
+----
+!====
+
+_Preconditions:_ The `put` function has not previously been called with this
+handle and the USM device memory associated with this handle has not been freed.
+
+_Returns:_ The handle data associated with the IPC handle object. This data can
+be transferred to other processes, but cannot be used to recreate a `handle`
+object.
+
+!====
+a!
+[source]
+----
+handle_data_view_t data_view() const;
+----
+!====
+
+_Preconditions:_ The `put` function has not previously been called with this
+handle and the USM device memory associated with this handle has not been freed.
+
+_Returns:_ A `std::span` with a view into the handle data associated with the
+IPC handle object. This data can be transferred to other processes, but cannot
+be used to recreate a `handle` object.
+
+
+|====
+
+Additionally, this extension adds new free functions under the `ipc_memory`
+experimental namespace.
+
+```
+namespace sycl::ext::oneapi::experimental::ipc_memory {
+
+handle get(void *ptr, const sycl::context &ctx);
+
+handle get(void *ptr);
+
+void put(handle &ipc_handle, const sycl::context &ctx);
+
+void put(handle &ipc_handle);
+
+void *open(const handle_data_t &handle_data, const sycl::context &ctx,
+           const sycl::device &dev);
+
+void *open(const handle_data_t &handle_data, const sycl::device &dev);
+
+void *open(const handle_data_t &handle_data);
+
+// Requires C++20
+void *open(const handle_data_view_t &handle_data, const sycl::context &ctx,
+           const sycl::device &dev);
+
+// Requires C++20
+void *open(const handle_data_view_t &handle_data, const sycl::device &dev);
+
+// Requires C++20
+void *open(const handle_data_view_t &handle_data);
+
+void close(void *ptr, const sycl::context &ctx);
+
+void close(void *ptr);
+
+}
+```
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+handle get(void *ptr, const sycl::context &ctx)
+----
+!====
+
+_Preconditions:_ `ptr` is a pointer to USM device memory on some device _D_, and
+`ctx` is the same context as `ptr` was allocated against, using the USM device
+memory allocation routines.
+
+_Returns:_ An IPC "handle" to this USM memory allocation. The bytes of this
+handle can be transferred to another process on the same system, and the other
+process can use the handle to get a pointer to the same USM allocation through a
+call to the `open` function.
+
+_Throws:_ An exception with the `errc::feature_not_supported` error code if
+device _D_ does not have `aspect::ext_oneapi_ipc_memory`.
+
+!====
+a!
+[source]
+----
+handle get(void *ptr)
+----
+!====
+
+_Effects_: Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::device d;
+sycl::context ctxt = d.get_platform().khr_get_default_context();
+return ipc_memory::get(ptr, ctxt);
+----
+
+!====
+a!
+[source]
+----
+void put(handle &ipc_handle, const sycl::context &ctx)
+----
+!====
+
+_Preconditions:_ `ipc_handle` is the IPC "handle" to USM device memory that was
+returned from a call to `get`. The `put` function has not been previously called on the
+handle.
+
+_Effects:_ Deallocates resources associated with the handle. These resources are
+automatically deallocated when the USM device memory is freed, so it is not
+strictly necessary to call the `put` function. After the resources associated
+with the handle have been deallocated, i.e. through a call to the `put` function
+or through freeing the USM device memory, the handle data is invalid and using
+it in the `put` and `open` functions will result in undefined behavior.
+
+[_Note:_ Any pointers retrieved through a call to the `open` function in any
+process on the system will still be valid after a call to the `put` function and
+must still be freed through calls to the `close` function.
+_{endnote}_]
+
+!====
+a!
+[source]
+----
+void put(handle &ipc_handle)
+----
+!====
+
+_Effects_: Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::device d;
+sycl::context ctxt = d.get_platform().khr_get_default_context();
+ipc_memory::put(handle_data, ctxt);
+----
+
+!====
+a!
+[source]
+----
+void *open(const handle_data_t &handle_data, const sycl::context &ctx,
+           const sycl::device &dev)
+----
+!====
+
+_Preconditions:_ `handle_data` is the IPC "handle" to USM device memory that was
+returned from a call to the `get` function either in this process or in some
+other process on the same system. That USM device memory is accessible on device
+`dev`.
+
+_Returns:_ A pointer to the same USM device memory represented by `handle_data`.
+The returned pointer is associated with context `ctx`. It can be used wherever a
+USM device pointer for device `dev` and context `ctx` are expected, except it
+cannot be passed to `sycl::free`. Instead, use the `close` function to free this
+memory pointer.
+
+[_Note:_ The `open` function can be called multiple times on the same handle
+within the same process. Each call to the `open` function may return a unique
+pointer value even for the same handle, therefore each call to the `open`
+function must have a matching call to the `close` function.
+_{endnote}_]
+
+[_Note:_ The pointer returned from a call to the `open` function is no longer
+valid if the associated USM device memory is freed through a call to the
+`sycl::free` function.
+_{endnote}_]
+
+_Throws:_
+
+ * An exception with the `errc::feature_not_supported` error code if device
+   `dev` does not have `aspect::ext_oneapi_ipc_memory`.
+ * An exception with the `errc::invalid` error code if the handle data
+   `handle_data` has an unexpected number of bytes.
+
+!====
+a!
+[source]
+----
+void *open(const handle_data_t &handle_data, const sycl::device &dev)
+----
+!====
+
+_Effects_: Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::context ctxt = dev.get_platform().khr_get_default_context();
+return ipc_memory::put(handle_data, ctxt, dev);
+----
+
+!====
+a!
+[source]
+----
+void *open(const handle_data_t &handle_data, const sycl::context &ctx,
+           const sycl::device &dev)
+----
+!====
+
+_Effects_: Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::device d;
+sycl::context ctxt = d.get_platform().khr_get_default_context();
+return ipc_memory::open(handle_data, ctxt, d);
+----
+
+!====
+a!
+[source]
+----
+void *open(const handle_data_view_t &handle_data_view, const sycl::context &ctx,
+           const sycl::device &dev)
+----
+!====
+
+_Effects_: Equivalent to:
+
+[source,c++,indent=2]
+----
+handle_data_t handle_data{handle_data_view.begin(), handle_data_view.end()};
+return ipc_memory::put(handle_data, ctx, dev);
+----
+
+!====
+a!
+[source]
+----
+void *open(const handle_data_view_t &handle_data_view, const sycl::device &dev)
+----
+!====
+
+_Effects_: Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::context ctxt = dev.get_platform().khr_get_default_context();
+return ipc_memory::put(handle_data_view, ctxt, dev);
+----
+
+!====
+a!
+[source]
+----
+void *open(const handle_data_view_t &handle_data_view, const sycl::context &ctx,
+           const sycl::device &dev)
+----
+!====
+
+_Effects_: Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::device d;
+sycl::context ctxt = d.get_platform().khr_get_default_context();
+return ipc_memory::open(handle_data_view, ctxt, d);
+----
+
+!====
+a!
+[source]
+----
+void close(void *ptr, const sycl::context &ctx)
+----
+!====
+
+_Precondition:_ `ptr` was previously returned from a call to the `open` function
+in this same process, where `ctx` was passed as the context. This `ptr` value
+has not yet been closed by calling the `close` function.
+
+_Effects:_ Closes a device USM pointer previously returned by a call to
+the `open` function.
+
+!====
+a!
+[source]
+----
+void close(void *ptr)
+----
+!====
+
+_Effects_: Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::device d;
+sycl::context ctxt = d.get_platform().khr_get_default_context();
+ipc_memory::close(ptr, ctxt);
+----
+
+|====
+
+
+== Issues
+
+=== Level Zero file descriptor duplication dependency
+
+The IPC memory APIs in Level Zero on Linux currently requires the ability to
+duplicate file descriptors between processes. For security this is not allowed
+by default on Linux-based systems, so in order for the IPC memory APIs to work
+with Level Zero on Linux the user must either call `prctl(PR_SET_PTRACER, ...)`
+in the IPC handle owner process or enable the functionality globally using
+
+```bash
+sudo bash -c "echo 0 > /proc/sys/kernel/yama/ptrace_scope"
+```
+
+See also https://github.com/oneapi-src/unified-memory-framework/tree/main?tab=readme-ov-file#level-zero-memory-provider.
+
+
+=== Level Zero IPC memory Windows support
+
+The new IPC memory APIs are not currently supported on the Level Zero backend on
+Windows systems.
+

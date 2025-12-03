@@ -28,7 +28,7 @@ int main() {
   // Initial accessor for use in kernel and dynamic parameter
   auto AccA = BufA.get_access();
   auto AccB = BufB.get_access();
-  exp_ext::dynamic_parameter InputParam(Graph, AccA);
+  exp_ext::dynamic_parameter InputParam(AccA);
 
   auto KernelNode = Graph.add([&](handler &cgh) {
     cgh.require(InputParam);

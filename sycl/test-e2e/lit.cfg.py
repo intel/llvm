@@ -576,7 +576,7 @@ if cl_options:
         (
             "%sycl_options",
             " "
-            + os.path.normpath(os.path.join(config.sycl_libs_dir + "/../lib/sycl8.lib"))
+            + os.path.normpath(os.path.join(config.sycl_libs_dir + "/../lib/sycl9.lib"))
             + " -Xclang -isystem -Xclang "
             + config.sycl_include
             + " -Xclang -isystem -Xclang "
@@ -594,7 +594,7 @@ else:
     config.substitutions.append(
         (
             "%sycl_options",
-            (" -lsycl8" if platform.system() == "Windows" else " -lsycl")
+            (" -lsycl9" if platform.system() == "Windows" else " -lsycl")
             + " -isystem "
             + config.sycl_include
             + " -isystem "

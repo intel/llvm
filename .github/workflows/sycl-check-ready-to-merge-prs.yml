@@ -27,19 +27,27 @@ jobs:
           days=3
           days_in_seconds=$((days*24*60*60))
 
+          gh repo set-default intel/llvm
+
           # Function to ping gatekeepers and print debug info
           ping_gatekeepers() {
             pr_number=$1
-            gh pr comment "$pr_number" --repo intel/llvm --body "@intel/llvm-gatekeepers please consider merging"
+            gh pr comment "$pr_number" --body "@intel/llvm-gatekeepers please consider merging"
             echo "Pinged @intel/llvm-gatekeepers for https://github.com/intel/llvm/pull/$pr_number"
           }
 
           # Get the list of suitable PRs
-          prs=$(gh pr list --search "is:open review:approved draft:no status:success" --repo intel/llvm --json number --jq '.[].number')
+          prs=$(gh pr list --search "is:open review:approved draft:no status:success" --json number --jq '.[].number')
           now=$(date -u +%s)
           for pr in $prs; do
+            # Skip PRs that don't target the sycl branch
+            pr_base=$(gh pr view $pr --json baseRefName -q .baseRefName)
+            if [ "$pr_base" != "sycl" ]; then
+              continue
+            fi
+
             # Get the timestamp of the latest comment mentioning @intel/llvm-gatekeepers
-            latest_ts=$(gh pr view $pr --repo intel/llvm --json comments \
+            latest_ts=$(gh pr view $pr --json comments \
               --jq '[.comments[] | select(.body | test("@intel/llvm-gatekeepers")) | .createdAt] | last')
             # If there is no previous mention, ping the gatekeepers
             if [[ -z "$latest_ts" ]]; then

@@ -199,6 +199,7 @@ ur_result_t urProgramLink(
   if (UrRes != UR_RESULT_SUCCESS) {
     auto Devices = GetDevices(hContext);
     PrintUrBuildLogIfError(UrRes, *phProgram, Devices.data(), Devices.size());
+    UR_CALL(getTsanInterceptor()->insertProgram(*phProgram));
     return UrRes;
   }
   UR_CALL(getTsanInterceptor()->insertProgram(*phProgram));
@@ -364,6 +365,7 @@ ur_result_t urProgramLinkExp(
       phProgram);
   if (UrRes != UR_RESULT_SUCCESS) {
     PrintUrBuildLogIfError(UrRes, *phProgram, phDevices, numDevices);
+    UR_CALL(getTsanInterceptor()->insertProgram(*phProgram));
     return UrRes;
   }
 

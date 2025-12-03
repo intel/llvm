@@ -244,7 +244,7 @@ public:
     return MOwnsDeviceKernelInfo
                ? MDeviceKernelInfo
                : ProgramManager::getInstance().getDeviceKernelInfo(
-                     KernelNameStrT(getName()));
+                     std::string_view(getName()));
   }
 
 private:

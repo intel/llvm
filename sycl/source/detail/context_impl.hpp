@@ -116,7 +116,7 @@ public:
   /// reference will be invalid if context_impl was destroyed.
   ///
   /// \return an instance of raw UR context handle.
-  ur_context_handle_t &getHandleRef();
+  ur_context_handle_t &getHandleRef() { return MContext; }
 
   /// Gets the underlying context object (if any) without reference count
   /// modification.
@@ -126,7 +126,7 @@ public:
   /// reference will be invalid if context_impl was destroyed.
   ///
   /// \return an instance of raw UR context handle.
-  const ur_context_handle_t &getHandleRef() const;
+  const ur_context_handle_t &getHandleRef() const { return MContext; }
 
   devices_range getDevices() const { return MDevices; }
 
@@ -151,10 +151,15 @@ public:
     return {MCachedLibPrograms, MCachedLibProgramsMutex};
   }
 
-  KernelProgramCache &getKernelProgramCache() const;
+  KernelProgramCache &getKernelProgramCache() const {
+    return MKernelProgramCache;
+  }
 
   /// Returns true if and only if context contains the given device.
-  bool hasDevice(const detail::device_impl &Device) const;
+  bool hasDevice(const detail::device_impl &Device) const {
+    return std::any_of(MDevices.begin(), MDevices.end(),
+                       [&](auto *D) { return D == &Device; });
+  }
 
   /// Returns true if and only if the device can be used within this context.
   /// For OpenCL this is currently equivalent to hasDevice, for other backends

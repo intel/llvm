@@ -18,7 +18,7 @@ public:
     return m_KernelIDs2BinImage;
   }
 
-  std::unordered_map<sycl::detail::KernelNameStrT, sycl::kernel_id> &
+  std::unordered_map<std::string_view, sycl::kernel_id> &
   getKernelName2KernelID() {
     return m_KernelName2KernelIDs;
   }
@@ -55,20 +55,18 @@ public:
     return NativePrograms;
   }
 
-  std::unordered_map<sycl::detail::KernelNameStrT,
-                     sycl::detail::DeviceKernelInfo> &
+  std::unordered_map<std::string_view, sycl::detail::DeviceKernelInfo> &
   getDeviceKernelInfoMap() {
     return m_DeviceKernelInfoMap;
   }
 
-  std::unordered_map<sycl::detail::KernelNameStrT, int> &
-  getKernelNameRefCount() {
+  std::unordered_map<std::string_view, int> &getKernelNameRefCount() {
     return m_KernelNameRefCount;
   }
 
-  std::unordered_map<const sycl::detail::RTDeviceBinaryImage *,
-                     std::unordered_map<sycl::detail::KernelNameStrT,
-                                        sycl::detail::KernelArgMask>> &
+  std::unordered_map<
+      const sycl::detail::RTDeviceBinaryImage *,
+      std::unordered_map<std::string_view, sycl::detail::KernelArgMask>> &
   getEliminatedKernelArgMask() {
     return m_EliminatedKernelArgMasks;
   }
@@ -177,8 +175,6 @@ sycl::unittest::MockDeviceImage generateImage(const std::string &ImageId,
 
   PropSet.insert(__SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS,
                  createVFPropertySet(VirtualFunctions));
-  setKernelUsesAssert(std::vector<std::string>{KernelNames.begin()[0]},
-                      PropSet);
 
   PropSet.insert(__SYCL_PROPERTY_SET_SYCL_IMPLICIT_LOCAL_ARG,
                  createPropertySet(ImplicitLocalArg));

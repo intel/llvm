@@ -691,7 +691,40 @@ etors:
 - name: ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP
   desc: Enumerator for $xEnqueueKernelLaunchWithArgsExp
   value: '295'
-max_id: '295'
+- name: GRAPH_CREATE_EXP
+  desc: Enumerator for $xGraphCreateExp
+  value: '296'
+- name: QUEUE_BEGIN_GRAPH_CAPTURE_EXP
+  desc: Enumerator for $xQueueBeginGraphCaptureExp
+  value: '297'
+- name: QUEUE_BEGIN_CAPTURE_INTO_GRAPH_EXP
+  desc: Enumerator for $xQueueBeginCaptureIntoGraphExp
+  value: '298'
+- name: QUEUE_END_GRAPH_CAPTURE_EXP
+  desc: Enumerator for $xQueueEndGraphCaptureExp
+  value: '299'
+- name: QUEUE_APPEND_GRAPH_EXP
+  desc: Enumerator for $xQueueAppendGraphExp
+  value: '301'
+- name: GRAPH_DESTROY_EXP
+  desc: Enumerator for $xGraphDestroyExp
+  value: '302'
+- name: GRAPH_EXECUTABLE_GRAPH_DESTROY_EXP
+  desc: Enumerator for $xGraphExecutableGraphDestroyExp
+  value: '303'
+- name: QUEUE_IS_GRAPH_CAPTURE_ENABLED_EXP
+  desc: Enumerator for $xQueueIsGraphCaptureEnabledExp
+  value: '304'
+- name: GRAPH_IS_EMPTY_EXP
+  desc: Enumerator for $xGraphIsEmptyExp
+  value: '305'
+- name: GRAPH_DUMP_CONTENTS_EXP
+  desc: Enumerator for $xGraphDumpContentsExp
+  value: '306'
+- name: GRAPH_INSTANTIATE_GRAPH_EXP
+  desc: Enumerator for $xGraphInstantiateGraphExp
+  value: '307'
+max_id: '307'
 ---
 type: enum
 desc: Defines structure types
