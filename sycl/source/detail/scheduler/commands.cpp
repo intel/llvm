@@ -2308,6 +2308,8 @@ static void GetUrArgsBasedOnType(
       0,
       {}};
   switch (Arg.MType) {
+  case kernel_param_kind_t::kind_struct_with_special_type:
+    break;
   case kernel_param_kind_t::kind_dynamic_work_group_memory:
     break;
   case kernel_param_kind_t::kind_work_group_memory:
