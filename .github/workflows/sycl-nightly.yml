@@ -226,6 +226,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        enable_new_offload_model: ['False', 'True']
         include:
           - name: Intel L0 Gen12 GPU
             runner: '["Windows", "gen12"]'
@@ -238,21 +239,6 @@ jobs:
           - name: Intel L0 Battlemage GPU
             runner: '["Windows", "bmg"]'
             target_devices: level_zero:gpu
-
-          - name: Intel L0 Gen12 GPU with NewOffloadModel
-            runner: '["Windows", "gen12"]'
-            target_devices: level_zero:gpu
-            extra_lit_opts: --param enable_new_offload_model=True
-
-          - name: Intel L0 Arc GPU with NewOffloadModel
-            runner: '["Windows", "arc"]'
-            target_devices: level_zero:gpu
-            extra_lit_opts: --param enable_new_offload_model=True
-
-          - name: Intel L0 Battlemage GPU with NewOffloadModel
-            runner: '["Windows", "bmg"]'
-            target_devices: level_zero:gpu
-            extra_lit_opts: --param enable_new_offload_model=True
 
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
