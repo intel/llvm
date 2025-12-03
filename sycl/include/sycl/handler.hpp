@@ -523,7 +523,7 @@ private:
   void
   addReduction(const std::shared_ptr<buffer<T, Dimensions, AllocatorT, Enable>>
                    &ReduBuf) {
-    detail::markBufferAsInternal(getSyclObjImpl(*ReduBuf));
+    detail::markBufferAsInternal(getSyclObjImplPtr(*ReduBuf));
     addReduction(std::shared_ptr<const void>(ReduBuf));
   }
 
@@ -557,7 +557,7 @@ private:
   void setLocalAccessorArgHelper(int ArgIndex,
                                  detail::LocalAccessorBaseHost &LocalAccBase) {
     detail::LocalAccessorImplPtr LocalAccImpl =
-        detail::getSyclObjImpl(LocalAccBase);
+        detail::getSyclObjImplPtr(LocalAccBase);
     detail::LocalAccessorImplHost *Req = LocalAccImpl.get();
     MLocalAccStorage.push_back(std::move(LocalAccImpl));
     addArg(detail::kernel_param_kind_t::kind_accessor, Req,
@@ -597,7 +597,8 @@ private:
       int ArgIndex,
       accessor<DataT, Dims, AccessMode, AccessTarget, IsPlaceholder> &&Arg) {
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Arg;
-    const detail::AccessorImplPtr &AccImpl = detail::getSyclObjImpl(*AccBase);
+    const detail::AccessorImplPtr &AccImpl =
+        detail::getSyclObjImplPtr(*AccBase);
     // Ensure the data of AccImpl lives at least as long as the handler.
     addLifetimeSharedPtrStorage(AccImpl);
     detail::AccessorImplHost *Req = AccImpl.get();
@@ -639,8 +640,7 @@ private:
 
     // Register the dynamic parameter with the handler for later association
     // with the node being added
-    registerDynamicParameter(detail::getSyclObjImpl(DynamicParam).get(),
-                             ArgIndex);
+    registerDynamicParameter(&detail::getSyclObjImpl(DynamicParam), ArgIndex);
   }
 
   template <typename DataT, typename PropertyListT>
@@ -656,7 +656,7 @@ private:
         &DynWorkGroupBase = DynWorkGroupMem;
 
     ext::oneapi::experimental::detail::dynamic_parameter_impl *DynParamImpl =
-        detail::getSyclObjImpl(DynWorkGroupBase).get();
+        &detail::getSyclObjImpl(DynWorkGroupBase);
 
     addArg(detail::kernel_param_kind_t::kind_dynamic_work_group_memory,
            DynParamImpl, 0, ArgIndex);
@@ -676,7 +676,7 @@ private:
         &DynLocalAccessorBase = DynLocalAccessor;
 
     ext::oneapi::experimental::detail::dynamic_parameter_impl *DynParamImpl =
-        detail::getSyclObjImpl(DynLocalAccessorBase).get();
+        &detail::getSyclObjImpl(DynLocalAccessorBase);
 
     addArg(detail::kernel_param_kind_t::kind_dynamic_accessor, DynParamImpl, 0,
            ArgIndex);
@@ -1979,9 +1979,8 @@ public:
     setType(detail::CGType::CopyAccToPtr);
 
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Src;
-    detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
-    MSrcPtr = static_cast<void *>(AccImpl.get());
+    MSrcPtr = static_cast<void *>(&detail::getSyclObjImpl(*AccBase));
     MDstPtr = static_cast<void *>(Dst);
   }
 
@@ -2014,10 +2013,9 @@ public:
     setType(detail::CGType::CopyPtrToAcc);
 
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
-    detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
     MSrcPtr = const_cast<T_Src *>(Src);
-    MDstPtr = static_cast<void *>(AccImpl.get());
+    MDstPtr = static_cast<void *>(&detail::getSyclObjImpl(*AccBase));
   }
 
   /// Copies the content of memory object accessed by Src to the memory
@@ -2065,13 +2063,10 @@ public:
     setType(detail::CGType::CopyAccToAcc);
 
     detail::AccessorBaseHost *AccBaseSrc = (detail::AccessorBaseHost *)&Src;
-    detail::AccessorImplPtr AccImplSrc = detail::getSyclObjImpl(*AccBaseSrc);
-
     detail::AccessorBaseHost *AccBaseDst = (detail::AccessorBaseHost *)&Dst;
-    detail::AccessorImplPtr AccImplDst = detail::getSyclObjImpl(*AccBaseDst);
 
-    MSrcPtr = AccImplSrc.get();
-    MDstPtr = AccImplDst.get();
+    MSrcPtr = &detail::getSyclObjImpl(*AccBaseSrc);
+    MDstPtr = &detail::getSyclObjImpl(*AccBaseDst);
   }
 
   /// Provides guarantees that the memory object accessed via Acc is updated
@@ -2094,9 +2089,8 @@ public:
     setType(detail::CGType::UpdateHost);
 
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Acc;
-    detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
-    MDstPtr = static_cast<void *>(AccImpl.get());
+    MDstPtr = static_cast<void *>(&detail::getSyclObjImpl(*AccBase));
   }
 
 public:
@@ -2994,9 +2988,8 @@ private:
       const T &Pattern) {
     setType(detail::CGType::Fill);
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
-    detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
-    MDstPtr = static_cast<void *>(AccImpl.get());
+    MDstPtr = static_cast<void *>(&detail::getSyclObjImpl(*AccBase));
 
     MPattern.resize(sizeof(T));
     auto PatternPtr = reinterpret_cast<T *>(MPattern.data());
@@ -3139,7 +3132,7 @@ private:
       accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder, PropertyListT>
           Acc) {
     auto *AccBase = reinterpret_cast<detail::AccessorBaseHost *>(&Acc);
-    detail::AccessorImplHost *Req = detail::getSyclObjImpl(*AccBase).get();
+    detail::AccessorImplHost *Req = &detail::getSyclObjImpl(*AccBase);
     if (HasAssociatedAccessor(Req, AccessTarget))
       throw sycl::exception(make_error_code(errc::kernel_argument),
                             "placeholder accessor must be bound by calling "

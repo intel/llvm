@@ -287,7 +287,7 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
     }
   }
   // The test passes without this, but keep it still, just in case.
-  sycl::detail::getSyclObjImpl(Ctx)->getKernelProgramCache().reset();
+  sycl::detail::getSyclObjImpl(Ctx).getKernelProgramCache().reset();
 }
 
 bool DeviceTimerCalled;

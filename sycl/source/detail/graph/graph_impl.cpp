@@ -854,9 +854,9 @@ void exec_graph_impl::createCommandBuffers(
   ur_exp_command_buffer_desc_t Desc{UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC,
                                     nullptr, MIsUpdatable,
                                     IsInOrderCommandBuffer, MEnableProfiling};
-  context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
+  context_impl &ContextImpl = sycl::detail::getSyclObjImpl(MContext);
   sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
-  sycl::detail::device_impl &DeviceImpl = *sycl::detail::getSyclObjImpl(Device);
+  sycl::detail::device_impl &DeviceImpl = sycl::detail::getSyclObjImpl(Device);
   ur_result_t Res =
       Adapter.call_nocheck<sycl::detail::UrApiKind::urCommandBufferCreateExp>(
           ContextImpl.getHandleRef(), DeviceImpl.getHandleRef(), &Desc,
@@ -936,8 +936,8 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
     MQueueImpl = std::move(PlaceholderQueuePtr);
   } else {
     MQueueImpl = sycl::detail::queue_impl::create(
-        *sycl::detail::getSyclObjImpl(GraphImpl->getDevice()),
-        *sycl::detail::getSyclObjImpl(Context), sycl::async_handler{},
+        sycl::detail::getSyclObjImpl(GraphImpl->getDevice()),
+        sycl::detail::getSyclObjImpl(Context), sycl::async_handler{},
         sycl::property_list{});
   }
 }
@@ -947,7 +947,7 @@ exec_graph_impl::~exec_graph_impl() {
     MGraphImpl->markExecGraphDestroyed();
 
     sycl::detail::adapter_impl &Adapter =
-        sycl::detail::getSyclObjImpl(MContext)->getAdapter();
+        sycl::detail::getSyclObjImpl(MContext).getAdapter();
     MSchedule.clear();
 
     // Clean up any graph-owned allocations that were allocated
@@ -1595,10 +1595,10 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     sycl::detail::NDRDescT &NDRDesc,
     ur_exp_command_buffer_update_kernel_launch_desc_t &UpdateDesc) const {
   sycl::detail::context_impl &ContextImpl =
-      *sycl::detail::getSyclObjImpl(MContext);
+      sycl::detail::getSyclObjImpl(MContext);
   sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
   sycl::detail::device_impl &DeviceImpl =
-      *sycl::detail::getSyclObjImpl(MGraphImpl->getDevice());
+      sycl::detail::getSyclObjImpl(MGraphImpl->getDevice());
 
   // Gather arg information from Node
   auto &ExecCG =
@@ -1839,7 +1839,7 @@ void exec_graph_impl::updateURImpl(ur_exp_command_buffer_handle_t CommandBuffer,
     StructListIndex++;
   }
 
-  context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
+  context_impl &ContextImpl = sycl::detail::getSyclObjImpl(MContext);
   sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
   Adapter.call<sycl::detail::UrApiKind::urCommandBufferUpdateKernelLaunchExp>(
       CommandBuffer, UpdateDescList.size(), UpdateDescList.data());
@@ -1865,7 +1865,7 @@ modifiable_command_graph::modifiable_command_graph(
 node modifiable_command_graph::addImpl(dynamic_command_group &DynCGF,
                                        const std::vector<node> &Deps) {
   impl->throwIfGraphRecordingQueue("Explicit API \"Add()\" function");
-  auto DynCGFImpl = sycl::detail::getSyclObjImpl(DynCGF);
+  auto DynCGFImpl = sycl::detail::getSyclObjImplPtr(DynCGF);
 
   if (DynCGFImpl->MGraph != impl) {
     throw sycl::exception(make_error_code(sycl::errc::invalid),
@@ -1897,7 +1897,7 @@ node modifiable_command_graph::addImpl(std::function<void(handler &)> CGF,
 void modifiable_command_graph::addGraphLeafDependencies(node Node) {
   // Find all exit nodes in the current graph and add them to the dependency
   // vector
-  detail::node_impl &DstImpl = *sycl::detail::getSyclObjImpl(Node);
+  detail::node_impl &DstImpl = sycl::detail::getSyclObjImpl(Node);
   graph_impl::WriteLock Lock(impl->MMutex);
   for (auto &NodeImpl : impl->MNodeStorage) {
     if ((NodeImpl->MSuccessors.size() == 0) && (NodeImpl.get() != &DstImpl)) {
@@ -1907,8 +1907,8 @@ void modifiable_command_graph::addGraphLeafDependencies(node Node) {
 }
 
 void modifiable_command_graph::make_edge(node &Src, node &Dest) {
-  detail::node_impl &SenderImpl = *sycl::detail::getSyclObjImpl(Src);
-  detail::node_impl &ReceiverImpl = *sycl::detail::getSyclObjImpl(Dest);
+  detail::node_impl &SenderImpl = sycl::detail::getSyclObjImpl(Src);
+  detail::node_impl &ReceiverImpl = sycl::detail::getSyclObjImpl(Dest);
 
   graph_impl::WriteLock Lock(impl->MMutex);
   impl->makeEdge(SenderImpl, ReceiverImpl);
@@ -1937,7 +1937,7 @@ void modifiable_command_graph::begin_recording(
   // related to graph at all.
   checkGraphPropertiesAndThrow(PropList);
 
-  queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(RecordingQueue);
+  queue_impl &QueueImpl = sycl::detail::getSyclObjImpl(RecordingQueue);
 
   if (QueueImpl.hasCommandGraph()) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
@@ -1972,7 +1972,7 @@ void modifiable_command_graph::end_recording() {
 }
 
 void modifiable_command_graph::end_recording(queue &RecordingQueue) {
-  queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(RecordingQueue);
+  queue_impl &QueueImpl = sycl::detail::getSyclObjImpl(RecordingQueue);
   if (QueueImpl.getCommandGraph() == impl) {
     QueueImpl.setCommandGraph(nullptr);
     graph_impl::WriteLock Lock(impl->MMutex);
@@ -2067,11 +2067,11 @@ void executable_command_graph::finalizeImpl() {
 
 void executable_command_graph::update(
     const command_graph<graph_state::modifiable> &Graph) {
-  impl->update(sycl::detail::getSyclObjImpl(Graph));
+  impl->update(sycl::detail::getSyclObjImplPtr(Graph));
 }
 
 void executable_command_graph::update(const node &Node) {
-  impl->update(*sycl::detail::getSyclObjImpl(Node));
+  impl->update(sycl::detail::getSyclObjImpl(Node));
 }
 
 void executable_command_graph::update(const std::vector<node> &Nodes) {

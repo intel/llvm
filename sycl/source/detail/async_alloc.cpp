@@ -36,7 +36,7 @@ std::vector<detail::node_impl *> getDepGraphNodes(
     sycl::handler &Handler, detail::queue_impl *Queue,
     const std::shared_ptr<detail::graph_impl> &Graph,
     const std::vector<std::shared_ptr<detail::event_impl>> &DepEvents) {
-  detail::handler_impl &HandlerImpl = *detail::getSyclObjImpl(Handler);
+  detail::handler_impl &HandlerImpl = detail::getSyclObjImpl(Handler);
   // Get dependent graph nodes from any events
   auto DepNodes = Graph->getNodesForEvents(DepEvents);
   // If this node was added explicitly we may have node deps in the handler as
@@ -118,7 +118,7 @@ __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
                                            const memory_pool &pool) {
 
   detail::adapter_impl &Adapter = h.getContextImpl().getAdapter();
-  detail::memory_pool_impl &memPoolImpl = *detail::getSyclObjImpl(pool);
+  detail::memory_pool_impl &memPoolImpl = detail::getSyclObjImpl(pool);
 
   // Get CG event dependencies for this allocation.
   const auto &DepEvents = h.impl->CGData.MEvents;
@@ -134,7 +134,7 @@ __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
 
     // Memory pool is passed as the graph may use some properties of it.
     alloc = Graph->getMemPool().malloc(size, pool.get_alloc_kind(), DepNodes,
-                                       detail::getSyclObjImpl(pool).get());
+                                       &sycl::detail::getSyclObjImpl(pool));
   } else {
     ur_queue_handle_t Q = h.impl->get_queue().getHandleRef();
     Adapter.call<sycl::errc::runtime,

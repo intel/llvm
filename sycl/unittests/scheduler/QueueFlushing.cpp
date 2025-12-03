@@ -89,9 +89,9 @@ TEST_F(SchedulerTest, QueueFlushing) {
 
   context Ctx{Plt};
   queue QueueA{Ctx, default_selector_v};
-  detail::queue_impl &QueueImplA = *detail::getSyclObjImpl(QueueA);
+  detail::queue_impl &QueueImplA = detail::getSyclObjImpl(QueueA);
   queue QueueB{Ctx, default_selector_v};
-  detail::queue_impl &QueueImplB = *detail::getSyclObjImpl(QueueB);
+  detail::queue_impl &QueueImplB = detail::getSyclObjImpl(QueueB);
   ExpectedDepQueue = QueueImplB.getHandleRef();
 
   int val;
@@ -168,7 +168,7 @@ TEST_F(SchedulerTest, QueueFlushing) {
     std::shared_ptr<detail::event_impl> DepEvent;
     {
       queue TempQueue{Ctx, default_selector_v};
-      detail::queue_impl &TempQueueImpl = *detail::getSyclObjImpl(TempQueue);
+      detail::queue_impl &TempQueueImpl = detail::getSyclObjImpl(TempQueue);
       DepEvent = detail::event_impl::create_device_event(TempQueueImpl);
       DepEvent->setContextImpl(TempQueueImpl.getContextImpl());
 

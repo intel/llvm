@@ -65,7 +65,7 @@ TEST_F(LeavesCollectionTest, PushBack) {
     TimesGenericWasFull = 0;
 
     for (size_t Idx = 0; Idx < GenericCmdsCapacity * 2; ++Idx) {
-      Cmds.push_back(createGenericCommand(*getSyclObjImpl(Q)));
+      Cmds.push_back(createGenericCommand(getSyclObjImpl(Q)));
 
       LE.push_back(Cmds.back().get(), ToEnqueue);
     }
@@ -93,7 +93,7 @@ TEST_F(LeavesCollectionTest, PushBack) {
     TimesGenericWasFull = 0;
 
     for (size_t Idx = 0; Idx < GenericCmdsCapacity * 4; ++Idx) {
-      auto Cmd = Idx % 2 ? createGenericCommand(*getSyclObjImpl(Q))
+      auto Cmd = Idx % 2 ? createGenericCommand(getSyclObjImpl(Q))
                          : createEmptyCommand(MockReq);
       Cmds.push_back(Cmd);
 
@@ -133,7 +133,7 @@ TEST_F(LeavesCollectionTest, Remove) {
     std::vector<std::shared_ptr<Command>> Cmds;
 
     for (size_t Idx = 0; Idx < GenericCmdsCapacity * 4; ++Idx) {
-      auto Cmd = Idx % 2 ? createGenericCommand(*getSyclObjImpl(Q))
+      auto Cmd = Idx % 2 ? createGenericCommand(getSyclObjImpl(Q))
                          : createEmptyCommand(MockReq);
       Cmds.push_back(Cmd);
 

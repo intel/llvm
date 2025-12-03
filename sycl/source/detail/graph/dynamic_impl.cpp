@@ -155,7 +155,7 @@ void dynamic_parameter_impl::updateCGAccessor(
     const sycl::detail::AccessorBaseHost *Acc) {
   auto &Args = static_cast<sycl::detail::CGExecKernel *>(CG.get())->MArgs;
 
-  auto NewAccImpl = sycl::detail::getSyclObjImpl(*Acc);
+  auto NewAccImpl = sycl::detail::getSyclObjImplPtr(*Acc);
   for (auto &Arg : Args) {
     if (Arg.MIndex != ArgIndex) {
       continue;
@@ -285,7 +285,7 @@ void dynamic_local_accessor_impl::updateCGLocalAccessor(
 
 dynamic_command_group_impl::dynamic_command_group_impl(
     const command_graph<graph_state::modifiable> &Graph)
-    : MGraph{sycl::detail::getSyclObjImpl(Graph)}, MActiveCGF(0),
+    : MGraph{sycl::detail::getSyclObjImplPtr(Graph)}, MActiveCGF(0),
       MID(NextAvailableID.fetch_add(1, std::memory_order_relaxed)) {}
 
 void dynamic_command_group_impl::finalizeCGFList(
@@ -408,6 +408,6 @@ size_t
 std::hash<sycl::ext::oneapi::experimental::dynamic_command_group>::operator()(
     const sycl::ext::oneapi::experimental::dynamic_command_group &DynamicCG)
     const {
-  auto ID = sycl::detail::getSyclObjImpl(DynamicCG)->getID();
+  auto ID = sycl::detail::getSyclObjImpl(DynamicCG).getID();
   return std::hash<decltype(ID)>()(ID);
 }

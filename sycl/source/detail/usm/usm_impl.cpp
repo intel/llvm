@@ -243,9 +243,8 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
   TP.scopedNotify((uint16_t)xpti::trace_point_type_t::mem_alloc_begin,
                   UserData);
 #endif
-  void *RetVal =
-      alignedAllocInternal(Alignment, Size, getSyclObjImpl(Ctxt).get(),
-                           getSyclObjImpl(Dev).get(), Kind, PropList);
+  void *RetVal = alignedAllocInternal(Alignment, Size, &getSyclObjImpl(Ctxt),
+                                      &getSyclObjImpl(Dev), Kind, PropList);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Once the allocation is complete, update metadata with the memory pointer
   // before the mem_alloc_end event is sent
@@ -285,7 +284,7 @@ void free(void *Ptr, const context &Ctxt,
   TP.scopedNotify((uint16_t)xpti::trace_point_type_t::mem_release_begin,
                   UserData);
 #endif
-  freeInternal(Ptr, detail::getSyclObjImpl(Ctxt).get());
+  freeInternal(Ptr, &detail::getSyclObjImpl(Ctxt));
 }
 
 } // namespace usm
@@ -578,7 +577,7 @@ alloc get_pointer_type(const void *Ptr, context_impl &Ctxt) {
 } // namespace detail
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_EXPORT alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
-  return get_pointer_type(Ptr, *getSyclObjImpl(Ctxt));
+  return get_pointer_type(Ptr, getSyclObjImpl(Ctxt));
 }
 #endif
 
@@ -596,7 +595,7 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
 
   // Check if ptr is a host allocation
   if (get_pointer_type(Ptr, Ctxt) == alloc::host) {
-    detail::devices_range Devs = detail::getSyclObjImpl(Ctxt)->getDevices();
+    detail::devices_range Devs = detail::getSyclObjImpl(Ctxt).getDevices();
     if (Devs.size() == 0)
       throw exception(make_error_code(errc::invalid),
                       "No devices in passed context!");
@@ -615,7 +614,7 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
   // The device is not necessarily a member of the context, it could be a
   // member's descendant instead. Fetch the corresponding device from the cache.
   if (detail::device_impl *DevImpl =
-          detail::getSyclObjImpl(Ctxt)->getPlatformImpl().getDeviceImpl(
+          detail::getSyclObjImpl(Ctxt).getPlatformImpl().getDeviceImpl(
               DeviceId))
     return detail::createSyclObjFromImpl<device>(*DevImpl);
   throw exception(make_error_code(errc::runtime),

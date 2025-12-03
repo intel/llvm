@@ -51,7 +51,7 @@ TEST(GetLastEventEmptyQueue, CheckEventlessWorkQueue) {
   sycl::ext::oneapi::experimental::single_task<TestKernel>(Q, []() {});
   std::optional<event> E = Q.ext_oneapi_get_last_event();
   ASSERT_TRUE(E.has_value());
-  ur_event_handle_t UREvent = detail::getSyclObjImpl(*E)->getHandle();
+  ur_event_handle_t UREvent = detail::getSyclObjImpl(*E).getHandle();
   ASSERT_NE(MarkerEventLatest, ur_event_handle_t{nullptr});
   ASSERT_EQ(UREvent, MarkerEventLatest);
 }

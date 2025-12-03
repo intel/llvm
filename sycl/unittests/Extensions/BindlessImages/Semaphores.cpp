@@ -96,7 +96,7 @@ TEST(BindlessImagesExtensionTests, ExternalSemaphoreWait) {
   urBindlessImagesWaitExternalSemaphoreExp_expectHasWaitValue = false;
   sycl::event E = Q.ext_oneapi_wait_external_semaphore(DummySemaphore);
   EXPECT_EQ(urBindlessImagesWaitExternalSemaphoreExp_counter, 1);
-  EXPECT_EQ(sycl::detail::getSyclObjImpl(E)->getHandle(),
+  EXPECT_EQ(sycl::detail::getSyclObjImpl(E).getHandle(),
             urBindlessImagesWaitExternalSemaphoreExp_lastEvent);
 
   DummySemaphore.handle_type =
@@ -105,7 +105,7 @@ TEST(BindlessImagesExtensionTests, ExternalSemaphoreWait) {
   urBindlessImagesWaitExternalSemaphoreExp_expectHasWaitValue = true;
   E = Q.ext_oneapi_wait_external_semaphore(DummySemaphore, WaitValue);
   EXPECT_EQ(urBindlessImagesWaitExternalSemaphoreExp_counter, 2);
-  EXPECT_EQ(sycl::detail::getSyclObjImpl(E)->getHandle(),
+  EXPECT_EQ(sycl::detail::getSyclObjImpl(E).getHandle(),
             urBindlessImagesWaitExternalSemaphoreExp_lastEvent);
 }
 
@@ -128,9 +128,9 @@ TEST(BindlessImagesExtensionTests, ExternalSemaphoreSignal) {
   // We create dummy events with dummy UR handles to make the runtime think we
   // pass actual device events.
   auto DummyEventImpl1 = sycl::detail::event_impl::create_device_event(
-      *sycl::detail::getSyclObjImpl(Q));
+      sycl::detail::getSyclObjImpl(Q));
   auto DummyEventImpl2 = sycl::detail::event_impl::create_device_event(
-      *sycl::detail::getSyclObjImpl(Q));
+      sycl::detail::getSyclObjImpl(Q));
   DummyEventImpl1->setHandle(reinterpret_cast<ur_event_handle_t>(&DummyInt1));
   DummyEventImpl2->setHandle(reinterpret_cast<ur_event_handle_t>(&DummyInt2));
   sycl::event DummyEvent1 =
@@ -146,21 +146,21 @@ TEST(BindlessImagesExtensionTests, ExternalSemaphoreSignal) {
   urBindlessImagesSignalExternalSemaphoreExp_expectedNumWaitEvents = 0;
   sycl::event E = Q.ext_oneapi_signal_external_semaphore(DummySemaphore);
   EXPECT_EQ(urBindlessImagesSignalExternalSemaphoreExp_counter, 1);
-  EXPECT_EQ(sycl::detail::getSyclObjImpl(E)->getHandle(),
+  EXPECT_EQ(sycl::detail::getSyclObjImpl(E).getHandle(),
             urBindlessImagesSignalExternalSemaphoreExp_lastEvent);
 
   urBindlessImagesSignalExternalSemaphoreExp_expectHasSignalValue = false;
   urBindlessImagesSignalExternalSemaphoreExp_expectedNumWaitEvents = 1;
   E = Q.ext_oneapi_signal_external_semaphore(DummySemaphore, DummyEvent1);
   EXPECT_EQ(urBindlessImagesSignalExternalSemaphoreExp_counter, 2);
-  EXPECT_EQ(sycl::detail::getSyclObjImpl(E)->getHandle(),
+  EXPECT_EQ(sycl::detail::getSyclObjImpl(E).getHandle(),
             urBindlessImagesSignalExternalSemaphoreExp_lastEvent);
 
   urBindlessImagesSignalExternalSemaphoreExp_expectHasSignalValue = false;
   urBindlessImagesSignalExternalSemaphoreExp_expectedNumWaitEvents = 2;
   E = Q.ext_oneapi_signal_external_semaphore(DummySemaphore, DummyEventList);
   EXPECT_EQ(urBindlessImagesSignalExternalSemaphoreExp_counter, 3);
-  EXPECT_EQ(sycl::detail::getSyclObjImpl(E)->getHandle(),
+  EXPECT_EQ(sycl::detail::getSyclObjImpl(E).getHandle(),
             urBindlessImagesSignalExternalSemaphoreExp_lastEvent);
 
   DummySemaphore.handle_type =
@@ -170,7 +170,7 @@ TEST(BindlessImagesExtensionTests, ExternalSemaphoreSignal) {
   urBindlessImagesSignalExternalSemaphoreExp_expectedNumWaitEvents = 0;
   E = Q.ext_oneapi_signal_external_semaphore(DummySemaphore, SignalValue);
   EXPECT_EQ(urBindlessImagesSignalExternalSemaphoreExp_counter, 4);
-  EXPECT_EQ(sycl::detail::getSyclObjImpl(E)->getHandle(),
+  EXPECT_EQ(sycl::detail::getSyclObjImpl(E).getHandle(),
             urBindlessImagesSignalExternalSemaphoreExp_lastEvent);
 
   urBindlessImagesSignalExternalSemaphoreExp_expectHasSignalValue = true;
@@ -178,7 +178,7 @@ TEST(BindlessImagesExtensionTests, ExternalSemaphoreSignal) {
   E = Q.ext_oneapi_signal_external_semaphore(DummySemaphore, SignalValue,
                                              DummyEvent1);
   EXPECT_EQ(urBindlessImagesSignalExternalSemaphoreExp_counter, 5);
-  EXPECT_EQ(sycl::detail::getSyclObjImpl(E)->getHandle(),
+  EXPECT_EQ(sycl::detail::getSyclObjImpl(E).getHandle(),
             urBindlessImagesSignalExternalSemaphoreExp_lastEvent);
 
   urBindlessImagesSignalExternalSemaphoreExp_expectHasSignalValue = true;
@@ -186,6 +186,6 @@ TEST(BindlessImagesExtensionTests, ExternalSemaphoreSignal) {
   E = Q.ext_oneapi_signal_external_semaphore(DummySemaphore, SignalValue,
                                              DummyEventList);
   EXPECT_EQ(urBindlessImagesSignalExternalSemaphoreExp_counter, 6);
-  EXPECT_EQ(sycl::detail::getSyclObjImpl(E)->getHandle(),
+  EXPECT_EQ(sycl::detail::getSyclObjImpl(E).getHandle(),
             urBindlessImagesSignalExternalSemaphoreExp_lastEvent);
 }

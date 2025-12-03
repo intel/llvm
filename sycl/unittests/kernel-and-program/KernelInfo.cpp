@@ -38,7 +38,7 @@ static ur_result_t redefinedKernelGetInfo(void *pParams) {
       << "Unexpected kernel info requested";
   auto *Result = reinterpret_cast<ur_context_handle_t *>(*params.ppPropValue);
   ur_context_handle_t UrContext =
-      detail::getSyclObjImpl(TestContext->Ctx)->getHandleRef();
+      detail::getSyclObjImpl(TestContext->Ctx).getHandleRef();
   *Result = UrContext;
   return UR_RESULT_SUCCESS;
 }

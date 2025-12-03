@@ -83,7 +83,7 @@ context_impl &platform_impl::khr_get_default_context() {
   auto It = PlatformToDefaultContextCache.find(this);
   if (PlatformToDefaultContextCache.end() == It)
     std::tie(It, std::ignore) = PlatformToDefaultContextCache.insert(
-        {this, detail::getSyclObjImpl(context{get_devices()})});
+        {this, detail::getSyclObjImplPtr(context{get_devices()})});
 
   return *It->second;
 }
@@ -145,7 +145,7 @@ std::vector<platform> platform_impl::get_platforms() {
   for (auto &Platform : PlatformsWithAdapter) {
     auto &Adapter = Platform.second;
     std::lock_guard<std::mutex> Guard(*Adapter->getAdapterMutex());
-    Adapter->getPlatformId(getSyclObjImpl(Platform.first)->getHandleRef());
+    Adapter->getPlatformId(getSyclObjImpl(Platform.first).getHandleRef());
     Platforms.push_back(Platform.first);
   }
 

@@ -109,7 +109,7 @@ TEST(InMemCacheEvictionTests, TestBasicEvictionAndLRU) {
 
   sycl::platform Plt{sycl::platform()};
   sycl::context Ctx{Plt};
-  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = detail::getSyclObjImpl(Ctx);
   queue q(Ctx, default_selector_v);
 
   // One program is of 10000 bytes, so 20005 eviction threshold can
@@ -161,7 +161,7 @@ TEST(InMemCacheEvictionTests, TestConcurrentEvictionSameQueue) {
 
   sycl::platform Plt{sycl::platform()};
   context Ctx{Plt};
-  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = detail::getSyclObjImpl(Ctx);
   queue q(Ctx, default_selector_v);
 
   // One program is of 10000 bytes, so 20005 eviction threshold can
@@ -196,7 +196,7 @@ TEST(InMemCacheEvictionTests, TestConcurrentEvictionSmallCache) {
                                           &redefinedProgramGetInfoAfter);
 
   context Ctx{platform()};
-  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = detail::getSyclObjImpl(Ctx);
   queue q(Ctx, default_selector_v);
 
   // One program is of 10000 bytes, so 100 eviction threshold will

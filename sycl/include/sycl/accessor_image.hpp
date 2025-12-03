@@ -333,7 +333,7 @@ public:
       : AccessorBaseHost({ImageRef.getRowPitch(), ImageRef.getSlicePitch(), 0},
                          detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
                          detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
-                         AccessMode, detail::getSyclObjImpl(ImageRef).get(),
+                         AccessMode, &detail::getSyclObjImpl(ImageRef),
                          Dimensions, ImageElementSize, size_t(0)),
         MImageCount(ImageRef.size()),
         MImgChannelOrder(ImageRef.getChannelOrder()),
@@ -362,7 +362,7 @@ public:
       : AccessorBaseHost({ImageRef.getRowPitch(), ImageRef.getSlicePitch(), 0},
                          detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
                          detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
-                         AccessMode, detail::getSyclObjImpl(ImageRef).get(),
+                         AccessMode, &detail::getSyclObjImpl(ImageRef),
                          Dimensions, ImageElementSize, size_t(0)),
         MImageCount(ImageRef.size()),
         MImgChannelOrder(ImageRef.getChannelOrder()),
@@ -803,7 +803,7 @@ public:
   }
 #else
       : host_base_class(detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
-                        AccessMode, detail::getSyclObjImpl(ImageRef).get(),
+                        AccessMode, &detail::getSyclObjImpl(ImageRef),
                         Dimensions, ImageRef.getElementSize(),
                         {ImageRef.getRowPitch(), ImageRef.getSlicePitch(), 0},
                         ImageRef.getChannelType(), ImageRef.getChannelOrder(),
@@ -818,7 +818,7 @@ public:
           "aspect::image.");
 
     detail::unsampledImageConstructorNotification(
-        detail::getSyclObjImpl(ImageRef).get(), this->impl.get(), AccessTarget,
+        &detail::getSyclObjImpl(ImageRef), this->impl.get(), AccessTarget,
         AccessMode, (const void *)typeid(DataT).name(), sizeof(DataT), CodeLoc);
     detail::associateWithHandler(CommandGroupHandlerRef, this, AccessTarget);
     GDBMethodsAnchor();
@@ -950,15 +950,15 @@ public:
       const property_list &PropList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : base_class(detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
-                   AccessMode, detail::getSyclObjImpl(ImageRef).get(),
-                   Dimensions, ImageRef.getElementSize(),
+                   AccessMode, &detail::getSyclObjImpl(ImageRef), Dimensions,
+                   ImageRef.getElementSize(),
                    {ImageRef.getRowPitch(), ImageRef.getSlicePitch(), 0},
                    ImageRef.getChannelType(), ImageRef.getChannelOrder(),
                    PropList) {
     addHostUnsampledImageAccessorAndWait(base_class::impl.get());
 
     detail::unsampledImageConstructorNotification(
-        detail::getSyclObjImpl(ImageRef).get(), this->impl.get(), std::nullopt,
+        &detail::getSyclObjImpl(ImageRef), this->impl.get(), std::nullopt,
         AccessMode, (const void *)typeid(DataT).name(), sizeof(DataT), CodeLoc);
   }
 
@@ -1092,7 +1092,7 @@ public:
   }
 #else
       : host_base_class(detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
-                        detail::getSyclObjImpl(ImageRef).get(), Dimensions,
+                        &detail::getSyclObjImpl(ImageRef), Dimensions,
                         ImageRef.getElementSize(),
                         {ImageRef.getRowPitch(), ImageRef.getSlicePitch(), 0},
                         ImageRef.getChannelType(), ImageRef.getChannelOrder(),
@@ -1107,7 +1107,7 @@ public:
           "aspect::image.");
 
     detail::sampledImageConstructorNotification(
-        detail::getSyclObjImpl(ImageRef).get(), this->impl.get(), AccessTarget,
+        &detail::getSyclObjImpl(ImageRef), this->impl.get(), AccessTarget,
         (const void *)typeid(DataT).name(), sizeof(DataT), CodeLoc);
     detail::associateWithHandler(CommandGroupHandlerRef, this, AccessTarget);
     GDBMethodsAnchor();
@@ -1215,7 +1215,7 @@ public:
       const property_list &PropList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : base_class(detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
-                   detail::getSyclObjImpl(ImageRef).get(), Dimensions,
+                   &detail::getSyclObjImpl(ImageRef), Dimensions,
                    ImageRef.getElementSize(),
                    {ImageRef.getRowPitch(), ImageRef.getSlicePitch(), 0},
                    ImageRef.getChannelType(), ImageRef.getChannelOrder(),
@@ -1223,7 +1223,7 @@ public:
     addHostSampledImageAccessorAndWait(base_class::impl.get());
 
     detail::sampledImageConstructorNotification(
-        detail::getSyclObjImpl(ImageRef).get(), this->impl.get(), std::nullopt,
+        &detail::getSyclObjImpl(ImageRef), this->impl.get(), std::nullopt,
         (const void *)typeid(DataT).name(), sizeof(DataT), CodeLoc);
   }
 

@@ -1149,13 +1149,13 @@ getOrBuildProgramForDeviceGlobal(queue_impl &Queue,
   auto Context = createSyclObjFromImpl<context>(ContextImpl);
   ProgramManager &PM = ProgramManager::getInstance();
   const RTDeviceBinaryImage &Img = PM.getDeviceImage(
-      DeviceGlobalEntry->MImages, ContextImpl, *getSyclObjImpl(Device));
+      DeviceGlobalEntry->MImages, ContextImpl, getSyclObjImpl(Device));
 
   device_image_plain DeviceImage =
       PM.getDeviceImageFromBinaryImage(&Img, Context, Device);
   device_image_plain BuiltImage =
       PM.build(std::move(DeviceImage), {std::move(Device)}, {});
-  return getSyclObjImpl(BuiltImage)->get_ur_program();
+  return getSyclObjImpl(BuiltImage).get_ur_program();
 }
 
 static void

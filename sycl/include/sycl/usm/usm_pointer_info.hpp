@@ -28,7 +28,7 @@ __SYCL_EXPORT usm::alloc get_pointer_type(const void *ptr, context_impl &ctxt);
 /// \param ctxt is the sycl context the ptr was allocated in
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 inline usm::alloc get_pointer_type(const void *ptr, const context &ctxt) {
-  return get_pointer_type(ptr, *getSyclObjImpl(ctxt));
+  return get_pointer_type(ptr, getSyclObjImpl(ctxt));
 }
 #else
 __SYCL_EXPORT usm::alloc get_pointer_type(const void *ptr, const context &ctxt);

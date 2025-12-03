@@ -30,7 +30,7 @@ inline constexpr auto DisableCleanupName =
 TEST_F(SchedulerTest, LeafLimit) {
   sycl::unittest::UrMock<> Mock;
   sycl::queue Q{sycl::platform().get_devices()[0], MAsyncHandler};
-  sycl::detail::queue_impl &QueueImpl = *detail::getSyclObjImpl(Q);
+  sycl::detail::queue_impl &QueueImpl = detail::getSyclObjImpl(Q);
 
   // All of the mock commands are owned on the test side, prevent post enqueue
   // cleanup from deleting some of them.
@@ -85,6 +85,6 @@ TEST_F(SchedulerTest, LeafLimit) {
       [&](const detail::DepDesc &DD) { return DD.MDepCommand == OldestLeaf; }));
   MS.cleanupCommandsForRecord(Rec);
   auto MemObj =
-      static_cast<sycl::detail::SYCLMemObjI *>(&*detail::getSyclObjImpl(Buf));
+      static_cast<sycl::detail::SYCLMemObjI *>(&detail::getSyclObjImpl(Buf));
   MS.removeRecordForMemObj(MemObj);
 }

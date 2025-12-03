@@ -108,7 +108,7 @@ __SYCL_EXPORT context make_context(ur_native_handle_t NativeHandle,
   Properties.isNativeHandleOwned = false;
   std::vector<ur_device_handle_t> DeviceHandles;
   for (const auto &Dev : DeviceList) {
-    DeviceHandles.push_back(detail::getSyclObjImpl(Dev)->getHandleRef());
+    DeviceHandles.push_back(detail::getSyclObjImpl(Dev).getHandleRef());
   }
   Adapter.call<UrApiKind::urContextCreateWithNativeHandle>(
       NativeHandle, Adapter.getUrAdapter(), DeviceHandles.size(),
@@ -124,9 +124,9 @@ __SYCL_EXPORT queue make_queue(ur_native_handle_t NativeHandle,
                                const property_list &PropList,
                                const async_handler &Handler, backend Backend) {
   ur_device_handle_t UrDevice =
-      Device ? getSyclObjImpl(*Device)->getHandleRef() : nullptr;
+      Device ? getSyclObjImpl(*Device).getHandleRef() : nullptr;
   const adapter_impl &Adapter = getAdapter(Backend);
-  context_impl &ContextImpl = *getSyclObjImpl(Context);
+  context_impl &ContextImpl = getSyclObjImpl(Context);
 
   if (PropList.has_property<ext::intel::property::queue::compute_index>()) {
     throw sycl::exception(
@@ -172,7 +172,7 @@ __SYCL_EXPORT event make_event(ur_native_handle_t NativeHandle,
                                const context &Context, bool KeepOwnership,
                                backend Backend) {
   const adapter_impl &Adapter = getAdapter(Backend);
-  context_impl &ContextImpl = *getSyclObjImpl(Context);
+  context_impl &ContextImpl = getSyclObjImpl(Context);
 
   ur_event_handle_t UrEvent = nullptr;
   ur_event_native_properties_t Properties{};
@@ -194,7 +194,7 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
                    const context &TargetContext, bool KeepOwnership,
                    bundle_state State, backend Backend) {
   adapter_impl &Adapter = getAdapter(Backend);
-  context_impl &ContextImpl = *getSyclObjImpl(TargetContext);
+  context_impl &ContextImpl = getSyclObjImpl(TargetContext);
 
   Managed<ur_program_handle_t> UrProgram{Adapter};
   ur_program_native_properties_t Properties{};
@@ -322,8 +322,8 @@ kernel make_kernel(const context &TargetContext,
                    ur_native_handle_t NativeHandle, bool KeepOwnership,
                    backend Backend) {
   adapter_impl &Adapter = getAdapter(Backend);
-  context_impl &ContextImpl = *getSyclObjImpl(TargetContext);
-  kernel_bundle_impl &KernelBundleImpl = *getSyclObjImpl(KernelBundle);
+  context_impl &ContextImpl = getSyclObjImpl(TargetContext);
+  kernel_bundle_impl &KernelBundleImpl = getSyclObjImpl(KernelBundle);
 
   // For Level-Zero expect exactly one device image in the bundle. This is
   // natural for interop kernel to get created out of a single native
@@ -342,7 +342,7 @@ kernel make_kernel(const context &TargetContext,
 
     const device_image<bundle_state::executable> &DeviceImage =
         *KernelBundle.begin();
-    device_image_impl &DeviceImageImpl = *getSyclObjImpl(DeviceImage);
+    device_image_impl &DeviceImageImpl = getSyclObjImpl(DeviceImage);
     UrProgram = DeviceImageImpl.get_ur_program();
   }
 

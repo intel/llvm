@@ -56,7 +56,7 @@ TEST_F(CommandGraphTest, LinearInOrderQueue) {
   G.end_recording(InOrderQ);
 
   auto Exec = G.finalize();
-  auto &Impl = *getSyclObjImpl(Exec);
+  exec_graph_impl &Impl = getSyclObjImpl(Exec);
   ValidateLinearExec(Impl, /*InOrderPartitions=*/3);
 }
 
@@ -71,7 +71,7 @@ TEST_F(CommandGraphTest, LinearOutOfOrderQueue) {
   G.end_recording(OOOQ);
 
   auto Exec = G.finalize();
-  auto &Impl = *getSyclObjImpl(Exec);
+  exec_graph_impl &Impl = getSyclObjImpl(Exec);
   ValidateLinearExec(Impl, /*InOrderPartitions=*/1);
 }
 
@@ -103,7 +103,7 @@ TEST_F(CommandGraphTest, NonLinearOutOfOrderQueue) {
   G.end_recording(Q);
 
   auto Exec = G.finalize();
-  auto &Impl = *getSyclObjImpl(Exec);
+  exec_graph_impl &Impl = getSyclObjImpl(Exec);
 
   const int NumLinear = GraphImplTest::NumPartitionsInOrder(Impl);
   const int NumSyncPoints = GraphImplTest::NumSyncPoints(Impl);

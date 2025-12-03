@@ -340,7 +340,7 @@ kernel_impl::get_info(const device &Device) const {
                     Param, info::kernel_device_specific::global_work_size>) {
     bool isDeviceCustom = Device.get_info<info::device::device_type>() ==
                           info::device_type::custom;
-    if (!isDeviceCustom && !isBuiltInKernel(*getSyclObjImpl(Device)))
+    if (!isDeviceCustom && !isBuiltInKernel(getSyclObjImpl(Device)))
       throw exception(
           sycl::make_error_code(errc::invalid),
           "info::kernel_device_specific::global_work_size descriptor may only "
@@ -349,7 +349,7 @@ kernel_impl::get_info(const device &Device) const {
   }
 
   return get_kernel_device_specific_info<Param>(
-      this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(),
+      this->getHandleRef(), getSyclObjImpl(Device).getHandleRef(),
       getAdapter());
 }
 
@@ -358,7 +358,7 @@ inline typename Param::return_type
 kernel_impl::get_info(const device &Device,
                       const sycl::range<3> &WGSize) const {
   return get_kernel_device_specific_info_with_input<Param>(
-      this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(), WGSize,
+      this->getHandleRef(), getSyclObjImpl(Device).getHandleRef(), WGSize,
       getAdapter());
 }
 
@@ -376,7 +376,7 @@ kernel_impl::queryMaxNumWorkGroups(queue Queue,
   adapter_impl &Adapter = getAdapter();
   const auto &Handle = getHandleRef();
   auto Device = Queue.get_device();
-  auto DeviceHandleRef = sycl::detail::getSyclObjImpl(Device)->getHandleRef();
+  auto DeviceHandleRef = sycl::detail::getSyclObjImpl(Device).getHandleRef();
 
   size_t WG[Dimensions];
   WG[0] = WorkGroupSize[0];
@@ -453,7 +453,7 @@ inline typename ext::intel::info::kernel_device_specific::spill_memory_size::
 
   return get_kernel_device_specific_info<
       ext::intel::info::kernel_device_specific::spill_memory_size>(
-      this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(),
+      this->getHandleRef(), getSyclObjImpl(Device).getHandleRef(),
       getAdapter());
 }
 
@@ -467,8 +467,8 @@ inline typename syclex::info::kernel_queue_specific::max_work_group_size::
         syclex::info::kernel_queue_specific::max_work_group_size>(
         queue Queue) const {
   adapter_impl &Adapter = getAdapter();
-  const auto DeviceNativeHandle =
-      getSyclObjImpl(Queue.get_device())->getHandleRef();
+  ur_device_handle_t DeviceNativeHandle =
+      getSyclObjImpl(Queue.get_device()).getHandleRef();
 
   size_t KernelWGSize = 0;
   Adapter.call<UrApiKind::urKernelGetGroupInfo>(
@@ -523,8 +523,8 @@ ADD_TEMPLATE_METHOD_SPEC(3)
       throw exception(sycl::make_error_code(errc::invalid),                    \
                       "The work-group size cannot be zero.");                  \
     adapter_impl &Adapter = getAdapter();                                      \
-    const auto DeviceNativeHandle =                                            \
-        getSyclObjImpl(Queue.get_device())->getHandleRef();                    \
+    ur_device_handle_t DeviceNativeHandle =                                    \
+        getSyclObjImpl(Queue.get_device()).getHandleRef();                     \
     uint32_t KernelSubWGSize = 0;                                              \
     Adapter.call<UrApiKind::Kind>(MKernel, DeviceNativeHandle, Reg,            \
                                   sizeof(uint32_t), &KernelSubWGSize,          \

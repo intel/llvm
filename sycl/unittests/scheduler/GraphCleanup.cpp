@@ -159,7 +159,7 @@ static void checkCleanupOnEnqueue(MockScheduler &MS,
   MS.addCopyBack(&MockReq);
   verifyCleanup(Record, AllocaCmd, MockCmd, CommandDeleted);
 
-  MS.removeRecordForMemObj(&*detail::getSyclObjImpl(Buf));
+  MS.removeRecordForMemObj(&detail::getSyclObjImpl(Buf));
 }
 
 static void checkCleanupOnLeafUpdate(
@@ -191,7 +191,7 @@ static void checkCleanupOnLeafUpdate(
   EXPECT_FALSE(CommandDeleted);
   SchedulerCall(Record);
   EXPECT_TRUE(CommandDeleted);
-  MS.removeRecordForMemObj(&*detail::getSyclObjImpl(Buf));
+  MS.removeRecordForMemObj(&detail::getSyclObjImpl(Buf));
 }
 
 TEST_F(SchedulerTest, PostEnqueueCleanup) {
@@ -210,13 +210,13 @@ TEST_F(SchedulerTest, PostEnqueueCleanup) {
 
   context Ctx{Plt};
   queue Queue{Ctx, default_selector_v};
-  detail::queue_impl &QueueImpl = *detail::getSyclObjImpl(Queue);
+  detail::queue_impl &QueueImpl = detail::getSyclObjImpl(Queue);
   MockScheduler MS;
 
   buffer<int, 1> Buf{range<1>(1)};
   detail::Requirement MockReq = getMockRequirement(Buf);
   MockReq.MDims = 1;
-  MockReq.MSYCLMemObj = &*detail::getSyclObjImpl(Buf);
+  MockReq.MSYCLMemObj = &detail::getSyclObjImpl(Buf);
 
   checkCleanupOnEnqueue(MS, QueueImpl, Buf, MockReq);
   std::vector<detail::Command *> ToEnqueue;
@@ -278,7 +278,7 @@ TEST_F(SchedulerTest, HostTaskCleanup) {
   event Event = Queue.submit([&](sycl::handler &cgh) {
     cgh.host_task([&]() { std::unique_lock<std::mutex> Lock{Mutex}; });
   });
-  detail::event_impl &EventImpl = *detail::getSyclObjImpl(Event);
+  detail::event_impl &EventImpl = detail::getSyclObjImpl(Event);
 
   // Unlike other commands, host task should be kept alive until its
   // completion.
@@ -311,7 +311,7 @@ TEST_F(SchedulerTest, StreamBufferDeallocation) {
   platform Plt = sycl::platform();
   context Ctx{Plt};
   queue Queue{Ctx, default_selector_v};
-  detail::queue_impl &QueueImpl = *detail::getSyclObjImpl(Queue);
+  detail::queue_impl &QueueImpl = detail::getSyclObjImpl(Queue);
 
   MockScheduler *MSPtr = new MockScheduler();
   AttachSchedulerWrapper AttachScheduler{MSPtr};
@@ -325,7 +325,7 @@ TEST_F(SchedulerTest, StreamBufferDeallocation) {
     auto ExecBundle = sycl::build(KernelBundle);
     MockCGH.use_kernel_bundle(ExecBundle);
     stream Stream{1, 1, MockCGH};
-    MockCGH.addStream(detail::getSyclObjImpl(Stream));
+    MockCGH.addStream(detail::getSyclObjImplPtr(Stream));
     MockCGH.single_task<TestKernel>([] {});
     std::unique_ptr<detail::CG> CG = MockCGH.finalize();
 
@@ -373,7 +373,7 @@ TEST_F(SchedulerTest, AuxiliaryResourcesDeallocation) {
   platform Plt = sycl::platform();
   context Ctx{Plt};
   queue Queue{Ctx, default_selector_v};
-  detail::queue_impl &QueueImpl = *detail::getSyclObjImpl(Queue);
+  detail::queue_impl &QueueImpl = detail::getSyclObjImpl(Queue);
 
   MockScheduler *MSPtr = new MockScheduler();
   AttachSchedulerWrapper AttachScheduler{MSPtr};

@@ -18,7 +18,7 @@ TEST_F(SchedulerTest, FailedDependency) {
   unittest::UrMock<> Mock;
   platform Plt = sycl::platform();
   queue Queue(context(Plt), default_selector_v);
-  sycl::detail::queue_impl &QueueImpl = *detail::getSyclObjImpl(Queue);
+  sycl::detail::queue_impl &QueueImpl = detail::getSyclObjImpl(Queue);
 
   detail::Requirement MockReq = getMockRequirement();
   MockCommand MDep(&QueueImpl);

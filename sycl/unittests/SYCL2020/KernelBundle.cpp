@@ -108,7 +108,7 @@ TEST(KernelBundle, KernelBundleAndItsDevImageStateConsistency) {
   EXPECT_FALSE(ObjBundle.empty()) << "Expect non-empty obj kernel bundle";
 
   sycl::detail::kernel_bundle_impl &ObjBundleImpl =
-      *sycl::detail::getSyclObjImpl(ObjBundle);
+      sycl::detail::getSyclObjImpl(ObjBundle);
   EXPECT_EQ(ObjBundleImpl.get_bundle_state(), sycl::bundle_state::object)
       << "Expect object device image in bundle";
 
@@ -116,7 +116,7 @@ TEST(KernelBundle, KernelBundleAndItsDevImageStateConsistency) {
   EXPECT_FALSE(LinkBundle.empty()) << "Expect non-empty exec kernel bundle";
 
   sycl::detail::kernel_bundle_impl &LinkBundleImpl =
-      *sycl::detail::getSyclObjImpl(LinkBundle);
+      sycl::detail::getSyclObjImpl(LinkBundle);
   EXPECT_EQ(LinkBundleImpl.get_bundle_state(), sycl::bundle_state::executable)
       << "Expect executable device image in bundle";
 }
@@ -394,7 +394,7 @@ TEST(KernelBundle, DescendentDevice) {
 
   sycl::platform Plt = sycl::platform();
 
-  UrPlatform = sycl::detail::getSyclObjImpl(Plt)->getHandleRef();
+  UrPlatform = sycl::detail::getSyclObjImpl(Plt).getHandleRef();
 
   mock::getCallbacks().set_after_callback("urDeviceGetInfo",
                                           &redefinedDeviceGetInfoAfter);
@@ -402,7 +402,7 @@ TEST(KernelBundle, DescendentDevice) {
                                           &redefinedDevicePartitionAfter);
 
   const sycl::device Dev = sycl::platform().get_devices()[0];
-  ParentDevice = sycl::detail::getSyclObjImpl(Dev)->getHandleRef();
+  ParentDevice = sycl::detail::getSyclObjImpl(Dev).getHandleRef();
   sycl::context Ctx{Dev};
   sycl::device Subdev =
       Dev.create_sub_devices<sycl::info::partition_property::partition_equally>(
@@ -524,8 +524,8 @@ TEST(KernelBundle, HasKernelForSubDevice) {
   sycl::platform Plt = sycl::platform();
   const sycl::device Dev = Plt.get_devices()[0];
 
-  UrPlatform = sycl::detail::getSyclObjImpl(Plt)->getHandleRef();
-  ParentDevice = sycl::detail::getSyclObjImpl(Dev)->getHandleRef();
+  UrPlatform = sycl::detail::getSyclObjImpl(Plt).getHandleRef();
+  ParentDevice = sycl::detail::getSyclObjImpl(Dev).getHandleRef();
 
   sycl::kernel_bundle<sycl::bundle_state::executable> Bundle =
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(
@@ -542,6 +542,6 @@ TEST(KernelBundle, HasKernelForSubDevice) {
   EXPECT_EQ(std::find(BundleDevs.begin(), BundleDevs.end(), SubDev),
             BundleDevs.end())
       << "Sub-device should not be in the devices of the kernel bundle.";
-  EXPECT_FALSE(getSyclObjImpl(SubDev)->isRootDevice());
+  EXPECT_FALSE(getSyclObjImpl(SubDev).isRootDevice());
   EXPECT_TRUE(Bundle.has_kernel(KernelId, SubDev));
 }

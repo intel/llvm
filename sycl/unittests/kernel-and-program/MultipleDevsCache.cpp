@@ -152,7 +152,7 @@ TEST_P(MultipleDeviceCacheTest, ProgramRetain) {
     // on number of device images. This test has one image, but other tests can
     // create other images. Additional variable is added to control count of
     // urProgramRetain calls.
-    detail::kernel_bundle_impl &BundleImpl = *getSyclObjImpl(Bundle);
+    detail::kernel_bundle_impl &BundleImpl = getSyclObjImpl(Bundle);
 
     // Bundle should only contain a single image, specifically the one with
     // MultipleDevsCacheTestKernel.
@@ -162,7 +162,7 @@ TEST_P(MultipleDeviceCacheTest, ProgramRetain) {
     EXPECT_EQ(RetainCounter, NumRetains)
         << "Expect " << NumRetains << " piProgramRetain calls";
 
-    detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Context);
+    detail::context_impl &CtxImpl = detail::getSyclObjImpl(Context);
     detail::KernelProgramCache::KernelCacheT &KernelCache =
         CtxImpl.getKernelProgramCache().acquireKernelsPerProgramCache().get();
 

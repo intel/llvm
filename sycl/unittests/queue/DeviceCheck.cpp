@@ -87,7 +87,7 @@ TEST(QueueDeviceCheck, CheckDeviceRestriction) {
                                             &redefinedPlatformGet);
   sycl::platform Plt = sycl::platform();
 
-  UrPlatform = detail::getSyclObjImpl(Plt)->getHandleRef();
+  UrPlatform = detail::getSyclObjImpl(Plt).getHandleRef();
   context DefaultCtx = Plt.ext_oneapi_get_default_context();
   device Dev = DefaultCtx.get_devices()[0];
 
@@ -105,7 +105,7 @@ TEST(QueueDeviceCheck, CheckDeviceRestriction) {
   }
   // Device is a descendant of a member of the context.
   {
-    ParentDevice = detail::getSyclObjImpl(Dev)->getHandleRef();
+    ParentDevice = detail::getSyclObjImpl(Dev).getHandleRef();
     std::vector<device> Subdevices =
         Dev.create_sub_devices<info::partition_property::partition_equally>(2);
     queue Q{Subdevices[0]};

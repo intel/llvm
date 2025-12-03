@@ -60,11 +60,11 @@ context::context(const std::vector<device> &DeviceList,
   }
 
   const auto &RefPlatform =
-      detail::getSyclObjImpl(DeviceList[0].get_platform())->getHandleRef();
+      detail::getSyclObjImpl(DeviceList[0].get_platform()).getHandleRef();
   if (std::any_of(DeviceList.begin(), DeviceList.end(),
                   [&](const device &CurrentDevice) {
                     return (detail::getSyclObjImpl(CurrentDevice.get_platform())
-                                ->getHandleRef() != RefPlatform);
+                                .getHandleRef() != RefPlatform);
                   }))
     throw exception(make_error_code(errc::invalid),
                     "Can't add devices across platforms to a single context.");

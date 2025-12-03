@@ -63,7 +63,7 @@ TEST(BuildLog, OutputNothingOnLevel1) {
   sycl::context Ctx{Dev};
   sycl::queue Queue{Ctx, Dev};
 
-  context_impl &ContextImpl = *getSyclObjImpl(Ctx);
+  context_impl &ContextImpl = getSyclObjImpl(Ctx);
   // Make sure no kernels are cached
   ContextImpl.getKernelProgramCache().reset();
 
@@ -90,7 +90,7 @@ TEST(BuildLog, OutputLogOnLevel2) {
   sycl::context Ctx{Dev};
   sycl::queue Queue{Ctx, Dev};
 
-  context_impl &ContextImpl = *getSyclObjImpl(Ctx);
+  context_impl &ContextImpl = getSyclObjImpl(Ctx);
   // Make sure no kernels are cached
   ContextImpl.getKernelProgramCache().reset();
 

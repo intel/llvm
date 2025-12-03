@@ -17,7 +17,7 @@ inline namespace _V1 {
 namespace ext::codeplay::experimental {
 
 fusion_wrapper::fusion_wrapper(queue &Queue)
-    : MQueue{detail::getSyclObjImpl(Queue)} {}
+    : MQueue{detail::getSyclObjImplPtr(Queue)} {}
 
 queue fusion_wrapper::get_queue() const {
   return detail::createSyclObjFromImpl<sycl::queue>(MQueue);

@@ -622,7 +622,7 @@ TEST_F(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeCopyTo) {
 
   // Register the cached program as expected for device global memory operation.
   using namespace sycl::detail;
-  context_impl &CtxImpl = *getSyclObjImpl(Q.get_context());
+  context_impl &CtxImpl = getSyclObjImpl(Q.get_context());
   KernelProgramCache::KernelCacheT &KernelCache =
       CtxImpl.getKernelProgramCache().acquireKernelsPerProgramCache().get();
   ASSERT_EQ(KernelCache.size(), (size_t)1)
@@ -652,7 +652,7 @@ TEST_F(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeMemcpyTo) {
 
   // Register the cached program as expected for device global memory operation.
   using namespace sycl::detail;
-  context_impl &CtxImpl = *getSyclObjImpl(Q.get_context());
+  context_impl &CtxImpl = getSyclObjImpl(Q.get_context());
   KernelProgramCache::KernelCacheT &KernelCache =
       CtxImpl.getKernelProgramCache().acquireKernelsPerProgramCache().get();
   ASSERT_EQ(KernelCache.size(), (size_t)1)
@@ -682,7 +682,7 @@ TEST_F(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeCopyFrom) {
 
   // Register the cached program as expected for device global memory operation.
   using namespace sycl::detail;
-  context_impl &CtxImpl = *getSyclObjImpl(Q.get_context());
+  context_impl &CtxImpl = getSyclObjImpl(Q.get_context());
   KernelProgramCache::KernelCacheT &KernelCache =
       CtxImpl.getKernelProgramCache().acquireKernelsPerProgramCache().get();
   ASSERT_EQ(KernelCache.size(), (size_t)1)
@@ -712,7 +712,7 @@ TEST_F(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeMemcpyFrom) {
 
   // Register the cached program as expected for device global memory operation.
   using namespace sycl::detail;
-  context_impl &CtxImpl = *getSyclObjImpl(Q.get_context());
+  context_impl &CtxImpl = getSyclObjImpl(Q.get_context());
   KernelProgramCache::KernelCacheT &KernelCache =
       CtxImpl.getKernelProgramCache().acquireKernelsPerProgramCache().get();
   ASSERT_EQ(KernelCache.size(), (size_t)1)

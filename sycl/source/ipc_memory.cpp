@@ -26,8 +26,8 @@ __SYCL_EXPORT void *openIPCMemHandle(const std::byte *HandleData,
         sycl::make_error_code(errc::feature_not_supported),
         "Device does not support aspect::ext_oneapi_ipc_memory.");
 
-  auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
-  sycl::detail::adapter_impl &Adapter = CtxImpl->getAdapter();
+  context_impl &CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
+  sycl::detail::adapter_impl &Adapter = CtxImpl.getAdapter();
 
   // TODO: UMF and UR currently requires the handle data to be non-const, so we
   //       need const-cast the data pointer. Once this has been changed, the
@@ -39,7 +39,7 @@ __SYCL_EXPORT void *openIPCMemHandle(const std::byte *HandleData,
   void *Ptr = nullptr;
   ur_result_t UrRes =
       Adapter.call_nocheck<sycl::detail::UrApiKind::urIPCOpenMemHandleExp>(
-          CtxImpl->getHandleRef(), getSyclObjImpl(Dev)->getHandleRef(),
+          CtxImpl.getHandleRef(), getSyclObjImpl(Dev).getHandleRef(),
           NonConstHandleData, HandleDataSize, &Ptr);
   if (UrRes == UR_RESULT_ERROR_INVALID_VALUE)
     throw sycl::exception(sycl::make_error_code(errc::invalid),
@@ -54,8 +54,8 @@ __SYCL_EXPORT void *openIPCMemHandle(const std::byte *HandleData,
 namespace ext::oneapi::experimental::ipc_memory {
 
 __SYCL_EXPORT handle get(void *Ptr, const sycl::context &Ctx) {
-  auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
-  sycl::detail::adapter_impl &Adapter = CtxImpl->getAdapter();
+  detail::context_impl &CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
+  sycl::detail::adapter_impl &Adapter = CtxImpl.getAdapter();
 
   // If the API fails, check that the device actually supported it. We only do
   // this if UR fails to avoid the device-lookup overhead.
@@ -71,7 +71,7 @@ __SYCL_EXPORT handle get(void *Ptr, const sycl::context &Ctx) {
   size_t HandleSize = 0;
   auto UrRes =
       Adapter.call_nocheck<sycl::detail::UrApiKind::urIPCGetMemHandleExp>(
-          CtxImpl->getHandleRef(), Ptr, &HandlePtr, &HandleSize);
+          CtxImpl.getHandleRef(), Ptr, &HandlePtr, &HandleSize);
   if (UrRes != UR_RESULT_SUCCESS) {
     CheckDeviceSupport();
     Adapter.checkUrResult(UrRes);
@@ -80,15 +80,15 @@ __SYCL_EXPORT handle get(void *Ptr, const sycl::context &Ctx) {
 }
 
 __SYCL_EXPORT void put(handle &Handle, const sycl::context &Ctx) {
-  auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
-  CtxImpl->getAdapter().call<sycl::detail::UrApiKind::urIPCPutMemHandleExp>(
-      CtxImpl->getHandleRef(), Handle.MData);
+  detail::context_impl &CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
+  CtxImpl.getAdapter().call<sycl::detail::UrApiKind::urIPCPutMemHandleExp>(
+      CtxImpl.getHandleRef(), Handle.MData);
 }
 
 __SYCL_EXPORT void close(void *Ptr, const sycl::context &Ctx) {
-  auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
-  CtxImpl->getAdapter().call<sycl::detail::UrApiKind::urIPCCloseMemHandleExp>(
-      CtxImpl->getHandleRef(), Ptr);
+  detail::context_impl &CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
+  CtxImpl.getAdapter().call<sycl::detail::UrApiKind::urIPCCloseMemHandleExp>(
+      CtxImpl.getHandleRef(), Ptr);
 }
 
 } // namespace ext::oneapi::experimental::ipc_memory

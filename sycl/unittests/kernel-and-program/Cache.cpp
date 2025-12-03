@@ -105,7 +105,7 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramSourceNegativeBuild) {
   //   program Prg{Ctx};
 
   //   Prg.build_with_source("");
-  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl.getKernelProgramCache().acquireCachedPrograms().get();
   EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for source programs";
@@ -117,7 +117,7 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramSourceNegativeBuildWithOpts) {
   //   program Prg{Ctx};
 
   //   Prg.build_with_source("", "-g");
-  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl.getKernelProgramCache().acquireCachedPrograms().get();
   EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for source programs";
@@ -131,7 +131,7 @@ TEST_F(KernelAndProgramCacheTest,
 
   //   Prg.compile_with_source("");
   //   Prg.link();
-  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl.getKernelProgramCache().acquireCachedPrograms().get();
   EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for source programs";
@@ -146,7 +146,7 @@ TEST_F(KernelAndProgramCacheTest,
 
   //   Prg.compile_with_source("");
   //   Prg.link();
-  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl.getKernelProgramCache().acquireCachedPrograms().get();
   EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for source programs";
@@ -161,7 +161,7 @@ TEST_F(KernelAndProgramCacheTest, KernelBundleInputState) {
   sycl::kernel_bundle KernelBundle1 =
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {KernelID1});
 
-  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl.getKernelProgramCache().acquireCachedPrograms().get();
 
@@ -178,7 +178,7 @@ TEST_F(KernelAndProgramCacheTest, KernelBundleObjectState) {
   sycl::kernel_bundle KernelBundle1 =
       sycl::get_kernel_bundle<sycl::bundle_state::object>(Ctx, {KernelID1});
 
-  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl.getKernelProgramCache().acquireCachedPrograms().get();
 
@@ -198,7 +198,7 @@ TEST_F(KernelAndProgramCacheTest, KernelBundleExecutableState) {
   sycl::kernel_bundle KernelBundle2 =
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {KernelID2});
 
-  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl.getKernelProgramCache().acquireCachedPrograms().get();
 
@@ -228,7 +228,7 @@ TEST_F(KernelAndProgramCacheTest, SpecConstantCacheNegative) {
   EXPECT_EQ(KernelBundle2.get_specialization_constant<SpecConst1>(), 70)
       << "Wrong specialization constant";
 
-  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl.getKernelProgramCache().acquireCachedPrograms().get();
 
@@ -251,7 +251,7 @@ TEST_F(KernelAndProgramCacheTest, KernelBundleJoin) {
       KernelBundles {KernelBundle1, KernelBundle2};
   sycl::kernel_bundle KernelBundle3 = sycl::join(KernelBundles);
 
-  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl.getKernelProgramCache().acquireCachedPrograms().get();
 
@@ -278,7 +278,7 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramBuildPositiveBuildOpts) {
   //   Prg4.build_with_kernel_type<CacheTestKernel>();
   //   Prg5.build_with_kernel_type<CacheTestKernel2>("-a");
 
-  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl.getKernelProgramCache().acquireCachedPrograms().get();
   EXPECT_EQ(Cache.size(), 3U) << "Expect non-empty cache for programs";
@@ -291,7 +291,7 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramBuildNegativeCompileOpts) {
 
   //   Prg.compile_with_kernel_type<CacheTestKernel>("-g");
   //   Prg.link();
-  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl.getKernelProgramCache().acquireCachedPrograms().get();
   EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for programs";
@@ -304,7 +304,7 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramBuildNegativeLinkOpts) {
 
   //   Prg.compile_with_kernel_type<CacheTestKernel>();
   //   Prg.link("-g");
-  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl.getKernelProgramCache().acquireCachedPrograms().get();
   EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for programs";
@@ -313,7 +313,7 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramBuildNegativeLinkOpts) {
 // Check that kernels built without options are cached.
 TEST_F(KernelAndProgramCacheTest, DISABLED_KernelPositive) {
   context Ctx{Plt};
-  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = detail::getSyclObjImpl(Ctx);
 
   globalCtx.reset(new TestCtx{CtxImpl.getHandleRef()});
 
@@ -329,7 +329,7 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_KernelPositive) {
 // Check that kernels built with options are cached.
 TEST_F(KernelAndProgramCacheTest, DISABLED_KernelPositiveBuildOpts) {
   context Ctx{Plt};
-  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = detail::getSyclObjImpl(Ctx);
 
   globalCtx.reset(new TestCtx{CtxImpl.getHandleRef()});
 
@@ -346,7 +346,7 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_KernelPositiveBuildOpts) {
 // Check that kernels built with compile options are not cached.
 TEST_F(KernelAndProgramCacheTest, DISABLED_KernelNegativeCompileOpts) {
   context Ctx{Plt};
-  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = detail::getSyclObjImpl(Ctx);
 
   globalCtx.reset(new TestCtx{CtxImpl.getHandleRef()});
 
@@ -363,7 +363,7 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_KernelNegativeCompileOpts) {
 // Check that kernels built with link options are not cached.
 TEST_F(KernelAndProgramCacheTest, DISABLED_KernelNegativeLinkOpts) {
   context Ctx{Plt};
-  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = detail::getSyclObjImpl(Ctx);
 
   globalCtx.reset(new TestCtx{CtxImpl.getHandleRef()});
 
@@ -380,7 +380,7 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_KernelNegativeLinkOpts) {
 // Check that kernels created from source are not cached.
 TEST_F(KernelAndProgramCacheTest, DISABLED_KernelNegativeSource) {
   context Ctx{Plt};
-  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = detail::getSyclObjImpl(Ctx);
 
   globalCtx.reset(new TestCtx{CtxImpl.getHandleRef()});
 
@@ -411,7 +411,7 @@ public:
 // Check that kernels built without options are cached.
 TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelPositive) {
   context Ctx{Plt};
-  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = detail::getSyclObjImpl(Ctx);
 
   globalCtx.reset(new TestCtx{CtxImpl.getHandleRef()});
 
@@ -427,7 +427,7 @@ TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelPositive) {
 // Check that kernels built with options are cached.
 TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelPositiveBuildOpts) {
   context Ctx{Plt};
-  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = detail::getSyclObjImpl(Ctx);
 
   globalCtx.reset(new TestCtx{CtxImpl.getHandleRef()});
 
@@ -444,7 +444,7 @@ TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelPositiveBuildOpts) {
 // Check that kernels built with compile options are not cached.
 TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelNegativeCompileOpts) {
   context Ctx{Plt};
-  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = detail::getSyclObjImpl(Ctx);
 
   globalCtx.reset(new TestCtx{CtxImpl.getHandleRef()});
 
@@ -461,7 +461,7 @@ TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelNegativeCompileOpts) {
 // Check that kernels built with link options are not cached.
 TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelNegativeLinkOpts) {
   context Ctx{Plt};
-  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = detail::getSyclObjImpl(Ctx);
 
   globalCtx.reset(new TestCtx{CtxImpl.getHandleRef()});
 
@@ -479,7 +479,7 @@ TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelNegativeLinkOpts) {
 // programs.
 TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelNegativeLinkedProgs) {
   context Ctx{Plt};
-  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = detail::getSyclObjImpl(Ctx);
 
   globalCtx.reset(new TestCtx{CtxImpl.getHandleRef()});
 
@@ -499,7 +499,7 @@ TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelNegativeLinkedProgs) {
 // Check that kernels created from source are not cached.
 TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelNegativeSource) {
   context Ctx{Plt};
-  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = detail::getSyclObjImpl(Ctx);
 
   globalCtx.reset(new TestCtx{CtxImpl.getHandleRef()});
 

@@ -124,21 +124,21 @@ void KernelData::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
 
     detail::AccessorBaseHost *GBufBase =
         static_cast<detail::AccessorBaseHost *>(&S->GlobalBuf);
-    detail::Requirement *GBufReq = &*detail::getSyclObjImpl(*GBufBase);
+    detail::Requirement *GBufReq = &detail::getSyclObjImpl(*GBufBase);
     addArgsForGlobalAccessor(GBufReq, Index, IndexShift, Size,
                              IsKernelCreatedFromSource, GlobalSize, MArgs,
                              IsESIMD);
     ++IndexShift;
     detail::AccessorBaseHost *GOffsetBase =
         static_cast<detail::AccessorBaseHost *>(&S->GlobalOffset);
-    detail::Requirement *GOffsetReq = &*detail::getSyclObjImpl(*GOffsetBase);
+    detail::Requirement *GOffsetReq = &detail::getSyclObjImpl(*GOffsetBase);
     addArgsForGlobalAccessor(GOffsetReq, Index, IndexShift, Size,
                              IsKernelCreatedFromSource, GlobalSize, MArgs,
                              IsESIMD);
     ++IndexShift;
     detail::AccessorBaseHost *GFlushBase =
         static_cast<detail::AccessorBaseHost *>(&S->GlobalFlushBuf);
-    detail::Requirement *GFlushReq = &*detail::getSyclObjImpl(*GFlushBase);
+    detail::Requirement *GFlushReq = &detail::getSyclObjImpl(*GFlushBase);
 
     // If work group size wasn't set explicitly then it must be recieved
     // from kernel attribute or set to default values.
@@ -316,11 +316,11 @@ void KernelData::extractArgsAndReqsFromLambda() {
            AccTarget == access::target::image_array)) {
         detail::AccessorBaseHost *AccBase =
             static_cast<detail::AccessorBaseHost *>(Ptr);
-        Ptr = detail::getSyclObjImpl(*AccBase).get();
+        Ptr = &detail::getSyclObjImpl(*AccBase);
       } else if (AccTarget == access::target::local) {
         detail::LocalAccessorBaseHost *LocalAccBase =
             static_cast<detail::LocalAccessorBaseHost *>(Ptr);
-        Ptr = detail::getSyclObjImpl(*LocalAccBase).get();
+        Ptr = &detail::getSyclObjImpl(*LocalAccBase);
       }
     } else if (Kind == detail::kernel_param_kind_t::kind_dynamic_accessor) {
       // For args kind of accessor Size is information about accessor.
@@ -332,13 +332,13 @@ void KernelData::extractArgsAndReqsFromLambda() {
       ext::oneapi::experimental::detail::dynamic_parameter_base
           *DynamicParamBase = static_cast<
               ext::oneapi::experimental::detail::dynamic_parameter_base *>(Ptr);
-      Ptr = detail::getSyclObjImpl(*DynamicParamBase).get();
+      Ptr = &detail::getSyclObjImpl(*DynamicParamBase);
     } else if (Kind ==
                detail::kernel_param_kind_t::kind_dynamic_work_group_memory) {
       ext::oneapi::experimental::detail::dynamic_parameter_base
           *DynamicParamBase = static_cast<
               ext::oneapi::experimental::detail::dynamic_parameter_base *>(Ptr);
-      Ptr = detail::getSyclObjImpl(*DynamicParamBase).get();
+      Ptr = &detail::getSyclObjImpl(*DynamicParamBase);
     }
 
     processArg(Ptr, Kind, Size, I, IndexShift,

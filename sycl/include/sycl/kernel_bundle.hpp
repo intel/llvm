@@ -877,11 +877,10 @@ join(const std::vector<sycl::kernel_bundle<State>> &Bundles) {
   std::vector<detail::KernelBundleImplPtr> KernelBundleImpls;
   KernelBundleImpls.reserve(Bundles.size());
   for (const sycl::kernel_bundle<State> &Bundle : Bundles)
-    KernelBundleImpls.push_back(detail::getSyclObjImpl(Bundle));
+    KernelBundleImpls.push_back(detail::getSyclObjImplPtr(Bundle));
 
-  std::shared_ptr<detail::kernel_bundle_impl> Impl =
-      detail::join_impl(KernelBundleImpls, State);
-  return detail::createSyclObjFromImpl<kernel_bundle<State>>(Impl);
+  return detail::createSyclObjFromImpl<kernel_bundle<State>>(
+      detail::join_impl(KernelBundleImpls, State));
 }
 
 /////////////////////////

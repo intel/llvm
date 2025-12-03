@@ -98,7 +98,7 @@ void emitInstrumentationGeneral(xpti::stream_id_t StreamID, uint64_t InstanceID,
 }
 
 static size_t deviceToID(const device &Device) {
-  return reinterpret_cast<size_t>(getSyclObjImpl(Device)->getHandleRef());
+  return reinterpret_cast<size_t>(getSyclObjImpl(Device).getHandleRef());
 }
 
 static void addDeviceMetadata(xpti_td *TraceEvent, queue_impl *Queue) {
@@ -108,7 +108,7 @@ static void addDeviceMetadata(xpti_td *TraceEvent, queue_impl *Queue) {
                       deviceToID(Queue->get_device()));
     xpti::addMetadata(
         TraceEvent, "sycl_device_name",
-        getSyclObjImpl(Queue->get_device())->get_info<info::device::name>());
+        getSyclObjImpl(Queue->get_device()).get_info<info::device::name>());
   }
 }
 static void addDeviceMetadata(xpti_td *TraceEvent,
@@ -431,7 +431,7 @@ public:
         auto &Queue = HostTask.MQueue;
         bool NativeCommandSupport = false;
         Queue->getAdapter().call<UrApiKind::urDeviceGetInfo>(
-            detail::getSyclObjImpl(Queue->get_device())->getHandleRef(),
+            detail::getSyclObjImpl(Queue->get_device()).getHandleRef(),
             UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP,
             sizeof(NativeCommandSupport), &NativeCommandSupport, nullptr);
         if (NativeCommandSupport) {
@@ -2351,7 +2351,7 @@ static void GetUrArgsBasedOnType(
     sampler *SamplerPtr = (sampler *)Arg.MPtr;
     ur_exp_kernel_arg_value_t Value = {};
     Value.sampler = (ur_sampler_handle_t)detail::getSyclObjImpl(*SamplerPtr)
-                        ->getOrCreateSampler(ContextImpl);
+                        .getOrCreateSampler(ContextImpl);
     UrArg.type = UR_EXP_KERNEL_ARG_TYPE_SAMPLER;
     UrArg.size = sizeof(ur_sampler_handle_t);
     UrArg.value = Value;
@@ -2589,7 +2589,7 @@ static void SetArgBasedOnType(
     sampler *SamplerPtr = (sampler *)Arg.MPtr;
     ur_sampler_handle_t Sampler =
         (ur_sampler_handle_t)detail::getSyclObjImpl(*SamplerPtr)
-            ->getOrCreateSampler(ContextImpl);
+            .getOrCreateSampler(ContextImpl);
     Adapter.call<UrApiKind::urKernelSetArgSampler>(Kernel, NextTrueIndex,
                                                    nullptr, Sampler);
     break;
@@ -2673,7 +2673,7 @@ ur_result_t enqueueImpCommandBufferKernel(
   device_image_impl *DeviceImageImpl = nullptr;
   const KernelArgMask *EliminatedArgMask = nullptr;
 
-  context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(Ctx);
+  context_impl &ContextImpl = sycl::detail::getSyclObjImpl(Ctx);
   std::tie(UrKernel, DeviceImageImpl, EliminatedArgMask) = getCGKernelInfo(
       CommandGroup, ContextImpl, DeviceImpl, FastKernelCacheValsToRelease);
 
@@ -2892,7 +2892,7 @@ ur_result_t enqueueReadWriteHostPipe(queue_impl &Queue,
             hostPipeEntry->getDevBinImage(), Queue.get_context(), Device);
     device_image_plain BuiltImage = ProgramManager::getInstance().build(
         std::move(devImgPlain), {std::move(Device)}, {});
-    Program = getSyclObjImpl(BuiltImage)->get_ur_program();
+    Program = getSyclObjImpl(BuiltImage).get_ur_program();
   }
   assert(Program && "Program for this hostpipe is not compiled.");
 
@@ -3547,7 +3547,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     assert(MQueue && "Native command should have an associated queue");
     adapter_impl &Adapter = MQueue->getAdapter();
     Adapter.call<UrApiKind::urDeviceGetInfo>(
-        detail::getSyclObjImpl(MQueue->get_device())->getHandleRef(),
+        detail::getSyclObjImpl(MQueue->get_device()).getHandleRef(),
         UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP,
         sizeof(NativeCommandSupport), &NativeCommandSupport, nullptr);
     assert(NativeCommandSupport && "ext_codeplay_enqueue_native_command is not "

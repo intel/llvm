@@ -35,7 +35,7 @@ void event_impl::initContextIfNeeded() {
   const device SyclDevice;
   MIsHostEvent = false;
   MContext =
-      detail::queue_impl::getDefaultOrNew(*detail::getSyclObjImpl(SyclDevice));
+      detail::queue_impl::getDefaultOrNew(detail::getSyclObjImpl(SyclDevice));
   assert(MContext);
 }
 
@@ -151,7 +151,7 @@ void event_impl::setContextImpl(context_impl &Context) {
 
 event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext,
                        private_tag)
-    : MEvent(Event), MContext(detail::getSyclObjImpl(SyclContext)),
+    : MEvent(Event), MContext(detail::getSyclObjImplPtr(SyclContext)),
       MIsFlushed(true), MState(HES_Complete) {
 
   ur_context_handle_t TempContext;

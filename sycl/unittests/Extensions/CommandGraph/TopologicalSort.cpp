@@ -81,18 +81,18 @@ TEST_F(CommandGraphTest, CheckTopologicalSort) {
   auto ExecGraph = Graph.finalize();
 
   experimental::detail::exec_graph_impl &ExecGraphImpl =
-      *getSyclObjImpl(ExecGraph);
+      getSyclObjImpl(ExecGraph);
 
   // Creating an executable graph with finalize copies all the nodes to new
   // objects. The new nodes will have an ID equal to OldNodeID + NumNodes. This
   // is implementation dependent but is the only way to test this functionality
-  size_t Node6ID = getSyclObjImpl(Node6)->getID() + NumNodes;
-  size_t Node3ID = getSyclObjImpl(Node3)->getID() + NumNodes;
-  size_t Node0ID = getSyclObjImpl(Node0)->getID() + NumNodes;
-  size_t Node1ID = getSyclObjImpl(Node1)->getID() + NumNodes;
-  size_t Node2ID = getSyclObjImpl(Node2)->getID() + NumNodes;
-  size_t Node5ID = getSyclObjImpl(Node5)->getID() + NumNodes;
-  size_t Node4ID = getSyclObjImpl(Node4)->getID() + NumNodes;
+  size_t Node6ID = getSyclObjImpl(Node6).getID() + NumNodes;
+  size_t Node3ID = getSyclObjImpl(Node3).getID() + NumNodes;
+  size_t Node0ID = getSyclObjImpl(Node0).getID() + NumNodes;
+  size_t Node1ID = getSyclObjImpl(Node1).getID() + NumNodes;
+  size_t Node2ID = getSyclObjImpl(Node2).getID() + NumNodes;
+  size_t Node5ID = getSyclObjImpl(Node5).getID() + NumNodes;
+  size_t Node4ID = getSyclObjImpl(Node4).getID() + NumNodes;
 
   std::unordered_map<size_t, size_t> mapExecutionIDToTestID = {
       {Node6ID, 6}, {Node3ID, 3}, {Node0ID, 0}, {Node1ID, 1},

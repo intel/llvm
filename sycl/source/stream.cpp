@@ -52,7 +52,7 @@ stream::stream(size_t BufferSize, size_t MaxStatementSize, handler &CGH,
   // Set flag identifying that created accessor has perWI size. Accessor
   // will be resized in SYCL RT when number of work items will be
   // available.
-  detail::getSyclObjImpl(GlobalFlushBuf)->PerWI = true;
+  detail::getSyclObjImpl(GlobalFlushBuf).PerWI = true;
 }
 
 size_t stream::size() const noexcept { return impl->size(); }

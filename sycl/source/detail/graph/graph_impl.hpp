@@ -269,12 +269,12 @@ public:
   sycl::context getContext() const { return MContext; }
 
   sycl::detail::context_impl &getContextImpl() const {
-    return *sycl::detail::getSyclObjImpl(MContext);
+    return sycl::detail::getSyclObjImpl(MContext);
   }
 
   /// Query for the device_impl tied to this graph.
   /// @return device_impl shared ptr reference associated with graph.
-  device_impl &getDeviceImpl() const { return *getSyclObjImpl(MDevice); }
+  device_impl &getDeviceImpl() const { return getSyclObjImpl(MDevice); }
 
   /// Query for the device tied to this graph.
   /// @return Device associated with graph.
@@ -966,7 +966,7 @@ template <sycl::ext::oneapi::experimental::graph_state State>
 struct hash<sycl::ext::oneapi::experimental::command_graph<State>> {
   size_t operator()(const sycl::ext::oneapi::experimental::command_graph<State>
                         &Graph) const {
-    auto ID = sycl::detail::getSyclObjImpl(Graph)->getID();
+    auto ID = sycl::detail::getSyclObjImpl(Graph).getID();
     return std::hash<decltype(ID)>()(ID);
   }
 };

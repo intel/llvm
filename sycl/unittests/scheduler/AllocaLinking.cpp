@@ -50,7 +50,7 @@ TEST_F(SchedulerTest, AllocaLinking) {
   sycl::queue Q{sycl::platform().get_devices()[0]};
   mock::getCallbacks().set_after_callback("urDeviceGetInfo",
                                           &redefinedDeviceGetInfoAfter);
-  sycl::detail::queue_impl &QImpl = *detail::getSyclObjImpl(Q);
+  sycl::detail::queue_impl &QImpl = detail::getSyclObjImpl(Q);
 
   MockScheduler MS;
   // Should not be linked w/o host unified memory or pinned host memory

@@ -75,8 +75,7 @@ public:
       throw exception(make_error_code(errc::invalid),
                       "Incorrect backend argument was passed");
     const auto *AccBase = static_cast<const detail::AccessorBaseHost *>(&Acc);
-    return getMemImpl<Backend, DataT, Dims>(
-        detail::getSyclObjImpl(*AccBase).get());
+    return getMemImpl<Backend, DataT, Dims>(&detail::getSyclObjImpl(*AccBase));
 #else
     (void)Acc;
     // we believe this won't be ever called on device side
@@ -101,7 +100,7 @@ public:
       throw exception(make_error_code(errc::invalid),
                       "Incorrect backend argument was passed");
     const auto *AccBase = static_cast<const detail::AccessorBaseHost *>(&Acc);
-    return getMemImpl<Backend, Dims>(detail::getSyclObjImpl(*AccBase).get());
+    return getMemImpl<Backend, Dims>(&detail::getSyclObjImpl(*AccBase));
 #else
     (void)Acc;
     // we believe this won't be ever called on device side

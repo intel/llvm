@@ -123,7 +123,7 @@ TEST(QueueWait, QueueWaitTest) {
     event DepEvent = submitTask(Q, Buf);
 
     // Manually block the next commands.
-    detail::event_impl &DepEventImpl = *detail::getSyclObjImpl(DepEvent);
+    detail::event_impl &DepEventImpl = detail::getSyclObjImpl(DepEvent);
     auto *Cmd = static_cast<detail::Command *>(DepEventImpl.getCommand());
     Cmd->MIsBlockable = true;
     Cmd->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;

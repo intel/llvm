@@ -9,6 +9,6 @@ using namespace sycl;
 TEST(QueueHash, QueueHashUsesID) {
   unittest::UrMock<> Mock;
   queue Q;
-  unsigned long long ID = detail::getSyclObjImpl(Q)->getQueueID();
+  unsigned long long ID = detail::getSyclObjImpl(Q).getQueueID();
   ASSERT_EQ(std::hash<unsigned long long>{}(ID), std::hash<queue>{}(Q));
 }

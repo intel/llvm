@@ -34,8 +34,8 @@ struct TestCtx {
   bool EventCtx2WasWaited = false;
 
   TestCtx(queue &Queue1, queue &Queue2)
-      : Q1(Queue1), Q2(Queue2), Ctx1(*detail::getSyclObjImpl(Q1.get_context())),
-        Ctx2(*detail::getSyclObjImpl(Q2.get_context())) {
+      : Q1(Queue1), Q2(Queue2), Ctx1(detail::getSyclObjImpl(Q1.get_context())),
+        Ctx2(detail::getSyclObjImpl(Q2.get_context())) {
 
     EventCtx1 = mock::createDummyHandle<ur_event_handle_t>();
     EventCtx2 = mock::createDummyHandle<ur_event_handle_t>();
@@ -136,8 +136,7 @@ TEST_F(SchedulerTest, StreamAUXCmdsWait) {
     sycl::unittest::UrMock<> Mock;
     sycl::platform Plt = sycl::platform();
     sycl::queue Q(Plt.get_devices()[0]);
-    auto &QueueImpl =
-        static_cast<QueueImplProxyT &>(*detail::getSyclObjImpl(Q));
+    auto &QueueImpl = static_cast<QueueImplProxyT &>(detail::getSyclObjImpl(Q));
 
     ASSERT_TRUE(QueueImpl.MStreamsServiceEvents.empty())
         << "No stream service events are expected at the beggining";
@@ -152,7 +151,7 @@ TEST_F(SchedulerTest, StreamAUXCmdsWait) {
         << "Expected 1 service stream event";
 
     auto &EventImplProxy =
-        static_cast<EventImplProxyT &>(*detail::getSyclObjImpl(Event));
+        static_cast<EventImplProxyT &>(detail::getSyclObjImpl(Event));
 
     ASSERT_EQ(EventImplProxy.MWeakPostCompleteEvents.size(), 1u)
         << "Expected 1 post complete event";
@@ -167,8 +166,7 @@ TEST_F(SchedulerTest, StreamAUXCmdsWait) {
     sycl::unittest::UrMock<> Mock;
     sycl::platform Plt = sycl::platform();
     sycl::queue Q(Plt.get_devices()[0]);
-    auto &QueueImpl =
-        static_cast<QueueImplProxyT &>(*detail::getSyclObjImpl(Q));
+    auto &QueueImpl = static_cast<QueueImplProxyT &>(detail::getSyclObjImpl(Q));
 
     mock::getCallbacks().set_before_callback("urEventWait",
                                              &urEventsWaitRedefineCheckCalled);

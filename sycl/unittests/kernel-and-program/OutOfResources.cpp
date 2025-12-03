@@ -55,7 +55,7 @@ TEST_P(OutOfResourcesTestSuite, urProgramCreate) {
 
   sycl::platform Plt{sycl::platform()};
   sycl::context Ctx{Plt};
-  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = detail::getSyclObjImpl(Ctx);
   queue q(Ctx, default_selector_v);
 
   int runningTotal = 0;
@@ -153,7 +153,7 @@ TEST_P(OutOfResourcesTestSuite, urProgramLink) {
 
   sycl::platform Plt{sycl::platform()};
   sycl::context Ctx{Plt};
-  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = detail::getSyclObjImpl(Ctx);
   queue q(Ctx, default_selector_v);
   // Put some programs in the cache
   q.single_task<class OutOfResourcesKernel1>([] {});

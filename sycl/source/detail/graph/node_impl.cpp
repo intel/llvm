@@ -26,7 +26,7 @@ std::vector<node> node::get_successors() const {
 }
 
 node node::get_node_from_event(event nodeEvent) {
-  auto EventImpl = sycl::detail::getSyclObjImpl(nodeEvent);
+  auto EventImpl = sycl::detail::getSyclObjImplPtr(nodeEvent);
   auto GraphImpl = EventImpl->getCommandGraph();
 
   return sycl::detail::createSyclObjFromImpl<node>(
@@ -59,6 +59,6 @@ template <> __SYCL_EXPORT void node::update_range<3>(range<3> Range) {
 
 size_t std::hash<sycl::ext::oneapi::experimental::node>::operator()(
     const sycl::ext::oneapi::experimental::node &Node) const {
-  auto ID = sycl::detail::getSyclObjImpl(Node)->getID();
+  auto ID = sycl::detail::getSyclObjImpl(Node).getID();
   return std::hash<decltype(ID)>()(ID);
 }
