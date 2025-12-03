@@ -497,8 +497,6 @@ typedef enum ur_function_t {
   UR_FUNCTION_QUEUE_BEGIN_CAPTURE_INTO_GRAPH_EXP = 298,
   /// Enumerator for ::urQueueEndGraphCaptureExp
   UR_FUNCTION_QUEUE_END_GRAPH_CAPTURE_EXP = 299,
-  /// Enumerator for ::urQueueAppendGraphExp
-  UR_FUNCTION_QUEUE_APPEND_GRAPH_EXP = 301,
   /// Enumerator for ::urGraphDestroyExp
   UR_FUNCTION_GRAPH_DESTROY_EXP = 302,
   /// Enumerator for ::urGraphExecutableGraphDestroyExp
@@ -511,6 +509,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_GRAPH_DUMP_CONTENTS_EXP = 306,
   /// Enumerator for ::urGraphInstantiateGraphExp
   UR_FUNCTION_GRAPH_INSTANTIATE_GRAPH_EXP = 307,
+  /// Enumerator for ::urEnqueueGraphExp
+  UR_FUNCTION_ENQUEUE_GRAPH_EXP = 308,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2489,7 +2489,7 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP = 0x2062,
   /// [::ur_bool_t] returns true if the device is integrated GPU.
   UR_DEVICE_INFO_IS_INTEGRATED_GPU = 0x2070,
-  /// [::ur_bool_t] returns true if the device supports graph record and replay
+  /// [::ur_bool_t] Returns true if the device supports graph record and replay
   /// functionality.
   UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP = 0x2080,
   /// [::ur_bool_t] Returns true if the device supports the USM P2P
@@ -7409,6 +7409,8 @@ typedef enum ur_command_t {
   UR_COMMAND_ENQUEUE_USM_HOST_ALLOC_EXP = 0x2052,
   /// Event created by ::urEnqueueUSMFreeExp
   UR_COMMAND_ENQUEUE_USM_FREE_EXP = 0x2053,
+  /// Event created by ::urEnqueueGraphExp
+  UR_COMMAND_ENQUEUE_GRAPH_EXP = 0x2100,
   /// @cond
   UR_COMMAND_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -13515,19 +13517,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueNativeCommandExp(
 #pragma region graph_(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Handle of record & replay graph object
+/// @brief Handle of record & replay graph object.
 typedef struct ur_exp_graph_handle_t_ *ur_exp_graph_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Handle of record & replay executable graph object
+/// @brief Handle of record & replay executable graph object.
 typedef struct ur_exp_executable_graph_handle_t_
     *ur_exp_executable_graph_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Create a new record & replay graph instance explicitly.
-///
-/// @details
-///     - Create a new record & replay graph instance explicitly.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -13538,8 +13537,6 @@ typedef struct ur_exp_executable_graph_handle_t_
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phGraph`
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
 UR_APIEXPORT ur_result_t UR_APICALL urGraphCreateExp(
     /// [in] Handle of the context object.
     ur_context_handle_t hContext,
@@ -13547,7 +13544,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urGraphCreateExp(
     ur_exp_graph_handle_t *phGraph);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Begin graph capture on the specified immediate queue.
+/// @brief Begin graph capture on the specified queue.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -13556,15 +13553,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urGraphCreateExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hQueue`
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
 UR_APIEXPORT ur_result_t UR_APICALL urQueueBeginGraphCaptureExp(
     /// [in] Handle of the queue on which to begin graph capture.
     ur_queue_handle_t hQueue);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Begin capturing commands into an existing graph on the specified
-///        immediate queue.
+///        queue.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -13574,8 +13569,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueBeginGraphCaptureExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hQueue`
 ///         + `NULL == hGraph`
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
 UR_APIEXPORT ur_result_t UR_APICALL urQueueBeginCaptureIntoGraphExp(
     /// [in] Handle of the queue on which to begin graph capture.
     ur_queue_handle_t hQueue,
@@ -13583,7 +13576,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueBeginCaptureIntoGraphExp(
     ur_exp_graph_handle_t hGraph);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief End graph capture on the specified immediate queue.
+/// @brief End graph capture on the specified queue.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -13594,8 +13587,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueBeginCaptureIntoGraphExp(
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phGraph`
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
 UR_APIEXPORT ur_result_t UR_APICALL urQueueEndGraphCaptureExp(
     /// [in] Handle of the queue on which to end graph capture.
     ur_queue_handle_t hQueue,
@@ -13616,8 +13607,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueEndGraphCaptureExp(
 ///         + `NULL == hGraph`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phExecGraph`
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
 UR_APIEXPORT ur_result_t UR_APICALL urGraphInstantiateGraphExp(
     /// [in] Handle of the recorded graph to instantiate.
     ur_exp_graph_handle_t hGraph,
@@ -13625,7 +13614,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urGraphInstantiateGraphExp(
     ur_exp_executable_graph_handle_t *phExecGraph);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Append an executable graph to the queue.
+/// @brief Enqueue an executable graph onto the queue.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -13635,20 +13624,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urGraphInstantiateGraphExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hQueue`
 ///         + `NULL == hGraph`
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
-UR_APIEXPORT ur_result_t UR_APICALL urQueueAppendGraphExp(
-    /// [in] Handle of the queue to append the graph to.
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueGraphExp(
+    /// [in] Handle of the queue to which the graph will be enqueued.
     ur_queue_handle_t hQueue,
-    /// [in] Handle of the executable graph to append.
+    /// [in] Handle of the executable graph to be enqueued.
     ur_exp_executable_graph_handle_t hGraph,
-    /// [in][optional] Event to be signaled on completion.
-    ur_event_handle_t hSignalEvent,
     /// [in][optional] Number of events to wait on before executing.
-    uint32_t numWaitEvents,
-    /// [in][optional][range(0, numWaitEvents)] Handle of the events to wait
-    /// on before launching.
-    ur_event_handle_t *phWaitEvents);
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] Pointer to a list of
+    /// events that must be complete before this command can be executed.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] Event object that identifies this particular
+    /// command instance.
+    /// If phEventWaitList and phEvent are not nullptr, phEvent must not refer
+    /// to an element of the phEventWaitList array.
+    ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Destroy a recorded graph object. All executable graph instances
@@ -13662,8 +13658,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueAppendGraphExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hGraph`
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
 UR_APIEXPORT ur_result_t UR_APICALL urGraphDestroyExp(
     /// [in] Handle of the graph object to destroy.
     ur_exp_graph_handle_t hGraph);
@@ -13679,8 +13673,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urGraphDestroyExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hExecutableGraph`
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
 UR_APIEXPORT ur_result_t UR_APICALL urGraphExecutableGraphDestroyExp(
     /// [in] Handle of the executable graph object to destroy.
     ur_exp_executable_graph_handle_t hExecutableGraph);
@@ -13696,14 +13688,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urGraphExecutableGraphDestroyExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == hResult`
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+///         + `NULL == pResult`
 UR_APIEXPORT ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
     /// [in] Native queue to query.
     ur_queue_handle_t hQueue,
     /// [out] Pointer to a boolean where the result will be stored.
-    bool *hResult);
+    bool *pResult);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Return whether the given recorded graph contains any nodes.
@@ -13716,14 +13706,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hGraph`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == hResult`
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///         + `NULL == pResult`
+///     - ::UR_RESULT_ERROR_INVALID_GRAPH
 UR_APIEXPORT ur_result_t UR_APICALL urGraphIsEmptyExp(
     /// [in] Handle of the graph to query.
     ur_exp_graph_handle_t hGraph,
     /// [out] Pointer to a boolean where the result will be stored.
-    bool *hResult);
+    bool *pResult);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Dump the contents of the recorded graph to the provided file path.
@@ -13737,9 +13726,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urGraphIsEmptyExp(
 ///         + `NULL == hGraph`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == filePath`
-///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL urGraphDumpContentsExp(
     /// [in] Handle of the graph to dump.
     ur_exp_graph_handle_t hGraph,
@@ -14592,24 +14578,12 @@ typedef struct ur_queue_end_graph_capture_exp_params_t {
 } ur_queue_end_graph_capture_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urQueueAppendGraphExp
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_queue_append_graph_exp_params_t {
-  ur_queue_handle_t *phQueue;
-  ur_exp_executable_graph_handle_t *phGraph;
-  ur_event_handle_t *phSignalEvent;
-  uint32_t *pnumWaitEvents;
-  ur_event_handle_t **pphWaitEvents;
-} ur_queue_append_graph_exp_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urQueueIsGraphCaptureEnabledExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_queue_is_graph_capture_enabled_exp_params_t {
   ur_queue_handle_t *phQueue;
-  bool **phResult;
+  bool **ppResult;
 } ur_queue_is_graph_capture_enabled_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -15353,6 +15327,18 @@ typedef struct ur_enqueue_native_command_exp_params_t {
   const ur_event_handle_t **pphEventWaitList;
   ur_event_handle_t **pphEvent;
 } ur_enqueue_native_command_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urEnqueueGraphExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_enqueue_graph_exp_params_t {
+  ur_queue_handle_t *phQueue;
+  ur_exp_executable_graph_handle_t *phGraph;
+  uint32_t *pnumEventsInWaitList;
+  const ur_event_handle_t **pphEventWaitList;
+  ur_event_handle_t **pphEvent;
+} ur_enqueue_graph_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urUSMHostAlloc
@@ -16256,7 +16242,7 @@ typedef struct ur_graph_executable_graph_destroy_exp_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_graph_is_empty_exp_params_t {
   ur_exp_graph_handle_t *phGraph;
-  bool **phResult;
+  bool **ppResult;
 } ur_graph_is_empty_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
