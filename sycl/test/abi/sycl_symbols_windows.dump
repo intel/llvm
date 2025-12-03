@@ -14,8 +14,6 @@
 ??$ext_oneapi_get_info@U?$max_work_item_sizes@$00@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA?AV?$id@$00@12@Vqueue@12@@Z
 ??$ext_oneapi_get_info@U?$max_work_item_sizes@$01@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA?AV?$id@$01@12@Vqueue@12@@Z
 ??$ext_oneapi_get_info@U?$max_work_item_sizes@$02@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA?AV?$id@$02@12@Vqueue@12@@Z
-??$ext_oneapi_get_info@Umax_num_work_group_sync@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KVqueue@12@@Z
-??$ext_oneapi_get_info@Umax_num_work_group_sync@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KVqueue@12@AEBV?$range@$02@12@_K@Z
 ??$ext_oneapi_get_info@Umax_num_work_groups@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KVqueue@12@AEBV?$range@$00@12@_K@Z
 ??$ext_oneapi_get_info@Umax_num_work_groups@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KVqueue@12@AEBV?$range@$01@12@_K@Z
 ??$ext_oneapi_get_info@Umax_num_work_groups@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KVqueue@12@AEBV?$range@$02@12@_K@Z
@@ -4003,7 +4001,6 @@
 ?getNativeContext@interop_handle@_V1@sycl@@AEBA_KXZ
 ?getNativeDevice@interop_handle@_V1@sycl@@AEBA_KXZ
 ?getNativeGraph@interop_handle@_V1@sycl@@AEBA_KXZ
-?getNativeImpl@kernel@_V1@sycl@@AEBA_KXZ
 ?getNativeMem@interop_handle@_V1@sycl@@AEBA_KPEAVAccessorImplHost@detail@23@@Z
 ?getNativeQueue@interop_handle@_V1@sycl@@AEBA_KAEAH@Z
 ?getNativeVector@buffer_plain@detail@_V1@sycl@@IEBA?AV?$vector@_KV?$allocator@_K@std@@@std@@W4backend@34@@Z
