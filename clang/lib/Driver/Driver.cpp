@@ -5016,9 +5016,8 @@ class OffloadingActionBuilder final {
                llvm::zip(SYCLDeviceActions, SYCLTargetInfoList)) {
             Action *&A = std::get<0>(TargetActionInfo);
             auto &TargetInfo = std::get<1>(TargetActionInfo);
-            Action *PreprocAction =
-                C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A,
-                                                   AssociatedOffloadKind);
+            Action *PreprocAction = C.getDriver().ConstructPhaseAction(
+                C, Args, CurPhase, A, AssociatedOffloadKind);
             if (SYCLDeviceOnly) {
               A = PreprocAction;
               continue;
@@ -7986,10 +7985,9 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
                 // integration header/footer.
                 ActionList PreprocInputs = A->getInputs();
                 assert(PreprocInputs.size() == 1 &&
-                   "Single input size to preprocess action expected.");
-                Action *CompileAction =
-                    C.MakeAction<CompileJobAction>(PreprocInputs.front(),
-                                                   types::TY_Nothing);
+                       "Single input size to preprocess action expected.");
+                Action *CompileAction = C.MakeAction<CompileJobAction>(
+                    PreprocInputs.front(), types::TY_Nothing);
                 DDeps.add(*CompileAction, *TC, BoundArch, Action::OFK_SYCL);
               }
             });
