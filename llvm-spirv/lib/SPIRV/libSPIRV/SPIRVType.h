@@ -237,6 +237,9 @@ public:
   std::optional<ExtensionID> getRequiredExtension() const override {
     if (isTypeFloat(16, FPEncodingBFloat16KHR))
       return ExtensionID::SPV_KHR_bfloat16;
+    if (isTypeFloat(8, FPEncodingFloat8E4M3EXT) ||
+        isTypeFloat(8, FPEncodingFloat8E5M2EXT))
+      return ExtensionID::SPV_EXT_float8;
     return {};
   }
 
@@ -250,8 +253,12 @@ public:
       if (std::any_of(Extensions.begin(), Extensions.end(),
                       [](const std::string &I) { return I == "cl_khr_fp16"; }))
         CV.push_back(CapabilityFloat16);
-    } else if (isTypeFloat(64))
+    } else if (isTypeFloat(64)) {
       CV.push_back(CapabilityFloat64);
+    } else if (isTypeFloat(8, FPEncodingFloat8E4M3EXT) ||
+               isTypeFloat(8, FPEncodingFloat8E5M2EXT)) {
+      CV.push_back(CapabilityFloat8EXT);
+    }
     return CV;
   }
 
@@ -274,10 +281,14 @@ protected:
 
   void validate() const override {
     SPIRVEntry::validate();
-    assert(BitWidth >= 16 && BitWidth <= 64 && "Invalid bit width");
+    assert(
+        (BitWidth == 8 || BitWidth == 16 || BitWidth == 32 || BitWidth == 64) &&
+        "Invalid bit width");
     assert(
         (FloatingPointEncoding == FPEncodingMax ||
-         (BitWidth == 16 && FloatingPointEncoding == FPEncodingBFloat16KHR)) &&
+         (BitWidth == 16 && FloatingPointEncoding == FPEncodingBFloat16KHR) ||
+         (BitWidth == 8 && FloatingPointEncoding == FPEncodingFloat8E4M3EXT) ||
+         (BitWidth == 8 && FloatingPointEncoding == FPEncodingFloat8E5M2EXT)) &&
         "Invalid floating point encoding");
   }
 
@@ -1249,9 +1260,13 @@ public:
     else if (CompType->isTypeInt() &&
              static_cast<SPIRVTypeInt *>(CompType)->getBitWidth() == 4)
       CV.push_back(CapabilityInt4CooperativeMatrixINTEL);
+    else if (CompType->isTypeFloat(8, FPEncodingFloat8E4M3EXT) ||
+             CompType->isTypeFloat(8, FPEncodingFloat8E5M2EXT))
+      CV.push_back(CapabilityFloat8CooperativeMatrixEXT);
     return CV;
   }
 
+  std::vector<SPIRVValue *> getArgs() const { return Args; }
   SPIRVType *getCompType() const { return CompType; }
   SPIRVValue *getScope() const { return Args[0]; }
   SPIRVValue *getRows() const { return Args[1]; }

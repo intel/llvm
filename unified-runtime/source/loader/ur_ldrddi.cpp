@@ -2584,11 +2584,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     /// execute the kernel function.
     /// If nullptr, the runtime implementation will choose the work-group size.
     const size_t *pLocalWorkSize,
-    /// [in] size of the launch prop list
-    uint32_t numPropsInLaunchPropList,
-    /// [in][optional][range(0, numPropsInLaunchPropList)] pointer to a list
-    /// of launch properties
-    const ur_kernel_launch_property_t *launchPropList,
+    /// [in][optional] pointer to a single linked list of launch properties
+    const ur_kernel_launch_ext_properties_t *launchPropList,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -2610,8 +2607,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
   // forward to device-platform
   return pfnKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
-                         pGlobalWorkSize, pLocalWorkSize,
-                         numPropsInLaunchPropList, launchPropList,
+                         pGlobalWorkSize, pLocalWorkSize, launchPropList,
                          numEventsInWaitList, phEventWaitList, phEvent);
 }
 
@@ -4631,7 +4627,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     ur_kernel_handle_t hKernel,
     /// [in] Dimension of the kernel execution.
     uint32_t workDim,
-    /// [in] Offset to use when executing kernel.
+    /// [in][optional] Offset to use when executing kernel.
     const size_t *pGlobalWorkOffset,
     /// [in] Global work size to use when executing kernel.
     const size_t *pGlobalWorkSize,
@@ -5416,6 +5412,42 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urDeviceWaitExp
+__urdlllocal ur_result_t UR_APICALL urDeviceWaitExp(
+    /// [in] handle of the device instance.
+    ur_device_handle_t hDevice) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hDevice);
+
+  auto *pfnWaitExp = dditable->DeviceExp.pfnWaitExp;
+  if (nullptr == pfnWaitExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnWaitExp(hDevice);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramDynamicLinkExp
+__urdlllocal ur_result_t UR_APICALL urProgramDynamicLinkExp(
+    /// [in] handle of the context instance.
+    ur_context_handle_t hContext,
+    /// [in] number of program handles in `phPrograms`.
+    uint32_t count,
+    /// [in][range(0, count)] pointer to array of program handles.
+    const ur_program_handle_t *phPrograms) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnDynamicLinkExp = dditable->ProgramExp.pfnDynamicLinkExp;
+  if (nullptr == pfnDynamicLinkExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnDynamicLinkExp(hContext, count, phPrograms);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueTimestampRecordingExp
 __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     /// [in] handle of the queue object
@@ -5453,6 +5485,91 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
   // forward to device-platform
   return pfnTimestampRecordingExp(hQueue, blocking, numEventsInWaitList,
                                   phEventWaitList, phEvent);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCGetMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] pointer to device USM memory
+    void *pMem,
+    /// [out][optional] a pointer to the IPC memory handle data
+    void **ppIPCMemHandleData,
+    /// [out][optional] size of the resulting IPC memory handle data
+    size_t *pIPCMemHandleDataSizeRet) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnGetMemHandleExp = dditable->IPCExp.pfnGetMemHandleExp;
+  if (nullptr == pfnGetMemHandleExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnGetMemHandleExp(hContext, pMem, ppIPCMemHandleData,
+                            pIPCMemHandleDataSizeRet);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCPutMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCPutMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] a pointer to the IPC memory handle data
+    void *pIPCMemHandleData) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnPutMemHandleExp = dditable->IPCExp.pfnPutMemHandleExp;
+  if (nullptr == pfnPutMemHandleExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnPutMemHandleExp(hContext, pIPCMemHandleData);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCOpenMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCOpenMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object the corresponding USM device memory
+    /// was allocated on
+    ur_device_handle_t hDevice,
+    /// [in] the IPC memory handle data
+    void *pIPCMemHandleData,
+    /// [in] size of the IPC memory handle data
+    size_t ipcMemHandleDataSize,
+    /// [out] pointer to a pointer to device USM memory
+    void **ppMem) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnOpenMemHandleExp = dditable->IPCExp.pfnOpenMemHandleExp;
+  if (nullptr == pfnOpenMemHandleExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnOpenMemHandleExp(hContext, hDevice, pIPCMemHandleData,
+                             ipcMemHandleDataSize, ppMem);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCCloseMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCCloseMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] pointer to device USM memory opened through urIPCOpenMemHandleExp
+    void *pMem) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnCloseMemHandleExp = dditable->IPCExp.pfnCloseMemHandleExp;
+  if (nullptr == pfnCloseMemHandleExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnCloseMemHandleExp(hContext, pMem);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5541,6 +5658,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) {
 
@@ -5551,7 +5670,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnBuildExp(hProgram, numDevices, phDevices, pOptions);
+  return pfnBuildExp(hProgram, numDevices, phDevices, flags, pOptions);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5563,6 +5682,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) {
 
@@ -5573,7 +5694,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnCompileExp(hProgram, numDevices, phDevices, pOptions);
+  return pfnCompileExp(hProgram, numDevices, phDevices, flags, pOptions);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5585,6 +5706,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
     /// [in] number of program handles in `phPrograms`.
     uint32_t count,
     /// [in][range(0, count)] pointer to array of program handles.
@@ -5603,7 +5726,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnLinkExp(hContext, numDevices, phDevices, count, phPrograms,
+  return pfnLinkExp(hContext, numDevices, phDevices, flags, count, phPrograms,
                     pOptions, phProgram);
 }
 
@@ -5738,6 +5861,62 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueKernelLaunchWithArgsExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] number of dimensions, from 1 to 3, to specify the global and
+    /// work-group work-items
+    uint32_t workDim,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the offset used to calculate the global ID of a work-item
+    const size_t *pGlobalWorkOffset,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// number of global work-items in workDim that will execute the kernel
+    /// function
+    const size_t *pGlobalWorkSize,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the number of local work-items forming a work-group that will
+    /// execute the kernel function.
+    /// If nullptr, the runtime implementation will choose the work-group size.
+    const size_t *pLocalWorkSize,
+    /// [in] Number of entries in pArgs
+    uint32_t numArgs,
+    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
+    /// properties.
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    /// [in][optional] pointer to a single linked list of launch properties
+    const ur_kernel_launch_ext_properties_t *launchPropList,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+    /// event.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular kernel execution instance. If phEventWaitList and phEvent
+    /// are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
+    ur_event_handle_t *phEvent) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+
+  auto *pfnKernelLaunchWithArgsExp =
+      dditable->EnqueueExp.pfnKernelLaunchWithArgsExp;
+  if (nullptr == pfnKernelLaunchWithArgsExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnKernelLaunchWithArgsExp(hQueue, hKernel, workDim, pGlobalWorkOffset,
+                                    pGlobalWorkSize, pLocalWorkSize, numArgs,
+                                    pArgs, launchPropList, numEventsInWaitList,
+                                    phEventWaitList, phEvent);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueEventsWaitWithBarrierExt
 __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrierExt(
     /// [in] handle of the queue object
@@ -5812,6 +5991,211 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
   return pfnNativeCommandExp(hQueue, pfnNativeEnqueue, data, numMemsInMemList,
                              phMemList, pProperties, numEventsInWaitList,
                              phEventWaitList, phEvent);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphCreateExp
+__urdlllocal ur_result_t UR_APICALL urGraphCreateExp(
+    /// [in] Handle of the context object.
+    ur_context_handle_t hContext,
+    /// [out][alloc] Pointer to the handle of the created graph object.
+    ur_exp_graph_handle_t *phGraph) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnCreateExp = dditable->GraphExp.pfnCreateExp;
+  if (nullptr == pfnCreateExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnCreateExp(hContext, phGraph);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urQueueBeginGraphCaptureExp
+__urdlllocal ur_result_t UR_APICALL urQueueBeginGraphCaptureExp(
+    /// [in] Handle of the queue on which to begin graph capture.
+    ur_queue_handle_t hQueue) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+
+  auto *pfnBeginGraphCaptureExp = dditable->QueueExp.pfnBeginGraphCaptureExp;
+  if (nullptr == pfnBeginGraphCaptureExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnBeginGraphCaptureExp(hQueue);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urQueueBeginCaptureIntoGraphExp
+__urdlllocal ur_result_t UR_APICALL urQueueBeginCaptureIntoGraphExp(
+    /// [in] Handle of the queue on which to begin graph capture.
+    ur_queue_handle_t hQueue,
+    /// [in] Handle of the graph object to capture into.
+    ur_exp_graph_handle_t hGraph) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+
+  auto *pfnBeginCaptureIntoGraphExp =
+      dditable->QueueExp.pfnBeginCaptureIntoGraphExp;
+  if (nullptr == pfnBeginCaptureIntoGraphExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnBeginCaptureIntoGraphExp(hQueue, hGraph);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urQueueEndGraphCaptureExp
+__urdlllocal ur_result_t UR_APICALL urQueueEndGraphCaptureExp(
+    /// [in] Handle of the queue on which to end graph capture.
+    ur_queue_handle_t hQueue,
+    /// [out] Pointer to the handle of the recorded graph object. If
+    /// ::urQueueBeginCaptureIntoGraphExp was used to begin the capture, then
+    /// phGraph will contain the same graph that was passed to it.
+    ur_exp_graph_handle_t *phGraph) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+
+  auto *pfnEndGraphCaptureExp = dditable->QueueExp.pfnEndGraphCaptureExp;
+  if (nullptr == pfnEndGraphCaptureExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnEndGraphCaptureExp(hQueue, phGraph);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphInstantiateGraphExp
+__urdlllocal ur_result_t UR_APICALL urGraphInstantiateGraphExp(
+    /// [in] Handle of the recorded graph to instantiate.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] Pointer to the handle of the instantiated executable graph.
+    ur_exp_executable_graph_handle_t *phExecGraph) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hGraph);
+
+  auto *pfnInstantiateGraphExp = dditable->GraphExp.pfnInstantiateGraphExp;
+  if (nullptr == pfnInstantiateGraphExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnInstantiateGraphExp(hGraph, phExecGraph);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urQueueAppendGraphExp
+__urdlllocal ur_result_t UR_APICALL urQueueAppendGraphExp(
+    /// [in] Handle of the queue to append the graph to.
+    ur_queue_handle_t hQueue,
+    /// [in] Handle of the executable graph to append.
+    ur_exp_executable_graph_handle_t hGraph,
+    /// [in][optional] Event to be signaled on completion.
+    ur_event_handle_t hSignalEvent,
+    /// [in][optional] Number of events to wait on before executing.
+    uint32_t numWaitEvents,
+    /// [in][optional][range(0, numWaitEvents)] Handle of the events to wait
+    /// on before launching.
+    ur_event_handle_t *phWaitEvents) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+
+  auto *pfnAppendGraphExp = dditable->QueueExp.pfnAppendGraphExp;
+  if (nullptr == pfnAppendGraphExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnAppendGraphExp(hQueue, hGraph, hSignalEvent, numWaitEvents,
+                           phWaitEvents);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphDestroyExp
+__urdlllocal ur_result_t UR_APICALL urGraphDestroyExp(
+    /// [in] Handle of the graph object to destroy.
+    ur_exp_graph_handle_t hGraph) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hGraph);
+
+  auto *pfnDestroyExp = dditable->GraphExp.pfnDestroyExp;
+  if (nullptr == pfnDestroyExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnDestroyExp(hGraph);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphExecutableGraphDestroyExp
+__urdlllocal ur_result_t UR_APICALL urGraphExecutableGraphDestroyExp(
+    /// [in] Handle of the executable graph object to destroy.
+    ur_exp_executable_graph_handle_t hExecutableGraph) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hExecutableGraph);
+
+  auto *pfnExecutableGraphDestroyExp =
+      dditable->GraphExp.pfnExecutableGraphDestroyExp;
+  if (nullptr == pfnExecutableGraphDestroyExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnExecutableGraphDestroyExp(hExecutableGraph);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urQueueIsGraphCaptureEnabledExp
+__urdlllocal ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
+    /// [in] Native queue to query.
+    ur_queue_handle_t hQueue,
+    /// [out] Pointer to a boolean where the result will be stored.
+    bool *hResult) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+
+  auto *pfnIsGraphCaptureEnabledExp =
+      dditable->QueueExp.pfnIsGraphCaptureEnabledExp;
+  if (nullptr == pfnIsGraphCaptureEnabledExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnIsGraphCaptureEnabledExp(hQueue, hResult);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphIsEmptyExp
+__urdlllocal ur_result_t UR_APICALL urGraphIsEmptyExp(
+    /// [in] Handle of the graph to query.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] Pointer to a boolean where the result will be stored.
+    bool *hResult) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hGraph);
+
+  auto *pfnIsEmptyExp = dditable->GraphExp.pfnIsEmptyExp;
+  if (nullptr == pfnIsEmptyExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnIsEmptyExp(hGraph, hResult);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphDumpContentsExp
+__urdlllocal ur_result_t UR_APICALL urGraphDumpContentsExp(
+    /// [in] Handle of the graph to dump.
+    ur_exp_graph_handle_t hGraph,
+    /// [in] Path to the file to write the dumped graph contents.
+    const char *filePath) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hGraph);
+
+  auto *pfnDumpContentsExp = dditable->GraphExp.pfnDumpContentsExp;
+  if (nullptr == pfnDumpContentsExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnDumpContentsExp(hGraph, filePath);
 }
 
 } // namespace ur_loader
@@ -6247,6 +6631,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
     if (ur_loader::getContext()->platforms.size() != 1 ||
         ur_loader::getContext()->forceIntercept) {
       // return pointers to loader's DDIs
+      pDdiTable->pfnKernelLaunchWithArgsExp =
+          ur_loader::urEnqueueKernelLaunchWithArgsExp;
       pDdiTable->pfnUSMDeviceAllocExp = ur_loader::urEnqueueUSMDeviceAllocExp;
       pDdiTable->pfnUSMSharedAllocExp = ur_loader::urEnqueueUSMSharedAllocExp;
       pDdiTable->pfnUSMHostAllocExp = ur_loader::urEnqueueUSMHostAllocExp;
@@ -6319,6 +6705,119 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
     } else {
       // return pointers directly to platform's DDIs
       *pDdiTable = ur_loader::getContext()->platforms.front().dditable.Event;
+    }
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's GraphExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_graph_exp_dditable_t *pDdiTable) {
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (ur_loader::getContext()->version < version)
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  // Load the device-platform DDI tables
+  for (auto &platform : ur_loader::getContext()->platforms) {
+    // statically linked adapter inside of the loader
+    if (platform.handle == nullptr)
+      continue;
+
+    if (platform.initStatus != UR_RESULT_SUCCESS)
+      continue;
+    auto getTable = reinterpret_cast<ur_pfnGetGraphExpProcAddrTable_t>(
+        ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
+                                             "urGetGraphExpProcAddrTable"));
+    if (!getTable)
+      continue;
+    platform.initStatus = getTable(version, &platform.dditable.GraphExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    if (ur_loader::getContext()->platforms.size() != 1 ||
+        ur_loader::getContext()->forceIntercept) {
+      // return pointers to loader's DDIs
+      pDdiTable->pfnCreateExp = ur_loader::urGraphCreateExp;
+      pDdiTable->pfnInstantiateGraphExp = ur_loader::urGraphInstantiateGraphExp;
+      pDdiTable->pfnDestroyExp = ur_loader::urGraphDestroyExp;
+      pDdiTable->pfnExecutableGraphDestroyExp =
+          ur_loader::urGraphExecutableGraphDestroyExp;
+      pDdiTable->pfnIsEmptyExp = ur_loader::urGraphIsEmptyExp;
+      pDdiTable->pfnDumpContentsExp = ur_loader::urGraphDumpContentsExp;
+    } else {
+      // return pointers directly to platform's DDIs
+      *pDdiTable = ur_loader::getContext()->platforms.front().dditable.GraphExp;
+    }
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's IPCExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetIPCExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_ipc_exp_dditable_t *pDdiTable) {
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (ur_loader::getContext()->version < version)
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  // Load the device-platform DDI tables
+  for (auto &platform : ur_loader::getContext()->platforms) {
+    // statically linked adapter inside of the loader
+    if (platform.handle == nullptr)
+      continue;
+
+    if (platform.initStatus != UR_RESULT_SUCCESS)
+      continue;
+    auto getTable = reinterpret_cast<ur_pfnGetIPCExpProcAddrTable_t>(
+        ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
+                                             "urGetIPCExpProcAddrTable"));
+    if (!getTable)
+      continue;
+    platform.initStatus = getTable(version, &platform.dditable.IPCExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    if (ur_loader::getContext()->platforms.size() != 1 ||
+        ur_loader::getContext()->forceIntercept) {
+      // return pointers to loader's DDIs
+      pDdiTable->pfnGetMemHandleExp = ur_loader::urIPCGetMemHandleExp;
+      pDdiTable->pfnPutMemHandleExp = ur_loader::urIPCPutMemHandleExp;
+      pDdiTable->pfnOpenMemHandleExp = ur_loader::urIPCOpenMemHandleExp;
+      pDdiTable->pfnCloseMemHandleExp = ur_loader::urIPCCloseMemHandleExp;
+    } else {
+      // return pointers directly to platform's DDIs
+      *pDdiTable = ur_loader::getContext()->platforms.front().dditable.IPCExp;
     }
   }
 
@@ -6742,6 +7241,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
     if (ur_loader::getContext()->platforms.size() != 1 ||
         ur_loader::getContext()->forceIntercept) {
       // return pointers to loader's DDIs
+      pDdiTable->pfnDynamicLinkExp = ur_loader::urProgramDynamicLinkExp;
       pDdiTable->pfnBuildExp = ur_loader::urProgramBuildExp;
       pDdiTable->pfnCompileExp = ur_loader::urProgramCompileExp;
       pDdiTable->pfnLinkExp = ur_loader::urProgramLinkExp;
@@ -6809,6 +7309,65 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueProcAddrTable(
     } else {
       // return pointers directly to platform's DDIs
       *pDdiTable = ur_loader::getContext()->platforms.front().dditable.Queue;
+    }
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's QueueExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_queue_exp_dditable_t *pDdiTable) {
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (ur_loader::getContext()->version < version)
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  // Load the device-platform DDI tables
+  for (auto &platform : ur_loader::getContext()->platforms) {
+    // statically linked adapter inside of the loader
+    if (platform.handle == nullptr)
+      continue;
+
+    if (platform.initStatus != UR_RESULT_SUCCESS)
+      continue;
+    auto getTable = reinterpret_cast<ur_pfnGetQueueExpProcAddrTable_t>(
+        ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
+                                             "urGetQueueExpProcAddrTable"));
+    if (!getTable)
+      continue;
+    platform.initStatus = getTable(version, &platform.dditable.QueueExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    if (ur_loader::getContext()->platforms.size() != 1 ||
+        ur_loader::getContext()->forceIntercept) {
+      // return pointers to loader's DDIs
+      pDdiTable->pfnBeginGraphCaptureExp =
+          ur_loader::urQueueBeginGraphCaptureExp;
+      pDdiTable->pfnBeginCaptureIntoGraphExp =
+          ur_loader::urQueueBeginCaptureIntoGraphExp;
+      pDdiTable->pfnEndGraphCaptureExp = ur_loader::urQueueEndGraphCaptureExp;
+      pDdiTable->pfnAppendGraphExp = ur_loader::urQueueAppendGraphExp;
+      pDdiTable->pfnIsGraphCaptureEnabledExp =
+          ur_loader::urQueueIsGraphCaptureEnabledExp;
+    } else {
+      // return pointers directly to platform's DDIs
+      *pDdiTable = ur_loader::getContext()->platforms.front().dditable.QueueExp;
     }
   }
 
@@ -7171,6 +7730,59 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
     } else {
       // return pointers directly to platform's DDIs
       *pDdiTable = ur_loader::getContext()->platforms.front().dditable.Device;
+    }
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's DeviceExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_device_exp_dditable_t *pDdiTable) {
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (ur_loader::getContext()->version < version)
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  // Load the device-platform DDI tables
+  for (auto &platform : ur_loader::getContext()->platforms) {
+    // statically linked adapter inside of the loader
+    if (platform.handle == nullptr)
+      continue;
+
+    if (platform.initStatus != UR_RESULT_SUCCESS)
+      continue;
+    auto getTable = reinterpret_cast<ur_pfnGetDeviceExpProcAddrTable_t>(
+        ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
+                                             "urGetDeviceExpProcAddrTable"));
+    if (!getTable)
+      continue;
+    platform.initStatus = getTable(version, &platform.dditable.DeviceExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    if (ur_loader::getContext()->platforms.size() != 1 ||
+        ur_loader::getContext()->forceIntercept) {
+      // return pointers to loader's DDIs
+      pDdiTable->pfnWaitExp = ur_loader::urDeviceWaitExp;
+    } else {
+      // return pointers directly to platform's DDIs
+      *pDdiTable =
+          ur_loader::getContext()->platforms.front().dditable.DeviceExp;
     }
   }
 

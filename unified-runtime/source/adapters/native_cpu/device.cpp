@@ -376,6 +376,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP:
     return ReturnValue(
         static_cast<ur_exp_device_2d_block_array_capability_flags_t>(0));
+  case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
     // Currently for Native CPU fences are implemented using OCK
     // builtins, so we have different capabilities than atomic operations
@@ -444,6 +446,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(false);
 
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
+    return ReturnValue(true);
+
+  case UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP:
+    return ReturnValue(false);
+
+  case UR_DEVICE_INFO_DYNAMIC_LINK_SUPPORT_EXP:
     return ReturnValue(true);
 
   case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT:
@@ -527,6 +535,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
 
   // No image can be loaded for the given device
   return UR_RESULT_ERROR_INVALID_BINARY;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urDeviceWaitExp(ur_device_handle_t) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 ur_device_handle_t_::ur_device_handle_t_(ur_platform_handle_t ArgPlt)

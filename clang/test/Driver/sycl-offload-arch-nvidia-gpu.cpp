@@ -48,5 +48,5 @@
 
 // MACRO_NVIDIA: clang{{.*}} "-triple" "nvptx64-nvidia-cuda"
 // MACRO_NVIDIA: "-D__SYCL_TARGET_NVIDIA_GPU_[[MAC_STR]]__"
-// CLANG-OFFLOAD-PACKAGER-GPU: clang-offload-packager{{.*}} "--image={{.*}}triple=nvptx64-nvidia-cuda,arch=[[DEV_STR]],kind=sycl"
+// CLANG-OFFLOAD-PACKAGER-GPU: llvm-offload-binary{{.*}} "--image={{.*}}triple=nvptx64-nvidia-cuda,arch=[[DEV_STR]],kind=sycl"
 

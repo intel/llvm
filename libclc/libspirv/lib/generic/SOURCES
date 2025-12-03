@@ -39,6 +39,10 @@ geometric/scale.cl
 integer/abs.cl
 integer/abs_diff.cl
 integer/add_sat.cl
+integer/bitfield_extract_signed.cl
+integer/bitfield_extract_unsigned.cl
+integer/bitfield_insert.cl
+integer/bit_reverse.cl
 integer/clamp.cl
 integer/clz.cl
 integer/ctz.cl
@@ -89,6 +93,7 @@ math/fmin.cl
 math/fmin_common.cl
 math/fmod.cl
 math/fract.cl
+math/frem.cl
 math/frexp.cl
 math/half_cos.cl
 math/half_divide.cl

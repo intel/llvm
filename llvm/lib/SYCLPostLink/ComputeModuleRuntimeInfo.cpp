@@ -57,77 +57,6 @@ bool isModuleUsingTsan(const Module &M) {
   return M.getNamedGlobal("__TsanKernelMetadata");
 }
 
-// This function traverses over reversed call graph by BFS algorithm.
-// It means that an edge links some function @func with functions
-// which contain call of function @func. It starts from
-// @StartingFunction and lifts up until it reach all reachable functions,
-// or it reaches some function containing "referenced-indirectly" attribute.
-// If it reaches "referenced-indirectly" attribute than it returns an empty
-// Optional.
-// Otherwise, it returns an Optional containing a list of reached
-// SPIR kernel function's names.
-static std::optional<std::vector<StringRef>>
-traverseCGToFindSPIRKernels(const Function *StartingFunction) {
-  std::queue<const Function *> FunctionsToVisit;
-  std::unordered_set<const Function *> VisitedFunctions;
-  FunctionsToVisit.push(StartingFunction);
-  std::vector<StringRef> KernelNames;
-
-  while (!FunctionsToVisit.empty()) {
-    const Function *F = FunctionsToVisit.front();
-    FunctionsToVisit.pop();
-
-    auto InsertionResult = VisitedFunctions.insert(F);
-    // It is possible that we insert some particular function several
-    // times in functionsToVisit queue.
-    if (!InsertionResult.second)
-      continue;
-
-    for (const auto *U : F->users()) {
-      const CallInst *CI = dyn_cast<const CallInst>(U);
-      if (!CI)
-        continue;
-
-      const Function *ParentF = CI->getFunction();
-
-      if (VisitedFunctions.count(ParentF))
-        continue;
-
-      if (ParentF->hasFnAttribute("referenced-indirectly"))
-        return {};
-
-      if (ParentF->getCallingConv() == CallingConv::SPIR_KERNEL)
-        KernelNames.push_back(ParentF->getName());
-
-      FunctionsToVisit.push(ParentF);
-    }
-  }
-
-  return {std::move(KernelNames)};
-}
-
-static std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
-  auto *DevicelibAssertFailFunction = M.getFunction("__devicelib_assert_fail");
-  if (!DevicelibAssertFailFunction)
-    return {};
-
-  auto TraverseResult =
-      traverseCGToFindSPIRKernels(DevicelibAssertFailFunction);
-
-  if (TraverseResult.has_value())
-    return std::move(*TraverseResult);
-
-  // Here we reached "referenced-indirectly", so we need to find all kernels and
-  // return them.
-  std::vector<StringRef> SPIRKernelNames;
-  for (const Function &F : M) {
-    if (F.getCallingConv() == CallingConv::SPIR_KERNEL)
-      SPIRKernelNames.push_back(F.getName());
-  }
-
-  return SPIRKernelNames;
-}
-
 // Gets 1- to 3-dimension work-group related information for function Func.
 // Returns an empty vector if not present.
 template <typename T>
@@ -440,11 +369,6 @@ PropSetRegTy computeModuleProperties(const Module &M,
 
     if (OptLevel != -1)
       PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "optLevel", OptLevel);
-  }
-  {
-    std::vector<StringRef> FuncNames = getKernelNamesUsingAssert(M);
-    for (const StringRef &FName : FuncNames)
-      PropSet.add(PropSetRegTy::SYCL_ASSERT_USED, FName, true);
   }
   {
     std::vector<std::pair<StringRef, int>> ArgPos =

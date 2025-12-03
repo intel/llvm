@@ -67,7 +67,7 @@ _CLC_DEF _CLC_OVERLOAD half2 __spirv_ocl_fma(half2 x, half2 y, half2 z) {
 
 #endif
 
-#undef FUNCTION
+#undef __CLC_FUNCTION
 #define __CLC_FUNCTION __clc_fma
 
 // Requires at least sm_80

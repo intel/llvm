@@ -129,11 +129,11 @@
 /// We should have an offload action joining the host compile and device
 /// preprocessor and another one joining the device linking outputs to the host
 /// action.
-// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
+// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES %s
-// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fno-sycl-device-lib=all %s 2>&1 \
+// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES %s
-// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
+// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES %s
 // CHK-PHASES: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
 // CHK-PHASES: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -143,7 +143,7 @@
 // CHK-PHASES: 5: compiler, {4}, ir, (device-sycl)
 // CHK-PHASES: 6: backend, {5}, ir, (device-sycl)
 // CHK-PHASES: 7: offload, "device-sycl (spir64-unknown-unknown)" {6}, ir
-// CHK-PHASES: 8: clang-offload-packager, {7}, image, (device-sycl)
+// CHK-PHASES: 8: llvm-offload-binary, {7}, image, (device-sycl)
 // CHK-PHASES: 9: offload, "host-sycl (x86_64{{.*}})" {2}, "device-sycl (x86_64{{.*}})" {8}, ir
 // CHK-PHASES: 10: backend, {9}, assembler, (host-sycl)
 // CHK-PHASES: 11: assembler, {10}, object, (host-sycl)
@@ -155,9 +155,9 @@
 /// We should have an offload action joining the host compile and device
 /// preprocessor and another one joining the device linking outputs to the host
 /// action.
-// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spirv64-unknown-unknown -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
+// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spirv64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES-2 %s
-// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --offload-new-driver -fsycl-targets=spirv64-unknown-unknown -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
+// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --offload-new-driver -fsycl-targets=spirv64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES-2 %s
 // CHK-PHASES-2: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
 // CHK-PHASES-2: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -167,7 +167,7 @@
 // CHK-PHASES-2: 5: compiler, {4}, ir, (device-sycl)
 // CHK-PHASES-2: 6: backend, {5}, ir, (device-sycl)
 // CHK-PHASES-2: 7: offload, "device-sycl (spirv64-unknown-unknown)" {6}, ir
-// CHK-PHASES-2: 8: clang-offload-packager, {7}, image, (device-sycl)
+// CHK-PHASES-2: 8: llvm-offload-binary, {7}, image, (device-sycl)
 // CHK-PHASES-2: 9: offload, "host-sycl (x86_64{{.*}})" {2}, "device-sycl (x86_64{{.*}})" {8}, ir
 // CHK-PHASES-2: 10: backend, {9}, assembler, (host-sycl)
 // CHK-PHASES-2: 11: assembler, {10}, object, (host-sycl)
@@ -185,7 +185,7 @@
 
 /// Check the phases also add a library to make sure it is treated as input by
 /// the device.
-// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -lsomelib -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
+// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -lsomelib -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASES-LIB %s
 // CHK-PHASES-LIB: 0: input, "somelib", object, (host-sycl)
 // CHK-PHASES-LIB: 1: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
@@ -196,7 +196,7 @@
 // CHK-PHASES-LIB: 6: compiler, {5}, ir, (device-sycl)
 // CHK-PHASES-LIB: 7: backend, {6}, ir, (device-sycl)
 // CHK-PHASES-LIB: 8: offload, "device-sycl (spir64-unknown-unknown)" {7}, ir
-// CHK-PHASES-LIB: 9: clang-offload-packager, {8}, image, (device-sycl)
+// CHK-PHASES-LIB: 9: llvm-offload-binary, {8}, image, (device-sycl)
 // CHK-PHASES-LIB: 10: offload, "host-sycl (x86_64-unknown-linux-gnu)" {3}, "device-sycl (x86_64-unknown-linux-gnu)" {9}, ir
 // CHK-PHASES-LIB: 11: backend, {10}, assembler, (host-sycl)
 // CHK-PHASES-LIB: 12: assembler, {11}, object, (host-sycl)
@@ -206,7 +206,7 @@
 
 /// Check the phases when using and multiple source files
 // RUN:   echo " " > %t.c
-// RUN:   %clang -ccc-print-phases -lsomelib -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s %t.c 2>&1 \
+// RUN:   %clang -ccc-print-phases -lsomelib -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s %t.c 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASES-FILES %s
 // CHK-PHASES-FILES: 0: input, "somelib", object, (host-sycl)
 // CHK-PHASES-FILES: 1: input, "[[INPUT1:.+\.c]]", c++, (host-sycl)
@@ -217,7 +217,7 @@
 // CHK-PHASES-FILES: 6: compiler, {5}, ir, (device-sycl)
 // CHK-PHASES-FILES: 7: backend, {6}, ir, (device-sycl)
 // CHK-PHASES-FILES: 8: offload, "device-sycl (spir64-unknown-unknown)" {7}, ir
-// CHK-PHASES-FILES: 9: clang-offload-packager, {8}, image, (device-sycl)
+// CHK-PHASES-FILES: 9: llvm-offload-binary, {8}, image, (device-sycl)
 // CHK-PHASES-FILES: 10: offload, "host-sycl (x86_64-unknown-linux-gnu)" {3}, "device-sycl (x86_64-unknown-linux-gnu)" {9}, ir
 // CHK-PHASES-FILES: 11: backend, {10}, assembler, (host-sycl)
 // CHK-PHASES-FILES: 12: assembler, {11}, object, (host-sycl)
@@ -229,7 +229,7 @@
 // CHK-PHASES-FILES: 18: compiler, {17}, ir, (device-sycl)
 // CHK-PHASES-FILES: 19: backend, {18}, ir, (device-sycl)
 // CHK-PHASES-FILES: 20: offload, "device-sycl (spir64-unknown-unknown)" {19}, ir
-// CHK-PHASES-FILES: 21: clang-offload-packager, {20}, image, (device-sycl)
+// CHK-PHASES-FILES: 21: llvm-offload-binary, {20}, image, (device-sycl)
 // CHK-PHASES-FILES: 22: offload, "host-sycl (x86_64-unknown-linux-gnu)" {15}, "device-sycl (x86_64-unknown-linux-gnu)" {21}, ir
 // CHK-PHASES-FILES: 23: backend, {22}, assembler, (host-sycl)
 // CHK-PHASES-FILES: 24: assembler, {23}, object, (host-sycl)
@@ -335,7 +335,7 @@
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS %s
 // RUN:   %clang_cl -### -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -Zi -Od -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS %s
-// CHK-TOOLS-IMPLIED-OPTS: clang-offload-packager{{.*}} {{.*}}compile-opts=-g{{.*}}-DFOO1 -DFOO2"
+// CHK-TOOLS-IMPLIED-OPTS: llvm-offload-binary{{.*}} {{.*}}compile-opts=-g{{.*}}-DFOO1 -DFOO2"
 
 /// Check for implied options (-O0)
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64 -O0 %s 2>&1 \
@@ -344,7 +344,7 @@
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS-O0 %s
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64 -O0 -O2 %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS-O0 %s
-// CHK-TOOLS-IMPLIED-OPTS-O0-NOT: clang-offload-packager{{.*}} {{.*}}compile-opts={{.*}}-cl-opt-disable"
+// CHK-TOOLS-IMPLIED-OPTS-O0-NOT: llvm-offload-binary{{.*}} {{.*}}compile-opts={{.*}}-cl-opt-disable"
 
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -Xsycl-target-linker "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-OPTS2 %s
@@ -395,7 +395,7 @@
 /// ###########################################################################
 
 /// Verify that triple-boundarch pairs are correct with multi-targetting
-// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-targets=nvptx64-nvidia-cuda,spir64 -ccc-print-phases %s 2>&1 \
+// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib -fsycl-targets=nvptx64-nvidia-cuda,spir64 -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG-BOUND-ARCH %s
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -410,14 +410,14 @@
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 10: compiler, {9}, ir, (device-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 11: backend, {10}, ir, (device-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 12: offload, "device-sycl (spir64-unknown-unknown)" {11}, ir
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 13: clang-offload-packager, {7, 12}, image, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 13: llvm-offload-binary, {7, 12}, image, (device-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 14: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (x86_64-unknown-linux-gnu)" {13}, ir
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 15: backend, {14}, assembler, (host-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 16: assembler, {15}, object, (host-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 17: clang-linker-wrapper, {16}, image, (host-sycl)
 
 // RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
-// RUN:     -fno-sycl-instrument-device-code -fno-sycl-device-lib=all \
+// RUN:     -fno-sycl-instrument-device-code --no-offloadlib \
 // RUN:     -fsycl-targets=nvptx64-nvidia-cuda,spir64_gen \
 // RUN:     -Xsycl-target-backend=spir64_gen "-device skl" \
 // RUN:     -ccc-print-phases %s 2>&1 \
@@ -435,7 +435,7 @@
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 10: compiler, {9}, ir, (device-sycl, skl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 11: backend, {10}, ir, (device-sycl, skl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 12: offload, "device-sycl (spir64_gen-unknown-unknown:skl)" {11}, ir
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 13: clang-offload-packager, {7, 12}, image, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 13: llvm-offload-binary, {7, 12}, image, (device-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 14: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (x86_64-unknown-linux-gnu)" {13}, ir
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 15: backend, {14}, assembler, (host-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 16: assembler, {15}, object, (host-sycl)
@@ -444,7 +444,7 @@
 /// ###########################################################################
 
 // Check if valid bound arch behaviour occurs when compiling for spir-v,nvidia-gpu, and amd-gpu
-// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-targets=spir64,nvptx64-nvidia-cuda,amdgcn-amd-amdhsa -Xsycl-target-backend=nvptx64-nvidia-cuda --offload-arch=sm_75 -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx908 -ccc-print-phases %s 2>&1 \
+// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib -fsycl-targets=spir64,nvptx64-nvidia-cuda,amdgcn-amd-amdhsa -Xsycl-target-backend=nvptx64-nvidia-cuda --offload-arch=sm_75 -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx908 -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD %s
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -464,7 +464,7 @@
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 15: compiler, {14}, ir, (device-sycl)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 16: backend, {15}, ir, (device-sycl)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 17: offload, "device-sycl (spir64-unknown-unknown)" {16}, ir
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 18: clang-offload-packager, {7, 12, 17}, image, (device-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 18: llvm-offload-binary, {7, 12, 17}, image, (device-sycl)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 19: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (x86_64-unknown-linux-gnu)" {18}, ir
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 20: backend, {19}, assembler, (host-sycl)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 21: assembler, {20}, object, (host-sycl)
@@ -479,9 +479,9 @@
 /// passing of a library should not trigger the unbundler
 // RUN: touch %t.a
 // RUN: touch %t.lib
-// RUN: %clang -ccc-print-phases -fsycl --offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %t.a %s 2>&1 \
+// RUN: %clang -ccc-print-phases -fsycl --offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib %t.a %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=LIB-UNBUNDLE-CHECK %s
-// RUN: %clang_cl -ccc-print-phases -fsycl --offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %t.lib %s 2>&1 \
+// RUN: %clang_cl -ccc-print-phases -fsycl --offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib %t.lib %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=LIB-UNBUNDLE-CHECK %s
 // LIB-UNBUNDLE-CHECK-NOT: clang-offload-unbundler
 

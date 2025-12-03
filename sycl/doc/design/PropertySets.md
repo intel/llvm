@@ -130,15 +130,6 @@ Miscellaneous properties:
 | "specConstsReplacedWithDefault" | 32 bit integer. ("1") | 1 if the specialization constants have been replaced by their default values and 0 or missing otherwise.         |
 
 
-### [SYCL/assert used]
-
-__Key:__ Kernel name.
-
-__Value type:__ 32 bit integer. ("1")
-
-__Value:__ 1 if the kernel uses assertions and 0 or missing otherwise.
-
-
 ### [SYCL/kernel names]
 
 __Key:__ Kernel name.

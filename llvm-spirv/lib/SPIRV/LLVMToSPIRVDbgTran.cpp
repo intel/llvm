@@ -587,8 +587,8 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgCompileUnit(const DICompileUnit *CU) {
   if (isNonSemanticDebugInfo())
     generateBuildIdentifierAndStoragePath(CU);
 
-  auto DwarfLang =
-      static_cast<llvm::dwarf::SourceLanguage>(CU->getSourceLanguage());
+  auto DwarfLang = static_cast<llvm::dwarf::SourceLanguage>(
+      CU->getSourceLanguage().getUnversionedName());
   Ops[LanguageIdx] =
       BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200
           ? convertDWARFSourceLangToSPIRVNonSemanticDbgInfo(DwarfLang)

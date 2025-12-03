@@ -21,7 +21,12 @@ config.test_exec_root = os.path.join(config.sycl_obj_root, "unittests")
 config.test_source_root = config.test_exec_root
 
 # testFormat: The test format to use to interpret tests.
-config.test_format = lit.formats.GoogleTest(config.llvm_build_mode, "Tests")
+# TODO: CMPLRTST-28093: currently only non-preview SYCL unit tests are executed
+# as part of `check-sycl` and `check-all`. Change the second argument to just
+# "Tests" after the concurrency problem with non-preview and preview versions of
+# SYCL unit tests is fixed, so both non-review and preview versions of SYCL unit
+# tests will be executed as part of `check-sycl` and `check-all`.
+config.test_format = lit.formats.GoogleTest(config.llvm_build_mode, "Non_Preview_Tests")
 
 # Propagate the temp directory. Windows requires this because it uses \Windows\
 # if none of these are present.

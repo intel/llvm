@@ -7,8 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: linux
-// RUN: %{build} -DBUILD_LIB -fPIC -shared -o %T/lib%basename_t.so
-// RUN: %{build} -DBUILD_EXE -L%T -o %t1.out -l%basename_t -Wl,-rpath=%T
+// RUN: rm -rf %t.dir; mkdir -p %t.dir
+// RUN: %{build} -DBUILD_LIB -fPIC -shared -o %t.dir/lib%basename_t.so
+// RUN: %{build} -DBUILD_EXE -L%t.dir -o %t1.out -l%basename_t -Wl,-rpath=%t.dir
 // RUN: %{run} %t1.out
 
 // UNSUPPORTED: target-nvidia || target-amd

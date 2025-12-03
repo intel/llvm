@@ -5,91 +5,45 @@
 
 import logging
 import sys
-from typing import Optional, Type, Any
 
 
-# Define log level mapping as a module-level function
-def _get_log_level(level_str: str) -> int:
-    """Convert a string log level to a logging module level constant."""
-    level_map = {
-        "debug": logging.DEBUG,
-        "info": logging.INFO,
-        "warning": logging.WARNING,
-        "error": logging.ERROR,
-        "critical": logging.CRITICAL,
-    }
-    return level_map.get(level_str.lower(), logging.INFO)
+log = logging.getLogger("ur_benchmarks")
 
+def initialize_logger(verbose: bool = False, log_level: str = "info") -> None:
+    """Configure the logger with the appropriate log level.
 
-class BenchmarkLogger:
-    """Logger for the Benchmark Runner.
+    Args:
+        verbose: If True, sets the log level to DEBUG regardless of log_level
+        log_level: One of "debug", "info", "warning", "error", "critical"
 
-    This logger provides different log levels (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-    that can be controlled via command-line arguments. Call initialize() with the
-    appropriate parameters after parsing command line arguments.
+    Note:
+        This method will only initialize the logger once. Subsequent calls will be ignored.
     """
+    # Return early if logger is already initialized (has handlers)
 
-    _instance: Optional["BenchmarkLogger"] = None
+    if log.handlers:
+        return
 
-    def __new__(cls: Type["BenchmarkLogger"]) -> "BenchmarkLogger":
-        if cls._instance is None:
-            cls._instance = super(BenchmarkLogger, cls).__new__(cls)
-        return cls._instance
+    console_handler = logging.StreamHandler(sys.stdout)
 
-    def __init__(self) -> None:
-        """Create logger but don't configure it until initialize() is called."""
-        self._logger: logging.Logger = logging.getLogger("ur_benchmarks")
+    level = (
+        logging.DEBUG
+        if verbose
+        else dict(
+            debug=logging.DEBUG,
+            info=logging.INFO,
+            warning=logging.WARNING,
+            error=logging.ERROR,
+            critical=logging.CRITICAL,
+        ).get(log_level.lower(), logging.INFO)
+    )
 
-    def initialize(self, verbose: bool = False, log_level: str = "info") -> None:
-        """Configure the logger with the appropriate log level.
+    log.setLevel(level)
+    console_handler.setLevel(level)
 
-        Args:
-            verbose: If True, sets the log level to DEBUG regardless of log_level
-            log_level: One of "debug", "info", "warning", "error", "critical"
+    formatter = logging.Formatter(
+        "%(asctime)s - %(levelname)s - %(message)s <%(filename)s:%(lineno)d>"
+    )
+    console_handler.setFormatter(formatter)
 
-        Note:
-            This method will only initialize the logger once. Subsequent calls will be ignored.
-        """
-        # Return early if logger is already initialized (has handlers)
-        if self._logger.handlers:
-            return
-
-        console_handler = logging.StreamHandler(sys.stdout)
-
-        level = logging.DEBUG if verbose else _get_log_level(log_level)
-        self._logger.setLevel(level)
-        console_handler.setLevel(level)
-
-        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-        console_handler.setFormatter(formatter)
-
-        self._logger.addHandler(console_handler)
-
-    def debug(self, message: Any) -> None:
-        """Log a debug message."""
-        if self._logger.handlers:
-            self._logger.debug(message)
-
-    def info(self, message: Any) -> None:
-        """Log an info message."""
-        if self._logger.handlers:
-            self._logger.info(message)
-
-    def warning(self, message: Any) -> None:
-        """Log a warning message."""
-        if self._logger.handlers:
-            self._logger.warning(message)
-
-    def error(self, message: Any) -> None:
-        """Log an error message."""
-        if self._logger.handlers:
-            self._logger.error(message)
-
-    def critical(self, message: Any) -> None:
-        """Log a critical message."""
-        if self._logger.handlers:
-            self._logger.critical(message)
-
-
-# Global logger instance
-log = BenchmarkLogger()
+    log.addHandler(console_handler)

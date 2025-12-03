@@ -306,7 +306,7 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
           addNVVMMetadata(F, "grid_constant", GridConstantParamIdxs);
       }
       if (FD->hasAttr<CUDAGlobalAttr>()) {
-        F->setCallingConv(llvm::CallingConv::PTX_Kernel);
+        F->setCallingConv(getDeviceKernelCallingConv());
 
         for (auto IV : llvm::enumerate(FD->parameters()))
           if (IV.value()->hasAttr<CUDAGridConstantAttr>())
@@ -320,7 +320,7 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
   }
   // Attach kernel metadata directly if compiling for NVPTX.
   if (FD->hasAttr<DeviceKernelAttr>())
-    F->setCallingConv(llvm::CallingConv::PTX_Kernel);
+    F->setCallingConv(getDeviceKernelCallingConv());
 }
 
 void NVPTXTargetCodeGenInfo::addNVVMMetadata(llvm::GlobalValue *GV,

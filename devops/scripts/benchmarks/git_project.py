@@ -3,13 +3,13 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import os
 from pathlib import Path
 import shutil
 
 from utils.logger import log
 from utils.utils import run
 from options import options
-
 
 class GitProject:
     def __init__(
@@ -18,7 +18,7 @@ class GitProject:
         ref: str,
         directory: Path,
         name: str,
-        force_rebuild: bool = False,
+        use_installdir: bool = True,
         no_suffix_src: bool = False,
         shallow_clone: bool = True,
     ) -> None:
@@ -26,10 +26,14 @@ class GitProject:
         self._ref = ref
         self._directory = directory
         self._name = name
-        self._force_rebuild = force_rebuild
+        self._use_installdir = use_installdir
         self._no_suffix_src = no_suffix_src
         self._shallow_clone = shallow_clone
         self._rebuild_needed = self._setup_repo()
+
+    @property
+    def name(self):
+        return self._name
 
     @property
     def src_dir(self) -> Path:
@@ -44,56 +48,29 @@ class GitProject:
     def install_dir(self) -> Path:
         return self._directory / f"{self._name}-install"
 
-    def needs_rebuild(self, check_build=False, check_install=False) -> bool:
-        """Checks if the project needs to be rebuilt.
-
-        Args:
-            check_build (bool): If True, checks if the build directory exists and has some files.
-            check_install (bool): If True, checks if the install directory exists and has some files.
-
-        Returns:
-            bool: True if the project needs to be rebuilt, False otherwise.
-        """
-        log.debug(f"Checking if project {self._name} needs rebuild.")
-        if self._force_rebuild:
+    def needs_rebuild(self) -> bool:
+        if self._rebuild_needed:
             log.debug(
-                f"Force rebuild is enabled for project {self._name}, rebuild needed."
+                f"Rebuild needed because new sources were detected for project {self._name}."
             )
-            if Path(self.build_dir).exists():
-                shutil.rmtree(self.build_dir)
             return True
-        elif self._rebuild_needed:
+
+        dir_to_check = self.install_dir if self._use_installdir else self.build_dir
+
+        if not (
+            dir_to_check.exists()
+            and any(path.is_file() for path in dir_to_check.glob("**/*"))
+        ):
+            log.debug(
+                f"{dir_to_check} does not exist or does not contain any file, rebuild needed."
+            )
             return True
-        if check_build:
-            if self.build_dir.exists() and any(
-                path.is_file() for path in self.build_dir.glob("**/*")
-            ):
-                log.debug(
-                    f"Build directory {self.build_dir} exists and is not empty, no rebuild needed."
-                )
-            else:
-                log.debug(
-                    f"Build directory {self.build_dir} does not exist or does not contain any file, rebuild needed."
-                )
-                return True
-        if check_install:
-            if self.install_dir.exists() and any(
-                path.is_file() for path in self.install_dir.glob("**/*")
-            ):
-                log.debug(
-                    f"Install directory {self.install_dir} exists and is not empty, no rebuild needed."
-                )
-            else:
-                log.debug(
-                    f"Install directory {self.install_dir} does not exist or does not contain any file, rebuild needed."
-                )
-                return True
+        log.debug(f"{dir_to_check} exists and is not empty, no rebuild needed.")
         return False
 
     def configure(
         self,
         extra_args: list | None = None,
-        install_prefix: bool = True,
         add_sycl: bool = False,
     ) -> None:
         """Configures the project."""
@@ -103,7 +80,7 @@ class GitProject:
             f"-B {self.build_dir}",
             f"-DCMAKE_BUILD_TYPE=Release",
         ]
-        if install_prefix:
+        if self._use_installdir:
             cmd.append(f"-DCMAKE_INSTALL_PREFIX={self.install_dir}")
         if extra_args:
             cmd.extend(extra_args)
@@ -190,6 +167,11 @@ class GitProject:
         Returns:
             bool: True if the repository was cloned or updated, False if it was already up-to-date.
         """
+        if os.environ.get("LLVM_BENCHMARKS_UNIT_TESTING") == "1":
+            log.debug(
+                f"Skipping git operations during unit testing of {self._name} (LLVM_BENCHMARKS_UNIT_TESTING=1)."
+            )
+            return False
         if not self.src_dir.exists():
             self._git_clone()
             return True

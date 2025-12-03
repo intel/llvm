@@ -353,7 +353,7 @@ params:
       desc: "[in] Dimension of the kernel execution."
     - type: "const size_t*"
       name: pGlobalWorkOffset
-      desc: "[in] Offset to use when executing kernel."
+      desc: "[in][optional] Offset to use when executing kernel."
     - type: "const size_t*"
       name: pGlobalWorkSize
       desc: "[in] Global work size to use when executing kernel."

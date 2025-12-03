@@ -7,6 +7,7 @@ on:
     - llvmspirv_pulldown
     - sycl-rel-**
     # Do not run builds if changes are only in the following locations
+    # Note: benchmark-related paths are the same as in sycl-ur-perf-benchmarking.yml (to run there instead)
     paths-ignore:
     - '.github/ISSUE_TEMPLATE/**'
     - '.github/CODEOWNERS'
@@ -22,7 +23,8 @@ on:
     - '.github/workflows/sycl-nightly.yml'
     - '.github/workflows/sycl-rel-nightly.yml'
     - '.github/workflows/sycl-rel-nightly-launch.yml'
-    - '.github/workflows/trivy.yml'
+    - '.github/workflows/sycl-trivy.yml'
+    - '.github/workflows/sycl-coverity.yml'
     - 'devops/containers/**'
     - 'devops/actions/build_container/**'
     - 'devops/compat_ci_exclude.sycl-rel-6_2'
@@ -31,6 +33,9 @@ on:
     - 'unified-runtime/test/**'
     - 'unified-runtime/third_party/**'
     - 'unified-runtime/tools/**'
+    - 'devops/scripts/benchmarks/**'
+    - 'devops/actions/run-tests/benchmark/**'
+    - '.github/workflows/sycl-ur-perf-benchmarking.yml'
 
 permissions: read-all
 
@@ -46,7 +51,7 @@ jobs:
   build:
     needs: [detect_changes]
     if: |
-      always() && success()
+      success()
       && github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
@@ -57,8 +62,7 @@ jobs:
     needs: build
     # Continue if build was successful.
     if: |
-      always()
-      && !cancelled()
+      !cancelled()
       && needs.build.outputs.build_conclusion == 'success'
     strategy:
       fail-fast: false
@@ -66,6 +70,8 @@ jobs:
         include:
           - name: Intel GEN12 Graphics with Level Zero
             runner: '["Windows","gen12"]'
+          - name: Intel Arc Graphics with Level Zero
+            runner: '["Windows","arc"]'
           - name: Intel Battlemage Graphics with Level Zero
             runner: '["Windows","bmg"]'
     uses: ./.github/workflows/sycl-windows-run-tests.yml
@@ -74,5 +80,5 @@ jobs:
       runner: ${{ matrix.runner }}
       target_devices: "level_zero:gpu"
       toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
-      e2e_testing_mode: run-only
-      e2e_binaries_artifact: sycl_windows_e2ebin
+      testing_mode: run-only
+      binaries_artifact: sycl_windows_e2ebin

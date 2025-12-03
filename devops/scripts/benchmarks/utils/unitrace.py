@@ -14,6 +14,7 @@ from utils.utils import (
     prune_old_files,
     remove_by_prefix,
     remove_by_extension,
+    sanitize_filename,
 )
 from utils.logger import log
 from git_project import GitProject
@@ -66,7 +67,9 @@ class Unitrace:
         if options.results_directory_override == None:
             self.traces_dir = os.path.join(options.workdir, "results", "traces")
         else:
-            self.traces_dir = os.path.join(options.results_directory_override, "traces")
+            self.traces_dir = os.path.join(
+                options.results_directory_override, "results", "traces"
+            )
 
     def _prune_unitrace_dirs(self, res_dir: str, FILECNT: int = 10):
         """Keep only the last FILECNT files in the traces directory."""
@@ -92,7 +95,8 @@ class Unitrace:
         if not os.path.exists(unitrace_bin):
             raise FileNotFoundError(f"Unitrace binary not found: {unitrace_bin}. ")
         os.makedirs(self.traces_dir, exist_ok=True)
-        bench_dir = os.path.join(f"{self.traces_dir}", f"{bench_name}")
+        sanitized_bench_name = sanitize_filename(bench_name)
+        bench_dir = os.path.join(f"{self.traces_dir}", f"{sanitized_bench_name}")
 
         os.makedirs(bench_dir, exist_ok=True)
 
@@ -162,6 +166,8 @@ class Unitrace:
         # even if the pid_json_files contains more entries, only the last one is valid
         shutil.move(os.path.join(options.benchmark_cwd, pid_json_files[-1]), json_name)
         log.debug(f"Moved {pid_json_files[-1]} to {json_name}")
+
+        log.info(f"Unitrace output files: {unitrace_output}, {json_name}")
 
         # Prune old unitrace directories
         self._prune_unitrace_dirs(os.path.dirname(unitrace_output))

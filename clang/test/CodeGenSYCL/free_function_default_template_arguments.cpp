@@ -1087,15 +1087,14 @@ namespace Testing::Tests {
 
 // CHECK: #include <sycl/kernel_bundle.hpp>
 // CHECK-NEXT: #include <sycl/detail/kernel_global_info.hpp>
-// CHECK-NEXT: namespace sycl {
-// CHECK-NEXT: inline namespace _V1 {
-// CHECK-NEXT: namespace detail {
+// CHECK-NEXT: namespace {
 // CHECK-NEXT: struct GlobalMapUpdater {
 // CHECK-NEXT:   GlobalMapUpdater() {
 // CHECK-NEXT:     sycl::detail::free_function_info_map::add(sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, 28);
 // CHECK-NEXT:   }
+// CHECK-NEXT:   ~GlobalMapUpdater() {
+// CHECK-NEXT:     sycl::detail::free_function_info_map::remove(sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, 28);
+// CHECK-NEXT:   }
 // CHECK-NEXT: };
 // CHECK-NEXT: static GlobalMapUpdater updater;
-// CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } // namespace _V1
-// CHECK-NEXT: } // namespace sycl
+// CHECK-NEXT: }

@@ -781,4 +781,65 @@ ur_result_t urMemImageGetInfo(ur_mem_handle_t /*hMemory*/,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+ur_result_t urIPCGetMemHandleExp(ur_context_handle_t, void *pMem,
+                                 void **ppIPCMemHandleData,
+                                 size_t *pIPCMemHandleDataSizeRet) {
+  umf_memory_pool_handle_t umfPool;
+  auto urRet = umf::umf2urResult(umfPoolByPtr(pMem, &umfPool));
+  if (urRet)
+    return urRet;
+
+  // Fast path for returning the size of the handle only.
+  if (!ppIPCMemHandleData)
+    return umf::umf2urResult(
+        umfPoolGetIPCHandleSize(umfPool, pIPCMemHandleDataSizeRet));
+
+  size_t fallbackUMFHandleSize = 0;
+  size_t *umfHandleSize = pIPCMemHandleDataSizeRet != nullptr
+                              ? pIPCMemHandleDataSizeRet
+                              : &fallbackUMFHandleSize;
+  return umf::umf2urResult(umfGetIPCHandle(
+      pMem, reinterpret_cast<umf_ipc_handle_t *>(ppIPCMemHandleData),
+      umfHandleSize));
+}
+
+ur_result_t urIPCPutMemHandleExp(ur_context_handle_t, void *pIPCMemHandleData) {
+  return umf::umf2urResult(
+      umfPutIPCHandle(reinterpret_cast<umf_ipc_handle_t>(pIPCMemHandleData)));
+}
+
+ur_result_t urIPCOpenMemHandleExp(ur_context_handle_t hContext,
+                                  ur_device_handle_t hDevice,
+                                  void *pIPCMemHandleData,
+                                  size_t ipcMemHandleDataSize, void **ppMem) {
+  auto *pool = hContext->getDefaultUSMPool()->getPool(
+      usm::pool_descriptor{hContext->getDefaultUSMPool(), hContext, hDevice,
+                           UR_USM_TYPE_DEVICE, false});
+  if (!pool)
+    return UR_RESULT_ERROR_INVALID_CONTEXT;
+  umf_memory_pool_handle_t umfPool = pool->umfPool.get();
+
+  size_t umfHandleSize = 0;
+  auto urRet =
+      umf::umf2urResult(umfPoolGetIPCHandleSize(umfPool, &umfHandleSize));
+  if (urRet)
+    return urRet;
+
+  if (umfHandleSize != ipcMemHandleDataSize)
+    return UR_RESULT_ERROR_INVALID_VALUE;
+
+  umf_ipc_handler_handle_t umfIPCHandler;
+  urRet = umf::umf2urResult(umfPoolGetIPCHandler(umfPool, &umfIPCHandler));
+  if (urRet)
+    return urRet;
+
+  return umf::umf2urResult(umfOpenIPCHandle(
+      umfIPCHandler, reinterpret_cast<umf_ipc_handle_t>(pIPCMemHandleData),
+      ppMem));
+}
+
+ur_result_t urIPCCloseMemHandleExp(ur_context_handle_t, void *pMem) {
+  return umf::umf2urResult(umfCloseIPCHandle(pMem));
+}
+
 } // namespace ur::level_zero

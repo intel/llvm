@@ -243,7 +243,7 @@ public:
     return MIsInterop
                ? MInteropDeviceKernelInfo
                : ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
-                     KernelNameStrT(getName()));
+                     std::string_view(getName()));
   }
 
 private:

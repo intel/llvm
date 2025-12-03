@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clcmacro.h>
 #include <libspirv/spirv.h>
 
 #define _CLC_GEN_VECTORTIMESSCALAR_IMPL(DECLSPEC, TYPE, VECLEN)                \

@@ -252,3 +252,31 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
 
   return UR_RESULT_SUCCESS;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urQueueBeginGraphCaptureExp(ur_queue_handle_t /* hQueue */) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urQueueBeginCaptureIntoGraphExp(
+    ur_queue_handle_t /* hQueue */, ur_exp_graph_handle_t /* hGraph */) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urQueueEndGraphCaptureExp(
+    ur_queue_handle_t /* hQueue */, ur_exp_graph_handle_t * /* phGraph */) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urQueueAppendGraphExp(
+    ur_queue_handle_t /* hQueue */,
+    ur_exp_executable_graph_handle_t /* hGraph */,
+    ur_event_handle_t /* hSignalEvent */, uint32_t /* numWaitEvents */,
+    ur_event_handle_t * /* phWaitEvents */) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
+    ur_queue_handle_t /* hQueue */, bool * /* hResult */) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}

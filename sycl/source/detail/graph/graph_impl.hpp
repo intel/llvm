@@ -18,9 +18,13 @@
 #include <functional>   // for function
 #include <list>         // for list
 #include <memory>       // for shared_ptr
+#include <optional>     // for optional
 #include <set>          // for set
 #include <shared_mutex> // for shared_mutex
 #include <vector>       // for vector
+
+// For testing of graph internals
+class GraphImplTest;
 
 namespace sycl {
 inline namespace _V1 {
@@ -172,6 +176,8 @@ public:
   node_impl &add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
                  nodes_range Deps);
 
+  std::shared_ptr<sycl::detail::queue_impl> getQueue() const;
+
   /// Add a queue to the set of queues which are currently recording to this
   /// graph.
   /// @param RecordingQueue Queue to add to set.
@@ -184,9 +190,7 @@ public:
 
   /// Remove all queues which are recording to this graph, also sets all queues
   /// cleared back to the executing state.
-  ///
-  /// @return True if any queues were removed.
-  bool clearQueues();
+  void clearQueues(bool NeedsLock);
 
   /// Associate a sycl event with a node in the graph.
   /// @param EventImpl Event to associate with a node in map.
@@ -264,13 +268,6 @@ public:
   /// @return Context associated with graph.
   sycl::context getContext() const { return MContext; }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  /// Query for the context impl tied to this graph.
-  /// @return shared_ptr ref for the context impl associated with graph.
-  const std::shared_ptr<sycl::detail::context_impl> &getContextImplPtr() const {
-    return sycl::detail::getSyclObjImpl(MContext);
-  }
-#endif
   sycl::detail::context_impl &getContextImpl() const {
     return *sycl::detail::getSyclObjImpl(MContext);
   }
@@ -457,6 +454,15 @@ public:
 
   /// Sets the Queue state to queue_state::recording. Adds the queue to the list
   /// of recording queues associated with this graph.
+  /// Does not take the queue submission lock.
+  ///
+  /// Required for the cases, when the recording is started directly
+  /// from within the kernel submission flow.
+  /// @param[in] Queue The queue to be recorded from.
+  void beginRecordingUnlockedQueue(sycl::detail::queue_impl &Queue);
+
+  /// Sets the Queue state to queue_state::recording. Adds the queue to the list
+  /// of recording queues associated with this graph.
   /// @param[in] Queue The queue to be recorded from.
   void beginRecording(sycl::detail::queue_impl &Queue);
 
@@ -546,10 +552,12 @@ private:
   /// Device associated with this graph. All graph nodes will execute on this
   /// device.
   sycl::device MDevice;
+
+  using RecQueuesStorage =
+      std::set<std::weak_ptr<sycl::detail::queue_impl>,
+               std::owner_less<std::weak_ptr<sycl::detail::queue_impl>>>;
   /// Unique set of queues which are currently recording to this graph.
-  std::set<std::weak_ptr<sycl::detail::queue_impl>,
-           std::owner_less<std::weak_ptr<sycl::detail::queue_impl>>>
-      MRecordingQueues;
+  RecQueuesStorage MRecordingQueues;
   /// Map of events to their associated recorded nodes.
   std::unordered_map<std::shared_ptr<sycl::detail::event_impl>, node_impl *>
       MEventsMap;
@@ -625,11 +633,14 @@ public:
   /// @param CGData Command-group data provided by the sycl::handler
   /// @param EventNeeded Whether an event signalling the completion of this
   /// operation needs to be returned.
-  /// @return Returns an event if EventNeeded is true. Returns nullptr
-  /// otherwise.
-  EventImplPtr enqueue(sycl::detail::queue_impl &Queue,
-                       sycl::detail::CG::StorageInitHelper CGData,
-                       bool EventNeeded);
+  /// @return Returns a pair of an event and a boolean indicating whether the
+  /// scheduler was bypassed. If an event is required, then the first element of
+  /// the pair is the event representing the execution of the graph. If no event
+  /// is required, the first element is nullptr. The second element is true if
+  /// the scheduler was bypassed, false otherwise.
+  std::pair<EventImplPtr, bool>
+  enqueue(sycl::detail::queue_impl &Queue,
+          sycl::detail::CG::StorageInitHelper CGData, bool EventNeeded);
 
   /// Iterates through all the nodes in the graph to build the list of
   /// accessor requirements for the whole graph and for each partition.
@@ -729,13 +740,22 @@ public:
   }
 
 private:
+  // Test helper class for inspecting private graph internals to validate
+  // under-the-hood behavior and optimizations.
+  friend class ::GraphImplTest;
+
   /// Create a command-group for the node and add it to command-buffer by going
   /// through the scheduler.
   /// @param CommandBuffer Command-buffer to add node to as a command.
   /// @param Node The node being enqueued.
-  /// @return UR sync point created for this node in the command-buffer.
-  ur_exp_command_buffer_sync_point_t
-  enqueueNode(ur_exp_command_buffer_handle_t CommandBuffer, node_impl &Node);
+  /// @param IsInOrderPartition True if the partition associated with the node
+  /// is a linear (in-order) graph.
+  /// @return Optional UR sync point created for this node in the
+  /// command-buffer. std::nullopt is returned only if the associated partition
+  /// of the node is linear.
+  std::optional<ur_exp_command_buffer_sync_point_t>
+  enqueueNode(ur_exp_command_buffer_handle_t CommandBuffer, node_impl &Node,
+              bool IsInOrderPartition);
 
   /// Enqueue a node directly to the command-buffer without going through the
   /// scheduler.
@@ -743,10 +763,16 @@ private:
   /// @param DeviceImpl Device associated with the enqueue.
   /// @param CommandBuffer Command-buffer to add node to as a command.
   /// @param Node The node being enqueued.
-  /// @return UR sync point created for this node in the command-buffer.
-  ur_exp_command_buffer_sync_point_t enqueueNodeDirect(
-      const sycl::context &Ctx, sycl::detail::device_impl &DeviceImpl,
-      ur_exp_command_buffer_handle_t CommandBuffer, node_impl &Node);
+  /// @param IsInOrderPartition True if the partition associated with the node
+  /// is a linear (in-order) graph.
+  /// @return Optional UR sync point created for this node in the
+  /// command-buffer. std::nullopt is returned only if the associated partition
+  /// of the node is linear.
+  std::optional<ur_exp_command_buffer_sync_point_t>
+  enqueueNodeDirect(const sycl::context &Ctx,
+                    sycl::detail::device_impl &DeviceImpl,
+                    ur_exp_command_buffer_handle_t CommandBuffer,
+                    node_impl &Node, bool IsInOrderPartition);
 
   /// Enqueues a host-task partition (i.e. a partition that contains only a
   /// single node and that node is a host-task).

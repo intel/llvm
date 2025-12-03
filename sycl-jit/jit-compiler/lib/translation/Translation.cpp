@@ -87,7 +87,7 @@ llvm::Expected<JITBinary *> Translator::translateToPTX(llvm::Module &Mod,
 
   std::string ErrorMessage;
   const auto *Target =
-      llvm::TargetRegistry::lookupTarget(TargetTriple, ErrorMessage);
+      llvm::TargetRegistry::lookupTarget(Triple(TargetTriple), ErrorMessage);
 
   if (!Target) {
     return createStringError(
@@ -146,7 +146,7 @@ Translator::translateToAMDGCN(llvm::Module &Mod, JITContext &JITCtx,
 
   std::string ErrorMessage;
   const auto *Target =
-      llvm::TargetRegistry::lookupTarget(TargetTriple, ErrorMessage);
+      llvm::TargetRegistry::lookupTarget(Triple(TargetTriple), ErrorMessage);
 
   if (!Target)
     return createStringError(

@@ -64,6 +64,21 @@
 // UNSUPPORTED_OPT-NOT: clang{{.*}} "-fsycl-is-device"{{.*}} "[[OPT_CC1]]{{.*}}"
 // UNSUPPORTED_OPT: clang{{.*}} "-fsycl-is-host"{{.*}} "[[OPT_CC1]]{{.*}}"
 
+// Options that should only be enabled for SYCL RTC compilations, regular driver
+// shouldn't know about them:
+//
+// RUN: not %clangxx                    -### %s --auto-pch 2>&1 | FileCheck %s --check-prefix AUTO_PCH
+// RUN: not %clangxx -fsycl-device-only -### %s --auto-pch 2>&1 | FileCheck %s --check-prefix AUTO_PCH
+// RUN: not %clangxx -fsycl             -### %s --auto-pch 2>&1 | FileCheck %s --check-prefix AUTO_PCH
+//
+// AUTO_PCH: error: unknown argument: '--auto-pch'
+//
+// RUN: not %clangxx                    -### %s --persistent-auto-pch="%t.dir" 2>&1 | FileCheck %s --check-prefix PERSISTENT_AUTO_PCH
+// RUN: not %clangxx -fsycl-device-only -### %s --persistent-auto-pch="%t.dir" 2>&1 | FileCheck %s --check-prefix PERSISTENT_AUTO_PCH
+// RUN: not %clangxx -fsycl             -### %s --persistent-auto-pch="%t.dir" 2>&1 | FileCheck %s --check-prefix PERSISTENT_AUTO_PCH
+//
+// PERSISTENT_AUTO_PCH: error: unknown argument: '--persistent-auto-pch={{.*}}'
+
 // FPGA support has been removed, usage of any FPGA specific options and any
 // options that have FPGA specific arguments should emit a specific error
 // diagnostic.

@@ -22,7 +22,7 @@ struct cluster_size
           cluster_size<Dim>,
           ::sycl::ext::oneapi::experimental::detail::ClusterLaunch> {
   cluster_size(const range<Dim> &size) : size(size) {}
-  sycl::range<Dim> get_cluster_size() { return size; }
+  sycl::range<Dim> get_cluster_size() const { return size; }
 
 private:
   range<Dim> size;

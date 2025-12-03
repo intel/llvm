@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clcmacro.h>
 #include <clc/math/clc_round.h>
 
 #define __CLC_FUNCTION __spirv_ocl_round

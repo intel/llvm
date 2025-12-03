@@ -8,6 +8,9 @@
 // Test fails on hip flakily, disable temprorarily.
 // UNSUPPORTED: hip
 
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20248
+
 #include <cassert>
 #include <iostream>
 #include <sycl/detail/core.hpp>

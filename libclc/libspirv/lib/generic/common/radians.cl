@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clcmacro.h>
 #include <clc/common/clc_radians.h>
 #include <libspirv/spirv.h>
 

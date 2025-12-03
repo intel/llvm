@@ -1,5 +1,4 @@
-; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -spirv-ext=-all,+SPV_INTEL_fpga_argument_interfaces,+SPV_INTEL_fpga_buffer_location -o %t.spv
+; RUN: llvm-spirv %s -spirv-ext=-all,+SPV_INTEL_fpga_argument_interfaces,+SPV_INTEL_fpga_buffer_location -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM

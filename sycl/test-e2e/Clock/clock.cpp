@@ -3,8 +3,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: spirv-backend
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20146
 // UNSUPPORTED: target-native_cpu
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
 
@@ -21,11 +19,11 @@ template <syclex::clock_scope scope> void test(sycl::queue &q) {
      if (idx == 0) {
        data[0] = syclex::clock<scope>();
        int sum = 0;
-       for (int i = 0; i < 1e6; ++i)
+       for (int i = 0; i < 1'000'000; ++i)
          sum += i;
        data[1] = syclex::clock<scope>();
        sum = 0;
-       for (int i = 0; i < 1e6; ++i)
+       for (int i = 0; i < 1'000'000; ++i)
          sum += i;
        data[2] = syclex::clock<scope>();
      }

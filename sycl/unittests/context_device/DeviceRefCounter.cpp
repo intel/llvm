@@ -29,6 +29,39 @@ static ur_result_t redefinedDeviceReleaseAfter(void *) {
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t redefinedDevicePartitionAfter(void *pParams) {
+  auto params = *static_cast<ur_device_partition_params_t *>(pParams);
+  if (*params.pphSubDevices) {
+    for (size_t I = 0; I < *params.pNumDevices; ++I) {
+      *params.pphSubDevices[I] = reinterpret_cast<ur_device_handle_t>(1000 + I);
+    }
+  }
+  if (*params.ppNumDevicesRet)
+    **params.ppNumDevicesRet = *params.pNumDevices;
+
+  DevRefCounter += *params.pNumDevices;
+  return UR_RESULT_SUCCESS;
+}
+
+static constexpr size_t NumSubDevices = 2;
+
+ur_result_t redefinedDeviceGetInfoAfter(void *pParams) {
+  auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
+  if (*params.ppropName == UR_DEVICE_INFO_SUPPORTED_PARTITIONS) {
+    if (*params.ppPropValue) {
+      auto *Result =
+          reinterpret_cast<ur_device_partition_t *>(*params.ppPropValue);
+      *Result = UR_DEVICE_PARTITION_EQUALLY;
+    }
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = sizeof(ur_device_partition_t);
+  } else if (*params.ppropName == UR_DEVICE_INFO_MAX_COMPUTE_UNITS) {
+    auto *Result = reinterpret_cast<uint32_t *>(*params.ppPropValue);
+    *Result = NumSubDevices;
+  }
+  return UR_RESULT_SUCCESS;
+}
+
 TEST(DevRefCounter, DevRefCounter) {
   {
     sycl::unittest::UrMock<> Mock;
@@ -48,6 +81,35 @@ TEST(DevRefCounter, DevRefCounter) {
     // are timing differences Lin/Win and shared/static that make
     // it not map correctly into our mock.
     // So for this test, we just do it.
+    sycl::detail::GlobalHandler::instance().getPlatformCache().clear();
+  }
+  EXPECT_EQ(DevRefCounter, 0);
+}
+
+TEST(SubDevRefCounter, SubDevRefCounter) {
+  {
+    DevRefCounter = 0;
+    sycl::unittest::UrMock<> Mock;
+    mock::getCallbacks().set_after_callback("urDeviceGet",
+                                            &redefinedDevicesGetAfter);
+    mock::getCallbacks().set_after_callback("urDeviceRetain",
+                                            &redefinedDeviceRetainAfter);
+    mock::getCallbacks().set_after_callback("urDeviceRelease",
+                                            &redefinedDeviceReleaseAfter);
+    mock::getCallbacks().set_before_callback("urDevicePartition",
+                                             &redefinedDevicePartitionAfter);
+    mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                            &redefinedDeviceGetInfoAfter);
+    sycl::platform Plt = sycl::platform();
+
+    auto Devs = Plt.get_devices();
+    if (!Devs.empty()) {
+      auto Subdevs = Devs[0]
+                         .create_sub_devices<
+                             sycl::info::partition_property::partition_equally>(
+                             NumSubDevices);
+    }
+    EXPECT_NE(DevRefCounter, 0);
     sycl::detail::GlobalHandler::instance().getPlatformCache().clear();
   }
   EXPECT_EQ(DevRefCounter, 0);

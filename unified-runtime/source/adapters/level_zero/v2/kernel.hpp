@@ -94,8 +94,16 @@ public:
   ur_result_t addPendingPointerArgument(uint32_t argIndex,
                                         const void *pArgValue);
 
+  // Compute a zePtr pointer for the given memory handle and store it in *pZePtr
+  ur_result_t computeZePtr(ur_mem_handle_t hMem, ur_device_handle_t hDevice,
+                           ur_mem_buffer_t::device_access_mode_t accessMode,
+                           ze_command_list_handle_t zeCommandList,
+                           wait_list_view &waitListView, void **pZePtr);
+
   // Set all required values for the kernel before submission (including pending
   // memory allocations).
+  // The kMemObj argument must be a non-empty vector
+  // in the path of zeCommandListAppendLaunchKernelWithArguments()
   ur_result_t prepareForSubmission(ur_context_handle_t hContext,
                                    ur_device_handle_t hDevice,
                                    const size_t *pGlobalWorkOffset,
@@ -109,6 +117,11 @@ public:
 
   ur::RefCount RefCount;
 
+  // kernelMemObj contains kernel memory objects that
+  // UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ kernelArgs pointers point to
+  std::vector<void *> kernelMemObj;
+  std::vector<void *> kernelArgs;
+
 private:
   // Keep the program of the kernel.
   const ur_program_handle_t hProgram;
@@ -117,7 +130,7 @@ private:
   std::vector<std::optional<ur_single_device_kernel_t>> deviceKernels;
 
   // Cache of the common kernel properties.
-  mutable ZeCache<common_properties_t> zeCommonProperties;
+  common_properties_t zeCommonProperties;
 
   // Index of the device in the deviceKernels vector.
   size_t deviceIndex(ur_device_handle_t hDevice) const;
