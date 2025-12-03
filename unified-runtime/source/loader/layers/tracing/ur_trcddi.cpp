@@ -10723,43 +10723,48 @@ __urdlllocal ur_result_t UR_APICALL urGraphInstantiateGraphExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urQueueAppendGraphExp
-__urdlllocal ur_result_t UR_APICALL urQueueAppendGraphExp(
-    /// [in] Handle of the queue to append the graph to.
+/// @brief Intercept function for urEnqueueGraphExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueGraphExp(
+    /// [in] Handle of the queue to which the graph will be enqueued.
     ur_queue_handle_t hQueue,
-    /// [in] Handle of the executable graph to append.
+    /// [in] Handle of the executable graph to be enqueued.
     ur_exp_executable_graph_handle_t hGraph,
-    /// [in][optional] Event to be signaled on completion.
-    ur_event_handle_t hSignalEvent,
     /// [in][optional] Number of events to wait on before executing.
-    uint32_t numWaitEvents,
-    /// [in][optional][range(0, numWaitEvents)] Handle of the events to wait
-    /// on before launching.
-    ur_event_handle_t *phWaitEvents) {
-  auto pfnAppendGraphExp = getContext()->urDdiTable.QueueExp.pfnAppendGraphExp;
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] Pointer to a list of
+    /// events that must be complete before this command can be executed.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] Event object that identifies this particular
+    /// command instance.
+    /// If phEventWaitList and phEvent are not nullptr, phEvent must not refer
+    /// to an element of the phEventWaitList array.
+    ur_event_handle_t *phEvent) {
+  auto pfnGraphExp = getContext()->urDdiTable.EnqueueExp.pfnGraphExp;
 
-  if (nullptr == pfnAppendGraphExp)
+  if (nullptr == pfnGraphExp)
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
-  ur_queue_append_graph_exp_params_t params = {&hQueue, &hGraph, &hSignalEvent,
-                                               &numWaitEvents, &phWaitEvents};
-  uint64_t instance = getContext()->notify_begin(
-      UR_FUNCTION_QUEUE_APPEND_GRAPH_EXP, "urQueueAppendGraphExp", &params);
+  ur_enqueue_graph_exp_params_t params = {
+      &hQueue, &hGraph, &numEventsInWaitList, &phEventWaitList, &phEvent};
+  uint64_t instance = getContext()->notify_begin(UR_FUNCTION_ENQUEUE_GRAPH_EXP,
+                                                 "urEnqueueGraphExp", &params);
 
   auto &logger = getContext()->logger;
-  UR_LOG_L(logger, INFO, "   ---> urQueueAppendGraphExp\n");
+  UR_LOG_L(logger, INFO, "   ---> urEnqueueGraphExp\n");
 
-  ur_result_t result = pfnAppendGraphExp(hQueue, hGraph, hSignalEvent,
-                                         numWaitEvents, phWaitEvents);
+  ur_result_t result = pfnGraphExp(hQueue, hGraph, numEventsInWaitList,
+                                   phEventWaitList, phEvent);
 
-  getContext()->notify_end(UR_FUNCTION_QUEUE_APPEND_GRAPH_EXP,
-                           "urQueueAppendGraphExp", &params, &result, instance);
+  getContext()->notify_end(UR_FUNCTION_ENQUEUE_GRAPH_EXP, "urEnqueueGraphExp",
+                           &params, &result, instance);
 
   if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
     std::ostringstream args_str;
-    ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_QUEUE_APPEND_GRAPH_EXP, &params);
-    UR_LOG_L(logger, INFO, "   <--- urQueueAppendGraphExp({}) -> {};\n",
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_ENQUEUE_GRAPH_EXP,
+                                    &params);
+    UR_LOG_L(logger, INFO, "   <--- urEnqueueGraphExp({}) -> {};\n",
              args_str.str(), result);
   }
 
@@ -10842,14 +10847,14 @@ __urdlllocal ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
     /// [in] Native queue to query.
     ur_queue_handle_t hQueue,
     /// [out] Pointer to a boolean where the result will be stored.
-    bool *hResult) {
+    bool *pResult) {
   auto pfnIsGraphCaptureEnabledExp =
       getContext()->urDdiTable.QueueExp.pfnIsGraphCaptureEnabledExp;
 
   if (nullptr == pfnIsGraphCaptureEnabledExp)
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
-  ur_queue_is_graph_capture_enabled_exp_params_t params = {&hQueue, &hResult};
+  ur_queue_is_graph_capture_enabled_exp_params_t params = {&hQueue, &pResult};
   uint64_t instance =
       getContext()->notify_begin(UR_FUNCTION_QUEUE_IS_GRAPH_CAPTURE_ENABLED_EXP,
                                  "urQueueIsGraphCaptureEnabledExp", &params);
@@ -10857,7 +10862,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
   auto &logger = getContext()->logger;
   UR_LOG_L(logger, INFO, "   ---> urQueueIsGraphCaptureEnabledExp\n");
 
-  ur_result_t result = pfnIsGraphCaptureEnabledExp(hQueue, hResult);
+  ur_result_t result = pfnIsGraphCaptureEnabledExp(hQueue, pResult);
 
   getContext()->notify_end(UR_FUNCTION_QUEUE_IS_GRAPH_CAPTURE_ENABLED_EXP,
                            "urQueueIsGraphCaptureEnabledExp", &params, &result,
@@ -10881,20 +10886,20 @@ __urdlllocal ur_result_t UR_APICALL urGraphIsEmptyExp(
     /// [in] Handle of the graph to query.
     ur_exp_graph_handle_t hGraph,
     /// [out] Pointer to a boolean where the result will be stored.
-    bool *hResult) {
+    bool *pResult) {
   auto pfnIsEmptyExp = getContext()->urDdiTable.GraphExp.pfnIsEmptyExp;
 
   if (nullptr == pfnIsEmptyExp)
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
-  ur_graph_is_empty_exp_params_t params = {&hGraph, &hResult};
+  ur_graph_is_empty_exp_params_t params = {&hGraph, &pResult};
   uint64_t instance = getContext()->notify_begin(UR_FUNCTION_GRAPH_IS_EMPTY_EXP,
                                                  "urGraphIsEmptyExp", &params);
 
   auto &logger = getContext()->logger;
   UR_LOG_L(logger, INFO, "   ---> urGraphIsEmptyExp\n");
 
-  ur_result_t result = pfnIsEmptyExp(hGraph, hResult);
+  ur_result_t result = pfnIsEmptyExp(hGraph, pResult);
 
   getContext()->notify_end(UR_FUNCTION_GRAPH_IS_EMPTY_EXP, "urGraphIsEmptyExp",
                            &params, &result, instance);
@@ -11458,6 +11463,9 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
 
   dditable.pfnNativeCommandExp = pDdiTable->pfnNativeCommandExp;
   pDdiTable->pfnNativeCommandExp = ur_tracing_layer::urEnqueueNativeCommandExp;
+
+  dditable.pfnGraphExp = pDdiTable->pfnGraphExp;
+  pDdiTable->pfnGraphExp = ur_tracing_layer::urEnqueueGraphExp;
 
   return result;
 }
@@ -12083,9 +12091,6 @@ __urdlllocal ur_result_t UR_APICALL urGetQueueExpProcAddrTable(
   dditable.pfnEndGraphCaptureExp = pDdiTable->pfnEndGraphCaptureExp;
   pDdiTable->pfnEndGraphCaptureExp =
       ur_tracing_layer::urQueueEndGraphCaptureExp;
-
-  dditable.pfnAppendGraphExp = pDdiTable->pfnAppendGraphExp;
-  pDdiTable->pfnAppendGraphExp = ur_tracing_layer::urQueueAppendGraphExp;
 
   dditable.pfnIsGraphCaptureEnabledExp = pDdiTable->pfnIsGraphCaptureEnabledExp;
   pDdiTable->pfnIsGraphCaptureEnabledExp =

@@ -48,8 +48,8 @@ Functions
    * ${x}QueueBeginGraphCaptureExp
    * ${x}QueueBeginCaptureIntoGraphExp
    * ${x}QueueEndGraphCaptureExp
-   * ${x}QueueAppendGraphExp
    * ${x}QueueIsGraphCaptureEnabledExp
+   * ${x}EnqueueGraphExp
 
 Changelog
 --------------------------------------------------------------------------------
@@ -61,6 +61,12 @@ Changelog
 +-----------+---------------------------------------------+
 | 1.1       | Extend ${x}_device_info_t enumerator with   |
 |           | graph record and replay entry.              |
++-----------+---------------------------------------------+
+| 1.2       | Extend ${x}_command_t enumerator with       |
+|           | enqueue graph event entry. Cleanup spec     |
+|           | entry descriptions and return values.       |
+|           | Rename QueueAppendGraphExp into             |
+|           | EnqueueGraphExp.                            |
 +-----------+---------------------------------------------+
 
 Support
