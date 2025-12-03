@@ -13,8 +13,7 @@ inline namespace _V1 {
 namespace detail {
 
 DeviceKernelInfo::DeviceKernelInfo(const CompileTimeKernelInfoTy &Info)
-    : CompileTimeKernelInfoTy(Info) {
-}
+    : CompileTimeKernelInfoTy(Info) {}
 
 template <typename OtherTy>
 inline constexpr bool operator==(const CompileTimeKernelInfoTy &LHS,

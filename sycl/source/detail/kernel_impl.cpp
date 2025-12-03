@@ -130,8 +130,7 @@ bool kernel_impl::checkOwnsDeviceKernelInfo() {
   // info might reside in program manager.
   return MDeviceImageImpl->getOriginMask() != ImageOriginSYCLOffline &&
          (!(MDeviceImageImpl->getOriginMask() & ImageOriginSYCLOffline) ||
-          !ProgramManager::getInstance().tryGetDeviceKernelInfo(
-              getName()));
+          !ProgramManager::getInstance().tryGetDeviceKernelInfo(getName()));
 }
 
 bool kernel_impl::isBuiltInKernel(device_impl &Device) const {

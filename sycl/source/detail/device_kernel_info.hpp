@@ -101,6 +101,7 @@ public:
   }
 
   void setImplicitLocalArgPos(int Pos);
+
 private:
   bool isCompileTimeInfoSet() const { return KernelSize != 0; }
 
