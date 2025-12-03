@@ -13,6 +13,7 @@
 #include "context.hpp"
 #include "event_provider.hpp"
 #include "event_provider_counter.hpp"
+#include "event_provider_normal.hpp"
 #include "loader/ze_loader.h"
 
 #include "../device.hpp"
@@ -28,9 +29,15 @@ provider_counter::provider_counter(ur_platform_handle_t platform,
     : queueType(queueType), flags(flags) {
   assert(flags & EVENT_FLAGS_COUNTER);
 
-  ZE2UR_CALL_THROWS(zeDriverGetExtensionFunctionAddress,
-                    (platform->ZeDriver, "zexCounterBasedEventCreate2",
-                     (void **)&this->eventCreateFunc));
+  // Try to get the counter-based event extension function
+  auto result =
+      ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                      (platform->ZeDriver, "zexCounterBasedEventCreate2",
+                       (void **)&this->eventCreateFunc));
+  if (result != ZE_RESULT_SUCCESS) {
+    throw ur_result_t(ze2urResult(result));
+  }
+
   ZE2UR_CALL_THROWS(zelLoaderTranslateHandle,
                     (ZEL_HANDLE_CONTEXT, context->getZeHandle(),
                      (void **)&translatedContext));
@@ -87,5 +94,22 @@ raii::cache_borrowed_event provider_counter::allocate() {
 }
 
 event_flags_t provider_counter::eventFlags() const { return flags; }
+
+std::unique_ptr<event_provider> createProvider(ur_platform_handle_t platform,
+                                               ur_context_handle_t context,
+                                               queue_type queueType,
+                                               ur_device_handle_t device,
+                                               event_flags_t flags) {
+  // Try to create a counter-based event provider first
+  try {
+    return std::make_unique<provider_counter>(platform, context, queueType,
+                                              device, flags);
+  } catch (...) {
+    // If counter-based events are not supported, fall back to normal events
+    // Remove the counter flag as the normal provider doesn't support it
+    event_flags_t normalFlags = flags & ~EVENT_FLAGS_COUNTER;
+    return std::make_unique<provider_normal>(context, queueType, normalFlags);
+  }
+}
 
 } // namespace v2

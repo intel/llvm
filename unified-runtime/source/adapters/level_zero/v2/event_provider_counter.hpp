@@ -54,4 +54,12 @@ private:
   std::vector<raii::ze_event_handle_t> freelist;
 };
 
+// Factory function that creates a counter-based provider with fallback to
+// normal provider
+std::unique_ptr<event_provider> createProvider(ur_platform_handle_t platform,
+                                               ur_context_handle_t context,
+                                               queue_type queueType,
+                                               ur_device_handle_t device,
+                                               event_flags_t flags);
+
 } // namespace v2
