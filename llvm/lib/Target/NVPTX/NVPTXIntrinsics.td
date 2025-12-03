@@ -2335,7 +2335,82 @@ multiclass ATOM2S_impl<string OpStr, string IntTypeStr, string TypeStr,
       foreach space = ["gen", "global", "shared"] in {
         defm _#sem#scope#space :
             ATOM2N_impl<OpStr, IntTypeStr, TypeStr, scope, space, sem,
-                        t, !listconcat(Preds, [hasAtomScope, hasAtomSemantics])>;
+                        t, !listconcat(Preds, [hasAtomScope, hasMemoryOrdering])>;
+      }
+    }
+  }
+}
+
+// Helper for 3-operand atomic intrinsic patterns (like CAS with semantics)
+multiclass ATOM3_INTRINSIC_PATTERN<RegTyInfo t, string OpStr, string IntTypeStr,
+                                    string InstructionName,
+                                    string ScopeStr, string SpaceStr, string SemStr,
+                                    list<Predicate> Preds> {
+  defvar intrinsic = !cast<Intrinsic>(
+                       "int_nvvm_atomic_" # OpStr
+                       # "_" # SpaceStr # "_" # IntTypeStr
+                       # !if(!empty(SemStr), "", "_" # SemStr)
+                       # !if(!eq(ScopeStr, "gpu"), "", "_" # ScopeStr));
+  
+  defvar ordering = !cond(
+    !eq(SemStr, "acquire"): Ordering_acquire,
+    !eq(SemStr, "release"): Ordering_release,
+    !eq(SemStr, "acq_rel"): Ordering_acquire_release,
+    true: Ordering_not_atomic);
+  
+  defvar scope_pat = !cond(
+    !eq(ScopeStr, "gpu"): Scope_device,
+    !eq(ScopeStr, "cta"): Scope_cta,
+    !eq(ScopeStr, "sys"): Scope_sys,
+    true: Scope_device);
+    
+  defvar space_pat = !cond(
+    !eq(SpaceStr, "gen"): AddrSpace_gen,
+    !eq(SpaceStr, "global"): AddrSpace_global,
+    !eq(SpaceStr, "shared"): AddrSpace_shared,
+    true: AddrSpace_gen);
+
+  let Predicates = Preds in {
+    def : Pat<(t.Ty (intrinsic addr:$addr, t.Ty:$b, t.Ty:$c)),
+          (!cast<Instruction>(InstructionName # "_rr") ADDR:$addr, t.Ty:$b, t.Ty:$c, ordering, scope_pat, space_pat)>;
+
+    def : Pat<(t.Ty (intrinsic addr:$addr, (t.Ty t.ImmNode:$b), t.Ty:$c)),
+          (!cast<Instruction>(InstructionName # "_ir") ADDR:$addr, (t.Ty t.ImmNode:$b), t.Ty:$c, ordering, scope_pat, space_pat)>;
+
+    def : Pat<(t.Ty (intrinsic addr:$addr, t.Ty:$b, (t.Ty t.ImmNode:$c))),
+          (!cast<Instruction>(InstructionName # "_ri") ADDR:$addr, t.Ty:$b, (t.Ty t.ImmNode:$c), ordering, scope_pat, space_pat)>;
+
+    def : Pat<(t.Ty (intrinsic addr:$addr, (t.Ty t.ImmNode:$b), (t.Ty t.ImmNode:$c))),
+          (!cast<Instruction>(InstructionName # "_ii") ADDR:$addr, (t.Ty t.ImmNode:$b), (t.Ty t.ImmNode:$c), ordering, scope_pat, space_pat)>;
+  }
+}
+
+multiclass ATOM3S_impl<string OpStr, string IntTypeStr,
+                       string InstructionName, RegTyInfo t, list<Predicate> Preds> {
+  // Similar to ATOM2S_impl but for 3-operand atomics like CAS
+  foreach scope = ["cta", "sys"] in {
+    foreach space = ["gen", "global", "shared"] in {
+      defm _#scope#space : ATOM3_INTRINSIC_PATTERN<t, OpStr, IntTypeStr,
+                              InstructionName, scope, space, "",
+                              !listconcat(Preds, [hasAtomScope])>;
+    }
+  }
+
+  foreach scope = ["gpu"] in {
+    foreach space = ["gen", "global", "shared"] in {
+      defm _#scope#space : ATOM3_INTRINSIC_PATTERN<t, OpStr, IntTypeStr,
+                              InstructionName, scope, space, "", Preds>;
+    }
+  }
+
+  // Intrinsics with semantics
+  foreach sem = ["acquire", "release", "acq_rel"] in {
+    foreach scope = ["gpu", "cta", "sys"] in {
+      foreach space = ["gen", "global", "shared"] in {
+        defm _#sem#scope#space :
+            ATOM3_INTRINSIC_PATTERN<t, OpStr, IntTypeStr,
+                                     InstructionName, scope, space, sem,
+                                     !listconcat(Preds, [hasAtomScope, hasMemoryOrdering])>;
       }
     }
   }
@@ -2401,12 +2476,9 @@ multiclass ATOM2_incdec_impl<string OpStr> {
 
 // atom.cas
 multiclass ATOM3_cas_impl<string OpStr> {
-  defm _b16 : F_ATOMIC_3_INTRINSIC_PATTERN<I16RT, OpStr, "INT_PTX_ATOM_CAS_16">;
-  defm _b32 : F_ATOMIC_3_INTRINSIC_PATTERN<I32RT, OpStr, "INT_PTX_ATOM_CAS_32">;
-  defm _b64 : F_ATOMIC_3_INTRINSIC_PATTERN<I64RT, OpStr, "INT_PTX_ATOM_CAS_64">;
-// TODO: rewrite these two too:
-  // defm _f32 : ATOM3S_impl<OpStr, "f", "b32", F32RT, []>;
-  // defm _f64 : ATOM3S_impl<OpStr, "f", "b64", F64RT, []>;
+  defm _b16 : ATOM3S_impl<OpStr, "i", "INT_PTX_ATOM_CAS_16", I16RT, []>;
+  defm _b32 : ATOM3S_impl<OpStr, "i", "INT_PTX_ATOM_CAS_32", I32RT, []>;
+  defm _b64 : ATOM3S_impl<OpStr, "i", "INT_PTX_ATOM_CAS_64", I64RT, []>;
 }
 
 defm INT_PTX_SATOM_ADD  : ATOM2_add_impl<"add">;
@@ -2472,9 +2544,9 @@ multiclass ATOM_LdA_impl<string IntTypeStr, string TypeStr,
                          string ScopeStr, ValueType regT, NVPTXRegClass regclass,
                          list<Predicate> Preds> {
    defm _relaxed_ : ATOM_LdN_spaces_impl<IntTypeStr, TypeStr, ScopeStr, "relaxed",
-                            regT, regclass, !listconcat(Preds,[hasAtomSemantics])>;
+                            regT, regclass, !listconcat(Preds,[hasMemoryOrdering])>;
    defm _acquire_ : ATOM_LdN_spaces_impl<IntTypeStr, TypeStr, ScopeStr, "acquire",
-                            regT, regclass, !listconcat(Preds,[hasAtomSemantics])>;
+                            regT, regclass, !listconcat(Preds,[hasMemoryOrdering])>;
 }
 
 // Constructs variants for different scopes of atomic op.
@@ -2557,9 +2629,9 @@ multiclass ATOM_StA_impl<string IntTypeStr, string TypeStr,
                        Operand ImmType, SDNode Imm, ValueType ImmTy,
                        list<Predicate> Preds> {
    defm _relaxed_ : ATOM_StN_spaces_impl<IntTypeStr, TypeStr, ScopeStr, "relaxed",
-                            regT, regclass, ImmType, Imm, ImmTy, !listconcat(Preds,[hasAtomSemantics])>;
+                            regT, regclass, ImmType, Imm, ImmTy, !listconcat(Preds,[hasMemoryOrdering])>;
    defm _release_ : ATOM_StN_spaces_impl<IntTypeStr, TypeStr, ScopeStr, "release",
-                            regT, regclass, ImmType, Imm, ImmTy, !listconcat(Preds,[hasAtomSemantics])>;
+                            regT, regclass, ImmType, Imm, ImmTy, !listconcat(Preds,[hasMemoryOrdering])>;
 }
 
 multiclass ATOM_StS_impl<string IntTypeStr, string TypeStr,

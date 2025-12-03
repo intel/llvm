@@ -167,7 +167,7 @@ enum class OffloadArch {
   LNL_M,
   LAST,
 
-  CudaDefault = OffloadArch::SM_52,
+  CudaDefault = OffloadArch::SM_75,
   HIPDefault = OffloadArch::GFX906,
 };
 
@@ -213,7 +213,7 @@ static inline bool IsSYCLSupportedAMDGPUArch(OffloadArch Arch) {
 
 // Check if the given Arch value is a valid SYCL supported NVidia GPU.
 static inline bool IsSYCLSupportedNVidiaGPUArch(OffloadArch Arch) {
-  return Arch >= OffloadArch::SM_50 && Arch <= OffloadArch::SM_90a;
+  return Arch >= OffloadArch::SM_75 && Arch <= OffloadArch::SM_90a;
 }
 
 const char *OffloadArchToString(OffloadArch A);

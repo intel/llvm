@@ -121,6 +121,7 @@ class callSubtarget<string SubtargetMethod> : Predicate<"Subtarget->" # Subtarge
 def hasAtomAddF64 : Predicate<"Subtarget->hasAtomAddF64()">;
 def hasAtomScope : Predicate<"Subtarget->hasAtomScope()">;
 def hasAtomSemantics : Predicate<"Subtarget->hasAtomSemantics()">;
+def hasMemoryOrdering : Predicate<"Subtarget->hasMemoryOrdering()">;
 def hasAtomBitwise64 : Predicate<"Subtarget->hasAtomBitwise64()">;
 def hasAtomMinMax64 : Predicate<"Subtarget->hasAtomMinMax64()">;
 def hasAtomSwap128 : Predicate<"Subtarget->hasAtomSwap128()">;
@@ -1226,10 +1227,34 @@ def COS_APPROX_f32 :
   BasicFlagsNVPTXInst<(outs B32:$dst), (ins B32:$src), (ins FTZFlag:$ftz),
                       "cos.approx$ftz.f32",
                       [(set f32:$dst, (UnaryOpAllowsApproxFn<fcos> f32:$src))]>;
+
+def TANH_APPROX_f16 :
+  BasicNVPTXInst<(outs B16:$dst), (ins B16:$src), "tanh.approx.f16",
+                 [(set f16:$dst, (int_nvvm_tanh_approx_f16 f16:$src))]>,
+                 Requires<[hasPTX<70>, hasSM<75>]>;
+
+def TANH_APPROX_f16x2 :
+  BasicNVPTXInst<(outs B32:$dst), (ins B32:$src), "tanh.approx.f16x2",
+                 [(set v2f16:$dst, (int_nvvm_tanh_approx_f16x2 v2f16:$src))]>,
+                 Requires<[hasPTX<70>, hasSM<75>]>;
+
 def TANH_APPROX_f32 :
   BasicNVPTXInst<(outs B32:$dst), (ins B32:$src), "tanh.approx.f32",
-                 [(set f32:$dst, (UnaryOpAllowsApproxFn<ftanh> f32:$src))]>,
+                 [(set f32:$dst, (int_nvvm_tanh_approx_f f32:$src))]>,
                  Requires<[hasPTX<70>, hasSM<75>]>;
+
+// Patterns for ftanh SDNode
+def : Pat<(f32 (UnaryOpAllowsApproxFn<ftanh> f32:$src)),
+          (TANH_APPROX_f32 f32:$src)>,
+      Requires<[hasPTX<70>, hasSM<75>]>;
+
+def : Pat<(f16 (UnaryOpAllowsApproxFn<ftanh> f16:$src)),
+          (TANH_APPROX_f16 f16:$src)>,
+      Requires<[hasPTX<70>, hasSM<75>]>;
+
+def : Pat<(v2f16 (UnaryOpAllowsApproxFn<ftanh> v2f16:$src)),
+          (TANH_APPROX_f16x2 v2f16:$src)>,
+      Requires<[hasPTX<70>, hasSM<75>]>;
 
 //-----------------------------------
 // Bitwise operations
