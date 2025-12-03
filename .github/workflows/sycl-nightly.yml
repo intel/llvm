@@ -180,7 +180,7 @@ jobs:
       image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
       target_devices: ${{ matrix.target_devices }}
       tests_selector: e2e
-      extra_lit_opts: "--param 'cxx_flags=-D_GLIBCXX_USE_CXX11_ABI=0' ${{ matrix.extra_lit_opts }} --param enable_new_offload_model={{ matrix.enable_new_offload_model}}"
+      extra_lit_opts: "--param 'cxx_flags=-D_GLIBCXX_USE_CXX11_ABI=0' ${{ matrix.extra_lit_opts }} --param enable_new_offload_model=${{ matrix.enable_new_offload_model}}"
       repo_ref: ${{ github.sha }}
       toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
@@ -246,6 +246,7 @@ jobs:
       runner: ${{ matrix.runner }}
       target_devices: ${{ matrix.target_devices }}
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
+      extra_lit_opts: --param enable_new_offload_model=${{ matrix.enable_new_offload_model}}
 
   cuda-aws-start:
     needs: [ubuntu2204_build]
