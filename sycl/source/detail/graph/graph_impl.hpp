@@ -268,13 +268,6 @@ public:
   /// @return Context associated with graph.
   sycl::context getContext() const { return MContext; }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  /// Query for the context impl tied to this graph.
-  /// @return shared_ptr ref for the context impl associated with graph.
-  const std::shared_ptr<sycl::detail::context_impl> &getContextImplPtr() const {
-    return sycl::detail::getSyclObjImpl(MContext);
-  }
-#endif
   sycl::detail::context_impl &getContextImpl() const {
     return *sycl::detail::getSyclObjImpl(MContext);
   }
@@ -640,11 +633,14 @@ public:
   /// @param CGData Command-group data provided by the sycl::handler
   /// @param EventNeeded Whether an event signalling the completion of this
   /// operation needs to be returned.
-  /// @return Returns an event if EventNeeded is true. Returns nullptr
-  /// otherwise.
-  EventImplPtr enqueue(sycl::detail::queue_impl &Queue,
-                       sycl::detail::CG::StorageInitHelper CGData,
-                       bool EventNeeded);
+  /// @return Returns a pair of an event and a boolean indicating whether the
+  /// scheduler was bypassed. If an event is required, then the first element of
+  /// the pair is the event representing the execution of the graph. If no event
+  /// is required, the first element is nullptr. The second element is true if
+  /// the scheduler was bypassed, false otherwise.
+  std::pair<EventImplPtr, bool>
+  enqueue(sycl::detail::queue_impl &Queue,
+          sycl::detail::CG::StorageInitHelper CGData, bool EventNeeded);
 
   /// Iterates through all the nodes in the graph to build the list of
   /// accessor requirements for the whole graph and for each partition.

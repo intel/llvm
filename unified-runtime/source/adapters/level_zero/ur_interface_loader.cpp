@@ -235,6 +235,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   pDdiTable->pfnTimestampRecordingExp =
       ur::level_zero::urEnqueueTimestampRecordingExp;
   pDdiTable->pfnNativeCommandExp = ur::level_zero::urEnqueueNativeCommandExp;
+  pDdiTable->pfnGraphExp = ur::level_zero::urEnqueueGraphExp;
 
   return result;
 }
@@ -474,7 +475,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetQueueExpProcAddrTable(
   pDdiTable->pfnBeginCaptureIntoGraphExp =
       ur::level_zero::urQueueBeginCaptureIntoGraphExp;
   pDdiTable->pfnEndGraphCaptureExp = ur::level_zero::urQueueEndGraphCaptureExp;
-  pDdiTable->pfnAppendGraphExp = ur::level_zero::urQueueAppendGraphExp;
   pDdiTable->pfnIsGraphCaptureEnabledExp =
       ur::level_zero::urQueueIsGraphCaptureEnabledExp;
 
