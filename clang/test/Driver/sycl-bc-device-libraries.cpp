@@ -1,8 +1,5 @@
 /// Test that SYCL bitcode device libraries are properly separated for NVIDIA and AMD targets.
 
-/// amdgpu-registered-target is required for generating %t.amd.o.
-// REQUIRES: amdgpu-registered-target
-
 /// Check devicelib are linked for nvptx.
 // RUN: %clang -### -fsycl --offload-new-driver \
 // RUN:   -fno-sycl-libspirv -Wno-unsafe-libspirv-not-linked \
@@ -74,7 +71,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=amdgcn-amd-amdhsa \
 // RUN:   -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx900 \
 // RUN:   -fno-sycl-libspirv -Wno-unsafe-libspirv-not-linked \
-// RUN:   --offload-new-driver -c %s -o %t.amd.o -nogpulib
+// RUN:   --offload-new-driver -c %s -o %t.amd.o -nogpulib -fgpu-rdc
 // RUN: clang-linker-wrapper --bitcode-library=amdgcn-amd-amdhsa=%t.amd.devicelib.bc \
 // RUN:   --host-triple=x86_64-unknown-linux-gnu --dry-run \
 // RUN:   --linker-path=/usr/bin/ld %t.amd.o -o a.out 2>&1 | FileCheck -check-prefix=CHECK-WRAPPER-AMD %s
@@ -85,7 +82,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=amdgcn-amd-amdhsa,nvptx64-nvidia-cuda \
 // RUN:   -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx900 \
 // RUN:   -fno-sycl-libspirv -Wno-unsafe-libspirv-not-linked \
-// RUN:   --offload-new-driver -c %s -o %t.multi.o -nocudalib -nogpulib
+// RUN:   --offload-new-driver -c %s -o %t.multi.o -nocudalib -nogpulib -fgpu-rdc
 // RUN: clang-linker-wrapper --bitcode-library=amdgcn-amd-amdhsa=%t.amd.devicelib.bc --bitcode-library=nvptx64-nvidia-cuda=%t.nvptx.devicelib.bc --bitcode-library=nvptx64-nvidia-cuda=%t.nvptx.libdummy.bc \
 // RUN:   --host-triple=x86_64-unknown-linux-gnu --dry-run \
 // RUN:   --linker-path=/usr/bin/ld %t.multi.o -o a.out 2>&1 | FileCheck -check-prefix=CHECK-WRAPPER-MULTI %s
