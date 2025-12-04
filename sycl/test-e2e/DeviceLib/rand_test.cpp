@@ -1,6 +1,3 @@
-// XFAIL: new-offload-model
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20797
-
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

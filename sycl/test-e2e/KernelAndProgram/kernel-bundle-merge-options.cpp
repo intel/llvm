@@ -1,6 +1,3 @@
-// XFAIL: new-offload-model
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20797
-
 // REQUIRES: gpu
 // RUN: %{build} -o %t.out %debug_option
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s

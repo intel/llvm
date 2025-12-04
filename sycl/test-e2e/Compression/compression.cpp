@@ -1,6 +1,3 @@
-// XFAIL: new-offload-model
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20797
-
 // End-to-End test for testing device image compression.
 // REQUIRES: zstd
 
