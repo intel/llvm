@@ -2028,7 +2028,8 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
       ImplicitLocalArgPos = ImplicitLocalArgPosIt->second;
     auto Result =
         m_DeviceKernelInfoMap.try_emplace(name, name, ImplicitLocalArgPos);
-    assert(ImplicitLocalArgPos == Result->first.getImplicitLocalArgPos() &&
+    assert(ImplicitLocalArgPos ==
+               Result.first->second.getImplicitLocalArgPos() &&
            "Conflicting values of implicit local arg positions");
     // Keep track of image to kernel name reference count for cleanup.
     m_KernelNameRefCount[name]++;
