@@ -94,3 +94,38 @@ TEST_F(CommandGraphTest, QueueRecordBarrierMultipleGraph) {
   Queue.ext_oneapi_submit_barrier();
   GraphC.end_recording(Queue);
 }
+
+// Test that the last recorded queue is preserved after cleanup.
+// This is a regression test for a bug where getLastRecordedQueue() would
+// return nullptr after the recording queues were cleaned up, because the
+// previous implementation (getQueue()) looked in the MRecordingQueues set
+// which gets cleared on end_recording(). The fix introduces MLastRecordedQueue
+// which persists even after cleanup, allowing the executable graph to retrieve
+// the queue that was used for recording.
+// Originally reported in commit: 0ddf61e3ccaba45ee0af1d1bac12a83328e4015b
+TEST_F(CommandGraphTest, LastRecordedQueueAfterCleanup) {
+  // Record some work to the graph
+  Graph.begin_recording(Queue);
+  Queue.submit([&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
+  Graph.end_recording(Queue);
+
+  // Get the graph implementation to check internal state
+  auto GraphImpl = getSyclObjImpl(Graph);
+
+  // getLastRecordedQueue() should return the queue that was used for recording
+  // even after end_recording() has cleared the recording queues
+  auto LastQueue = GraphImpl->getLastRecordedQueue();
+  EXPECT_NE(LastQueue, nullptr);
+  EXPECT_EQ(LastQueue, getSyclObjImpl(Queue));
+
+  // Finalize the graph - this uses getLastRecordedQueue() internally
+  // to set up the executable graph's queue. Before the fix, this could fail
+  // if getLastRecordedQueue() returned nullptr.
+  auto GraphExec = Graph.finalize();
+  auto ExecGraphImpl = *getSyclObjImpl(GraphExec);
+
+  // The executable graph should have the queue from recording
+  auto ExecQueueImpl = GraphImplTest::GetQueueImpl(ExecGraphImpl);
+  EXPECT_NE(ExecQueueImpl, nullptr);
+  EXPECT_EQ(ExecQueueImpl, getSyclObjImpl(Queue));
+}
