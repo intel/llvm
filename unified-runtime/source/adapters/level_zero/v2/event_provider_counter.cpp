@@ -100,16 +100,22 @@ std::unique_ptr<event_provider> createProvider(ur_platform_handle_t platform,
                                                queue_type queueType,
                                                ur_device_handle_t device,
                                                event_flags_t flags) {
-  // Try to create a counter-based event provider first
-  try {
-    return std::make_unique<provider_counter>(platform, context, queueType,
-                                              device, flags);
-  } catch (...) {
-    // If counter-based events are not supported, fall back to normal events
-    // Remove the counter flag as the normal provider doesn't support it
-    event_flags_t normalFlags = flags & ~EVENT_FLAGS_COUNTER;
-    return std::make_unique<provider_normal>(context, queueType, normalFlags);
+  // Only try counter-based events if the flag is set
+  if (flags & EVENT_FLAGS_COUNTER) {
+    // Try to create a counter-based event provider first
+    try {
+      return std::make_unique<provider_counter>(platform, context, queueType,
+                                                device, flags);
+    } catch (...) {
+      // If counter-based events are not supported, fall back to normal events
+      // Remove the counter flag as the normal provider doesn't support it
+      event_flags_t normalFlags = flags & ~EVENT_FLAGS_COUNTER;
+      return std::make_unique<provider_normal>(context, queueType, normalFlags);
+    }
   }
+
+  // Counter-based events not requested, use normal events
+  return std::make_unique<provider_normal>(context, queueType, flags);
 }
 
 } // namespace v2
