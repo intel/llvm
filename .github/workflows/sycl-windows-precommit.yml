@@ -109,3 +109,4 @@ jobs:
       toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
       testing_mode: run-only
       binaries_artifact: sycl_windows_e2ebin_with_new_offload_model
+      extra_lit_opts: --param enable_new_offload_model=True
