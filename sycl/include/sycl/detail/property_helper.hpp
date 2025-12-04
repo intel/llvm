@@ -33,26 +33,19 @@ enum DataLessPropKind {
   UseDefaultStream = 8,
   DiscardEvents = 9,
   DeviceReadOnly = 10,
-  // TODO(#15184): Remove the following fusion-related entries in the next
-  // ABI-breaking window.
-  FusionPromotePrivate = 11,
-  FusionPromoteLocal = 12,
-  FusionNoBarrier = 13,
-  FusionEnable = 14,
-  FusionForce = 15,
-  QueuePriorityNormal = 16,
-  QueuePriorityLow = 17,
-  QueuePriorityHigh = 18,
-  GraphNoCycleCheck = 19,
-  QueueSubmissionBatched = 20,
-  QueueSubmissionImmediate = 21,
-  GraphAssumeDataOutlivesBuffer = 22,
-  GraphAssumeBufferOutlivesGraph = 23,
-  GraphDependOnAllLeaves = 24,
-  GraphUpdatable = 25,
-  GraphEnableProfiling = 26,
+  QueuePriorityNormal = 11,
+  QueuePriorityLow = 12,
+  QueuePriorityHigh = 13,
+  GraphNoCycleCheck = 14,
+  QueueSubmissionBatched = 15,
+  QueueSubmissionImmediate = 16,
+  GraphAssumeDataOutlivesBuffer = 17,
+  GraphAssumeBufferOutlivesGraph = 18,
+  GraphDependOnAllLeaves = 19,
+  GraphUpdatable = 20,
+  GraphEnableProfiling = 21,
   // Indicates the last known dataless property.
-  LastKnownDataLessPropKind = 26,
+  LastKnownDataLessPropKind = 22,
   // Exceeding 32 may cause ABI breaking change on some of OSes.
   DataLessPropKindSize = 32
 };

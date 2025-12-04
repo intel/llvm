@@ -137,7 +137,7 @@ static ::jit_compiler::BinaryFormat getTargetFormat(queue_impl &Queue) {
   default:
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
-        "Backend unsupported by kernel fusion");
+        "Backend unsupported by jit compiler");
   }
 }
 #endif // _WIN32
