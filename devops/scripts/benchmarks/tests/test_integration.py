@@ -188,6 +188,26 @@ class TestE2E(unittest.TestCase):
             {"L0", "latency", "micro", "submit"},
         )
 
+    def test_torch_l0(self):
+        self._checkCase(
+            "torch_benchmark_l0 kernelsPerQueue 20, workgroupCount 4096, workgroupSize 512",
+            "KernelSubmitMultiQueue large",
+            {"pytorch", "L0"},
+        )
+
+    def test_torch_sycl(self):
+        self._checkCase(
+            "torch_benchmark_sycl kernelsPerQueue 10, workgroupCount 512, workgroupSize 256",
+            "KernelSubmitMultiQueue medium",
+            {"pytorch", "SYCL"},
+        )
+
+    def test_torch_syclpreview(self):
+        self._checkCase(
+            "torch_benchmark_syclpreview kernelsPerQueue 4, workgroupCount 256, workgroupSize 124",
+            "KernelSubmitMultiQueue small",
+            {"pytorch", "SYCL"},
+        )
 
 if __name__ == "__main__":
     unittest.main()
