@@ -62,6 +62,12 @@ runs:
       if [ -n "$CMAKE_EXTRA_ARGS" ]; then
         echo "opts=$CMAKE_EXTRA_ARGS" >> $GITHUB_OUTPUT
       fi
+  - name: Check cpu
+    shell: bash
+    run: | 
+      lscpu
+      lscpu | grep "Model name"
+
   - name: Configure E2E tests
     if: inputs.testing_mode != 'run-only'
     shell: bash
