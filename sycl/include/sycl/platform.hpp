@@ -63,6 +63,8 @@ class filter_selector;
 ///
 /// \ingroup sycl_api
 class __SYCL_EXPORT platform : public detail::OwnerLessBase<platform> {
+  friend sycl::detail::ImplUtils;
+
 public:
   /// Constructs a SYCL platform using the default device.
   platform();
@@ -209,16 +211,6 @@ private:
   platform(std::shared_ptr<detail::platform_impl> impl) : impl(impl) {}
 
   platform(const device &Device);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)
