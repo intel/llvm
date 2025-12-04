@@ -699,12 +699,6 @@ typedef ur_result_t(UR_APICALL *ur_pfnQueueEndGraphCaptureExp_t)(
     ur_queue_handle_t, ur_exp_graph_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urQueueAppendGraphExp
-typedef ur_result_t(UR_APICALL *ur_pfnQueueAppendGraphExp_t)(
-    ur_queue_handle_t, ur_exp_executable_graph_handle_t, ur_event_handle_t,
-    uint32_t, ur_event_handle_t *);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urQueueIsGraphCaptureEnabledExp
 typedef ur_result_t(UR_APICALL *ur_pfnQueueIsGraphCaptureEnabledExp_t)(
     ur_queue_handle_t, bool *);
@@ -715,7 +709,6 @@ typedef struct ur_queue_exp_dditable_t {
   ur_pfnQueueBeginGraphCaptureExp_t pfnBeginGraphCaptureExp;
   ur_pfnQueueBeginCaptureIntoGraphExp_t pfnBeginCaptureIntoGraphExp;
   ur_pfnQueueEndGraphCaptureExp_t pfnEndGraphCaptureExp;
-  ur_pfnQueueAppendGraphExp_t pfnAppendGraphExp;
   ur_pfnQueueIsGraphCaptureEnabledExp_t pfnIsGraphCaptureEnabledExp;
 } ur_queue_exp_dditable_t;
 
@@ -1215,6 +1208,12 @@ typedef ur_result_t(UR_APICALL *ur_pfnEnqueueNativeCommandExp_t)(
     const ur_event_handle_t *, ur_event_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEnqueueGraphExp
+typedef ur_result_t(UR_APICALL *ur_pfnEnqueueGraphExp_t)(
+    ur_queue_handle_t, ur_exp_executable_graph_handle_t, uint32_t,
+    const ur_event_handle_t *, ur_event_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of EnqueueExp functions pointers
 typedef struct ur_enqueue_exp_dditable_t {
   ur_pfnEnqueueKernelLaunchWithArgsExp_t pfnKernelLaunchWithArgsExp;
@@ -1225,6 +1224,7 @@ typedef struct ur_enqueue_exp_dditable_t {
   ur_pfnEnqueueCommandBufferExp_t pfnCommandBufferExp;
   ur_pfnEnqueueTimestampRecordingExp_t pfnTimestampRecordingExp;
   ur_pfnEnqueueNativeCommandExp_t pfnNativeCommandExp;
+  ur_pfnEnqueueGraphExp_t pfnGraphExp;
 } ur_enqueue_exp_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////
