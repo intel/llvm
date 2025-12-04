@@ -289,8 +289,6 @@ public:
   virtual SPIRVEntry *addTypeStructContinuedINTEL(unsigned NumMembers) = 0;
   virtual void closeStructType(SPIRVTypeStruct *, bool) = 0;
   virtual SPIRVTypeVector *addVectorType(SPIRVType *, SPIRVWord) = 0;
-  virtual SPIRVTypeJointMatrixINTEL *
-  addJointMatrixINTELType(SPIRVType *, std::vector<SPIRVValue *>) = 0;
   virtual SPIRVTypeCooperativeMatrixKHR *
   addCooperativeMatrixKHRType(SPIRVType *, std::vector<SPIRVValue *>) = 0;
   virtual SPIRVTypeTaskSequenceINTEL *addTaskSequenceINTELType() = 0;

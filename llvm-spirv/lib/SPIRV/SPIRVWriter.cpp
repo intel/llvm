@@ -596,18 +596,6 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
         ArrayRef<unsigned> Ops = TargetTy->int_params();
         return mapType(T, BM->addBufferSurfaceINTELType(CastAccess(Ops[0])));
       }
-      case internal::OpTypeJointMatrixINTEL: {
-        // The expected representation is:
-        // target("spirv.JointMatrixINTEL", %element_type, %rows%, %cols%,
-        //        %layout%, %scope%, %use%,
-        //        (optional) %element_type_interpretation%)
-        auto *ElemTy = transType(TargetTy->getTypeParameter(0));
-        ArrayRef<unsigned> Ops = TargetTy->int_params();
-        std::vector<SPIRVValue *> Args;
-        for (const auto &Op : Ops)
-          Args.emplace_back(transConstant(getUInt32(M, Op)));
-        return mapType(T, BM->addJointMatrixINTELType(ElemTy, Args));
-      }
       case OpTypeCooperativeMatrixKHR: {
         // The expected representation is:
         // target("spirv.CooperativeMatrixKHR", %element_type, %scope%, %rows%,

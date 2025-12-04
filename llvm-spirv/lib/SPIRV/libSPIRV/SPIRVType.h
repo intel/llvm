@@ -98,7 +98,6 @@ public:
   bool isTypeSampledImage() const;
   bool isTypeStruct() const;
   bool isTypeVector() const;
-  bool isTypeJointMatrixINTEL() const;
   bool isTypeCooperativeMatrixKHR() const;
   bool isTypeVectorInt() const;
   bool isTypeVectorFloat() const;
@@ -1174,66 +1173,6 @@ public:
 
 protected:
   _SPIRV_DEF_ENCDEC1(Id)
-};
-
-class SPIRVTypeJointMatrixINTEL : public SPIRVType {
-  SPIRVType *CompType;
-  std::vector<SPIRVValue *> Args;
-
-public:
-  const static SPIRVWord FixedWC = 3;
-  // Complete constructor with non-default OC
-  SPIRVTypeJointMatrixINTEL(SPIRVModule *M, SPIRVId TheId, Op OC,
-                            SPIRVType *CompType,
-                            std::vector<SPIRVValue *> Args);
-
-  // Incomplete constructor for default OC
-  SPIRVTypeJointMatrixINTEL(SPIRVModule *M, SPIRVId TheId, SPIRVType *CompType,
-                            std::vector<SPIRVValue *> Args);
-  // Incomplete constructor
-  SPIRVTypeJointMatrixINTEL();
-  _SPIRV_DCL_ENCDEC
-  std::optional<ExtensionID> getRequiredExtension() const override {
-    return ExtensionID::SPV_INTEL_joint_matrix;
-  }
-  SPIRVCapVec getRequiredCapability() const override {
-    return {internal::CapabilityJointMatrixINTEL};
-  }
-  void setWordCount(SPIRVWord WordCount) override {
-    SPIRVType::setWordCount(WordCount);
-    Args.resize(WordCount - FixedWC);
-  }
-  SPIRVType *getCompType() const { return CompType; }
-  SPIRVValue *getRows() const { return Args[0]; }
-  SPIRVValue *getColumns() const { return Args[1]; }
-
-  SPIRVValue *getLayout() const {
-    if (this->getOpCode() == internal::OpTypeJointMatrixINTEL)
-      return Args[2];
-    return nullptr;
-  }
-
-  SPIRVValue *getScope() const {
-    if (this->getOpCode() == internal::OpTypeJointMatrixINTEL)
-      return Args[3];
-    return Args[2];
-  }
-
-  SPIRVValue *getUse() const {
-    if (this->getOpCode() == internal::OpTypeJointMatrixINTEL)
-      return Args.size() > 4 ? Args[4] : nullptr;
-    return Args[3];
-  }
-
-  SPIRVValue *getComponentTypeInterpretation() const {
-    if (this->getOpCode() == internal::OpTypeJointMatrixINTEL)
-      return Args.size() > 5 ? Args[5] : nullptr;
-    return Args.size() > 4 ? Args[4] : nullptr;
-  }
-
-  std::vector<SPIRVEntry *> getNonLiteralOperands() const override {
-    return std::vector<SPIRVEntry *>(1, CompType);
-  }
 };
 
 class SPIRVTypeCooperativeMatrixKHR : public SPIRVType {

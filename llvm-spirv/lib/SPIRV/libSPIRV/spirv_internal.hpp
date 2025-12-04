@@ -59,18 +59,10 @@ enum InternalLinkageType {
 
 enum InternalOp {
   IOpTypeTokenINTEL = 6113,
-  IOpTypeJointMatrixINTEL = 6119,
-  IOpJointMatrixLoadINTEL = 6120,
-  IOpJointMatrixStoreINTEL = 6121,
-  IOpJointMatrixMadINTEL = 6122,
-  IOpJointMatrixSUMadINTEL = 6128,
-  IOpJointMatrixUSMadINTEL = 6129,
-  IOpJointMatrixUUMadINTEL = 6130,
   IOpTaskSequenceCreateINTEL = 6163,
   IOpTaskSequenceAsyncINTEL = 6164,
   IOpTaskSequenceGetINTEL = 6165,
   IOpTaskSequenceReleaseINTEL = 6166,
-  IOpTypeJointMatrixINTELv2 = 6184,
   IOpCooperativeMatrixLoadCheckedINTEL = 6193,
   IOpCooperativeMatrixStoreCheckedINTEL = 6194,
   IOpCooperativeMatrixConstructCheckedINTEL = 6195,
@@ -83,7 +75,6 @@ enum InternalOp {
   IOpCooperativeMatrixStoreOffsetINTEL = 6240,
   IOpPredicatedLoadINTEL = 6258,
   IOpPredicatedStoreINTEL = 6259,
-  IOpJointMatrixWorkItemLengthINTEL = 6410,
   IOpClampConvertFToSINTEL = 6424,
   IOpMaskedGatherINTEL = 6428,
   IOpMaskedScatterINTEL = 6429,
@@ -110,7 +101,6 @@ enum InternalDecoration {
 enum InternalCapability {
   ICapOptNoneINTEL = 6094,
   ICapTokenTypeINTEL = 6112,
-  ICapabilityJointMatrixINTEL = 6118,
   ICapabilityHWThreadQueryINTEL = 6134,
   ICapGlobalVariableDecorationsINTEL = 6146,
   ICapabilityTaskSequenceINTEL = 6162,
@@ -131,10 +121,8 @@ enum InternalCapability {
   ICapabilityMaskedGatherScatterINTEL = 6427,
   ICapabilityJointMatrixWIInstructionsINTEL = 6435,
   ICapabilityCooperativeMatrixInvocationInstructionsINTEL = 6435,
-  ICapabilityJointMatrixTF32ComponentTypeINTEL = 6436,
-  ICapabilityJointMatrixBF16ComponentTypeINTEL = 6437,
-  ICapabilityJointMatrixPackedInt2ComponentTypeINTEL = 6438,
-  ICapabilityJointMatrixPackedInt4ComponentTypeINTEL = 6439,
+  ICapabilityCooperativeMatrixTF32ComponentTypeINTEL = 6436,
+  ICapabilityCooperativeMatrixBFloat16ComponentTypeINTEL = 6437,
   ICapabilitySubgroupRequirementsINTEL = 6445,
   ICapabilityBindlessImagesINTEL = 6528
 };
@@ -155,16 +143,6 @@ enum InternalJointMatrixLayout {
   PackedB = 3
 };
 
-enum InternalJointMatrixUse { MatrixA = 0, MatrixB = 1, Accumulator = 2 };
-
-enum InternalJointMatrixCTI {
-  None = 0,
-  TF32 = 1,
-  Bfloat16 = 2,
-  PackedInt2 = 3,
-  PackedInt4 = 4
-};
-
 enum InternalFPEncoding {
   FPEncodingFloat4E2M1INTEL = 6214,
   FPEncodingMax = 0x7fffffff,
@@ -176,21 +154,9 @@ enum InternalBuiltIn {
 };
 
 #define _SPIRV_OP(x, y) constexpr x x##y = static_cast<x>(I##x##y);
-_SPIRV_OP(Capability, JointMatrixINTEL)
 _SPIRV_OP(Capability, JointMatrixWIInstructionsINTEL)
-_SPIRV_OP(Capability, JointMatrixTF32ComponentTypeINTEL)
-_SPIRV_OP(Capability, JointMatrixBF16ComponentTypeINTEL)
-_SPIRV_OP(Capability, JointMatrixPackedInt2ComponentTypeINTEL)
-_SPIRV_OP(Capability, JointMatrixPackedInt4ComponentTypeINTEL)
-_SPIRV_OP(Op, TypeJointMatrixINTEL)
-_SPIRV_OP(Op, TypeJointMatrixINTELv2)
-_SPIRV_OP(Op, JointMatrixLoadINTEL)
-_SPIRV_OP(Op, JointMatrixStoreINTEL)
-_SPIRV_OP(Op, JointMatrixMadINTEL)
-_SPIRV_OP(Op, JointMatrixSUMadINTEL)
-_SPIRV_OP(Op, JointMatrixUSMadINTEL)
-_SPIRV_OP(Op, JointMatrixUUMadINTEL)
-_SPIRV_OP(Op, JointMatrixWorkItemLengthINTEL)
+_SPIRV_OP(Capability, CooperativeMatrixTF32ComponentTypeINTEL)
+_SPIRV_OP(Capability, CooperativeMatrixBFloat16ComponentTypeINTEL)
 _SPIRV_OP(Op, JointMatrixGetElementCoordINTEL)
 
 _SPIRV_OP(Capability, CooperativeMatrixPrefetchINTEL)

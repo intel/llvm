@@ -328,8 +328,6 @@ public:
   SPIRVEntry *addTypeStructContinuedINTEL(unsigned NumMembers) override;
   void closeStructType(SPIRVTypeStruct *T, bool) override;
   SPIRVTypeVector *addVectorType(SPIRVType *, SPIRVWord) override;
-  SPIRVTypeJointMatrixINTEL *
-  addJointMatrixINTELType(SPIRVType *, std::vector<SPIRVValue *>) override;
   SPIRVTypeCooperativeMatrixKHR *
   addCooperativeMatrixKHRType(SPIRVType *, std::vector<SPIRVValue *>) override;
   SPIRVTypeTaskSequenceINTEL *addTaskSequenceINTELType() override;
@@ -1168,12 +1166,6 @@ SPIRVTypeVector *SPIRVModuleImpl::addVectorType(SPIRVType *CompType,
   auto *Ty = new SPIRVTypeVector(this, getId(), CompType, CompCount);
   VectorTypeMap[Desc] = Ty;
   return addType(Ty);
-}
-
-SPIRVTypeJointMatrixINTEL *
-SPIRVModuleImpl::addJointMatrixINTELType(SPIRVType *CompType,
-                                         std::vector<SPIRVValue *> Args) {
-  return addType(new SPIRVTypeJointMatrixINTEL(this, getId(), CompType, Args));
 }
 
 SPIRVTypeCooperativeMatrixKHR *

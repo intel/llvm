@@ -477,31 +477,6 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool UseTPT) {
     }
     return mapType(T, Ty);
   }
-  case internal::OpTypeJointMatrixINTEL: {
-    auto *MT = static_cast<SPIRVTypeJointMatrixINTEL *>(T);
-    auto R = static_cast<SPIRVConstant *>(MT->getRows())->getZExtIntValue();
-    auto C = static_cast<SPIRVConstant *>(MT->getColumns())->getZExtIntValue();
-    std::vector<unsigned> Params = {(unsigned)R, (unsigned)C};
-    if (auto *Layout = MT->getLayout())
-      Params.push_back(static_cast<SPIRVConstant *>(Layout)->getZExtIntValue());
-    Params.push_back(
-        static_cast<SPIRVConstant *>(MT->getScope())->getZExtIntValue());
-    if (auto *Use = MT->getUse())
-      Params.push_back(static_cast<SPIRVConstant *>(Use)->getZExtIntValue());
-    auto *CTI = MT->getComponentTypeInterpretation();
-    if (!CTI)
-      return mapType(
-          T, llvm::TargetExtType::get(*Context, "spirv.JointMatrixINTEL",
-                                      transType(MT->getCompType()), Params));
-    const unsigned CTIValue =
-        static_cast<SPIRVConstant *>(CTI)->getZExtIntValue();
-    assert(CTIValue <= internal::InternalJointMatrixCTI::PackedInt4 &&
-           "Unknown matrix component type interpretation");
-    Params.push_back(CTIValue);
-    return mapType(
-        T, llvm::TargetExtType::get(*Context, "spirv.JointMatrixINTEL",
-                                    transType(MT->getCompType()), Params));
-  }
   case OpTypeCooperativeMatrixKHR: {
     auto *MT = static_cast<SPIRVTypeCooperativeMatrixKHR *>(T);
     unsigned Scope =
@@ -2564,7 +2539,6 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       auto *Load = new LoadInst(ST, Alloca, "load", false, BB);
       return mapValue(BV, Load);
     }
-    case internal::OpTypeJointMatrixINTEL:
     case OpTypeCooperativeMatrixKHR:
     case internal::OpTypeTaskSequenceINTEL:
       return mapValue(BV, transSPIRVBuiltinFromInst(CC, BB));
@@ -2595,9 +2569,6 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   case OpVectorExtractDynamic: {
     auto *VED = static_cast<SPIRVVectorExtractDynamic *>(BV);
     SPIRVValue *Vec = VED->getVector();
-    if (Vec->getType()->getOpCode() == internal::OpTypeJointMatrixINTEL) {
-      return mapValue(BV, transSPIRVBuiltinFromInst(VED, BB));
-    }
     return mapValue(
         BV, ExtractElementInst::Create(transValue(Vec, F, BB),
                                        transValue(VED->getIndex(), F, BB),
@@ -2628,9 +2599,6 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   case OpVectorInsertDynamic: {
     auto *VID = static_cast<SPIRVVectorInsertDynamic *>(BV);
     SPIRVValue *Vec = VID->getVector();
-    if (Vec->getType()->getOpCode() == internal::OpTypeJointMatrixINTEL) {
-      return mapValue(BV, transSPIRVBuiltinFromInst(VID, BB));
-    }
     return mapValue(
         BV, InsertElementInst::Create(
                 transValue(Vec, F, BB), transValue(VID->getComponent(), F, BB),
@@ -3916,7 +3884,6 @@ Instruction *SPIRVToLLVM::transSPIRVBuiltinFromInst(SPIRVInstruction *BI,
   case OpUDotAccSatKHR:
   case OpSUDotAccSatKHR:
   case OpReadClockKHR:
-  case internal::OpJointMatrixLoadINTEL:
   case OpCooperativeMatrixLoadKHR:
   case internal::OpCooperativeMatrixLoadCheckedINTEL:
   case internal::OpCooperativeMatrixLoadOffsetINTEL:
