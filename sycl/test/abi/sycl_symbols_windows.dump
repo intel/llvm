@@ -3953,6 +3953,8 @@
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vqueue@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBVqueue@34@@Z
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vstream@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBV?$weak_object_base@Vstream@_V1@sycl@@@2oneapi@ext@34@@Z
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vstream@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBVstream@34@@Z
+?ext_oneapi_owner_before@device@_V1@sycl@@QEBA_NAEBV123@@Z
+?ext_oneapi_owner_before@device@_V1@sycl@@QEBA_NAEBV?$weak_object@Vdevice@_V1@sycl@@@oneapi@ext@23@@Z
 ?ext_oneapi_prod@queue@_V1@sycl@@QEAAXXZ
 ?ext_oneapi_set_external_event@queue@_V1@sycl@@QEAAXAEBVevent@23@@Z
 ?ext_oneapi_signal_external_semaphore@handler@_V1@sycl@@QEAAXUexternal_semaphore@experimental@oneapi@ext@23@@Z
