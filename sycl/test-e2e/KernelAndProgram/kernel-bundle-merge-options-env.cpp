@@ -1,3 +1,6 @@
+// UNSUPPORTED: new-offload-model && linux
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20797
+
 // REQUIRES: gpu
 // Disable fallback assert here so, that build process isn't affected
 // RUN: %{build} -DSYCL_DISABLE_FALLBACK_ASSERT=1 -o %t1.out %debug_option
