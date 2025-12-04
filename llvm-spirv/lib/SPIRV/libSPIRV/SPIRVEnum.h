@@ -584,6 +584,8 @@ template <> inline void SPIRVMap<BuiltIn, SPIRVCapVec>::init() {
                {internal::CapabilityHWThreadQueryINTEL});
   ADD_VEC_INIT(internal::BuiltInGlobalHWThreadIDINTEL,
                {internal::CapabilityHWThreadQueryINTEL});
+  ADD_VEC_INIT(internal::BuiltInDeviceBarrierValidINTEL,
+               {internal::CapabilityDeviceBarrierINTEL});
 }
 
 template <> inline void SPIRVMap<MemorySemanticsMask, SPIRVCapVec>::init() {

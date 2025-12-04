@@ -1000,7 +1000,7 @@ CallInst *setAttrByCalledFunc(CallInst *Call);
 bool isSPIRVBuiltinVariable(GlobalVariable *GV, SPIRVBuiltinVariableKind *Kind);
 // Transform builtin variable from GlobalVariable to builtin call.
 // e.g.
-// - GlobalInvolcationId[x] -> _Z33__spirv_BuiltInGlobalInvocationIdi(x)
+// - GlobalInvocationId[x] -> _Z33__spirv_BuiltInGlobalInvocationIdi(x)
 // - WorkDim -> _Z22__spirv_BuiltInWorkDimv()
 bool lowerBuiltinVariableToCall(GlobalVariable *GV,
                                 SPIRVBuiltinVariableKind Kind);
