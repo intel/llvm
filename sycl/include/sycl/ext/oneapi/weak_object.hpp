@@ -143,7 +143,7 @@ public:
     auto MObjImplPtr = this->MObjWeakPtr.lock();
     if (!MObjImplPtr)
       return std::nullopt;
-    return detail::createSyclObjFromImpl<SYCLObjT>(MObjImplPtr);
+    return detail::createSyclObjFromImpl<SYCLObjT>(std::move(MObjImplPtr));
   }
 #endif // __SYCL_DEVICE_ONLY__
 };
@@ -194,7 +194,7 @@ public:
     if (!MObjImplPtr)
       return std::nullopt;
     // To reconstruct the buffer we use the reinterpret constructor.
-    return buffer_type{MObjImplPtr, MRange, MOffsetInBytes, MIsSubBuffer};
+    return buffer_type{std::move(MObjImplPtr), MRange, MOffsetInBytes, MIsSubBuffer};
   }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -255,7 +255,8 @@ public:
     auto GlobalFlushBuf = MWeakGlobalFlushBuf.try_lock();
     if (!ObjImplPtr || !GlobalBuf || !GlobalOffset || !GlobalFlushBuf)
       return std::nullopt;
-    return stream{ObjImplPtr, *GlobalBuf, *GlobalOffset, *GlobalFlushBuf};
+    return stream{std::move(ObjImplPtr), *std::move(GlobalBuf),
+                  *std::move(GlobalOffset), *std::move(GlobalFlushBuf)};
   }
 #endif // __SYCL_DEVICE_ONLY__
 
