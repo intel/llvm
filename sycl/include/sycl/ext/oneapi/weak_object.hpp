@@ -121,19 +121,18 @@ template <int Dims> static range<Dims> createDummyRange() {
 // weak_object_base class.
 template <typename SYCLObjT>
 class weak_object : public detail::weak_object_base<SYCLObjT> {
+  using weak_object_base = detail::weak_object_base<SYCLObjT>;
+
 public:
-  using object_type = typename detail::weak_object_base<SYCLObjT>::object_type;
+  using object_type = typename weak_object_base::object_type;
 
   constexpr weak_object() noexcept = default;
-  weak_object(const SYCLObjT &SYCLObj) noexcept
-      : detail::weak_object_base<SYCLObjT>(SYCLObj) {}
+  weak_object(const SYCLObjT &SYCLObj) noexcept : weak_object_base(SYCLObj) {}
   weak_object(const weak_object &Other) noexcept = default;
   weak_object(weak_object &&Other) noexcept = default;
 
   weak_object &operator=(const SYCLObjT &SYCLObj) noexcept {
-    // Create weak_ptr from the shared_ptr to SYCLObj's implementation object.
-    this->MObjWeakPtr =
-        detail::weak_object_base<SYCLObjT>::GetWeakImpl(SYCLObj);
+    weak_object_base::operator=(SYCLObj);
     return *this;
   }
   weak_object &operator=(const weak_object &Other) noexcept = default;
@@ -158,19 +157,18 @@ public:
 template <typename T, int Dimensions, typename AllocatorT>
 class weak_object<buffer<T, Dimensions, AllocatorT>>
     : public detail::weak_object_base<buffer<T, Dimensions, AllocatorT>> {
-private:
+  using weak_object_base =
+      detail::weak_object_base<buffer<T, Dimensions, AllocatorT>>;
   using buffer_type = buffer<T, Dimensions, AllocatorT>;
 
 public:
-  using object_type =
-      typename detail::weak_object_base<buffer_type>::object_type;
+  using object_type = typename weak_object_base::object_type;
 
   constexpr weak_object() noexcept
-      : detail::weak_object_base<buffer_type>(),
-        MRange{detail::createDummyRange<Dimensions>()}, MOffsetInBytes{0},
+      : MRange{detail::createDummyRange<Dimensions>()}, MOffsetInBytes{0},
         MIsSubBuffer{false} {}
   weak_object(const buffer_type &SYCLObj) noexcept
-      : detail::weak_object_base<buffer_type>(SYCLObj), MRange{SYCLObj.Range},
+      : weak_object_base(SYCLObj), MRange{SYCLObj.Range},
         MOffsetInBytes{SYCLObj.OffsetInBytes},
         MIsSubBuffer{SYCLObj.IsSubBuffer} {}
   weak_object(const weak_object &Other) noexcept = default;
@@ -178,8 +176,7 @@ public:
 
   weak_object &operator=(const buffer_type &SYCLObj) noexcept {
     // Create weak_ptr from the shared_ptr to SYCLObj's implementation object.
-    this->MObjWeakPtr = detail::weak_object_base<
-        buffer<T, Dimensions, AllocatorT>>::GetWeakImpl(SYCLObj);
+    weak_object_base::operator=(SYCLObj);
     this->MRange = SYCLObj.Range;
     this->MOffsetInBytes = SYCLObj.OffsetInBytes;
     this->MIsSubBuffer = SYCLObj.IsSubBuffer;
@@ -189,7 +186,7 @@ public:
   weak_object &operator=(weak_object &&Other) noexcept = default;
 
   void swap(weak_object &Other) noexcept {
-    this->MObjWeakPtr.swap(Other.MObjWeakPtr);
+    weak_object_base::swap(Other);
     std::swap(MRange, Other.MRange);
     std::swap(MOffsetInBytes, Other.MOffsetInBytes);
     std::swap(MIsSubBuffer, Other.MIsSubBuffer);
@@ -220,8 +217,10 @@ private:
 // to reconstruct the original stream.
 template <>
 class weak_object<stream> : public detail::weak_object_base<stream> {
+  using weak_object_base = detail::weak_object_base<stream>;
+
 public:
-  using object_type = typename detail::weak_object_base<stream>::object_type;
+  using object_type = typename weak_object_base::object_type;
 
   constexpr weak_object() noexcept : detail::weak_object_base<stream>() {}
   weak_object(const stream &SYCLObj) noexcept
@@ -233,8 +232,7 @@ public:
   weak_object(weak_object &&Other) noexcept = default;
 
   weak_object &operator=(const stream &SYCLObj) noexcept {
-    // Create weak_ptr from the shared_ptr to SYCLObj's implementation object.
-    this->MObjWeakPtr = detail::weak_object_base<stream>::GetWeakImpl(SYCLObj);
+    weak_object_base::operator=(SYCLObj);
     MWeakGlobalBuf = SYCLObj.GlobalBuf;
     MWeakGlobalOffset = SYCLObj.GlobalOffset;
     MWeakGlobalFlushBuf = SYCLObj.GlobalFlushBuf;
@@ -244,7 +242,7 @@ public:
   weak_object &operator=(weak_object &&Other) noexcept = default;
 
   void swap(weak_object &Other) noexcept {
-    this->MObjWeakPtr.swap(Other.MObjWeakPtr);
+    weak_object_base::swap(Other);
     MWeakGlobalBuf.swap(Other.MWeakGlobalBuf);
     MWeakGlobalOffset.swap(Other.MWeakGlobalOffset);
     MWeakGlobalFlushBuf.swap(Other.MWeakGlobalFlushBuf);
