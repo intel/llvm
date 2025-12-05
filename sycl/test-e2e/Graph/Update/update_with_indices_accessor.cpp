@@ -7,7 +7,6 @@
 // XFAIL-TRACKER: CMPLRLLVM-72055
 //
 
-
 // Tests updating a graph node accessor argument using index-based explicit
 // update
 
