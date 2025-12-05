@@ -8,26 +8,88 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>               // for target, mode
-#include <sycl/accessor.hpp>                    // for accessor
-#include <sycl/buffer.hpp>                      // for buffer
-#include <sycl/detail/impl_utils.hpp>           // for createSyc...
-#include <sycl/detail/memcpy.hpp>               // for detail
-#include <sycl/exception.hpp>                   // for make_erro...
-#include <sycl/ext/oneapi/weak_object_base.hpp> // for weak_obje...
-#include <sycl/range.hpp>                       // for range
-#include <sycl/stream.hpp>                      // for stream
-
-#include <memory>   // for shared_ptr
-#include <optional> // for optional
-#include <stddef.h> // for size_t
+#include <memory>
+#include <optional>
+#include <stddef.h>
+#include <sycl/access/access.hpp>
+#include <sycl/accessor.hpp>
+#include <sycl/buffer.hpp>
+#include <sycl/detail/impl_utils.hpp>
+#include <sycl/detail/memcpy.hpp>
+#include <sycl/exception.hpp>
+#include <sycl/range.hpp>
+#include <sycl/stream.hpp>
 
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi {
 namespace detail {
-// Import from detail:: into ext::oneapi::detail:: to improve readability later
-using namespace ::sycl::detail;
+using namespace sycl::detail;
+
+template <typename SYCLObjT> class weak_object_base;
+
+// Helper function for getting the underlying weak_ptr from a weak_object.
+template <typename SYCLObjT>
+decltype(weak_object_base<SYCLObjT>::MObjWeakPtr)
+getSyclWeakObjImpl(const weak_object_base<SYCLObjT> &WeakObj) {
+  return WeakObj.MObjWeakPtr;
+}
+
+// Common base class for weak_object.
+template <typename SYCLObjT> class weak_object_base {
+public:
+  using object_type = SYCLObjT;
+
+  constexpr weak_object_base() noexcept : MObjWeakPtr() {}
+  weak_object_base(const SYCLObjT &SYCLObj) noexcept
+      : MObjWeakPtr(GetWeakImpl(SYCLObj)) {}
+  weak_object_base(const weak_object_base &Other) noexcept = default;
+  weak_object_base(weak_object_base &&Other) noexcept = default;
+
+  weak_object_base &operator=(const weak_object_base &Other) noexcept = default;
+  weak_object_base &operator=(weak_object_base &&Other) noexcept = default;
+
+  void reset() noexcept { MObjWeakPtr.reset(); }
+  void swap(weak_object_base &Other) noexcept {
+    MObjWeakPtr.swap(Other.MObjWeakPtr);
+  }
+
+  bool expired() const noexcept { return MObjWeakPtr.expired(); }
+
+#ifndef __SYCL_DEVICE_ONLY__
+  bool owner_before(const SYCLObjT &Other) const noexcept {
+    return MObjWeakPtr.owner_before(GetWeakImpl(Other));
+  }
+  bool owner_before(const weak_object_base &Other) const noexcept {
+    return MObjWeakPtr.owner_before(Other.MObjWeakPtr);
+  }
+#else
+  // On device calls to these functions are disallowed, so declare them but
+  // don't define them to avoid compilation failures.
+  bool owner_before(const SYCLObjT &Other) const noexcept;
+  bool owner_before(const weak_object_base &Other) const noexcept;
+#endif // __SYCL_DEVICE_ONLY__
+
+protected:
+#ifndef __SYCL_DEVICE_ONLY__
+  // Store a weak variant of the impl in the SYCLObjT.
+  typename std::remove_reference<decltype(sycl::detail::getSyclObjImpl(
+      std::declval<SYCLObjT>()))>::type::weak_type MObjWeakPtr;
+  // relies on <type_traits> from impl_utils.h
+
+  static decltype(MObjWeakPtr) GetWeakImpl(const SYCLObjT &SYCLObj) {
+    return sycl::detail::getSyclObjImpl(SYCLObj);
+  }
+#else
+  // On device we may not have an impl, so we pad with an unused void pointer.
+  std::weak_ptr<void> MObjWeakPtr;
+  static std::weak_ptr<void> GetWeakImpl(const SYCLObjT &) { return {}; }
+#endif // __SYCL_DEVICE_ONLY__
+
+  template <class Obj>
+  friend decltype(weak_object_base<Obj>::MObjWeakPtr)
+  detail::getSyclWeakObjImpl(const weak_object_base<Obj> &WeakObj);
+};
 
 // Helper for creating ranges for empty weak_objects.
 template <int Dims> static range<Dims> createDummyRange() {

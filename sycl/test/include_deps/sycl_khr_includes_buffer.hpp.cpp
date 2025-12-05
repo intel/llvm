@@ -24,7 +24,6 @@
 // CHECK-NEXT: detail/is_device_copyable.hpp
 // CHECK-NEXT: detail/owner_less_base.hpp
 // CHECK-NEXT: detail/impl_utils.hpp
-// CHECK-NEXT: ext/oneapi/weak_object_base.hpp
 // CHECK-NEXT: detail/property_helper.hpp
 // CHECK-NEXT: detail/stl_type_traits.hpp
 // CHECK-NEXT: detail/sycl_mem_obj_allocator.hpp

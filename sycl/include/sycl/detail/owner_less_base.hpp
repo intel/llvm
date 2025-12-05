@@ -8,11 +8,20 @@
 
 #pragma once
 
-#include <sycl/detail/impl_utils.hpp>           // for getSyclObjImpl
-#include <sycl/ext/oneapi/weak_object_base.hpp> // for getSyclWeakObjImpl
+#include <sycl/detail/impl_utils.hpp> // for getSyclObjImpl
 
 namespace sycl {
 inline namespace _V1 {
+
+namespace ext::oneapi::detail {
+template <typename SYCLObjT> class weak_object_base;
+
+// Helper function for getting the underlying weak_ptr from a weak_object.
+template <typename SYCLObjT>
+decltype(weak_object_base<SYCLObjT>::MObjWeakPtr)
+getSyclWeakObjImpl(const weak_object_base<SYCLObjT> &WeakObj);
+} // namespace ext::oneapi::detail
+
 namespace detail {
 
 // Common CRTP base class supplying a common definition of owner-before ordering

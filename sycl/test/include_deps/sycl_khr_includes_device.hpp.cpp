@@ -54,7 +54,6 @@
 // CHECK-NEXT: detail/owner_less_base.hpp
 // CHECK-NEXT: detail/impl_utils.hpp
 // CHECK-NEXT: __spirv/spirv_vars.hpp
-// CHECK-NEXT: ext/oneapi/weak_object_base.hpp
 // CHECK-NEXT: detail/string.hpp
 // CHECK-NEXT: detail/string_view.hpp
 // CHECK-NEXT: detail/util.hpp
