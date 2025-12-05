@@ -23,9 +23,9 @@
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi {
+template <typename SYCLObjT> class weak_object;
 namespace detail {
 using namespace sycl::detail;
-
 template <typename SYCLObjT> class weak_object_base;
 
 // Helper function for getting the underlying weak_ptr from a weak_object.
@@ -63,11 +63,20 @@ public:
   bool owner_before(const weak_object_base &Other) const noexcept {
     return MObjWeakPtr.owner_before(Other.MObjWeakPtr);
   }
+  SYCLObjT lock() const {
+    std::optional<SYCLObjT> OptionalObj =
+        static_cast<const weak_object<SYCLObjT> *>(this)->try_lock();
+    if (!OptionalObj)
+      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                            "Referenced object has expired.");
+    return *std::move(OptionalObj);
+  }
 #else
   // On device calls to these functions are disallowed, so declare them but
   // don't define them to avoid compilation failures.
   bool owner_before(const SYCLObjT &Other) const noexcept;
   bool owner_before(const weak_object_base &Other) const noexcept;
+  SYCLObjT lock() const;
 #endif // __SYCL_DEVICE_ONLY__
 
 protected:
@@ -137,18 +146,10 @@ public:
       return std::nullopt;
     return sycl::detail::createSyclObjFromImpl<SYCLObjT>(MObjImplPtr);
   }
-  SYCLObjT lock() const {
-    std::optional<SYCLObjT> OptionalObj = try_lock();
-    if (!OptionalObj)
-      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                            "Referenced object has expired.");
-    return *OptionalObj;
-  }
 #else
   // On device calls to these functions are disallowed, so declare them but
   // don't define them to avoid compilation failures.
   std::optional<SYCLObjT> try_lock() const noexcept;
-  SYCLObjT lock() const;
 #endif // __SYCL_DEVICE_ONLY__
 };
 
@@ -202,18 +203,10 @@ public:
     // To reconstruct the buffer we use the reinterpret constructor.
     return buffer_type{MObjImplPtr, MRange, MOffsetInBytes, MIsSubBuffer};
   }
-  buffer_type lock() const {
-    std::optional<buffer_type> OptionalObj = try_lock();
-    if (!OptionalObj)
-      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                            "Referenced object has expired.");
-    return *OptionalObj;
-  }
 #else
   // On device calls to these functions are disallowed, so declare them but
   // don't define them to avoid compilation failures.
   std::optional<buffer_type> try_lock() const noexcept;
-  buffer_type lock() const;
 #endif // __SYCL_DEVICE_ONLY__
 
 private:
@@ -274,18 +267,10 @@ public:
       return std::nullopt;
     return stream{ObjImplPtr, *GlobalBuf, *GlobalOffset, *GlobalFlushBuf};
   }
-  stream lock() const {
-    std::optional<stream> OptionalObj = try_lock();
-    if (!OptionalObj)
-      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                            "Referenced object has expired.");
-    return *OptionalObj;
-  }
 #else
   // On device calls to these functions are disallowed, so declare them but
   // don't define them to avoid compilation failures.
   std::optional<stream> try_lock() const noexcept;
-  stream lock() const;
 #endif // __SYCL_DEVICE_ONLY__
 
 private:
