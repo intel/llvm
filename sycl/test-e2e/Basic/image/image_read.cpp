@@ -1,4 +1,6 @@
 // REQUIRES: aspect-ext_intel_legacy_image
+// UNSUPPORTED: linux && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20224
 // Temporarily add explicit '-O2' to avoid GPU hang issue with O0 optimization.
 // RUN: %{build} -O2 -o %t.out
 // RUN: %{run} %t.out

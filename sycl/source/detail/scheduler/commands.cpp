@@ -304,20 +304,6 @@ bool Command::isHostTask() const {
           CGType::CodeplayHostTask);
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-// This function is unused and should be removed in the next ABI-breaking
-// window.
-bool Command::isFusable() const {
-  if ((MType != CommandType::RUN_CG)) {
-    return false;
-  }
-  const auto &CG = (static_cast<const ExecCGCommand &>(*this)).getCG();
-  return (CG.getType() == CGType::Kernel) &&
-         (!static_cast<const CGExecKernel &>(CG).MKernelIsCooperative) &&
-         (!static_cast<const CGExecKernel &>(CG).MKernelUsesClusterLaunch);
-}
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
 namespace {
 
 struct EnqueueNativeCommandData {

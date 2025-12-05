@@ -38,35 +38,36 @@ void foo() {
 // CHECK-NEXT:   56 |           pointer _M_end_of_storage
 // CHECK-NEXT:   64 |   class sycl::detail::string_view MKernelName
 // CHECK-NEXT:   64 |     const char * str
-// CHECK-NEXT:   72 |   class std::shared_ptr<class sycl::detail::kernel_impl> MKernel
-// CHECK-NEXT:   72 |     class std::__shared_ptr<class sycl::detail::kernel_impl> (base)
-// CHECK-NEXT:   72 |       class std::__shared_ptr_access<class sycl::detail::kernel_impl, __gnu_cxx::_S_atomic> (base) (empty)
-// CHECK-NEXT:   72 |       element_type * _M_ptr
-// CHECK-NEXT:   80 |       class std::__shared_count<> _M_refcount
-// CHECK-NEXT:   80 |         _Sp_counted_base<(enum __gnu_cxx::_Lock_policy)2U> * _M_pi
-// CHECK-NEXT:   88 |   void * MSrcPtr
-// CHECK-NEXT:   96 |   void * MDstPtr
-// CHECK-NEXT:   104 |   size_t MLength
-// CHECK-NEXT:   112 |   class std::vector<unsigned char> MPattern
-// CHECK-NEXT:   112 |     struct std::_Vector_base<unsigned char, class std::allocator<unsigned char> > (base)
-// CHECK-NEXT:   112 |       struct std::_Vector_base<unsigned char, class std::allocator<unsigned char> >::_Vector_impl _M_impl
-// CHECK-NEXT:   112 |         class std::allocator<unsigned char> (base) (empty)
-// CHECK:        112 |           pointer _M_start
-// CHECK-NEXT:   120 |           pointer _M_finish
-// CHECK-NEXT:   128 |           pointer _M_end_of_storage
-// CHECK-NEXT:   136 |   class std::unique_ptr<class sycl::detail::HostKernelBase> MHostKernel
-// CHECK-NEXT:   136 |     struct std::__uniq_ptr_data<class sycl::detail::HostKernelBase, struct std::default_delete<class sycl::detail::HostKernelBase> >
-// CHECK:        136 |       class std::__uniq_ptr_impl<class sycl::detail::HostKernelBase, struct std::default_delete<class sycl::detail::HostKernelBase> > (base)
-// CHECK-NEXT:   136 |         class std::tuple<class sycl::detail::HostKernelBase *, struct std::default_delete<class sycl::detail::HostKernelBase> >
-// CHECK-NEXT:   136 |           struct std::_Tuple_impl<0, class sycl::detail::HostKernelBase *, struct std::default_delete<class sycl::detail::HostKernelBase> > (base)
-// CHECK-NEXT:   136 |             struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::HostKernelBase> > (base) (empty)
-// CHECK:        136 |             struct std::_Head_base<0, class sycl::detail::HostKernelBase *> (base)
-// CHECK-NEXT:   136 |               class sycl::detail::HostKernelBase * _M_head_impl
-// CHECK-NEXT:   144 |   struct sycl::detail::code_location MCodeLoc
-// CHECK-NEXT:   144 |     const char * MFileName
-// CHECK-NEXT:   152 |     const char * MFunctionName
-// CHECK-NEXT:   160 |     uint32_t MLineNo
-// CHECK-NEXT:   164 |     uint32_t MColumnNo
-// CHECK-NEXT:     | [sizeof=168, dsize=168, align=8,
-// CHECK-NEXT:     |  nvsize=168, nvalign=8]
+// CHECK-NEXT:   72 |     size_t len
+// CHECK-NEXT:   80 |   class std::shared_ptr<class sycl::detail::kernel_impl> MKernel
+// CHECK-NEXT:   80 |     class std::__shared_ptr<class sycl::detail::kernel_impl> (base)
+// CHECK-NEXT:   80 |       class std::__shared_ptr_access<class sycl::detail::kernel_impl, __gnu_cxx::_S_atomic> (base) (empty)
+// CHECK-NEXT:   80 |       element_type * _M_ptr
+// CHECK-NEXT:   88 |       class std::__shared_count<> _M_refcount
+// CHECK-NEXT:   88 |         _Sp_counted_base<(enum __gnu_cxx::_Lock_policy)2U> * _M_pi
+// CHECK-NEXT:   96 |   void * MSrcPtr
+// CHECK-NEXT:   104 |   void * MDstPtr
+// CHECK-NEXT:   112 |   size_t MLength
+// CHECK-NEXT:   120 |   class std::vector<unsigned char> MPattern
+// CHECK-NEXT:   120 |     struct std::_Vector_base<unsigned char, class std::allocator<unsigned char> > (base)
+// CHECK-NEXT:   120 |       struct std::_Vector_base<unsigned char, class std::allocator<unsigned char> >::_Vector_impl _M_impl
+// CHECK-NEXT:   120 |         class std::allocator<unsigned char> (base) (empty)
+// CHECK:        120 |           pointer _M_start
+// CHECK-NEXT:   128 |           pointer _M_finish
+// CHECK-NEXT:   136 |           pointer _M_end_of_storage
+// CHECK-NEXT:   144 |   class std::unique_ptr<class sycl::detail::HostKernelBase> MHostKernel
+// CHECK-NEXT:   144 |     struct std::__uniq_ptr_data<class sycl::detail::HostKernelBase, struct std::default_delete<class sycl::detail::HostKernelBase> >
+// CHECK:        144 |       class std::__uniq_ptr_impl<class sycl::detail::HostKernelBase, struct std::default_delete<class sycl::detail::HostKernelBase> > (base)
+// CHECK-NEXT:   144 |         class std::tuple<class sycl::detail::HostKernelBase *, struct std::default_delete<class sycl::detail::HostKernelBase> >
+// CHECK-NEXT:   144 |           struct std::_Tuple_impl<0, class sycl::detail::HostKernelBase *, struct std::default_delete<class sycl::detail::HostKernelBase> > (base)
+// CHECK-NEXT:   144 |             struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::HostKernelBase> > (base) (empty)
+// CHECK:        144 |             struct std::_Head_base<0, class sycl::detail::HostKernelBase *> (base)
+// CHECK-NEXT:   144 |               class sycl::detail::HostKernelBase * _M_head_impl
+// CHECK-NEXT:   152 |   struct sycl::detail::code_location MCodeLoc
+// CHECK-NEXT:   152 |     const char * MFileName
+// CHECK-NEXT:   160 |     const char * MFunctionName
+// CHECK-NEXT:   168 |     uint32_t MLineNo
+// CHECK-NEXT:   172 |     uint32_t MColumnNo
+// CHECK-NEXT:     | [sizeof=176, dsize=176, align=8,
+// CHECK-NEXT:     |  nvsize=176, nvalign=8]
 // clang-format on
