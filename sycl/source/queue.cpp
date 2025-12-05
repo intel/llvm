@@ -282,9 +282,6 @@ bool queue::device_has(aspect Aspect) const {
   // avoid creating sycl object from impl
   return impl->getDeviceImpl().has(Aspect);
 }
-
-// TODO(#15184) Remove this function in the next ABI-breaking window.
-bool queue::ext_codeplay_supports_fusion() const { return false; }
 #endif
 
 sycl::detail::optional<event> queue::ext_oneapi_get_last_event_impl() const {
