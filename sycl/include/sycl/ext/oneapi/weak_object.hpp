@@ -87,8 +87,8 @@ public:
 protected:
 #ifndef __SYCL_DEVICE_ONLY__
   // Store a weak variant of the impl in the SYCLObjT.
-  typename std::remove_reference<decltype(sycl::detail::getSyclObjImpl(
-      std::declval<SYCLObjT>()))>::type::weak_type MObjWeakPtr;
+  typename std::remove_reference_t<decltype(getSyclObjImpl(
+      std::declval<SYCLObjT>()))>::weak_type MObjWeakPtr;
 #else
   // On device we may not have an impl, so we pad with an unused void pointer.
   std::weak_ptr<void> MObjWeakPtr;
@@ -96,7 +96,7 @@ protected:
 
   template <class Obj>
   friend decltype(weak_object_base<Obj>::MObjWeakPtr)
-  detail::getSyclWeakObjImpl(const weak_object_base<Obj> &WeakObj);
+  getSyclWeakObjImpl(const weak_object_base<Obj> &WeakObj);
 };
 
 // Helper for creating ranges for empty weak_objects.
@@ -142,7 +142,7 @@ public:
     auto MObjImplPtr = this->MObjWeakPtr.lock();
     if (!MObjImplPtr)
       return std::nullopt;
-    return sycl::detail::createSyclObjFromImpl<SYCLObjT>(MObjImplPtr);
+    return detail::createSyclObjFromImpl<SYCLObjT>(MObjImplPtr);
   }
 #else
   // On device calls to these functions are disallowed, so declare them but
