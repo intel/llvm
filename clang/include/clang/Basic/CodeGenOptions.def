@@ -497,6 +497,10 @@ CODEGENOPT(UseAllocaASForSrets, 1, 0, Benign)
 /// supporting fp64 partial emulation)
 CODEGENOPT(FP64ConvEmu, 1, 0, Benign)
 
+/// Set via -Xclang -sloppy-temporary-lifetimes to disable emission of lifetime
+/// marker intrinsic calls.
+CODEGENOPT(NoLifetimeMarkersForTemporaries, 1, 0, Benign)
+
 /// Enables emitting Import Call sections on supported targets that can be used
 /// by the Windows kernel to enable import call optimization.
 CODEGENOPT(ImportCallOptimization, 1, 0, Benign)
