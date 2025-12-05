@@ -81,6 +81,7 @@ public:
   // don't define them to avoid compilation failures.
   bool owner_before(const SYCLObjT &Other) const noexcept;
   bool owner_before(const weak_object_base &Other) const noexcept;
+  std::optional<SYCLObjT> try_lock() const noexcept;
   SYCLObjT lock() const;
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -144,10 +145,6 @@ public:
       return std::nullopt;
     return detail::createSyclObjFromImpl<SYCLObjT>(MObjImplPtr);
   }
-#else
-  // On device calls to these functions are disallowed, so declare them but
-  // don't define them to avoid compilation failures.
-  std::optional<SYCLObjT> try_lock() const noexcept;
 #endif // __SYCL_DEVICE_ONLY__
 };
 
@@ -199,10 +196,6 @@ public:
     // To reconstruct the buffer we use the reinterpret constructor.
     return buffer_type{MObjImplPtr, MRange, MOffsetInBytes, MIsSubBuffer};
   }
-#else
-  // On device calls to these functions are disallowed, so declare them but
-  // don't define them to avoid compilation failures.
-  std::optional<buffer_type> try_lock() const noexcept;
 #endif // __SYCL_DEVICE_ONLY__
 
 private:
@@ -264,10 +257,6 @@ public:
       return std::nullopt;
     return stream{ObjImplPtr, *GlobalBuf, *GlobalOffset, *GlobalFlushBuf};
   }
-#else
-  // On device calls to these functions are disallowed, so declare them but
-  // don't define them to avoid compilation failures.
-  std::optional<stream> try_lock() const noexcept;
 #endif // __SYCL_DEVICE_ONLY__
 
 private:
