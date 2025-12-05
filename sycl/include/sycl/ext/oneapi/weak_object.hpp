@@ -194,7 +194,8 @@ public:
     if (!MObjImplPtr)
       return std::nullopt;
     // To reconstruct the buffer we use the reinterpret constructor.
-    return buffer_type{std::move(MObjImplPtr), MRange, MOffsetInBytes, MIsSubBuffer};
+    return buffer_type{std::move(MObjImplPtr), MRange, MOffsetInBytes,
+                       MIsSubBuffer};
   }
 #endif // __SYCL_DEVICE_ONLY__
 
