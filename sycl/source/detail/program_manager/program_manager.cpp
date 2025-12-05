@@ -402,12 +402,11 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
       auto ColonPos = OptValue.find(":");
       auto Device = OptValue.substr(0, ColonPos);
       std::string BackendStrToAdd;
-      bool IsPVC =
-          std::all_of(Devs.begin(), Devs.end(), [&](device_impl &Dev) {
-            return IsIntelGPU &&
-                   (Dev.get_info<ext::intel::info::device::device_id>() &
-                    0xFF00) == 0x0B00;
-          });
+      bool IsPVC = std::all_of(Devs.begin(), Devs.end(), [&](device_impl &Dev) {
+        return IsIntelGPU &&
+               (Dev.get_info<ext::intel::info::device::device_id>() & 0xFF00) ==
+                   0x0B00;
+      });
       // Currently 'pvc' is the only supported device.
       if (Device == "pvc" && IsPVC)
         BackendStrToAdd = " " + OptValue.substr(ColonPos + 1) + " ";
@@ -2432,6 +2431,20 @@ std::vector<DeviceGlobalMapEntry *> ProgramManager::getDeviceGlobalEntries(
   m_DeviceGlobals.getEntries(UniqueIds, ExcludeDeviceImageScopeDecorated,
                              FoundEntries);
   return FoundEntries;
+}
+
+std::vector<DeviceGlobalMapEntry *>
+ProgramManager::getProfileCounterDeviceGlobalEntries(
+    const context_impl *CtxImpl) {
+  std::vector<DeviceGlobalMapEntry *> ProfileCounters =
+      ProgramManager::getInstance().m_DeviceGlobals.getProfileCounterEntries();
+  const auto NewEnd =
+      std::remove_if(ProfileCounters.begin(), ProfileCounters.end(),
+                     [CtxImpl](DeviceGlobalMapEntry *DGEntry) {
+                       return !DGEntry->isAvailableInContext(CtxImpl);
+                     });
+  ProfileCounters.erase(NewEnd, ProfileCounters.end());
+  return ProfileCounters;
 }
 
 void ProgramManager::addOrInitHostPipeEntry(const void *HostPipePtr,
