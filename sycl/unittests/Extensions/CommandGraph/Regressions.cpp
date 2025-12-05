@@ -123,7 +123,8 @@ TEST_F(CommandGraphTest, LastRecordedQueueAfterCleanup) {
   // to set up the executable graph's queue. Before the fix, this could fail
   // if getLastRecordedQueue() returned nullptr.
   auto GraphExec = Graph.finalize();
-  auto ExecGraphImpl = *getSyclObjImpl(GraphExec);
+  experimental::detail::exec_graph_impl &ExecGraphImpl =
+      *getSyclObjImpl(GraphExec);
 
   // The executable graph should have the queue from recording
   auto ExecQueueImpl = GraphImplTest::GetQueueImpl(ExecGraphImpl);
