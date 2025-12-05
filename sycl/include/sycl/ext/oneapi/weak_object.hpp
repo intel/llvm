@@ -42,7 +42,12 @@ public:
 
   constexpr weak_object_base() noexcept : MObjWeakPtr() {}
   weak_object_base(const SYCLObjT &SYCLObj) noexcept
-      : MObjWeakPtr(GetWeakImpl(SYCLObj)) {}
+#ifndef __SYCL_DEVICE_ONLY__
+      : MObjWeakPtr(getSyclObjImpl(SYCLObj))
+#endif
+  {
+    (void)SYCLObj;
+  }
   weak_object_base(const weak_object_base &Other) noexcept = default;
   weak_object_base(weak_object_base &&Other) noexcept = default;
 
@@ -58,7 +63,7 @@ public:
 
 #ifndef __SYCL_DEVICE_ONLY__
   bool owner_before(const SYCLObjT &Other) const noexcept {
-    return MObjWeakPtr.owner_before(GetWeakImpl(Other));
+    return MObjWeakPtr.owner_before(getSyclObjImpl(Other));
   }
   bool owner_before(const weak_object_base &Other) const noexcept {
     return MObjWeakPtr.owner_before(Other.MObjWeakPtr);
@@ -84,15 +89,9 @@ protected:
   // Store a weak variant of the impl in the SYCLObjT.
   typename std::remove_reference<decltype(sycl::detail::getSyclObjImpl(
       std::declval<SYCLObjT>()))>::type::weak_type MObjWeakPtr;
-  // relies on <type_traits> from impl_utils.h
-
-  static decltype(MObjWeakPtr) GetWeakImpl(const SYCLObjT &SYCLObj) {
-    return sycl::detail::getSyclObjImpl(SYCLObj);
-  }
 #else
   // On device we may not have an impl, so we pad with an unused void pointer.
   std::weak_ptr<void> MObjWeakPtr;
-  static std::weak_ptr<void> GetWeakImpl(const SYCLObjT &) { return {}; }
 #endif // __SYCL_DEVICE_ONLY__
 
   template <class Obj>
