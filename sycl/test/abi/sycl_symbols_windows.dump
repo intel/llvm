@@ -586,7 +586,6 @@
 ??4sampler@_V1@sycl@@QEAAAEAV012@AEBV012@@Z
 ??4stream@_V1@sycl@@QEAAAEAV012@$$QEAV012@@Z
 ??4stream@_V1@sycl@@QEAAAEAV012@AEBV012@@Z
-??4tls_code_loc_t@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
 ??8context@_V1@sycl@@QEBA_NAEBV012@@Z
 ??8device@_V1@sycl@@QEBA_NAEBV012@@Z
 ??8device_image_plain@detail@_V1@sycl@@QEBA_NAEBV0123@@Z
