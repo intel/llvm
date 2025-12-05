@@ -777,7 +777,7 @@ private:
     // If the kernel lambda is callable with a kernel_handler argument, manifest
     // the associated kernel handler.
     if constexpr (IsCallableWithKernelHandler) {
-      getOrInsertHandlerKernelBundlePtr(/*Insert=*/true);
+      getOrInsertHandlerKernelBundle(/*Insert=*/true);
     }
   }
 
@@ -1237,11 +1237,8 @@ private:
   void setStateSpecConstSet();
   bool isStateExplicitKernelBundle() const;
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Rename to just getOrInsertHandlerKernelBundle
-#endif
   detail::kernel_bundle_impl *
-  getOrInsertHandlerKernelBundlePtr(bool Insert) const;
+  getOrInsertHandlerKernelBundle(bool Insert) const;
 
   void setHandlerKernelBundle(kernel Kernel);
 

@@ -397,7 +397,7 @@ bool handler::isStateExplicitKernelBundle() const {
 // returns newly created kernel_bundle if Insert is true
 // returns nullptr if Insert is false
 detail::kernel_bundle_impl *
-handler::getOrInsertHandlerKernelBundlePtr(bool Insert) const {
+handler::getOrInsertHandlerKernelBundle(bool Insert) const {
   if (impl->MKernelBundle || !Insert)
     return impl->MKernelBundle.get();
 
@@ -495,7 +495,7 @@ detail::EventImplPtr handler::finalize() {
 
     // If there were uses of set_specialization_constant build the kernel_bundle
     detail::kernel_bundle_impl *KernelBundleImpPtr =
-        getOrInsertHandlerKernelBundlePtr(/*Insert=*/false);
+        getOrInsertHandlerKernelBundle(/*Insert=*/false);
     if (KernelBundleImpPtr) {
       // Make sure implicit non-interop kernel bundles have the kernel
       if (!impl->isStateExplicitKernelBundle() &&
@@ -872,7 +872,7 @@ void handler::extractArgsAndReqs() {
 
 void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
   detail::kernel_bundle_impl *UsedKernelBundleImplPtr =
-      getOrInsertHandlerKernelBundlePtr(/*Insert=*/false);
+      getOrInsertHandlerKernelBundle(/*Insert=*/false);
   if (!UsedKernelBundleImplPtr)
     return;
 
@@ -1663,7 +1663,7 @@ void handler::setUserFacingNodeType(ext::oneapi::experimental::node_type Type) {
 
 kernel_bundle<bundle_state::input> handler::getKernelBundle() const {
   detail::kernel_bundle_impl *KernelBundleImplPtr =
-      getOrInsertHandlerKernelBundlePtr(/*Insert=*/true);
+      getOrInsertHandlerKernelBundle(/*Insert=*/true);
 
   return detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
       *KernelBundleImplPtr);
