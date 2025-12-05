@@ -124,7 +124,7 @@ private:
       ext::oneapi::experimental::event_mode_enum::none;
 };
 
-} // namespace v1
+} // namespace _V1
 
 template <detail::WrapAs WrapAs, typename LambdaArgType,
           typename KernelName = detail::auto_name, bool EventNeeded = false,

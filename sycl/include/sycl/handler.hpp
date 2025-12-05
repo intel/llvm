@@ -1237,8 +1237,7 @@ private:
   void setStateSpecConstSet();
   bool isStateExplicitKernelBundle() const;
 
-  detail::kernel_bundle_impl *
-  getOrInsertHandlerKernelBundle(bool Insert) const;
+  detail::kernel_bundle_impl *getOrInsertHandlerKernelBundle(bool Insert) const;
 
   void setHandlerKernelBundle(kernel Kernel);
 
