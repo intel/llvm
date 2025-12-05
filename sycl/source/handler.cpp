@@ -859,13 +859,6 @@ void handler::setArgHelper(int ArgIndex, stream &&Str) {
 
 void handler::extractArgsAndReqs() {
   assert(MKernel && "MKernel is not initialized");
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  if (impl->MKernelData.getDeviceKernelInfoPtr() == nullptr) {
-    impl->MKernelData.setDeviceKernelInfoPtr(
-        &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
-            std::string_view(MKernel->getName())));
-  }
-#endif
   assert(impl->MKernelData.getDeviceKernelInfoPtr() != nullptr);
   impl->MKernelData.extractArgsAndReqs(MKernel->isCreatedFromSource());
 }
