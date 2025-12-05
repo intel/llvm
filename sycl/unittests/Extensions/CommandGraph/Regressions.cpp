@@ -102,7 +102,6 @@ TEST_F(CommandGraphTest, QueueRecordBarrierMultipleGraph) {
 // which gets cleared on end_recording(). The fix introduces MLastRecordedQueue
 // which persists even after cleanup, allowing the executable graph to retrieve
 // the queue that was used for recording.
-// Originally reported in commit: 0ddf61e3ccaba45ee0af1d1bac12a83328e4015b
 TEST_F(CommandGraphTest, LastRecordedQueueAfterCleanup) {
   // Record some work to the graph
   Graph.begin_recording(Queue);
