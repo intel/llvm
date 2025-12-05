@@ -1337,9 +1337,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_QUEUE_END_GRAPH_CAPTURE_EXP:
     os << "UR_FUNCTION_QUEUE_END_GRAPH_CAPTURE_EXP";
     break;
-  case UR_FUNCTION_QUEUE_APPEND_GRAPH_EXP:
-    os << "UR_FUNCTION_QUEUE_APPEND_GRAPH_EXP";
-    break;
   case UR_FUNCTION_GRAPH_DESTROY_EXP:
     os << "UR_FUNCTION_GRAPH_DESTROY_EXP";
     break;
@@ -1357,6 +1354,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     break;
   case UR_FUNCTION_GRAPH_INSTANTIATE_GRAPH_EXP:
     os << "UR_FUNCTION_GRAPH_INSTANTIATE_GRAPH_EXP";
+    break;
+  case UR_FUNCTION_ENQUEUE_GRAPH_EXP:
+    os << "UR_FUNCTION_ENQUEUE_GRAPH_EXP";
     break;
   default:
     os << "unknown enumerator";
@@ -10799,6 +10799,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_command_t value) {
   case UR_COMMAND_ENQUEUE_USM_FREE_EXP:
     os << "UR_COMMAND_ENQUEUE_USM_FREE_EXP";
     break;
+  case UR_COMMAND_ENQUEUE_GRAPH_EXP:
+    os << "UR_COMMAND_ENQUEUE_GRAPH_EXP";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -15307,52 +15310,6 @@ operator<<(std::ostream &os,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_queue_append_graph_exp_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(
-    std::ostream &os,
-    [[maybe_unused]] const struct ur_queue_append_graph_exp_params_t *params) {
-
-  os << ".hQueue = ";
-
-  ur::details::printPtr(os, *(params->phQueue));
-
-  os << ", ";
-  os << ".hGraph = ";
-
-  ur::details::printPtr(os, *(params->phGraph));
-
-  os << ", ";
-  os << ".hSignalEvent = ";
-
-  ur::details::printPtr(os, *(params->phSignalEvent));
-
-  os << ", ";
-  os << ".numWaitEvents = ";
-
-  os << *(params->pnumWaitEvents);
-
-  os << ", ";
-  os << ".phWaitEvents = ";
-  ur::details::printPtr(
-      os, reinterpret_cast<const void *>(*(params->pphWaitEvents)));
-  if (*(params->pphWaitEvents) != NULL) {
-    os << " {";
-    for (size_t i = 0; i < *params->pnumWaitEvents; ++i) {
-      if (i != 0) {
-        os << ", ";
-      }
-
-      ur::details::printPtr(os, (*(params->pphWaitEvents))[i]);
-    }
-    os << "}";
-  }
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_queue_is_graph_capture_enabled_exp_params_t
 /// type
 /// @returns
@@ -15367,9 +15324,9 @@ inline std::ostream &operator<<(
   ur::details::printPtr(os, *(params->phQueue));
 
   os << ", ";
-  os << ".hResult = ";
+  os << ".pResult = ";
 
-  ur::details::printPtr(os, *(params->phResult));
+  ur::details::printPtr(os, *(params->ppResult));
 
   return os;
 }
@@ -18111,6 +18068,52 @@ operator<<(std::ostream &os,
   os << ".pProperties = ";
 
   ur::details::printPtr(os, *(params->ppProperties));
+
+  os << ", ";
+  os << ".numEventsInWaitList = ";
+
+  os << *(params->pnumEventsInWaitList);
+
+  os << ", ";
+  os << ".phEventWaitList = ";
+  ur::details::printPtr(
+      os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+  if (*(params->pphEventWaitList) != NULL) {
+    os << " {";
+    for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+      if (i != 0) {
+        os << ", ";
+      }
+
+      ur::details::printPtr(os, (*(params->pphEventWaitList))[i]);
+    }
+    os << "}";
+  }
+
+  os << ", ";
+  os << ".phEvent = ";
+
+  ur::details::printPtr(os, *(params->pphEvent));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_enqueue_graph_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_enqueue_graph_exp_params_t *params) {
+
+  os << ".hQueue = ";
+
+  ur::details::printPtr(os, *(params->phQueue));
+
+  os << ", ";
+  os << ".hGraph = ";
+
+  ur::details::printPtr(os, *(params->phGraph));
 
   os << ", ";
   os << ".numEventsInWaitList = ";
@@ -21097,9 +21100,9 @@ inline std::ostream &operator<<(
   ur::details::printPtr(os, *(params->phGraph));
 
   os << ", ";
-  os << ".hResult = ";
+  os << ".pResult = ";
 
-  ur::details::printPtr(os, *(params->phResult));
+  ur::details::printPtr(os, *(params->ppResult));
 
   return os;
 }
@@ -22337,9 +22340,6 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   case UR_FUNCTION_QUEUE_END_GRAPH_CAPTURE_EXP: {
     os << (const struct ur_queue_end_graph_capture_exp_params_t *)params;
   } break;
-  case UR_FUNCTION_QUEUE_APPEND_GRAPH_EXP: {
-    os << (const struct ur_queue_append_graph_exp_params_t *)params;
-  } break;
   case UR_FUNCTION_QUEUE_IS_GRAPH_CAPTURE_ENABLED_EXP: {
     os << (const struct ur_queue_is_graph_capture_enabled_exp_params_t *)params;
   } break;
@@ -22510,6 +22510,9 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP: {
     os << (const struct ur_enqueue_native_command_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_ENQUEUE_GRAPH_EXP: {
+    os << (const struct ur_enqueue_graph_exp_params_t *)params;
   } break;
   case UR_FUNCTION_USM_HOST_ALLOC: {
     os << (const struct ur_usm_host_alloc_params_t *)params;
