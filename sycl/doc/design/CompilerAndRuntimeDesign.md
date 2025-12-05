@@ -890,8 +890,6 @@ The SPIR-V specific C++ enumerators and classes are declared in the file:
 The SPIR-V specific C++ function declarations are in the file:
 `sycl/include/CL/__spirv/spirv_ops.hpp`.
 
-The SPIR-V specific functions are implemented in for the SYCL host device here:
-`sycl/source/spirv_ops.cpp`.
 
 ### Address spaces handling
 

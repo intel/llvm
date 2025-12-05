@@ -7,10 +7,6 @@
 # REQUIRES: linux
 # UNSUPPORTED: libcxx
 
-_Z20__spirv_ocl_prefetchPKcm
-_Z21__spirv_MemoryBarrierN5__spv5ScopeEj
-_Z22__spirv_ControlBarrierN5__spv5ScopeES0_j
-_Z23__spirv_GroupWaitEventsN5__spv5ScopeEjPPv
 _ZN4sycl3_V110__abs_implENS0_3vecIaLi16EEE
 _ZN4sycl3_V110__abs_implENS0_3vecIaLi1EEE
 _ZN4sycl3_V110__abs_implENS0_3vecIaLi2EEE
