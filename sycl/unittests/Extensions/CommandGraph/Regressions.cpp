@@ -106,7 +106,8 @@ TEST_F(CommandGraphTest, QueueRecordBarrierMultipleGraph) {
 TEST_F(CommandGraphTest, LastRecordedQueueAfterCleanup) {
   // Record some work to the graph
   Graph.begin_recording(Queue);
-  Queue.submit([&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
+  Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   Graph.end_recording(Queue);
 
   // Get the graph implementation to check internal state
