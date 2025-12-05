@@ -98,7 +98,7 @@ void __SYCL_EXPORT submit_graph_direct_without_event_impl(
 namespace detail {
 class queue_impl;
 
-namespace v1 {
+inline namespace _V1 {
 
 // This class is a part of the ABI, so it's moved to a separate namespace to
 // simplify changes.
@@ -110,9 +110,6 @@ namespace v1 {
 //   overloaded with a new variant using v(N+1) namespace,
 // * old namespace vN should be moved under #ifndef
 //   __INTEL_PREVIEW_BREAKING_CHANGES guard.
-// TODO: inline namespace can be employed here after SubmissionInfo removed from
-// the enclosing scope.
-
 class __SYCL_EXPORT SubmissionInfo {
 public:
   SubmissionInfo() {}
@@ -123,9 +120,6 @@ public:
   }
 
 private:
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  std::shared_ptr<detail::queue_impl> MSecondaryQueue = nullptr;
-#endif
   ext::oneapi::experimental::event_mode_enum MEventMode =
       ext::oneapi::experimental::event_mode_enum::none;
 };
@@ -512,13 +506,6 @@ public:
   template <typename Param>
   typename detail::is_backend_info_desc<Param>::return_type
   get_backend_info() const;
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-private:
-  // A shorthand for `get_device().has()' which is expected to be a bit quicker
-  // than the long version
-  bool device_has(aspect Aspect) const;
-#endif
 
 public:
   /// Submits a command group function object to the queue, in order to be
@@ -3751,7 +3738,7 @@ private:
 
   template <typename PropertiesT>
   void ProcessSubmitProperties(PropertiesT Props,
-                               detail::v1::SubmissionInfo &SI) const {
+                               detail::SubmissionInfo &SI) const {
     if constexpr (Props.template has_property<
                       ext::oneapi::experimental::event_mode_key>()) {
       ext::oneapi::experimental::event_mode EventModeProp =
@@ -3764,13 +3751,13 @@ private:
 
   /// A template-free version of submit as const member function.
   event submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
-                               const detail::v1::SubmissionInfo &SubmitInfo,
+                               const detail::SubmissionInfo &SubmitInfo,
                                const detail::code_location &CodeLoc,
                                bool IsTopCodeLoc) const;
 
   /// A template-free version of submit_without_event as const member function.
   void submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
-                                 const detail::v1::SubmissionInfo &SubmitInfo,
+                                 const detail::SubmissionInfo &SubmitInfo,
                                  const detail::code_location &CodeLoc,
                                  bool IsTopCodeLoc) const;
 
@@ -3788,7 +3775,7 @@ private:
                           const detail::code_location &CodeLoc =
                               detail::code_location::current()) const {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    detail::v1::SubmissionInfo SI{};
+    detail::SubmissionInfo SI{};
     ProcessSubmitProperties(Props, SI);
     return submit_with_event_impl(CGF, SI, TlsCodeLocCapture.query(),
                                   TlsCodeLocCapture.isToplevel());
@@ -3806,7 +3793,7 @@ private:
                             const detail::type_erased_cgfo_ty &CGF,
                             const detail::code_location &CodeLoc) const {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    detail::v1::SubmissionInfo SI{};
+    detail::SubmissionInfo SI{};
     ProcessSubmitProperties(Props, SI);
     submit_without_event_impl(CGF, SI, TlsCodeLocCapture.query(),
                               TlsCodeLocCapture.isToplevel());

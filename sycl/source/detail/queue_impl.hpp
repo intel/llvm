@@ -64,9 +64,6 @@ enum QueueOrder { Ordered, OOO };
 
 // Implementation of the submission information storage.
 struct SubmissionInfoImpl {
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  std::shared_ptr<detail::queue_impl> MSecondaryQueue = nullptr;
-#endif
   ext::oneapi::experimental::event_mode_enum MEventMode =
       ext::oneapi::experimental::event_mode_enum::none;
 };
@@ -287,12 +284,6 @@ public:
 
   adapter_impl &getAdapter() const { return MContext->getAdapter(); }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  const std::shared_ptr<context_impl> &getContextImplPtr() const {
-    return MContext;
-  }
-#endif
-
   context_impl &getContextImpl() const { return *MContext; }
 
   std::weak_ptr<context_impl> getContextImplWeakPtr() const { return MContext; }
@@ -352,7 +343,7 @@ public:
   /// \param StoreAdditionalInfo makes additional info be stored in event_impl
   /// \return a SYCL event object for the submitted command group.
   event submit_with_event(const detail::type_erased_cgfo_ty &CGF,
-                          const v1::SubmissionInfo &SubmitInfo,
+                          const detail::SubmissionInfo &SubmitInfo,
                           const detail::code_location &Loc, bool IsTopCodeLoc) {
 
     detail::EventImplPtr ResEvent = submit_impl(CGF, /*CallerNeedsEvent=*/true,
@@ -404,7 +395,7 @@ public:
   }
 
   void submit_without_event(const detail::type_erased_cgfo_ty &CGF,
-                            const v1::SubmissionInfo &SubmitInfo,
+                            const detail::SubmissionInfo &SubmitInfo,
                             const detail::code_location &Loc,
                             bool IsTopCodeLoc) {
     submit_impl(CGF, /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc, SubmitInfo);
@@ -898,7 +889,7 @@ protected:
                                    bool CallerNeedsEvent,
                                    const detail::code_location &Loc,
                                    bool IsTopCodeLoc,
-                                   const v1::SubmissionInfo &SubmitInfo);
+                                   const detail::SubmissionInfo &SubmitInfo);
 
   /// Performs kernel submission to the queue.
   ///
@@ -1104,14 +1095,6 @@ protected:
   // Command graph which is associated with this queue for the purposes of
   // recording commands to it.
   std::weak_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph{};
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // CMPLRLLVM-66082
-  // This member should be part of the sycl::interop_handle class, but it
-  // is an API breaking change. So member lives here temporarily where it can
-  // be accessed through the queue member of the interop_handle
-  ur_exp_command_buffer_handle_t MInteropGraph{};
-#endif
 
   unsigned long long MQueueID;
   static std::atomic<unsigned long long> MNextAvailableQueueID;
