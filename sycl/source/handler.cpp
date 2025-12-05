@@ -1736,7 +1736,8 @@ void handler::addLifetimeSharedPtrStorage(std::shared_ptr<const void> SPtr) {
 
 void handler::addArg(detail::kernel_param_kind_t ArgKind, void *Req,
                      int AccessTarget, int ArgIndex) {
-  impl->MKernelData.addArg(ArgKind, Req, AccessTarget, ArgIndex);
+  impl->MKernelData.addArg(ArgKind, Req, AccessTarget,
+                           ArgIndex + impl->MKernelData.getArgShift());
 }
 
 void handler::setArgsToAssociatedAccessors() {
@@ -1810,6 +1811,10 @@ void handler::setDeviceKernelInfoPtr(
     sycl::detail::DeviceKernelInfo *DeviceKernelInfoPtr) {
   assert(!impl->MKernelData.getDeviceKernelInfoPtr() && "Already set!");
   impl->MKernelData.setDeviceKernelInfoPtr(DeviceKernelInfoPtr);
+}
+
+void handler::incrementArgShift(int Shift) {
+  impl->MKernelData.incrementArgShift(Shift);
 }
 
 void handler::setKernelFunc(void *KernelFuncPtr) {
