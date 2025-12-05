@@ -515,9 +515,9 @@ int main() {
     std::vector<bool> bool_vector;
     std::vector<int> int_vector;
     std::vector<float> float_vector;
-    bool_vector.reserve(size);
-    int_vector.reserve(size);
-    float_vector.reserve(size);
+    bool_vector.resize(size);
+    int_vector.resize(size);
+    float_vector.resize(size);
 
     sycl::queue Queue;
     std::mutex m;

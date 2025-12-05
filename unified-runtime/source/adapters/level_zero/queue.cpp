@@ -954,11 +954,11 @@ ur_result_t urQueueEndGraphCaptureExp(ur_queue_handle_t /* hQueue */,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t urQueueAppendGraphExp(ur_queue_handle_t /* hQueue */,
-                                  ur_exp_executable_graph_handle_t /* hGraph */,
-                                  ur_event_handle_t /* hSignalEvent */,
-                                  uint32_t /* numWaitEvents */,
-                                  ur_event_handle_t * /* phWaitEvents */) {
+ur_result_t urEnqueueGraphExp(ur_queue_handle_t /* hQueue */,
+                              ur_exp_executable_graph_handle_t /* hGraph */,
+                              uint32_t /* numEventsInWaitList */,
+                              const ur_event_handle_t * /* phEventWaitList */,
+                              ur_event_handle_t * /* phEvent */) {
   UR_LOG_LEGACY(ERR,
                 logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);

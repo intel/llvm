@@ -12653,26 +12653,31 @@ __urdlllocal ur_result_t UR_APICALL urGraphInstantiateGraphExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urQueueAppendGraphExp
-__urdlllocal ur_result_t UR_APICALL urQueueAppendGraphExp(
-    /// [in] Handle of the queue to append the graph to.
+/// @brief Intercept function for urEnqueueGraphExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueGraphExp(
+    /// [in] Handle of the queue to which the graph will be enqueued.
     ur_queue_handle_t hQueue,
-    /// [in] Handle of the executable graph to append.
+    /// [in] Handle of the executable graph to be enqueued.
     ur_exp_executable_graph_handle_t hGraph,
-    /// [in][optional] Event to be signaled on completion.
-    ur_event_handle_t hSignalEvent,
     /// [in][optional] Number of events to wait on before executing.
-    uint32_t numWaitEvents,
-    /// [in][optional][range(0, numWaitEvents)] Handle of the events to wait
-    /// on before launching.
-    ur_event_handle_t *phWaitEvents) try {
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] Pointer to a list of
+    /// events that must be complete before this command can be executed.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] Event object that identifies this particular
+    /// command instance.
+    /// If phEventWaitList and phEvent are not nullptr, phEvent must not refer
+    /// to an element of the phEventWaitList array.
+    ur_event_handle_t *phEvent) try {
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  ur_queue_append_graph_exp_params_t params = {&hQueue, &hGraph, &hSignalEvent,
-                                               &numWaitEvents, &phWaitEvents};
+  ur_enqueue_graph_exp_params_t params = {
+      &hQueue, &hGraph, &numEventsInWaitList, &phEventWaitList, &phEvent};
 
   auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urQueueAppendGraphExp"));
+      mock::getCallbacks().get_before_callback("urEnqueueGraphExp"));
   if (beforeCallback) {
     result = beforeCallback(&params);
     if (result != UR_RESULT_SUCCESS) {
@@ -12681,11 +12686,15 @@ __urdlllocal ur_result_t UR_APICALL urQueueAppendGraphExp(
   }
 
   auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urQueueAppendGraphExp"));
+      mock::getCallbacks().get_replace_callback("urEnqueueGraphExp"));
   if (replaceCallback) {
     result = replaceCallback(&params);
   } else {
 
+    // optional output handle
+    if (phEvent) {
+      *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+    }
     result = UR_RESULT_SUCCESS;
   }
 
@@ -12694,7 +12703,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueAppendGraphExp(
   }
 
   auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urQueueAppendGraphExp"));
+      mock::getCallbacks().get_after_callback("urEnqueueGraphExp"));
   if (afterCallback) {
     return afterCallback(&params);
   }
@@ -12797,10 +12806,10 @@ __urdlllocal ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
     /// [in] Native queue to query.
     ur_queue_handle_t hQueue,
     /// [out] Pointer to a boolean where the result will be stored.
-    bool *hResult) try {
+    bool *pResult) try {
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  ur_queue_is_graph_capture_enabled_exp_params_t params = {&hQueue, &hResult};
+  ur_queue_is_graph_capture_enabled_exp_params_t params = {&hQueue, &pResult};
 
   auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_before_callback(
@@ -12844,10 +12853,10 @@ __urdlllocal ur_result_t UR_APICALL urGraphIsEmptyExp(
     /// [in] Handle of the graph to query.
     ur_exp_graph_handle_t hGraph,
     /// [out] Pointer to a boolean where the result will be stored.
-    bool *hResult) try {
+    bool *pResult) try {
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  ur_graph_is_empty_exp_params_t params = {&hGraph, &hResult};
+  ur_graph_is_empty_exp_params_t params = {&hGraph, &pResult};
 
   auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_before_callback("urGraphIsEmptyExp"));
@@ -13302,6 +13311,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   pDdiTable->pfnTimestampRecordingExp = driver::urEnqueueTimestampRecordingExp;
 
   pDdiTable->pfnNativeCommandExp = driver::urEnqueueNativeCommandExp;
+
+  pDdiTable->pfnGraphExp = driver::urEnqueueGraphExp;
 
   return result;
 } catch (...) {
@@ -13802,8 +13813,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueExpProcAddrTable(
       driver::urQueueBeginCaptureIntoGraphExp;
 
   pDdiTable->pfnEndGraphCaptureExp = driver::urQueueEndGraphCaptureExp;
-
-  pDdiTable->pfnAppendGraphExp = driver::urQueueAppendGraphExp;
 
   pDdiTable->pfnIsGraphCaptureEnabledExp =
       driver::urQueueIsGraphCaptureEnabledExp;

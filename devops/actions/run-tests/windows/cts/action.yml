@@ -97,7 +97,7 @@ runs:
 
   - name: SYCL CTS List devices
     # Proceed with execution even if the 'build' step did not succeed.
-    if: ${{ !cancelled()) && inputs.testing_mode != 'build-only' }}
+    if: ${{ !cancelled() && inputs.testing_mode != 'build-only' }}
     shell: bash
     env:
       ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
@@ -131,7 +131,7 @@ runs:
 
   - name: Run SYCL CTS tests
     # Proceed with execution even if the previous two steps did not succeed.
-    if: ${{ !cancelled()) && inputs.testing_mode != 'build-only' }}
+    if: ${{ !cancelled() && inputs.testing_mode != 'build-only' }}
     env:
       ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
     # By-default GitHub actions execute the "run" shell script with -e option,

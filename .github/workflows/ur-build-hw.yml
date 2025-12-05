@@ -126,7 +126,7 @@ jobs:
 
     - name: Download DPC++
       run: |
-        wget -O dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2024-12-12/sycl_linux.tar.gz
+        wget -O dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2025-11-28/sycl_linux.tar.gz
         mkdir -p dpcpp_compiler
         tar -xvf dpcpp_compiler.tar.gz -C dpcpp_compiler
 
