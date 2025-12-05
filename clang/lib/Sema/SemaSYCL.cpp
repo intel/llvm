@@ -2582,8 +2582,7 @@ public:
     return true;
   }
 
-  bool enterStruct(const CXXRecordDecl *, ParmVarDecl *,
-                   QualType ParamTy) final {
+  bool enterStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
     return true;
   }
 
@@ -2601,8 +2600,7 @@ public:
     return true;
   }
 
-  bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *PD,
-                   QualType ParamTy) final {
+  bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *PD, QualType) final {
     return true;
   }
 
@@ -2674,9 +2672,7 @@ public:
     return true;
   }
 
-  bool handleScalarType(ParmVarDecl *PD, QualType ParamTy) final {
-    return true;
-  }
+  bool handleScalarType(ParmVarDecl *, QualType) final { return true; }
 
   bool handleUnionType(FieldDecl *FD, QualType FieldTy) final {
     return handleScalarType(FD, FieldTy);
@@ -2694,8 +2690,8 @@ public:
     return true;
   }
 
-  bool handleNonDecompStruct(const CXXRecordDecl *, ParmVarDecl *PD,
-                             QualType ParamTy) final {
+  bool handleNonDecompStruct(const CXXRecordDecl *, ParmVarDecl *,
+                             QualType) final {
     return true;
   }
 
@@ -2997,7 +2993,7 @@ public:
     return true;
   }
 
-  bool enterStruct(const CXXRecordDecl *, ParmVarDecl *PD, QualType Ty) final {
+  bool enterStruct(const CXXRecordDecl *, ParmVarDecl *, QualType Ty) final {
     ++StructDepth;
     StringRef Name = "_arg_struct";
     addParam(Name, Ty);
@@ -4556,7 +4552,7 @@ public:
 
   bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
     // FD represents a special type which is a field of a struct parameter
-    // passed to a free function kernel Get this struct parameter using
+    // passed to a free function kernel. Get this struct parameter using
     // getParentStruct and build the __init call. Also add the struct to the
     // list of special structs needed later by the integration header to
     // generate some helper structs for the runtime.
@@ -4671,7 +4667,7 @@ public:
     return true;
   }
 
-  bool handleScalarType(FieldDecl *FD, QualType FieldTy) final { return true; }
+  bool handleScalarType(FieldDecl *, QualType) final { return true; }
 
   bool handleScalarType(ParmVarDecl *, QualType) final {
     Expr *ParamRef = createParamReferenceExpr();
@@ -4691,17 +4687,16 @@ public:
     return true;
   }
 
-  bool enterStruct(const CXXRecordDecl *RD, FieldDecl *FD, QualType Ty) final {
+  bool enterStruct(const CXXRecordDecl *, FieldDecl *FD, QualType) final {
     CurrentStructs.push_back(FD);
     return true;
   }
 
-  bool enterStruct(const CXXRecordDecl *RD, ParmVarDecl *PD,
-                   QualType ParamTy) final {
+  bool enterStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
     return true;
   }
 
-  bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
+  bool leaveStruct(const CXXRecordDecl *, FieldDecl *, QualType) final {
     CurrentStructs.pop_back();
     return true;
   }
@@ -4749,11 +4744,6 @@ public:
     // TODO
     unsupportedFreeFunctionParamType();
     return true;
-  }
-  FieldDecl *getCurrentStruct() {
-    assert(CurrentStructs.size() &&
-           "Current free function parameter is not inside a structure!");
-    return CurrentStructs.back();
   }
 };
 
@@ -7294,7 +7284,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
       FwdDeclEmitter.Visit(type.getDesugaredType(S.getASTContext()));
 
-      // this is a struct that contains a special type so its neither a
+      // this is a struct that contains a special type so it's neither a
       // special type nor a trivially copyable type. We therefore need to
       // explicitly communicate to the runtime that this argument should be
       // allowed as a free function kernel argument. We do this by defining
