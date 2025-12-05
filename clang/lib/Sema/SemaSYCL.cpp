@@ -7313,8 +7313,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
       O << "template <>\n";
       O << "struct "
-           "sycl::ext::oneapi::experimental::detail::is_struct_with_special_"
-           "type<";
+           "sycl::ext::oneapi::experimental::detail::"
+           "is_struct_with_special_type<";
       Policy.SuppressTagKeyword = true;
       type.print(O, Policy);
       O << "> {\n";
