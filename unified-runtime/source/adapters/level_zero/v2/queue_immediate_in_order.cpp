@@ -146,10 +146,8 @@ ur_result_t ur_queue_immediate_in_order_t::queueGetNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_queue_immediate_in_order_t::queueFinish() {
-  TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::queueFinish");
-
-  auto commandListLocked = commandListManager.lock();
+ur_result_t ur_queue_immediate_in_order_t::synchronize(
+    locked<ur_command_list_manager> &commandListLocked) {
   // TODO: use zeEventHostSynchronize instead?
   TRACK_SCOPE_LATENCY(
       "ur_queue_immediate_in_order_t::zeCommandListHostSynchronize");
@@ -165,8 +163,27 @@ ur_result_t ur_queue_immediate_in_order_t::queueFinish() {
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t ur_queue_immediate_in_order_t::queueFinish() {
+  TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::queueFinish");
+
+  auto commandListLocked = commandListManager.lock();
+  return synchronize(commandListLocked);
+}
+
+// In order to avoid tracking individual events for each kernel submission on
+// the queue, the adapter simply keeps a vector of all handles of submitted
+// kernels, prunning it at queue synchronization, urQueueFinish(), knowing that
+// all previously enqueued kernels have finished. However, some applications
+// might not explicitly synchronize the queue, in which case the submitted
+// kernels might grow unbounded. To prevent that, we need to cap the vector's
+// size, and forcibly synchronize the queue once it exceeds the limit.
+#define MAX_QUEUE_SUBMITTED_KERNELS 1024
+
 void ur_queue_immediate_in_order_t::recordSubmittedKernel(
-    ur_kernel_handle_t hKernel) {
+    locked<ur_command_list_manager> &commandList, ur_kernel_handle_t hKernel) {
+  if (submittedKernels.size() > MAX_QUEUE_SUBMITTED_KERNELS) {
+    synchronize(commandList);
+  }
   submittedKernels.push_back(hKernel);
   hKernel->RefCount.increment();
 }
@@ -195,7 +212,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueKernelLaunch(
       hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
       numEventsInWaitList, phEventWaitList, phEvent));
 
-  recordSubmittedKernel(hKernel);
+  recordSubmittedKernel(commandListLocked, hKernel);
 
   return UR_RESULT_SUCCESS;
 }
@@ -847,7 +864,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCooperativeKernelLaunchExp(
               &zeThreadGroupDimensions, zeSignalEvent, waitListView.num,
               waitListView.handles));
 
-  recordSubmittedKernel(hKernel);
+  recordSubmittedKernel(commandListLocked, hKernel);
 
   return UR_RESULT_SUCCESS;
 }

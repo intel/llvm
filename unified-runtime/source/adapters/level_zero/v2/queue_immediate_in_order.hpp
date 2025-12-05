@@ -22,6 +22,7 @@
 
 #include "command_list_manager.hpp"
 #include "lockable.hpp"
+#include "ur_api.h"
 
 namespace v2 {
 
@@ -62,7 +63,10 @@ private:
                                    const ur_event_handle_t *phEventWaitList,
                                    ur_event_handle_t *phEvent);
 
-  void recordSubmittedKernel(ur_kernel_handle_t hKernel);
+  void recordSubmittedKernel(locked<ur_command_list_manager> &commandList,
+                             ur_kernel_handle_t hKernel);
+
+  ur_result_t synchronize(locked<ur_command_list_manager> &commandList);
 
 public:
   ur_queue_immediate_in_order_t(ur_context_handle_t, ur_device_handle_t,
