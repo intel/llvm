@@ -632,6 +632,12 @@ public:
     return false;
   }
 
+  /// Generate the matching pointer authentication instruction from a fused
+  /// pauth-and-return instruction.
+  virtual void createMatchingAuth(const MCInst &AuthAndRet, MCInst &Auth) {
+    llvm_unreachable("not implemented");
+  }
+
   /// Returns the register used as a return address. Returns std::nullopt if
   /// not applicable, such as reading the return address from a system register
   /// or from the stack.
@@ -783,6 +789,11 @@ public:
   }
 
   virtual bool isPop(const MCInst &Inst) const { return false; }
+
+  /// Determine if a basic block looks like an epilogue. For now it is only
+  /// called at the final stage of building CFG to check basic block ending
+  /// with an indirect call that has unknown control flow attribute.
+  virtual bool isEpilogue(const BinaryBasicBlock &BB) const { return false; }
 
   /// Return true if the instruction is used to terminate an indirect branch.
   virtual bool isTerminateBranch(const MCInst &Inst) const {
