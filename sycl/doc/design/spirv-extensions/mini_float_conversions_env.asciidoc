@@ -1,0 +1,145 @@
+Mini-float Types and Conversions Environment Specification
+==========================================================
+
+This document provides list of supported conversions for types and instructions
+added in *SPV_EXT_float8*, *SPV_INTEL_int4*, *SPV_INTEL_float4* and *SPV_INTEL_fp_conversions* extensons
+in Level-Zero and OpenCL Environments for Intel platforms. +
+
+Conversion from NaNs to `Float4E2M1INTEL`
+-----------------------------------------
+
+NaNs are converted to largest representable finite value with a matching sign.
+
+Float to float conversions via OpFConvert
+-----------------------------------------
+
+Conversions to *OpTypeFloat* with *Float4E2M1INTEL* encoding are being done with
+round to the nearest even (RTE) mode by default. It's illegal to put any *FPRoundingMode*
+decoration other than *RTE* on the instruction in these cases. *RoundingModeRTZ*
+execution mode has no affect on these conversions. +
+
+Only the following conversions via *OpFConvert* to or from 4-bit floating-point values with the `Float4E2M1INTEL` encoding
+are supported: +
+ +
+
+[cols="1,1", options="header"]
+|===
+| To *Float4E2M1INTEL* 'Result' | From *Float4E2M1INTEL* 'Value'
+| From 16-bit *IEEE754*      | To 16-bit *IEEE754*
+| From 16-bit *BFloat16KHR*  | To 16-bit *BFloat16KHR*
+|                            | To 8-bit *Float8E4M3EXT*
+|                            | To 8-bit *Float8E5M2EXT*
+|===
+
+Only the following conversions via *OpFConvert* to or from 8-bit floating-point values with the `Float8E4M3EXT` and `Float8E5M2EXT` encodings
+are supported: +
+ +
+
+[cols="1,1", options="header"]
+|===
+| To *Float8E4M3EXT* 'Result' | From *Float8E4M3EXT* 'Value'
+| From 16-bit *IEEE754*      | To 16-bit *IEEE754*
+| From 16-bit *BFloat16KHR*  | To 16-bit *BFloat16KHR*
+| From 4-bit *Float4E2M1INTEL*  |
+|===
+
+[cols="1,1", options="header"]
+|===
+| To *Float8E5M2EXT* 'Result' | From *Float8E5M2EXT* 'Value'
+| From 16-bit *IEEE754*      | To 16-bit *IEEE754*
+| From 16-bit *BFloat16KHR*  | To 16-bit *BFloat16KHR*
+| From 4-bit *Float4E2M1INTEL*  |
+|===
+
+Float to integer conversions via OpConvertFToS
+----------------------------------------------
+
+Only the following conversions via *OpConvertFToS* from float to 4-bit integer values are supported: +
+ +
+
+[cols="1,1", options="header"]
+|===
+| _Result_      | 'Value'
+| 4-bit integer | 16-bit *IEEE754*
+| 4-bit integer | 16-bit *BFloat16KHR*
+|===
+
+Float to float conversions via OpClampConvertFToFINTEL
+------------------------------------------------------
+
+Only the following conversions via *OpClampConvertFToFINTEL* are supported: +
+ +
+
+[cols="1,1", options="header"]
+|===
+| _Result_                  | 'Value'
+| 16-bit *IEEE754*          | 32-bit *IEEE754*
+| 8-bit *Float8E5M2EXT*     | 16-bit *IEEE754*
+| 8-bit *Float8E5M2EXT*     | 16-bit *BFloat16KHR*
+| 8-bit *Float8E4M3EXT*     | 16-bit *IEEE754*
+| 8-bit *Float8E4M3EXT*     | 16-bit *BFloat16KHR*
+| 4-bit *Float4E2M1INTEL*     | 16-bit *IEEE754*
+| 4-bit *Float4E2M1INTEL*     | 16-bit *BFloat16KHR*
+|===
+
+Float to integer conversions via OpClampConvertFToSINTEL
+--------------------------------------------------------
+
+Only the following conversions via *OpClampConvertFToSINTEL* from float to 4-bit integer values are supported: +
+ +
+
+[cols="1,1", options="header"]
+|===
+| _Result_      | 'Value'
+| 4-bit integer | 16-bit *IEEE754*
+| 4-bit integer | 16-bit *BFloat16KHR*
+|===
+
+Float to float conversions via OpStochasticRoundFToFINTEL
+---------------------------------------------------------
+
+Only the following conversions via *OpStochasticRoundFToFINTEL* are supported: +
+ +
+
+[cols="1,1", options="header"]
+|===
+| _Result_                  | 'Value'
+| 16-bit *IEEE754*          | 32-bit *IEEE754*
+| 8-bit *Float8E5M2EXT*     | 16-bit *IEEE754*
+| 8-bit *Float8E5M2EXT*     | 16-bit *BFloat16KHR*
+| 8-bit *Float8E4M3EXT*     | 16-bit *IEEE754*
+| 8-bit *Float8E4M3EXT*     | 16-bit *BFloat16KHR*
+| 4-bit *Float4E2M1INTEL*   | 16-bit *IEEE754*
+| 4-bit *Float4E2M1INTEL*   | 16-bit *BFloat16KHR*
+|===
+
+Float to float conversions via OpClampStochasticRoundFToFINTEL
+--------------------------------------------------------------
+
+Only the following conversions via *OpClampStochasticRoundFToFINTEL* are supported: +
+ +
+[cols="1,1", options="header"]
+|===
+| _Result_                  | 'Value'
+| 16-bit *IEEE754*          | 32-bit *IEEE754*
+| 8-bit *Float8E5M2EXT*     | 16-bit *IEEE754*
+| 8-bit *Float8E5M2EXT*     | 16-bit *BFloat16KHR*
+| 8-bit *Float8E4M3EXT*     | 16-bit *IEEE754*
+| 8-bit *Float8E4M3EXT*     | 16-bit *BFloat16KHR*
+| 4-bit *Float4E2M1INTEL*   | 16-bit *IEEE754*
+| 4-bit *Float4E2M1INTEL*   | 16-bit *BFloat16KHR*
+|===
+
+
+Float to integer conversions via OpClampStochasticRoundFToSINTEL
+----------------------------------------------------------------
+
+Only the following conversions via *OpClampStochasticRoundFToSINTEL* from float to 4-bit integer values are supported: +
+ +
+
+[cols="1,1", options="header"]
+|===
+| _Result_      | 'Value'
+| 4-bit integer | 16-bit *IEEE754*
+| 4-bit integer | 16-bit *BFloat16KHR*
+|===

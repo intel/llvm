@@ -3645,19 +3645,6 @@ public:
         CodeLoc);
   }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  /// @brief Returns true if the queue was created with the
-  /// ext::codeplay::experimental::property::queue::enable_fusion property.
-  ///
-  /// Equivalent to
-  /// `has_property<ext::codeplay::experimental::property::queue::enable_fusion>()`.
-  ///
-  // TODO(#15184) Remove this function in the next ABI-breaking window.
-  __SYCL_DEPRECATED(
-      "Support for ext_codeplay_kernel_fusion extesnsion is dropped")
-  bool ext_codeplay_supports_fusion() const;
-#endif
-
   /// Shortcut for executing a graph of commands.
   ///
   /// \param Graph the graph of commands to execute
