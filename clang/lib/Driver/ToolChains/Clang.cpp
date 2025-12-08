@@ -8632,6 +8632,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       TargetInfo += C.getDriver().getSYCLDeviceTriple().normalize();
     CmdArgs.push_back(Args.MakeArgString(TargetInfo.str()));
   }
+  if (Args.hasFlag(options::OPT_fdevirtualize_speculatively,
+                   options::OPT_fno_devirtualize_speculatively,
+                   /*Default value*/ false))
+    CmdArgs.push_back("-fdevirtualize-speculatively");
 
   bool VirtualFunctionElimination =
       Args.hasFlag(options::OPT_fvirtual_function_elimination,

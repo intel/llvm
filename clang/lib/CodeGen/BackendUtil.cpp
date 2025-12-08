@@ -992,6 +992,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   PTO.OptimizeSYCLFramework =
       CodeGenOpts.OptimizeSYCLFramework && !CodeGenOpts.DisableLLVMPasses;
   PTO.UnifiedLTO = CodeGenOpts.UnifiedLTO;
+  PTO.DevirtualizeSpeculatively = CodeGenOpts.DevirtualizeSpeculatively;
 
   LoopAnalysisManager LAM;
   FunctionAnalysisManager FAM;
