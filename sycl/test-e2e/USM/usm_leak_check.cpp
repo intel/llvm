@@ -1,7 +1,7 @@
 // REQUIRES: level_zero
 //
-// UNSUPPORTED: windows, level_zero_v2_adapter
-// UNSUPPORTED-TRACKER:
+// UNSUPPORTED: windows && level_zero_v2_adapter
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20852
 
 // RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 
