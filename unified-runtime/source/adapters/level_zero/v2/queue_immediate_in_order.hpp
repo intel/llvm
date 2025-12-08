@@ -27,6 +27,24 @@ namespace v2 {
 
 using queue_group_type = ur_device_handle_t_::queue_group_info_t::type;
 
+// When recording submitted kernels, we only care about unique kernels. It's not
+// important whether the kernel has been submitted to the kernel just once or
+// dozens of times. The number of unique kernels should be fairly low.
+// So, in order to reduce the number of entries in the submitted kernels vector,
+// we do a lookback at 4 previous entries (to try to keep within a cacheline),
+// and don't record a new kernel if it exists.
+static const size_t SUBMITTED_KERNELS_DUPE_CHECK_DEPTH = 4;
+
+// In scenarios where queue synchronization happens rarely, the submitted kernel
+// vector can grow unbounded. In order to avoid that, we go through the entire
+// vector, eliminating any duplicates.
+static const size_t SUBMITTED_KERNELS_DEFAULT_THRESHOLD = 128;
+
+// If we reach this many unique kernels, the application is probably doing
+// something incorrectly. The adapter will still function, just that compaction
+// will happen more frequently.
+static const size_t SUBMITTED_KERNELS_MAX_THRESHOLD = 65536;
+
 struct ur_queue_immediate_in_order_t : _ur_object, public ur_queue_t_ {
 private:
   ur_context_handle_t hContext;
@@ -35,6 +53,7 @@ private:
 
   lockable<ur_command_list_manager> commandListManager;
   std::vector<ur_kernel_handle_t> submittedKernels;
+  std::size_t compactionThreshold = SUBMITTED_KERNELS_DEFAULT_THRESHOLD;
 
   wait_list_view
   getWaitListView(locked<ur_command_list_manager> &commandList,
@@ -63,6 +82,8 @@ private:
                                    ur_event_handle_t *phEvent);
 
   void recordSubmittedKernel(ur_kernel_handle_t hKernel);
+
+  void compactSubmittedKernels();
 
 public:
   ur_queue_immediate_in_order_t(ur_context_handle_t, ur_device_handle_t,

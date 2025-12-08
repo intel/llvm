@@ -167,8 +167,58 @@ ur_result_t ur_queue_immediate_in_order_t::queueFinish() {
 
 void ur_queue_immediate_in_order_t::recordSubmittedKernel(
     ur_kernel_handle_t hKernel) {
+
+  bool isDuplicate = std::any_of(
+      submittedKernels.end() -
+          std::min(SUBMITTED_KERNELS_DUPE_CHECK_DEPTH, submittedKernels.size()),
+      submittedKernels.end(), [hKernel](auto k) { return k == hKernel; });
+
+  if (isDuplicate) {
+    return;
+  }
+
+  if (submittedKernels.size() > compactionThreshold) {
+    compactSubmittedKernels();
+  }
+
   submittedKernels.push_back(hKernel);
   hKernel->RefCount.increment();
+}
+
+void ur_queue_immediate_in_order_t::compactSubmittedKernels() {
+  size_t beforeSize = submittedKernels.size();
+
+  std::sort(submittedKernels.begin(), submittedKernels.end());
+
+  // Remove all but one unique entry for each kernel. All removed entries
+  // need to have their refcounts decremented.
+  auto newEnd = std::unique(
+      submittedKernels.begin(), submittedKernels.end(), [](auto lhs, auto rhs) {
+        if (lhs == rhs) {
+          [[maybe_unused]] const bool lastEntry =
+              rhs->RefCount.decrementAndTest();
+          assert(!lastEntry); // there should be at least one entry left.
+          return true;        // duplicate.
+        }
+        return false;
+      });
+
+  submittedKernels.erase(newEnd, submittedKernels.end());
+
+  // Adjust compaction threshold.
+  size_t removed = beforeSize - submittedKernels.size();
+  size_t removedPct = beforeSize > 0 ? (removed * 100) / beforeSize : 0;
+  if (removedPct > 75) {
+    // We removed a lot of entries. Lower the threshold if possible.
+    compactionThreshold = std::max<std::size_t>(
+        SUBMITTED_KERNELS_DEFAULT_THRESHOLD, compactionThreshold / 2);
+  } else if (removedPct < 10 &&
+             compactionThreshold < SUBMITTED_KERNELS_MAX_THRESHOLD) {
+    // Increase the threshold if we removed very little entries. This means
+    // there are many unique kernels, and we need to allow the vector to grow
+    // more.
+    compactionThreshold *= 2;
+  }
 }
 
 ur_result_t ur_queue_immediate_in_order_t::queueFlush() {
