@@ -23,7 +23,7 @@ struct urQueueIsGraphCaptureEnabledExpTest : uur::urGraphSupportedExpTest {
   }
 
   void endGraphCapture() {
-    if (graph) {
+    if (!graph) {
       ASSERT_SUCCESS(urQueueEndGraphCaptureExp(queue, &graph));
     }
   }
