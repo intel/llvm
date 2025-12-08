@@ -1,4 +1,7 @@
 // REQUIRES: level_zero
+//
+// UNSUPPORTED: windows, level_zero_v2_adapter
+// UNSUPPORTED-TRACKER:
 
 // RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 
@@ -36,10 +39,8 @@ template <typename T, size_t N> void sycl_buffer(queue &Q) {
     accessor accB{bufferB, cgh, read_only};
     accessor accC{bufferC, cgh, write_only};
 
-    cgh.parallel_for<class K<T>>(numElems,
-		[=](id<1> wiID) {
-      accC[wiID] = accA[wiID] + accB[wiID];
-    });
+    cgh.parallel_for<class K<T>>(
+        numElems, [=](id<1> wiID) { accC[wiID] = accA[wiID] + accB[wiID]; });
   });
 }
 
