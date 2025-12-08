@@ -960,6 +960,15 @@ for sycl_device in remove_level_zero_suffix(config.sycl_devices):
         config.ze_affinity_mask = dev
         break
 
+# If ze_affinity_mask wasn't determined from config.sycl_devices, check if
+# ONEAPI_DEVICE_SELECTOR is set in the environment and extract from there
+if config.ze_affinity_mask is None:
+    oneapi_selector = os.environ.get("ONEAPI_DEVICE_SELECTOR", "")
+    if oneapi_selector.startswith("level_zero:"):
+        dev = oneapi_selector.split(":", 1)[1]
+        if dev.isdigit():
+            config.ze_affinity_mask = dev
+
 for sycl_device in remove_level_zero_suffix(config.sycl_devices):
     be, dev = sycl_device.split(":")
     config.available_features.add("any-device-is-" + dev)
