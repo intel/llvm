@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: new-offload-model
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20797
+// XFAIL: new-offload-model && run-mode
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20797
 
 // REQUIRES: opencl-aot, ocloc, any-device-is-cpu, any-device-is-gpu, target-spir, opencl-cpu-rt
 

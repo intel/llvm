@@ -258,7 +258,7 @@ jobs:
             target_devices: level_zero:gpu
           - name: Intel / Battlemage Graphics
             runner: '["Linux", "bmg"]'
-            target_devices: level_zero_v1:gpu
+            target_devices: level_zero_v2:gpu
           - name: Intel / Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
             target_devices: level_zero:gpu
