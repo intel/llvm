@@ -96,7 +96,6 @@ possibly_dangerous_env_vars = [
     "LIBCLANG_NOTHREADS",
     "LIBCLANG_RESOURCE_USAGE",
     "LIBCLANG_CODE_COMPLETION_LOGGING",
-    "ZE_AFFINITY_MASK",
 ]
 
 # Names of the Release and Debug versions of the XPTIFW library
@@ -707,7 +706,7 @@ def remove_level_zero_suffix(devices):
 available_devices = {
     "opencl": ("cpu", "gpu", "fpga"),
     "cuda": "gpu",
-    "level_zero": ("gpu", "0", "1"),
+    "level_zero": "gpu",
     "hip": "gpu",
     "native_cpu": "cpu",
     "offload": "gpu",
@@ -951,15 +950,6 @@ if not filtered_sycl_devices and not config.test_mode == "build-only":
 
 config.sycl_devices = filtered_sycl_devices
 
-# Determine ZE_AFFINITY_MASK for Level Zero devices.
-# Sanitizer tests need to set ZE_AFFINITY_MASK to a single device index
-config.ze_affinity_mask = None
-for sycl_device in remove_level_zero_suffix(config.sycl_devices):
-    be, dev = sycl_device.split(":")
-    if be == "level_zero" and dev.isdigit():
-        config.ze_affinity_mask = dev
-        break
-
 for sycl_device in remove_level_zero_suffix(config.sycl_devices):
     be, dev = sycl_device.split(":")
     config.available_features.add("any-device-is-" + dev)
@@ -1124,7 +1114,6 @@ for full_name, sycl_device in zip(
     features.update(sg_size_features)
     features.update(architecture_feature)
     features.update(device_family)
-    features.update(aspects)
 
     be, dev = sycl_device.split(":")
     if dev.isdigit():

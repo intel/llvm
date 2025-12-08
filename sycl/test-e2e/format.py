@@ -334,12 +334,6 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 expanded = "env"
 
                 extra_env = get_extra_env([parsed_dev_name])
-                backend, device = parsed_dev_name.split(":", 1)
-                device_selector = parsed_dev_name
-                if backend == "level_zero" and device.isdigit():
-                    extra_env.append(f"ZE_AFFINITY_MASK={device}")
-                    device_selector = f"{backend}:0"
-
                 if extra_env:
                     expanded += " {}".format(" ".join(extra_env))
 
@@ -359,6 +353,11 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                     "linux",
                     "windows",
                     "preview-breaking-changes-supported",
+                    # the following entries are used by architecture-based filtering
+                    # (:arch- device, not :gpu or :cpu)
+                    "cpu",
+                    "gpu",
+                    "accelerator",
                 ]:
                     if cond_features in test.config.available_features:
                         conditions[cond_features] = True
