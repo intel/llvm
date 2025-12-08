@@ -107,12 +107,11 @@ extern __DPCPP_SYCL_EXTERNAL
     __spv::__spirv_CooperativeMatrixKHR<Tp, S, R, C, U> *
     __spirv_CompositeConstruct(const T v);
 
-// TODO: replace with __spirv_CooperativeMatrixGetElementCoordINTEL when ready
 template <typename T, std::size_t R, std::size_t C, __spv::MatrixUse U,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<uint32_t, 2>
-__spirv_JointMatrixGetElementCoordINTEL(
+__spirv_CooperativeMatrixGetElementCoordINTEL(
     __spv::__spirv_CooperativeMatrixKHR<T, S, R, C, U> *, size_t i);
 
 // AccessChain followed by load/store serves to extract/insert and element
