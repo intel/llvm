@@ -92,6 +92,7 @@ jobs:
     - name: Run yarpgen
       run: |
         cd yarpgen
+        python3 --version
         # A system hits OOM when using all available threads.
         python3 scripts/run_gen.py --target clang -j4
     - name: Pack results
