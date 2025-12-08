@@ -100,8 +100,8 @@ public:
     return MImplicitLocalArgPos;
   }
 
-  // Implicit local argument position is used only for some backends,
-  // so this value may need to be updated when more images are added.
+  // Implicit local argument position is used only for some backends, so this
+  // funciton allows setting it as more images are added.
   void setImplicitLocalArgPos(int Pos);
 
 private:
