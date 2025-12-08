@@ -43,7 +43,8 @@ struct urGraphSupportedExpMultiQueueTest : uur::urMultiQueueTest {
     }
 
     UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{}, uur::NativeCPU{},
-                         uur::OpenCL{}, uur::LevelZero{});
+                         uur::OpenCL{}, uur::LevelZero{},
+                         /* uur::LevelZeroV2{} */);
   }
 };
 
@@ -93,8 +94,9 @@ struct urGraphPopulatedExpTest : urGraphExpTest {
   void TearDown() override {
     if (deviceMem) {
       ASSERT_SUCCESS(urUSMFree(context, deviceMem));
-      resetData();
     }
+
+    resetData();
 
     UUR_RETURN_ON_FATAL_FAILURE(urGraphExpTest::TearDown());
   }
