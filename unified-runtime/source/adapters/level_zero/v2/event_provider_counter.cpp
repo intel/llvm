@@ -30,13 +30,9 @@ provider_counter::provider_counter(ur_platform_handle_t platform,
   assert(flags & EVENT_FLAGS_COUNTER);
 
   // Try to get the counter-based event extension function
-  auto result =
-      ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
-                      (platform->ZeDriver, "zexCounterBasedEventCreate2",
-                       (void **)&this->eventCreateFunc));
-  if (result != ZE_RESULT_SUCCESS) {
-    throw ur_result_t(ze2urResult(result));
-  }
+  ZE2UR_CALL_THROWS(zeDriverGetExtensionFunctionAddress,
+                    (platform->ZeDriver, "zexCounterBasedEventCreate2",
+                     (void **)&this->eventCreateFunc));
 
   ZE2UR_CALL_THROWS(zelLoaderTranslateHandle,
                     (ZEL_HANDLE_CONTEXT, context->getZeHandle(),
@@ -107,10 +103,10 @@ std::unique_ptr<event_provider> createProvider(ur_platform_handle_t platform,
       return std::make_unique<provider_counter>(platform, context, queueType,
                                                 device, flags);
     } catch (...) {
-      // If counter-based events are not supported, fall back to normal events
-      // Remove the counter flag as the normal provider doesn't support it
-      event_flags_t normalFlags = flags & ~EVENT_FLAGS_COUNTER;
-      return std::make_unique<provider_normal>(context, queueType, normalFlags);
+      // If the new counter-based API (zexCounterBasedEventCreate2) is not
+      // available, fall back to normal provider which support counter-based
+      // events using the old API
+      return std::make_unique<provider_normal>(context, queueType, flags);
     }
   }
 
