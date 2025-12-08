@@ -24,12 +24,12 @@ TEST_P(urQueueBeginCaptureIntoGraphExpTest, InvalidNullHandleGraph) {
                    urQueueBeginCaptureIntoGraphExp(queue, nullptr));
 }
 
-using urQueueBeginCaptureIntoPopulatedGraphExpTest =
+using urQueueBeginCaptureIntoPupulatedGraphExpTest =
     uur::urGraphPopulatedExpTest;
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urQueueBeginCaptureIntoPopulatedGraphExpTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urQueueBeginCaptureIntoPupulatedGraphExpTest);
 
-TEST_P(urQueueBeginCaptureIntoPopulatedGraphExpTest, InvalidNonEmptyGraph) {
+TEST_P(urQueueBeginCaptureIntoPupulatedGraphExpTest, InvalidNonEmptyGraph) {
   ASSERT_EQ(urQueueBeginCaptureIntoGraphExp(queue, graph),
             UR_RESULT_ERROR_INVALID_ARGUMENT);
 }

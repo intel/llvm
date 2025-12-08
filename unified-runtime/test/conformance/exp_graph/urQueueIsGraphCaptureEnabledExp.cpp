@@ -11,7 +11,6 @@ struct urQueueIsGraphCaptureEnabledExpTest : uur::urGraphSupportedExpTest {
     UUR_RETURN_ON_FATAL_FAILURE(urGraphSupportedExpTest::SetUp());
 
     ASSERT_SUCCESS(urQueueBeginGraphCaptureExp(queue));
-    isCapturing = true;
   }
 
   void TearDown() override {
@@ -24,13 +23,11 @@ struct urQueueIsGraphCaptureEnabledExpTest : uur::urGraphSupportedExpTest {
   }
 
   void endGraphCapture() {
-    if (isCapturing) {
+    if (!graph) {
       ASSERT_SUCCESS(urQueueEndGraphCaptureExp(queue, &graph));
-      isCapturing = false;
     }
   }
 
-  bool isCapturing = false;
   ur_exp_graph_handle_t graph = nullptr;
 };
 
