@@ -951,8 +951,9 @@ if not filtered_sycl_devices and not config.test_mode == "build-only":
 
 config.sycl_devices = filtered_sycl_devices
 
-# Determine ZE_AFFINITY_MASK for Level Zero devices.
-# Sanitizer tests need to set ZE_AFFINITY_MASK to a single device index
+# Determine ZE_AFFINITY_MASK value for Level Zero devices.
+# Sanitizer tests (via their lit.local.cfg) can use this to set ZE_AFFINITY_MASK
+# environment variable when needed. The main config does NOT set it in the environment.
 config.ze_affinity_mask = None
 for sycl_device in remove_level_zero_suffix(config.sycl_devices):
     be, dev = sycl_device.split(":")

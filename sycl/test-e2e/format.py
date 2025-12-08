@@ -293,6 +293,14 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                     "UR_L0_LEAKS_DEBUG={}".format(test.config.ur_l0_leaks_debug)
                 )
 
+            # Add ZE_AFFINITY_MASK if it's set in config.environment (e.g., by sanitizer tests)
+            if "ZE_AFFINITY_MASK" in test.config.environment:
+                extra_env.append(
+                    "ZE_AFFINITY_MASK={}".format(
+                        test.config.environment["ZE_AFFINITY_MASK"]
+                    )
+                )
+
             if "cuda:gpu" in sycl_devices:
                 extra_env.append("SYCL_UR_CUDA_ENABLE_IMAGE_SUPPORT=1")
 
