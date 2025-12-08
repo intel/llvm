@@ -116,7 +116,7 @@ public:
   inline __SYCL_ALWAYS_INLINE std::tuple<size_t, size_t> get_coord() {
 #if defined(__SYCL_DEVICE_ONLY__)
     __ocl_vec_t<uint32_t, 2> coord =
-        __spirv_JointMatrixGetElementCoordINTEL(M.spvm, idx);
+        __spirv_CooperativeMatrixGetElementCoordINTEL(M.spvm, idx);
     const size_t row = coord[0];
     const size_t col = coord[1];
     return std::make_tuple(row, col);
@@ -239,7 +239,7 @@ public:
   inline __SYCL_ALWAYS_INLINE std::tuple<uint32_t, uint32_t> get_coord() {
 #if defined(__SYCL_DEVICE_ONLY__)
     __ocl_vec_t<uint32_t, 2> coord =
-        __spirv_JointMatrixGetElementCoordINTEL(M.spvm, idx);
+        __spirv_CooperativeMatrixGetElementCoordINTEL(M.spvm, idx);
     const uint32_t row = coord[0];
     const uint32_t col = coord[1];
     return std::make_tuple(row, col);

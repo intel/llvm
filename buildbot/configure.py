@@ -214,6 +214,8 @@ def do_configure(args, passthrough_args):
         "-DSYCL_ENABLE_EXTENSION_JIT={}".format(sycl_enable_jit),
         "-DSYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB={}".format(sycl_preview_lib),
         "-DBUG_REPORT_URL=https://github.com/intel/llvm/issues",
+        "-DLLVM_INCLUDE_SPIRV_TOOLS_TESTS=ON",
+        "-DLLVM_INSTALL_UTILS=ON"
     ]
     if args.offload:
         cmake_cmd.extend(
