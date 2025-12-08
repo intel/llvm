@@ -385,6 +385,24 @@ public:
                               CodeLoc, IsTopCodeLoc);
   }
 
+  void submit_graph_direct_without_event(
+      std::shared_ptr<ext::oneapi::experimental::detail::exec_graph_impl>
+          ExecGraph,
+      sycl::span<const event> DepEvents, const detail::code_location &CodeLoc,
+      bool IsTopCodeLoc) {
+    submit_graph_direct_impl(ExecGraph, false, DepEvents, CodeLoc,
+                             IsTopCodeLoc);
+  }
+
+  event submit_graph_direct_with_event(
+      std::shared_ptr<ext::oneapi::experimental::detail::exec_graph_impl>
+          ExecGraph,
+      sycl::span<const event> DepEvents, const detail::code_location &CodeLoc,
+      bool IsTopCodeLoc) {
+    return createSyclObjFromImpl<event>(submit_graph_direct_impl(
+        ExecGraph, true, DepEvents, CodeLoc, IsTopCodeLoc));
+  }
+
   void submit_without_event(const detail::type_erased_cgfo_ty &CGF,
                             const v1::SubmissionInfo &SubmitInfo,
                             const detail::code_location &Loc,
@@ -689,34 +707,18 @@ public:
     return ResEvent;
   }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // CMPLRLLVM-66082
-  // These methods are for accessing a member that should live in the
-  // sycl::interop_handle class and will be moved on next ABI breaking window.
-  ur_exp_command_buffer_handle_t getInteropGraph() const {
-    return MInteropGraph;
-  }
-
-  void setInteropGraph(ur_exp_command_buffer_handle_t Graph) {
-    MInteropGraph = Graph;
-  }
-#endif
-
   /// Returns the async_handler associated with the queue.
   const async_handler &getAsynchHandler() const noexcept {
     return MAsyncHandler;
   }
 
 protected:
+  EventImplPtr insertHelperBarrier();
+
   template <typename HandlerType = handler>
   EventImplPtr insertHelperBarrier(const HandlerType &Handler) {
     queue_impl &Queue = Handler.impl->get_queue();
-    auto ResEvent = detail::event_impl::create_device_event(Queue);
-    ur_event_handle_t UREvent = nullptr;
-    getAdapter().call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
-        Queue.getHandleRef(), 0, nullptr, &UREvent);
-    ResEvent->setHandle(UREvent);
-    return ResEvent;
+    return Queue.insertHelperBarrier();
   }
 
   template <typename HandlerType = handler>
@@ -905,6 +907,7 @@ protected:
   /// \param DeviceKernelInfo is a structure aggregating kernel related data
   /// \param CallerNeedsEvent is a boolean indicating whether the event is
   ///        required by the user after the call.
+  /// \param DepEvents is a vector of dependencies of the operation.
   /// \param CodeLoc is the code location of the submit call
   /// \param IsTopCodeLoc Used to determine if the object is in a local
   ///        scope or in the top level scope.
@@ -917,10 +920,28 @@ protected:
       const detail::KernelPropertyHolderStructTy &Props,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
+  /// Performs graph submission to the queue.
+  ///
+  /// \param ExecGraph is an executable graph
+  /// \param CallerNeedsEvent is a boolean indicating whether the event is
+  ///        required by the user after the call.
+  /// \param DepEvents is a vector of dependencies of the operation.
+  /// \param CodeLoc is the code location of the submit call
+  /// \param IsTopCodeLoc Used to determine if the object is in a local
+  ///        scope or in the top level scope.
+  ///
+  /// \return a SYCL event representing submitted command group or nullptr.
+  EventImplPtr submit_graph_direct_impl(
+      std::shared_ptr<ext::oneapi::experimental::detail::exec_graph_impl>
+          ExecGraph,
+      bool CallerNeedsEvent, sycl::span<const event> DepEvents,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+
   template <typename SubmitCommandFuncType>
-  EventImplPtr submit_direct(bool CallerNeedsEvent,
-                             sycl::span<const event> DepEvents,
-                             SubmitCommandFuncType &SubmitCommandFunc);
+  EventImplPtr
+  submit_direct(bool CallerNeedsEvent, sycl::span<const event> DepEvents,
+                SubmitCommandFuncType &SubmitCommandFunc, detail::CGType Type,
+                bool InsertBarrierForInOrderCommand);
 
   /// Helper function for submitting a memory operation with a handler.
   /// \param DepEvents is a vector of dependencies of the operation.
@@ -980,6 +1001,12 @@ protected:
   ///
   /// \param EventImpl is the event to be stored
   void addEvent(const detail::EventImplPtr &EventImpl);
+
+  /// Stores an event that should be associated with the queue with
+  /// the queue lock already acquired by caller.
+  ///
+  /// \param EventImpl is the event to be stored
+  void addEventUnlocked(const detail::EventImplPtr &EventImpl);
 
   /// Protects all the fields that can be changed by class' methods.
   mutable std::mutex MMutex;

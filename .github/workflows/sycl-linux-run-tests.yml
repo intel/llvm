@@ -245,6 +245,14 @@ jobs:
         sparse-checkout: |
           devops
           sycl/cts_exclude_filter
+    - name: Show checkout information
+      shell: bash
+      run: |
+        echo "Current branch: $(git branch --show-current)"
+        echo "Current commit: $(git rev-parse HEAD)"
+        echo "Current commit (short): $(git rev-parse --short HEAD)"
+        echo "Commit message: $(git log -1 --pretty=%B)"
+        git log -1 --oneline
     - name: Register cleanup after job is finished
       uses: ./devops/actions/cleanup
     - name: Reset Intel GPU

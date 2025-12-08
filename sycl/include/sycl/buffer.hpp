@@ -93,6 +93,8 @@ struct BufferInterop;
 
 // The non-template base for the sycl::buffer class
 class __SYCL_EXPORT buffer_plain {
+  friend sycl::detail::ImplUtils;
+
 protected:
   buffer_plain(size_t SizeInBytes, size_t, const property_list &Props,
                std::unique_ptr<detail::SYCLMemObjAllocator> Allocator);
@@ -730,9 +732,6 @@ protected:
   }
 
 private:
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
   template <typename A, int dims, typename C, typename Enable>
   friend class buffer;
   template <typename DataT, int dims, access::mode mode, access::target target,

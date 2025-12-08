@@ -71,29 +71,8 @@ public:
   /// \throw SYCL 2020 exception(errc) if ur_result is not UR_RESULT_SUCCESS
   template <sycl::errc errc = sycl::errc::runtime>
   void checkUrResult(ur_result_t ur_result) const {
-    if (ur_result == UR_RESULT_ERROR_ADAPTER_SPECIFIC) {
-      assert(!adapterReleased);
-      const char *message = nullptr;
-      int32_t adapter_error = 0;
-      ur_result = call_nocheck<UrApiKind::urAdapterGetLastError>(
-          MAdapter, &message, &adapter_error);
-      throw sycl::detail::set_ur_error(
-          sycl::exception(
-              sycl::make_error_code(errc),
-              __SYCL_UR_ERROR_REPORT(MBackend) +
-                  sycl::detail::codeToString(ur_result) +
-                  (message ? "\n" + std::string(message) + "(adapter error )" +
-                                 std::to_string(adapter_error) + "\n"
-                           : std::string{})),
-          ur_result);
-    }
-    if (ur_result != UR_RESULT_SUCCESS) {
-      throw sycl::detail::set_ur_error(
-          sycl::exception(sycl::make_error_code(errc),
-                          __SYCL_UR_ERROR_REPORT(MBackend) +
-                              sycl::detail::codeToString(ur_result)),
-          ur_result);
-    }
+    if (__builtin_expect(ur_result != UR_RESULT_SUCCESS, false))
+      ur_failed_throw_exception(errc, ur_result);
   }
 
   std::vector<ur_platform_handle_t> &getUrPlatforms() {
@@ -225,6 +204,8 @@ public:
   bool adapterReleased = false;
 
 private:
+  void ur_failed_throw_exception(sycl::errc errc, ur_result_t ur_result) const;
+
   ur_adapter_handle_t MAdapter;
   backend MBackend;
   // Mutex to guard UrPlatforms and LastDeviceIds.

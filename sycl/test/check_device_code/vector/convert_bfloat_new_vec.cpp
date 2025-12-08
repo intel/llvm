@@ -196,7 +196,7 @@ SYCL_EXTERNAL auto TestInttoBFDeviceRZ(vec<int, 3> &inp) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z19TestLLtoBFDeviceRTPRN4sycl3_V13vecIxLi1EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias writable writeonly sret(%"class.sycl::_V1::vec.146") align 2 captures(none) [[AGG_RESULT:%.*]], ptr addrspace(4) noundef readonly align 8 captures(none) dereferenceable(8) [[INP:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias writable writeonly sret(%"class.sycl::_V1::vec.145") align 2 captures(none) [[AGG_RESULT:%.*]], ptr addrspace(4) noundef readonly align 8 captures(none) dereferenceable(8) [[INP:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META38:![0-9]+]])
 // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
@@ -217,7 +217,7 @@ SYCL_EXTERNAL auto TestLLtoBFDeviceRTP(vec<long long, 1> &inp) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z22TestShorttoBFDeviceRTNRN4sycl3_V13vecIsLi2EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias writable writeonly sret(%"class.sycl::_V1::vec.224") align 4 captures(none) [[AGG_RESULT:%.*]], ptr addrspace(4) noundef readonly align 4 captures(none) dereferenceable(4) [[INP:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias writable writeonly sret(%"class.sycl::_V1::vec.226") align 4 captures(none) [[AGG_RESULT:%.*]], ptr addrspace(4) noundef readonly align 4 captures(none) dereferenceable(4) [[INP:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META44:![0-9]+]])
 // CHECK-NEXT:    [[TMP0:%.*]] = load <2 x i16>, ptr addrspace(4) [[INP]], align 4, !tbaa [[TBAA14]], !noalias [[META44]]

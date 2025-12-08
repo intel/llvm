@@ -2342,16 +2342,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintQueueEndGraphCaptureExpParams(
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_queue_append_graph_exp_params_t struct
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintQueueAppendGraphExpParams(
-    const struct ur_queue_append_graph_exp_params_t *params, char *buffer,
-    const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_queue_is_graph_capture_enabled_exp_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -2903,6 +2893,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintEnqueueTimestampRecordingExpParams(
 ///         - `buff_size < out_size`
 UR_APIEXPORT ur_result_t UR_APICALL urPrintEnqueueNativeCommandExpParams(
     const struct ur_enqueue_native_command_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_enqueue_graph_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintEnqueueGraphExpParams(
+    const struct ur_enqueue_graph_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////

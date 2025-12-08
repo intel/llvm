@@ -419,6 +419,8 @@ template <int Dims> bool range_size_fits_in_size_t(const range<Dims> &r) {
 ///
 /// \ingroup sycl_api
 class __SYCL_EXPORT handler {
+  friend sycl::detail::ImplUtils;
+
 private:
   /// Constructs SYCL handler from the pre-constructed stack-allocated
   /// `handler_impl` (not enforced, but meaningless to do a heap allocation
@@ -2864,10 +2866,6 @@ private:
   template <class _name, class _dataT, int32_t _min_capacity,
             class _propertiesT, class>
   friend class ext::intel::experimental::pipe;
-
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  sycl::detail::getSyclObjImpl(const Obj &SyclObject);
 
   /// Read from a host pipe given a host address and
   /// \param Name name of the host pipe to be passed into lower level runtime

@@ -714,8 +714,9 @@ detail::EventImplPtr handler::finalize() {
       bool DiscardEvent = !impl->MEventNeeded &&
                           Queue.supportsDiscardingPiEvents() &&
                           !impl->MExecGraph->containsHostTask();
-      detail::EventImplPtr GraphCompletionEvent = impl->MExecGraph->enqueue(
+      auto [GraphCompletionEvent, Unused] = impl->MExecGraph->enqueue(
           Queue, std::move(impl->CGData), !DiscardEvent);
+      (void)Unused;
       return GraphCompletionEvent;
     }
   } break;

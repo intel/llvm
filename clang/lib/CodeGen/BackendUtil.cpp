@@ -1213,6 +1213,9 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       PB.registerPipelineStartEPCallback(
           [Options](ModulePassManager &MPM, OptimizationLevel Level) {
             MPM.addPass(InstrProfilingLoweringPass(*Options, false));
+            // The profiling pass adds SYCL device globals so we need to run
+            // the compile-time properties pass to update the metadata.
+            MPM.addPass(CompileTimePropertiesPass());
           });
 
     // TODO: Consider passing the MemoryProfileOutput to the pass builder via

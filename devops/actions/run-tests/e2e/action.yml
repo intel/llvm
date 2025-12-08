@@ -103,14 +103,19 @@ runs:
         exit 1
 
   - name: Pack E2E binaries
-    if: ${{ always() && !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only'}}
+    if: ${{ !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only' }}
     shell: bash
     run: |
       tar -I 'zstd -9' -cf e2e_binaries.tar.zst -C ./build-e2e .
   - name: Upload E2E binaries
-    if: ${{ always() && !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only'}}
+    if: ${{ !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only' }}
     uses: actions/upload-artifact@v4
     with:
       name: ${{ inputs.binaries_artifact }}
       path: e2e_binaries.tar.zst
       retention-days: ${{ inputs.retention-days }}
+  - name: Cleanup E2E tests
+    if: ${{ !cancelled() }}
+    shell: bash
+    run: |
+      rm -rf build-e2e

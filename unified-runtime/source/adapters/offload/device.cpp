@@ -456,6 +456,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
     ImageTarget = UR_DEVICE_BINARY_TARGET_NVPTX64;
   } else if (Backend == OL_PLATFORM_BACKEND_AMDGPU) {
     ImageTarget = UR_DEVICE_BINARY_TARGET_AMDGCN;
+  } else if (Backend == OL_PLATFORM_BACKEND_LEVEL_ZERO) {
+    ImageTarget = UR_DEVICE_BINARY_TARGET_SPIRV64;
   }
 
   for (uint32_t i = 0; i < NumBinaries; ++i) {
