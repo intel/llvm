@@ -89,9 +89,9 @@ struct FastKernelSubcacheT {
 // into this structure and get rid of the other KernelName -> * maps.
 class DeviceKernelInfo : public CompileTimeKernelInfoTy {
 public:
-  DeviceKernelInfo(std::string_view Name,
-                   std::optional<int> ImplicitLocalArgPos = {});
+  DeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
 
+  void init(std::string_view KernelName);
   void setCompileTimeInfoIfNeeded(const CompileTimeKernelInfoTy &Info);
 
   FastKernelSubcacheT &getKernelSubcache() { return MFastKernelSubcache; }
@@ -100,11 +100,13 @@ public:
     return MImplicitLocalArgPos;
   }
 
+  void setImplicitLocalArgPos(int Pos);
+
 private:
   bool isCompileTimeInfoSet() const { return KernelSize != 0; }
 
   FastKernelSubcacheT MFastKernelSubcache;
-  const std::optional<int> MImplicitLocalArgPos;
+  std::optional<int> MImplicitLocalArgPos;
 };
 
 } // namespace detail
