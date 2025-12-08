@@ -901,13 +901,6 @@ public:
           SupportFlags & UR_KERNEL_LAUNCH_PROPERTIES_FLAG_CLUSTER_DIMENSION);
     }
 
-    // ext_codeplay_device_traits.def
-
-    CASE(ext::codeplay::experimental::info::device::supports_fusion) {
-      // TODO(#15184): Remove this aspect in the next ABI-breaking window.
-      return false;
-    }
-
     // ext_oneapi_device_traits.def
 
     CASE(ext::oneapi::experimental::info::device::max_global_work_groups) {
