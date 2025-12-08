@@ -7979,9 +7979,9 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
               if (isa<PreprocessJobAction>(A)) {
                 PackagerActions.push_back(OA);
                 A->setCannotBeCollapsedWithNextDependentAction();
-                // The input to the preprocessed job is the compilation job.
+                // The input to the compilation job is the preprocessed job.
                 // Take that input action (it should be one input) which is
-                // the source file that should be compiled to generate the
+                // the source file and compile that file to generate the
                 // integration header/footer.
                 ActionList PreprocInputs = A->getInputs();
                 assert(PreprocInputs.size() == 1 &&
