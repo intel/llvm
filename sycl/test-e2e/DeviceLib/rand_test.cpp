@@ -1,5 +1,5 @@
-// UNSUPPORTED: new-offload-model && target-amd
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20797
+// XFAIL: new-offload-model && target-amd
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20797
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

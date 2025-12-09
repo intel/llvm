@@ -1,5 +1,5 @@
-// UNSUPPORTED: new-offload-model && linux
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20797
+// XFAIL: new-offload-model && linux
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20797
 
 // REQUIRES: target-spir, level_zero
 // RUN: %{build} -Xsycl-target-linker=spir64 -foo -o %t.out

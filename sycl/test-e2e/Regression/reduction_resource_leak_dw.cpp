@@ -1,3 +1,6 @@
+// XFAIL: new-offload-model && windows
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20797
+
 // REQUIRES: level_zero
 //
 // RUN: %{build} -o %t.out

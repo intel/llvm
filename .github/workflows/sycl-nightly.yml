@@ -92,6 +92,7 @@ jobs:
       toolchain_artifact_filename: sycl_linux_libcxx.tar.zst
 
   ubuntu2204_test:
+    name: ubuntu2204_test
     needs: [ubuntu2204_build]
     permissions:
       contents: write
@@ -175,7 +176,7 @@ jobs:
 
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
-      name: ${{ matrix.name }} with ${{ matrix.enable_new_offload_model == 'True' && '(New Offload Model)' || '(Old Offload Model)' }}
+      name: ${{ matrix.name }} with ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
       runner: ${{ matrix.runner }}
       image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
       target_devices: ${{ matrix.target_devices }}
@@ -219,6 +220,7 @@ jobs:
 
   e2e-win:
     needs: build-win
+    name: E2E win with ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
     # Continue if build was successful.
     if: |
       !cancelled()
@@ -242,7 +244,7 @@ jobs:
 
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
-      name: ${{ matrix.name }} with ${{ matrix.enable_new_offload_model == 'True' && '(New Offload Model)' || '(Old Offload Model)' }}
+      name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
       target_devices: ${{ matrix.target_devices }}
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
