@@ -22,8 +22,8 @@ namespace detail {
 /// Constructs a SYCL device instance using the provided
 /// UR device instance.
 device_impl::device_impl(ur_device_handle_t Device, platform_impl &Platform,
-                         device_impl::private_tag)
-    : MDevice(Device), MPlatform(Platform),
+                         device_impl::private_tag, size_t idx)
+    : MDevice(Device), MPlatform(Platform), IndexWithinPlatform(idx),
       // No need to set MRootDevice when MAlwaysRootDevice is true
       MRootDevice(Platform.MAlwaysRootDevice
                       ? nullptr
@@ -44,6 +44,10 @@ device_impl::~device_impl() {
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~device_impl", e);
   }
+}
+
+size_t device_impl::getIndexWithinPlatform() {
+  return IndexWithinPlatform;
 }
 
 bool device_impl::is_affinity_supported(

@@ -344,14 +344,7 @@ context device::ext_oneapi_get_default_context() {
 }
 
 size_t device::ext_oneapi_index_within_platform() const {
-  auto devices = get_platform().get_devices();
-  auto it = std::find(devices.begin(), devices.end(), *this);
-  if (it == devices.end())
-    throw sycl::exception(sycl::make_error_code(errc::invalid),
-                          "this device is not a root device");
-
-  size_t index = std::distance(devices.begin(), it);
-  return index;
+  return impl->getIndexWithinPlatform();
 }
 
 } // namespace _V1
