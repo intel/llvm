@@ -293,14 +293,6 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                     "UR_L0_LEAKS_DEBUG={}".format(test.config.ur_l0_leaks_debug)
                 )
 
-            # Add ZE_AFFINITY_MASK if it's set in config.environment (e.g., by sanitizer tests)
-            if "ZE_AFFINITY_MASK" in test.config.environment:
-                extra_env.append(
-                    "ZE_AFFINITY_MASK={}".format(
-                        test.config.environment["ZE_AFFINITY_MASK"]
-                    )
-                )
-
             if "cuda:gpu" in sycl_devices:
                 extra_env.append("SYCL_UR_CUDA_ENABLE_IMAGE_SUPPORT=1")
 
@@ -350,14 +342,8 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 elif "level_zero_v1" in full_dev_name:
                     expanded += " env UR_LOADER_USE_LEVEL_ZERO_V2=0"
 
-                # If ZE_AFFINITY_MASK is set in local config, it filters devices so we should use :0
-                device_selector = parsed_dev_name
-                if test.config.ze_affinity_mask is not None:
-                    backend, _ = parsed_dev_name.split(":", 1)
-                    device_selector = f"{backend}:0"
-
                 expanded += " ONEAPI_DEVICE_SELECTOR={} {}".format(
-                    device_selector, test.config.run_launcher
+                    parsed_dev_name, test.config.run_launcher
                 )
                 cmd = directive.command.replace("%{run}", expanded)
                 # Expand device-specific condtions (%if ... %{ ... %}).

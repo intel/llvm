@@ -96,7 +96,6 @@ possibly_dangerous_env_vars = [
     "LIBCLANG_NOTHREADS",
     "LIBCLANG_RESOURCE_USAGE",
     "LIBCLANG_CODE_COMPLETION_LOGGING",
-    "ZE_AFFINITY_MASK",
 ]
 
 # Names of the Release and Debug versions of the XPTIFW library
@@ -950,25 +949,6 @@ if not filtered_sycl_devices and not config.test_mode == "build-only":
     )
 
 config.sycl_devices = filtered_sycl_devices
-
-# Determine ZE_AFFINITY_MASK value for Level Zero devices.
-# Sanitizer tests (via their lit.local.cfg) can use this to set ZE_AFFINITY_MASK
-# environment variable when needed. The main config does NOT set it in the environment.
-config.ze_affinity_mask = None
-for sycl_device in remove_level_zero_suffix(config.sycl_devices):
-    be, dev = sycl_device.split(":")
-    if be == "level_zero" and dev.isdigit():
-        config.ze_affinity_mask = dev
-        break
-
-# If ze_affinity_mask wasn't determined from config.sycl_devices, check if
-# ONEAPI_DEVICE_SELECTOR is set in the environment and extract from there
-if config.ze_affinity_mask is None:
-    oneapi_selector = os.environ.get("ONEAPI_DEVICE_SELECTOR", "")
-    if oneapi_selector.startswith("level_zero:"):
-        dev = oneapi_selector.split(":", 1)[1]
-        if dev.isdigit():
-            config.ze_affinity_mask = dev
 
 for sycl_device in remove_level_zero_suffix(config.sycl_devices):
     be, dev = sycl_device.split(":")
