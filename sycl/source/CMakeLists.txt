@@ -356,7 +356,6 @@ set(SYCL_COMMON_SOURCES
 )
 
 set(SYCL_NON_PREVIEW_SOURCES "${SYCL_COMMON_SOURCES}"
-  "spirv_ops.cpp"
 )
 
 
