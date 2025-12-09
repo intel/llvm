@@ -731,7 +731,8 @@ template <bundle_state State>
 kernel_bundle<State> get_empty_interop_kernel_bundle(const context &Ctx) {
   detail::KernelBundleImplPtr Impl =
       detail::get_empty_interop_kernel_bundle_impl(Ctx, Ctx.get_devices());
-  return detail::createSyclObjFromImpl<sycl::kernel_bundle<State>>(Impl);
+  return detail::createSyclObjFromImpl<sycl::kernel_bundle<State>>(
+      std::move(Impl));
 }
 } // namespace detail
 
