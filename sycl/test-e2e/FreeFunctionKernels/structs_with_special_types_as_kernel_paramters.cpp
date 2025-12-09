@@ -12,8 +12,7 @@
 
 namespace ns {
 template <size_t Dims> struct StructWithAccessor {
-  sycl::accessor<int, Dims>
-      MAccessor;
+  sycl::accessor<int, Dims> MAccessor;
   int MValue;
 };
 
