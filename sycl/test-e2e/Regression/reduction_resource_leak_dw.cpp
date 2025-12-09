@@ -1,4 +1,4 @@
-// XFAIL: new-offload-model && windows
+// XFAIL: new-offload-model && windows && run-mode
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20797
 
 // REQUIRES: level_zero
