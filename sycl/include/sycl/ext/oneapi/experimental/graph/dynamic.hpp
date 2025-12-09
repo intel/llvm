@@ -45,6 +45,8 @@ class dynamic_command_group_impl;
 } // namespace detail
 
 class __SYCL_EXPORT dynamic_command_group {
+  friend sycl::detail::ImplUtils;
+
 public:
   dynamic_command_group(
       const command_graph<graph_state::modifiable> &Graph,
@@ -64,15 +66,13 @@ public:
   }
 
 private:
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  sycl::detail::getSyclObjImpl(const Obj &SyclObject);
-
   std::shared_ptr<detail::dynamic_command_group_impl> impl;
 };
 
 namespace detail {
 class __SYCL_EXPORT dynamic_parameter_base {
+  friend sycl::detail::ImplUtils;
+
 public:
   dynamic_parameter_base(size_t ParamSize, const void *Data);
   dynamic_parameter_base();
@@ -101,10 +101,6 @@ protected:
   void updateAccessor(const sycl::detail::AccessorBaseHost *Acc);
 
   std::shared_ptr<dynamic_parameter_impl> impl;
-
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  sycl::detail::getSyclObjImpl(const Obj &SyclObject);
 };
 
 class __SYCL_EXPORT dynamic_work_group_memory_base

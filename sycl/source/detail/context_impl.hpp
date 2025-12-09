@@ -130,27 +130,6 @@ public:
 
   devices_range getDevices() const { return MDevices; }
 
-  using CachedLibProgramsT =
-      std::map<std::pair<DeviceLibExt, ur_device_handle_t>,
-               Managed<ur_program_handle_t>>;
-
-  /// In contrast to user programs, which are compiled from user code, library
-  /// programs come from the SYCL runtime. They are identified by the
-  /// corresponding extension:
-  ///
-  ///  cl_intel_devicelib_assert -> #<ur program with assert functions>
-  ///  cl_intel_devicelib_complex -> #<ur program with complex functions>
-  ///  etc.
-  ///
-  /// See `doc/design/DeviceLibExtensions.rst' for
-  /// more details.
-  ///
-  /// \returns an instance of sycl::detail::Locked which wraps a map with device
-  /// library programs and the corresponding lock for synchronized access.
-  Locked<CachedLibProgramsT> acquireCachedLibPrograms() {
-    return {MCachedLibPrograms, MCachedLibProgramsMutex};
-  }
-
   KernelProgramCache &getKernelProgramCache() const {
     return MKernelProgramCache;
   }
@@ -266,8 +245,6 @@ private:
   ur_context_handle_t MContext;
   platform_impl &MPlatform;
   property_list MPropList;
-  CachedLibProgramsT MCachedLibPrograms;
-  std::mutex MCachedLibProgramsMutex;
   mutable KernelProgramCache MKernelProgramCache;
   mutable PropertySupport MSupportBufferLocationByDevices;
 

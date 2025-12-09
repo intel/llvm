@@ -21,12 +21,6 @@ namespace ext::oneapi {
 
 class bfloat16 {
 public:
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  using Bfloat16StorageT
-      __SYCL_DEPRECATED("bfloat16::Bfloat16StorageT is non-standard and has "
-                        "been deprecated.") = uint16_t;
-#endif
-
   bfloat16() = default;
   ~bfloat16() = default;
   constexpr bfloat16(const bfloat16 &) = default;

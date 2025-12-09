@@ -339,10 +339,6 @@ jobs:
         sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
         extra_lit_opts: --param sycl_build_targets="spir;nvidia;amd"
 
-    - name: Remove E2E tests before spirv-backend run
-      if: ${{ inputs.e2e_binaries_spirv_backend_artifact && !cancelled() && steps.build.conclusion == 'success' }}
-      run: rm -rf build-e2e
-
     - name: Build E2E tests with SPIR-V Backend
       if: ${{ inputs.e2e_binaries_spirv_backend_artifact && !cancelled() && steps.build.conclusion == 'success' }}
       uses: ./devops/actions/run-tests/e2e
@@ -353,10 +349,6 @@ jobs:
         binaries_artifact: ${{ inputs.e2e_binaries_spirv_backend_artifact }}
         sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
         extra_lit_opts: --param spirv-backend=True
-
-    - name: Remove E2E tests before preview-mode run
-      if: ${{ inputs.e2e_binaries_preview_artifact && !cancelled() && steps.build.conclusion == 'success' }}
-      run: rm -rf build-e2e
 
     - name: Build E2E tests in Preview Mode
       if: ${{ inputs.e2e_binaries_preview_artifact && !cancelled() && steps.build.conclusion == 'success' }}

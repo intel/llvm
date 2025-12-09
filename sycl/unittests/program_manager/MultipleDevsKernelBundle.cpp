@@ -28,52 +28,18 @@
 using namespace sycl;
 
 class MultipleDevsKernelBundleTestKernel;
-class DevLibTestKernel;
+class MultipleDevsCacheTestKernel;
 
 MOCK_INTEGRATION_HEADER(MultipleDevsKernelBundleTestKernel)
-MOCK_INTEGRATION_HEADER(DevLibTestKernel)
+MOCK_INTEGRATION_HEADER(MultipleDevsCacheTestKernel)
 
 using namespace sycl::unittest;
 
-inline void createDummyDeviceLib(sycl::detail::DeviceLibExt Ext) {
-  // Create a dummy fallback library correpsonding to the extension (if it
-  // doesn't exist).
-  std::string ExtName;
-  switch (Ext) {
-  case sycl::detail::DeviceLibExt::cl_intel_devicelib_math:
-    ExtName = "libsycl-fallback-cmath";
-    break;
-  case sycl::detail::DeviceLibExt::cl_intel_devicelib_assert:
-    ExtName = "libsycl-fallback-cassert";
-    break;
-  default:
-    FAIL() << "Unknown device library extension";
-  }
-
-  auto DSOPath = sycl::detail::OSUtil::getCurrentDSODir();
-  std::string LibPath = DSOPath + detail::OSUtil::DirSep + ExtName + ".spv";
-  std::ifstream LibFile(LibPath);
-  if (LibFile.good()) {
-    LibFile.close();
-  } else {
-    std::ofstream LibFile(LibPath);
-    LibFile << "0";
-    LibFile.close();
-  }
-}
-
-// Function to geneate mock device image which uses device libraries.
-inline sycl::unittest::MockDeviceImage generateImage(
-    std::initializer_list<std::string> KernelNames,
-    sycl::detail::ur::DeviceBinaryType BinType, const char *DeviceTargetSpec,
-    const std::vector<sycl::detail::DeviceLibExt> &DeviceLibExts = {}) {
-  // Create dummy device libraries if they don't exist.
-  for (auto Ext : DeviceLibExts) {
-    createDummyDeviceLib(Ext);
-  }
-
-  MockPropertySet PropSet(DeviceLibExts);
-
+inline sycl::unittest::MockDeviceImage
+generateImage(std::initializer_list<std::string> KernelNames,
+              sycl::detail::ur::DeviceBinaryType BinType,
+              const char *DeviceTargetSpec) {
+  MockPropertySet PropSet;
   std::string Combined;
   for (auto it = KernelNames.begin(); it != KernelNames.end(); ++it) {
     if (it != KernelNames.begin())
@@ -99,15 +65,12 @@ inline sycl::unittest::MockDeviceImage generateImage(
 static sycl::unittest::MockDeviceImage Imgs[3] = {
     sycl::unittest::generateDefaultImage(
         {"MultipleDevsKernelBundleTestKernel"}),
-    generateImage({"DevLibTestKernel"}, SYCL_DEVICE_BINARY_TYPE_SPIRV,
-                  __SYCL_DEVICE_BINARY_TARGET_SPIRV64,
-                  {sycl::detail::DeviceLibExt::cl_intel_devicelib_math,
-                   sycl::detail::DeviceLibExt::cl_intel_devicelib_assert}),
-    generateImage({"DevLibTestKernel"}, SYCL_DEVICE_BINARY_TYPE_NATIVE,
-                  __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64,
-                  {sycl::detail::DeviceLibExt::cl_intel_devicelib_math,
-                   sycl::detail::DeviceLibExt::cl_intel_devicelib_assert})};
-
+    generateImage({"MultipleDevsCacheTestKernel"},
+                  SYCL_DEVICE_BINARY_TYPE_SPIRV,
+                  __SYCL_DEVICE_BINARY_TARGET_SPIRV64),
+    generateImage({"MultipleDevsCacheTestKernel"},
+                  SYCL_DEVICE_BINARY_TYPE_NATIVE,
+                  __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64)};
 static sycl::unittest::MockDeviceImageArray<3> ImgArray{Imgs};
 
 struct MockDeviceData {
@@ -325,13 +288,8 @@ TEST_P(MultipleDevsKernelBundleTest, BuildTwiceWithOverlappingDevices) {
 }
 
 // Test to check several use cases for multi-device kernel bundles.
-// Test covers AOT and JIT cases. We mock usage of fallback device libaries to
-// excersise additional logic in the program manager. Checks are used to test
-// that program and device libraries caching works as expected.
-TEST_P(MultipleDevsKernelBundleTest, DeviceLibs) {
-  // Unset the SYCL_DEVICELIB_NO_FALLBACK so that fallback libraries are used.
-  ScopedEnvVar var("SYCL_DEVICELIB_NO_FALLBACK", nullptr,
-                   SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::reset);
+// Test covers AOT and JIT cases.
+TEST_P(MultipleDevsKernelBundleTest, MultipleDevsCache) {
   std::vector<sycl::device> Devices =
       Plt.get_devices(GetParam() == SYCL_DEVICE_BINARY_TYPE_NATIVE
                           ? sycl::info::device_type::cpu
@@ -360,48 +318,43 @@ TEST_P(MultipleDevsKernelBundleTest, DeviceLibs) {
 
     // Get bundle in executable state for multiple devices in a context, enqueue
     // a kernel to each device.
-    sycl::kernel_id KernelID = sycl::get_kernel_id<DevLibTestKernel>();
+    sycl::kernel_id KernelID =
+        sycl::get_kernel_id<MultipleDevsCacheTestKernel>();
     sycl::kernel_bundle KernelBundleExecutable =
         sycl::get_kernel_bundle<sycl::bundle_state::executable>(
             Context, {Dev1, Dev2, Dev3}, {KernelID});
     for (int i = 0; i < 2; i++) {
       Queues[i].submit([=](sycl::handler &cgh) {
         cgh.use_kernel_bundle(KernelBundleExecutable);
-        cgh.single_task<DevLibTestKernel>([=]() {});
+        cgh.single_task<MultipleDevsCacheTestKernel>([=]() {});
       });
       Queues[i].wait();
     }
 
     if (GetParam() == SYCL_DEVICE_BINARY_TYPE_SPIRV) {
-      // Verify the number of urProgramCreateWithIL calls: we expect 2 calls for
-      // fallback libraries (assert + math) and 1 call for the main program.
-      EXPECT_EQ(ProgramCreateWithILCounter, 3)
-          << "Expect 3 urProgramCreateWithIL calls";
+      // Verify the number of urProgramCreateWithIL calls: we expect 1 call
+      // for main program
+      EXPECT_EQ(ProgramCreateWithILCounter, 1)
+          << "Expect 1 urProgramCreateWithIL calls";
 
-      // Verify the number of urProgramBuildExp calls: none expected as we
-      // compile and link in this case.
-      EXPECT_EQ(ProgramBuildExpCounter, 0)
-          << "Expect 0 urProgramBuildExp calls";
+      // Verify the number of urProgramBuildExp calls: we expect 1 for main
+      EXPECT_EQ(ProgramBuildExpCounter, 1)
+          << "Expect 1 urProgramBuildExp calls";
 
-      // Verify the number of urProgramCompileExp calls: we expect 2 calls to
-      // compile fallback libraries and 1 call to compile the main program.
-      EXPECT_EQ(ProgramCompileExpCounter, 3)
-          << "Expect 3 urProgramCompileExp calls";
-
-      // Verify the number of urProgramLinkExp calls: we expect 1 call which
-      // links the main program and fallback libraries.
-      EXPECT_EQ(ProgramLinkExpCounter, 1) << "Expect 1 urProgramLinkExp calls";
+      // Verify the number of urProgramLinkExp calls: none expected.
+      EXPECT_EQ(ProgramLinkExpCounter, 0) << "Expect 0 urProgramLinkExp calls";
     }
+
     if (GetParam() == SYCL_DEVICE_BINARY_TYPE_NATIVE) {
       // In case of AOT compilation, we expect 1 call to
       // urProgramCreateWithBinary.
       EXPECT_EQ(ProgramCreateWithBinaryCounter, 1)
-          << "Expect 3 urProgramCreateWithIL calls";
+          << "Expect 1 urProgramCreateWithIL calls";
 
       // And a single call to urProgramBuildExp. In this case libraries are
       // linked beforehand, so we don't compile/link them online.
       EXPECT_EQ(ProgramBuildExpCounter, 1)
-          << "Expect 0 urProgramBuildExp calls";
+          << "Expect 1 urProgramBuildExp calls";
     }
   }
 
@@ -409,8 +362,7 @@ TEST_P(MultipleDevsKernelBundleTest, DeviceLibs) {
 
     // Test case 2
     // Get bundles in executable state: for pairs of devices excluding dev4 and
-    // for the new set of devices which includes the dev4. This checks caching
-    // of the programs and device libraries.
+    // for the new set of devices which includes the dev4.
 
     // Reset counters
     ProgramCreateWithILCounter = 0;
@@ -418,7 +370,8 @@ TEST_P(MultipleDevsKernelBundleTest, DeviceLibs) {
     ProgramLinkExpCounter = 0;
     ProgramCompileExpCounter = 0;
     ProgramCreateWithBinaryCounter = 0;
-    sycl::kernel_id KernelID = sycl::get_kernel_id<DevLibTestKernel>();
+    sycl::kernel_id KernelID =
+        sycl::get_kernel_id<MultipleDevsCacheTestKernel>();
     // Program associated with {dev1, dev2, dev3} is supposed to be cached from
     // the first test case, we don't expect any additional program creation and
     // compilation calls for the following bundles because they are all created
@@ -437,24 +390,24 @@ TEST_P(MultipleDevsKernelBundleTest, DeviceLibs) {
         sycl::get_kernel_bundle<sycl::bundle_state::executable>(Context, {Dev3},
                                                                 {KernelID});
     EXPECT_EQ(ProgramCreateWithILCounter, 0);
+    EXPECT_EQ(ProgramBuildExpCounter, 0);
     EXPECT_EQ(ProgramCompileExpCounter, 0);
     EXPECT_EQ(ProgramLinkExpCounter, 0);
 
     // Next we create a bundle with a different set of devices which includes
     // dev4, so we expect new UR program creation. Also main program will be
-    // compiled for new set of devices. Each of device libraries (assert and
-    // math) will be additionally compiled for dev4, but no program creation is
-    // expected for device libraries as program handle already exists in the
-    // per-context cache.
+    // built for new set of devices.
     sycl::kernel_bundle KernelBundleExecutableNewSet =
         sycl::get_kernel_bundle<sycl::bundle_state::executable>(
             Context, {Dev2, Dev3, Dev4}, {KernelID});
     if (GetParam() == SYCL_DEVICE_BINARY_TYPE_SPIRV) {
       EXPECT_EQ(ProgramCreateWithILCounter, 1)
           << "Expect 1 urProgramCreateWithIL calls";
-      EXPECT_EQ(ProgramCompileExpCounter, 3)
-          << "Expect 3 urProgramCompileExp calls";
-      EXPECT_EQ(ProgramLinkExpCounter, 1) << "Expect 1 urProgramLinkExp calls";
+      EXPECT_EQ(ProgramBuildExpCounter, 1)
+          << "Expect 1 urProgramBuildExp calls";
+      EXPECT_EQ(ProgramCompileExpCounter, 0)
+          << "Expect 0 urProgramCompileExp calls";
+      EXPECT_EQ(ProgramLinkExpCounter, 0) << "Expect 0 urProgramLinkExp calls";
     }
 
     if (GetParam() == SYCL_DEVICE_BINARY_TYPE_NATIVE) {
@@ -467,20 +420,17 @@ TEST_P(MultipleDevsKernelBundleTest, DeviceLibs) {
     for (int i = 0; i < 3; i++) {
       Queues[0].submit([=](sycl::handler &cgh) {
         cgh.use_kernel_bundle(KernelBundleExecutableSubset1);
-        cgh.single_task<DevLibTestKernel>([=]() {});
+        cgh.single_task<MultipleDevsCacheTestKernel>([=]() {});
       });
       Queues[0].wait();
 
       Queues[2].submit([=](sycl::handler &cgh) {
         cgh.use_kernel_bundle(KernelBundleExecutableNewSet);
-        cgh.single_task<DevLibTestKernel>([=]() {});
+        cgh.single_task<MultipleDevsCacheTestKernel>([=]() {});
       });
       Queues[2].wait();
     }
   }
-
-  // Reset the SYCL_DEVICELIB_NO_FALLBACK to its original value.
-  sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICELIB_NO_FALLBACK>::reset();
 }
 
 // The following helpers and test verify persistent cache usage when we have

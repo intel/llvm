@@ -1997,6 +1997,15 @@ ur_result_t urPrintEnqueueNativeCommandExpParams(
 }
 
 ur_result_t
+urPrintEnqueueGraphExpParams(const struct ur_enqueue_graph_exp_params_t *params,
+                             char *buffer, const size_t buff_size,
+                             size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t
 urPrintEventGetInfoParams(const struct ur_event_get_info_params_t *params,
                           char *buffer, const size_t buff_size,
                           size_t *out_size) {
@@ -2789,14 +2798,6 @@ ur_result_t urPrintQueueBeginCaptureIntoGraphExpParams(
 
 ur_result_t urPrintQueueEndGraphCaptureExpParams(
     const struct ur_queue_end_graph_capture_exp_params_t *params, char *buffer,
-    const size_t buff_size, size_t *out_size) {
-  std::stringstream ss;
-  ss << params;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t urPrintQueueAppendGraphExpParams(
-    const struct ur_queue_append_graph_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;

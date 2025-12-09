@@ -6085,29 +6085,34 @@ __urdlllocal ur_result_t UR_APICALL urGraphInstantiateGraphExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urQueueAppendGraphExp
-__urdlllocal ur_result_t UR_APICALL urQueueAppendGraphExp(
-    /// [in] Handle of the queue to append the graph to.
+/// @brief Intercept function for urEnqueueGraphExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueGraphExp(
+    /// [in] Handle of the queue to which the graph will be enqueued.
     ur_queue_handle_t hQueue,
-    /// [in] Handle of the executable graph to append.
+    /// [in] Handle of the executable graph to be enqueued.
     ur_exp_executable_graph_handle_t hGraph,
-    /// [in][optional] Event to be signaled on completion.
-    ur_event_handle_t hSignalEvent,
     /// [in][optional] Number of events to wait on before executing.
-    uint32_t numWaitEvents,
-    /// [in][optional][range(0, numWaitEvents)] Handle of the events to wait
-    /// on before launching.
-    ur_event_handle_t *phWaitEvents) {
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] Pointer to a list of
+    /// events that must be complete before this command can be executed.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] Event object that identifies this particular
+    /// command instance.
+    /// If phEventWaitList and phEvent are not nullptr, phEvent must not refer
+    /// to an element of the phEventWaitList array.
+    ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
 
-  auto *pfnAppendGraphExp = dditable->QueueExp.pfnAppendGraphExp;
-  if (nullptr == pfnAppendGraphExp)
+  auto *pfnGraphExp = dditable->EnqueueExp.pfnGraphExp;
+  if (nullptr == pfnGraphExp)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnAppendGraphExp(hQueue, hGraph, hSignalEvent, numWaitEvents,
-                           phWaitEvents);
+  return pfnGraphExp(hQueue, hGraph, numEventsInWaitList, phEventWaitList,
+                     phEvent);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6149,7 +6154,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
     /// [in] Native queue to query.
     ur_queue_handle_t hQueue,
     /// [out] Pointer to a boolean where the result will be stored.
-    bool *hResult) {
+    bool *pResult) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
 
@@ -6159,7 +6164,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnIsGraphCaptureEnabledExp(hQueue, hResult);
+  return pfnIsGraphCaptureEnabledExp(hQueue, pResult);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6168,7 +6173,7 @@ __urdlllocal ur_result_t UR_APICALL urGraphIsEmptyExp(
     /// [in] Handle of the graph to query.
     ur_exp_graph_handle_t hGraph,
     /// [out] Pointer to a boolean where the result will be stored.
-    bool *hResult) {
+    bool *pResult) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hGraph);
 
@@ -6177,7 +6182,7 @@ __urdlllocal ur_result_t UR_APICALL urGraphIsEmptyExp(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnIsEmptyExp(hGraph, hResult);
+  return pfnIsEmptyExp(hGraph, pResult);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6641,6 +6646,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
       pDdiTable->pfnTimestampRecordingExp =
           ur_loader::urEnqueueTimestampRecordingExp;
       pDdiTable->pfnNativeCommandExp = ur_loader::urEnqueueNativeCommandExp;
+      pDdiTable->pfnGraphExp = ur_loader::urEnqueueGraphExp;
     } else {
       // return pointers directly to platform's DDIs
       *pDdiTable =
@@ -7362,7 +7368,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueExpProcAddrTable(
       pDdiTable->pfnBeginCaptureIntoGraphExp =
           ur_loader::urQueueBeginCaptureIntoGraphExp;
       pDdiTable->pfnEndGraphCaptureExp = ur_loader::urQueueEndGraphCaptureExp;
-      pDdiTable->pfnAppendGraphExp = ur_loader::urQueueAppendGraphExp;
       pDdiTable->pfnIsGraphCaptureEnabledExp =
           ur_loader::urQueueIsGraphCaptureEnabledExp;
     } else {
