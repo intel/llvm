@@ -134,6 +134,10 @@ on:
         type: string
         default: 'false'
         required: False
+      benchmark_gdb_mode:
+        type: string
+        required: False
+        default: 'false'
 
       in_workflow_call_mode:
         description: |
@@ -379,3 +383,4 @@ jobs:
         exit_on_failure: ${{ inputs.benchmark_exit_on_failure }}
         build_ref: ${{ inputs.repo_ref }}
         runner: ${{ inputs.runner }}
+        gdb_mode: ${{ inputs.benchmark_gdb_mode }}
