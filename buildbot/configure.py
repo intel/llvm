@@ -21,8 +21,8 @@ def do_configure(args, passthrough_args):
     if not os.path.isdir(abs_obj_dir):
         os.makedirs(abs_obj_dir)
 
-    llvm_external_projects = "sycl;llvm-spirv;opencl;xpti;xptifw;compiler-rt"
-
+    llvm_external_projects = "sycl;llvm-spirv;opencl;xpti;xptifw"
+    llvm_enable_runtimes = "compiler-rt"
     # libdevice build requires a working SYCL toolchain, which is not the case
     # with macOS target right now.
     if sys.platform != "darwin":
@@ -195,6 +195,7 @@ def do_configure(args, passthrough_args):
         "-DLLVM_EXTERNAL_LIBDEVICE_SOURCE_DIR={}".format(libdevice_dir),
         "-DLLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR={}".format(jit_dir),
         "-DLLVM_ENABLE_PROJECTS={}".format(llvm_enable_projects),
+        "-DLLVM_ENABLE_RUNTIMES={}".format(llvm_enable_runtimes),
         "-DSYCL_BUILD_PI_HIP_PLATFORM={}".format(sycl_build_pi_hip_platform),
         "-DLLVM_BUILD_TOOLS=ON",
         "-DLLVM_ENABLE_ZSTD={}".format(llvm_enable_zstd),
