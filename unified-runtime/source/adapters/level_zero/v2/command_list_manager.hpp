@@ -45,6 +45,24 @@ struct wait_list_view {
   }
 };
 
+// When recording submitted kernels, we only care about unique kernels. It's not
+// important whether the kernel has been submitted to the kernel just once or
+// dozens of times. The number of unique kernels should be fairly low.
+// So, in order to reduce the number of entries in the submitted kernels vector,
+// we do a lookback at 4 previous entries (to try to keep within a cacheline),
+// and don't record a new kernel if it exists.
+static const size_t SUBMITTED_KERNELS_DUPE_CHECK_DEPTH = 4;
+
+// In scenarios where queue synchronization happens rarely, the submitted kernel
+// vector can grow unbounded. In order to avoid that, we go through the entire
+// vector, eliminating any duplicates.
+static const size_t SUBMITTED_KERNELS_DEFAULT_THRESHOLD = 128;
+
+// If we reach this many unique kernels, the application is probably doing
+// something incorrectly. The adapter will still function, just that compaction
+// will happen more frequently.
+static const size_t SUBMITTED_KERNELS_MAX_THRESHOLD = 65536;
+
 struct ur_command_list_manager {
   ur_command_list_manager(ur_context_handle_t context,
                           ur_device_handle_t device,
@@ -254,6 +272,7 @@ private:
       ur_command_t callerCommand);
 
   void recordSubmittedKernel(ur_kernel_handle_t hKernel);
+  void compactSubmittedKernels();
 
   ze_event_handle_t getSignalEvent(ur_event_handle_t hUserEvent,
                                    ur_command_t commandType);
@@ -299,6 +318,8 @@ private:
   v2::raii::ur_device_handle_t hDevice;
 
   std::vector<ur_kernel_handle_t> submittedKernels;
+  std::size_t compactionThreshold = SUBMITTED_KERNELS_DEFAULT_THRESHOLD;
+
   v2::raii::command_list_unique_handle zeCommandList;
   std::vector<ze_event_handle_t> waitList;
 };
