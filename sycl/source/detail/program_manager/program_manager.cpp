@@ -1723,10 +1723,8 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
     // ... and create a unique kernel ID for the entry
     auto It = m_KernelName2KernelIDs.find(name);
     if (It == m_KernelName2KernelIDs.end()) {
-      std::shared_ptr<detail::kernel_id_impl> KernelIDImpl =
-          std::make_shared<detail::kernel_id_impl>(name);
-      sycl::kernel_id KernelID =
-          detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl);
+      sycl::kernel_id KernelID = detail::createSyclObjFromImpl<sycl::kernel_id>(
+          std::make_shared<detail::kernel_id_impl>(name));
 
       It = m_KernelName2KernelIDs.emplace_hint(It, name, KernelID);
     }

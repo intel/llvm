@@ -81,7 +81,7 @@ prepareSYCLEventAssociatedWithQueue(detail::queue_impl &QueueImpl) {
   auto EventImpl = detail::event_impl::create_device_event(QueueImpl);
   EventImpl->setContextImpl(QueueImpl.getContextImpl());
   EventImpl->setStateIncomplete();
-  return detail::createSyclObjFromImpl<event>(EventImpl);
+  return detail::createSyclObjFromImpl<event>(std::move(EventImpl));
 }
 
 const std::vector<event> &
@@ -103,7 +103,8 @@ queue_impl::getExtendDependencyList(const std::vector<event> &DepEvents,
   if (ExternalEvent)
     MutableVec.push_back(*ExternalEvent);
   if (ExtraEvent)
-    MutableVec.push_back(detail::createSyclObjFromImpl<event>(ExtraEvent));
+    MutableVec.push_back(
+        detail::createSyclObjFromImpl<event>(std::move(ExtraEvent)));
   return MutableVec;
 }
 
