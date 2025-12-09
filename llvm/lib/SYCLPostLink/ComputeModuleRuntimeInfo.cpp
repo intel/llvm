@@ -16,7 +16,6 @@
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/HostPipes.h"
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
-#include "llvm/SYCLLowerIR/SYCLDeviceLibReqMask.h"
 #include "llvm/SYCLLowerIR/SYCLKernelParamOptInfo.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
@@ -123,11 +122,6 @@ PropSetRegTy computeModuleProperties(const Module &M,
                                      bool AllowDeviceImageDependencies) {
 
   PropSetRegTy PropSet;
-  {
-    uint32_t MRMask = getSYCLDeviceLibReqMask(M);
-    std::map<StringRef, uint32_t> RMEntry = {{"DeviceLibReqMask", MRMask}};
-    PropSet.add(PropSetRegTy::SYCL_DEVICELIB_REQ_MASK, RMEntry);
-  }
   {
     PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS,
                 computeDeviceRequirements(M, EntryPoints).asMap());
