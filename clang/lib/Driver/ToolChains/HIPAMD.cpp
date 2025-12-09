@@ -279,9 +279,15 @@ void HIPAMDToolChain::addClangTargetOptions(
   // Default to "hidden" visibility, as object level linking will not be
   // supported for the foreseeable future.
   if (!DriverArgs.hasArg(options::OPT_fvisibility_EQ,
+<<<<<<< HEAD
                          options::OPT_fvisibility_ms_compat)) {
     if (DeviceOffloadingKind != Action::OFK_SYCL)
       CC1Args.append({"-fvisibility=hidden"});
+=======
+                         options::OPT_fvisibility_ms_compat) &&
+      !getDriver().IsFlangMode()) {
+    CC1Args.append({"-fvisibility=hidden"});
+>>>>>>> 7675fc79c802cf7f6a95660f6ee59bf6cb62102f
     CC1Args.push_back("-fapply-global-visibility-to-externs");
   }
 
