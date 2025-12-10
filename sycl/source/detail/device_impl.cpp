@@ -23,13 +23,13 @@ namespace detail {
 /// UR device instance.
 device_impl::device_impl(ur_device_handle_t Device, platform_impl &Platform,
                          device_impl::private_tag, size_t idx)
-    : MDevice(Device), MPlatform(Platform), IndexWithinPlatform(idx),
+    : MDevice(Device), MPlatform(Platform),
       // No need to set MRootDevice when MAlwaysRootDevice is true
       MRootDevice(Platform.MAlwaysRootDevice
                       ? nullptr
                       : get_info_impl<UR_DEVICE_INFO_PARENT_DEVICE>()),
       // TODO catch an exception and put it to list of asynchronous exceptions:
-      MCache{*this} {
+      MCache{*this}, IndexWithinPlatform(idx) {
   // Interoperability Constructor already calls DeviceRetain in
   // urDeviceCreateWithNativeHandle.
   getAdapter().call<UrApiKind::urDeviceRetain>(MDevice);
