@@ -21,7 +21,3 @@
 
 // https://github.com/intel/llvm/pull/16178
 // CHECK:_ZN4sycl3_V13ext5intel12experimental9pipe_base13get_pipe_nameB5cxx11EPKv
-//
-// https://github.com/intel/llvm/pull/16176
-// CHECK:_ZN4sycl3_V16opencl13has_extensionERKNS0_6deviceERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE
-// CHECK:_ZN4sycl3_V16opencl13has_extensionERKNS0_8platformERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE

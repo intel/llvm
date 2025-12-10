@@ -317,7 +317,6 @@ const static char ConstantSampler[] = "ConstantSampler";
 const static char PipeStorage[] = "PipeStorage";
 const static char ConstantPipeStorage[] = "ConstantPipeStorage";
 const static char VmeImageINTEL[] = "VmeImageINTEL";
-const static char JointMatrixINTEL[] = "JointMatrixINTEL";
 const static char CooperativeMatrixKHR[] = "CooperativeMatrixKHR";
 const static char BufferSurfaceINTEL[] = "BufferSurfaceINTEL";
 } // namespace kSPIRVTypeName
@@ -972,7 +971,6 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVOpaqueType>::init() {
   _SPIRV_OP(BufferSurfaceINTEL)
   _SPIRV_OP(CooperativeMatrixKHR)
 #undef _SPIRV_OP
-  add("JointMatrixINTEL", internal::OpTypeJointMatrixINTEL);
   add("TaskSequenceINTEL", internal::OpTypeTaskSequenceINTEL);
 }
 
@@ -1002,7 +1000,7 @@ CallInst *setAttrByCalledFunc(CallInst *Call);
 bool isSPIRVBuiltinVariable(GlobalVariable *GV, SPIRVBuiltinVariableKind *Kind);
 // Transform builtin variable from GlobalVariable to builtin call.
 // e.g.
-// - GlobalInvolcationId[x] -> _Z33__spirv_BuiltInGlobalInvocationIdi(x)
+// - GlobalInvocationId[x] -> _Z33__spirv_BuiltInGlobalInvocationIdi(x)
 // - WorkDim -> _Z22__spirv_BuiltInWorkDimv()
 bool lowerBuiltinVariableToCall(GlobalVariable *GV,
                                 SPIRVBuiltinVariableKind Kind);
@@ -1049,6 +1047,7 @@ enum FPEncodingWrap {
   BF16 = FPEncoding::FPEncodingBFloat16KHR,
   E4M3 = FPEncoding::FPEncodingFloat8E4M3EXT,
   E5M2 = FPEncoding::FPEncodingFloat8E5M2EXT,
+  E2M1 = internal::FPEncodingFloat4E2M1INTEL,
 };
 
 // Structure describing non-trivial conversions (FP8 and int4)
@@ -1077,36 +1076,117 @@ typedef SPIRVMap<llvm::StringRef, FPConversionDesc> FPConvertToEncodingMap;
 
 // clang-format off
 template <> inline void FPConvertToEncodingMap::init() {
-   // 8-bit conversions
-   add("ConvertE4M3ToFP16EXT",
-       {FPEncodingWrap::E4M3,       FPEncodingWrap::IEEE754,    OpFConvert});
-   add("ConvertE5M2ToFP16EXT",
-       {FPEncodingWrap::E5M2,       FPEncodingWrap::IEEE754,    OpFConvert});
-   add("ConvertE4M3ToBF16EXT",
-       {FPEncodingWrap::E4M3,       FPEncodingWrap::BF16,       OpFConvert});
-   add("ConvertE5M2ToBF16EXT",
-       {FPEncodingWrap::E5M2,       FPEncodingWrap::BF16,       OpFConvert});
-   add("ConvertFP16ToE4M3EXT",
-       {FPEncodingWrap::IEEE754,    FPEncodingWrap::E4M3,       OpFConvert});
-   add("ConvertFP16ToE5M2EXT",
-       {FPEncodingWrap::IEEE754,    FPEncodingWrap::E5M2,       OpFConvert});
-   add("ConvertBF16ToE4M3EXT",
-       {FPEncodingWrap::BF16,       FPEncodingWrap::E4M3,       OpFConvert});
-   add("ConvertBF16ToE5M2EXT",
-       {FPEncodingWrap::BF16,       FPEncodingWrap::E5M2,       OpFConvert});
+  // 4-bit conversions
+  add("ConvertE2M1ToE4M3INTEL",
+      {FPEncodingWrap::E2M1,      FPEncodingWrap::E4M3,         OpFConvert});
+  add("ConvertE2M1ToE5M2INTEL",
+      {FPEncodingWrap::E2M1,      FPEncodingWrap::E5M2,         OpFConvert});
+  add("ConvertE2M1ToFP16INTEL",
+      {FPEncodingWrap::E2M1,      FPEncodingWrap::IEEE754,      OpFConvert});
+  add("ConvertE2M1ToBF16INTEL",
+      {FPEncodingWrap::E2M1,      FPEncodingWrap::BF16,         OpFConvert});
 
-   add("ConvertInt4ToE4M3INTEL",
-       {FPEncodingWrap::Integer,    FPEncodingWrap::E4M3,       OpConvertSToF});
-   add("ConvertInt4ToE5M2INTEL",
-       {FPEncodingWrap::Integer,    FPEncodingWrap::E5M2,       OpConvertSToF});
-   add("ConvertInt4ToFP16INTEL",
-       {FPEncodingWrap::Integer,    FPEncodingWrap::IEEE754,    OpConvertSToF});
-   add("ConvertInt4ToBF16INTEL",
-       {FPEncodingWrap::Integer,    FPEncodingWrap::BF16,       OpConvertSToF});
-   add("ConvertFP16ToInt4INTEL",
-       {FPEncodingWrap::IEEE754,    FPEncodingWrap::Integer,    OpConvertFToS});
-   add("ConvertBF16ToInt4INTEL",
-       {FPEncodingWrap::BF16,       FPEncodingWrap::Integer,    OpConvertFToS});
+  add("ConvertInt4ToE4M3INTEL",
+      {FPEncodingWrap::Integer,      FPEncodingWrap::E4M3,      OpConvertSToF});
+  add("ConvertInt4ToE5M2INTEL",
+      {FPEncodingWrap::Integer,      FPEncodingWrap::E5M2,      OpConvertSToF});
+  add("ConvertInt4ToFP16INTEL",
+      {FPEncodingWrap::Integer,      FPEncodingWrap::IEEE754,   OpConvertSToF});
+  add("ConvertInt4ToBF16INTEL",
+      {FPEncodingWrap::Integer,      FPEncodingWrap::BF16,      OpConvertSToF});
+  add("ConvertInt4ToInt8INTEL",
+      {FPEncodingWrap::Integer,      FPEncodingWrap::Integer,   OpSConvert});
+
+  add("ConvertFP16ToE2M1INTEL",
+      {FPEncodingWrap::IEEE754,      FPEncodingWrap::E2M1,      OpFConvert});
+  add("ConvertBF16ToE2M1INTEL",
+      {FPEncodingWrap::BF16,         FPEncodingWrap::E2M1,      OpFConvert});
+  add("ConvertFP16ToInt4INTEL",
+      {FPEncodingWrap::IEEE754,      FPEncodingWrap::Integer,   OpConvertFToS});
+  add("ConvertBF16ToInt4INTEL",
+      {FPEncodingWrap::BF16,         FPEncodingWrap::Integer,   OpConvertFToS});
+
+  // 8-bit conversions
+  add("ConvertE4M3ToFP16EXT",
+      {FPEncodingWrap::E4M3,         FPEncodingWrap::IEEE754,      OpFConvert});
+  add("ConvertE5M2ToFP16EXT",
+      {FPEncodingWrap::E5M2,         FPEncodingWrap::IEEE754,      OpFConvert});
+  add("ConvertE4M3ToBF16EXT",
+      {FPEncodingWrap::E4M3,         FPEncodingWrap::BF16,         OpFConvert});
+  add("ConvertE5M2ToBF16EXT",
+      {FPEncodingWrap::E5M2,         FPEncodingWrap::BF16,         OpFConvert});
+  add("ConvertFP16ToE4M3EXT",
+      {FPEncodingWrap::IEEE754,      FPEncodingWrap::E4M3,         OpFConvert});
+  add("ConvertFP16ToE5M2EXT",
+      {FPEncodingWrap::IEEE754,      FPEncodingWrap::E5M2,         OpFConvert});
+  add("ConvertBF16ToE4M3EXT",
+      {FPEncodingWrap::BF16,         FPEncodingWrap::E4M3,         OpFConvert});
+  add("ConvertBF16ToE5M2EXT",
+      {FPEncodingWrap::BF16,         FPEncodingWrap::E5M2,         OpFConvert});
+
+  // SPV_INTEL_fp_conversions
+  add("ClampConvertFP16ToE2M1INTEL",
+      {FPEncodingWrap::IEEE754,      FPEncodingWrap::E2M1,
+       internal::OpClampConvertFToFINTEL});
+  add("ClampConvertBF16ToE2M1INTEL",
+      {FPEncodingWrap::BF16,         FPEncodingWrap::E2M1,
+       internal::OpClampConvertFToFINTEL});
+  add("ClampConvertFP16ToE4M3INTEL",
+      {FPEncodingWrap::IEEE754,      FPEncodingWrap::E4M3,
+       internal::OpClampConvertFToFINTEL});
+  add("ClampConvertBF16ToE4M3INTEL",
+      {FPEncodingWrap::BF16,         FPEncodingWrap::E4M3,
+       internal::OpClampConvertFToFINTEL});
+  add("ClampConvertFP16ToE5M2INTEL",
+      {FPEncodingWrap::IEEE754,      FPEncodingWrap::E5M2,
+       internal::OpClampConvertFToFINTEL});
+  add("ClampConvertBF16ToE5M2INTEL",
+      {FPEncodingWrap::BF16,         FPEncodingWrap::E5M2,
+       internal::OpClampConvertFToFINTEL});
+  add("ClampConvertFP16ToInt4INTEL",
+      {FPEncodingWrap::IEEE754,      FPEncodingWrap::Integer,
+       internal::OpClampConvertFToSINTEL});
+  add("ClampConvertBF16ToInt4INTEL",
+      {FPEncodingWrap::BF16,         FPEncodingWrap::Integer,
+       internal::OpClampConvertFToSINTEL});
+
+  add("StochasticRoundFP16ToE5M2INTEL",
+      {FPEncodingWrap::IEEE754,      FPEncodingWrap::E5M2,
+       internal::OpStochasticRoundFToFINTEL});
+  add("StochasticRoundFP16ToE4M3INTEL",
+      {FPEncodingWrap::IEEE754,      FPEncodingWrap::E4M3,
+       internal::OpStochasticRoundFToFINTEL});
+  add("StochasticRoundBF16ToE5M2INTEL",
+      {FPEncodingWrap::BF16,         FPEncodingWrap::E5M2,
+       internal::OpStochasticRoundFToFINTEL});
+  add("StochasticRoundBF16ToE4M3INTEL",
+      {FPEncodingWrap::BF16,         FPEncodingWrap::E4M3,
+       internal::OpStochasticRoundFToFINTEL});
+  add("StochasticRoundFP16ToE2M1INTEL",
+      {FPEncodingWrap::IEEE754,      FPEncodingWrap::E2M1,
+       internal::OpStochasticRoundFToFINTEL});
+  add("StochasticRoundBF16ToE2M1INTEL",
+      {FPEncodingWrap::BF16,         FPEncodingWrap::E2M1,
+       internal::OpStochasticRoundFToFINTEL});
+  add("ClampStochasticRoundFP16ToInt4INTEL",
+      {FPEncodingWrap::IEEE754,      FPEncodingWrap::Integer,
+       internal::OpClampStochasticRoundFToSINTEL});
+  add("ClampStochasticRoundBF16ToInt4INTEL",
+      {FPEncodingWrap::BF16,         FPEncodingWrap::Integer,
+       internal::OpClampStochasticRoundFToSINTEL});
+
+  add("ClampStochasticRoundFP16ToE5M2INTEL",
+      {FPEncodingWrap::IEEE754,      FPEncodingWrap::E5M2,
+       internal::OpClampStochasticRoundFToFINTEL});
+  add("ClampStochasticRoundFP16ToE4M3INTEL",
+      {FPEncodingWrap::IEEE754,      FPEncodingWrap::E4M3,
+       internal::OpClampStochasticRoundFToFINTEL});
+  add("ClampStochasticRoundBF16ToE5M2INTEL",
+      {FPEncodingWrap::BF16,         FPEncodingWrap::E5M2,
+       internal::OpClampStochasticRoundFToFINTEL});
+  add("ClampStochasticRoundBF16ToE4M3INTEL",
+      {FPEncodingWrap::BF16,         FPEncodingWrap::E4M3,
+       internal::OpClampStochasticRoundFToFINTEL});
 }
 
 // clang-format on

@@ -133,7 +133,6 @@ context_impl::~context_impl() {
          detail::ProgramManager::getInstance()
              .getProfileCounterDeviceGlobalEntries(this))
       DGEntry->cleanupProfileCounter(this);
-    MCachedLibPrograms.clear();
     // TODO catch an exception and put it to list of asynchronous exceptions
     getAdapter().call_nocheck<UrApiKind::urContextRelease>(MContext);
   } catch (std::exception &e) {
