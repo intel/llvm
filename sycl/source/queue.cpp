@@ -107,7 +107,7 @@ event queue::memset(void *Ptr, int Value, size_t Count,
 event queue::memset(void *Ptr, int Value, size_t Count, event DepEvent,
                     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->memset(Ptr, Value, Count, {DepEvent},
+  return impl->memset(Ptr, Value, Count, {std::move(DepEvent)},
                       /*CallerNeedsEvent=*/true);
 }
 
@@ -129,7 +129,7 @@ event queue::memcpy(void *Dest, const void *Src, size_t Count,
 event queue::memcpy(void *Dest, const void *Src, size_t Count, event DepEvent,
                     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->memcpy(Dest, Src, Count, {DepEvent},
+  return impl->memcpy(Dest, Src, Count, {std::move(DepEvent)},
                       /*CallerNeedsEvent=*/true, TlsCodeLocCapture.query());
 }
 
@@ -152,7 +152,7 @@ event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                         event DepEvent, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->mem_advise(Ptr, Length, ur_usm_advice_flags_t(Advice),
-                          {DepEvent},
+                          {std::move(DepEvent)},
                           /*CallerNeedsEvent=*/true);
 }
 

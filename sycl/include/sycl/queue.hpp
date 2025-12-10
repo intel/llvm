@@ -804,7 +804,7 @@ public:
       const T *Src, T *Dest, size_t Count, event DepEvent,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    return this->memcpy(Dest, Src, Count * sizeof(T), DepEvent);
+    return this->memcpy(Dest, Src, Count * sizeof(T), std::move(DepEvent));
   }
 
   /// Copies data from one memory region to another, each is either a host
@@ -1342,7 +1342,7 @@ public:
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, NumBytes, Offset,
-                        std::vector<event>{DepEvent});
+                        std::vector<event>{std::move(DepEvent)});
   }
 
   /// Copies data from a device_global to USM memory.
@@ -1412,7 +1412,7 @@ public:
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
                         StartIndex * sizeof(std::remove_all_extents_t<T>),
-                        DepEvent);
+                        std::move(DepEvent));
   }
 
   /// Copies elements of type `std::remove_all_extents_t<T>` from a USM memory
@@ -1485,7 +1485,7 @@ public:
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
                         StartIndex * sizeof(std::remove_all_extents_t<T>),
-                        DepEvent);
+                        std::move(DepEvent));
   }
 
   /// Copies elements of type `std::remove_all_extents_t<T>` from a
@@ -2737,11 +2737,12 @@ public:
                     "of type launch_config or a kernel functor with a "
                     "get(sycl::ext::oneapi::experimental::properties_tag) "
                     "member function instead.")
-  std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-      event> single_task(PropertiesT Properties, const KernelType &KernelFunc,
-                         const detail::code_location &CodeLoc =
-                             detail::code_location::current()) {
+  std::enable_if_t<ext::oneapi::experimental::is_property_list<
+                       std::decay_t<PropertiesT>>::value,
+                   event> single_task(PropertiesT &&Properties,
+                                      const KernelType &KernelFunc,
+                                      const detail::code_location &CodeLoc =
+                                          detail::code_location::current()) {
     static_assert(
         (detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void()>::value ||
@@ -2757,7 +2758,8 @@ public:
     if constexpr (!(detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                              void>::value)) {
       return detail::submit_kernel_direct_single_task<KernelName, true>(
-          *this, KernelFunc, {}, Properties, TlsCodeLocCapture.query());
+          *this, KernelFunc, {}, std::forward<PropertiesT>(Properties),
+          TlsCodeLocCapture.query());
     } else {
       return submit(
           [&](handler &CGH) {
@@ -2792,12 +2794,12 @@ public:
                     "of type launch_config or a kernel functor with a "
                     "get(sycl::ext::oneapi::experimental::properties_tag) "
                     "member function instead.")
-  std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-      event> single_task(event DepEvent, PropertiesT Properties,
-                         const KernelType &KernelFunc,
-                         const detail::code_location &CodeLoc =
-                             detail::code_location::current()) {
+  std::enable_if_t<ext::oneapi::experimental::is_property_list<
+                       std::decay_t<PropertiesT>>::value,
+                   event> single_task(event DepEvent, PropertiesT &&Properties,
+                                      const KernelType &KernelFunc,
+                                      const detail::code_location &CodeLoc =
+                                          detail::code_location::current()) {
     static_assert(
         (detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void()>::value ||
@@ -2813,14 +2815,14 @@ public:
     if constexpr (!(detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                              void>::value)) {
       return detail::submit_kernel_direct_single_task<KernelName, true>(
-          *this, KernelFunc, sycl::span<const event>(&DepEvent, 1), Properties,
-          TlsCodeLocCapture.query());
+          *this, KernelFunc, sycl::span<const event>(&DepEvent, 1),
+          std::forward<PropertiesT>(Properties), TlsCodeLocCapture.query());
     } else {
       return submit(
           [&](handler &CGH) {
             CGH.depends_on(DepEvent);
             CGH.template single_task<KernelName, KernelType, PropertiesT>(
-                Properties, KernelFunc);
+                std::forward<PropertiesT>(Properties), KernelFunc);
           },
           TlsCodeLocCapture.query());
     }
@@ -2853,12 +2855,13 @@ public:
                     "of type launch_config or a kernel functor with a "
                     "get(sycl::ext::oneapi::experimental::properties_tag) "
                     "member function instead.")
-  std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-      event> single_task(const std::vector<event> &DepEvents,
-                         PropertiesT Properties, const KernelType &KernelFunc,
-                         const detail::code_location &CodeLoc =
-                             detail::code_location::current()) {
+  std::enable_if_t<ext::oneapi::experimental::is_property_list<
+                       std::decay_t<PropertiesT>>::value,
+                   event> single_task(const std::vector<event> &DepEvents,
+                                      PropertiesT &&Properties,
+                                      const KernelType &KernelFunc,
+                                      const detail::code_location &CodeLoc =
+                                          detail::code_location::current()) {
     static_assert(
         (detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void()>::value ||
@@ -2874,13 +2877,14 @@ public:
     if constexpr (!(detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                              void>::value)) {
       return detail::submit_kernel_direct_single_task<KernelName, true>(
-          *this, KernelFunc, DepEvents, Properties, TlsCodeLocCapture.query());
+          *this, KernelFunc, DepEvents, std::forward<PropertiesT>(Properties),
+          TlsCodeLocCapture.query());
     } else {
       return submit(
           [&](handler &CGH) {
             CGH.depends_on(DepEvents);
             CGH.template single_task<KernelName, KernelType, PropertiesT>(
-                Properties, KernelFunc);
+                std::forward<PropertiesT>(Properties), KernelFunc);
           },
           TlsCodeLocCapture.query());
     }
@@ -2914,11 +2918,13 @@ public:
                     "of type launch_config or a kernel functor with a "
                     "get(sycl::ext::oneapi::experimental::properties_tag) "
                     "member function instead.")
-  std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-      event> parallel_for(range<1> Range, PropertiesT Properties,
-                          RestT &&...Rest) {
-    return parallel_for_impl<KernelName>(Range, Properties, Rest...);
+  std::enable_if_t<ext::oneapi::experimental::is_property_list<
+                       std::decay_t<PropertiesT>>::value,
+                   event> parallel_for(range<1> Range, PropertiesT &&Properties,
+                                       RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range,
+                                         std::forward<PropertiesT>(Properties),
+                                         std::forward<RestT>(Rest)...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -2929,7 +2935,7 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
   event parallel_for(range<1> Range, RestT &&...Rest) {
-    return parallel_for_impl<KernelName>(Range, Rest...);
+    return parallel_for_impl<KernelName>(Range, std::forward<RestT>(Rest)...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -2945,11 +2951,13 @@ public:
                     "of type launch_config or a kernel functor with a "
                     "get(sycl::ext::oneapi::experimental::properties_tag) "
                     "member function instead.")
-  std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-      event> parallel_for(range<2> Range, PropertiesT Properties,
-                          RestT &&...Rest) {
-    return parallel_for_impl<KernelName>(Range, Properties, Rest...);
+  std::enable_if_t<ext::oneapi::experimental::is_property_list<
+                       std::decay_t<PropertiesT>>::value,
+                   event> parallel_for(range<2> Range, PropertiesT &&Properties,
+                                       RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range,
+                                         std::forward<PropertiesT>(Properties),
+                                         std::forward<RestT>(Rest)...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -2960,7 +2968,7 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
   event parallel_for(range<2> Range, RestT &&...Rest) {
-    return parallel_for_impl<KernelName>(Range, Rest...);
+    return parallel_for_impl<KernelName>(Range, std::forward<RestT>(Rest)...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -2976,11 +2984,13 @@ public:
                     "of type launch_config or a kernel functor with a "
                     "get(sycl::ext::oneapi::experimental::properties_tag) "
                     "member function instead.")
-  std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-      event> parallel_for(range<3> Range, PropertiesT Properties,
-                          RestT &&...Rest) {
-    return parallel_for_impl<KernelName>(Range, Properties, Rest...);
+  std::enable_if_t<ext::oneapi::experimental::is_property_list<
+                       std::decay_t<PropertiesT>>::value,
+                   event> parallel_for(range<3> Range, PropertiesT &&Properties,
+                                       RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range,
+                                         std::forward<PropertiesT>(Properties),
+                                         std::forward<RestT>(Rest)...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -2991,7 +3001,7 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
   event parallel_for(range<3> Range, RestT &&...Rest) {
-    return parallel_for_impl<KernelName>(Range, Rest...);
+    return parallel_for_impl<KernelName>(Range, std::forward<RestT>(Rest)...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -3008,11 +3018,14 @@ public:
                     "of type launch_config or a kernel functor with a "
                     "get(sycl::ext::oneapi::experimental::properties_tag) "
                     "member function instead.")
-  std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-      event> parallel_for(range<1> Range, event DepEvent,
-                          PropertiesT Properties, RestT &&...Rest) {
-    return parallel_for_impl<KernelName>(Range, DepEvent, Properties, Rest...);
+  std::enable_if_t<ext::oneapi::experimental::is_property_list<
+                       std::decay_t<PropertiesT>>::value,
+                   event> parallel_for(range<1> Range, event DepEvent,
+                                       PropertiesT &&Properties,
+                                       RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, std::move(DepEvent),
+                                         std::forward<PropertiesT>(Properties),
+                                         std::forward<RestT>(Rest)...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -3024,7 +3037,8 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
   event parallel_for(range<1> Range, event DepEvent, RestT &&...Rest) {
-    return parallel_for_impl<KernelName>(Range, DepEvent, Rest...);
+    return parallel_for_impl<KernelName>(Range, std::move(DepEvent),
+                                         std::forward<RestT>(Rest)...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -3041,11 +3055,14 @@ public:
                     "of type launch_config or a kernel functor with a "
                     "get(sycl::ext::oneapi::experimental::properties_tag) "
                     "member function instead.")
-  std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-      event> parallel_for(range<2> Range, event DepEvent,
-                          PropertiesT Properties, RestT &&...Rest) {
-    return parallel_for_impl<KernelName>(Range, DepEvent, Properties, Rest...);
+  std::enable_if_t<ext::oneapi::experimental::is_property_list<
+                       std::decay_t<PropertiesT>>::value,
+                   event> parallel_for(range<2> Range, event DepEvent,
+                                       PropertiesT &&Properties,
+                                       RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, std::move(DepEvent),
+                                         std::forward<PropertiesT>(Properties),
+                                         std::forward<RestT>(Rest)...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -3057,7 +3074,8 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
   event parallel_for(range<2> Range, event DepEvent, RestT &&...Rest) {
-    return parallel_for_impl<KernelName>(Range, DepEvent, Rest...);
+    return parallel_for_impl<KernelName>(Range, std::move(DepEvent),
+                                         std::forward<RestT>(Rest)...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -3074,11 +3092,14 @@ public:
                     "of type launch_config or a kernel functor with a "
                     "get(sycl::ext::oneapi::experimental::properties_tag) "
                     "member function instead.")
-  std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-      event> parallel_for(range<3> Range, event DepEvent,
-                          PropertiesT Properties, RestT &&...Rest) {
-    return parallel_for_impl<KernelName>(Range, DepEvent, Properties, Rest...);
+  std::enable_if_t<ext::oneapi::experimental::is_property_list<
+                       std::decay_t<PropertiesT>>::value,
+                   event> parallel_for(range<3> Range, event DepEvent,
+                                       PropertiesT &&Properties,
+                                       RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, std::move(DepEvent),
+                                         std::forward<PropertiesT>(Properties),
+                                         std::forward<RestT>(Rest)...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -3090,7 +3111,8 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
   event parallel_for(range<3> Range, event DepEvent, RestT &&...Rest) {
-    return parallel_for_impl<KernelName>(Range, DepEvent, Rest...);
+    return parallel_for_impl<KernelName>(Range, std::move(DepEvent),
+                                         std::forward<RestT>(Rest)...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -3108,11 +3130,15 @@ public:
                     "of type launch_config or a kernel functor with a "
                     "get(sycl::ext::oneapi::experimental::properties_tag) "
                     "member function instead.")
-  std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-      event> parallel_for(range<1> Range, const std::vector<event> &DepEvents,
-                          PropertiesT Properties, RestT &&...Rest) {
-    return parallel_for_impl<KernelName>(Range, DepEvents, Properties, Rest...);
+  std::enable_if_t<ext::oneapi::experimental::is_property_list<
+                       std::decay_t<PropertiesT>>::value,
+                   event> parallel_for(range<1> Range,
+                                       const std::vector<event> &DepEvents,
+                                       PropertiesT &&Properties,
+                                       RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, DepEvents,
+                                         std::forward<PropertiesT>(Properties),
+                                         std::forward<RestT>(Rest)...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -3126,7 +3152,8 @@ public:
   template <typename KernelName = detail::auto_name, typename... RestT>
   event parallel_for(range<1> Range, const std::vector<event> &DepEvents,
                      RestT &&...Rest) {
-    return parallel_for_impl<KernelName>(Range, DepEvents, Rest...);
+    return parallel_for_impl<KernelName>(Range, DepEvents,
+                                         std::forward<RestT>(Rest)...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -3144,11 +3171,15 @@ public:
                     "of type launch_config or a kernel functor with a "
                     "get(sycl::ext::oneapi::experimental::properties_tag) "
                     "member function instead.")
-  std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-      event> parallel_for(range<2> Range, const std::vector<event> &DepEvents,
-                          PropertiesT Properties, RestT &&...Rest) {
-    return parallel_for_impl<KernelName>(Range, DepEvents, Properties, Rest...);
+  std::enable_if_t<ext::oneapi::experimental::is_property_list<
+                       std::decay_t<PropertiesT>>::value,
+                   event> parallel_for(range<2> Range,
+                                       const std::vector<event> &DepEvents,
+                                       PropertiesT &&Properties,
+                                       RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, DepEvents,
+                                         std::forward<PropertiesT>(Properties),
+                                         std::forward<RestT>(Rest)...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -3162,7 +3193,8 @@ public:
   template <typename KernelName = detail::auto_name, typename... RestT>
   event parallel_for(range<2> Range, const std::vector<event> &DepEvents,
                      RestT &&...Rest) {
-    return parallel_for_impl<KernelName>(Range, DepEvents, Rest...);
+    return parallel_for_impl<KernelName>(Range, DepEvents,
+                                         std::forward<RestT>(Rest)...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -3180,11 +3212,15 @@ public:
                     "of type launch_config or a kernel functor with a "
                     "get(sycl::ext::oneapi::experimental::properties_tag) "
                     "member function instead.")
-  std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-      event> parallel_for(range<3> Range, const std::vector<event> &DepEvents,
-                          PropertiesT Properties, RestT &&...Rest) {
-    return parallel_for_impl<KernelName>(Range, DepEvents, Properties, Rest...);
+  std::enable_if_t<ext::oneapi::experimental::is_property_list<
+                       std::decay_t<PropertiesT>>::value,
+                   event> parallel_for(range<3> Range,
+                                       const std::vector<event> &DepEvents,
+                                       PropertiesT &&Properties,
+                                       RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, DepEvents,
+                                         std::forward<PropertiesT>(Properties),
+                                         std::forward<RestT>(Rest)...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -3198,7 +3234,8 @@ public:
   template <typename KernelName = detail::auto_name, typename... RestT>
   event parallel_for(range<3> Range, const std::vector<event> &DepEvents,
                      RestT &&...Rest) {
-    return parallel_for_impl<KernelName>(Range, DepEvents, Rest...);
+    return parallel_for_impl<KernelName>(Range, DepEvents,
+                                         std::forward<RestT>(Rest)...);
   }
 
   // While other shortcuts with offsets are able to go through parallel_for(...,
@@ -3306,11 +3343,12 @@ public:
                     "of type launch_config or a kernel functor with a "
                     "get(sycl::ext::oneapi::experimental::properties_tag) "
                     "member function instead.")
-  std::enable_if_t<
-      detail::AreAllButLastReductions<RestT...>::value &&
-          ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-      event> parallel_for(nd_range<Dims> Range, PropertiesT Properties,
-                          RestT &&...Rest) {
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value &&
+                       ext::oneapi::experimental::is_property_list<
+                           std::decay_t<PropertiesT>>::value,
+                   event> parallel_for(nd_range<Dims> Range,
+                                       PropertiesT &&Properties,
+                                       RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     using KernelType = std::tuple_element_t<0, std::tuple<RestT...>>;
@@ -3322,11 +3360,14 @@ public:
                       KernelType, sycl::nd_item<Dims>>::value)) {
 
       return detail::submit_kernel_direct_parallel_for<KernelName, true>(
-          *this, Range, Rest..., {}, Properties, TlsCodeLocCapture.query());
+          *this, Range, std::forward<RestT>(Rest)..., {},
+          std::forward<PropertiesT>(Properties), TlsCodeLocCapture.query());
     } else
       return submit(
           [&](handler &CGH) {
-            CGH.template parallel_for<KernelName>(Range, Properties, Rest...);
+            CGH.template parallel_for<KernelName>(
+                Range, std::forward<PropertiesT>(Properties),
+                std::forward<RestT>(Rest)...);
           },
           TlsCodeLocCapture.query());
   }
@@ -3351,13 +3392,14 @@ public:
                   !(detail::KernelLambdaHasKernelHandlerArgT<
                       KernelType, sycl::nd_item<Dims>>::value)) {
       return detail::submit_kernel_direct_parallel_for<KernelName, true>(
-          *this, Range, Rest..., {},
+          *this, Range, std::forward<RestT>(Rest)..., {},
           ext::oneapi::experimental::empty_properties_t{},
           TlsCodeLocCapture.query());
     } else {
       return submit(
           [&](handler &CGH) {
-            CGH.template parallel_for<KernelName>(Range, Rest...);
+            CGH.template parallel_for<KernelName>(Range,
+                                                  std::forward<RestT>(Rest)...);
           },
           TlsCodeLocCapture.query());
     }
@@ -3377,17 +3419,20 @@ public:
                     "of type launch_config or a kernel functor with a "
                     "get(sycl::ext::oneapi::experimental::properties_tag) "
                     "member function instead.")
-  std::enable_if_t<
-      detail::AreAllButLastReductions<RestT...>::value &&
-          ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-      event> parallel_for(nd_range<Dims> Range, event DepEvent,
-                          PropertiesT Properties, RestT &&...Rest) {
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value &&
+                       ext::oneapi::experimental::is_property_list<
+                           std::decay_t<PropertiesT>>::value,
+                   event> parallel_for(nd_range<Dims> Range, event DepEvent,
+                                       PropertiesT &&Properties,
+                                       RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvent);
-          CGH.template parallel_for<KernelName>(Range, Properties, Rest...);
+          CGH.template parallel_for<KernelName>(
+              Range, std::forward<PropertiesT>(Properties),
+              std::forward<RestT>(Rest)...);
         },
         TlsCodeLocCapture.query());
   }
@@ -3413,14 +3458,16 @@ public:
                   !(detail::KernelLambdaHasKernelHandlerArgT<
                       KernelType, sycl::nd_item<Dims>>::value)) {
       return detail::submit_kernel_direct_parallel_for<KernelName, true>(
-          *this, Range, Rest..., sycl::span<const event>(&DepEvent, 1),
+          *this, Range, std::forward<RestT>(Rest)...,
+          sycl::span<const event>(&DepEvent, 1),
           ext::oneapi::experimental::empty_properties_t{},
           TlsCodeLocCapture.query());
     } else {
       return submit(
           [&](handler &CGH) {
             CGH.depends_on(DepEvent);
-            CGH.template parallel_for<KernelName>(Range, Rest...);
+            CGH.template parallel_for<KernelName>(Range,
+                                                  std::forward<RestT>(Rest)...);
           },
           TlsCodeLocCapture.query());
     }
@@ -3441,18 +3488,21 @@ public:
                     "of type launch_config or a kernel functor with a "
                     "get(sycl::ext::oneapi::experimental::properties_tag) "
                     "member function instead.")
-  std::enable_if_t<
-      detail::AreAllButLastReductions<RestT...>::value &&
-          ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-      event> parallel_for(nd_range<Dims> Range,
-                          const std::vector<event> &DepEvents,
-                          PropertiesT Properties, RestT &&...Rest) {
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value &&
+                       ext::oneapi::experimental::is_property_list<
+                           std::decay_t<PropertiesT>>::value,
+                   event> parallel_for(nd_range<Dims> Range,
+                                       const std::vector<event> &DepEvents,
+                                       PropertiesT &&Properties,
+                                       RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvents);
-          CGH.template parallel_for<KernelName>(Range, Properties, Rest...);
+          CGH.template parallel_for<KernelName>(
+              Range, std::forward<PropertiesT>(Properties),
+              std::forward<RestT>(Rest)...);
         },
         TlsCodeLocCapture.query());
   }
@@ -3480,14 +3530,15 @@ public:
                   !(detail::KernelLambdaHasKernelHandlerArgT<
                       KernelType, sycl::nd_item<Dims>>::value)) {
       return detail::submit_kernel_direct_parallel_for<KernelName, true>(
-          *this, Range, Rest..., DepEvents,
+          *this, Range, std::forward<RestT>(Rest)..., DepEvents,
           ext::oneapi::experimental::empty_properties_t{},
           TlsCodeLocCapture.query());
     } else {
       return submit(
           [&](handler &CGH) {
             CGH.depends_on(DepEvents);
-            CGH.template parallel_for<KernelName>(Range, Rest...);
+            CGH.template parallel_for<KernelName>(Range,
+                                                  std::forward<RestT>(Rest)...);
           },
           TlsCodeLocCapture.query());
     }
@@ -3807,17 +3858,19 @@ private:
   /// \param KernelFunc is the Kernel functor or lambda
   template <typename KernelName, int Dims, typename PropertiesT,
             typename... RestT>
-  std::enable_if_t<
-      detail::AreAllButLastReductions<RestT...>::value &&
-          ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-      event>
-  parallel_for_impl(range<Dims> Range, PropertiesT Properties,
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value &&
+                       ext::oneapi::experimental::is_property_list<
+                           std::decay_t<PropertiesT>>::value,
+                   event>
+  parallel_for_impl(range<Dims> Range, PropertiesT &&Properties,
                     RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
-          CGH.template parallel_for<KernelName>(Range, Properties, Rest...);
+          CGH.template parallel_for<KernelName>(
+              Range, std::forward<PropertiesT>(Properties),
+              std::forward<RestT>(Rest)...);
         },
         TlsCodeLocCapture.query());
   }
@@ -3831,7 +3884,8 @@ private:
   std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value, event>
   parallel_for_impl(range<Dims> Range, RestT &&...Rest) {
     return parallel_for_impl<KernelName>(
-        Range, ext::oneapi::experimental::empty_properties_t{}, Rest...);
+        Range, ext::oneapi::experimental::empty_properties_t{},
+        std::forward<RestT>(Rest)...);
   }
 
   /// parallel_for_impl with a kernel represented as a lambda + range that
@@ -3843,16 +3897,19 @@ private:
   /// \param KernelFunc is the Kernel functor or lambda
   template <typename KernelName, int Dims, typename PropertiesT,
             typename... RestT>
-  std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
-  parallel_for_impl(range<Dims> Range, event DepEvent, PropertiesT Properties,
+  std::enable_if_t<ext::oneapi::experimental::is_property_list<
+                       std::decay_t<PropertiesT>>::value,
+                   event>
+  parallel_for_impl(range<Dims> Range, event DepEvent, PropertiesT &&Properties,
                     RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvent);
-          CGH.template parallel_for<KernelName>(Range, Properties, Rest...);
+          CGH.template parallel_for<KernelName>(
+              Range, std::forward<PropertiesT>(Properties),
+              std::forward<RestT>(Rest)...);
         },
         TlsCodeLocCapture.query());
   }
@@ -3866,8 +3923,9 @@ private:
   template <typename KernelName, int Dims, typename... RestT>
   event parallel_for_impl(range<Dims> Range, event DepEvent, RestT &&...Rest) {
     return parallel_for_impl<KernelName>(
-        Range, DepEvent, ext::oneapi::experimental::empty_properties_t{},
-        Rest...);
+        Range, std::move(DepEvent),
+        ext::oneapi::experimental::empty_properties_t{},
+        std::forward<RestT>(Rest)...);
   }
 
   /// parallel_for_impl version with a kernel represented as a lambda + range
@@ -3880,16 +3938,19 @@ private:
   /// \param KernelFunc is the Kernel functor or lambda
   template <typename KernelName, int Dims, typename PropertiesT,
             typename... RestT>
-  std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
+  std::enable_if_t<ext::oneapi::experimental::is_property_list<
+                       std::decay_t<PropertiesT>>::value,
+                   event>
   parallel_for_impl(range<Dims> Range, const std::vector<event> &DepEvents,
-                    PropertiesT Properties, RestT &&...Rest) {
+                    PropertiesT &&Properties, RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvents);
-          CGH.template parallel_for<KernelName>(Range, Properties, Rest...);
+          CGH.template parallel_for<KernelName>(
+              Range, std::forward<PropertiesT>(Properties),
+              std::forward<RestT>(Rest)...);
         },
         TlsCodeLocCapture.query());
   }
@@ -3907,7 +3968,7 @@ private:
                           RestT &&...Rest) {
     return parallel_for_impl<KernelName>(
         Range, DepEvents, ext::oneapi::experimental::empty_properties_t{},
-        Rest...);
+        std::forward<RestT>(Rest)...);
   }
 
   event memcpyToDeviceGlobal(void *DeviceGlobalPtr, const void *Src,
