@@ -516,7 +516,7 @@ obj_kb compile_from_source(
   kernel_bundle_impl &sourceImpl = *getSyclObjImpl(SourceKB);
   std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl.compile_from_source(
       UniqueDevices, BuildOptions, LogPtr, RegisteredKernelNames);
-  auto result = sycl::detail::createSyclObjFromImpl<obj_kb>(KBImpl);
+  auto result = sycl::detail::createSyclObjFromImpl<obj_kb>(std::move(KBImpl));
   if (LogView)
     *LogView = Log;
   return result;
