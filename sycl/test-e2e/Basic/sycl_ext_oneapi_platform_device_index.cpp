@@ -19,8 +19,10 @@ int main() {
   sycl::device orig_dev;
   auto plt = orig_dev.get_platform();
   auto devices = plt.get_devices();
+  std::cout << "devices size = " << devices.size() << std::endl;
   auto it = std::find(devices.begin(), devices.end(), orig_dev);
   auto orig_dev_index_within_plt = std::distance(devices.begin(), it);
+  std::cout << orig_dev_index_within_plt << std::endl;
 
   // ext_oneapi_index_within_platform
   size_t ext_oneapi_index_within_platform =
