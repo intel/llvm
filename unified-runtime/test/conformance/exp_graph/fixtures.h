@@ -43,8 +43,7 @@ struct urGraphSupportedExpMultiQueueTest : uur::urMultiQueueTest {
     }
 
     UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{}, uur::NativeCPU{},
-                         uur::OpenCL{}, uur::LevelZero{},
-                         /* uur::LevelZeroV2{} */);
+                         uur::OpenCL{}, uur::LevelZero{});
   }
 };
 
