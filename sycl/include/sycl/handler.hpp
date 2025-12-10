@@ -3685,8 +3685,6 @@ public:
     Handler.parallel_for_impl(Range, Props, Kernel);
   }
 
-  __SYCL_EXPORT static queue getQueue(handler &Handler);
-
   static void swap(handler &LHS, handler &RHS) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     std::swap(LHS.implOwner, RHS.implOwner);
