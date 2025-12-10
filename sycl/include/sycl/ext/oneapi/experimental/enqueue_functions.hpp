@@ -361,68 +361,59 @@ void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
 
 // Free function kernel enqueue functions
 template <auto *Func, typename... ArgsT>
-void single_task(queue Q, kernel_function_s<Func> KernelFunc, ArgsT &&...Args) {
-  submit(Q, [&](handler &CGH) {
-    single_task(CGH, KernelFunc, std::forward<ArgsT>(Args)...);
-  });
+void single_task(queue Q, [[maybe_unused]] kernel_function_s<Func> KernelFunc,
+                 ArgsT &&...Args) {
+
+  detail::submit_kernel_direct_single_task(std::move(Q),
+                                           [Args...]() { Func(Args...); });
 }
 
 template <auto *Func, typename... ArgsT>
-void single_task(handler &CGH, kernel_function_s<Func> KernelFunc,
+void single_task(handler &CGH,
+                 [[maybe_unused]] kernel_function_s<Func> KernelFunc,
                  ArgsT &&...Args) {
-  (void)KernelFunc;
-  queue Q = sycl::detail::HandlerAccess::getQueue(CGH);
-  sycl::kernel_bundle Bndl =
-      get_kernel_bundle<Func, sycl::bundle_state::executable>(Q.get_context());
-  sycl::kernel Krn = Bndl.template ext_oneapi_get_kernel<Func>();
-  CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
-  CGH.single_task(Krn);
+  CGH.single_task([Args...]() { Func(Args...); });
 }
 
 template <auto *Func, int Dimensions, typename... ArgsT>
 void nd_launch(queue Q, nd_range<Dimensions> Range,
-               kernel_function_s<Func> KernelFunc, ArgsT &&...Args) {
-  submit(Q, [&](handler &CGH) {
-    nd_launch(CGH, Range, KernelFunc, std::forward<ArgsT>(Args)...);
-  });
+               [[maybe_unused]] kernel_function_s<Func> KernelFunc,
+               ArgsT &&...Args) {
+  detail::submit_kernel_direct_parallel_for(
+      std::move(Q), Range, [Args...](sycl::nd_item<>) { Func(Args...); });
 }
 
 template <auto *Func, int Dimensions, typename... ArgsT>
 void nd_launch(handler &CGH, nd_range<Dimensions> Range,
-               kernel_function_s<Func> KernelFunc, ArgsT &&...Args) {
-  (void)KernelFunc;
-  queue Q = sycl::detail::HandlerAccess::getQueue(CGH);
-  sycl::kernel_bundle Bndl =
-      get_kernel_bundle<Func, sycl::bundle_state::executable>(Q.get_context());
-  sycl::kernel Krn = Bndl.template ext_oneapi_get_kernel<Func>();
-
-  CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
-  CGH.parallel_for(Range, Krn);
+               [[maybe_unused]] kernel_function_s<Func> KernelFunc,
+               ArgsT &&...Args) {
+  CGH.parallel_for(Range, [Args...](sycl::nd_item<>) { Func(Args...); });
 }
 
 template <auto *Func, int Dimensions, typename Properties, typename... ArgsT>
 void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
-               kernel_function_s<Func> KernelFunc, ArgsT &&...Args) {
-  submit(Q, [&](handler &CGH) {
-    nd_launch(CGH, Config, KernelFunc, std::forward<ArgsT>(Args)...);
-  });
+               [[maybe_unused]] kernel_function_s<Func> KernelFunc,
+               ArgsT &&...Args) {
+
+  ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
+                                                        Properties>
+      ConfigAccess(Config);
+  detail::submit_kernel_direct_parallel_for(
+      std::move(Q), ConfigAccess.getRange(),
+      [Args...](sycl::nd_item<>) { Func(Args...); }, {},
+      ConfigAccess.getProperties());
 }
 
 template <auto *Func, int Dimensions, typename Properties, typename... ArgsT>
 void nd_launch(handler &CGH,
                launch_config<nd_range<Dimensions>, Properties> Config,
-               kernel_function_s<Func> KernelFunc, ArgsT &&...Args) {
-  (void)KernelFunc;
-  queue Q = sycl::detail::HandlerAccess::getQueue(CGH);
-  sycl::kernel_bundle Bndl =
-      get_kernel_bundle<Func, sycl::bundle_state::executable>(Q.get_context());
-  sycl::kernel Krn = Bndl.template ext_oneapi_get_kernel<Func>();
+               [[maybe_unused]] kernel_function_s<Func> KernelFunc,
+               ArgsT &&...Args) {
   ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
                                                         Properties>
       ConfigAccess(Config);
-  CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
-  sycl::detail::HandlerAccess::parallelForImpl(
-      CGH, ConfigAccess.getRange(), ConfigAccess.getProperties(), Krn);
+  CGH.parallel_for(ConfigAccess.getRange(), ConfigAccess.getProperties(),
+                   [Args...](sycl::nd_item<>) { Func(Args...); });
 }
 
 inline void memcpy(handler &CGH, void *Dest, const void *Src, size_t NumBytes) {
