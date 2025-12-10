@@ -22,7 +22,7 @@ int main() {
   std::cout << "devices size = " << devices.size() << std::endl;
   auto it = std::find(devices.begin(), devices.end(), orig_dev);
   auto orig_dev_index_within_plt = std::distance(devices.begin(), it);
-  std::cout << orig_dev_index_within_plt << std::endl;
+  std::cout << "orig_dev_index_within_plt = " << orig_dev_index_within_plt << std::endl;
 
   // ext_oneapi_index_within_platform
   size_t ext_oneapi_index_within_platform =

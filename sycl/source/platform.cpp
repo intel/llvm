@@ -135,6 +135,7 @@ std::vector<device> platform::ext_oneapi_get_composite_devices() const {
 device platform::ext_oneapi_device_at_index(size_t index) const {
   auto devices = get_devices();
   std::cout << "devices within platform: " << devices.size() << std::endl;
+  std::cout << "index = " << index << std::endl;
   if (index < devices.size())
     return devices[index];
   else
