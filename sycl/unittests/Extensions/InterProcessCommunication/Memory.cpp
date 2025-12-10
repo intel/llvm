@@ -112,8 +112,10 @@ TEST_F(IPCTests, IPCGetPutImplicit) {
   syclexp::ipc_memory::handle IPCMemHandle =
       syclexp::ipc_memory::get(DummyPtr, Ctxt);
   syclexp::ipc_memory::handle_data_t IPCMemHandleData = IPCMemHandle.data();
-  EXPECT_EQ(IPCMemHandleData.size(), DummyHandleDataSize);
-  EXPECT_EQ(IPCMemHandleData.data(), DummyHandleData);
+  ASSERT_EQ(IPCMemHandleData.size(), DummyHandleDataSize);
+  EXPECT_EQ(std::memcmp(IPCMemHandleData.data(), DummyHandleData,
+                        DummyHandleDataSize),
+            0);
 
   // Creating the IPC memory from a pointer should only call "get".
   EXPECT_EQ(urIPCGetMemHandleExp_counter, 1);
@@ -126,8 +128,10 @@ TEST_F(IPCTests, IPCGetPutExplicit) {
   syclexp::ipc_memory::handle IPCMemHandle =
       syclexp::ipc_memory::get(DummyPtr, Ctxt);
   syclexp::ipc_memory::handle_data_t IPCMemHandleData = IPCMemHandle.data();
-  EXPECT_EQ(IPCMemHandleData.size(), DummyHandleDataSize);
-  EXPECT_EQ(IPCMemHandleData.data(), DummyHandleData);
+  ASSERT_EQ(IPCMemHandleData.size(), DummyHandleDataSize);
+  EXPECT_EQ(std::memcmp(IPCMemHandleData.data(), DummyHandleData,
+                        DummyHandleDataSize),
+            0);
 
   // Creating the IPC memory from a pointer should only call "get".
   EXPECT_EQ(urIPCGetMemHandleExp_counter, 1);

@@ -1,5 +1,8 @@
 // REQUIRES: level_zero, level_zero_dev_kit
 //
+// UNSUPPORTED: windows && level_zero_v2_adapter
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20852
+//
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: %{l0_leak_check} %{run} %t.out wait 2>&1 | FileCheck %s
 // RUN: %{l0_leak_check} %{run} %t.out nowait 2>&1 | FileCheck %s
