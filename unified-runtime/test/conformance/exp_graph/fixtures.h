@@ -68,9 +68,8 @@ struct urGraphPopulatedExpTest : urGraphExpTest {
   void TearDown() override {
     if (deviceMem) {
       ASSERT_SUCCESS(urUSMFree(context, deviceMem));
+      resetData();
     }
-
-    resetData();
 
     UUR_RETURN_ON_FATAL_FAILURE(urGraphExpTest::TearDown());
   }
