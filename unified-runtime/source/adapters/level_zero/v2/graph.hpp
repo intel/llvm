@@ -9,9 +9,9 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include "../external/driver_experimental/zex_graph.h"
 #include "common.hpp"
 #include "context.hpp"
-#include "level_zero/driver_experimental/zex_api.h"
 #include "ur_api.h"
 
 struct ur_exp_graph_handle_t_ : ur_object {
