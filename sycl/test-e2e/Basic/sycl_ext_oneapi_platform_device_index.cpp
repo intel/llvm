@@ -106,8 +106,8 @@ int main() {
   }
 
   // ext_oneapi_device_at_index
-  auto ext_oneapi_device_at_index =
-      plt.ext_oneapi_device_at_index(orig_dev_index_within_plt);
+  auto ext_oneapi_device_at_index = plt.ext_oneapi_device_at_index(
+      static_cast<size_t>(orig_dev_index_within_plt));
   assert(orig_dev == ext_oneapi_device_at_index &&
          "A copy of the device object which has that index doesn't match the "
          "original device");
