@@ -56,7 +56,7 @@ ur_result_t SafeAllocate(ur_context_handle_t Context, ur_device_handle_t Device,
     if (UrRes != UR_RESULT_SUCCESS) {
       if (UrRes == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY)
         UR_LOG_L(getContext()->logger, WARN,
-                 "Device memory out of resource. Please consider reducing the "
+                 "Out of device memory. Please consider reducing the "
                  "application or running the application with MPI on multi "
                  "devices.");
       return UrRes;
