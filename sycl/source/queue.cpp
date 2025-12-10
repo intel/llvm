@@ -92,7 +92,8 @@ queue::ext_oneapi_get_graph() const {
 
   return sycl::detail::createSyclObjFromImpl<
       ext::oneapi::experimental::command_graph<
-          ext::oneapi::experimental::graph_state::modifiable>>(Graph);
+          ext::oneapi::experimental::graph_state::modifiable>>(
+      std::move(Graph));
 }
 
 void queue::throw_asynchronous() { impl->throw_asynchronous(); }

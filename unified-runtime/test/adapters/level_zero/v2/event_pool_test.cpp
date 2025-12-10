@@ -137,8 +137,8 @@ struct EventPoolTest : public uur::urQueueTestWithParam<ProviderParams> {
           // the provider
           switch (params.provider) {
           case TEST_PROVIDER_COUNTER:
-            return std::make_unique<provider_counter>(platform, context,
-                                                      device);
+            return std::make_unique<provider_counter>(
+                platform, context, params.queue, device, params.flags);
           case TEST_PROVIDER_NORMAL:
             return std::make_unique<provider_normal>(context, params.queue,
                                                      flags);
