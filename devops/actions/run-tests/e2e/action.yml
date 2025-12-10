@@ -78,8 +78,7 @@ runs:
     continue-on-error: true
     shell: bash
     env:
-      LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests --param print_features=True --param test-mode=${{ inputs.testing_mode }} --param sycl_devices=level_zero_v2:arch-intel_gpu_mtl_u ${{ inputs.extra_lit_opts }}
-      # LIT_OPTS: -j 12 -v --param "sycl_devices=level_zero_v2:arch-intel_gpu_mtl_u" sycl/test-e2e/ 
+      LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests --param print_features=True --param test-mode=${{ inputs.testing_mode }} --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
     run: |
       echo "LIT_OPTS: $LIT_OPTS"
       ninja -C build-e2e check-sycl-e2e > e2e.log 2>&1

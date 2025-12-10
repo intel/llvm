@@ -52,7 +52,7 @@ int main() {
   check<device_selector, 8, 8>();
   check<event, 16, 8>();
   check<gpu_selector, 8, 8>();
-  check<handler, 168, 8>();
+  check<handler, 176, 8>();
   check<image<1>, 16, 8>();
   check<kernel, 16, 8>();
   check<detail::nd_range_view, 32, 8>();
