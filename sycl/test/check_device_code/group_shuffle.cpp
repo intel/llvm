@@ -63,11 +63,9 @@ SYCL_EXTERNAL void test_shuffle1(sycl::sub_group &sg, vec<bfloat16, 4> *buf,
 // CHECK-NEXT:    store i16 0, ptr [[ARRAYINIT_CUR_PTR_I_I_I]], align 2, !alias.scope [[META32:![0-9]+]]
 // CHECK-NEXT:    [[ARRAYINIT_CUR_ADD_I_I_I]] = add nuw nsw i64 [[ARRAYINIT_CUR_IDX_I_I_I]], 2
 // CHECK-NEXT:    [[ARRAYINIT_DONE_I_I_I:%.*]] = icmp eq i64 [[ARRAYINIT_CUR_ADD_I_I_I]], 8
-// CHECK-NEXT:    br i1 [[ARRAYINIT_DONE_I_I_I]], label [[FOR_COND_PREHEADER_I_I:%.*]], label [[ARRAYINIT_BODY_I_I_I]]
-// CHECK:       for.cond.preheader.i.i:
-// CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
+// CHECK-NEXT:    br i1 [[ARRAYINIT_DONE_I_I_I]], label [[FOR_COND_I_I:%.*]], label [[ARRAYINIT_BODY_I_I_I]]
 // CHECK:       for.cond.i.i:
-// CHECK-NEXT:    [[S_0_I_I:%.*]] = phi i32 [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ], [ 0, [[FOR_COND_PREHEADER_I_I]] ]
+// CHECK-NEXT:    [[S_0_I_I:%.*]] = phi i32 [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ], [ 0, [[ARRAYINIT_BODY_I_I_I]] ]
 // CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp samesign ult i32 [[S_0_I_I]], 4
 // CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V117SELECT_FROM_GROUPINS0_9SUB_GROUPENS0_6MARRAYINS0_3EXT6ONEAPI8BFLOAT16ELM4EEEEENST9ENABLE_IFIXAAOOSR3STDE9IS_SAME_VINST5DECAYIT_E4TYPEES2_ESR4SYCL3EXT6ONEAPI12EXPERIMENTALE27IS_USER_CONSTRUCTED_GROUP_VISC_EOOSR3STDE23IS_TRIVIALLY_COPYABLE_VIT0_ESR6DETAIL6IS_VECISD_EE5VALUEESD_E4TYPEESA_SD_NSA_7ID_TYPEE_EXIT:%.*]]
 // CHECK:       for.body.i.i:
@@ -109,11 +107,9 @@ SYCL_EXTERNAL void test_shuffle2(sycl::sub_group &sg, marray<bfloat16, 4> *buf,
 // CHECK-NEXT:    store i16 0, ptr [[ARRAYINIT_CUR_PTR_I_I_I]], align 2, !alias.scope [[META43:![0-9]+]]
 // CHECK-NEXT:    [[ARRAYINIT_CUR_ADD_I_I_I]] = add nuw nsw i64 [[ARRAYINIT_CUR_IDX_I_I_I]], 2
 // CHECK-NEXT:    [[ARRAYINIT_DONE_I_I_I:%.*]] = icmp eq i64 [[ARRAYINIT_CUR_ADD_I_I_I]], 10
-// CHECK-NEXT:    br i1 [[ARRAYINIT_DONE_I_I_I]], label [[FOR_COND_PREHEADER_I_I:%.*]], label [[ARRAYINIT_BODY_I_I_I]]
-// CHECK:       for.cond.preheader.i.i:
-// CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
+// CHECK-NEXT:    br i1 [[ARRAYINIT_DONE_I_I_I]], label [[FOR_COND_I_I:%.*]], label [[ARRAYINIT_BODY_I_I_I]]
 // CHECK:       for.cond.i.i:
-// CHECK-NEXT:    [[S_0_I_I:%.*]] = phi i32 [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ], [ 0, [[FOR_COND_PREHEADER_I_I]] ]
+// CHECK-NEXT:    [[S_0_I_I:%.*]] = phi i32 [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ], [ 0, [[ARRAYINIT_BODY_I_I_I]] ]
 // CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp samesign ult i32 [[S_0_I_I]], 5
 // CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V117SELECT_FROM_GROUPINS0_9SUB_GROUPENS0_6MARRAYINS0_3EXT6ONEAPI8BFLOAT16ELM5EEEEENST9ENABLE_IFIXAAOOSR3STDE9IS_SAME_VINST5DECAYIT_E4TYPEES2_ESR4SYCL3EXT6ONEAPI12EXPERIMENTALE27IS_USER_CONSTRUCTED_GROUP_VISC_EOOSR3STDE23IS_TRIVIALLY_COPYABLE_VIT0_ESR6DETAIL6IS_VECISD_EE5VALUEESD_E4TYPEESA_SD_NSA_7ID_TYPEE_EXIT:%.*]]
 // CHECK:       for.body.i.i:

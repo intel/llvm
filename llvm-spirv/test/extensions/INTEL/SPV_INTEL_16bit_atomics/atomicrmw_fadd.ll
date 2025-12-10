@@ -1,8 +1,8 @@
 ; RUN: llvm-as < %s -o %t.bc
-; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_shader_atomic_bfloat16,+SPV_KHR_bfloat16 %t.bc -o %t.spv
+; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_16bit_atomics,+SPV_KHR_bfloat16,+SPV_EXT_shader_atomic_float_add %t.bc -o %t.spv
 ; RUN: llvm-spirv -to-text %t.spv -o - | FileCheck %s
 
-; CHECK-DAG: Extension "SPV_INTEL_shader_atomic_bfloat16"
+; CHECK-DAG: Extension "SPV_INTEL_16bit_atomics"
 ; CHECK-DAG: Extension "SPV_KHR_bfloat16"
 ; CHECK-DAG: Capability AtomicBFloat16AddINTEL
 ; CHECK-DAG: Capability BFloat16TypeKHR

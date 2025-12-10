@@ -348,7 +348,7 @@ public:
 
     detail::EventImplPtr ResEvent = submit_impl(CGF, /*CallerNeedsEvent=*/true,
                                                 Loc, IsTopCodeLoc, SubmitInfo);
-    return createSyclObjFromImpl<event>(ResEvent);
+    return createSyclObjFromImpl<event>(std::move(ResEvent));
   }
 
   event submit_kernel_direct_with_event(
@@ -361,7 +361,7 @@ public:
     detail::EventImplPtr EventImpl = submit_kernel_direct_impl(
         NDRDescT(RangeView), HostKernel, DeviceKernelInfo,
         /*CallerNeedsEvent*/ true, DepEvents, Props, CodeLoc, IsTopCodeLoc);
-    return createSyclObjFromImpl<event>(EventImpl);
+    return createSyclObjFromImpl<event>(std::move(EventImpl));
   }
 
   void submit_kernel_direct_without_event(

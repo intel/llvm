@@ -1,5 +1,5 @@
 ; RUN: llvm-as < %s -o %t.bc
-; RUN: not llvm-spirv --spirv-ext=+SPV_INTEL_shader_atomic_bfloat16 %t.bc 2>&1 | FileCheck %s --check-prefix=CHECK-NO-BF
+; RUN: not llvm-spirv --spirv-ext=+SPV_INTEL_16bit_atomics %t.bc 2>&1 | FileCheck %s --check-prefix=CHECK-NO-BF
 ; RUN: not llvm-spirv --spirv-ext=+SPV_KHR_bfloat16 %t.bc 2>&1 | FileCheck %s --check-prefix=CHECK-NO-ATOM
 
 ; CHECK-NO-BF: RequiresExtension: Feature requires the following SPIR-V extension:
@@ -7,7 +7,7 @@
 ; CHECK-NO-BF-NEXT: NOTE: LLVM module contains bfloat type, translation of which requires this extension
 
 ; CHECK-NO-ATOM: RequiresExtension: Feature requires the following SPIR-V extension:
-; CHECK-NO-ATOM-NEXT: SPV_INTEL_shader_atomic_bfloat16
+; CHECK-NO-ATOM-NEXT: SPV_INTEL_16bit_atomics
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64"
