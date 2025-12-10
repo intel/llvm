@@ -9,10 +9,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "graph.hpp"
+#include "../external/driver_experimental/zex_graph.h"
 #include "../ur_interface_loader.hpp"
 #include "common.hpp"
 #include "context.hpp"
-#include "level_zero/driver_experimental/zex_api.h"
 
 ur_exp_graph_handle_t_::ur_exp_graph_handle_t_(ur_context_handle_t hContext)
     : hContext(hContext) {
