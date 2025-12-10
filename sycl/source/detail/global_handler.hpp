@@ -11,9 +11,6 @@
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/util.hpp>
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-#include <deque>
-#endif
 #include <memory>
 #include <unordered_map>
 
@@ -29,10 +26,6 @@ class adapter_impl;
 class ods_target_list;
 class XPTIRegistry;
 class ThreadPool;
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-struct KernelNameBasedCacheT;
-class DeviceKernelInfo;
-#endif
 
 /// Wrapper class for global data structures with non-trivial destructors.
 ///
@@ -130,9 +123,6 @@ private:
   InstWithLock<XPTIRegistry> MXPTIRegistry;
   // Thread pool for host task and event callbacks execution
   InstWithLock<ThreadPool> MHostTaskThreadPool;
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  InstWithLock<std::deque<DeviceKernelInfo>> MDeviceKernelInfoStorage;
-#endif
 
   static GlobalHandler *RTGlobalObjHandler;
 };

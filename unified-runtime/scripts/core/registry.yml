@@ -703,9 +703,6 @@ etors:
 - name: QUEUE_END_GRAPH_CAPTURE_EXP
   desc: Enumerator for $xQueueEndGraphCaptureExp
   value: '299'
-- name: QUEUE_APPEND_GRAPH_EXP
-  desc: Enumerator for $xQueueAppendGraphExp
-  value: '301'
 - name: GRAPH_DESTROY_EXP
   desc: Enumerator for $xGraphDestroyExp
   value: '302'
@@ -724,7 +721,10 @@ etors:
 - name: GRAPH_INSTANTIATE_GRAPH_EXP
   desc: Enumerator for $xGraphInstantiateGraphExp
   value: '307'
-max_id: '307'
+- name: ENQUEUE_GRAPH_EXP
+  desc: Enumerator for $xEnqueueGraphExp
+  value: '308'
+max_id: '308'
 ---
 type: enum
 desc: Defines structure types

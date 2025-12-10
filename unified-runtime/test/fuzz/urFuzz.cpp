@@ -402,7 +402,7 @@ int ur_program_create_with_il(TestState &state) {
   const size_t lWorkSize[] = {1, 1, 1};
 
   urEnqueueKernelLaunch(queue, kernel, nDim, gWorkOffset, gWorkSize, lWorkSize,
-                        0, nullptr, &event);
+                        nullptr, 1, &event, nullptr);
   urEventWait(1, &event);
   urEventRelease(event);
 

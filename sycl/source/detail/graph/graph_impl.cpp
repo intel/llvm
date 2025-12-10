@@ -545,15 +545,14 @@ graph_impl::add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
   return NodeImpl;
 }
 
-std::shared_ptr<sycl::detail::queue_impl> graph_impl::getQueue() const {
-  std::shared_ptr<sycl::detail::queue_impl> Return{};
-  if (!MRecordingQueues.empty())
-    Return = MRecordingQueues.begin()->lock();
-  return Return;
+std::shared_ptr<sycl::detail::queue_impl>
+graph_impl::getLastRecordedQueue() const {
+  return MLastRecordedQueue.lock();
 }
 
 void graph_impl::addQueue(sycl::detail::queue_impl &RecordingQueue) {
-  MRecordingQueues.insert(RecordingQueue.weak_from_this());
+  MLastRecordedQueue = RecordingQueue.weak_from_this();
+  MRecordingQueues.insert(MLastRecordedQueue);
 }
 
 void graph_impl::removeQueue(sycl::detail::queue_impl &RecordingQueue) {
@@ -932,7 +931,7 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
   // Copy nodes from GraphImpl and merge any subgraph nodes into this graph.
   duplicateNodes();
 
-  if (auto PlaceholderQueuePtr = GraphImpl->getQueue()) {
+  if (auto PlaceholderQueuePtr = GraphImpl->getLastRecordedQueue()) {
     MQueueImpl = std::move(PlaceholderQueuePtr);
   } else {
     MQueueImpl = sycl::detail::queue_impl::create(
@@ -1204,7 +1203,7 @@ exec_graph_impl::enqueuePartitions(sycl::detail::queue_impl &Queue,
   return SignalEvent;
 }
 
-EventImplPtr
+std::pair<EventImplPtr, bool>
 exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
                          sycl::detail::CG::StorageInitHelper CGData,
                          bool EventNeeded) {
@@ -1213,19 +1212,17 @@ exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
   cleanupExecutionEvents(MSchedulerDependencies);
   CGData.MEvents.insert(CGData.MEvents.end(), MSchedulerDependencies.begin(),
                         MSchedulerDependencies.end());
-
   bool IsCGDataSafeForSchedulerBypass =
       detail::Scheduler::areEventsSafeForSchedulerBypass(
           CGData.MEvents, Queue.getContextImpl()) &&
       CGData.MRequirements.empty();
+  bool SkipScheduler = IsCGDataSafeForSchedulerBypass && !MContainsHostTask;
 
   // This variable represents the returned event. It will always be nullptr if
   // EventNeeded is false.
   EventImplPtr SignalEvent;
-
   if (!MContainsHostTask) {
-    bool SkipScheduler =
-        IsCGDataSafeForSchedulerBypass && MPartitions[0]->MRequirements.empty();
+    SkipScheduler = SkipScheduler && MPartitions[0]->MRequirements.empty();
     if (SkipScheduler) {
       SignalEvent = enqueuePartitionDirectly(MPartitions[0], Queue,
                                              CGData.MEvents, EventNeeded);
@@ -1258,7 +1255,7 @@ exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
     SignalEvent->setProfilingEnabled(MEnableProfiling);
   }
 
-  return SignalEvent;
+  return {SignalEvent, SkipScheduler};
 }
 
 void exec_graph_impl::duplicateNodes() {

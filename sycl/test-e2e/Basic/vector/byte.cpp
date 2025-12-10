@@ -1,8 +1,8 @@
 // RUN: %{build} %cxx_std_optionc++17 -o %t.out
 // RUN: %{run} %t.out
 
-// RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes %cxx_std_optionc++17 -o %t2.out %}
-// RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
+// RUN: %{build} -D__SYCL_USE_LIBSYCL8_VEC_IMPL=1 %cxx_std_optionc++17 -o %t2.out
+// RUN: %{run} %t2.out
 
 //==---------- vector_byte.cpp - SYCL vec<> for std::byte test -------------==//
 //

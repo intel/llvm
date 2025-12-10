@@ -90,15 +90,10 @@ public:
     /// A mutex to be employed along with MBuildCV.
     std::mutex MBuildResultMutex;
 
-    BuildState
-    waitUntilTransition(BuildState From = BuildState::BS_InProgress) {
-      BuildState To;
+    BuildState waitUntilTransition() {
       std::unique_lock<std::mutex> Lock(MBuildResultMutex);
-      MBuildCV.wait(Lock, [&] {
-        To = State;
-        return State != From;
-      });
-      return To;
+      MBuildCV.wait(Lock, [&] { return State != BuildState::BS_InProgress; });
+      return State.load();
     }
 
     void updateAndNotify(BuildState DesiredState) {
@@ -729,29 +724,31 @@ public:
   auto /* std::shared_ptr<BuildResult> */
   getOrBuild(GetCachedBuildFT &&GetCachedBuild, BuildFT &&Build,
              EvictFT &&EvictFunc = nullptr) {
-    using BuildState = KernelProgramCache::BuildState;
     constexpr size_t MaxAttempts = 2;
     for (size_t AttemptCounter = 0;; ++AttemptCounter) {
       auto /* std::pair<std::shared_ptr<BuildResult>, bool> */ Res =
           GetCachedBuild();
       auto &BuildResult = Res.first;
       assert(BuildResult != nullptr);
-      BuildState Expected = BuildState::BS_Initial;
-      BuildState Desired = BuildState::BS_InProgress;
-      if (!BuildResult->State.compare_exchange_strong(Expected, Desired)) {
+      BuildState CurrentState = BuildState::BS_Initial; // initial is expected
+      if (!BuildResult->State.compare_exchange_strong(
+              CurrentState, BuildState::BS_InProgress)) {
         // no insertion took place, thus some other thread has already inserted
         // smth in the cache
-        BuildState NewState = BuildResult->waitUntilTransition();
+
+        if (CurrentState == BuildState::BS_InProgress) {
+          CurrentState = BuildResult->waitUntilTransition();
+        }
 
         // Build succeeded.
-        if (NewState == BuildState::BS_Done) {
+        if (CurrentState == BuildState::BS_Done) {
           if constexpr (!std::is_same_v<EvictFT, void *>)
             EvictFunc(BuildResult->Val, /*IsBuilt=*/false);
           return BuildResult;
         }
 
         // Build failed, or this is the last attempt.
-        if (NewState == BuildState::BS_Failed ||
+        if (CurrentState == BuildState::BS_Failed ||
             AttemptCounter + 1 == MaxAttempts) {
           if (BuildResult->Error.isFilledIn())
             throw detail::set_ur_error(

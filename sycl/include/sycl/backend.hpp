@@ -272,18 +272,10 @@ __SYCL_EXPORT event make_event(ur_native_handle_t NativeHandle,
 __SYCL_EXPORT event make_event(ur_native_handle_t NativeHandle,
                                const context &TargetContext, bool KeepOwnership,
                                backend Backend);
-// TODO: Unused. Remove when allowed.
-__SYCL_EXPORT kernel make_kernel(ur_native_handle_t NativeHandle,
-                                 const context &TargetContext, backend Backend);
 __SYCL_EXPORT kernel make_kernel(
     const context &TargetContext,
     const kernel_bundle<bundle_state::executable> &KernelBundle,
     ur_native_handle_t NativeKernelHandle, bool KeepOwnership, backend Backend);
-// TODO: Unused. Remove when allowed.
-__SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
-make_kernel_bundle(ur_native_handle_t NativeHandle,
-                   const context &TargetContext, bundle_state State,
-                   backend Backend);
 __SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
 make_kernel_bundle(ur_native_handle_t NativeHandle,
                    const context &TargetContext, bool KeepOwnership,
@@ -403,8 +395,10 @@ make_kernel(const typename backend_traits<Backend>::template input_type<kernel>
                 &BackendObject,
             const context &TargetContext) {
   return detail::make_kernel(
-      detail::ur::cast<ur_native_handle_t>(BackendObject), TargetContext,
-      Backend);
+      TargetContext,
+      detail::get_empty_interop_kernel_bundle<bundle_state::executable>(
+          TargetContext),
+      detail::ur::cast<ur_native_handle_t>(BackendObject), false, Backend);
 }
 
 template <backend Backend, bundle_state State>

@@ -113,8 +113,7 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
       auto hDevice = hContext->getDevices()[0];
       UR_CALL_THROWS(
           synchronousZeCopy(hContext, hDevice, this->ptr.get(), hostPtr, size));
-      // Set writeBackPtr to enable map/unmap copy-back (but NOT destructor
-      // copy-back)
+      // Set writeBackPtr to enable copy-back through map/unmap operations
       writeBackPtr = hostPtr;
     }
   }
@@ -616,7 +615,7 @@ ur_result_t urMemBufferCreate(ur_context_handle_t hContext,
   // 1. No host pointer - allocate USM host memory
   // 2. Host pointer is already USM - use directly
   // 3. Host pointer can be imported - import it
-  // 4. Otherwise - allocate USM and copy-back on destruction
+  // 4. Otherwise - allocate USM and copy-back through map/unmap operations
   if (useHostBuffer(hContext)) {
     *phBuffer = ur_mem_handle_t_::create<ur_integrated_buffer_handle_t>(
         hContext, hostPtr, size, accessMode);

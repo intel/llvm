@@ -397,7 +397,7 @@ bool handler::isStateExplicitKernelBundle() const {
 // returns newly created kernel_bundle if Insert is true
 // returns nullptr if Insert is false
 detail::kernel_bundle_impl *
-handler::getOrInsertHandlerKernelBundlePtr(bool Insert) const {
+handler::getOrInsertHandlerKernelBundle(bool Insert) const {
   if (impl->MKernelBundle || !Insert)
     return impl->MKernelBundle.get();
 
@@ -495,7 +495,7 @@ detail::EventImplPtr handler::finalize() {
 
     // If there were uses of set_specialization_constant build the kernel_bundle
     detail::kernel_bundle_impl *KernelBundleImpPtr =
-        getOrInsertHandlerKernelBundlePtr(/*Insert=*/false);
+        getOrInsertHandlerKernelBundle(/*Insert=*/false);
     if (KernelBundleImpPtr) {
       // Make sure implicit non-interop kernel bundles have the kernel
       if (!impl->isStateExplicitKernelBundle() &&
@@ -714,8 +714,9 @@ detail::EventImplPtr handler::finalize() {
       bool DiscardEvent = !impl->MEventNeeded &&
                           Queue.supportsDiscardingPiEvents() &&
                           !impl->MExecGraph->containsHostTask();
-      detail::EventImplPtr GraphCompletionEvent = impl->MExecGraph->enqueue(
+      auto [GraphCompletionEvent, Unused] = impl->MExecGraph->enqueue(
           Queue, std::move(impl->CGData), !DiscardEvent);
+      (void)Unused;
       return GraphCompletionEvent;
     }
   } break;
@@ -858,20 +859,13 @@ void handler::setArgHelper(int ArgIndex, stream &&Str) {
 
 void handler::extractArgsAndReqs() {
   assert(MKernel && "MKernel is not initialized");
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  if (impl->MKernelData.getDeviceKernelInfoPtr() == nullptr) {
-    impl->MKernelData.setDeviceKernelInfoPtr(
-        &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
-            std::string_view(MKernel->getName())));
-  }
-#endif
   assert(impl->MKernelData.getDeviceKernelInfoPtr() != nullptr);
   impl->MKernelData.extractArgsAndReqs(MKernel->isCreatedFromSource());
 }
 
 void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
   detail::kernel_bundle_impl *UsedKernelBundleImplPtr =
-      getOrInsertHandlerKernelBundlePtr(/*Insert=*/false);
+      getOrInsertHandlerKernelBundle(/*Insert=*/false);
   if (!UsedKernelBundleImplPtr)
     return;
 
@@ -1662,7 +1656,7 @@ void handler::setUserFacingNodeType(ext::oneapi::experimental::node_type Type) {
 
 kernel_bundle<bundle_state::input> handler::getKernelBundle() const {
   detail::kernel_bundle_impl *KernelBundleImplPtr =
-      getOrInsertHandlerKernelBundlePtr(/*Insert=*/true);
+      getOrInsertHandlerKernelBundle(/*Insert=*/true);
 
   return detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
       *KernelBundleImplPtr);

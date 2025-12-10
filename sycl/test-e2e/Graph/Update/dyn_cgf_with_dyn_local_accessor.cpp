@@ -21,7 +21,7 @@ int main() {
   std::vector<int> HostDataA(Size);
   std::vector<int> HostDataB(Size);
 
-  exp_ext::dynamic_local_accessor<int, 1> DynLocalMem(Graph, LocalSizeA);
+  exp_ext::dynamic_local_accessor<int, 1> DynLocalMem(LocalSizeA);
 
   nd_range<1> NDrangeA{Size, LocalSizeA};
   auto CGFA = [&](handler &CGH) {

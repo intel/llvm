@@ -7,8 +7,10 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
-#include <sycl/detail/export.hpp> // for __SYCL_EXPORT
-#include <sycl/usm/usm_enums.hpp> // for alloc
+#include <sycl/context.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/detail/impl_utils.hpp>
+#include <sycl/usm/usm_enums.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -26,13 +28,9 @@ __SYCL_EXPORT usm::alloc get_pointer_type(const void *ptr, context_impl &ctxt);
 ///
 /// \param ptr is the USM pointer to query
 /// \param ctxt is the sycl context the ptr was allocated in
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 inline usm::alloc get_pointer_type(const void *ptr, const context &ctxt) {
-  return get_pointer_type(ptr, *getSyclObjImpl(ctxt));
+  return get_pointer_type(ptr, *detail::getSyclObjImpl(ctxt));
 }
-#else
-__SYCL_EXPORT usm::alloc get_pointer_type(const void *ptr, const context &ctxt);
-#endif
 
 /// Queries the device against which the pointer was allocated
 /// Throws an exception with errc::invalid error code if ptr is a host
