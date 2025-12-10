@@ -2336,7 +2336,7 @@ public:
   }
 
   void setDefaultedOrDeletedInfo(DefaultedOrDeletedFunctionInfo *Info);
-  DefaultedOrDeletedFunctionInfo *getDefalutedOrDeletedInfo() const;
+  DefaultedOrDeletedFunctionInfo *getDefaultedOrDeletedInfo() const;
 
   /// Whether this function is variadic.
   bool isVariadic() const;

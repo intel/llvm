@@ -31,7 +31,7 @@
 
 ; CHECK-SPIRV-DAG: Capability CooperativeMatrixKHR
 ; CHECK-SPIRV-DAG: Capability Bfloat16ConversionINTEL
-; CHECK-SPIRV-DAG: Capability JointMatrixBF16ComponentTypeINTEL
+; CHECK-SPIRV-DAG: Capability CooperativeMatrixBFloat16ComponentTypeINTEL
 ; CHECK-SPIRV-DAG: Extension "SPV_INTEL_bfloat16_conversion"
 ; CHECK-SPIRV-DAG: Extension "SPV_KHR_cooperative_matrix"
 ; CHECK-SPIRV-DAG: Extension "SPV_INTEL_joint_matrix"

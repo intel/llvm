@@ -26,8 +26,8 @@
 #include "TargetInfo.h"
 #include "clang/AST/OSLog.h"
 #include "clang/AST/StmtVisitor.h"
+#include "clang/Basic/DiagnosticFrontend.h"
 #include "clang/Basic/TargetInfo.h"
-#include "clang/Frontend/FrontendDiagnostic.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Intrinsics.h"
@@ -2742,84 +2742,14 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   // fast-math which implies math-errno.
   bool OptNone = CurFuncDecl && CurFuncDecl->hasAttr<OptimizeNoneAttr>();
 
-  // True if we are compiling at -O2 and errno has been disabled
-  // using the '#pragma float_control(precise, off)', and
-  // attribute opt-none hasn't been seen.
-  bool ErrnoOverridenToFalseWithOpt =
-       ErrnoOverriden.has_value() && !ErrnoOverriden.value() && !OptNone &&
-       CGM.getCodeGenOpts().OptimizationLevel != 0;
+  bool IsOptimizationEnabled = CGM.getCodeGenOpts().OptimizationLevel != 0;
 
-  // There are LLVM math intrinsics/instructions corresponding to math library
-  // functions except the LLVM op will never set errno while the math library
-  // might. Also, math builtins have the same semantics as their math library
-  // twins. Thus, we can transform math library and builtin calls to their
-  // LLVM counterparts if the call is marked 'const' (known to never set errno).
-  // In case FP exceptions are enabled, the experimental versions of the
-  // intrinsics model those.
-  bool ConstAlways =
-      getContext().BuiltinInfo.isConst(BuiltinID);
+  bool GenerateFPMathIntrinsics =
+      getContext().BuiltinInfo.shouldGenerateFPMathIntrinsic(
+          BuiltinID, CGM.getTriple(), ErrnoOverriden, getLangOpts().MathErrno,
+          OptNone, IsOptimizationEnabled);
 
-  // There's a special case with the fma builtins where they are always const
-  // if the target environment is GNU or the target is OS is Windows and we're
-  // targeting the MSVCRT.dll environment.
-  // FIXME: This list can be become outdated. Need to find a way to get it some
-  // other way.
-  switch (BuiltinID) {
-  case Builtin::BI__builtin_fma:
-  case Builtin::BI__builtin_fmaf:
-  case Builtin::BI__builtin_fmal:
-  case Builtin::BI__builtin_fmaf16:
-  case Builtin::BIfma:
-  case Builtin::BIfmaf:
-  case Builtin::BIfmal: {
-    auto &Trip = CGM.getTriple();
-    if (Trip.isGNUEnvironment() || Trip.isOSMSVCRT())
-      ConstAlways = true;
-    break;
-  }
-  default:
-    break;
-  }
-
-  bool ConstWithoutErrnoAndExceptions =
-      getContext().BuiltinInfo.isConstWithoutErrnoAndExceptions(BuiltinID);
-  bool ConstWithoutExceptions =
-      getContext().BuiltinInfo.isConstWithoutExceptions(BuiltinID);
-
-  // ConstAttr is enabled in fast-math mode. In fast-math mode, math-errno is
-  // disabled.
-  // Math intrinsics are generated only when math-errno is disabled. Any pragmas
-  // or attributes that affect math-errno should prevent or allow math
-  // intrinsics to be generated. Intrinsics are generated:
-  //   1- In fast math mode, unless math-errno is overriden
-  //      via '#pragma float_control(precise, on)', or via an
-  //      'attribute__((optnone))'.
-  //   2- If math-errno was enabled on command line but overriden
-  //      to false via '#pragma float_control(precise, off))' and
-  //      'attribute__((optnone))' hasn't been used.
-  //   3- If we are compiling with optimization and errno has been disabled
-  //      via '#pragma float_control(precise, off)', and
-  //      'attribute__((optnone))' hasn't been used.
-
-  bool ConstWithoutErrnoOrExceptions =
-      ConstWithoutErrnoAndExceptions || ConstWithoutExceptions;
-  bool GenerateIntrinsics =
-      (ConstAlways && !OptNone) ||
-      (!getLangOpts().MathErrno &&
-       !(ErrnoOverriden.has_value() && ErrnoOverriden.value()) && !OptNone);
-  if (!GenerateIntrinsics) {
-    GenerateIntrinsics =
-        ConstWithoutErrnoOrExceptions && !ConstWithoutErrnoAndExceptions;
-    if (!GenerateIntrinsics)
-      GenerateIntrinsics =
-          ConstWithoutErrnoOrExceptions &&
-          (!getLangOpts().MathErrno &&
-           !(ErrnoOverriden.has_value() && ErrnoOverriden.value()) && !OptNone);
-    if (!GenerateIntrinsics)
-      GenerateIntrinsics =
-          ConstWithoutErrnoOrExceptions && ErrnoOverridenToFalseWithOpt;
-  }
-  if (GenerateIntrinsics) {
+  if (GenerateFPMathIntrinsics) {
     switch (BuiltinIDIfNoAsmLabel) {
     case Builtin::BIacos:
     case Builtin::BIacosf:
@@ -2829,6 +2759,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_acosf16:
     case Builtin::BI__builtin_acosl:
     case Builtin::BI__builtin_acosf128:
+    case Builtin::BI__builtin_elementwise_acos:
       return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
           *this, E, Intrinsic::acos, Intrinsic::experimental_constrained_acos,
           Intrinsic::fpbuiltin_acos));
@@ -2841,6 +2772,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_asinf16:
     case Builtin::BI__builtin_asinl:
     case Builtin::BI__builtin_asinf128:
+    case Builtin::BI__builtin_elementwise_asin:
       return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
           *this, E, Intrinsic::asin, Intrinsic::experimental_constrained_asin,
           Intrinsic::fpbuiltin_asin));
@@ -2853,6 +2785,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_atanf16:
     case Builtin::BI__builtin_atanl:
     case Builtin::BI__builtin_atanf128:
+    case Builtin::BI__builtin_elementwise_atan:
       return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
           *this, E, Intrinsic::atan, Intrinsic::experimental_constrained_atan,
           Intrinsic::fpbuiltin_atan));
@@ -2865,6 +2798,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_atan2f16:
     case Builtin::BI__builtin_atan2l:
     case Builtin::BI__builtin_atan2f128:
+    case Builtin::BI__builtin_elementwise_atan2:
       return RValue::get(emitBinaryMaybeConstrainedFPBuiltin(
           *this, E, Intrinsic::atan2, Intrinsic::experimental_constrained_atan2,
           Intrinsic::fpbuiltin_atan2));
@@ -2877,6 +2811,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_ceilf16:
     case Builtin::BI__builtin_ceill:
     case Builtin::BI__builtin_ceilf128:
+    case Builtin::BI__builtin_elementwise_ceil:
       return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(*this, E,
                                    Intrinsic::ceil,
                                    Intrinsic::experimental_constrained_ceil));
@@ -2900,9 +2835,11 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_cosf16:
     case Builtin::BI__builtin_cosl:
     case Builtin::BI__builtin_cosf128:
-      return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
-          *this, E, Intrinsic::cos, Intrinsic::experimental_constrained_cos,
-          Intrinsic::fpbuiltin_cos));
+    case Builtin::BI__builtin_elementwise_cos:
+      return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(*this, E,
+                                   Intrinsic::cos,
+                                   Intrinsic::experimental_constrained_cos,
+				   Intrinsic::fpbuiltin_cos));
 
     case Builtin::BIcosh:
     case Builtin::BIcoshf:
@@ -2912,6 +2849,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_coshf16:
     case Builtin::BI__builtin_coshl:
     case Builtin::BI__builtin_coshf128:
+    case Builtin::BI__builtin_elementwise_cosh:
       return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
           *this, E, Intrinsic::cosh, Intrinsic::experimental_constrained_cosh,
           Intrinsic::fpbuiltin_cosh));
@@ -2924,6 +2862,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_expf16:
     case Builtin::BI__builtin_expl:
     case Builtin::BI__builtin_expf128:
+    case Builtin::BI__builtin_elementwise_exp:
       return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
           *this, E, Intrinsic::exp, Intrinsic::experimental_constrained_exp,
           Intrinsic::fpbuiltin_exp));
@@ -2936,6 +2875,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_exp2f16:
     case Builtin::BI__builtin_exp2l:
     case Builtin::BI__builtin_exp2f128:
+    case Builtin::BI__builtin_elementwise_exp2:
       return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
           *this, E, Intrinsic::exp2, Intrinsic::experimental_constrained_exp2,
           Intrinsic::fpbuiltin_exp2));
@@ -2943,7 +2883,8 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_exp10f:
     case Builtin::BI__builtin_exp10f16:
     case Builtin::BI__builtin_exp10l:
-    case Builtin::BI__builtin_exp10f128: {
+    case Builtin::BI__builtin_exp10f128:
+    case Builtin::BI__builtin_elementwise_exp10: {
       // TODO: strictfp support
       if (Builder.getIsFPConstrained())
         break;
@@ -2969,6 +2910,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_floorf16:
     case Builtin::BI__builtin_floorl:
     case Builtin::BI__builtin_floorf128:
+    case Builtin::BI__builtin_elementwise_floor:
       return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(*this, E,
                                    Intrinsic::floor,
                                    Intrinsic::experimental_constrained_floor));
@@ -2981,6 +2923,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_fmaf16:
     case Builtin::BI__builtin_fmal:
     case Builtin::BI__builtin_fmaf128:
+    case Builtin::BI__builtin_elementwise_fma:
       return RValue::get(emitTernaryMaybeConstrainedFPBuiltin(*this, E,
                                    Intrinsic::fma,
                                    Intrinsic::experimental_constrained_fma));
@@ -3045,7 +2988,13 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
       CodeGenFunction::CGFPOptionsRAII FPOptsRAII(*this, E);
       Value *Arg1 = EmitScalarExpr(E->getArg(0));
       Value *Arg2 = EmitScalarExpr(E->getArg(1));
-      return RValue::get(Builder.CreateFRem(Arg1, Arg2, "fmod"));
+      if (Builder.getIsFPConstrained()) {
+        Function *F = CGM.getIntrinsic(Intrinsic::experimental_constrained_frem,
+                                       Arg1->getType());
+        return RValue::get(Builder.CreateConstrainedFPCall(F, {Arg1, Arg2}));
+      } else {
+        return RValue::get(Builder.CreateFRem(Arg1, Arg2, "fmod"));
+      }
     }
 
     case Builtin::BIlog:
@@ -3056,6 +3005,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_logf16:
     case Builtin::BI__builtin_logl:
     case Builtin::BI__builtin_logf128:
+    case Builtin::BI__builtin_elementwise_log:
       return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
           *this, E, Intrinsic::log, Intrinsic::experimental_constrained_log,
           Intrinsic::fpbuiltin_log));
@@ -3068,6 +3018,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_log10f16:
     case Builtin::BI__builtin_log10l:
     case Builtin::BI__builtin_log10f128:
+    case Builtin::BI__builtin_elementwise_log10:
       return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
           *this, E, Intrinsic::log10, Intrinsic::experimental_constrained_log10,
           Intrinsic::fpbuiltin_log10));
@@ -3080,6 +3031,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_log2f16:
     case Builtin::BI__builtin_log2l:
     case Builtin::BI__builtin_log2f128:
+    case Builtin::BI__builtin_elementwise_log2:
       return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
           *this, E, Intrinsic::log2, Intrinsic::experimental_constrained_log2,
           Intrinsic::fpbuiltin_log2));
@@ -3091,6 +3043,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_nearbyintf:
     case Builtin::BI__builtin_nearbyintl:
     case Builtin::BI__builtin_nearbyintf128:
+    case Builtin::BI__builtin_elementwise_nearbyint:
       return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(*this, E,
                                 Intrinsic::nearbyint,
                                 Intrinsic::experimental_constrained_nearbyint));
@@ -3103,6 +3056,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_powf16:
     case Builtin::BI__builtin_powl:
     case Builtin::BI__builtin_powf128:
+    case Builtin::BI__builtin_elementwise_pow:
       return RValue::get(emitBinaryMaybeConstrainedFPBuiltin(
           *this, E, Intrinsic::pow, Intrinsic::experimental_constrained_pow,
           Intrinsic::fpbuiltin_pow));
@@ -3115,6 +3069,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_rintf16:
     case Builtin::BI__builtin_rintl:
     case Builtin::BI__builtin_rintf128:
+    case Builtin::BI__builtin_elementwise_rint:
       return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(*this, E,
                                    Intrinsic::rint,
                                    Intrinsic::experimental_constrained_rint));
@@ -3127,6 +3082,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_roundf16:
     case Builtin::BI__builtin_roundl:
     case Builtin::BI__builtin_roundf128:
+    case Builtin::BI__builtin_elementwise_round:
       return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(*this, E,
                                    Intrinsic::round,
                                    Intrinsic::experimental_constrained_round));
@@ -3139,6 +3095,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_roundevenf16:
     case Builtin::BI__builtin_roundevenl:
     case Builtin::BI__builtin_roundevenf128:
+    case Builtin::BI__builtin_elementwise_roundeven:
       return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(*this, E,
                                    Intrinsic::roundeven,
                                    Intrinsic::experimental_constrained_roundeven));
@@ -3151,6 +3108,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_sinf16:
     case Builtin::BI__builtin_sinl:
     case Builtin::BI__builtin_sinf128:
+    case Builtin::BI__builtin_elementwise_sin:
       return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
           *this, E, Intrinsic::sin, Intrinsic::experimental_constrained_sin,
           Intrinsic::fpbuiltin_sin));
@@ -3163,6 +3121,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_sinhf16:
     case Builtin::BI__builtin_sinhl:
     case Builtin::BI__builtin_sinhf128:
+    case Builtin::BI__builtin_elementwise_sinh:
       return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
           *this, E, Intrinsic::sinh, Intrinsic::experimental_constrained_sinh,
           Intrinsic::fpbuiltin_sinh));
@@ -3211,6 +3170,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_tanf16:
     case Builtin::BI__builtin_tanl:
     case Builtin::BI__builtin_tanf128:
+    case Builtin::BI__builtin_elementwise_tan:
       return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
           *this, E, Intrinsic::tan, Intrinsic::experimental_constrained_tan,
           Intrinsic::fpbuiltin_tan));
@@ -3223,6 +3183,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_tanhf16:
     case Builtin::BI__builtin_tanhl:
     case Builtin::BI__builtin_tanhf128:
+    case Builtin::BI__builtin_elementwise_tanh:
       return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
           *this, E, Intrinsic::tanh, Intrinsic::experimental_constrained_tanh,
           Intrinsic::fpbuiltin_tanh));
@@ -3235,6 +3196,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_truncf16:
     case Builtin::BI__builtin_truncl:
     case Builtin::BI__builtin_truncf128:
+    case Builtin::BI__builtin_elementwise_trunc:
       return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(*this, E,
                                    Intrinsic::trunc,
                                    Intrinsic::experimental_constrained_trunc));
@@ -3286,11 +3248,11 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_ldexpf:
     case Builtin::BI__builtin_ldexpl:
     case Builtin::BI__builtin_ldexpf16:
-    case Builtin::BI__builtin_ldexpf128: {
+    case Builtin::BI__builtin_ldexpf128:
+    case Builtin::BI__builtin_elementwise_ldexp:
       return RValue::get(emitBinaryExpMaybeConstrainedFPBuiltin(
           *this, E, Intrinsic::ldexp,
           Intrinsic::experimental_constrained_ldexp));
-    }
     default:
       break;
     }
@@ -3727,6 +3689,19 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
           Builder.CreateArithmeticFence(ArgValue, ConvertType(ArgType)));
     return RValue::get(ArgValue);
   }
+  case Builtin::BI__builtin_bswapg: {
+    Value *ArgValue = EmitScalarExpr(E->getArg(0));
+    llvm::IntegerType *IntTy = cast<llvm::IntegerType>(ArgValue->getType());
+    assert(IntTy && "LLVM's __builtin_bswapg only supports integer variants");
+    assert(((IntTy->getBitWidth() % 16 == 0 && IntTy->getBitWidth() != 0) ||
+            IntTy->getBitWidth() == 8) &&
+           "LLVM's __builtin_bswapg only supports integer variants that has a "
+           "multiple of 16 bits as well as a single byte");
+    if (IntTy->getBitWidth() == 8)
+      return RValue::get(ArgValue);
+    return RValue::get(
+        emitBuiltinWithOneOverloadedType<1>(*this, E, Intrinsic::bswap));
+  }
   case Builtin::BI__builtin_bswap16:
   case Builtin::BI__builtin_bswap32:
   case Builtin::BI__builtin_bswap64:
@@ -4073,100 +4048,18 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
 
     return RValue::get(Result);
   }
-  case Builtin::BI__builtin_elementwise_acos:
-    return RValue::get(emitBuiltinWithOneOverloadedType<1>(
-        *this, E, Intrinsic::acos, "elt.acos"));
-  case Builtin::BI__builtin_elementwise_asin:
-    return RValue::get(emitBuiltinWithOneOverloadedType<1>(
-        *this, E, Intrinsic::asin, "elt.asin"));
-  case Builtin::BI__builtin_elementwise_atan:
-    return RValue::get(emitBuiltinWithOneOverloadedType<1>(
-        *this, E, Intrinsic::atan, "elt.atan"));
-  case Builtin::BI__builtin_elementwise_atan2:
-    return RValue::get(emitBuiltinWithOneOverloadedType<2>(
-        *this, E, Intrinsic::atan2, "elt.atan2"));
-  case Builtin::BI__builtin_elementwise_ceil:
-    return RValue::get(emitBuiltinWithOneOverloadedType<1>(
-        *this, E, Intrinsic::ceil, "elt.ceil"));
-  case Builtin::BI__builtin_elementwise_exp:
-    return RValue::get(emitBuiltinWithOneOverloadedType<1>(
-        *this, E, Intrinsic::exp, "elt.exp"));
-  case Builtin::BI__builtin_elementwise_exp2:
-    return RValue::get(emitBuiltinWithOneOverloadedType<1>(
-        *this, E, Intrinsic::exp2, "elt.exp2"));
-  case Builtin::BI__builtin_elementwise_exp10:
-    return RValue::get(emitBuiltinWithOneOverloadedType<1>(
-        *this, E, Intrinsic::exp10, "elt.exp10"));
-  case Builtin::BI__builtin_elementwise_ldexp: {
-    Value *Src = EmitScalarExpr(E->getArg(0));
-    Value *Exp = EmitScalarExpr(E->getArg(1));
-    Value *Result = Builder.CreateLdexp(Src, Exp, {}, "elt.ldexp");
-    return RValue::get(Result);
-  }
-  case Builtin::BI__builtin_elementwise_log:
-    return RValue::get(emitBuiltinWithOneOverloadedType<1>(
-        *this, E, Intrinsic::log, "elt.log"));
-  case Builtin::BI__builtin_elementwise_log2:
-    return RValue::get(emitBuiltinWithOneOverloadedType<1>(
-        *this, E, Intrinsic::log2, "elt.log2"));
-  case Builtin::BI__builtin_elementwise_log10:
-    return RValue::get(emitBuiltinWithOneOverloadedType<1>(
-        *this, E, Intrinsic::log10, "elt.log10"));
-  case Builtin::BI__builtin_elementwise_pow: {
-    return RValue::get(
-        emitBuiltinWithOneOverloadedType<2>(*this, E, Intrinsic::pow));
-  }
   case Builtin::BI__builtin_elementwise_bitreverse:
     return RValue::get(emitBuiltinWithOneOverloadedType<1>(
         *this, E, Intrinsic::bitreverse, "elt.bitreverse"));
-  case Builtin::BI__builtin_elementwise_cos:
-    return RValue::get(emitBuiltinWithOneOverloadedType<1>(
-        *this, E, Intrinsic::cos, "elt.cos"));
-  case Builtin::BI__builtin_elementwise_cosh:
-    return RValue::get(emitBuiltinWithOneOverloadedType<1>(
-        *this, E, Intrinsic::cosh, "elt.cosh"));
-  case Builtin::BI__builtin_elementwise_floor:
-    return RValue::get(emitBuiltinWithOneOverloadedType<1>(
-        *this, E, Intrinsic::floor, "elt.floor"));
   case Builtin::BI__builtin_elementwise_popcount:
     return RValue::get(emitBuiltinWithOneOverloadedType<1>(
         *this, E, Intrinsic::ctpop, "elt.ctpop"));
-  case Builtin::BI__builtin_elementwise_roundeven:
-    return RValue::get(emitBuiltinWithOneOverloadedType<1>(
-        *this, E, Intrinsic::roundeven, "elt.roundeven"));
-  case Builtin::BI__builtin_elementwise_round:
-    return RValue::get(emitBuiltinWithOneOverloadedType<1>(
-        *this, E, Intrinsic::round, "elt.round"));
-  case Builtin::BI__builtin_elementwise_rint:
-    return RValue::get(emitBuiltinWithOneOverloadedType<1>(
-        *this, E, Intrinsic::rint, "elt.rint"));
-  case Builtin::BI__builtin_elementwise_nearbyint:
-    return RValue::get(emitBuiltinWithOneOverloadedType<1>(
-        *this, E, Intrinsic::nearbyint, "elt.nearbyint"));
-  case Builtin::BI__builtin_elementwise_sin:
-    return RValue::get(emitBuiltinWithOneOverloadedType<1>(
-        *this, E, Intrinsic::sin, "elt.sin"));
-  case Builtin::BI__builtin_elementwise_sinh:
-    return RValue::get(emitBuiltinWithOneOverloadedType<1>(
-        *this, E, Intrinsic::sinh, "elt.sinh"));
-  case Builtin::BI__builtin_elementwise_tan:
-    return RValue::get(emitBuiltinWithOneOverloadedType<1>(
-        *this, E, Intrinsic::tan, "elt.tan"));
-  case Builtin::BI__builtin_elementwise_tanh:
-    return RValue::get(emitBuiltinWithOneOverloadedType<1>(
-        *this, E, Intrinsic::tanh, "elt.tanh"));
-  case Builtin::BI__builtin_elementwise_trunc:
-    return RValue::get(emitBuiltinWithOneOverloadedType<1>(
-        *this, E, Intrinsic::trunc, "elt.trunc"));
   case Builtin::BI__builtin_elementwise_canonicalize:
     return RValue::get(emitBuiltinWithOneOverloadedType<1>(
         *this, E, Intrinsic::canonicalize, "elt.canonicalize"));
   case Builtin::BI__builtin_elementwise_copysign:
     return RValue::get(
         emitBuiltinWithOneOverloadedType<2>(*this, E, Intrinsic::copysign));
-  case Builtin::BI__builtin_elementwise_fma:
-    return RValue::get(
-        emitBuiltinWithOneOverloadedType<3>(*this, E, Intrinsic::fma));
   case Builtin::BI__builtin_elementwise_fshl:
     return RValue::get(
         emitBuiltinWithOneOverloadedType<3>(*this, E, Intrinsic::fshl));

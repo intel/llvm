@@ -115,13 +115,8 @@ public:
 
   bool has_kernel(const kernel_id &KernelID, const device &Dev) const noexcept;
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  ur_native_handle_t getNative() const;
-#endif
 protected:
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   ur_native_handle_t getNative() const;
-#endif
 
   std::shared_ptr<device_image_impl> impl;
 
@@ -736,7 +731,8 @@ template <bundle_state State>
 kernel_bundle<State> get_empty_interop_kernel_bundle(const context &Ctx) {
   detail::KernelBundleImplPtr Impl =
       detail::get_empty_interop_kernel_bundle_impl(Ctx, Ctx.get_devices());
-  return detail::createSyclObjFromImpl<sycl::kernel_bundle<State>>(Impl);
+  return detail::createSyclObjFromImpl<sycl::kernel_bundle<State>>(
+      std::move(Impl));
 }
 } // namespace detail
 

@@ -309,14 +309,6 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
                                     std::move(UrProgram), ImageOriginInterop)});
 }
 
-// TODO: Unused. Remove when allowed.
-std::shared_ptr<detail::kernel_bundle_impl>
-make_kernel_bundle(ur_native_handle_t NativeHandle,
-                   const context &TargetContext, bundle_state State,
-                   backend Backend) {
-  return make_kernel_bundle(NativeHandle, TargetContext, false, State, Backend);
-}
-
 kernel make_kernel(const context &TargetContext,
                    const kernel_bundle<bundle_state::executable> &KernelBundle,
                    ur_native_handle_t NativeHandle, bool KeepOwnership,
@@ -361,14 +353,6 @@ kernel make_kernel(const context &TargetContext,
   // Construct the SYCL queue from UR queue.
   return detail::createSyclObjFromImpl<kernel>(std::make_shared<kernel_impl>(
       std::move(UrKernel), ContextImpl, &KernelBundleImpl));
-}
-
-kernel make_kernel(ur_native_handle_t NativeHandle,
-                   const context &TargetContext, backend Backend) {
-  return make_kernel(
-      TargetContext,
-      get_empty_interop_kernel_bundle<bundle_state::executable>(TargetContext),
-      NativeHandle, false, Backend);
 }
 
 } // namespace detail
