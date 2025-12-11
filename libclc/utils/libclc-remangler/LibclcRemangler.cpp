@@ -281,7 +281,7 @@ using Demangler = ManglingParser<DefaultAllocator>;
 class Remangler {
 public:
   Remangler(ASTContext *AST, const Node *Root,
-            SmallDenseMap<const char *, const char *> TypeReplacements)
+            const SmallDenseMap<const char *, const char *> &TypeReplacements)
       : AST(AST), Root(Root), TypeReplacements(TypeReplacements) {
     MangleContext.reset(
         ItaniumMangleContext::create(*AST, AST->getDiagnostics()));
@@ -728,7 +728,7 @@ private:
   ASTContext *AST = nullptr;
   std::unique_ptr<clang::MangleContext> MangleContext{};
   const Node *Root = nullptr;
-  SmallDenseMap<const char *, const char *> TypeReplacements{};
+  const SmallDenseMap<const char *, const char *> &TypeReplacements;
 
   bool Failed = false;
 
@@ -790,16 +790,18 @@ public:
     createRemangledTypeReplacements();
   }
 
-  SmallDenseMap<const char *, const char *> getParameterTypeReplacements() {
+  const SmallDenseMap<const char *, const char *> &
+  getParameterTypeReplacements() const {
     return ParameterTypeReplacements;
   }
 
-  SmallDenseMap<const char *, const char *> getCloneTypeReplacements() {
+  const SmallDenseMap<const char *, const char *> &
+  getCloneTypeReplacements() const {
     return CloneTypeReplacements;
   }
 
-  SmallDenseMap<const char *, const char *>
-  getRemangledCloneTypeReplacements() {
+  const SmallDenseMap<const char *, const char *> &
+  getRemangledCloneTypeReplacements() const {
     return RemangledCloneTypeReplacements;
   }
 };
@@ -841,11 +843,11 @@ private:
                               Replacements.getRemangledCloneTypeReplacements());
   }
 
-  bool
-  createCloneFromMap(llvm::Module *M, StringRef OriginalName,
-                     const itanium_demangle::Node *FunctionTree,
-                     SmallDenseMap<const char *, const char *> TypeReplacements,
-                     bool CloneeTypeReplacement = false) {
+  bool createCloneFromMap(
+      llvm::Module *M, StringRef OriginalName,
+      const itanium_demangle::Node *FunctionTree,
+      const SmallDenseMap<const char *, const char *> &TypeReplacements,
+      bool CloneeTypeReplacement = false) {
     Remangler ATR{ASTCtx, FunctionTree, TypeReplacements};
 
     std::string const RemangledName = ATR.remangle();
