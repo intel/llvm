@@ -1384,8 +1384,7 @@ public:
             std::is_pointer_v<remove_cv_ref_t<T>>) // USM
         || is_same_type<cl_mem, T>::value          // Interop
         || is_same_type<stream, T>::value          // Stream
-        ||
-        sycl::is_device_copyable_v<remove_cv_ref_t<T>>;
+        || sycl::is_device_copyable_v<remove_cv_ref_t<T>>;
   };
 
   /// Sets argument for OpenCL interoperability kernels.
