@@ -662,6 +662,8 @@ public:
            !ObjCSubscriptingLegacyRuntime;
   }
 
+  bool isCompatibleWithMSVC() const { return MSCompatibilityVersion > 0; }
+
   bool isCompatibleWithMSVC(MSVCMajorVersion MajorVersion) const {
     return MSCompatibilityVersion >= MajorVersion * 100000U;
   }
