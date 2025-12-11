@@ -1925,6 +1925,41 @@ Type::getAsNonAliasTemplateSpecializationType() const {
   return TST;
 }
 
+const TemplateSpecializationType *
+Type::getAsTemplateSpecializationTypeWithoutAliases(
+    const ASTContext &Ctx) const {
+  const TemplateSpecializationType *TST =
+      getAsNonAliasTemplateSpecializationType();
+  if (!TST)
+    return TST;
+
+  // Ensure the template arguments of the template specialization type are
+  // without aliases.
+  SmallVector<TemplateArgument, 4> ArgsWithoutAliases;
+  ArgsWithoutAliases.reserve(TST->template_arguments().size());
+  for (const TemplateArgument &TA : TST->template_arguments()) {
+    if (TA.getKind() == TemplateArgument::ArgKind::Type) {
+      QualType TAQTy = TA.getAsType();
+      const Type *TATy = TAQTy->getUnqualifiedDesugaredType();
+      if (isa<TemplateSpecializationType>(TATy))
+        TATy = TATy->getAsTemplateSpecializationTypeWithoutAliases(Ctx);
+      ArgsWithoutAliases.emplace_back(QualType(TATy, TAQTy.getCVRQualifiers()));
+    } else if (TA.getKind() == TemplateArgument::ArgKind::Template) {
+      TemplateName TN = TA.getAsTemplate();
+      while (std::optional<TemplateName> DesugaredTN =
+                 TN.desugar(/*IgnoreDeduced=*/false))
+        TN = *DesugaredTN;
+      ArgsWithoutAliases.emplace_back(TN);
+    } else {
+      ArgsWithoutAliases.push_back(TA);
+    }
+  }
+  return Ctx
+      .getTemplateSpecializationType(TST->getKeyword(), TST->getTemplateName(),
+                                     ArgsWithoutAliases, {}, QualType{})
+      ->getAs<TemplateSpecializationType>();
+}
+
 NestedNameSpecifier Type::getPrefix() const {
   switch (getTypeClass()) {
   case Type::DependentName:
