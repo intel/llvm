@@ -176,7 +176,9 @@ public:
   node_impl &add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
                  nodes_range Deps);
 
-  std::shared_ptr<sycl::detail::queue_impl> getQueue() const;
+  /// Get queue that was last recorded from.
+  /// @ return Queue that started last recording into associated graph.
+  std::shared_ptr<sycl::detail::queue_impl> getLastRecordedQueue() const;
 
   /// Add a queue to the set of queues which are currently recording to this
   /// graph.
@@ -558,6 +560,8 @@ private:
                std::owner_less<std::weak_ptr<sycl::detail::queue_impl>>>;
   /// Unique set of queues which are currently recording to this graph.
   RecQueuesStorage MRecordingQueues;
+  /// Queue that has been last recorded from.
+  std::weak_ptr<sycl::detail::queue_impl> MLastRecordedQueue;
   /// Map of events to their associated recorded nodes.
   std::unordered_map<std::shared_ptr<sycl::detail::event_impl>, node_impl *>
       MEventsMap;
