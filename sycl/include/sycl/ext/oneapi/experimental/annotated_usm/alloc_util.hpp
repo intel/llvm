@@ -163,14 +163,9 @@ struct CheckTAndPropListsWithUsmKind<Kind, T, detail::properties_t<PropsA...>,
 ////
 
 // Transform a compile-time property list to a USM property_list (working at
-// runtime). Right now only the `buffer_location<N>` has its corresponding USM
+// runtime). Right there is no property that has its corresponding USM
 // runtime property and is transformable
 template <typename PropertyListT> inline property_list get_usm_property_list() {
-  if constexpr (PropertyListT::template has_property<buffer_location_key>()) {
-    return property_list{
-        sycl::ext::intel::experimental::property::usm::buffer_location(
-            PropertyListT::template get_property<buffer_location_key>().value)};
-  }
   return {};
 }
 

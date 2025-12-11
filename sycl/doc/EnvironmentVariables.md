@@ -7,9 +7,9 @@ compiler and runtime.
 
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
-| `ONEAPI_DEVICE_SELECTOR` | [See below.](#oneapi_device_selector)  | This device selection environment variable can be used to limit the choice of devices available when the SYCL-using application is run.  Useful for limiting devices to a certain type (like GPUs or accelerators) or backends (like Level Zero or OpenCL).  This device selection mechanism is replacing `SYCL_DEVICE_FILTER` .  The `ONEAPI_DEVICE_SELECTOR` syntax is shared with OpenMP and also allows sub-devices to be chosen. [See below.](#oneapi_device_selector) for a full description.   |
+| `ONEAPI_DEVICE_SELECTOR` | [See below.](#oneapi_device_selector)  | This device selection environment variable can be used to limit the choice of devices available when the SYCL-using application is run.  Useful for limiting devices to a certain type (like GPUs or CPUs) or backends (like Level Zero or OpenCL).  This device selection mechanism is replacing `SYCL_DEVICE_FILTER` .  The `ONEAPI_DEVICE_SELECTOR` syntax is shared with OpenMP and also allows sub-devices to be chosen. [See below.](#oneapi_device_selector) for a full description.   |
 | `ONEAPI_PVC_SEND_WAR_WA` | '1' or '0' | Controls the workaround for Erratum "FP64 register ordering violation" on Intel Ponte Vecchio GPUs. Setting `ONEAPI_PVC_SEND_WAR_WA=0` disables the workaround and is only safe if the secondary FP64 pipeline is disabled. Default is enabled ('1') and applied throughout the oneAPI software stack - including OneDNN, OneMKL, OpenCL and Level Zero Runtimes, and Intel Graphics Compiler. |
-| `SYCL_DEVICE_ALLOWLIST` | See [below](#sycl_device_allowlist) | Filter out devices that do not match the pattern specified. `BackendName` accepts `host`, `opencl`, `level_zero`, `native_cpu` or `cuda`. `DeviceType` accepts `host`, `cpu`, `gpu`, `fpga`, or `acc`. `fpga` and `acc` are handled in the same manner. `DeviceVendorId` accepts uint32_t in hex form (`0xXYZW`). `DriverVersion`, `PlatformVersion`, `DeviceName` and `PlatformName` accept regular expression. Special characters, such as parenthesis, must be escaped. DPC++ runtime will select only those devices which satisfy provided values above and regex. More than one device can be specified using the piping symbol "\|".|
+| `SYCL_DEVICE_ALLOWLIST` | See [below](#sycl_device_allowlist) | Filter out devices that do not match the pattern specified. `BackendName` accepts `host`, `opencl`, `level_zero`, `native_cpu` or `cuda`. `DeviceType` accepts `host`, `cpu`, `gpu`. `DeviceVendorId` accepts uint32_t in hex form (`0xXYZW`). `DriverVersion`, `PlatformVersion`, `DeviceName` and `PlatformName` accept regular expression. Special characters, such as parenthesis, must be escaped. DPC++ runtime will select only those devices which satisfy provided values above and regex. More than one device can be specified using the piping symbol "\|".|
 | `SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING` | Any(\*) | Disables automatic rounding-up of `parallel_for` invocation ranges. |
 | `SYCL_CACHE_DIR` | Path | Path to persistent cache root directory. Default values are `%AppData%\libsycl_cache` for Windows and `$XDG_CACHE_HOME/libsycl_cache` on Linux, if `XDG_CACHE_HOME` is not set then `$HOME/.cache/libsycl_cache`. When none of the environment variables are set SYCL persistent cache is disabled. |
 | `SYCL_CACHE_DISABLE_PERSISTENT (deprecated)` | Any(\*) | Has no effect. |
@@ -47,10 +47,10 @@ ONEAPI_DEVICE_SELECTOR = <selector-string>
 <term> ::= <backend>:<devices>
 <backend> ::= { * | level_zero | opencl | cuda | hip | native_cpu }  // case insensitive
 <devices> ::= <device>[,<device>...]
-<device> ::= { * | cpu | gpu | fpga | <num> | <num>.<num> | <num>.* | *.* | <num>.<num>.<num> | <num>.<num>.* | <num>.*.* | *.*.*  }  // case insensitive
+<device> ::= { * | cpu | gpu | <num> | <num>.<num> | <num>.* | *.* | <num>.<num>.<num> | <num>.<num>.* | <num>.*.* | *.*.*  }  // case insensitive
 ```
 
-Each term in the grammar selects a collection of devices from a particular backend. The device names cpu, gpu, and fpga select all devices from that backend with the corresponding type. A backend's device can also be selected by its numeric index (zero-based) or by using `*` which selects all devices in the backend.
+Each term in the grammar selects a collection of devices from a particular backend. The device names cpu, gpu select all devices from that backend with the corresponding type. A backend's device can also be selected by its numeric index (zero-based) or by using `*` which selects all devices in the backend.
 
 The dot syntax (e.g. `<num>.<num>`) causes one or more GPU sub-devices to be exposed to the application as SYCL root devices. For example, `1.0` exposes the first sub-device of the second device as a SYCL root device. The syntax `<num>.*` exposes all sub-devices of the give device as SYCL root devices. The syntax `*.*` exposes all sub-devices of all GPU devices as SYCL root devices.
 
@@ -120,12 +120,11 @@ This environment variable controls the preferred work-group size for reductions 
 The value of this environment variable is a comma separated list of one or more configurations, where each configuration is a pair of the form "`device_type`:`size`" (without the quotes). Possible values of `device_type` are:
 - `cpu`
 - `gpu`
-- `acc`
 - `*`
 
 `size` is a positive integer larger than 0.
 
-For a configuration `device_type`:`size` the `device_type` element specifies the type of device the configuration applies to, that is `cpu` is for CPU devices, `gpu` is for GPU devices, and `acc` is for accelerator devices. If `device_type` is `*` the configuration applies to all applicable device types. `size` denotes the preferred work-group size to be used for devices of types specified by `device_type`.
+For a configuration `device_type`:`size` the `device_type` element specifies the type of device the configuration applies to, that is `cpu` is for CPU devices, `gpu` is for GPU devices. If `device_type` is `*` the configuration applies to all applicable device types. `size` denotes the preferred work-group size to be used for devices of types specified by `device_type`.
 
 If `info::device::max_work_group_size` on a device on which a reduction is being enqueued is less than the value specified by a configuration in this environment variable, the value of `info::device::max_work_group_size` on that device is used instead.
 

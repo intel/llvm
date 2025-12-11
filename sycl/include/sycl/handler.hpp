@@ -139,12 +139,6 @@ class handler;
 template <typename T, int Dimensions, typename AllocatorT, typename Enable>
 class buffer;
 
-namespace ext::intel::experimental {
-template <class _name, class _dataT, int32_t _min_capacity, class _propertiesT,
-          class>
-class pipe;
-}
-
 namespace ext ::oneapi ::experimental {
 template <typename, typename> class work_group_memory;
 template <typename, typename> class dynamic_work_group_memory;
@@ -2908,38 +2902,6 @@ private:
 
   friend class ::MockHandler;
   friend class detail::queue_impl;
-
-  // Make pipe class friend to be able to call ext_intel_read/write_host_pipe
-  // method.
-  template <class _name, class _dataT, int32_t _min_capacity,
-            class _propertiesT, class>
-  friend class ext::intel::experimental::pipe;
-
-  /// Read from a host pipe given a host address and
-  /// \param Name name of the host pipe to be passed into lower level runtime
-  /// \param Ptr host pointer of host pipe as identified by address of its const
-  ///        expr m_Storage member
-  /// \param Size the size of data getting read back / to.
-  /// \param Block if read operation is blocking, default to false.
-  void ext_intel_read_host_pipe(const std::string &Name, void *Ptr, size_t Size,
-                                bool Block = false) {
-    ext_intel_read_host_pipe(detail::string_view(Name), Ptr, Size, Block);
-  }
-  void ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
-                                size_t Size, bool Block = false);
-
-  /// Write to host pipes given a host address and
-  /// \param Name name of the host pipe to be passed into lower level runtime
-  /// \param Ptr host pointer of host pipe as identified by address of its const
-  /// expr m_Storage member
-  /// \param Size the size of data getting read back / to.
-  /// \param Block if write opeartion is blocking, default to false.
-  void ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
-                                 size_t Size, bool Block = false) {
-    ext_intel_write_host_pipe(detail::string_view(Name), Ptr, Size, Block);
-  }
-  void ext_intel_write_host_pipe(detail::string_view Name, void *Ptr,
-                                 size_t Size, bool Block = false);
   friend class ext::oneapi::experimental::detail::graph_impl;
   friend class ext::oneapi::experimental::detail::dynamic_parameter_impl;
   friend class ext::oneapi::experimental::detail::dynamic_command_group_impl;

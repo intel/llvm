@@ -261,20 +261,14 @@ public:
 };
 
 // Array is used by SYCL_DEVICE_ALLOWLIST and ONEAPI_DEVICE_SELECTOR.
-// The 'supportAcc' parameter is used by SYCL_DEVICE_ALLOWLIST which,
-// unlike ONEAPI_DEVICE_SELECTOR, also accepts 'acc' as a valid device type.
 template <bool supportAcc = false>
-const std::array<std::pair<std::string, info::device_type>, 6> &
+const std::array<std::pair<std::string, info::device_type>, 4> &
 getSyclDeviceTypeMap() {
-  static const std::array<std::pair<std::string, info::device_type>, 6>
-      SyclDeviceTypeMap = {
-          {{"host", info::device_type::host},
-           {"cpu", info::device_type::cpu},
-           {"gpu", info::device_type::gpu},
-           /* Duplicate entries are fine as this map is one-directional.*/
-           {supportAcc ? "acc" : "fpga", info::device_type::accelerator},
-           {"fpga", info::device_type::accelerator},
-           {"*", info::device_type::all}}};
+  static const std::array<std::pair<std::string, info::device_type>, 4>
+      SyclDeviceTypeMap = {{{"host", info::device_type::host},
+                            {"cpu", info::device_type::cpu},
+                            {"gpu", info::device_type::gpu},
+                            {"*", info::device_type::all}}};
   return SyclDeviceTypeMap;
 }
 
@@ -474,7 +468,6 @@ template <> class SYCLConfig<SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE> {
   struct ParsedValue {
     size_t CPU = 0;
     size_t GPU = 0;
-    size_t Accelerator = 0;
   };
 
 public:
@@ -495,13 +488,11 @@ private:
       return Value.CPU;
     case info::device_type::gpu:
       return Value.GPU;
-    case info::device_type::accelerator:
-      return Value.Accelerator;
     default:
       // Expect to get here if user used wrong device type. Include wildcard
       // in the message even though it's handled in the caller.
       throw INVALID_CONFIG_EXCEPTION(
-          BaseT, "Device types must be \"cpu\", \"gpu\", \"acc\", or \"*\".");
+          BaseT, "Device types must be \"cpu\", \"gpu\", or \"*\".");
     }
   }
 
@@ -514,7 +505,7 @@ private:
       return Result;
 
     std::string ValueStr{ValueRaw};
-    auto DeviceTypeMap = getSyclDeviceTypeMap<true /*Enable 'acc'*/>();
+    auto DeviceTypeMap = getSyclDeviceTypeMap();
 
     // Iterate over all configurations.
     size_t Start = 0, End = 0;
@@ -566,7 +557,6 @@ private:
         // Set all configuration values if we got the device-type wildcard.
         Result.GPU = DeviceConfigValue;
         Result.CPU = DeviceConfigValue;
-        Result.Accelerator = DeviceConfigValue;
       } else {
         // Try setting the corresponding configuration.
         getRefByDeviceType(Result, DeviceTypeIter->second) = DeviceConfigValue;
