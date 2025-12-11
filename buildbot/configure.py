@@ -67,6 +67,7 @@ def do_configure(args, passthrough_args):
     spirv_enable_dis = "OFF"
 
     llvm_external_projects+=";compiler-rt"
+    llvm_enable_runtimes ="compiler-rt"
 
     if sys.platform != "darwin":
         # For more info on the enablement of level_zero_v2 refer to this document:
