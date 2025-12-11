@@ -80,7 +80,7 @@ def do_configure(args, passthrough_args):
 
     libclc_enabled = args.cuda or args.hip or args.native_cpu
     if libclc_enabled:
-        llvm_enable_projects += ";libclc"
+        llvm_enable_runtimes += ";libclc"
 
     # DeviceRTL uses -fuse-ld=lld, so enable lld.
     if args.offload:
@@ -147,12 +147,14 @@ def do_configure(args, passthrough_args):
             print("#############################################")
 
         # For clang-format, clang-tidy and code coverage
-        llvm_enable_projects += ";clang-tools-extra;compiler-rt"
+        llvm_enable_projects += ";clang-tools-extra"
+        if "compiler-rt" not in llvm_enable_runtimes:
+                llvm_enable_runtimes += ";compiler-rt"
         if sys.platform != "darwin":
             # libclc is required for CI validation
             libclc_enabled = True
-            if "libclc" not in llvm_enable_projects:
-                llvm_enable_projects += ";libclc"
+            if "libclc" not in llvm_enable_runtimes:
+                llvm_enable_runtimes += ";libclc"
             # libclc passes `--nvvm-reflect-enable=false`, build NVPTX to enable it
             if "NVPTX" not in llvm_targets_to_build:
                 llvm_targets_to_build += ";NVPTX"
