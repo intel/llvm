@@ -9,6 +9,8 @@
 #include <sycl/sycl.hpp>
 
 #include <complex>
+#include <iomanip>
+#include <iostream>
 #include <limits>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
