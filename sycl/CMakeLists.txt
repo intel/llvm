@@ -533,10 +533,10 @@ endif()
 
 if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
   # Ensure that libclc is enabled.
-  list(FIND LLVM_ENABLE_RUNTIMES libclc LIBCLC_FOUND)
+  list(FIND LLVM_ENABLE_PROJECTS libclc LIBCLC_FOUND)
   if( LIBCLC_FOUND EQUAL -1 )
     message(FATAL_ERROR
-      "CUDA support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_RUNTIMES\"")
+      "CUDA support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
   endif()
 
   add_dependencies(sycl-toolchain ur_adapter_cuda)
@@ -545,10 +545,10 @@ endif()
 
 if("hip" IN_LIST SYCL_ENABLE_BACKENDS)
   # Ensure that libclc is enabled.
-  list(FIND LLVM_ENABLE_RUNTIMES libclc LIBCLC_FOUND)
+  list(FIND LLVM_ENABLE_PROJECTS libclc LIBCLC_FOUND)
   if( LIBCLC_FOUND EQUAL -1 )
     message(FATAL_ERROR
-      "HIP support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_RUNTIMES\"")
+      "HIP support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
   endif()
 
   if(NOT TARGET lld AND "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
