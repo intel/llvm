@@ -73,7 +73,8 @@ public:
     auto MObjImplPtr = this->MObjWeakPtr.lock();
     if (!MObjImplPtr)
       return std::nullopt;
-    return sycl::detail::createSyclObjFromImpl<SYCLObjT>(MObjImplPtr);
+    return sycl::detail::createSyclObjFromImpl<SYCLObjT>(
+        std::move(MObjImplPtr));
   }
   SYCLObjT lock() const {
     std::optional<SYCLObjT> OptionalObj = try_lock();

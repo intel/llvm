@@ -278,6 +278,49 @@ void ff_24(int arg);
 void ff_24(int arg) { 
 }
 
+// Tests with parameter types that are structs that contain special types inside e.g accessor
+
+struct AccessorAndLocalAccessor {
+    sycl::accessor<int, 1, sycl::access::mode::read_write> acc;
+    sycl::local_accessor<int, 1> lacc;
+};
+
+struct AccessorAndInt {
+    sycl::accessor<int, 1, sycl::access::mode::read_write> acc;
+    int a;
+};
+
+struct IntAndAccessor {
+    int a;
+    sycl::accessor<int, 1, sycl::access::mode::read_write> acc;
+};
+
+struct SecondLevelAccessor {
+    AccessorAndInt accAndInt;
+};
+
+template <typename T>
+struct TemplatedAccessorStruct {
+    sycl::accessor<T, 1, sycl::access::mode::read_write> acc;
+    sycl::local_accessor<T, 1> lacc;
+};
+
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
+void ff_25(AccessorAndLocalAccessor arg1) {
+}
+
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
+void ff_26(AccessorAndLocalAccessor arg1, SecondLevelAccessor arg2) {
+}
+
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
+void ff_27(IntAndAccessor arg1, AccessorAndInt) {
+}
+
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
+void ff_28(TemplatedAccessorStruct<int> arg1) {
+}
+
 // CHECK:      const char* const kernel_names[] = {
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_2Piii
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_2Piiii
@@ -313,6 +356,11 @@ void ff_24(int arg) {
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_217DerivedPS_
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_227DerivedPS_
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_24i"
+// CHECK-NEXT:   {{.*}}__sycl_kernel_ff_2524AccessorAndLocalAccessor",
+// CHECK-NEXT:   {{.*}}__sycl_kernel_ff_2624AccessorAndLocalAccessor19SecondLevelAccessor",
+// CHECK-NEXT:   {{.*}}__sycl_kernel_ff_2714IntAndAccessor14AccessorAndInt",
+// CHECK-NEXT:   {{.*}}__sycl_kernel_ff_2823TemplatedAccessorStructIiE",
+
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_23i"
 
 // CHECK-NEXT:   ""
@@ -321,39 +369,39 @@ void ff_24(int arg) {
 // CHECK:      const kernel_param_desc_t kernel_signatures[] = {
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_2Piii
 // CHECK-NEXT:   { kernel_param_kind_t::kind_pointer, 8, 0 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 8 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 12 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0 },
 
 // CHECK:        {{.*}}__sycl_kernel_ff_2Piiii
 // CHECK-NEXT:   { kernel_param_kind_t::kind_pointer, 8, 0 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 8 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 12 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 16 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0 },
 
 // CHECK:        {{.*}}__sycl_kernel_ff_3IiEvPT_S0_S0_
 // CHECK-NEXT:   { kernel_param_kind_t::kind_pointer, 8, 0 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 8 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 12 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0 },
 
 // CHECK:        {{.*}}__sycl_kernel_ff_3IfEvPT_S0_S0_
 // CHECK-NEXT:   { kernel_param_kind_t::kind_pointer, 8, 0 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 8 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 12 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0 },
 
 // CHECK:        {{.*}}__sycl_kernel_ff_3IdEvPT_S0_S0_
 // CHECK-NEXT:   { kernel_param_kind_t::kind_pointer, 8, 0 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 8, 8 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 8, 16 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 8, 0 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 8, 0 },
 
 // CHECK:  //--- _Z18__sycl_kernel_ff_410NoPointers8Pointers3Agg
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 16, 4 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 32, 20 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 16, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 32, 0 },
 
 // CHECK:  //--- _Z18__sycl_kernel_ff_6I3Agg7DerivedEvT_T0_i
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 32, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 40, 32 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 72 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 40, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
 
 // CHECK:  //--- _Z18__sycl_kernel_ff_7ILi3EEv16KArgWithPtrArrayIXT_EE
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 48, 0 },
@@ -364,27 +412,27 @@ void ff_24(int arg) {
 
 // CHECK:  //--- _ZN28__sycl_kernel_free_functions4ff_9EiPi
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 4 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 0 },
 
 // CHECK:  //--- _ZN28__sycl_kernel_free_functions5tests5ff_10EiPi
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 4 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 0 },
 
 // CHECK:  //--- _ZN28__sycl_kernel_free_functions5tests2V15ff_11EiPi
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 4 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 0 },
 
 // CHECK:  //--- _ZN26__sycl_kernel__GLOBAL__N_15ff_12EiPi
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 4 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 0 },
 
 // CHECK:  //--- _ZN28__sycl_kernel_free_functions5ff_13EiPi
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 4 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 0 },
 
 // CHECK:  //--- _ZN28__sycl_kernel_free_functions5tests5ff_13EiPi
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 }, 
-// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 4 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 0 },
 
 // CHECK:  //--- _Z18__sycl_kernel_ff_9N4sycl3_V125dynamic_work_group_memoryIiEE
 // CHECK-NEXT:  { kernel_param_kind_t::kind_dynamic_work_group_memory, 8, 0 },
@@ -409,23 +457,23 @@ void ff_24(int arg) {
 
 // CHECK:  //--- _ZN28__sycl_kernel_free_functions5tests5ff_14EiPi
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 4 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 0 },
 
 // CHECK:  //--- _ZN28__sycl_kernel_free_functions5ff_15EiPi
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 4 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 0 },
 
 // CHECK:  //--- _ZN28__sycl_kernel_free_functions5ff_16E3AggPS0_
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 32, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 32 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 0 },
 
 // CHECK:  //--- _ZN28__sycl_kernel_free_functions5ff_17E7DerivedPS0_
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 40, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 40 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 0 },
 
 // CHECK:  //--- _ZN28__sycl_kernel_free_functions5tests5ff_18ENS_3AggEPS1_
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 8, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 8 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 0 },
 
 // CHECK: //--- _Z19__sycl_kernel_ff_19N14free_functions16KArgWithPtrArrayILi50EEE
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 800, 0 },
@@ -435,6 +483,32 @@ void ff_24(int arg) {
 
 // CHECK: //--- _Z19__sycl_kernel_ff_24i
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
+
+// CHECK: //--- _Z19__sycl_kernel_ff_2524AccessorAndLocalAccessor
+// CHECK-NEXT:  { kernel_param_kind_t::kind_struct_with_special_type, 36, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4064, 12 },
+
+// CHECK:  //--- _Z19__sycl_kernel_ff_2624AccessorAndLocalAccessor19SecondLevelAccessor
+// CHECK-NEXT:  { kernel_param_kind_t::kind_struct_with_special_type, 36, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4064, 12 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_struct_with_special_type, 16, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 12 },
+
+// CHECK:  //--- _Z19__sycl_kernel_ff_2714IntAndAccessor14AccessorAndInt
+// CHECK-NEXT:  { kernel_param_kind_t::kind_struct_with_special_type, 16, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 4 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_struct_with_special_type, 16, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 12 },
+
+// CHECK:  //--- _Z19__sycl_kernel_ff_2823TemplatedAccessorStructIiE
+// CHECK-NEXT:  { kernel_param_kind_t::kind_struct_with_special_type, 36, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4064, 12 },
 
 // CHECK: //--- _Z19__sycl_kernel_ff_23i
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
@@ -1531,18 +1605,147 @@ void ff_24(int arg) {
 // CHECK-NEXT: static constexpr bool value = true;
 // CHECK-NEXT: };
 
+// CHECK: Definition of _Z19__sycl_kernel_ff_2524AccessorAndLocalAccessor as a free function kernel
+// CHECK: Forward declarations of kernel and its argument types:
+// CHECK: void ff_25(AccessorAndLocalAccessor arg1);
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct sycl::is_device_copyable<AccessorAndLocalAccessor>: std::true_type {};
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct sycl::ext::oneapi::experimental::detail::is_struct_with_special_type<AccessorAndLocalAccessor> {
+// CHECK-NEXT: inline static constexpr bool value = true;
+// CHECK-NEXT: static constexpr int offsets[] = { 0, 12, -1};
+// CHECK-NEXT: static constexpr int sizes[] = { 4062, 4064, -1}; 
+// CHECK-NEXT: static constexpr sycl::detail::kernel_param_kind_t kinds[] = {
+// CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_accessor,
+// CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_accessor,
+// CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_invalid }; 
+// CHECK-NEXT: };
+
+// CHECK: static constexpr auto __sycl_shim33() {
+// CHECK-NEXT:  return (void (*)(struct AccessorAndLocalAccessor))ff_25;
+// CHECK-NEXT: }
+
+// CHECK: struct ext::oneapi::experimental::is_kernel<__sycl_shim33()> {
+// CHECK-NEXT:  static constexpr bool value = true;
+// CHECK-NEXT: };
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim33()> {
+// CHECK-NEXT:  static constexpr bool value = true;
+// CHECK-NEXT: };
+
+// CHECK: Definition of _Z19__sycl_kernel_ff_2624AccessorAndLocalAccessor19SecondLevelAccessor as a free function kernel
+// CHECK: Forward declarations of kernel and its argument types:
+// CHECK: void ff_26(AccessorAndLocalAccessor arg1, SecondLevelAccessor arg2);
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct sycl::is_device_copyable<SecondLevelAccessor>: std::true_type {};
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct sycl::ext::oneapi::experimental::detail::is_struct_with_special_type<SecondLevelAccessor> {
+// CHECK-NEXT: inline static constexpr bool value = true;
+// CHECK-NEXT: static constexpr int offsets[] = { 0, 12, -1};
+// CHECK-NEXT: static constexpr int sizes[] = { 4062, 4, -1}; 
+// CHECK-NEXT: static constexpr sycl::detail::kernel_param_kind_t kinds[] = {
+// CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_accessor,
+// CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_std_layout,
+// CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_invalid }; 
+// CHECK-NEXT: };
+
+// CHECK: static constexpr auto __sycl_shim34() {
+// CHECK-NEXT:  return (void (*)(struct AccessorAndLocalAccessor, struct SecondLevelAccessor))ff_26;
+// CHECK-NEXT: }
+
+// CHECK: struct ext::oneapi::experimental::is_kernel<__sycl_shim34()> {
+// CHECK-NEXT:  static constexpr bool value = true;
+// CHECK-NEXT: };
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim34()> {
+// CHECK-NEXT: static constexpr bool value = true;
+// CHECK-NEXT };
+
+// CHECK: Definition of _Z19__sycl_kernel_ff_2714IntAndAccessor14AccessorAndInt as a free function kernel
+// CHECK: Forward declarations of kernel and its argument types:
+// CHECK: void ff_27(IntAndAccessor arg1, AccessorAndInt );
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct sycl::is_device_copyable<IntAndAccessor>: std::true_type {};
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct sycl::ext::oneapi::experimental::detail::is_struct_with_special_type<IntAndAccessor> {
+// CHECK-NEXT: inline static constexpr bool value = true;
+// CHECK-NEXT: static constexpr int offsets[] = { 0, 4, -1};
+// CHECK-NEXT: static constexpr int sizes[] = { 4, 4062, -1}; 
+// CHECK-NEXT: static constexpr sycl::detail::kernel_param_kind_t kinds[] = {
+// CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_std_layout,
+// CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_accessor,
+// CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_invalid }; 
+// CHECK-NEXT: };
+
+// CHECK: template <>
+// CHECK-NEXT: struct sycl::is_device_copyable<AccessorAndInt>: std::true_type {};
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct sycl::ext::oneapi::experimental::detail::is_struct_with_special_type<AccessorAndInt> {
+// CHECK-NEXT: inline static constexpr bool value = true;
+// CHECK-NEXT: static constexpr int offsets[] = { 0, 12, -1};
+// CHECK-NEXT: static constexpr int sizes[] = { 4062, 4, -1}; 
+// CHECK-NEXT: static constexpr sycl::detail::kernel_param_kind_t kinds[] = {
+// CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_accessor,
+// CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_std_layout,
+// CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_invalid }; 
+// CHECK-NEXT: };
+
+
+
+// CHECK: static constexpr auto __sycl_shim35() {
+// CHECK-NEXT: return (void (*)(struct IntAndAccessor, struct AccessorAndInt))ff_27;
+// CHECK-NEXT: }
+
+// CHECK: struct ext::oneapi::experimental::is_kernel<__sycl_shim35()> {
+// CHECK-NEXT: static constexpr bool value = true;
+// CHECK-NEXT: };
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim35()> {
+// CHECK-NEXT: static constexpr bool value = true;
+// CHECK-NEXT: };
+
+
+// CHECK: Definition of _Z19__sycl_kernel_ff_2823TemplatedAccessorStructIiE as a free function kernel
+// CHECK: Forward declarations of kernel and its argument types:
+// CHECK: template <typename T> struct TemplatedAccessorStruct;
+// CHECK: void ff_28(TemplatedAccessorStruct<int> arg1);
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct sycl::is_device_copyable<TemplatedAccessorStruct<int>>: std::true_type {};
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct sycl::ext::oneapi::experimental::detail::is_struct_with_special_type<TemplatedAccessorStruct<int>> {
+// CHECK-NEXT: inline static constexpr bool value = true;
+// CHECK-NEXT: static constexpr int offsets[] = { 0, 12, -1};
+// CHECK-NEXT: static constexpr int sizes[] = { 4062, 4064, -1}; 
+// CHECK-NEXT: static constexpr sycl::detail::kernel_param_kind_t kinds[] = {
+// CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_accessor,
+// CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_accessor,
+// CHECK-NEXT  sycl::detail::kernel_param_kind_t::kind_invalid }; 
+// CHECK-NEXT: };
+
+// CHECK: static constexpr auto __sycl_shim36() {
+// CHECK-NEXT: return (void (*)(struct TemplatedAccessorStruct<int>))ff_28;
+// CHECK-NEXT: }
+
+// CHECK: struct ext::oneapi::experimental::is_kernel<__sycl_shim36()> {
+// CHECK-NEXT: static constexpr bool value = true;
+// CHECK-NEXT: };
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim36()> {
+// CHECK-NEXT: static constexpr bool value = true;
+// CHECK-NEXT: };
+
 // CHECK: Definition of _Z19__sycl_kernel_ff_23i as a free function kernel
 // CHECK: Forward declarations of kernel and its argument types:
 // CHECK: void ff_23(int arg);
-// CHECK-NEXT: static constexpr auto __sycl_shim33() {
+// CHECK-NEXT: static constexpr auto __sycl_shim37() {
 // CHECK-NEXT: return (void (*)(int))ff_23;
 // CHECK-NEXT: }
 
 // CHECK: namespace sycl {
 // CHECK-NEXT: inline namespace _V1 {
 // CHECK-NEXT: namespace detail {
-// CHECK-NEXT: //Free Function Kernel info specialization for shim33
-// CHECK-NEXT: template <> struct FreeFunctionInfoData<__sycl_shim33()> {
+// CHECK-NEXT: //Free Function Kernel info specialization for shim37
+// CHECK-NEXT: template <> struct FreeFunctionInfoData<__sycl_shim37()> {
 // CHECK-NEXT: 	__SYCL_DLL_LOCAL
 // CHECK-NEXT: 	static constexpr unsigned getNumParams() { return 1; }
 // CHECK-NEXT: 	__SYCL_DLL_LOCAL
@@ -1554,11 +1757,11 @@ void ff_24(int arg) {
 
 // CHECK: namespace sycl {
 // CHECK-NEXT: template <>
-// CHECK-NEXT: struct ext::oneapi::experimental::is_kernel<__sycl_shim33()> {
+// CHECK-NEXT: struct ext::oneapi::experimental::is_kernel<__sycl_shim37()> {
 // CHECK-NEXT: static constexpr bool value = true;
 // CHECK-NEXT: };
 // CHECK-NEXT: template <>
-// CHECK-NEXT: struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim33()> {
+// CHECK-NEXT: struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim37()> {
 // CHECK-NEXT: static constexpr bool value = true;
 // CHECK-NEXT: };
 
@@ -1570,10 +1773,10 @@ void ff_24(int arg) {
 // CHECK-NEXT: namespace {
 // CHECK-NEXT: struct GlobalMapUpdater {
 // CHECK-NEXT:  GlobalMapUpdater() {
-// CHECK-NEXT:     sycl::detail::free_function_info_map::add(sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, 33);
+// CHECK-NEXT:     sycl::detail::free_function_info_map::add(sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, 37);
 // CHECK-NEXT:   }
 // CHECK-NEXT:  ~GlobalMapUpdater() {
-// CHECK-NEXT:     sycl::detail::free_function_info_map::remove(sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, 33);
+// CHECK-NEXT:     sycl::detail::free_function_info_map::remove(sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, 37);
 // CHECK-NEXT:   }
 // CHECK-NEXT: };
 // CHECK-NEXT: static GlobalMapUpdater updater;
