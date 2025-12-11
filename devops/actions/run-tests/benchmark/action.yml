@@ -135,10 +135,6 @@ runs:
         echo "Using SYCL from: $CMPLR_ROOT !"
         echo "CMPLR_ROOT=$CMPLR_ROOT" >> $GITHUB_ENV
       fi
-
-      # Set BENCH_WORKDIR env var
-      export BENCH_WORKDIR="$(realpath ./llvm_test_workdir)"
-      echo "BENCH_WORKDIR=$BENCH_WORKDIR" >> $GITHUB_ENV
   - name: Set NUMA node to run benchmarks on
     shell: bash
     run: |
@@ -146,14 +142,18 @@ runs:
       NUMA_NODE=0
       echo "ZE_AFFINITY_MASK=$NUMA_NODE" >> $GITHUB_ENV
       echo "NUMA_NODE=$NUMA_NODE" >> $GITHUB_ENV
-  - name: Set env var for results branch and repo path
-    id: results_repo
+  - name: Establish results branch, repo path, and workdir
+    id: establish_outputs
     shell: bash
     run: |
-      # Set env var for results branch
-
-      # Set BENCHMARK_RESULTS_BRANCH as output var, for all subsequent steps to use.
+      # Establish results branch, repo path, and workdir
+      #
+      # Set sensitive vars as output, for all subsequent steps to use.
       # Done this way due to limits of composite actions and security reasons (output is better than env).
+
+      BENCH_WORKDIR="$(realpath ./llvm_test_workdir)"
+      echo "BENCH_WORKDIR=$BENCH_WORKDIR" >> $GITHUB_OUTPUT
+
       BENCHMARK_RESULTS_BRANCH="sycl-benchmark-ci-results"
       echo "BENCHMARK_RESULTS_BRANCH=$BENCHMARK_RESULTS_BRANCH" >> $GITHUB_OUTPUT
 
@@ -162,8 +162,8 @@ runs:
   - name: Checkout results repo
     uses: actions/checkout@v5
     with:
-      ref: ${{ steps.results_repo.outputs.BENCHMARK_RESULTS_BRANCH }}
-      path: ${{ steps.results_repo.outputs.BENCHMARK_RESULTS_REPO_PATH }}
+      ref: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_BRANCH }}
+      path: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_REPO_PATH }}
       persist-credentials: true
   # Compute-benchmarks relies on UR static libraries, cmake config files, etc.
   # DPC++ doesn't ship with these files. The easiest way of obtaining these
@@ -263,8 +263,8 @@ runs:
   - name: Build and run benchmarks
     shell: bash
     env:
-      BENCH_WORKDIR: ${{ env.BENCH_WORKDIR }}
-      BENCHMARK_RESULTS_REPO_PATH: ${{ steps.results_repo.outputs.BENCHMARK_RESULTS_REPO_PATH }}
+      BENCH_WORKDIR: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}
+      BENCHMARK_RESULTS_REPO_PATH: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_REPO_PATH }}
     run: |
       # Build and run benchmarks
 
@@ -314,7 +314,7 @@ runs:
     shell: bash
     if: ${{ github.event_name == 'pull_request' }}
     env:
-      BENCH_WORKDIR: ${{ env.BENCH_WORKDIR }}
+      BENCH_WORKDIR: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}
     run: |
       # Run benchmarks' integration tests
 
@@ -326,7 +326,7 @@ runs:
     if: always()
     shell: bash
     env:
-      BENCHMARK_RESULTS_REPO_PATH: ${{ steps.results_repo.outputs.BENCHMARK_RESULTS_REPO_PATH }}
+      BENCHMARK_RESULTS_REPO_PATH: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_REPO_PATH }}
     run: |
       # Upload github summaries and cache changes
       [ -f "github_summary_exe.md" ] && cat github_summary_exe.md >> $GITHUB_STEP_SUMMARY
@@ -342,9 +342,9 @@ runs:
     if: always() && inputs.upload_results == 'true'
     shell: bash
     env:
-      BENCH_WORKDIR: ${{ env.BENCH_WORKDIR }}
-      BENCHMARK_RESULTS_REPO_PATH: ${{ steps.results_repo.outputs.BENCHMARK_RESULTS_REPO_PATH }}
-      BENCHMARK_RESULTS_BRANCH: ${{ steps.results_repo.outputs.BENCHMARK_RESULTS_BRANCH }}
+      BENCH_WORKDIR: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}
+      BENCHMARK_RESULTS_REPO_PATH: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_REPO_PATH }}
+      BENCHMARK_RESULTS_BRANCH: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_BRANCH }}
     run: |
       # Push benchmarks results
       cd "${BENCHMARK_RESULTS_REPO_PATH}"
