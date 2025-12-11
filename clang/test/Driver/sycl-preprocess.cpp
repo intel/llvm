@@ -24,7 +24,7 @@
 // PREPROC_PHASES: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
 // PREPROC_PHASES: 2: input, "[[INPUT]]", c++, (device-sycl)
 // PREPROC_PHASES: 3: preprocessor, {2}, c++-cpp-output, (device-sycl)
-// PREPROC_PHASES: 4: compiler, {3}, none, (device-sycl)
+// PREPROC_PHASES: 4: compiler, {2}, none, (device-sycl)
 // PREPROC_PHASES: 5: offload, "device-sycl (spir64-unknown-unknown)" {3}, c++-cpp-output
 // PREPROC_PHASES: 6: llvm-offload-binary, {5, 1}, c++-cpp-output
 // PREPROC_PHASES: 7: offload, "host-sycl ([[TARGET]])" {1}, "device-sycl (spir64-unknown-unknown)" {3}, "device-sycl (spir64-unknown-unknown)" {4}, " ([[TARGET]])" {6}, c++-cpp-output
