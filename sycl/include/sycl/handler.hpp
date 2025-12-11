@@ -1385,8 +1385,7 @@ public:
         || is_same_type<cl_mem, T>::value          // Interop
         || is_same_type<stream, T>::value          // Stream
         ||
-        sycl::is_device_copyable_v<remove_cv_ref_t<T>>; // Structs that contain
-                                                        // special types
+        sycl::is_device_copyable_v<remove_cv_ref_t<T>>;
   };
 
   /// Sets argument for OpenCL interoperability kernels.
@@ -1412,6 +1411,7 @@ public:
           ext::oneapi::experimental::detail::is_struct_with_special_type<
               remove_cv_ref_t<T>>;
       int NumArgs = 0;
+      // iterate over each argument until we see the sentinel value -1
       while (type::offsets[NumArgs] != -1) {
         void *FieldArg = (char *)(&Arg) + type::offsets[NumArgs];
         // treat accessors separately since we have to fetch the data ptr and
