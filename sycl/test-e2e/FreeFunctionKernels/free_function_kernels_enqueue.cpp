@@ -21,6 +21,10 @@
 namespace syclext = sycl::ext::oneapi;
 namespace syclexp = sycl::ext::oneapi::experimental;
 
+using accType =
+    sycl::accessor<int, 1, sycl::access_mode::read_write, sycl::target::device,
+                   sycl::access::placeholder::true_t>;
+
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::single_task_kernel))
 void empty() {}
 
@@ -46,6 +50,12 @@ void squareWithScratchMemoryTemplated(T *src, T *dst) {
   T *LocalMem = reinterpret_cast<T *>(syclexp::get_work_group_scratch_memory());
   LocalMem[Lid] = src[Lid] * src[Lid];
   dst[Lid] = LocalMem[Lid];
+}
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+void squareWithAccessor(accType src, accType dst) {
+  size_t Lid = syclext::this_work_item::get_nd_item<1>().get_local_linear_id();
+  dst[Lid] = src[Lid] * src[Lid];
 }
 
 constexpr int SIZE = 16;
@@ -100,8 +110,31 @@ int main() {
                      void>);
   syclexp::single_task(Q, syclexp::kernel_function<successor>, Src, Dst);
   Q.wait();
-
   assert(Dst[0] == Src[0] + 1);
+
+  int SrcData[SIZE];
+  int DstData[SIZE];
+  for (int I = 0; I < SIZE; ++I) {
+    SrcData[I] = I;
+  }
+
+  { // Test with accessors
+    sycl::buffer<int> SrcBuf{&SrcData[0], SIZE};
+    sycl::buffer<int> DstBuf{&DstData[0], SIZE};
+    accType SrcAcc{SrcBuf};
+    accType DstAcc{DstBuf};
+
+    Q.submit([&](sycl::handler &CGH) {
+      CGH.require(SrcAcc);
+      CGH.require(DstAcc);
+      syclexp::nd_launch(CGH, Config,
+                         syclexp::kernel_function<squareWithAccessor>, SrcAcc,
+                         DstAcc);
+    });
+  }
+  for (int I = 0; I < SIZE; ++I) {
+    assert(DstData[I] == SrcData[I] * SrcData[I]);
+  }
 
   Q.submit([&](sycl::handler &CGH) {
      static_assert(
@@ -149,5 +182,6 @@ int main() {
    }).wait();
 
   assert(Dst[0] == Src[0] + 1);
+
   return 0;
 }

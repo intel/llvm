@@ -362,7 +362,6 @@ void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
 template <auto *Func, typename... ArgsT>
 void single_task(queue Q, [[maybe_unused]] kernel_function_s<Func> KernelFunc,
                  ArgsT &&...Args) {
-
   detail::submit_kernel_direct_single_task(std::move(Q),
                                            [Args...]() { Func(Args...); });
 }
