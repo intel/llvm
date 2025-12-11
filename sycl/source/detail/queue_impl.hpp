@@ -381,7 +381,7 @@ public:
           ExecGraph,
       sycl::span<const event> DepEvents, const detail::code_location &CodeLoc,
       bool IsTopCodeLoc) {
-    submit_graph_direct_impl(ExecGraph, false, DepEvents, CodeLoc,
+    submit_graph_direct_impl(std::move(ExecGraph), false, DepEvents, CodeLoc,
                              IsTopCodeLoc);
   }
 
@@ -391,7 +391,7 @@ public:
       sycl::span<const event> DepEvents, const detail::code_location &CodeLoc,
       bool IsTopCodeLoc) {
     return createSyclObjFromImpl<event>(submit_graph_direct_impl(
-        ExecGraph, true, DepEvents, CodeLoc, IsTopCodeLoc));
+        std::move(ExecGraph), true, DepEvents, CodeLoc, IsTopCodeLoc));
   }
 
   void submit_without_event(const detail::type_erased_cgfo_ty &CGF,
