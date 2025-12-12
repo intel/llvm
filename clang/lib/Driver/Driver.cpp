@@ -5028,14 +5028,19 @@ class OffloadingActionBuilder final {
                llvm::zip(SYCLDeviceActions, SYCLTargetInfoList)) {
             Action *&A = std::get<0>(TargetActionInfo);
             auto &TargetInfo = std::get<1>(TargetActionInfo);
-            A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A,
-                                                   AssociatedOffloadKind);
-            if (SYCLDeviceOnly)
+            Action *PreprocAction = C.getDriver().ConstructPhaseAction(
+                C, Args, CurPhase, A, AssociatedOffloadKind);
+            if (SYCLDeviceOnly) {
+              A = PreprocAction;
               continue;
+            }
             // Add an additional compile action to generate the integration
-            // header.
+            // header. This action compiles the source file instead of the
+            // generated preprocessed file to allow for control of the
+            // diagnostics that could come from the system headers.
             Action *CompileAction =
                 C.MakeAction<CompileJobAction>(A, types::TY_Nothing);
+            A = PreprocAction;
             DA.add(*CompileAction, *TargetInfo.TC, TargetInfo.BoundArch,
                    Action::OFK_SYCL);
           }
@@ -7977,8 +7982,15 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
               if (isa<PreprocessJobAction>(A)) {
                 PackagerActions.push_back(OA);
                 A->setCannotBeCollapsedWithNextDependentAction();
-                Action *CompileAction =
-                    C.MakeAction<CompileJobAction>(A, types::TY_Nothing);
+                // The input to the compilation job is the preprocessed job.
+                // Take that input action (it should be one input) which is
+                // the source file and compile that file to generate the
+                // integration header/footer.
+                ActionList PreprocInputs = A->getInputs();
+                assert(PreprocInputs.size() == 1 &&
+                       "Single input size to preprocess action expected.");
+                Action *CompileAction = C.MakeAction<CompileJobAction>(
+                    PreprocInputs.front(), types::TY_Nothing);
                 DDeps.add(*CompileAction, *TC, BoundArch, Action::OFK_SYCL);
               }
             });
