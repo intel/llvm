@@ -753,7 +753,7 @@ class ExecImmediateCopyQueue(ComputeBenchmark):
             f"--ioq={self._ioq}",
             f"--IsCopyOnly={self._is_copy_only}",
             "--MeasureCompletionTime=0",
-            f"--src={self._destination}",
+            f"--src={self._source}",
             f"--dst={self._destination}",
             f"--size={self._size}",
             "--withCopyOffload=0",
