@@ -65,13 +65,13 @@ runs:
 
       # Check specified runner type / target backend
       case "$RUNNER_TAG" in
-        '["PVC_PERF"]') MACHINE_TYPE="PVC" ;;
-        '["BMG_PERF"]') MACHINE_TYPE="BMG" ;;
+        '["PVC_PERF"]') GPU_TYPE="PVC" ;;
+        '["BMG_PERF"]') GPU_TYPE="BMG" ;;
         *)
           # Best effort at matching if not known runners
           # TODO: should we drop it and just exit instead?
-          MACHINE_TYPE="${RUNNER_TAG#[\"}"
-          MACHINE_TYPE="${MACHINE_TYPE%_PERF=\"]}"
+          GPU_TYPE="${RUNNER_TAG#[\"}"
+          GPU_TYPE="${GPU_TYPE%_PERF=\"]}"
           echo "#"
           echo "# WARNING: Only specific tuned runners are fully supported."
           echo "# This workflow is not guaranteed to work with other runners."
@@ -82,6 +82,8 @@ runs:
         level_zero:*)
           SAVE_SUFFIX="L0"
           ONEAPI_DEVICE_SELECTOR="level_zero:gpu"
+          export SYCL_UR_USE_LEVEL_ZERO_V2=0
+          echo "SYCL_UR_USE_LEVEL_ZERO_V2=$SYCL_UR_USE_LEVEL_ZERO_V2" >> $GITHUB_ENV
           ;;
         level_zero_v2:*)
           SAVE_SUFFIX="L0v2"
@@ -103,10 +105,10 @@ runs:
       echo "ONEAPI_DEVICE_SELECTOR=$ONEAPI_DEVICE_SELECTOR" >> $GITHUB_ENV
       export SAVE_SUFFIX=$SAVE_SUFFIX
       echo "SAVE_SUFFIX=$SAVE_SUFFIX" >> $GITHUB_ENV
-      export MACHINE_TYPE=$MACHINE_TYPE
-      echo "MACHINE_TYPE=$MACHINE_TYPE" >> $GITHUB_ENV
+      export GPU_TYPE=$GPU_TYPE
+      echo "GPU_TYPE=$GPU_TYPE" >> $GITHUB_ENV
 
-      export SAVE_NAME="${SAVE_PREFIX}_${MACHINE_TYPE}_${SAVE_SUFFIX}"
+      export SAVE_NAME="${SAVE_PREFIX}_${GPU_TYPE}_${SAVE_SUFFIX}"
       echo "SAVE_NAME=$SAVE_NAME" >> $GITHUB_ENV
       export SAVE_TIMESTAMP="$(date -u +'%Y%m%d_%H%M%S')"  # Timestamps are in UTC time
       echo "SAVE_TIMESTAMP=$SAVE_TIMESTAMP" >> $GITHUB_ENV
@@ -315,12 +317,12 @@ runs:
     if: ${{ github.event_name == 'pull_request' }}
     env:
       BENCH_WORKDIR: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}
+      LLVM_BENCHMARKS_UNIT_TESTING: 1
+      COMPUTE_BENCHMARKS_BUILD_PATH: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}/compute-benchmarks-build
     run: |
       # Run benchmarks' integration tests
 
       # NOTE: Each integration test prints its own group name as part of test script
-      export LLVM_BENCHMARKS_UNIT_TESTING=1
-      export COMPUTE_BENCHMARKS_BUILD_PATH=$BENCH_WORKDIR/compute-benchmarks-build
       python3 ./devops/scripts/benchmarks/tests/test_integration.py
   - name: Upload github summaries and cache changes
     if: always()
