@@ -9,7 +9,15 @@
 
 #include <vector>
 
-using urEnqueueGraphExpTest = uur::urGraphExecutableExpTest;
+struct urEnqueueGraphExpTest : uur::urGraphExecutableExpTest {
+  void SetUp() override {
+    UUR_RETURN_ON_FATAL_FAILURE(uur::urGraphExecutableExpTest::SetUp());
+
+    // TODO: Re-enable urEnqueueGraph tests on L0V2.
+    // See: https://github.com/intel/llvm/issues/20884.
+    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+  }
+};
 
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueGraphExpTest);
 
