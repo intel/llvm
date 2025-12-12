@@ -114,6 +114,10 @@ void KernelData::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
 
   switch (Kind) {
   case kernel_param_kind_t::kind_std_layout:
+  case kernel_param_kind_t::kind_struct_with_special_type: {
+    addArg(Kind, Ptr, Size, Index + IndexShift);
+    break;
+  }
   case kernel_param_kind_t::kind_pointer: {
     addArg(Kind, Ptr, Size, Index + IndexShift);
     break;
@@ -345,6 +349,10 @@ void KernelData::extractArgsAndReqsFromLambda() {
                /*IsKernelCreatedFromSource=*/false);
   }
 }
+
+void KernelData::incrementArgShift(int Shift) { MArgShift += Shift; }
+
+int KernelData::getArgShift() const { return MArgShift; }
 
 } // namespace detail
 } // namespace _V1
