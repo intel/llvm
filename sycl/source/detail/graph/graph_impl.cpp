@@ -324,7 +324,7 @@ graph_impl::graph_impl(const sycl::context &SyclContext,
 
     ur_result_t Result =
         Adapter.call_nocheck<sycl::detail::UrApiKind::urGraphCreateExp>(
-            ContextImpl.getHandleRef(), &MNativeGraphHandle, nullptr);
+            ContextImpl.getHandleRef(), &MNativeGraphHandle);
     if (Result != UR_RESULT_SUCCESS) {
       throw sycl::exception(sycl::make_error_code(errc::runtime),
                             "Failed to create native UR graph");
@@ -356,6 +356,10 @@ graph_impl::~graph_impl() {
       ur_result_t Result =
           Adapter.call_nocheck<sycl::detail::UrApiKind::urGraphDestroyExp>(
               MNativeGraphHandle);
+      if (Result != UR_RESULT_SUCCESS) {
+        throw sycl::exception(sycl::make_error_code(errc::runtime),
+                              "Failed to destroy native graph");
+      }
       MNativeGraphHandle = nullptr;
     }
   } catch (std::exception &e) {
@@ -607,8 +611,7 @@ void graph_impl::clearQueues(bool NeedsLock) {
         // End native UR graph capture
         auto UrQueue = ValidQueue->getHandleRef();
         ur_exp_graph_handle_t CapturedGraph = nullptr;
-        ur_result_t Result =
-            urQueueEndGraphCaptureExp(UrQueue, &CapturedGraph, nullptr);
+        ur_result_t Result = urQueueEndGraphCaptureExp(UrQueue, &CapturedGraph);
         if (Result != UR_RESULT_SUCCESS) {
           throw sycl::exception(sycl::make_error_code(errc::runtime),
                                 "Failed to end native graph capture");
@@ -618,7 +621,7 @@ void graph_impl::clearQueues(bool NeedsLock) {
         // Only call setCommandGraph for traditional recording
         ValidQueue->setCommandGraph(nullptr);
       }
-      AnyQueuesCleared = true;
+      // AnyQueuesCleared = true;
     }
   }
 }
@@ -771,8 +774,7 @@ void graph_impl::beginRecordingUnlockedQueue(sycl::detail::queue_impl &Queue) {
             "SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1.");
       }
 
-      Result =
-          urQueueBeginCaptureIntoGraphExp(UrQueue, MNativeGraphHandle, nullptr);
+      Result = urQueueBeginCaptureIntoGraphExp(UrQueue, MNativeGraphHandle);
       if (Result != UR_RESULT_SUCCESS) {
         throw sycl::exception(sycl::make_error_code(errc::runtime),
                               "Failed to begin native graph capture");
@@ -819,8 +821,7 @@ void graph_impl::beginRecording(sycl::detail::queue_impl &Queue) {
             "SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1.");
       }
 
-      Result =
-          urQueueBeginCaptureIntoGraphExp(UrQueue, MNativeGraphHandle, nullptr);
+      Result = urQueueBeginCaptureIntoGraphExp(UrQueue, MNativeGraphHandle);
       if (Result != UR_RESULT_SUCCESS) {
         throw sycl::exception(sycl::make_error_code(errc::runtime),
                               "Failed to begin native graph capture");
@@ -1068,7 +1069,7 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
         Adapter
             .call_nocheck<sycl::detail::UrApiKind::urGraphInstantiateGraphExp>(
                 GraphImpl->getNativeGraphHandle(),
-                &MNativeExecutableGraphHandle, nullptr);
+                &MNativeExecutableGraphHandle);
     if (Result != UR_RESULT_SUCCESS) {
       throw sycl::exception(sycl::make_error_code(errc::runtime),
                             "Failed to instantiate native UR executable graph");
@@ -1426,11 +1427,10 @@ exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
         ur_event_handle_t *UrEnqueueWaitList =
             UrEnqueueWaitListSize == 0 ? nullptr : UrEventHandles.data();
         if (!EventNeeded) {
-          Queue.getAdapter()
-              .call<sycl::detail::UrApiKind::urQueueAppendGraphExp>(
-                  Queue.getHandleRef(), MNativeExecutableGraphHandle, nullptr,
-                  nullptr, UrEnqueueWaitListSize, UrEnqueueWaitList);
-          return nullptr;
+          Queue.getAdapter().call<sycl::detail::UrApiKind::urEnqueueGraphExp>(
+              Queue.getHandleRef(), MNativeExecutableGraphHandle,
+              UrEnqueueWaitListSize, UrEnqueueWaitList, nullptr);
+          return {nullptr, SkipScheduler};
 
         } else {
           auto NewEvent = sycl::detail::event_impl::create_device_event(Queue);
@@ -1438,13 +1438,12 @@ exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
           NewEvent->setStateIncomplete();
           NewEvent->setSubmissionTime();
           ur_event_handle_t UrEvent = nullptr;
-          Queue.getAdapter()
-              .call<sycl::detail::UrApiKind::urQueueAppendGraphExp>(
-                  Queue.getHandleRef(), MNativeExecutableGraphHandle, nullptr,
-                  UrEvent, UrEnqueueWaitListSize, UrEnqueueWaitList);
+          Queue.getAdapter().call<sycl::detail::UrApiKind::urEnqueueGraphExp>(
+              Queue.getHandleRef(), MNativeExecutableGraphHandle,
+              UrEnqueueWaitListSize, UrEnqueueWaitList, &UrEvent);
           NewEvent->setHandle(UrEvent);
           NewEvent->setEventFromSubmittedExecCommandBuffer(true);
-          return NewEvent;
+          return {NewEvent, SkipScheduler};
         }
       } else {
         SignalEvent = enqueuePartitionDirectly(MPartitions[0], Queue,
@@ -2210,8 +2209,7 @@ void modifiable_command_graph::end_recording(queue &RecordingQueue) {
       if (impl->getNativeGraphHandle()) {
         auto UrQueue = QueueImpl.getHandleRef();
         ur_exp_graph_handle_t CapturedGraph = nullptr;
-        ur_result_t Result =
-            urQueueEndGraphCaptureExp(UrQueue, &CapturedGraph, nullptr);
+        ur_result_t Result = urQueueEndGraphCaptureExp(UrQueue, &CapturedGraph);
         if (Result != UR_RESULT_SUCCESS) {
           throw sycl::exception(sycl::make_error_code(errc::runtime),
                                 "Failed to end native graph capture");
