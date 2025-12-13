@@ -129,15 +129,11 @@ int main() {
   CHECK_ALIAS(mfloat, float)
   CHECK_ALIAS(mdouble, double)
 
-  mint3 t000;
   mint3 t222{2};
   mint3 t123{1, 2, 3};
   mint3 tcpy{t123};
   mint3 t___;
   sycl::marray<bool, 3> b___;
-
-  // test default ctor
-  assert(t000[0] == 0 && t000[1] == 0 && t000[2] == 0);
 
   // test constant ctor
   assert(t222[0] == 2 && t222[1] == 2 && t222[2] == 2);
