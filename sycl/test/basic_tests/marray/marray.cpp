@@ -201,7 +201,7 @@ int main() {
   CheckBinOps<double>();
 
   // check copyability
-  constexpr sycl::marray<double, 5> ma;
+  constexpr sycl::marray<double, 5> ma(54.0);
   constexpr sycl::marray<double, 5> mb(ma);
   constexpr sycl::marray<double, 5> mc = ma;
 
