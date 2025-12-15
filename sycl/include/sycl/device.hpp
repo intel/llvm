@@ -361,6 +361,14 @@ public:
   /// \return the default context
   context ext_oneapi_get_default_context();
 
+  /// If this device is a root device as defined by the core SYCL specification,
+  /// returns the index that it has in the std::vector that is returned when
+  /// calling platform::get_devices() on the platform that contains this device.
+  ///
+  /// \return the index that it has in the std::vector that is returned when
+  /// calling platform::get_devices() on the platform that contains this device.
+  size_t ext_oneapi_index_within_platform() const;
+
 // TODO: Remove this diagnostics when __SYCL_WARN_IMAGE_ASPECT is removed.
 #if defined(__clang__)
 #pragma clang diagnostic pop

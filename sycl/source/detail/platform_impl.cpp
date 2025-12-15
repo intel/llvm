@@ -259,7 +259,8 @@ device_impl *platform_impl::getDeviceImpl(ur_device_handle_t UrDevice) {
   return getDeviceImplHelper(UrDevice);
 }
 
-device_impl &platform_impl::getOrMakeDeviceImpl(ur_device_handle_t UrDevice) {
+device_impl &platform_impl::getOrMakeDeviceImpl(ur_device_handle_t UrDevice,
+                                                int idx) {
   const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
   // If we've already seen this device, return the impl
   if (device_impl *Result = getDeviceImplHelper(UrDevice))
@@ -267,7 +268,7 @@ device_impl &platform_impl::getOrMakeDeviceImpl(ur_device_handle_t UrDevice) {
 
   // Otherwise make the impl
   MDevices.emplace_back(std::make_shared<device_impl>(
-      UrDevice, *this, device_impl::private_tag{}));
+      UrDevice, *this, device_impl::private_tag{}, idx));
 
   return *MDevices.back();
 }
@@ -512,10 +513,13 @@ void platform_impl::getDevicesImplHelper(ur_device_type_t UrDeviceType,
   // The next step is to inflate the filtered UrDevices into SYCL Device
   // objects.
   platform_impl &PlatformImpl = getOrMakePlatformImpl(MPlatform, *MAdapter);
+  // Assign device indexes within the platform.
+  size_t idx = 0;
   std::transform(UrDevices.begin(), UrDevices.end(), std::back_inserter(OutVec),
-                 [&PlatformImpl](const ur_device_handle_t UrDevice) -> device {
+                 [&PlatformImpl,
+                  &idx](const ur_device_handle_t UrDevice) mutable -> device {
                    return detail::createSyclObjFromImpl<device>(
-                       PlatformImpl.getOrMakeDeviceImpl(UrDevice));
+                       PlatformImpl.getOrMakeDeviceImpl(UrDevice, idx++));
                  });
 
   // The reference counter for handles, that we used to create sycl objects, is

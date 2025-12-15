@@ -17,6 +17,9 @@
 #include <sycl/device_selector.hpp>
 #include <sycl/info/info_desc.hpp>
 
+#include <algorithm>
+#include <iterator>
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -333,6 +336,10 @@ detail::string device::ext_oneapi_cl_profile_impl() const {
 
 context device::ext_oneapi_get_default_context() {
   return impl->get_platform().khr_get_default_context();
+}
+
+size_t device::ext_oneapi_index_within_platform() const {
+  return impl->getIndexWithinPlatform();
 }
 
 } // namespace _V1
