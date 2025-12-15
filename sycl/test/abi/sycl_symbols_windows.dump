@@ -627,16 +627,16 @@
 ?AccessTargetMask@handler@_V1@sycl@@0HB
 ?Clear@exception_list@_V1@sycl@@AEAAXXZ
 ?DirSep@OSUtil@detail@_V1@sycl@@2QEBDEB
-?DisableRangeRounding@handler@_V1@sycl@@AEAA_NXZ
+?DisableRangeRounding@detail@_V1@sycl@@YA_NXZ
 ?EventMode@SubmissionInfo@_V1@detail@2sycl@@QEAAAEAW4event_mode_enum@experimental@oneapi@ext@24@XZ
 ?EventMode@SubmissionInfo@_V1@detail@2sycl@@QEBAAEBW4event_mode_enum@experimental@oneapi@ext@24@XZ
 ?GDBMethodsAnchor@SampledImageAccessorBaseHost@detail@_V1@sycl@@IEAAXXZ
 ?GDBMethodsAnchor@UnsampledImageAccessorBaseHost@detail@_V1@sycl@@IEAAXXZ
-?GetRangeRoundingSettings@handler@_V1@sycl@@AEAAXAEA_K00@Z
+?GetRangeRoundingSettings@detail@_V1@sycl@@YAXAEA_K00@Z
 ?HasAssociatedAccessor@handler@_V1@sycl@@AEBA_NPEAVAccessorImplHost@detail@23@W4target@access@23@@Z
 ?PushBack@exception_list@_V1@sycl@@AEAAX$$QEAVexception_ptr@std@@@Z
 ?PushBack@exception_list@_V1@sycl@@AEAAXAEBVexception_ptr@std@@@Z
-?RangeRoundingTrace@handler@_V1@sycl@@AEAA_NXZ
+?RangeRoundingTrace@detail@_V1@sycl@@YA_NXZ
 ?SetHostTask@handler@_V1@sycl@@AEAAXV?$function@$$A6AXVinterop_handle@_V1@sycl@@@Z@std@@@Z
 ?SetHostTask@handler@_V1@sycl@@AEAAXV?$function@$$A6AXXZ@std@@@Z
 ?SetKernelLaunchpropertiesIfNotEmpty@handler@_V1@sycl@@AEAAXAEBU?$PropsHolder@Uwork_group_scratch_size@experimental@oneapi@ext@_V1@sycl@@Ucache_config@2intel@456@Uuse_root_sync_key@23456@Uwork_group_progress_key@23456@Usub_group_progress_key@23456@Uwork_item_progress_key@23456@U?$cluster_size@$00@cuda@23456@U?$cluster_size@$01@cuda@23456@U?$cluster_size@$02@cuda@23456@@kernel_launch_properties_v1@detail@23@@Z
@@ -3966,8 +3966,7 @@
 ?getElementSize@image_plain@detail@_V1@sycl@@IEBA_KXZ
 ?getEndTime@HostProfilingInfo@detail@_V1@sycl@@QEBA_KXZ
 ?getKernelBundle@handler@_V1@sycl@@AEBA?AV?$kernel_bundle@$0A@@23@XZ
-?getMaxWorkGroups@handler@_V1@sycl@@AEAA?AV?$optional@V?$array@_K$02@std@@@std@@XZ
-?getMaxWorkGroups_v2@handler@_V1@sycl@@AEAA?AV?$tuple@V?$array@_K$02@std@@_N@std@@XZ
+?getMaxWorkGroups@detail@_V1@sycl@@YA?AV?$tuple@V?$array@_K$02@std@@_N@std@@AEBVdevice@23@@Z
 ?getMemoryObject@AccessorBaseHost@detail@_V1@sycl@@QEBAPEAXXZ
 ?getMemoryObject@SampledImageAccessorBaseHost@detail@_V1@sycl@@QEBAPEAXXZ
 ?getMemoryObject@UnsampledImageAccessorBaseHost@detail@_V1@sycl@@QEBAPEAXXZ
@@ -4056,6 +4055,7 @@
 ?get_coordinate_normalization_mode@sampler@_V1@sycl@@QEBA?AW4coordinate_normalization_mode@23@XZ
 ?get_count@image_plain@detail@_V1@sycl@@IEBA_KXZ
 ?get_descriptor@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBAAEBUimage_descriptor@23456@XZ
+?get_device@handler@_V1@sycl@@AEBA?AVdevice@23@XZ
 ?get_device@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBA?AVdevice@56@XZ
 ?get_device@memory_pool@experimental@oneapi@ext@_V1@sycl@@QEBA?AVdevice@56@XZ
 ?get_device@physical_mem@experimental@oneapi@ext@_V1@sycl@@QEBA?AVdevice@56@XZ
@@ -4379,4 +4379,3 @@
 DllMain
 __sycl_register_lib
 __sycl_unregister_lib
-
