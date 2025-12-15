@@ -123,15 +123,36 @@ void baz_type(ns::Baz::type Arg) {}
 
 // CHECK: void baz_type(ns::Bar<double, float> Arg);
 
+template <int N>
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]]
+void baz_type_with_unrelated_template(ns::Baz::type Arg) {}
+template void baz_type_with_unrelated_template<1>(ns::Baz::type);
+
+// CHECK: template <int N> void baz_type_with_unrelated_template(ns::Bar<double, float>);
+
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]]
 void foz_using(ns::FozUsing<ns::Foo> Arg) {}
 
 // CHECK: void foz_using(ns::Foz<ns::Foo> Arg);
 
+template <typename T>
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]]
+void foz_using_with_unrelated_template(ns::FozUsing<ns::Foo> Arg) {}
+template void foz_using_with_unrelated_template<int>(ns::FozUsing<ns::Foo>);
+
+// CHECK: template <typename T> void foz_using_with_unrelated_template(ns::Foz<ns::Foo>);
+
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]]
 void foz_foo_using(ns::FozFooUsing Arg) {}
 
 // CHECK: void foz_foo_using(ns::Foz<ns::Foo> Arg);
+
+template <int N>
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]]
+void foz_foo_using_with_unrelated_template(ns::FozFooUsing Arg) {}
+template void foz_foo_using_with_unrelated_template<2>(ns::FozFooUsing);
+
+// CHECK: template <int N> void foz_foo_using_with_unrelated_template(ns::Foz<ns::Foo>);
 
 template<template <typename> class T1, typename T2>
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]]
@@ -154,10 +175,9 @@ template void template_template_arg(ns::List<int>);
 
 // CHECK: template <typename T, template <typename > typename Container> void template_template_arg(Container<T>);
 
-// These test cases fail, but they are added here in advance to add a record of
-// known bugs.
 #if 0
-
+// This test case fails, but it is added here in advance to add a record of a
+// known bug.
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]]
 void foz_foo_using(ns::Foz<ns::FooUsing> Arg) {}
 
