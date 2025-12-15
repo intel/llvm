@@ -18,11 +18,6 @@ public:
     return m_KernelIDs2BinImage;
   }
 
-  std::unordered_map<std::string_view, sycl::kernel_id> &
-  getKernelName2KernelID() {
-    return m_KernelName2KernelIDs;
-  }
-
   std::unordered_map<const sycl::detail::RTDeviceBinaryImage *,
                      std::shared_ptr<std::vector<sycl::kernel_id>>> &
   getBinImage2KernelId() {
@@ -278,9 +273,6 @@ void checkAllInvolvedContainers(ProgramManagerExposed &PM,
                                 bool MultipleImgsPerEntryTestCase = false) {
   EXPECT_EQ(PM.getKernelID2BinImage().size(), ExpectedImgCount)
       << "KernelID2BinImg " + CommentPostfix;
-  checkContainer(PM.getKernelName2KernelID(), ExpectedEntryCount,
-                 generateRefNames(ImgIds, "Kernel"),
-                 "KernelName2KernelID " + CommentPostfix);
   EXPECT_EQ(PM.getBinImage2KernelId().size(), ExpectedImgCount)
       << CommentPostfix;
   checkContainer(PM.getExportedSymbolImages(), ExpectedImgCount,

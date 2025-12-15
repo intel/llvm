@@ -13,6 +13,7 @@
 #include <sycl/detail/compile_time_kernel_info.hpp>
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/ur.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 #include <mutex>
 #include <optional>
@@ -84,12 +85,10 @@ struct FastKernelSubcacheT {
 // information that is uniform between different submissions of the same
 // kernel). Pointers to instances of this class are stored in header function
 // templates as a static variable to avoid repeated runtime lookup overhead.
-// TODO Currently this class duplicates information fetched from the program
-// manager. Instead, we should merge all of this information
-// into this structure and get rid of the other KernelName -> * maps.
 class DeviceKernelInfo : public CompileTimeKernelInfoTy {
 public:
-  DeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
+  DeviceKernelInfo(const CompileTimeKernelInfoTy &Info,
+                   std::optional<sycl::kernel_id> KernelID = std::nullopt);
 
   void init(std::string_view KernelName);
   void setCompileTimeInfoIfNeeded(const CompileTimeKernelInfoTy &Info);
@@ -98,6 +97,11 @@ public:
 
   const std::optional<int> &getImplicitLocalArgPos() const {
     return MImplicitLocalArgPos;
+  }
+
+  const sycl::kernel_id &getKernelID() const {
+    assert(MKernelID);
+    return *MKernelID;
   }
 
   // Implicit local argument position is used only for some backends, so this
@@ -109,6 +113,7 @@ private:
 
   FastKernelSubcacheT MFastKernelSubcache;
   std::optional<int> MImplicitLocalArgPos;
+  const std::optional<sycl::kernel_id> MKernelID;
 };
 
 } // namespace detail

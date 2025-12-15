@@ -221,19 +221,20 @@ public:
 
   // The function returns the unique SYCL kernel identifier associated with a
   // kernel name or nullopt if there is no such ID.
-  std::optional<kernel_id> tryGetSYCLKernelID(std::string_view KernelName) {
-    std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+  std::optional<kernel_id>
+  tryGetSYCLKernelID(std::string_view KernelName) const {
+    std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
 
-    auto KernelID = m_KernelName2KernelIDs.find(KernelName);
-    if (KernelID == m_KernelName2KernelIDs.end())
+    auto It = m_DeviceKernelInfoMap.find(KernelName);
+    if (It == m_DeviceKernelInfoMap.end())
       return std::nullopt;
 
-    return KernelID->second;
+    return It->second.getKernelID();
   }
 
   // The function returns the unique SYCL kernel identifier associated with a
   // kernel name or throws a sycl exception if there is no such ID.
-  kernel_id getSYCLKernelID(std::string_view KernelName) {
+  kernel_id getSYCLKernelID(std::string_view KernelName) const {
     if (std::optional<kernel_id> MaybeKernelID = tryGetSYCLKernelID(KernelName))
       return *MaybeKernelID;
     throw exception(make_error_code(errc::runtime),
@@ -423,20 +424,22 @@ private:
                                    const device_impl &DeviceImpl);
 
 protected:
-  /// The three maps below are used during kernel resolution. Any kernel is
-  /// identified by its name.
   using RTDeviceBinaryImageUPtr = std::unique_ptr<RTDeviceBinaryImage>;
   using DynRTDeviceBinaryImageUPtr = std::unique_ptr<DynRTDeviceBinaryImage>;
-  /// Maps names of kernels to their unique kernel IDs.
-  /// TODO: Use std::unordered_set with transparent hash and equality functions
-  ///       when C++20 is enabled for the runtime library.
-  /// Access must be guarded by the m_KernelIDsMutex mutex.
-  //
-  std::unordered_map<std::string_view, kernel_id> m_KernelName2KernelIDs;
 
+  /// Protects kernel ID based maps.
+  /// NOTE: This may be acquired while \ref Sync::getGlobalLock() is held so to
+  /// avoid deadlocks care must be taken not to acquire
+  /// \ref Sync::getGlobalLock() while holding this mutex.
+  // TODO This currently serves as the mutex or multiple maps that are not
+  // always accessed together, probably should be split into multiple mutexes.
+  std::mutex m_ImgMapsMutex;
+
+  /// The two maps below are used during kernel resolution. Any kernel is
+  /// identified by its name, its kernel id is stored in m_DeviceKernelInfoMap.
   // Maps KernelIDs to device binary images. There can be more than one image
   // in case of SPIRV + AOT.
-  /// Access must be guarded by the m_KernelIDsMutex mutex.
+  /// Access must be guarded by the m_ImgMapsMutex mutex.
   std::unordered_multimap<kernel_id, const RTDeviceBinaryImage *>
       m_KernelIDs2BinImage;
 
@@ -444,26 +447,20 @@ protected:
   // Using shared_ptr to avoid expensive copy of the vector.
   // The vector is initialized in addImages function and is supposed to be
   // immutable afterwards.
-  /// Access must be guarded by the m_KernelIDsMutex mutex.
+  /// Access must be guarded by the m_ImgMapsMutex mutex.
   std::unordered_map<const RTDeviceBinaryImage *,
                      std::shared_ptr<std::vector<kernel_id>>>
       m_BinImg2KernelIDs;
 
-  /// Protects kernel ID cache.
-  /// NOTE: This may be acquired while \ref Sync::getGlobalLock() is held so to
-  /// avoid deadlocks care must be taken not to acquire
-  /// \ref Sync::getGlobalLock() while holding this mutex.
-  std::mutex m_KernelIDsMutex;
-
   /// Keeps track of binary image to kernel name reference count.
   /// Used for checking if the last image referencing the kernel name
   /// is removed in order to trigger cleanup of kernel specific information.
-  /// Access must be guarded by the m_KernelIDsMutex mutex.
+  /// Access must be guarded by the m_ImgMapsMutex mutex.
   std::unordered_map<std::string_view, int> m_KernelNameRefCount;
 
   /// Caches all exported symbols to allow faster lookup when excluding these
   /// from kernel bundles.
-  /// Access must be guarded by the m_KernelIDsMutex mutex.
+  /// Access must be guarded by the m_ImgMapsMutex mutex.
   /// Owns its keys to support the bfloat16 use case with dynamic images,
   /// where the symbol is taken from another image (that might be unloaded).
   std::unordered_multimap<std::string, const RTDeviceBinaryImage *>
@@ -471,7 +468,7 @@ protected:
 
   /// Keeps all device images we are refering to during program lifetime. Used
   /// for proper cleanup.
-  /// Access must be guarded by the m_KernelIDsMutex mutex.
+  /// Access must be guarded by the m_ImgMapsMutex mutex.
   std::unordered_map<sycl_device_binary, RTDeviceBinaryImageUPtr>
       m_DeviceImages;
 
@@ -481,7 +478,7 @@ protected:
 
   /// Caches list of device images that use or provide virtual functions from
   /// the same set. Used to simplify access.
-  /// Access must be guarded by the m_KernelIDsMutex mutex.
+  /// Access must be guarded by the m_ImgMapsMutex mutex.
   std::unordered_map<std::string, std::set<const RTDeviceBinaryImage *>>
       m_VFSet2BinImage;
 
@@ -525,7 +522,7 @@ protected:
   std::unordered_map<std::string_view, DeviceKernelInfo> m_DeviceKernelInfoMap;
 
   // Protects m_DeviceKernelInfoMap.
-  std::mutex m_DeviceKernelInfoMapMutex;
+  mutable std::mutex m_DeviceKernelInfoMapMutex;
 
   // Sanitizer type used in device image
   SanitizerType m_SanitizerFoundInImage;
