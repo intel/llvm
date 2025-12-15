@@ -2228,7 +2228,9 @@ void addInstrRequirements(const MachineInstr &MI,
     break;
   }
   case SPIRV::OpDPdxCoarse:
-  case SPIRV::OpDPdyCoarse: {
+  case SPIRV::OpDPdyCoarse:
+  case SPIRV::OpDPdxFine:
+  case SPIRV::OpDPdyFine: {
     Reqs.addCapability(SPIRV::Capability::DerivativeControl);
     break;
   }
