@@ -161,12 +161,6 @@ struct Wrapper {
   ///   // a null-terminated string; target- and compiler-specific options
   ///   // which are suggested to use to "link" program at runtime
   ///   const char *LinkOptions;
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  ///   // Pointer to the manifest data start
-  ///   const unsigned char *ManifestStart;
-  ///   // Pointer to the manifest data end
-  ///   const unsigned char *ManifestEnd;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   ///   // Pointer to the device binary image start
   ///   void *ImageStart;
   ///   // Pointer to the device binary image end
@@ -179,47 +173,22 @@ struct Wrapper {
   /// };
   /// \endcode
   StructType *getSyclDeviceImageTy() {
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    if (!PreviewBreakingChanges) {
-      return StructType::create(
-          {
-              Type::getInt16Ty(C),       // Version
-              Type::getInt8Ty(C),        // OffloadKind
-              Type::getInt8Ty(C),        // Format
-              PointerType::getUnqual(C), // DeviceTargetSpec
-              PointerType::getUnqual(C), // CompileOptions
-              PointerType::getUnqual(C), // LinkOptions
-              PointerType::getUnqual(C), // ManifestStart
-              PointerType::getUnqual(C), // ManifestEnd
-              PointerType::getUnqual(C), // ImageStart
-              PointerType::getUnqual(C), // ImageEnd
-              PointerType::getUnqual(C), // EntriesBegin
-              PointerType::getUnqual(C), // EntriesEnd
-              PointerType::getUnqual(C), // PropertySetBegin
-              PointerType::getUnqual(C)  // PropertySetEnd
-          },
-          "__sycl.tgt_device_image");
-    } else {
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-      return StructType::create(
-          {
-              Type::getInt16Ty(C),       // Version
-              Type::getInt8Ty(C),        // OffloadKind
-              Type::getInt8Ty(C),        // Format
-              PointerType::getUnqual(C), // DeviceTargetSpec
-              PointerType::getUnqual(C), // CompileOptions
-              PointerType::getUnqual(C), // LinkOptions
-              PointerType::getUnqual(C), // ImageStart
-              PointerType::getUnqual(C), // ImageEnd
-              PointerType::getUnqual(C), // EntriesBegin
-              PointerType::getUnqual(C), // EntriesEnd
-              PointerType::getUnqual(C), // PropertySetBegin
-              PointerType::getUnqual(C)  // PropertySetEnd
-          },
-          "__sycl.tgt_device_image");
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    }
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+    return StructType::create(
+        {
+            Type::getInt16Ty(C),       // Version
+            Type::getInt8Ty(C),        // OffloadKind
+            Type::getInt8Ty(C),        // Format
+            PointerType::getUnqual(C), // DeviceTargetSpec
+            PointerType::getUnqual(C), // CompileOptions
+            PointerType::getUnqual(C), // LinkOptions
+            PointerType::getUnqual(C), // ImageStart
+            PointerType::getUnqual(C), // ImageEnd
+            PointerType::getUnqual(C), // EntriesBegin
+            PointerType::getUnqual(C), // EntriesEnd
+            PointerType::getUnqual(C), // PropertySetBegin
+            PointerType::getUnqual(C)  // PropertySetEnd
+        },
+        "__sycl.tgt_device_image");
   }
 
   /// Creates a structure for SYCL specific binary descriptor type. Corresponds
@@ -573,11 +542,7 @@ struct Wrapper {
     // DeviceImageStructVersion change log:
     // -- version 2: updated to PI 1.2 binary image format
     // -- version 3: removed ManifestStart, ManifestEnd pointers
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    uint16_t DeviceImageStructVersion = PreviewBreakingChanges ? 3 : 2;
-#else                                      // __INTEL_PREVIEW_BREAKING_CHANGES
     constexpr uint16_t DeviceImageStructVersion = 3;
-#endif                                     // __INTEL_PREVIEW_BREAKING_CHANGES
     constexpr uint8_t SYCLOffloadKind = 4; // Corresponds to SYCL
     auto *Version =
         ConstantInt::get(Type::getInt16Ty(C), DeviceImageStructVersion);
@@ -605,33 +570,14 @@ struct Wrapper {
           Twine(OffloadKindTag) + ImageID + ".data", Image.Target);
     }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    std::pair<Constant *, Constant *> Manifests = {NullPtr, NullPtr};
-#endif
-
     // For SYCL image offload entries are defined here, by wrapper, so
     // those are created per image
     std::pair<Constant *, Constant *> ImageEntriesPtrs =
         addOffloadEntriesToModule(Image.Entries);
-    Constant *WrappedImage =
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-        PreviewBreakingChanges
-            ?
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-            ConstantStruct::get(SyclDeviceImageTy, Version, Kind, Format,
-                                Target, CompileOptions, LinkOptions,
-                                Binary.first, Binary.second,
-                                ImageEntriesPtrs.first, ImageEntriesPtrs.second,
-                                PropSets.first, PropSets.second)
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-            : ConstantStruct::get(
-                  SyclDeviceImageTy, Version, Kind, Format, Target,
-                  CompileOptions, LinkOptions, Manifests.first,
-                  Manifests.second, Binary.first, Binary.second,
-                  ImageEntriesPtrs.first, ImageEntriesPtrs.second,
-                  PropSets.first, PropSets.second)
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-        ;
+    Constant *WrappedImage = ConstantStruct::get(
+        SyclDeviceImageTy, Version, Kind, Format, Target, CompileOptions,
+        LinkOptions, Binary.first, Binary.second, ImageEntriesPtrs.first,
+        ImageEntriesPtrs.second, PropSets.first, PropSets.second);
 
     if (Options.EmitRegistrationFunctions)
       emitRegistrationFunctions(Binary.first, Image.Image->getBufferSize(),
@@ -693,26 +639,18 @@ struct Wrapper {
   ///  ...
   /// static const char ImageN[] = { <Bufs.back() contents> };
   ///
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-/// static constexpr uint16_t Version = 2;
-#else  // __INTEL_PREVIEW_BREAKING_CHANGES
-/// static constexpr uint16_t Version = 3;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-/// static constexpr uint16_t OffloadKind = 4; // SYCL
-///
-/// static const __sycl.tgt_device_image Images[] = {
-///   {
-///     Version,                      /*Version*/
-///     OffloadKind,                  // Kind of offload model.
-///     Format,                       // format of the image - SPIRV, LLVMIR
-///                                   // bc, etc
-//      NULL,                         /*DeviceTargetSpec*/
-///     CompileOptions0,              /*CompileOptions0*/
-///     LinkOptions0,                 /*LinkOptions0*/
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-///     NULL,                         /*ManifestStart*/
-///     NULL,                         /*ManifestEnd*/
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+  /// static constexpr uint16_t Version = 3;
+  /// static constexpr uint16_t OffloadKind = 4; // SYCL
+  ///
+  /// static const __sycl.tgt_device_image Images[] = {
+  ///   {
+  ///     Version,                      /*Version*/
+  ///     OffloadKind,                  // Kind of offload model.
+  ///     Format,                       // format of the image - SPIRV, LLVMIR
+  ///                                   // bc, etc
+  //      NULL,                         /*DeviceTargetSpec*/
+  ///     CompileOptions0,              /*CompileOptions0*/
+  ///     LinkOptions0,                 /*LinkOptions0*/
   ///     Image0,                       /*ImageStart*/
   ///     Image0 + sizeof(Image0),      /*ImageEnd*/
   ///     __start_offloading_entries0,  /*EntriesBegin*/

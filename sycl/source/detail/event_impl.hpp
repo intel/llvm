@@ -163,10 +163,10 @@ public:
   void setComplete();
 
   /// Returns raw interoperability event handle.
-  ur_event_handle_t getHandle() const;
+  ur_event_handle_t getHandle() const { return MEvent.load(); }
 
   /// Set event handle for this event object.
-  void setHandle(const ur_event_handle_t &UREvent);
+  void setHandle(const ur_event_handle_t &UREvent) { MEvent.store(UREvent); }
 
   /// Returns context that is associated with this event.
   context_impl &getContextImpl();

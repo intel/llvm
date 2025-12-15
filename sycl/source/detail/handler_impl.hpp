@@ -61,9 +61,7 @@ public:
            HandlerSubmissionState::EXPLICIT_KERNEL_BUNDLE_STATE;
   }
 
-  KernelNameStrRefT getKernelName() const {
-    return MKernelData.getKernelName();
-  }
+  std::string_view getKernelName() const { return MKernelData.getKernelName(); }
 
   /// Registers mutually exclusive submission states.
   HandlerSubmissionState MSubmissionState = HandlerSubmissionState::NO_STATE;
@@ -223,15 +221,6 @@ public:
 
   // Allocation ptr to be freed asynchronously.
   void *MFreePtr = nullptr;
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // TODO: remove in the next ABI-breaking window
-  // Today they are used only in the handler::setKernelNameBasedCachePtr
-  int MKernelNumArgs = 0;
-  detail::kernel_param_desc_t (*MKernelParamDescGetter)(int) = nullptr;
-  bool MKernelIsESIMD = false;
-  bool MKernelHasSpecialCaptures = true;
-#endif
 
   KernelData MKernelData;
 };

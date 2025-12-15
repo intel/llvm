@@ -216,7 +216,6 @@ public:
   const PropertyRange &getSpecConstantsDefaultValues() const {
     return SpecConstDefaultValuesMap;
   }
-  const PropertyRange &getDeviceLibReqMask() const { return DeviceLibReqMask; }
   const PropertyRange &getDeviceLibMetadata() const {
     return DeviceLibMetadata;
   }
@@ -255,7 +254,6 @@ protected:
   ur::DeviceBinaryType Format = SYCL_DEVICE_BINARY_TYPE_NONE;
   RTDeviceBinaryImage::PropertyRange SpecConstIDMap;
   RTDeviceBinaryImage::PropertyRange SpecConstDefaultValuesMap;
-  RTDeviceBinaryImage::PropertyRange DeviceLibReqMask;
   RTDeviceBinaryImage::PropertyRange DeviceLibMetadata;
   RTDeviceBinaryImage::PropertyRange KernelParamOptInfo;
   RTDeviceBinaryImage::PropertyRange ProgramMetadata;

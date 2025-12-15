@@ -26,6 +26,9 @@ presets: dict[str, list[str]] = {
     "Minimal": [
         "Compute Benchmarks",
     ],
+    "Core": [
+        "Compute Benchmarks Core",
+    ],
     "Normal": [
         "BenchDNN",
         "Compute Benchmarks",

@@ -269,6 +269,7 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
 
     suites = [
         ComputeBench(),
+        ComputeBenchCoreSuite(),
         VelocityBench(),
         SyclBench(),
         LlamaCppBench(),

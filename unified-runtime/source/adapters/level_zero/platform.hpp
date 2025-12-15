@@ -166,5 +166,6 @@ struct ur_platform_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter>,
   struct ZeCommandListAppendLaunchKernelWithArgumentsExtension {
     bool Supported = false;
     bool DriverSupportsCooperativeKernelLaunchWithArgs = false;
+    bool DisableZeLaunchKernelWithArgs = false;
   } ZeCommandListAppendLaunchKernelWithArgumentsExt;
 };

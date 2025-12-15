@@ -98,6 +98,7 @@ jobs:
       other_adapter_name: ${{ matrix.other_adapter || '' }}
       docker_image: ${{ matrix.docker_image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'}}
       image_options: ${{ matrix.image_options || '' }}
+      install_igc_driver: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
 
 # TODO: Enable once the apt package at https://apt.llvm.org/noble/pool/main/l/llvm-toolchain-snapshot/ is updated
 #  offload_build:

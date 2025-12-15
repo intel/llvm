@@ -38,6 +38,7 @@ namespace sycl {
 inline namespace _V1 {
 // Forward declarations
 class platform;
+class context;
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
@@ -65,6 +66,8 @@ enum class peer_access {
 /// \ingroup sycl_api
 class __SYCL_STANDALONE_DEBUG __SYCL_EXPORT device
     : public detail::OwnerLessBase<device> {
+  friend sycl::detail::ImplUtils;
+
 public:
   /// Constructs a SYCL device instance using the default device.
   device();
@@ -218,21 +221,9 @@ public:
   /// Queries this SYCL device for SYCL backend-specific information.
   ///
   /// The return type depends on information being queried.
-  template <typename Param
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-#if defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI == 0
-            ,
-            int = detail::emit_get_backend_info_error<device, Param>()
-#endif
-#endif
-            >
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  __SYCL_DEPRECATED(
-      "All current implementations of get_backend_info() are to be removed. "
-      "Use respective variants of get_info() instead.")
-#endif
+  template <typename Param>
   typename detail::is_backend_info_desc<Param>::return_type
-      get_backend_info() const;
+  get_backend_info() const;
 
   /// Check SYCL extension support by device
   ///
@@ -365,6 +356,11 @@ public:
     return profile.c_str();
   }
 
+  /// Shortcut for get_platform().khr_get_default_context().
+  ///
+  /// \return the default context
+  context ext_oneapi_get_default_context();
+
 // TODO: Remove this diagnostics when __SYCL_WARN_IMAGE_ASPECT is removed.
 #if defined(__clang__)
 #pragma clang diagnostic pop
@@ -375,17 +371,6 @@ private:
   device(std::shared_ptr<detail::device_impl> Impl) : impl(std::move(Impl)) {}
 
   ur_native_handle_t getNative() const;
-
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)

@@ -182,14 +182,7 @@ removeDuplicateDevices(const std::vector<device> &Devs) {
 
 kernel_id get_kernel_id_impl(string_view KernelName) {
   return detail::ProgramManager::getInstance().getSYCLKernelID(
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-      std::string(
-#endif
-          std::string_view(KernelName)
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-              )
-#endif
-  );
+      std::string_view(KernelName));
 }
 
 detail::KernelBundleImplPtr
@@ -523,7 +516,7 @@ obj_kb compile_from_source(
   kernel_bundle_impl &sourceImpl = *getSyclObjImpl(SourceKB);
   std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl.compile_from_source(
       UniqueDevices, BuildOptions, LogPtr, RegisteredKernelNames);
-  auto result = sycl::detail::createSyclObjFromImpl<obj_kb>(KBImpl);
+  auto result = sycl::detail::createSyclObjFromImpl<obj_kb>(std::move(KBImpl));
   if (LogView)
     *LogView = Log;
   return result;
