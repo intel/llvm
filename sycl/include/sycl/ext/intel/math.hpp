@@ -176,7 +176,6 @@ std::enable_if_t<std::is_same_v<Tp, sycl::half2>, sycl::half2> inv(Tp x) {
   return sycl::half2{inv(x.s0()), inv(x.s1())};
 }
 
-
 /// --------------------------------------------------------------------------
 /// rint(x) function
 /// round a floating-point value to the nearest integer value.
