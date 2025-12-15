@@ -1,4 +1,6 @@
 // REQUIRES: aspect-usm_shared_allocations
+// UNSUPPORTED: target-amd
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16072
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
