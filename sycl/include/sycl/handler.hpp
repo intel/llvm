@@ -857,7 +857,7 @@ private:
     if (HasRoundedRange) {
       using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
       auto Wrapper =
-          getRangeRoundedKernelLambda<NameWT, TransformedArgType, Dims>(
+          detail::getRangeRoundedKernelLambda<NameWT, TransformedArgType, Dims>(
               KernelFunc, UserRange);
 
       using KName = std::conditional_t<std::is_same<KernelType, NameT>::value,
@@ -2718,26 +2718,6 @@ private:
   friend class ext::oneapi::experimental::detail::graph_impl;
   friend class ext::oneapi::experimental::detail::dynamic_parameter_impl;
   friend class ext::oneapi::experimental::detail::dynamic_command_group_impl;
-
-  template <typename WrapperT, typename TransformedArgType, int Dims,
-            typename KernelType,
-            std::enable_if_t<detail::KernelLambdaHasKernelHandlerArgT<
-                KernelType, TransformedArgType>::value> * = nullptr>
-  auto getRangeRoundedKernelLambda(KernelType KernelFunc,
-                                   range<Dims> UserRange) {
-    return detail::RoundedRangeKernelWithKH<TransformedArgType, Dims,
-                                            KernelType>{UserRange, KernelFunc};
-  }
-
-  template <typename WrapperT, typename TransformedArgType, int Dims,
-            typename KernelType,
-            std::enable_if_t<!detail::KernelLambdaHasKernelHandlerArgT<
-                KernelType, TransformedArgType>::value> * = nullptr>
-  auto getRangeRoundedKernelLambda(KernelType KernelFunc,
-                                   range<Dims> UserRange) {
-    return detail::RoundedRangeKernel<TransformedArgType, Dims, KernelType>{
-        UserRange, KernelFunc};
-  }
 
   detail::context_impl &getContextImpl() const;
 
