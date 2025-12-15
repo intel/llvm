@@ -25,8 +25,9 @@ template <typename Tp = unsigned long long> unsigned long long brevll(Tp x) {
   return __imf_brevll(x);
 }
 
-extern "C" __DPCPP_SYCL_EXTERNAL unsigned __imf_byte_perm(unsigned, unsigned,
-                                                          unsigned);
+extern "C" {
+__DPCPP_SYCL_EXTERNAL unsigned __imf_byte_perm(unsigned, unsigned, unsigned);
+};
 
 template <typename Tp = unsigned> unsigned byte_perm(Tp x, Tp y, Tp z) {
   return __imf_byte_perm(x, y, z);
