@@ -377,21 +377,21 @@ public:
   }
 
   void submit_graph_direct_without_event(
-      std::shared_ptr<ext::oneapi::experimental::detail::exec_graph_impl>
-          ExecGraph,
+      const std::shared_ptr<ext::oneapi::experimental::detail::exec_graph_impl>
+          &ExecGraph,
       sycl::span<const event> DepEvents, const detail::code_location &CodeLoc,
       bool IsTopCodeLoc) {
-    submit_graph_direct_impl(std::move(ExecGraph), false, DepEvents, CodeLoc,
+    submit_graph_direct_impl(ExecGraph, false, DepEvents, CodeLoc,
                              IsTopCodeLoc);
   }
 
   event submit_graph_direct_with_event(
-      std::shared_ptr<ext::oneapi::experimental::detail::exec_graph_impl>
-          ExecGraph,
+      const std::shared_ptr<ext::oneapi::experimental::detail::exec_graph_impl>
+          &ExecGraph,
       sycl::span<const event> DepEvents, const detail::code_location &CodeLoc,
       bool IsTopCodeLoc) {
     return createSyclObjFromImpl<event>(submit_graph_direct_impl(
-        std::move(ExecGraph), true, DepEvents, CodeLoc, IsTopCodeLoc));
+        ExecGraph, true, DepEvents, CodeLoc, IsTopCodeLoc));
   }
 
   void submit_without_event(const detail::type_erased_cgfo_ty &CGF,
