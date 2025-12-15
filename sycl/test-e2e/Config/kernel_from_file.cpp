@@ -12,7 +12,7 @@
 // >> ---- translate to SPIR-V
 // RUN: llvm-spirv -o %t.spv %t_app.bc
 // Need to perform full compilation here since the SYCL runtime uses image
-// properties from the fat binary.
+// properties from the multi-architecture binary.
 // RUN: %{build} -fno-sycl-dead-args-optimization -o %t.out
 // RUN: env SYCL_USE_KERNEL_SPV=%t.spv %{run} %t.out
 

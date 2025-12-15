@@ -101,7 +101,7 @@ public:
   }
 
   // Implicit local argument position is used only for some backends, so this
-  // funciton allows setting it as more images are added.
+  // function allows setting it as more images are added.
   void setImplicitLocalArgPos(int Pos);
 
 private:
