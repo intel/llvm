@@ -6654,8 +6654,29 @@ class FreeFunctionTemplateKernelArgsPrinter
       ConstTemplateArgumentVisitor<FreeFunctionTemplateKernelArgsPrinter, void,
                                    ArrayRef<TemplateArgument>>;
 
-  void PrintTemplateDeclName(const TemplateDecl *TD,
-                             ArrayRef<TemplateArgument> SpecArgs) {}
+  // Desugars a template argument. This helps avoid aliases.
+  static TemplateArgument DesugarTemplateArgument(const TemplateArgument &Arg) {
+    switch (Arg.getKind()) {
+    case TemplateArgument::ArgKind::Type: {
+      QualType ArgTy = Arg.getAsType();
+      return {QualType(ArgTy->getUnqualifiedDesugaredType(),
+                       ArgTy.getCVRQualifiers())};
+    }
+    case TemplateArgument::ArgKind::Template: {
+      TemplateName TN = Arg.getAsTemplate();
+      while (std::optional<TemplateName> DesugaredTN =
+                 TN.desugar(/*IgnoreDeduced=*/false))
+        TN = *DesugaredTN;
+      return {TN};
+    }
+    default:
+      return Arg;
+    }
+  }
+
+  void PrintDesugared(const TemplateArgument &Arg) {
+    DesugarTemplateArgument(Arg).print(Policy, O, /*IncludeType=*/false);
+  }
 
 public:
   FreeFunctionTemplateKernelArgsPrinter(raw_ostream &O, PrintingPolicy &Policy,
@@ -6699,7 +6720,7 @@ public:
     const TemplateDecl *TD = T->getTemplateName().getAsTemplateDecl();
     const auto *TTPD = dyn_cast<TemplateTemplateParmDecl>(TD);
     if (TTPD && !TTPD->getIdentifier())
-      SpecArgs[TTPD->getIndex()].print(Policy, O, /* IncludeType = */ false);
+      PrintDesugared(SpecArgs[TTPD->getIndex()]);
     else
       TD->printQualifiedName(O);
     O << "<";
@@ -6720,15 +6741,17 @@ public:
 
   void VisitTypeTemplateArgument(const TemplateArgument &Arg,
                                  ArrayRef<TemplateArgument> SpecArgs) {
+    TemplateArgument DesugaredArg = DesugarTemplateArgument(Arg);
     // If we reference an existing template argument without a known identifier,
     // print it instead.
-    const auto *TPT = dyn_cast<TemplateTypeParmType>(Arg.getAsType());
+    const auto *TPT = dyn_cast<TemplateTypeParmType>(DesugaredArg.getAsType());
     if (TPT && !TPT->getIdentifier()) {
-      SpecArgs[TPT->getIndex()].print(Policy, O, /* IncludeType = */ false);
+      PrintDesugared(SpecArgs[TPT->getIndex()]);
       return;
     }
 
-    const auto *TST = dyn_cast<TemplateSpecializationType>(Arg.getAsType());
+    const auto *TST =
+        dyn_cast<TemplateSpecializationType>(DesugaredArg.getAsType());
     if (TST && Arg.isInstantiationDependent()) {
       // This is an instantiation dependent template specialization, meaning
       // that some of its arguments reference template arguments of the free
@@ -6737,7 +6760,7 @@ public:
       return;
     }
 
-    Arg.print(Policy, O, /* IncludeType = */ false);
+    DesugaredArg.print(Policy, O, /* IncludeType = */ false);
   }
 
   void VisitDeclarationTemplateArgument(const TemplateArgument &,
@@ -6754,23 +6777,23 @@ public:
 
   void VisitIntegralTemplateArgument(const TemplateArgument &Arg,
                                      ArrayRef<TemplateArgument>) {
-    Arg.print(Policy, O, /* IncludeType = */ false);
+    PrintDesugared(Arg);
   }
 
   void VisitStructuralValueTemplateArgument(const TemplateArgument &Arg,
                                             ArrayRef<TemplateArgument>) {
-    Arg.print(Policy, O, /* IncludeType = */ false);
+    PrintDesugared(Arg);
   }
 
   void VisitTemplateTemplateArgument(const TemplateArgument &Arg,
                                      ArrayRef<TemplateArgument>) {
-    Arg.print(Policy, O, /* IncludeType = */ false);
+    PrintDesugared(Arg);
   }
 
   void VisitTemplateExpansionTemplateArgument(const TemplateArgument &Arg,
                                               ArrayRef<TemplateArgument>) {
     // Likely does not work similar to the one above
-    Arg.print(Policy, O, /* IncludeType = */ false);
+    PrintDesugared(Arg);
   }
 
   void VisitExpressionTemplateArgument(const TemplateArgument &Arg,
@@ -6784,7 +6807,7 @@ public:
       // we don't need to evaluate them.
       // If expression is instantiation-dependent, then we can't evaluate it
       // either, let's fallback to default printing mechanism.
-      Arg.print(Policy, O, /* IncludeType = */ false);
+      PrintDesugared(Arg);
       return;
     }
 
@@ -6798,7 +6821,7 @@ public:
 
   void VisitPackTemplateArgument(const TemplateArgument &Arg,
                                  ArrayRef<TemplateArgument>) {
-    Arg.print(Policy, O, /* IncludeType = */ false);
+    PrintDesugared(Arg);
   }
 };
 
