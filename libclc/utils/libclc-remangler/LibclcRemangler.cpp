@@ -875,8 +875,11 @@ private:
     // append a temporary suffix (e.g., _Z1fPm$TmpSuffix). The suffix is removed
     // in post-processing, and the old Z1fPm (clone of _Z1fPU3AS0y) is replaced
     // by Z1fPm$TmpSuffix.
-    if (M->getFunction(CloneName))
+    if (M->getFunction(CloneName)) {
       CloneName += TmpSuffix;
+      if (M->getFunction(CloneName))
+        return true;
+    }
 
     if (Function *Clonee = M->getFunction(CloneeName)) {
       ValueToValueMapTy Dummy;
