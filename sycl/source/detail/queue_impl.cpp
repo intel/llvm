@@ -51,9 +51,11 @@ private:
 static std::vector<ur_event_handle_t>
 getUrEvents(const std::vector<sycl::event> &DepEvents) {
   std::vector<ur_event_handle_t> RetUrEvents;
+  RetUrEvents.reserve(DepEvents.size());
   for (const sycl::event &Event : DepEvents) {
-    event_impl &EventImpl = *detail::getSyclObjImpl(Event);
-    auto Handle = EventImpl.getHandle();
+    // Get raw pointer without atomic reference counting overhead
+    const event_impl *EventImplPtr = detail::getSyclObjImpl(Event).get();
+    auto Handle = EventImplPtr->getHandle();
     if (Handle != nullptr)
       RetUrEvents.push_back(Handle);
   }
