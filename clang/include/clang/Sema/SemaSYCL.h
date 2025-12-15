@@ -65,7 +65,8 @@ public:
     kind_work_group_memory,
     kind_dynamic_work_group_memory,
     kind_dynamic_accessor,
-    kind_last = kind_dynamic_accessor
+    kind_struct_with_special_type, // structs that contain special types
+    kind_last = kind_struct_with_special_type
   };
 
 public:
@@ -117,6 +118,9 @@ public:
   /// declaration of variable __sycl_host_pipe_registrar of this type in
   /// integration header is required.
   void addHostPipeRegistration() { NeedToEmitHostPipeRegistration = true; }
+
+  /// Set the ParentStruct field
+  void setParentStruct(ParmVarDecl *parent);
 
 private:
   // Kernel actual parameter descriptor.
@@ -205,6 +209,20 @@ private:
   /// Keeps track of whether declaration of __sycl_host_pipe_registration
   /// type and __sycl_host_pipe_registrar variable are required to emit.
   bool NeedToEmitHostPipeRegistration = false;
+
+  // For free function kernels, keeps track of the parameter that is currently
+  // being analyzed if it is a struct that contains special types.
+  ParmVarDecl *ParentStruct = nullptr;
+
+  // For every struct that contains a special type which is given by
+  // the ParentStruct field above, record the offset and size of its fields
+  // at any nesting level. Store the information in the variable below.
+  llvm::DenseMap<ParmVarDecl *, llvm::SmallVector<std::pair<size_t, size_t>>>
+      OffsetSizeInfo;
+  // Likewise for the kind of a field i.e accessor, std_layout etc...
+  llvm::DenseMap<ParmVarDecl *,
+                 llvm::SmallVector<SYCLIntegrationHeader::kernel_param_kind_t>>
+      KindInfo;
 };
 
 class SYCLIntegrationFooter {
@@ -267,6 +285,10 @@ private:
 
   llvm::DenseSet<const FunctionDecl *> FreeFunctionDeclarations;
 
+  // A map that keeps track of all structs encountered with
+  // special types inside. Relevant for free function kernels only.
+  llvm::DenseSet<const RecordDecl *> StructsWithSpecialTypes;
+
 public:
   SemaSYCL(Sema &S);
 
@@ -316,6 +338,13 @@ public:
   void addSYCLKernelFunction(const FunctionDecl *FD) {
     SYCLKernelFunctions.insert(FD);
   }
+
+  /// Add ParentStruct to StructsWithSpecialTypes.
+  void addStructWithSpecialType(const RecordDecl *ParentStruct) {
+    StructsWithSpecialTypes.insert(ParentStruct);
+  }
+
+  auto &getStructsWithSpecialType() const { return StructsWithSpecialTypes; }
 
   /// Lazily creates and returns SYCL integration header instance.
   SYCLIntegrationHeader &getSyclIntegrationHeader() {

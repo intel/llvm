@@ -106,7 +106,7 @@
 // RUN: | FileCheck -check-prefix=CHK-PREPROC %s
 // CHK-PREPROC: 1: preprocessor, {0}, c++-cpp-output, (device-sycl, sm_[[CUDA_VERSION:[0-9.]+]])
 // CHK-PREPROC: 2: offload, "device-sycl (nvptx64-nvidia-cuda:sm_[[CUDA_VERSION]])" {1}, c++-cpp-output
-// CHK-PREPROC: 4: compiler, {1}, none, (device-sycl, sm_[[CUDA_VERSION]])
+// CHK-PREPROC: 4: compiler, {0}, none, (device-sycl, sm_[[CUDA_VERSION]])
 //
 // RUN: not %clangxx -### -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
 // RUN: -fsycl-targets=nvptx64-nvidia-cuda --cuda-path=%S/Inputs/no/CUDA/path/here \
