@@ -113,11 +113,12 @@ UR_APIEXPORT ur_result_t urQueueEndGraphCaptureExp(
   DIE_NO_IMPLEMENTATION;
 }
 
-UR_APIEXPORT ur_result_t urQueueAppendGraphExp(
-    ur_queue_handle_t /* hQueue */,
-    ur_exp_executable_graph_handle_t /* hGraph */,
-    ur_event_handle_t /* hSignalEvent */, uint32_t /* numWaitEvents */,
-    ur_event_handle_t * /* phWaitEvents */) {
+UR_APIEXPORT ur_result_t
+urEnqueueGraphExp(ur_queue_handle_t /* hQueue */,
+                  ur_exp_executable_graph_handle_t /* hGraph */,
+                  uint32_t /* numEventsInWaitList */,
+                  const ur_event_handle_t * /* phEventWaitList */,
+                  ur_event_handle_t * /* phEvent */) {
 
   DIE_NO_IMPLEMENTATION;
 }

@@ -309,6 +309,8 @@ static void parseCodeGenArgs(Fortran::frontend::CodeGenOptions &opts,
         llvm::StringSwitch<std::optional<llvm::FramePointerKind>>(a->getValue())
             .Case("none", llvm::FramePointerKind::None)
             .Case("non-leaf", llvm::FramePointerKind::NonLeaf)
+            .Case("non-leaf-no-reserve",
+                  llvm::FramePointerKind::NonLeafNoReserve)
             .Case("reserved", llvm::FramePointerKind::Reserved)
             .Case("all", llvm::FramePointerKind::All)
             .Default(std::nullopt);
@@ -1401,11 +1403,18 @@ static bool parseFloatingPointArgs(CompilerInvocation &invoc,
     opts.ReciprocalMath = true;
     opts.ApproxFunc = true;
     opts.NoSignedZeros = true;
+    opts.FastRealMod = true;
     opts.setFPContractMode(Fortran::common::LangOptions::FPM_Fast);
   }
 
-  if (args.hasArg(clang::options::OPT_fno_fast_real_mod))
-    opts.NoFastRealMod = true;
+  if (llvm::opt::Arg *arg =
+          args.getLastArg(clang::options::OPT_ffast_real_mod,
+                          clang::options::OPT_fno_fast_real_mod)) {
+    if (arg->getOption().matches(clang::options::OPT_ffast_real_mod))
+      opts.FastRealMod = true;
+    if (arg->getOption().matches(clang::options::OPT_fno_fast_real_mod))
+      opts.FastRealMod = false;
+  }
 
   return true;
 }

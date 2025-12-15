@@ -96,7 +96,6 @@ possibly_dangerous_env_vars = [
     "LIBCLANG_NOTHREADS",
     "LIBCLANG_RESOURCE_USAGE",
     "LIBCLANG_CODE_COMPLETION_LOGGING",
-    "ZE_AFFINITY_MASK",
 ]
 
 # Names of the Release and Debug versions of the XPTIFW library
@@ -951,15 +950,6 @@ if not filtered_sycl_devices and not config.test_mode == "build-only":
 
 config.sycl_devices = filtered_sycl_devices
 
-# Determine ZE_AFFINITY_MASK for Level Zero devices.
-# Sanitizer tests need to set ZE_AFFINITY_MASK to a single device index
-config.ze_affinity_mask = None
-for sycl_device in remove_level_zero_suffix(config.sycl_devices):
-    be, dev = sycl_device.split(":")
-    if be == "level_zero" and dev.isdigit():
-        config.ze_affinity_mask = dev
-        break
-
 for sycl_device in remove_level_zero_suffix(config.sycl_devices):
     be, dev = sycl_device.split(":")
     config.available_features.add("any-device-is-" + dev)
@@ -1164,13 +1154,6 @@ for full_name, sycl_device in zip(
         config.intel_driver_ver[full_name] = intel_driver_ver
     else:
         config.intel_driver_ver[full_name] = {}
-
-# When running with a single device, merge device-specific features into global
-# available_features so that %if conditionals work correctly, even if device is not :gpu or :cpu
-if len(config.sycl_devices) == 1:
-    single_device = list(config.sycl_dev_features.keys())[0]
-    device_features = config.sycl_dev_features[single_device]
-    config.available_features.update(device_features)
 
 if lit_config.params.get("compatibility_testing", "False") != "False":
     config.substitutions.append(("%clangxx", " true "))

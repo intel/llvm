@@ -3,6 +3,9 @@
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
 // RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 //
+// XFAIL: windows && (arch-intel_gpu_ptl_u || arch-intel_gpu_ptl_h || arch-intel_gpu_wcl)
+// XFAIL-TRACKER: CMPLRTST-27275
+// XFAIL-TRACKER: CMPLRLLVM-72055
 
 // Tests updating a single dynamic parameter which is registered with multiple
 // graph nodes where it has a different argument index in each node
@@ -29,7 +32,7 @@ int main() {
   // Initial accessor for use in kernel and dynamic parameter
   auto AccA = BufA.get_access();
   auto AccB = BufB.get_access();
-  exp_ext::dynamic_parameter InputParam(Graph, AccA);
+  exp_ext::dynamic_parameter InputParam(AccA);
 
   auto KernelNodeA = Graph.add([&](handler &cgh) {
     cgh.require(AccB);

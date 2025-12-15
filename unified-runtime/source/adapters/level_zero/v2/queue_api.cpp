@@ -496,19 +496,19 @@ ur_result_t urQueueEndGraphCaptureExp(ur_queue_handle_t hQueue,
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
-ur_result_t urQueueAppendGraphExp(ur_queue_handle_t hQueue,
-                                  ur_exp_executable_graph_handle_t hGraph,
-                                  ur_event_handle_t hSignalEvent,
-                                  uint32_t numWaitEvents,
-                                  ur_event_handle_t *phWaitEvents) try {
-  return hQueue->get().queueAppendGraphExp(hGraph, hSignalEvent, numWaitEvents,
-                                           phWaitEvents);
+ur_result_t urEnqueueGraphExp(ur_queue_handle_t hQueue,
+                              ur_exp_executable_graph_handle_t hGraph,
+                              uint32_t numEventsInWaitList,
+                              const ur_event_handle_t *phEventWaitList,
+                              ur_event_handle_t *phEvent) try {
+  return hQueue->get().enqueueGraphExp(hGraph, numEventsInWaitList,
+                                       phEventWaitList, phEvent);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 ur_result_t urQueueIsGraphCaptureEnabledExp(ur_queue_handle_t hQueue,
-                                            bool *hResult) try {
-  return hQueue->get().queueIsGraphCapteEnabledExp(hResult);
+                                            bool *pResult) try {
+  return hQueue->get().queueIsGraphCapteEnabledExp(pResult);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }

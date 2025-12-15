@@ -617,11 +617,10 @@ public:
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
-  ur_result_t
-  queueAppendGraphExp(ur_exp_executable_graph_handle_t /* hGraph */,
-                      ur_event_handle_t /* hSignalEvent */,
-                      uint32_t /* numWaitEvents */,
-                      ur_event_handle_t * /* phWaitEvents */) override {
+  ur_result_t enqueueGraphExp(ur_exp_executable_graph_handle_t /* hGraph */,
+                              uint32_t /* numEventsInWaitList */,
+                              const ur_event_handle_t * /* phEventWaitList */,
+                              ur_event_handle_t * /* phEvent */) override {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
