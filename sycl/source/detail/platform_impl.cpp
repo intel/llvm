@@ -417,7 +417,6 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   if (DeviceType == info::device_type::host)
     return std::vector<device>{};
 
-  // FPGA is no longer supported, so filter it out.
   if (DeviceType == info::device_type::accelerator)
     return std::vector<device>{};
 
@@ -495,18 +494,6 @@ void platform_impl::getDevicesImplHelper(ur_device_type_t UrDeviceType,
   // Some elements of UrDevices vector might be filtered out, so make a copy of
   // handles to do a cleanup later
   std::vector<ur_device_handle_t> UrDevicesToCleanUp = UrDevices;
-
-  // Filter out FPGA devices since they are no longer supported.
-  UrDevices.erase(
-      std::remove_if(UrDevices.begin(), UrDevices.end(),
-                     [&](ur_device_handle_t UrDevice) {
-                       ur_device_type_t UrDevType = UR_DEVICE_TYPE_ALL;
-                       MAdapter->call<UrApiKind::urDeviceGetInfo>(
-                           UrDevice, UR_DEVICE_INFO_TYPE,
-                           sizeof(ur_device_type_t), &UrDevType, nullptr);
-                       return (UrDevType == UR_DEVICE_TYPE_FPGA);
-                     }),
-      UrDevices.end());
 
   // Filter out devices that are not present in the SYCL_DEVICE_ALLOWLIST
   if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())

@@ -10,10 +10,10 @@
 // Checks that no device is selected when no device of desired type is
 // available.
 //
-// REQUIRES: any-device-is-cpu, any-device-is-gpu
+// REQUIRES: cpu,gpu
 
-// XFAIL: linux
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/00000
+// XFAIL: *
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20901
 
 #include <iostream>
 

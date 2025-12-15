@@ -466,7 +466,7 @@ public:
   ///
   /// \return true if SYCL device is an accelerator device
   bool is_accelerator() const {
-    // Our implementation doesn't support FPGA devices.
+    // This implementation doesn't support accelerator-type devices.
     return false;
   }
 
