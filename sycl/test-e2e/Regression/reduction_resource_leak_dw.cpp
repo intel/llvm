@@ -1,5 +1,6 @@
-// XFAIL: new-offload-model && windows && run-mode
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20797
+// This test is flaky in NewOffloadModel mode among different targets at Windows.
+// UNSUPPORTED: new-offload-model && windows && run-mode
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20797
 
 // REQUIRES: level_zero
 //
