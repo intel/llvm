@@ -2107,13 +2107,15 @@ static void replaceUsesOfBuiltinVar(Value *V, const APInt &AccumulatedOffset,
     } else if (auto *Load = dyn_cast<LoadInst>(U)) {
       // Figure out which index the accumulated offset corresponds to. If we
       // have a weird offset (e.g., trying to load byte 7), bail out.
-      Type *ScalarTy = ReplacementFunc->getReturnType();
       APInt Index;
-      uint64_t Remainder;
-      APInt::udivrem(AccumulatedOffset, ScalarTy->getScalarSizeInBits() / 8,
-                     Index, Remainder);
-      if (Remainder != 0)
-        llvm_unreachable("Illegal GEP of a SPIR-V builtin variable");
+      Type *ScalarTy = ReplacementFunc->getReturnType();
+      if (!ScalarTy->isIntegerTy(1)) {
+        uint64_t Remainder;
+        APInt::udivrem(AccumulatedOffset, ScalarTy->getScalarSizeInBits() / 8,
+                       Index, Remainder);
+        if (Remainder != 0)
+          llvm_unreachable("Illegal GEP of a SPIR-V builtin variable");
+      }
 
       IRBuilder<> Builder(Load);
       Value *Replacement;

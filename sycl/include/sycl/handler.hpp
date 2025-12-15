@@ -31,6 +31,7 @@
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>
+#include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
 #include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
@@ -419,6 +420,8 @@ template <int Dims> bool range_size_fits_in_size_t(const range<Dims> &r) {
 ///
 /// \ingroup sycl_api
 class __SYCL_EXPORT handler {
+  friend sycl::detail::ImplUtils;
+
 private:
   /// Constructs SYCL handler from the pre-constructed stack-allocated
   /// `handler_impl` (not enforced, but meaningless to do a heap allocation
@@ -610,6 +613,10 @@ private:
     if (!std::is_same<cl_mem, T>::value && std::is_pointer<T>::value) {
       addArg(detail::kernel_param_kind_t::kind_pointer, StoredArg, sizeof(T),
              ArgIndex);
+    } else if (ext::oneapi::experimental::detail::is_struct_with_special_type<
+                   remove_cv_ref_t<T>>::value) {
+      addArg(detail::kernel_param_kind_t::kind_struct_with_special_type,
+             StoredArg, sizeof(T), ArgIndex);
     } else {
       addArg(detail::kernel_param_kind_t::kind_std_layout, StoredArg, sizeof(T),
              ArgIndex);
@@ -775,7 +782,7 @@ private:
     // If the kernel lambda is callable with a kernel_handler argument, manifest
     // the associated kernel handler.
     if constexpr (IsCallableWithKernelHandler) {
-      getOrInsertHandlerKernelBundlePtr(/*Insert=*/true);
+      getOrInsertHandlerKernelBundle(/*Insert=*/true);
     }
   }
 
@@ -1235,11 +1242,7 @@ private:
   void setStateSpecConstSet();
   bool isStateExplicitKernelBundle() const;
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Rename to just getOrInsertHandlerKernelBundle
-#endif
-  detail::kernel_bundle_impl *
-  getOrInsertHandlerKernelBundlePtr(bool Insert) const;
+  detail::kernel_bundle_impl *getOrInsertHandlerKernelBundle(bool Insert) const;
 
   void setHandlerKernelBundle(kernel Kernel);
 
@@ -1378,7 +1381,8 @@ public:
         || (!is_same_type<cl_mem, T>::value &&
             std::is_pointer_v<remove_cv_ref_t<T>>) // USM
         || is_same_type<cl_mem, T>::value          // Interop
-        || is_same_type<stream, T>::value;         // Stream
+        || is_same_type<stream, T>::value          // Stream
+        || sycl::is_device_copyable_v<remove_cv_ref_t<T>>;
   };
 
   /// Sets argument for OpenCL interoperability kernels.
@@ -1391,6 +1395,52 @@ public:
   typename std::enable_if_t<ShouldEnableSetArg<T>::value, void>
   set_arg(int ArgIndex, T &&Arg) {
     setArgHelper(ArgIndex, std::move(Arg));
+    ++ArgIndex;
+    // The following concerns free function kernels only.
+    // if we are dealing with a struct parameter that contains special types
+    // inside, we call addArg for each field of the struct(special and standard
+    // layout included) at any nesting level using the information provided by
+    // the frontend with the arrays offsets, sizes, and kinds which as the name
+    // suggests, provide the offset, size and kind of each such field.
+    if constexpr (ext::oneapi::experimental::detail::
+                      is_struct_with_special_type<remove_cv_ref_t<T>>::value) {
+      using type =
+          ext::oneapi::experimental::detail::is_struct_with_special_type<
+              remove_cv_ref_t<T>>;
+      int NumArgs = 0;
+      // iterate over each argument until we see the sentinel value -1
+      while (type::offsets[NumArgs] != -1) {
+        void *FieldArg = (char *)(&Arg) + type::offsets[NumArgs];
+        // treat accessors separately since we have to fetch the data ptr and
+        // pass that to the addArg function rather than the address of the
+        // accessor object itself.
+        if (type::kinds[NumArgs] ==
+            detail::kernel_param_kind_t::kind_accessor) {
+          constexpr int AccessTargetMask = 0x7ff;
+          const access::target target = static_cast<access::target>(
+              type::sizes[NumArgs] & AccessTargetMask);
+          if (target == target::local) {
+            detail::LocalAccessorBaseHost *LocalAccBase =
+                (detail::LocalAccessorBaseHost *)(FieldArg);
+            setLocalAccessorArgHelper(ArgIndex + NumArgs, *LocalAccBase);
+          } else {
+            detail::AccessorBaseHost *AccBase =
+                (detail::AccessorBaseHost *)(FieldArg);
+            const detail::AccessorImplPtr &AccImpl =
+                detail::getSyclObjImpl(*AccBase);
+            detail::AccessorImplHost *Req = AccImpl.get();
+            addArg(type::kinds[NumArgs], Req, type::sizes[NumArgs],
+                   ArgIndex + NumArgs);
+          }
+        } else {
+          // for non-accessors, simply call addArg normally.
+          addArg(type::kinds[NumArgs], FieldArg, type::sizes[NumArgs],
+                 ArgIndex + NumArgs);
+        }
+        ++NumArgs;
+      }
+      incrementArgShift(NumArgs);
+    }
   }
 
   template <typename DataT, int Dims, access::mode AccessMode,
@@ -2865,10 +2915,6 @@ private:
             class _propertiesT, class>
   friend class ext::intel::experimental::pipe;
 
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  sycl::detail::getSyclObjImpl(const Obj &SyclObject);
-
   /// Read from a host pipe given a host address and
   /// \param Name name of the host pipe to be passed into lower level runtime
   /// \param Ptr host pointer of host pipe as identified by address of its const
@@ -3235,6 +3281,8 @@ private:
   void setDeviceKernelInfoPtr(detail::DeviceKernelInfo *DeviceKernelInfoPtr);
 
   queue getQueue();
+
+  void incrementArgShift(int Shift);
 
 protected:
   /// Registers event dependencies in this command group.

@@ -222,7 +222,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetQueueExpProcAddrTable(
   pDdiTable->pfnBeginGraphCaptureExp = urQueueBeginGraphCaptureExp;
   pDdiTable->pfnBeginCaptureIntoGraphExp = urQueueBeginCaptureIntoGraphExp;
   pDdiTable->pfnEndGraphCaptureExp = urQueueEndGraphCaptureExp;
-  pDdiTable->pfnAppendGraphExp = urQueueAppendGraphExp;
   pDdiTable->pfnIsGraphCaptureEnabledExp = urQueueIsGraphCaptureEnabledExp;
   return UR_RESULT_SUCCESS;
 }
@@ -425,6 +424,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   pDdiTable->pfnTimestampRecordingExp = nullptr;
   pDdiTable->pfnNativeCommandExp = nullptr;
   pDdiTable->pfnKernelLaunchWithArgsExp = urEnqueueKernelLaunchWithArgsExp;
+  pDdiTable->pfnGraphExp = urEnqueueGraphExp;
 
   return UR_RESULT_SUCCESS;
 }

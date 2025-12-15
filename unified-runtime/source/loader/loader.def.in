@@ -76,6 +76,7 @@ EXPORTS
 	urEnqueueEventsWait
 	urEnqueueEventsWaitWithBarrier
 	urEnqueueEventsWaitWithBarrierExt
+	urEnqueueGraphExp
 	urEnqueueKernelLaunch
 	urEnqueueKernelLaunchWithArgsExp
 	urEnqueueMemBufferCopy
@@ -304,6 +305,7 @@ EXPORTS
 	urPrintEnqueueEventsWaitParams
 	urPrintEnqueueEventsWaitWithBarrierExtParams
 	urPrintEnqueueEventsWaitWithBarrierParams
+	urPrintEnqueueGraphExpParams
 	urPrintEnqueueKernelLaunchParams
 	urPrintEnqueueKernelLaunchWithArgsExpParams
 	urPrintEnqueueMemBufferCopyParams
@@ -501,7 +503,6 @@ EXPORTS
 	urPrintProgramReleaseParams
 	urPrintProgramRetainParams
 	urPrintProgramSetSpecializationConstantsParams
-	urPrintQueueAppendGraphExpParams
 	urPrintQueueBeginCaptureIntoGraphExpParams
 	urPrintQueueBeginGraphCaptureExpParams
 	urPrintQueueCreateParams
@@ -603,7 +604,6 @@ EXPORTS
 	urProgramRelease
 	urProgramRetain
 	urProgramSetSpecializationConstants
-	urQueueAppendGraphExp
 	urQueueBeginCaptureIntoGraphExp
 	urQueueBeginGraphCaptureExp
 	urQueueCreate

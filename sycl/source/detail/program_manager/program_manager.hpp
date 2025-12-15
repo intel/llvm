@@ -77,21 +77,6 @@ class devices_range;
 class queue_impl;
 class event_impl;
 class device_images_range;
-// DeviceLibExt is shared between sycl runtime and sycl-post-link tool.
-// If any update is made here, need to sync with DeviceLibExt definition
-// in llvm/tools/sycl-post-link/sycl-post-link.cpp
-enum class DeviceLibExt : std::uint32_t {
-  cl_intel_devicelib_assert,
-  cl_intel_devicelib_math,
-  cl_intel_devicelib_math_fp64,
-  cl_intel_devicelib_complex,
-  cl_intel_devicelib_complex_fp64,
-  cl_intel_devicelib_cstring,
-  cl_intel_devicelib_imf,
-  cl_intel_devicelib_imf_fp64,
-  cl_intel_devicelib_imf_bf16,
-  cl_intel_devicelib_bfloat16,
-};
 
 enum class SanitizerType {
   None,
@@ -227,8 +212,6 @@ public:
   static std::string getProgramBuildLog(const ur_program_handle_t &Program,
                                         context_impl &Context);
 
-  uint32_t getDeviceLibReqMask(const RTDeviceBinaryImage &Img);
-
   /// Returns the mask for eliminated kernel arguments for the requested kernel
   /// within the native program.
   /// \param NativePrg the UR program associated with the kernel.
@@ -304,6 +287,11 @@ public:
   std::vector<DeviceGlobalMapEntry *>
   getDeviceGlobalEntries(const std::vector<std::string> &UniqueIds,
                          bool ExcludeDeviceImageScopeDecorated = false);
+
+  // The function gets all device_global entries that are profile counters.
+  std::vector<DeviceGlobalMapEntry *>
+  getProfileCounterDeviceGlobalEntries(const context_impl *CtxImpl);
+
   // The function inserts or initializes a host_pipe entry into the
   // host_pipe map.
   void addOrInitHostPipeEntry(const void *HostPipePtr, const char *UniqueId);
@@ -425,7 +413,7 @@ private:
   Managed<ur_program_handle_t>
   build(Managed<ur_program_handle_t> Program, context_impl &Context,
         const std::string &CompileOptions, const std::string &LinkOptions,
-        std::vector<ur_device_handle_t> &Devices, uint32_t DeviceLibReqMask,
+        std::vector<ur_device_handle_t> &Devices,
         const std::vector<Managed<ur_program_handle_t>> &ProgramsToLink,
         bool CreatedFromBinary = false);
 
