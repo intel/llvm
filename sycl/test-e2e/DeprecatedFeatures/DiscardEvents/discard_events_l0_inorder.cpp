@@ -18,7 +18,7 @@
 // the discard_events property, if it doesn't pass then it's most likely a
 // general issue unrelated to discard_events.
 
-// UNSUPPORTED: linux && arch-intel_gpu_bmg_g21 && !igc-dev
+// UNSUPPORTED: arch-intel_gpu_bmg_g21 && !igc-dev
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20601
 
 #include <cassert>

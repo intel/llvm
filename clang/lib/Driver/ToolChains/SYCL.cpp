@@ -64,26 +64,10 @@ const char *SYCLInstallationDetector::findLibspirvPath(
 
   const SmallString<64> Basename =
       getLibSpirvBasename(DeviceTriple, HostTriple);
-  auto searchAt = [&](StringRef Path, const Twine &a = "", const Twine &b = "",
-                      const Twine &c = "") -> const char * {
-    SmallString<128> LibraryPath(Path);
-    llvm::sys::path::append(LibraryPath, a, b, c, Basename);
-
-    if (D.getVFS().exists(LibraryPath))
-      return Args.MakeArgString(LibraryPath);
-
-    return nullptr;
-  };
-
-  for (const auto &IC : InstallationCandidates) {
-    // Expected path w/out install.
-    if (const char *R = searchAt(IC, "lib", "clc"))
-      return R;
-
-    // Expected path w/ install.
-    if (const char *R = searchAt(IC, "share", "clc"))
-      return R;
-  }
+  SmallString<256> LibclcPath(D.ResourceDir);
+  llvm::sys::path::append(LibclcPath, "lib", "libclc", Basename);
+  if (D.getVFS().exists(LibclcPath))
+    return Args.MakeArgString(LibclcPath);
 
   return nullptr;
 }
@@ -123,8 +107,9 @@ void SYCLInstallationDetector::getSYCLDeviceLibPath(
 
 void SYCLInstallationDetector::addSYCLIncludeArgs(
     const ArgList &DriverArgs, ArgStringList &CC1Args) const {
-  if (DriverArgs.hasArg(clang::driver::options::OPT_nobuiltininc))
+  if (DriverArgs.hasArg(options::OPT_nostdlibinc, options::OPT_nostdinc)) {
     return;
+  }
   // Add the SYCL header search locations in the specified order.
   //   ../include/sycl/stl_wrappers
   //   ../include
@@ -233,7 +218,8 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
   const char *Foreach = C.getArgs().MakeArgString(ForeachPath);
 
   auto Cmd = std::make_unique<Command>(JA, *T, ResponseFileSupport::None(),
-                                       Foreach, ForeachArgs, std::nullopt);
+                                       Foreach, ForeachArgs,
+                                       ArrayRef<InputInfo>{});
   C.addCommand(std::move(Cmd));
 }
 
@@ -250,7 +236,7 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
       "intel_gpu_pvc",     "intel_gpu_acm_g10", "intel_gpu_acm_g11",
       "intel_gpu_acm_g12", "intel_gpu_dg2_g10", "intel_gpu_dg2_g11",
       "intel_dg2_g12",     "intel_gpu_bmg_g21", "intel_gpu_lnl_m",
-      "intel_gpu_ptl_h",   "intel_gpu_ptl_u"};
+      "intel_gpu_ptl_h",   "intel_gpu_ptl_u",   "intel_gpu_wcl"};
   const llvm::opt::ArgList &Args = C.getArgs();
   bool NeedLibs = false;
 
@@ -292,7 +278,8 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
     auto checkBF = [](StringRef Device) {
       return Device.starts_with("pvc") || Device.starts_with("ats") ||
              Device.starts_with("dg2") || Device.starts_with("bmg") ||
-             Device.starts_with("lnl") || Device.starts_with("ptl");
+             Device.starts_with("lnl") || Device.starts_with("ptl") ||
+             Device.starts_with("wcl");
     };
 
     auto checkSpirvJIT = [](StringRef Target) {
@@ -602,7 +589,6 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
                                              "libsycl-imf",
                                              "libsycl-imf-fp64",
                                              "libsycl-imf-bf16",
-                                             "libsycl-fallback-cassert",
                                              "libsycl-fallback-cstring",
                                              "libsycl-fallback-complex",
                                              "libsycl-fallback-complex-fp64",
@@ -784,7 +770,6 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
     "itt-compiler-wrappers",
     "itt-stubs",
     "itt-user-wrappers",
-    "fallback-cassert",
     "fallback-cstring",
     "fallback-cmath",
     "fallback-cmath-fp64",
@@ -933,7 +918,8 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     CmdArgs.push_back("--suppress-warnings");
     C.addCommand(std::make_unique<Command>(JA, *this,
                                            ResponseFileSupport::AtFileUTF8(),
-                                           Exec, CmdArgs, std::nullopt));
+                                           Exec, CmdArgs,
+                                           ArrayRef<InputInfo>{}));
   };
 
   // Add an intermediate output file.
@@ -1087,7 +1073,7 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
       getToolChain().GetProgramPath(makeExeName(C, "ocloc")));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   auto Cmd = std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
-                                       Exec, CmdArgs, std::nullopt);
+                                       Exec, CmdArgs, ArrayRef<InputInfo>{});
   if (!ForeachInputs.empty()) {
     StringRef ParallelJobs =
         Args.getLastArgValue(options::OPT_fsycl_max_parallel_jobs_EQ);
@@ -1362,7 +1348,7 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
       getToolChain().GetProgramPath(makeExeName(C, "opencl-aot")));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   auto Cmd = std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
-                                       Exec, CmdArgs, std::nullopt);
+                                       Exec, CmdArgs, ArrayRef<InputInfo>{});
   if (!ForeachInputs.empty()) {
     StringRef ParallelJobs =
         Args.getLastArgValue(options::OPT_fsycl_max_parallel_jobs_EQ);
@@ -1385,11 +1371,7 @@ static ArrayRef<options::ID> getUnsupportedOpts() {
       options::OPT_fno_profile_generate, // -f[no-]profile-generate
       options::OPT_ftest_coverage,
       options::OPT_fno_test_coverage, // -f[no-]test-coverage
-      options::OPT_fcoverage_mapping,
-      options::OPT_coverage,             // --coverage
-      options::OPT_fno_coverage_mapping, // -f[no-]coverage-mapping
-      options::OPT_fprofile_instr_generate,
-      options::OPT_fprofile_instr_generate_EQ,
+      options::OPT_coverage,          // --coverage
       options::OPT_fprofile_arcs,
       options::OPT_fno_profile_arcs,           // -f[no-]profile-arcs
       options::OPT_fno_profile_instr_generate, // -f[no-]profile-instr-generate

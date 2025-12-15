@@ -182,9 +182,6 @@ class SyclBenchmark(Benchmark):
     def name(self):
         return f"{self.suite.name()} {self.test}"
 
-    def teardown(self):
-        return
-
 
 # multi benchmarks
 class Blocked_transform(SyclBenchmark):

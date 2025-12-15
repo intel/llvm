@@ -13,34 +13,14 @@ inline namespace _V1 {
 namespace detail {
 
 DeviceKernelInfo::DeviceKernelInfo(const CompileTimeKernelInfoTy &Info)
-    : CompileTimeKernelInfoTy(Info)
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-      ,
-      Name(Info.Name.data())
-#endif
-{
+    : CompileTimeKernelInfoTy(Info) {
   init(Name.data());
 }
 
-void DeviceKernelInfo::init(KernelNameStrRefT KernelName) {
+void DeviceKernelInfo::init(std::string_view KernelName) {
   auto &PM = detail::ProgramManager::getInstance();
-  MUsesAssert = PM.kernelUsesAssert(KernelName);
   MImplicitLocalArgPos = PM.kernelImplicitLocalArgPos(KernelName);
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  MInitialized.store(true);
-#endif
 }
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-void DeviceKernelInfo::initIfEmpty(const CompileTimeKernelInfoTy &Info) {
-  if (MInitialized.load())
-    return;
-
-  CompileTimeKernelInfoTy::operator=(Info);
-  Name = Info.Name.data();
-  init(Name.data());
-}
-#endif
 
 template <typename OtherTy>
 inline constexpr bool operator==(const CompileTimeKernelInfoTy &LHS,
@@ -66,33 +46,8 @@ void DeviceKernelInfo::setCompileTimeInfoIfNeeded(
     const CompileTimeKernelInfoTy &Info) {
   if (!isCompileTimeInfoSet())
     CompileTimeKernelInfoTy::operator=(Info);
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  // In case of 6.3 compatibility mode the KernelSize is not passed to the
-  // runtime. So, it will always be 0 and this assert fails.
   assert(isCompileTimeInfoSet());
-#endif
   assert(Info == *this);
-}
-
-FastKernelSubcacheT &DeviceKernelInfo::getKernelSubcache() {
-  assertInitialized();
-  return MFastKernelSubcache;
-}
-bool DeviceKernelInfo::usesAssert() {
-  assertInitialized();
-  return MUsesAssert;
-}
-const std::optional<int> &DeviceKernelInfo::getImplicitLocalArgPos() {
-  assertInitialized();
-  return MImplicitLocalArgPos;
-}
-
-bool DeviceKernelInfo::isCompileTimeInfoSet() const { return KernelSize != 0; }
-
-void DeviceKernelInfo::assertInitialized() {
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  assert(MInitialized.load() && "Data needs to be initialized before use");
-#endif
 }
 
 } // namespace detail

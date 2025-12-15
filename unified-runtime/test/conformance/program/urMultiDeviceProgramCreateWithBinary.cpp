@@ -75,7 +75,7 @@ TEST_P(urMultiDeviceProgramCreateWithBinaryTest,
 
     ASSERT_SUCCESS(urEnqueueKernelLaunch(
         queues[i], kernel.get(), n_dimensions, &global_offset, &local_size,
-        &global_size, 0, nullptr, 0, nullptr, nullptr));
+        &global_size, nullptr, 0, nullptr, nullptr));
 
     ASSERT_SUCCESS(urQueueFinish(queues[i]));
   }

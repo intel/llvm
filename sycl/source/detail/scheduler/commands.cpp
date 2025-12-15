@@ -304,20 +304,6 @@ bool Command::isHostTask() const {
           CGType::CodeplayHostTask);
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-// This function is unused and should be removed in the next ABI-breaking
-// window.
-bool Command::isFusable() const {
-  if ((MType != CommandType::RUN_CG)) {
-    return false;
-  }
-  const auto &CG = (static_cast<const ExecCGCommand &>(*this)).getCG();
-  return (CG.getType() == CGType::Kernel) &&
-         (!static_cast<const CGExecKernel &>(CG).MKernelIsCooperative) &&
-         (!static_cast<const CGExecKernel &>(CG).MKernelUsesClusterLaunch);
-}
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
 namespace {
 
 struct EnqueueNativeCommandData {
@@ -2279,23 +2265,6 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, ur_kernel_handle_t Kernel,
   }
 }
 
-// We have the following mapping between dimensions with SPIR-V builtins:
-// 1D: id[0] -> x
-// 2D: id[0] -> y, id[1] -> x
-// 3D: id[0] -> z, id[1] -> y, id[2] -> x
-// So in order to ensure the correctness we update all the kernel
-// parameters accordingly.
-// Initially we keep the order of NDRDescT as it provided by the user, this
-// simplifies overall handling and do the reverse only when
-// the kernel is enqueued.
-void ReverseRangeDimensionsForKernel(NDRDescT &NDR) {
-  if (NDR.Dims > 1) {
-    std::swap(NDR.GlobalSize[0], NDR.GlobalSize[NDR.Dims - 1]);
-    std::swap(NDR.LocalSize[0], NDR.LocalSize[NDR.Dims - 1]);
-    std::swap(NDR.GlobalOffset[0], NDR.GlobalOffset[NDR.Dims - 1]);
-  }
-}
-
 ur_mem_flags_t AccessModeToUr(access::mode AccessorMode) {
   switch (AccessorMode) {
   case access::mode::read:
@@ -2325,6 +2294,16 @@ static void GetUrArgsBasedOnType(
       0,
       {}};
   switch (Arg.MType) {
+  case kernel_param_kind_t::kind_struct_with_special_type: {
+    ur_exp_kernel_arg_type_t Type;
+    Type = UR_EXP_KERNEL_ARG_TYPE_VALUE;
+    ur_exp_kernel_arg_value_t Value = {};
+    Value.value = {Arg.MPtr};
+    UrArg.type = Type;
+    UrArg.size = static_cast<size_t>(Arg.MSize);
+    UrArg.value = Value;
+    break;
+  }
   case kernel_param_kind_t::kind_dynamic_work_group_memory:
     break;
   case kernel_param_kind_t::kind_work_group_memory:
@@ -2513,30 +2492,33 @@ static ur_result_t SetKernelParamsAndLaunch(
                          NDRDesc.GlobalOffset[1] != 0 ||
                          NDRDesc.GlobalOffset[2] != 0;
 
-  std::vector<ur_kernel_launch_property_t> property_list;
+  ur_kernel_launch_ext_properties_t property_list = {
+      UR_STRUCTURE_TYPE_KERNEL_LAUNCH_EXT_PROPERTIES, nullptr, 0};
+  ur_kernel_launch_cluster_property_t launch_property_cluster_range;
+  ur_kernel_launch_workgroup_property_t workgroup_property;
+  void **last_pNext = &property_list.pNext;
 
   if (KernelUsesClusterLaunch) {
-    ur_kernel_launch_property_value_t launch_property_value_cluster_range;
-    launch_property_value_cluster_range.clusterDim[0] =
-        NDRDesc.ClusterDimensions[0];
-    launch_property_value_cluster_range.clusterDim[1] =
-        NDRDesc.ClusterDimensions[1];
-    launch_property_value_cluster_range.clusterDim[2] =
-        NDRDesc.ClusterDimensions[2];
-
-    property_list.push_back({UR_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION,
-                             launch_property_value_cluster_range});
+    launch_property_cluster_range.stype =
+        UR_STRUCTURE_TYPE_KERNEL_LAUNCH_CLUSTER_PROPERTY;
+    launch_property_cluster_range.pNext = nullptr;
+    launch_property_cluster_range.clusterDim[0] = NDRDesc.ClusterDimensions[0];
+    launch_property_cluster_range.clusterDim[1] = NDRDesc.ClusterDimensions[1];
+    launch_property_cluster_range.clusterDim[2] = NDRDesc.ClusterDimensions[2];
+    *last_pNext = &launch_property_cluster_range;
+    last_pNext = &launch_property_cluster_range.pNext;
   }
   if (IsCooperative) {
-    ur_kernel_launch_property_value_t launch_property_value_cooperative;
-    launch_property_value_cooperative.cooperative = 1;
-    property_list.push_back({UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE,
-                             launch_property_value_cooperative});
+    property_list.flags |= UR_KERNEL_LAUNCH_FLAG_COOPERATIVE;
   }
   // If there is no implicit arg, let the driver handle it via a property
   if (WorkGroupMemorySize && !ImplicitLocalArg.has_value()) {
-    property_list.push_back({UR_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY,
-                             {{WorkGroupMemorySize}}});
+    workgroup_property.stype =
+        UR_STRUCTURE_TYPE_KERNEL_LAUNCH_WORKGROUP_PROPERTY;
+    workgroup_property.pNext = nullptr;
+    workgroup_property.workgroup_mem_size = WorkGroupMemorySize;
+    *last_pNext = &workgroup_property;
+    last_pNext = &workgroup_property.pNext;
   }
   ur_event_handle_t UREvent = nullptr;
   ur_result_t Error =
@@ -2544,8 +2526,8 @@ static ur_result_t SetKernelParamsAndLaunch(
           Queue.getHandleRef(), Kernel, NDRDesc.Dims,
           HasOffset ? &NDRDesc.GlobalOffset[0] : nullptr,
           &NDRDesc.GlobalSize[0], LocalSize, UrArgs.size(), UrArgs.data(),
-          property_list.size(),
-          property_list.empty() ? nullptr : property_list.data(),
+          (property_list.flags || property_list.pNext) ? &property_list
+                                                       : nullptr,
           RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
           OutEventImpl ? &UREvent : nullptr);
   if (Error == UR_RESULT_SUCCESS && OutEventImpl) {
@@ -2597,6 +2579,11 @@ static void SetArgBasedOnType(
                                                    Arg.MSize, nullptr);
     }
 
+    break;
+  }
+  case kernel_param_kind_t::kind_struct_with_special_type: {
+    Adapter.call<UrApiKind::urKernelSetArgValue>(Kernel, NextTrueIndex,
+                                                 Arg.MSize, nullptr, Arg.MPtr);
     break;
   }
   case kernel_param_kind_t::kind_sampler: {
@@ -3183,24 +3170,11 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
     CommandBufferNativeCommandData CustomOpData{
         std::move(IH), HostTask->MHostTask->MInteropTask};
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    // CMPLRLLVM-66082
-    // The native command-buffer should be a member of the sycl::interop_handle
-    // class, but it is in an ABI breaking change to add it. So member lives in
-    // the queue as a intermediate workaround.
-    MQueue->setInteropGraph(InteropCommandBuffer);
-#endif
-
     Adapter.call<UrApiKind::urCommandBufferAppendNativeCommandExp>(
         MCommandBuffer, CommandBufferInteropFreeFunc, &CustomOpData,
         ChildCommandBuffer, MSyncPointDeps.size(),
         MSyncPointDeps.empty() ? nullptr : MSyncPointDeps.data(),
         &OutSyncPoint);
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    // See CMPLRLLVM-66082
-    MQueue->setInteropGraph(nullptr);
-#endif
 
     if (ChildCommandBuffer) {
       ur_result_t Res =
@@ -3344,17 +3318,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
     const std::shared_ptr<detail::kernel_impl> &SyclKernel =
         ExecKernel->MSyclKernel;
-    KernelNameStrRefT KernelName = ExecKernel->MDeviceKernelInfo.Name;
-
-    if (!EventImpl) {
-      // Kernel only uses assert if it's non interop one
-      bool KernelUsesAssert = (!SyclKernel || SyclKernel->hasSYCLMetadata()) &&
-                              ExecKernel->MDeviceKernelInfo.usesAssert();
-      if (KernelUsesAssert) {
-        EventImpl = MEvent.get();
-      }
-    }
-
+    std::string_view KernelName = ExecKernel->MDeviceKernelInfo.Name;
     const RTDeviceBinaryImage *BinImage = nullptr;
     if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
       BinImage = retrieveKernelBinary(*MQueue, KernelName);

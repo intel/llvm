@@ -21,6 +21,7 @@
 #include <sycl/detail/id_queries_fit_in_int.hpp> // for checkValueRange
 #include <sycl/detail/info_desc_helpers.hpp>  // for is_queue_info_...
 #include <sycl/detail/kernel_desc.hpp>        // for KernelInfo
+#include <sycl/detail/nd_range_view.hpp>
 #include <sycl/detail/optional.hpp>
 #include <sycl/detail/owner_less_base.hpp> // for OwnerLessBase
 #include <sycl/device.hpp>                 // for device
@@ -64,51 +65,40 @@ template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
 
-template <int Dims>
 event __SYCL_EXPORT submit_kernel_direct_with_event_impl(
-    const queue &Queue, const nd_range<Dims> &Range,
+    const queue &Queue, const detail::nd_range_view &RangeView,
     detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     sycl::span<const event> DepEvents,
     const detail::KernelPropertyHolderStructTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
-template <int Dims>
 void __SYCL_EXPORT submit_kernel_direct_without_event_impl(
-    const queue &Queue, const nd_range<Dims> &Range,
+    const queue &Queue, const detail::nd_range_view &RangeView,
     detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     sycl::span<const event> DepEvents,
     const detail::KernelPropertyHolderStructTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+
+event __SYCL_EXPORT submit_graph_direct_with_event_impl(
+    const queue &Queue,
+    ext::oneapi::experimental::command_graph<
+        ext::oneapi::experimental::graph_state::executable> &G,
+    sycl::span<const event> DepEvents,
+    const detail::code_location &CodeLoc = detail::code_location::current());
+
+void __SYCL_EXPORT submit_graph_direct_without_event_impl(
+    const queue &Queue,
+    ext::oneapi::experimental::command_graph<
+        ext::oneapi::experimental::graph_state::executable> &G,
+    sycl::span<const event> DepEvents,
+    const detail::code_location &CodeLoc = detail::code_location::current());
 
 namespace detail {
 class queue_impl;
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-using SubmitPostProcessF = std::function<void(bool, bool, event &)>;
-
-struct SubmissionInfoImpl;
-
-class __SYCL_EXPORT SubmissionInfo {
-public:
-  SubmissionInfo();
-
-  sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc();
-  const sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() const;
-
-  std::shared_ptr<detail::queue_impl> &SecondaryQueue();
-  const std::shared_ptr<detail::queue_impl> &SecondaryQueue() const;
-
-  ext::oneapi::experimental::event_mode_enum &EventMode();
-  const ext::oneapi::experimental::event_mode_enum &EventMode() const;
-
-private:
-  std::shared_ptr<SubmissionInfoImpl> impl = nullptr;
-};
-#endif
-
-namespace v1 {
+inline namespace _V1 {
 
 // This class is a part of the ABI, so it's moved to a separate namespace to
 // simplify changes.
@@ -120,31 +110,9 @@ namespace v1 {
 //   overloaded with a new variant using v(N+1) namespace,
 // * old namespace vN should be moved under #ifndef
 //   __INTEL_PREVIEW_BREAKING_CHANGES guard.
-// TODO: inline namespace can be employed here after SubmissionInfo removed from
-// the enclosing scope.
-
 class __SYCL_EXPORT SubmissionInfo {
 public:
   SubmissionInfo() {}
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  SubmissionInfo(const detail::SubmissionInfo &SI)
-      : MSecondaryQueue(SI.SecondaryQueue()), MEventMode(SI.EventMode()) {}
-
-  sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() {
-    return MPostProcessorFunc;
-  }
-  const sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() const {
-    return MPostProcessorFunc;
-  }
-
-  std::shared_ptr<detail::queue_impl> &SecondaryQueue() {
-    return MSecondaryQueue;
-  }
-  const std::shared_ptr<detail::queue_impl> &SecondaryQueue() const {
-    return MSecondaryQueue;
-  }
-#endif
 
   ext::oneapi::experimental::event_mode_enum &EventMode() { return MEventMode; }
   const ext::oneapi::experimental::event_mode_enum &EventMode() const {
@@ -152,22 +120,18 @@ public:
   }
 
 private:
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  optional<detail::SubmitPostProcessF> MPostProcessorFunc = std::nullopt;
-  std::shared_ptr<detail::queue_impl> MSecondaryQueue = nullptr;
-#endif
   ext::oneapi::experimental::event_mode_enum MEventMode =
       ext::oneapi::experimental::event_mode_enum::none;
 };
 
-} // namespace v1
+} // namespace _V1
 
 template <detail::WrapAs WrapAs, typename LambdaArgType,
           typename KernelName = detail::auto_name, bool EventNeeded = false,
           typename PropertiesT = ext::oneapi::experimental::empty_properties_t,
           typename KernelTypeUniversalRef, int Dims>
 auto submit_kernel_direct(
-    const queue &Queue, const nd_range<Dims> &Range,
+    const queue &Queue, const detail::nd_range_view &RangeView,
     KernelTypeUniversalRef &&KernelFunc, sycl::span<const event> DepEvents,
     const PropertiesT &ExtraProps =
         ext::oneapi::experimental::empty_properties_t{},
@@ -233,12 +197,12 @@ auto submit_kernel_direct(
 
   if constexpr (EventNeeded) {
     return submit_kernel_direct_with_event_impl(
-        Queue, Range, HostKernel, DeviceKernelInfoPtr, DepEvents,
+        Queue, RangeView, HostKernel, DeviceKernelInfoPtr, DepEvents,
         ParsedProperties, TlsCodeLocCapture.query(),
         TlsCodeLocCapture.isToplevel());
   } else {
     submit_kernel_direct_without_event_impl(
-        Queue, Range, HostKernel, DeviceKernelInfoPtr, DepEvents,
+        Queue, RangeView, HostKernel, DeviceKernelInfoPtr, DepEvents,
         ParsedProperties, TlsCodeLocCapture.query(),
         TlsCodeLocCapture.isToplevel());
   }
@@ -248,7 +212,7 @@ template <typename KernelName = detail::auto_name, bool EventNeeded = false,
           typename PropertiesT = ext::oneapi::experimental::empty_properties_t,
           typename KernelTypeUniversalRef, int Dims>
 auto submit_kernel_direct_parallel_for(
-    const queue &Queue, const nd_range<Dims> &Range,
+    const queue &Queue, nd_range<Dims> Range,
     KernelTypeUniversalRef &&KernelFunc, sycl::span<const event> DepEvents = {},
     const PropertiesT &Props = ext::oneapi::experimental::empty_properties_t{},
     const detail::code_location &CodeLoc = detail::code_location::current()) {
@@ -271,8 +235,9 @@ auto submit_kernel_direct_parallel_for(
   return submit_kernel_direct<detail::WrapAs::parallel_for, TransformedArgType,
                               KernelName, EventNeeded, PropertiesT,
                               KernelTypeUniversalRef, Dims>(
-      Queue, Range, std::forward<KernelTypeUniversalRef>(KernelFunc), DepEvents,
-      Props, CodeLoc);
+      Queue, detail::nd_range_view(Range),
+      std::forward<KernelTypeUniversalRef>(KernelFunc), DepEvents, Props,
+      CodeLoc);
 }
 
 template <typename KernelName = detail::auto_name, bool EventNeeded = false,
@@ -287,7 +252,7 @@ auto submit_kernel_direct_single_task(
   return submit_kernel_direct<detail::WrapAs::single_task, void, KernelName,
                               EventNeeded, PropertiesT, KernelTypeUniversalRef,
                               1>(
-      Queue, nd_range<1>{1, 1},
+      Queue, detail::nd_range_view(),
       std::forward<KernelTypeUniversalRef>(KernelFunc), DepEvents, Props,
       CodeLoc);
 }
@@ -324,6 +289,8 @@ event submit_with_event_impl(const queue &Q, PropertiesT Props,
 ///
 /// \ingroup sycl_api
 class __SYCL_EXPORT queue : public detail::OwnerLessBase<queue> {
+  friend sycl::detail::ImplUtils;
+
 public:
   /// Constructs a SYCL queue instance using the device returned by an instance
   /// of default_selector.
@@ -536,28 +503,9 @@ public:
   /// Queries SYCL queue for SYCL backend-specific information.
   ///
   /// The return type depends on information being queried.
-  template <typename Param
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-#if defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI == 0
-            ,
-            int = detail::emit_get_backend_info_error<queue, Param>()
-#endif
-#endif
-            >
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  __SYCL_DEPRECATED(
-      "All current implementations of get_backend_info() are to be removed. "
-      "Use respective variants of get_info() instead.")
-#endif
+  template <typename Param>
   typename detail::is_backend_info_desc<Param>::return_type
-      get_backend_info() const;
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-private:
-  // A shorthand for `get_device().has()' which is expected to be a bit quicker
-  // than the long version
-  bool device_has(aspect Aspect) const;
-#endif
+  get_backend_info() const;
 
 public:
   /// Submits a command group function object to the queue, in order to be
@@ -3684,19 +3632,6 @@ public:
         CodeLoc);
   }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  /// @brief Returns true if the queue was created with the
-  /// ext::codeplay::experimental::property::queue::enable_fusion property.
-  ///
-  /// Equivalent to
-  /// `has_property<ext::codeplay::experimental::property::queue::enable_fusion>()`.
-  ///
-  // TODO(#15184) Remove this function in the next ABI-breaking window.
-  __SYCL_DEPRECATED(
-      "Support for ext_codeplay_kernel_fusion extesnsion is dropped")
-  bool ext_codeplay_supports_fusion() const;
-#endif
-
   /// Shortcut for executing a graph of commands.
   ///
   /// \param Graph the graph of commands to execute
@@ -3706,7 +3641,8 @@ public:
           ext::oneapi::experimental::graph_state::executable>
           Graph,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit([&](handler &CGH) { CGH.ext_oneapi_graph(Graph); }, CodeLoc);
+    return submit_graph_direct_with_event_impl(*this, Graph, /*DepEvents*/ {},
+                                               CodeLoc);
   }
 
   /// Shortcut for executing a graph of commands with a single dependency.
@@ -3721,12 +3657,8 @@ public:
           Graph,
       event DepEvent,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvent);
-          CGH.ext_oneapi_graph(Graph);
-        },
-        CodeLoc);
+    return submit_graph_direct_with_event_impl(
+        *this, Graph, sycl::span<const event>(&DepEvent, 1), CodeLoc);
   }
 
   /// Shortcut for executing a graph of commands with multiple dependencies.
@@ -3741,12 +3673,8 @@ public:
           Graph,
       const std::vector<event> &DepEvents,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvents);
-          CGH.ext_oneapi_graph(Graph);
-        },
-        CodeLoc);
+    return submit_graph_direct_with_event_impl(*this, Graph, DepEvents,
+                                               CodeLoc);
   }
 
   /// Provides a hint to the  runtime that previously issued commands to this
@@ -3778,13 +3706,6 @@ public:
   bool khr_empty() const;
 #endif
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // TODO: to be made private in the next ABI-breaking window
-  __SYCL_DEPRECATED(
-      "This is a non-standard method, use sycl::get_native instead")
-  ur_native_handle_t getNative(int32_t &NativeHandleDesc) const;
-#endif
-
   std::optional<event> ext_oneapi_get_last_event() const {
     return static_cast<std::optional<event>>(ext_oneapi_get_last_event_impl());
   }
@@ -3792,22 +3713,10 @@ public:
   void ext_oneapi_set_external_event(const event &external_event);
 
 private:
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   ur_native_handle_t getNative(int32_t &NativeHandleDesc) const;
-#endif
 
   std::shared_ptr<detail::queue_impl> impl;
   queue(std::shared_ptr<detail::queue_impl> impl) : impl(impl) {}
-
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)
@@ -3816,13 +3725,6 @@ private:
   template <backend BackendName>
   friend auto get_native(const queue &Obj)
       -> backend_return_t<BackendName, queue>;
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-#if __SYCL_USE_FALLBACK_ASSERT
-  friend event detail::submitAssertCapture(const queue &, event &,
-                                           const detail::code_location &);
-#endif
-#endif
 
   template <typename CommandGroupFunc, typename PropertiesT>
   friend void ext::oneapi::experimental::detail::submit_impl(
@@ -3836,7 +3738,7 @@ private:
 
   template <typename PropertiesT>
   void ProcessSubmitProperties(PropertiesT Props,
-                               detail::v1::SubmissionInfo &SI) const {
+                               detail::SubmissionInfo &SI) const {
     if constexpr (Props.template has_property<
                       ext::oneapi::experimental::event_mode_key>()) {
       ext::oneapi::experimental::event_mode EventModeProp =
@@ -3847,80 +3749,15 @@ private:
     }
   }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  /// TODO: Unused. Remove these when ABI-break window is open.
-  /// Not using `type_erased_cgfo_ty` on purpose.
-  event submit_impl(std::function<void(handler &)> CGH,
-                    const detail::code_location &CodeLoc);
-  event submit_impl(std::function<void(handler &)> CGH,
-                    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
-  event submit_impl(std::function<void(handler &)> CGH, queue secondQueue,
-                    const detail::code_location &CodeLoc);
-  event submit_impl(std::function<void(handler &)> CGH, queue secondQueue,
-                    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
-  void submit_without_event_impl(std::function<void(handler &)> CGH,
-                                 const detail::code_location &CodeLoc);
-  void submit_without_event_impl(std::function<void(handler &)> CGH,
-                                 const detail::code_location &CodeLoc,
-                                 bool IsTopCodeLoc);
-  event
-  submit_impl_and_postprocess(std::function<void(handler &)> CGH,
-                              const detail::code_location &CodeLoc,
-                              const detail::SubmitPostProcessF &PostProcess);
-  event submit_impl_and_postprocess(
-      std::function<void(handler &)> CGH, const detail::code_location &CodeLoc,
-      const detail::SubmitPostProcessF &PostProcess, bool IsTopCodeLoc);
-  event
-  submit_impl_and_postprocess(std::function<void(handler &)> CGH,
-                              queue secondQueue,
-                              const detail::code_location &CodeLoc,
-                              const detail::SubmitPostProcessF &PostProcess);
-  event submit_impl_and_postprocess(
-      std::function<void(handler &)> CGH, queue secondQueue,
-      const detail::code_location &CodeLoc,
-      const detail::SubmitPostProcessF &PostProcess, bool IsTopCodeLoc);
-
-  // Old version when `std::function` was used in place of
-  // `std::function<void(handler &)>`.
-  event submit_with_event_impl(std::function<void(handler &)> CGH,
-                               const detail::SubmissionInfo &SubmitInfo,
-                               const detail::code_location &CodeLoc,
-                               bool IsTopCodeLoc);
-
-  void submit_without_event_impl(std::function<void(handler &)> CGH,
-                                 const detail::SubmissionInfo &SubmitInfo,
-                                 const detail::code_location &CodeLoc,
-                                 bool IsTopCodeLoc);
-  event submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
-                               const detail::SubmissionInfo &SubmitInfo,
-                               const detail::code_location &CodeLoc,
-                               bool IsTopCodeLoc);
-  void submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
-                                 const detail::SubmissionInfo &SubmitInfo,
-                                 const detail::code_location &CodeLoc,
-                                 bool IsTopCodeLoc);
-
-  /// A template-free versions of submit.
-  event submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
-                               const detail::v1::SubmissionInfo &SubmitInfo,
-                               const detail::code_location &CodeLoc,
-                               bool IsTopCodeLoc);
-  /// A template-free version of submit_without_event.
-  void submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
-                                 const detail::v1::SubmissionInfo &SubmitInfo,
-                                 const detail::code_location &CodeLoc,
-                                 bool IsTopCodeLoc);
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
   /// A template-free version of submit as const member function.
   event submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
-                               const detail::v1::SubmissionInfo &SubmitInfo,
+                               const detail::SubmissionInfo &SubmitInfo,
                                const detail::code_location &CodeLoc,
                                bool IsTopCodeLoc) const;
 
   /// A template-free version of submit_without_event as const member function.
   void submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
-                                 const detail::v1::SubmissionInfo &SubmitInfo,
+                                 const detail::SubmissionInfo &SubmitInfo,
                                  const detail::code_location &CodeLoc,
                                  bool IsTopCodeLoc) const;
 
@@ -3932,16 +3769,13 @@ private:
   /// \param CodeLoc is the code location of the submit call (default argument)
   /// \return a SYCL event object for the submitted command group.
   //
-  // UseFallBackAssert as template param vs `#if` in function body is necessary
-  // to prevent ODR-violation between TUs built with different fallback assert
-  // modes.
   template <typename PropertiesT>
   event submit_with_event(PropertiesT Props,
                           const detail::type_erased_cgfo_ty &CGF,
                           const detail::code_location &CodeLoc =
                               detail::code_location::current()) const {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    detail::v1::SubmissionInfo SI{};
+    detail::SubmissionInfo SI{};
     ProcessSubmitProperties(Props, SI);
     return submit_with_event_impl(CGF, SI, TlsCodeLocCapture.query(),
                                   TlsCodeLocCapture.isToplevel());
@@ -3954,15 +3788,12 @@ private:
   /// \param CGF is a function object containing command group.
   /// \param CodeLoc is the code location of the submit call (default argument)
   //
-  // UseFallBackAssert as template param vs `#if` in function body is necessary
-  // to prevent ODR-violation between TUs built with different fallback assert
-  // modes.
   template <typename PropertiesT>
   void submit_without_event(PropertiesT Props,
                             const detail::type_erased_cgfo_ty &CGF,
                             const detail::code_location &CodeLoc) const {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    detail::v1::SubmissionInfo SI{};
+    detail::SubmissionInfo SI{};
     ProcessSubmitProperties(Props, SI);
     submit_without_event_impl(CGF, SI, TlsCodeLocCapture.query(),
                               TlsCodeLocCapture.isToplevel());

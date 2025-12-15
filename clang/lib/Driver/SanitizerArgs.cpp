@@ -9,8 +9,8 @@
 #include "clang/Basic/DiagnosticDriver.h"
 #include "clang/Basic/Sanitizers.h"
 #include "clang/Driver/Driver.h"
-#include "clang/Driver/Options.h"
 #include "clang/Driver/ToolChain.h"
+#include "clang/Options/Options.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -56,7 +56,7 @@ static const SanitizerMask SupportsCoverage =
     SanitizerKind::SafeStack | SanitizerKind::ShadowCallStack |
     SanitizerKind::Thread | SanitizerKind::ObjCCast | SanitizerKind::KCFI |
     SanitizerKind::NumericalStability | SanitizerKind::Vptr |
-    SanitizerKind::CFI;
+    SanitizerKind::CFI | SanitizerKind::AllocToken;
 static const SanitizerMask RecoverableByDefault =
     SanitizerKind::Undefined | SanitizerKind::Integer |
     SanitizerKind::ImplicitConversion | SanitizerKind::Nullability |
@@ -424,6 +424,10 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
   MinimalRuntime =
       Args.hasFlag(options::OPT_fsanitize_minimal_runtime,
                    options::OPT_fno_sanitize_minimal_runtime, MinimalRuntime);
+  HandlerPreserveAllRegs =
+      Args.hasFlag(options::OPT_fsanitize_handler_preserve_all_regs,
+                   options::OPT_fno_sanitize_handler_preserve_all_regs,
+                   HandlerPreserveAllRegs);
 
   // The object size sanitizer should not be enabled at -O0.
   Arg *OptLevel = Args.getLastArg(options::OPT_O_Group);
@@ -1177,6 +1181,13 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
         options::OPT_fno_sanitize_alloc_token_extended, AllocTokenExtended);
   }
 
+  if (AllAddedKinds & SanitizerKind::Type) {
+    TysanOutlineInstrumentation =
+        Args.hasFlag(options::OPT_fsanitize_type_outline_instrumentation,
+                     options::OPT_fno_sanitize_type_outline_instrumentation,
+                     TysanOutlineInstrumentation);
+  }
+
   LinkRuntimes = Args.hasFlag(options::OPT_fsanitize_link_runtime,
                               options::OPT_fno_sanitize_link_runtime,
                               !Args.hasArg(options::OPT_r));
@@ -1554,6 +1565,9 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
   if (MinimalRuntime)
     CmdArgs.push_back("-fsanitize-minimal-runtime");
 
+  if (HandlerPreserveAllRegs)
+    CmdArgs.push_back("-fsanitize-handler-preserve-all-regs");
+
   if (AsanFieldPadding)
     CmdArgs.push_back(Args.MakeArgString("-fsanitize-address-field-padding=" +
                                          Twine(AsanFieldPadding)));
@@ -1583,6 +1597,11 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
   if (AsanOutlineInstrumentation) {
     CmdArgs.push_back("-mllvm");
     CmdArgs.push_back("-asan-instrumentation-with-call-threshold=0");
+  }
+
+  if (!TysanOutlineInstrumentation) {
+    CmdArgs.push_back("-mllvm");
+    CmdArgs.push_back("-tysan-outline-instrumentation=false");
   }
 
   // When emitting Stable ABI instrumentation, force outlining calls and avoid

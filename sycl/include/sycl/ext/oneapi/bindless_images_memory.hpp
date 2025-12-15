@@ -58,6 +58,7 @@ private:
 
 /// A class that represents image memory
 class __SYCL_EXPORT image_mem {
+  friend sycl::detail::ImplUtils;
   using raw_handle_type = image_mem_handle;
 
 public:
@@ -93,10 +94,6 @@ public:
 
 protected:
   std::shared_ptr<detail::image_mem_impl> impl;
-
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  sycl::detail::getSyclObjImpl(const Obj &SyclObject);
 };
 
 /// Direction to copy data from bindless image handle

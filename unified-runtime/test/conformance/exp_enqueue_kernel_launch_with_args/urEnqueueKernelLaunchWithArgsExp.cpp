@@ -149,7 +149,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueKernelLaunchWithArgsTest);
 TEST_P(urEnqueueKernelLaunchWithArgsTest, Success) {
   ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
       queue, kernel, workDim, global_offset, global_size, local_size,
-      args.size(), args.data(), 0, nullptr, 0, nullptr, nullptr));
+      args.size(), args.data(), nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
   uint32_t *output = (uint32_t *)shared_ptrs[0];
@@ -162,7 +162,7 @@ TEST_P(urEnqueueKernelLaunchWithArgsTest, InvalidNullHandleQueue) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                    urEnqueueKernelLaunchWithArgsExp(
                        nullptr, kernel, workDim, global_offset, global_size,
-                       local_size, args.size(), args.data(), 0, nullptr, 0,
+                       local_size, args.size(), args.data(), nullptr, 0,
                        nullptr, nullptr));
 }
 
@@ -170,7 +170,7 @@ TEST_P(urEnqueueKernelLaunchWithArgsTest, InvalidNullHandleKernel) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                    urEnqueueKernelLaunchWithArgsExp(
                        queue, nullptr, workDim, global_offset, global_size,
-                       local_size, args.size(), args.data(), 0, nullptr, 0,
+                       local_size, args.size(), args.data(), nullptr, 0,
                        nullptr, nullptr));
 }
 
@@ -178,38 +178,30 @@ TEST_P(urEnqueueKernelLaunchWithArgsTest, InvalidNullPointerGlobalSize) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                    urEnqueueKernelLaunchWithArgsExp(
                        queue, kernel, workDim, global_offset, nullptr,
-                       local_size, args.size(), args.data(), 0, nullptr, 0,
-                       nullptr, nullptr));
-}
-
-TEST_P(urEnqueueKernelLaunchWithArgsTest, InvalidNullPointerProperties) {
-  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
-                   urEnqueueKernelLaunchWithArgsExp(
-                       queue, kernel, workDim, global_offset, global_size,
-                       local_size, args.size(), args.data(), 1, nullptr, 0,
+                       local_size, args.size(), args.data(), nullptr, 0,
                        nullptr, nullptr));
 }
 
 TEST_P(urEnqueueKernelLaunchWithArgsTest, InvalidNullPointerArgs) {
-  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
-                   urEnqueueKernelLaunchWithArgsExp(
-                       queue, kernel, workDim, global_offset, global_size,
-                       local_size, args.size(), nullptr, 0, nullptr, 0, nullptr,
-                       nullptr));
+  ASSERT_EQ_RESULT(
+      UR_RESULT_ERROR_INVALID_NULL_POINTER,
+      urEnqueueKernelLaunchWithArgsExp(queue, kernel, workDim, global_offset,
+                                       global_size, local_size, args.size(),
+                                       nullptr, nullptr, 0, nullptr, nullptr));
 }
 
 TEST_P(urEnqueueKernelLaunchWithArgsTest, InvalidEventWaitList) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST,
                    urEnqueueKernelLaunchWithArgsExp(
                        queue, kernel, workDim, global_offset, global_size,
-                       local_size, args.size(), args.data(), 0, nullptr, 1,
+                       local_size, args.size(), args.data(), nullptr, 1,
                        nullptr, nullptr));
   ur_event_handle_t event = nullptr;
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST,
                    urEnqueueKernelLaunchWithArgsExp(
                        queue, kernel, workDim, global_offset, global_size,
-                       local_size, args.size(), args.data(), 0, nullptr, 0,
-                       &event, nullptr));
+                       local_size, args.size(), args.data(), nullptr, 0, &event,
+                       nullptr));
 }
 
 // This test runs a kernel with a buffer (MEM_OBJ) arg.
@@ -297,7 +289,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueKernelLaunchWithArgsMemObjTest);
 TEST_P(urEnqueueKernelLaunchWithArgsMemObjTest, Success) {
   ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
       queue, kernel, workDim, nullptr, global_size, nullptr, args.size(),
-      args.data(), 0, nullptr, 0, nullptr, nullptr));
+      args.data(), nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
   ValidateBuffer(buffer, buffer_size, val);
 }

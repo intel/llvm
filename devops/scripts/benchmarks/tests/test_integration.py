@@ -2,14 +2,19 @@
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-import logging
+
+import json
 import os
 import shutil
-import unittest
-import tempfile
 import subprocess
-import json
+import sys
+import tempfile
+import unittest
 from collections import namedtuple
+
+sys.path.append(f"{os.path.dirname(__file__)}/../")
+from utils.workdir_version import INTERNAL_WORKDIR_VERSION
+
 
 DataJson = namedtuple("DataJson", ["runs", "metadata", "tags", "names"])
 DataJsonRun = namedtuple("DataJsonRun", ["name", "results"])
@@ -49,7 +54,7 @@ class App:
             with open(
                 os.path.join(self.WORKDIR_DIR, "BENCH_WORKDIR_VERSION"), "w"
             ) as f:
-                f.write("2.0")  # TODO: take from main.INTERNAL_WORKDIR_VERSION
+                f.write(INTERNAL_WORKDIR_VERSION)
 
     def remove_dirs(self):
         for d in [self.RESULTS_DIR, self.OUTPUT_DIR, self.WORKDIR_DIR]:
@@ -183,6 +188,26 @@ class TestE2E(unittest.TestCase):
             {"L0", "latency", "micro", "submit"},
         )
 
+    def test_torch_l0(self):
+        self._checkCase(
+            "torch_benchmark_l0 kernelsPerQueue 20, workgroupCount 4096, workgroupSize 512",
+            "KernelSubmitMultiQueue large",
+            {"pytorch", "L0"},
+        )
+
+    def test_torch_sycl(self):
+        self._checkCase(
+            "torch_benchmark_sycl kernelsPerQueue 10, workgroupCount 512, workgroupSize 256",
+            "KernelSubmitMultiQueue medium",
+            {"pytorch", "SYCL"},
+        )
+
+    def test_torch_syclpreview(self):
+        self._checkCase(
+            "torch_benchmark_syclpreview kernelsPerQueue 4, workgroupCount 256, workgroupSize 124",
+            "KernelSubmitMultiQueue small",
+            {"pytorch", "SYCL"},
+        )
 
 if __name__ == "__main__":
     unittest.main()

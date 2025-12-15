@@ -137,7 +137,7 @@ TEST_P(urUSMFreeDuringExecutionTest, SuccessHost) {
   ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, allocation));
   ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &wg_offset,
-                                       &array_size, nullptr, 0, nullptr, 0,
+                                       &array_size, nullptr, nullptr, 0,
                                        nullptr, nullptr));
   ASSERT_SUCCESS(urUSMFree(context, allocation));
   ASSERT_SUCCESS(urQueueFinish(queue));
@@ -161,7 +161,7 @@ TEST_P(urUSMFreeDuringExecutionTest, SuccessDevice) {
   ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
 
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &wg_offset,
-                                       &array_size, nullptr, 0, nullptr, 0,
+                                       &array_size, nullptr, nullptr, 0,
                                        nullptr, nullptr));
   ASSERT_SUCCESS(urUSMFree(context, allocation));
   ASSERT_SUCCESS(urQueueFinish(queue));
@@ -185,7 +185,7 @@ TEST_P(urUSMFreeDuringExecutionTest, SuccessShared) {
   ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, allocation));
   ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &wg_offset,
-                                       &array_size, nullptr, 0, nullptr, 0,
+                                       &array_size, nullptr, nullptr, 0,
                                        nullptr, nullptr));
   ASSERT_SUCCESS(urUSMFree(context, allocation));
   ASSERT_SUCCESS(urQueueFinish(queue));

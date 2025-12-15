@@ -13,6 +13,7 @@
 #include <detail/kernel_compiler/kernel_compiler_sycl.hpp>
 #include <detail/kernel_id_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <sycl/ext/oneapi/experimental/syclbin_kernel_bundle.hpp>
 
 #include <cstddef>
 #include <set>
@@ -181,14 +182,7 @@ removeDuplicateDevices(const std::vector<device> &Devs) {
 
 kernel_id get_kernel_id_impl(string_view KernelName) {
   return detail::ProgramManager::getInstance().getSYCLKernelID(
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-      std::string(
-#endif
-          std::string_view(KernelName)
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-              )
-#endif
-  );
+      std::string_view(KernelName));
 }
 
 detail::KernelBundleImplPtr
@@ -311,7 +305,20 @@ compile_impl(const kernel_bundle<bundle_state::input> &InputBundle,
 std::shared_ptr<detail::kernel_bundle_impl>
 link_impl(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
           const std::vector<device> &Devs, const property_list &PropList) {
-  return detail::kernel_bundle_impl::create(ObjectBundles, Devs, PropList);
+  sycl::span<const kernel_bundle<bundle_state::object>> ObjectBundlesView(
+      ObjectBundles.data(), ObjectBundles.size());
+  return detail::kernel_bundle_impl::create(ObjectBundlesView, Devs, PropList,
+                                            /*FastLink=*/false);
+}
+
+std::shared_ptr<detail::kernel_bundle_impl>
+link_impl(const kernel_bundle<bundle_state::object> *ObjectBundles,
+          size_t NumObjectBundles, const std::vector<device> &Devs,
+          bool FastLink) {
+  sycl::span<const kernel_bundle<bundle_state::object>> ObjectBundlesView(
+      ObjectBundles, NumObjectBundles);
+  return detail::kernel_bundle_impl::create(ObjectBundlesView, Devs,
+                                            property_list{}, FastLink);
 }
 
 std::shared_ptr<detail::kernel_bundle_impl>
@@ -509,7 +516,7 @@ obj_kb compile_from_source(
   kernel_bundle_impl &sourceImpl = *getSyclObjImpl(SourceKB);
   std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl.compile_from_source(
       UniqueDevices, BuildOptions, LogPtr, RegisteredKernelNames);
-  auto result = sycl::detail::createSyclObjFromImpl<obj_kb>(KBImpl);
+  auto result = sycl::detail::createSyclObjFromImpl<obj_kb>(std::move(KBImpl));
   if (LogView)
     *LogView = Log;
   return result;

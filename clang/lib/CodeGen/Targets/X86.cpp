@@ -27,6 +27,14 @@ bool IsX86_MMXType(llvm::Type *IRType) {
 static llvm::Type *X86AdjustInlineAsmType(CodeGen::CodeGenFunction &CGF,
                                           StringRef Constraint,
                                           llvm::Type *Ty) {
+  bool IsMMXCons = llvm::StringSwitch<bool>(Constraint)
+                       .Cases({"y", "&y", "^Ym"}, true)
+                       .Default(false);
+  if (IsMMXCons && Ty->isVectorTy() &&
+      cast<llvm::VectorType>(Ty)->getPrimitiveSizeInBits().getFixedValue() !=
+          64)
+    return nullptr; // Invalid MMX constraint
+
   if (Constraint == "k") {
     llvm::Type *Int1Ty = llvm::Type::getInt1Ty(CGF.getLLVMContext());
     return llvm::FixedVectorType::get(Int1Ty, Ty->getScalarSizeInBits());
@@ -1447,6 +1455,12 @@ public:
                                          uint64_t NumMembers) const override {
     // FIXME: Assumes vectorcall is in use.
     return isX86VectorCallAggregateSmallEnough(NumMembers);
+  }
+
+  ABIArgInfo classifyArgForArm64ECVarArg(QualType Ty) const override {
+    unsigned FreeSSERegs = 0;
+    return classify(Ty, FreeSSERegs, /*IsReturnType=*/false,
+                    /*IsVectorCall=*/false, /*IsRegCall=*/false);
   }
 
 private:

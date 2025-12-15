@@ -138,7 +138,7 @@ for include_dir in [
 config.substitutions.append(("%fsycl-host-only", sycl_host_only_options))
 
 config.substitutions.append(
-    ("%sycl_lib", " -lsycl8" if platform.system() == "Windows" else "-lsycl")
+    ("%sycl_lib", " -lsycl9" if platform.system() == "Windows" else "-lsycl")
 )
 
 llvm_config.add_tool_substitutions(["llvm-spirv"], [config.sycl_tools_dir])
