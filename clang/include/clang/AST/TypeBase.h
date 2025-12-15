@@ -2956,9 +2956,6 @@ public:
     return TST;
   }
 
-  const TemplateSpecializationType *
-  getAsTemplateSpecializationTypeWithoutAliases(const ASTContext &Ctx) const;
-
   /// Member-template getAsAdjusted<specific type>. Look through specific kinds
   /// of sugar (parens, attributes, etc) for an instance of \<specific type>.
   /// This is used when you need to walk over sugar nodes that represent some

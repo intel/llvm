@@ -7014,7 +7014,7 @@ private:
       }
 
       const TemplateSpecializationType *TSTAsNonAlias =
-          TST->getAsTemplateSpecializationTypeWithoutAliases(Context);
+          TST->getAsNonAliasTemplateSpecializationType();
       if (TSTAsNonAlias)
         TST = TSTAsNonAlias;
 
