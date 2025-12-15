@@ -177,6 +177,7 @@
 // CHECK-NEXT: ext/oneapi/experimental/free_function_traits.hpp
 // CHECK-NEXT: ext/oneapi/experimental/raw_kernel_arg.hpp
 // CHECK-NEXT: kernel.hpp
+// CHECK-NEXT: range_rounding.hpp
 // CHECK-NEXT: sampler.hpp
 // CHECK-NEXT: queue.hpp
 // CHECK-NEXT: detail/nd_range_view.hpp

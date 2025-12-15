@@ -897,19 +897,6 @@ void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
 }
 
 using namespace sycl::detail;
-bool handler::DisableRangeRounding() {
-  return SYCLConfig<SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING>::get();
-}
-
-bool handler::RangeRoundingTrace() {
-  return SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE>::get();
-}
-
-void handler::GetRangeRoundingSettings(size_t &MinFactor, size_t &GoodFactor,
-                                       size_t &MinRange) {
-  SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS>::GetSettings(
-      MinFactor, GoodFactor, MinRange);
-}
 
 void handler::memcpy(void *Dest, const void *Src, size_t Count) {
   throwIfActionIsCreated();
@@ -1662,27 +1649,6 @@ kernel_bundle<bundle_state::input> handler::getKernelBundle() const {
       *KernelBundleImplPtr);
 }
 
-std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
-  device_impl &DeviceImpl = impl->get_device();
-  std::array<size_t, 3> UrResult = {};
-  auto Ret = DeviceImpl.getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
-      DeviceImpl.getHandleRef(),
-      UrInfoCode<
-          ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
-      sizeof(UrResult), &UrResult, nullptr);
-  if (Ret == UR_RESULT_SUCCESS) {
-    return UrResult;
-  }
-  return {};
-}
-
-std::tuple<std::array<size_t, 3>, bool> handler::getMaxWorkGroups_v2() {
-  auto ImmRess = getMaxWorkGroups();
-  if (ImmRess)
-    return {*ImmRess, true};
-  return {std::array<size_t, 3>{0, 0, 0}, false};
-}
-
 void handler::registerDynamicParameter(
     ext::oneapi::experimental::detail::dynamic_parameter_impl *DynamicParamImpl,
     int ArgIndex) {
@@ -1703,6 +1669,10 @@ void handler::registerDynamicParameter(
 }
 
 bool handler::eventNeeded() const { return impl->MEventNeeded; }
+
+device handler::get_device() const {
+  return detail::createSyclObjFromImpl<device>(impl->get_device());
+}
 
 void *handler::storeRawArg(const void *Ptr, size_t Size) {
   impl->CGData.MArgsStorage.emplace_back(Size);
