@@ -115,9 +115,6 @@ public:
   typename Param::return_type get_info(const device &Device,
                                        const range<3> &WGSize) const;
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // This function is unused and should be removed in the next ABI breaking.
-
   /// Query queue/launch-specific information from a kernel using the
   /// info::kernel_queue_specific descriptor for a specific Queue.
   ///
@@ -125,7 +122,6 @@ public:
   /// \return depends on information being queried.
   template <typename Param>
   typename Param::return_type ext_oneapi_get_info(queue Queue) const;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Query queue/launch-specific information from a kernel using the
   /// info::kernel_queue_specific descriptor for a specific Queue and values.
@@ -239,10 +235,11 @@ public:
   std::mutex *getCacheMutex() const { return MCacheMutex; }
   std::string_view getName() const;
 
+  bool checkOwnsDeviceKernelInfo();
   DeviceKernelInfo &getDeviceKernelInfo() {
-    return MIsInterop
-               ? MInteropDeviceKernelInfo
-               : ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
+    return MOwnsDeviceKernelInfo
+               ? MDeviceKernelInfo
+               : ProgramManager::getInstance().getDeviceKernelInfo(
                      std::string_view(getName()));
   }
 
@@ -259,9 +256,11 @@ private:
   std::mutex *MCacheMutex = nullptr;
   mutable std::string MName;
 
-  // It is used for the interop kernels only.
+  // Used for images that aren't obtained with standard SYCL offline
+  // compilation.
   // For regular kernel we get DeviceKernelInfo from the ProgramManager.
-  DeviceKernelInfo MInteropDeviceKernelInfo;
+  bool MOwnsDeviceKernelInfo = false;
+  DeviceKernelInfo MDeviceKernelInfo;
 
   bool isBuiltInKernel(device_impl &Device) const;
   void checkIfValidForNumArgsInfoQuery() const;
@@ -457,9 +456,6 @@ inline typename ext::intel::info::kernel_device_specific::spill_memory_size::
       getAdapter());
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-// These functions are unused and should be removed in the next ABI breaking.
-
 template <>
 inline typename syclex::info::kernel_queue_specific::max_work_group_size::
     return_type
@@ -510,8 +506,6 @@ ADD_TEMPLATE_METHOD_SPEC(2)
 ADD_TEMPLATE_METHOD_SPEC(3)
 
 #undef ADD_TEMPLATE_METHOD_SPEC
-
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 #define ADD_TEMPLATE_METHOD_SPEC(QueueSpec, Num, Kind, Reg)                    \
   template <>                                                                  \

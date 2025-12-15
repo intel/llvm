@@ -230,23 +230,20 @@ jobs:
       matrix:
         enable_new_offload_model: ['False', 'True']
         include:
-          - name: Intel L0 Gen12 GPU
+          - name: Intel Gen12 GPU
             runner: '["Windows", "gen12"]'
-            target_devices: level_zero:gpu
 
-          - name: Intel L0 Arc GPU
+          - name: Intel Arc GPU
             runner: '["Windows", "arc"]'
-            target_devices: level_zero:gpu
 
-          - name: Intel L0 Battlemage GPU
+          - name: Intel Battlemage GPU
             runner: '["Windows", "bmg"]'
-            target_devices: level_zero:gpu
 
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
-      target_devices: ${{ matrix.target_devices }}
+      target_devices: level_zero:gpu
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
       extra_lit_opts: --param enable_new_offload_model=${{ matrix.enable_new_offload_model }}
 

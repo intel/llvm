@@ -304,20 +304,6 @@ bool Command::isHostTask() const {
           CGType::CodeplayHostTask);
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-// This function is unused and should be removed in the next ABI-breaking
-// window.
-bool Command::isFusable() const {
-  if ((MType != CommandType::RUN_CG)) {
-    return false;
-  }
-  const auto &CG = (static_cast<const ExecCGCommand &>(*this)).getCG();
-  return (CG.getType() == CGType::Kernel) &&
-         (!static_cast<const CGExecKernel &>(CG).MKernelIsCooperative) &&
-         (!static_cast<const CGExecKernel &>(CG).MKernelUsesClusterLaunch);
-}
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
 namespace {
 
 struct EnqueueNativeCommandData {
@@ -2308,6 +2294,16 @@ static void GetUrArgsBasedOnType(
       0,
       {}};
   switch (Arg.MType) {
+  case kernel_param_kind_t::kind_struct_with_special_type: {
+    ur_exp_kernel_arg_type_t Type;
+    Type = UR_EXP_KERNEL_ARG_TYPE_VALUE;
+    ur_exp_kernel_arg_value_t Value = {};
+    Value.value = {Arg.MPtr};
+    UrArg.type = Type;
+    UrArg.size = static_cast<size_t>(Arg.MSize);
+    UrArg.value = Value;
+    break;
+  }
   case kernel_param_kind_t::kind_dynamic_work_group_memory:
     break;
   case kernel_param_kind_t::kind_work_group_memory:
@@ -2452,7 +2448,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     applyFuncOnFilteredArgs(EliminatedArgMask, Args, setFunc);
   }
 
-  std::optional<int> ImplicitLocalArg =
+  const std::optional<int> &ImplicitLocalArg =
       DeviceKernelInfo.getImplicitLocalArgPos();
   // Set the implicit local memory buffer to support
   // get_work_group_scratch_memory. This is for backend not supporting
@@ -2583,6 +2579,11 @@ static void SetArgBasedOnType(
                                                    Arg.MSize, nullptr);
     }
 
+    break;
+  }
+  case kernel_param_kind_t::kind_struct_with_special_type: {
+    Adapter.call<UrApiKind::urKernelSetArgValue>(Kernel, NextTrueIndex,
+                                                 Arg.MSize, nullptr, Arg.MPtr);
     break;
   }
   case kernel_param_kind_t::kind_sampler: {

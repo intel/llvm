@@ -245,11 +245,6 @@ private:
 
   ur_native_handle_t getNative() const;
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  __SYCL_DEPRECATED("Use getNative() member function")
-  ur_native_handle_t getNativeImpl() const;
-#endif
-
   std::shared_ptr<detail::kernel_impl> impl;
 
   template <backend BackendName, class SyclObjectT>
