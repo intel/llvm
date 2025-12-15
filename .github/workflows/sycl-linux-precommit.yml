@@ -255,13 +255,13 @@ jobs:
             target_devices: opencl:cpu;level_zero:gpu
           - name: Intel / Arc A-Series Graphics
             runner: '["Linux", "arc"]'
-            target_devices: opencl:cpu;level_zero:gpu
+            target_devices: level_zero:gpu
           - name: Intel / Battlemage Graphics
             runner: '["Linux", "bmg"]'
             target_devices: level_zero_v2:gpu
           - name: Intel / Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
-            target_devices: opencl:cpu;level_zero:gpu
+            target_devices: level_zero:gpu
           - name: NVIDIA/CUDA
             runner: '["Linux", "cuda"]'
             image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
