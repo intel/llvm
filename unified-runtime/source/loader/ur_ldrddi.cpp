@@ -39,10 +39,14 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
     if (platform.initStatus != UR_RESULT_SUCCESS)
       continue;
 
+    auto *pfnGet = platform.dditable.Adapter.pfnGet;
+    if (*pfnGet == nullptr)
+      return UR_RESULT_ERROR_UNINITIALIZED;
+
     uint32_t adapter;
     ur_adapter_handle_t *adapterHandle =
         numAdapters < NumEntries ? &phAdapters[numAdapters] : nullptr;
-    platform.dditable.Adapter.pfnGet(1, adapterHandle, &adapter);
+    pfnGet(1, adapterHandle, &adapter);
 
     numAdapters += adapter;
   }
@@ -6237,6 +6241,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
 
     if (platform.initStatus != UR_RESULT_SUCCESS)
       continue;
+
     auto getTable = reinterpret_cast<ur_pfnGetAdapterProcAddrTable_t>(
         ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
                                              "urGetAdapterProcAddrTable"));
@@ -6296,6 +6301,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
 
     if (platform.initStatus != UR_RESULT_SUCCESS)
       continue;
+
     auto getTable = reinterpret_cast<ur_pfnGetBindlessImagesExpProcAddrTable_t>(
         ur_loader::LibLoader::getFunctionPtr(
             platform.handle.get(), "urGetBindlessImagesExpProcAddrTable"));
@@ -6392,6 +6398,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
 
     if (platform.initStatus != UR_RESULT_SUCCESS)
       continue;
+
     auto getTable = reinterpret_cast<ur_pfnGetCommandBufferExpProcAddrTable_t>(
         ur_loader::LibLoader::getFunctionPtr(
             platform.handle.get(), "urGetCommandBufferExpProcAddrTable"));
@@ -6484,6 +6491,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetContextProcAddrTable(
 
     if (platform.initStatus != UR_RESULT_SUCCESS)
       continue;
+
     auto getTable = reinterpret_cast<ur_pfnGetContextProcAddrTable_t>(
         ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
                                              "urGetContextProcAddrTable"));
@@ -6543,6 +6551,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
 
     if (platform.initStatus != UR_RESULT_SUCCESS)
       continue;
+
     auto getTable = reinterpret_cast<ur_pfnGetEnqueueProcAddrTable_t>(
         ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
                                              "urGetEnqueueProcAddrTable"));
@@ -6624,6 +6633,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
 
     if (platform.initStatus != UR_RESULT_SUCCESS)
       continue;
+
     auto getTable = reinterpret_cast<ur_pfnGetEnqueueExpProcAddrTable_t>(
         ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
                                              "urGetEnqueueExpProcAddrTable"));
@@ -6687,6 +6697,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
 
     if (platform.initStatus != UR_RESULT_SUCCESS)
       continue;
+
     auto getTable = reinterpret_cast<ur_pfnGetEventProcAddrTable_t>(
         ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
                                              "urGetEventProcAddrTable"));
@@ -6747,6 +6758,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
 
     if (platform.initStatus != UR_RESULT_SUCCESS)
       continue;
+
     auto getTable = reinterpret_cast<ur_pfnGetGraphExpProcAddrTable_t>(
         ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
                                              "urGetGraphExpProcAddrTable"));
@@ -6805,6 +6817,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetIPCExpProcAddrTable(
 
     if (platform.initStatus != UR_RESULT_SUCCESS)
       continue;
+
     auto getTable = reinterpret_cast<ur_pfnGetIPCExpProcAddrTable_t>(
         ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
                                              "urGetIPCExpProcAddrTable"));
@@ -6860,6 +6873,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
 
     if (platform.initStatus != UR_RESULT_SUCCESS)
       continue;
+
     auto getTable = reinterpret_cast<ur_pfnGetKernelProcAddrTable_t>(
         ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
                                              "urGetKernelProcAddrTable"));
@@ -6932,6 +6946,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetMemProcAddrTable(
 
     if (platform.initStatus != UR_RESULT_SUCCESS)
       continue;
+
     auto getTable = reinterpret_cast<ur_pfnGetMemProcAddrTable_t>(
         ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
                                              "urGetMemProcAddrTable"));
@@ -6995,6 +7010,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetMemoryExportExpProcAddrTable(
 
     if (platform.initStatus != UR_RESULT_SUCCESS)
       continue;
+
     auto getTable = reinterpret_cast<ur_pfnGetMemoryExportExpProcAddrTable_t>(
         ur_loader::LibLoader::getFunctionPtr(
             platform.handle.get(), "urGetMemoryExportExpProcAddrTable"));
@@ -7053,6 +7069,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPhysicalMemProcAddrTable(
 
     if (platform.initStatus != UR_RESULT_SUCCESS)
       continue;
+
     auto getTable = reinterpret_cast<ur_pfnGetPhysicalMemProcAddrTable_t>(
         ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
                                              "urGetPhysicalMemProcAddrTable"));
@@ -7109,6 +7126,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
 
     if (platform.initStatus != UR_RESULT_SUCCESS)
       continue;
+
     auto getTable = reinterpret_cast<ur_pfnGetPlatformProcAddrTable_t>(
         ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
                                              "urGetPlatformProcAddrTable"));
@@ -7167,6 +7185,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
 
     if (platform.initStatus != UR_RESULT_SUCCESS)
       continue;
+
     auto getTable = reinterpret_cast<ur_pfnGetProgramProcAddrTable_t>(
         ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
                                              "urGetProgramProcAddrTable"));
@@ -7235,6 +7254,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
 
     if (platform.initStatus != UR_RESULT_SUCCESS)
       continue;
+
     auto getTable = reinterpret_cast<ur_pfnGetProgramExpProcAddrTable_t>(
         ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
                                              "urGetProgramExpProcAddrTable"));
@@ -7291,6 +7311,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueProcAddrTable(
 
     if (platform.initStatus != UR_RESULT_SUCCESS)
       continue;
+
     auto getTable = reinterpret_cast<ur_pfnGetQueueProcAddrTable_t>(
         ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
                                              "urGetQueueProcAddrTable"));
@@ -7351,6 +7372,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueExpProcAddrTable(
 
     if (platform.initStatus != UR_RESULT_SUCCESS)
       continue;
+
     auto getTable = reinterpret_cast<ur_pfnGetQueueExpProcAddrTable_t>(
         ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
                                              "urGetQueueExpProcAddrTable"));
@@ -7409,6 +7431,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
 
     if (platform.initStatus != UR_RESULT_SUCCESS)
       continue;
+
     auto getTable = reinterpret_cast<ur_pfnGetSamplerProcAddrTable_t>(
         ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
                                              "urGetSamplerProcAddrTable"));
@@ -7467,6 +7490,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMProcAddrTable(
 
     if (platform.initStatus != UR_RESULT_SUCCESS)
       continue;
+
     auto getTable = reinterpret_cast<ur_pfnGetUSMProcAddrTable_t>(
         ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
                                              "urGetUSMProcAddrTable"));
@@ -7527,6 +7551,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
 
     if (platform.initStatus != UR_RESULT_SUCCESS)
       continue;
+
     auto getTable = reinterpret_cast<ur_pfnGetUSMExpProcAddrTable_t>(
         ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
                                              "urGetUSMExpProcAddrTable"));
@@ -7591,6 +7616,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUsmP2PExpProcAddrTable(
 
     if (platform.initStatus != UR_RESULT_SUCCESS)
       continue;
+
     auto getTable = reinterpret_cast<ur_pfnGetUsmP2PExpProcAddrTable_t>(
         ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
                                              "urGetUsmP2PExpProcAddrTable"));
@@ -7649,6 +7675,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetVirtualMemProcAddrTable(
 
     if (platform.initStatus != UR_RESULT_SUCCESS)
       continue;
+
     auto getTable = reinterpret_cast<ur_pfnGetVirtualMemProcAddrTable_t>(
         ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
                                              "urGetVirtualMemProcAddrTable"));
@@ -7709,6 +7736,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
 
     if (platform.initStatus != UR_RESULT_SUCCESS)
       continue;
+
     auto getTable = reinterpret_cast<ur_pfnGetDeviceProcAddrTable_t>(
         ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
                                              "urGetDeviceProcAddrTable"));
@@ -7771,6 +7799,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceExpProcAddrTable(
 
     if (platform.initStatus != UR_RESULT_SUCCESS)
       continue;
+
     auto getTable = reinterpret_cast<ur_pfnGetDeviceExpProcAddrTable_t>(
         ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
                                              "urGetDeviceExpProcAddrTable"));

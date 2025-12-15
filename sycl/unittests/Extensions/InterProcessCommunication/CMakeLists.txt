@@ -1,6 +1,8 @@
-add_sycl_unittest(IPCTests OBJECT
-  Memory.cpp
-)
+if("cxx_std_20" IN_LIST CMAKE_CXX_COMPILE_FEATURES)
+  add_sycl_unittest(IPCTests OBJECT
+    Memory.cpp
+  )
 
-set_target_properties(IPCTests_Preview_Tests PROPERTIES CXX_STANDARD 20)
-set_target_properties(IPCTests_Non_Preview_Tests PROPERTIES CXX_STANDARD 20)
+  target_compile_features(IPCTests_Preview_Tests PUBLIC cxx_std_20)
+  target_compile_features(IPCTests_Non_Preview_Tests PUBLIC cxx_std_20)
+endif()

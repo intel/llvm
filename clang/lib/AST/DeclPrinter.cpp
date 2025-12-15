@@ -1927,7 +1927,8 @@ void DeclPrinter::VisitNonTypeTemplateParmDecl(
 void DeclPrinter::VisitTemplateTemplateParmDecl(
     const TemplateTemplateParmDecl *TTPD) {
   VisitTemplateDecl(TTPD);
-  if (TTPD->hasDefaultArgument() && !TTPD->defaultArgumentWasInherited()) {
+  if (TTPD->hasDefaultArgument() && !Policy.SuppressDefaultTemplateArguments &&
+      !TTPD->defaultArgumentWasInherited()) {
     Out << " = ";
     TTPD->getDefaultArgument().getArgument().print(Policy, Out,
                                                    /*IncludeType=*/false);
