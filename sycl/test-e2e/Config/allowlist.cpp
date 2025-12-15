@@ -1,3 +1,6 @@
+// UNSUPPORTED: linux && arch-intel_gpu_mtl_u
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20899
+
 // RUN: %{build} -o %t.out
 //
 // RUN: env PRINT_DEVICE_INFO=1 %{run-unfiltered-devices} %t.out > %t1.conf
