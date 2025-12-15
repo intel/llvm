@@ -12,7 +12,7 @@
 7 Extension "SPV_INTEL_token_type"
 5 ExtInstImport 1 "OpenCL.std"
 3 MemoryModel 1 2
-4 EntryPoint 6 10 "foo"
+4 EntryPoint 6 10 "moo" 
 3 Source 3 102000
 6 Name 4 "llvm.tokenfoo"
 3 Name 7 "foo"

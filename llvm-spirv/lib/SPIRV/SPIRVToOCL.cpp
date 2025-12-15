@@ -247,6 +247,10 @@ void SPIRVToOCLBase::visitCastInst(CastInst &Cast) {
       DstVecTy->getScalarSizeInBits() == 1)
     return;
 
+  // We don't have OpenCL builtins for 4-bit conversions.
+  if (DstVecTy->getScalarSizeInBits() == 4 || SrcTy->getScalarSizeInBits() == 4)
+    return;
+
   // Assemble built-in name -> convert_gentypeN
   std::string CastBuiltInName(kOCLBuiltinName::ConvertPrefix);
   // Check if this is 'floating point -> unsigned integer' cast

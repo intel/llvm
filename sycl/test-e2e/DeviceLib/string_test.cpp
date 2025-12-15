@@ -1,6 +1,9 @@
 // RUN: %{build} -Wno-error=deprecated-declarations -Wno-error=pointer-to-int-cast -fno-builtin -o %t1.out
 // RUN: %{run} %t1.out
 
+// XFAIL: windows && gpu-intel-dg2
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20861
+
 #include <cassert>
 #include <cstdint>
 #include <cstring>

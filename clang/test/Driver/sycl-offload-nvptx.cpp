@@ -38,7 +38,7 @@
 // RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL -std=c++11 \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl --no-offloadlib \
 // RUN: -fsycl-targets=nvptx64-nvidia-cuda %s 2>&1 \
-// RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/share/clc/remangled-l32-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
+// RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/libclc/remangled-l32-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
 // RUN: --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
 // RUN: | FileCheck -check-prefix=CHK-PHASES-NO-CC %s
 //
@@ -71,7 +71,7 @@
 // RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL -std=c++11 \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl --no-offloadlib \
 // RUN: -fsycl-targets=nvptx64-nvidia-cuda \
-// RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/share/clc/remangled-l32-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
+// RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/libclc/remangled-l32-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
 // RUN: --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
 // RUN: -Xsycl-target-backend "--cuda-gpu-arch=sm_35" %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-PHASES %s
@@ -106,7 +106,7 @@
 // RUN: | FileCheck -check-prefix=CHK-PREPROC %s
 // CHK-PREPROC: 1: preprocessor, {0}, c++-cpp-output, (device-sycl, sm_[[CUDA_VERSION:[0-9.]+]])
 // CHK-PREPROC: 2: offload, "device-sycl (nvptx64-nvidia-cuda:sm_[[CUDA_VERSION]])" {1}, c++-cpp-output
-// CHK-PREPROC: 4: compiler, {1}, none, (device-sycl, sm_[[CUDA_VERSION]])
+// CHK-PREPROC: 4: compiler, {0}, none, (device-sycl, sm_[[CUDA_VERSION]])
 //
 // RUN: not %clangxx -### -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
 // RUN: -fsycl-targets=nvptx64-nvidia-cuda --cuda-path=%S/Inputs/no/CUDA/path/here \

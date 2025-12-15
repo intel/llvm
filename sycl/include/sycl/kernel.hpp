@@ -67,6 +67,8 @@ template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
 ///
 /// \ingroup sycl_api
 class __SYCL_EXPORT kernel : public detail::OwnerLessBase<kernel> {
+  friend sycl::detail::ImplUtils;
+
 public:
   /// Constructs a SYCL kernel instance from an OpenCL cl_kernel
   ///
@@ -243,22 +245,8 @@ private:
 
   ur_native_handle_t getNative() const;
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  __SYCL_DEPRECATED("Use getNative() member function")
-  ur_native_handle_t getNativeImpl() const;
-#endif
-
   std::shared_ptr<detail::kernel_impl> impl;
 
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)
       -> backend_return_t<BackendName, SyclObjectT>;

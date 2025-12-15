@@ -8,55 +8,48 @@
 
 #pragma once
 
-#include <cassert>     // for assert
-#include <functional>  // for hash
-#include <type_traits> // for add_pointer_t
-#include <utility>     // for forward
+#include <cassert>
+#include <functional>
+#include <memory>
+#include <type_traits>
+#include <utility>
 
 namespace sycl {
 inline namespace _V1 {
+class handler;
 namespace detail {
+// Note! This class relies on the fact that all SYCL interface
+// classes contain "impl" field that points to implementation object. "impl"
+// field should be accessible from this class.
+struct ImplUtils {
+  // Helper function for extracting implementation from SYCL's interface
+  // objects.
+  template <class Obj>
+  static const decltype(Obj::impl) &getSyclObjImpl(const Obj &SyclObj) {
+    assert(SyclObj.impl && "every constructor should create an impl");
+    return SyclObj.impl;
+  }
 
-// Helper function for extracting implementation from SYCL's interface objects.
-// Note! This function relies on the fact that all SYCL interface classes
-// contain "impl" field that points to implementation object. "impl" field
-// should be accessible from this function.
-//
-// Note that due to a bug in MSVC compilers (including MSVC2019 v19.20), it
-// may not recognize the usage of this function in friend member declarations
-// if the template parameter name there is not equal to the name used here,
-// i.e. 'Obj'. For example, using 'Obj' here and 'T' in such declaration
-// would trigger that error in MSVC:
-//   template <class T>
-//   friend decltype(T::impl) detail::getSyclObjImpl(const T &SyclObject);
+  // Helper function for creation SYCL interface objects from implementations.
+  template <typename SyclObject, typename From>
+  static SyclObject createSyclObjFromImpl(From &&from) {
+    if constexpr (std::is_same_v<decltype(SyclObject::impl),
+                                 std::shared_ptr<std::decay_t<From>>>)
+      return SyclObject{from.shared_from_this()};
+    else
+      return SyclObject{std::forward<From>(from)};
+  }
+};
+
 template <class Obj>
-const decltype(Obj::impl) &getSyclObjImpl(const Obj &SyclObject) {
-  assert(SyclObject.impl && "every constructor should create an impl");
-  return SyclObject.impl;
+auto getSyclObjImpl(const Obj &SyclObj)
+    -> decltype(ImplUtils::getSyclObjImpl(SyclObj)) {
+  return ImplUtils::getSyclObjImpl(SyclObj);
 }
 
-// Helper function for creation SYCL interface objects from implementations.
-// Note! These functions rely on the fact that all SYCL interface classes
-// contain "impl" field that points to implementation object. "impl" field
-// should be accessible from these functions.
-template <class T>
-T createSyclObjFromImpl(
-    std::add_rvalue_reference_t<decltype(T::impl)> ImplObj) {
-  return T(std::forward<decltype(ImplObj)>(ImplObj));
-}
-
-template <class T>
-T createSyclObjFromImpl(
-    std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj) {
-  return T(ImplObj);
-}
-
-template <class T>
-T createSyclObjFromImpl(
-    std::add_lvalue_reference_t<typename std::remove_reference_t<
-        decltype(getSyclObjImpl(std::declval<T>()))>::element_type>
-        ImplRef) {
-  return createSyclObjFromImpl<T>(ImplRef.shared_from_this());
+template <typename SyclObject, typename From>
+SyclObject createSyclObjFromImpl(From &&from) {
+  return ImplUtils::createSyclObjFromImpl<SyclObject>(std::forward<From>(from));
 }
 
 template <typename T, bool SupportedOnDevice = true> struct sycl_obj_hash {
