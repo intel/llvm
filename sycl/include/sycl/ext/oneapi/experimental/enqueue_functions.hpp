@@ -180,6 +180,21 @@ void single_task(queue Q, const kernel &KernelObj, ArgsT &&...Args) {
   });
 }
 
+// Free function kernel single_task enqueue functions
+template <auto *Func, typename... ArgsT>
+void single_task(queue Q, [[maybe_unused]] kernel_function_s<Func> KernelFunc,
+                 ArgsT &&...Args) {
+  detail::submit_kernel_direct_single_task(std::move(Q),
+                                           [Args...]() { Func(Args...); });
+}
+
+template <auto *Func, typename... ArgsT>
+void single_task(handler &CGH,
+                 [[maybe_unused]] kernel_function_s<Func> KernelFunc,
+                 ArgsT &&...Args) {
+  CGH.single_task([Args...]() { Func(Args...); });
+}
+
 // TODO: Make overloads for scalar arguments for range.
 template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename KernelType, typename... ReductionsT>
@@ -358,21 +373,7 @@ void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
   });
 }
 
-// Free function kernel enqueue functions
-template <auto *Func, typename... ArgsT>
-void single_task(queue Q, [[maybe_unused]] kernel_function_s<Func> KernelFunc,
-                 ArgsT &&...Args) {
-  detail::submit_kernel_direct_single_task(std::move(Q),
-                                           [Args...]() { Func(Args...); });
-}
-
-template <auto *Func, typename... ArgsT>
-void single_task(handler &CGH,
-                 [[maybe_unused]] kernel_function_s<Func> KernelFunc,
-                 ArgsT &&...Args) {
-  CGH.single_task([Args...]() { Func(Args...); });
-}
-
+// Free function kernel nd_launch enqueue functions
 template <auto *Func, int Dimensions, typename... ArgsT>
 void nd_launch(queue Q, nd_range<Dimensions> Range,
                [[maybe_unused]] kernel_function_s<Func> KernelFunc,
