@@ -63,7 +63,7 @@ template <typename T> struct is_struct_with_special_type {
 };
 
 } // namespace detail
-  
+
 template <auto *Func> struct kernel_function_s {};
 
 template <auto *Func> inline constexpr kernel_function_s<Func> kernel_function;
