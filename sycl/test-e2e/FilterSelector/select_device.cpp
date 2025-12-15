@@ -12,7 +12,7 @@
 //
 // REQUIRES: cpu,gpu
 
-// XFAIL: *
+// XFAIL: run-mode
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20901
 
 #include <iostream>
