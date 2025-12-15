@@ -1997,6 +1997,15 @@ ur_result_t urPrintEnqueueNativeCommandExpParams(
 }
 
 ur_result_t
+urPrintEnqueueGraphExpParams(const struct ur_enqueue_graph_exp_params_t *params,
+                             char *buffer, const size_t buff_size,
+                             size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t
 urPrintEventGetInfoParams(const struct ur_event_get_info_params_t *params,
                           char *buffer, const size_t buff_size,
                           size_t *out_size) {
@@ -2057,6 +2066,56 @@ ur_result_t urPrintEventCreateWithNativeHandleParams(
 
 ur_result_t urPrintEventSetCallbackParams(
     const struct ur_event_set_callback_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t
+urPrintGraphCreateExpParams(const struct ur_graph_create_exp_params_t *params,
+                            char *buffer, const size_t buff_size,
+                            size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintGraphInstantiateGraphExpParams(
+    const struct ur_graph_instantiate_graph_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t
+urPrintGraphDestroyExpParams(const struct ur_graph_destroy_exp_params_t *params,
+                             char *buffer, const size_t buff_size,
+                             size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintGraphExecutableGraphDestroyExpParams(
+    const struct ur_graph_executable_graph_destroy_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintGraphIsEmptyExpParams(
+    const struct ur_graph_is_empty_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintGraphDumpContentsExpParams(
+    const struct ur_graph_dump_contents_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;
@@ -2716,6 +2775,38 @@ ur_result_t
 urPrintQueueFlushParams(const struct ur_queue_flush_params_t *params,
                         char *buffer, const size_t buff_size,
                         size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintQueueBeginGraphCaptureExpParams(
+    const struct ur_queue_begin_graph_capture_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintQueueBeginCaptureIntoGraphExpParams(
+    const struct ur_queue_begin_capture_into_graph_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintQueueEndGraphCaptureExpParams(
+    const struct ur_queue_end_graph_capture_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintQueueIsGraphCaptureEnabledExpParams(
+    const struct ur_queue_is_graph_capture_enabled_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;
   return str_copy(&ss, buffer, buff_size, out_size);

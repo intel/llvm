@@ -28,8 +28,7 @@ if (NOT DEFINED SYCL_ENABLE_BACKENDS)
   set(SYCL_ENABLE_BACKENDS "opencl;level_zero;level_zero_v2")
 endif()
 
-# Option to enable JIT, this in turn makes kernel fusion and spec constant
-# materialization possible.
+# Option to enable JIT, this in turn makes spec constant materialization possible.
 option(SYCL_ENABLE_EXTENSION_JIT "Enable extension to JIT kernels" ON)
 
 if (NOT XPTI_INCLUDES)
@@ -91,7 +90,7 @@ include(BuildUnifiedRuntime)
 #
 # See doc/developer/ABIPolicyGuide.md for the meaning when in the middle of
 # development cycle.
-set(SYCL_MAJOR_VERSION 8)
+set(SYCL_MAJOR_VERSION 9)
 set(SYCL_MINOR_VERSION 0)
 set(SYCL_PATCH_VERSION 0)
 

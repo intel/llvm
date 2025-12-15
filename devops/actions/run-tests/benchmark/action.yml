@@ -2,16 +2,9 @@ name: 'Run benchmarks'
 
 # This action assumes the following prerequisites:
 #
-# - SYCL is accessible in the system (nightly image provides it within /opt/sycl),
-#   or SYCL is placed in ./toolchain (TODO: change this??). The second option has higher priority.
-# - /devops has been checked out in ./devops.
-# - env.GITHUB_TOKEN was properly set, because according to Github, that's
-#   apparently the recommended way to pass a secret into a github action:
-
-#   https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions#accessing-your-secrets
-#
-# - env.RUNNER_TAG set to the runner tag used to run this workflow: Currently,
-#   only specific runners are fully supported.
+# - SYCL is placed in dir pointed by 'inputs.sycl_dir', if not, it has to be accessible
+#   in the system (e.g. nightly image provides it within /opt/sycl, but it might be a little older).
+# - /devops dir has been checked out in ./devops.
 
 inputs:
   target_devices:
@@ -37,51 +30,113 @@ inputs:
   exit_on_failure:
     type: string
     required: False
+  # Path to SYCL installation directory
+  sycl_dir:
+    type: string
+    required: False
+    default: "./toolchain"
+  # Only specific runners are supported
+  runner:
+    type: string
+    required: True
 
 runs:
-  # composite actions don't make use of 'name', so copy-paste names as a comment in the first line of each step
+  # composite actions don't make use of 'name', so copy-paste steps' names as a comment in the first line of each step
   using: "composite"
   steps:
-  - name: Check specified runner type / target backend
+  - name: Check inputs and set up environment
     shell: bash
     env:
+      # inputs are not directly used, as this allows code injection
       TARGET_DEVICE: ${{ inputs.target_devices }}
       PRESET: ${{ inputs.preset }}
+      SYCL_DIR: ${{ inputs.sycl_dir }}
+      RUNNER_TAG: ${{ inputs.runner }}
+      # Will append "_<device>_<backend>" to that prefix and use it as the full save name
+      SAVE_PREFIX: ${{ inputs.save_name }}
     run: |
+      # Check inputs and set up environment
+
+      # Ensure runner name has nothing injected
+      if [ -z "$(printf '%s' "$RUNNER_NAME" | grep -oE '^[a-zA-Z0-9_-]+$')" ]; then
+          echo "Bad runner name, please ensure runner name is [a-zA-Z0-9_-]."
+          exit 1
+      fi
+
       # Check specified runner type / target backend
       case "$RUNNER_TAG" in
-        '["PVC_PERF"]' ) ;;
-        '["BMG_PERF"]' ) ;;
+        '["PVC_PERF"]') GPU_TYPE="PVC" ;;
+        '["BMG_PERF"]') GPU_TYPE="BMG" ;;
         *)
+          # Best effort at matching if not known runners
+          # TODO: should we drop it and just exit instead?
+          GPU_TYPE="${RUNNER_TAG#[\"}"
+          GPU_TYPE="${GPU_TYPE%_PERF=\"]}"
           echo "#"
           echo "# WARNING: Only specific tuned runners are fully supported."
           echo "# This workflow is not guaranteed to work with other runners."
           echo "#" ;;
       esac
 
-      # Ensure runner name has nothing injected
-      # TODO: in terms of security, is this overkill?
-      if [ -z "$(printf '%s' "$RUNNER_NAME" | grep -oE '^[a-zA-Z0-9_-]+$')" ]; then
-          echo "Bad runner name, please ensure runner name is [a-zA-Z0-9_-]."
-          exit 1
-      fi
-
-      # input.target_devices is not directly used, as this allows code injection
       case "$TARGET_DEVICE" in
-        level_zero:*) ;;
-        level_zero_v2:*) ;;
+        level_zero:*)
+          SAVE_SUFFIX="L0"
+          ONEAPI_DEVICE_SELECTOR="level_zero:gpu"
+          export SYCL_UR_USE_LEVEL_ZERO_V2=0
+          echo "SYCL_UR_USE_LEVEL_ZERO_V2=$SYCL_UR_USE_LEVEL_ZERO_V2" >> $GITHUB_ENV
+          ;;
+        level_zero_v2:*)
+          SAVE_SUFFIX="L0v2"
+          ONEAPI_DEVICE_SELECTOR="level_zero:gpu"
+          export SYCL_UR_USE_LEVEL_ZERO_V2=1
+          echo "SYCL_UR_USE_LEVEL_ZERO_V2=$SYCL_UR_USE_LEVEL_ZERO_V2" >> $GITHUB_ENV
+          ;;
+        opencl:*) SAVE_SUFFIX="OCL" ;;
         *)
+          SAVE_SUFFIX="${TARGET_DEVICE%%:*}"
           echo "#"
           echo "# WARNING: Only level_zero backend is fully supported."
           echo "# This workflow is not guaranteed to work with other backends."
           echo "#" ;;
       esac
-      echo "ONEAPI_DEVICE_SELECTOR=$TARGET_DEVICE" >> $GITHUB_ENV 
+
+      # Export variables with machine type, save name, device selector, etc.
+      [ -z "$ONEAPI_DEVICE_SELECTOR" ] && ONEAPI_DEVICE_SELECTOR=$TARGET_DEVICE
+      echo "ONEAPI_DEVICE_SELECTOR=$ONEAPI_DEVICE_SELECTOR" >> $GITHUB_ENV
+      export SAVE_SUFFIX=$SAVE_SUFFIX
+      echo "SAVE_SUFFIX=$SAVE_SUFFIX" >> $GITHUB_ENV
+      export GPU_TYPE=$GPU_TYPE
+      echo "GPU_TYPE=$GPU_TYPE" >> $GITHUB_ENV
+
+      export SAVE_NAME="${SAVE_PREFIX}_${GPU_TYPE}_${SAVE_SUFFIX}"
+      echo "SAVE_NAME=$SAVE_NAME" >> $GITHUB_ENV
+      export SAVE_TIMESTAMP="$(date -u +'%Y%m%d_%H%M%S')"  # Timestamps are in UTC time
+      echo "SAVE_TIMESTAMP=$SAVE_TIMESTAMP" >> $GITHUB_ENV
+
+      # By default, the benchmark scripts forceload level_zero
+      FORCELOAD_ADAPTER="${ONEAPI_DEVICE_SELECTOR%%:*}"
+      echo "Adapter: $FORCELOAD_ADAPTER"
+      echo "FORCELOAD_ADAPTER=$FORCELOAD_ADAPTER" >> $GITHUB_ENV
 
       # Make sure specified preset is a known value and is not malicious
       python3 ./devops/scripts/benchmarks/presets.py query "$PRESET"
       [ "$?" -ne 0 ] && exit 1  # Stop workflow if invalid preset
       echo "PRESET=$PRESET" >> $GITHUB_ENV
+
+      # Check if SYCL dir exists and has SYCL lib; set CMPLR_ROOT if so
+      if [ -d "$SYCL_DIR" ] && [ -f "$SYCL_DIR/lib/libsycl.so" ]; then
+        echo "Using SYCL from: $SYCL_DIR"
+        export CMPLR_ROOT=$SYCL_DIR
+        echo "CMPLR_ROOT=$CMPLR_ROOT" >> $GITHUB_ENV
+      else
+        echo "INFO: SYCL directory '$SYCL_DIR' does not exist or is missing libsycl.so"
+        echo "Checking if SYCL is installed in the system..."
+        which sycl-ls
+        sycl-ls
+        export CMPLR_ROOT="$(dirname $(dirname $(which sycl-ls)))"
+        echo "Using SYCL from: $CMPLR_ROOT !"
+        echo "CMPLR_ROOT=$CMPLR_ROOT" >> $GITHUB_ENV
+      fi
   - name: Set NUMA node to run benchmarks on
     shell: bash
     run: |
@@ -89,7 +144,29 @@ runs:
       NUMA_NODE=0
       echo "ZE_AFFINITY_MASK=$NUMA_NODE" >> $GITHUB_ENV
       echo "NUMA_NODE=$NUMA_NODE" >> $GITHUB_ENV
+  - name: Establish results branch, repo path, and workdir
+    id: establish_outputs
+    shell: bash
+    run: |
+      # Establish results branch, repo path, and workdir
+      #
+      # Set sensitive vars as output, for all subsequent steps to use.
+      # Done this way due to limits of composite actions and security reasons (output is better than env).
 
+      BENCH_WORKDIR="$(realpath ./llvm_test_workdir)"
+      echo "BENCH_WORKDIR=$BENCH_WORKDIR" >> $GITHUB_OUTPUT
+
+      BENCHMARK_RESULTS_BRANCH="sycl-benchmark-ci-results"
+      echo "BENCHMARK_RESULTS_BRANCH=$BENCHMARK_RESULTS_BRANCH" >> $GITHUB_OUTPUT
+
+      BENCHMARK_RESULTS_REPO_PATH="$(realpath ./llvm-ci-perf-results)"
+      echo "BENCHMARK_RESULTS_REPO_PATH=$BENCHMARK_RESULTS_REPO_PATH" >> $GITHUB_OUTPUT
+  - name: Checkout results repo
+    uses: actions/checkout@v5
+    with:
+      ref: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_BRANCH }}
+      path: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_REPO_PATH }}
+      persist-credentials: true
   # Compute-benchmarks relies on UR static libraries, cmake config files, etc.
   # DPC++ doesn't ship with these files. The easiest way of obtaining these
   # files is to build from scratch.
@@ -102,10 +179,10 @@ runs:
   # modified output the entire sycl build dir as an artifact, in which the
   # intermediate files required can be stitched together from the build files.
   # However, this is not exactly "clean" or "fun to maintain"...
-  - name: Build Unified Runtime
+  - name: Clone and build Unified Runtime
     shell: bash
     run: |
-      # Build Unified Runtime
+      # Clone and build Unified Runtime
       echo "::group::checkout_llvm_ur"
 
       # Sparse-checkout UR at build ref:
@@ -137,13 +214,27 @@ runs:
       cd -
 
       echo "::endgroup::"
-  # Linux tools installed during docker creation may not match the self-hosted
-  # kernel version, so we need to install the correct version here.
-  - name: Install perf in version matching the host kernel
+  - name: Install dependencies
     shell: bash
+    env:
+      RUNNER_TAG: ${{ inputs.runner }}
     run: |
-      # Install perf in version matching the host kernel
-      echo "::group::install_linux_tools"
+      # Install dependencies
+
+      echo "::group::use_compute_runtime_tag_cache"
+
+      # Cache the compute_runtime version from dependencies.json, but perform a
+      # check with L0 version before using it: This value is not guaranteed to
+      # accurately reflect the current compute_runtime version used, as the
+      # docker images are built nightly.
+      export COMPUTE_RUNTIME_TAG_CACHE="$(cat ./devops/dependencies.json | jq -r .linux.compute_runtime.github_tag)"
+
+      echo "::endgroup::"
+      echo "::group::install_perf"
+
+      # Install perf in version matching the host kernel.
+      # Linux tools installed during docker creation may not match the self-hosted
+      # kernel version, so we need to install the correct version here.
       if [ "$RUNNER_TAG" = '["BMG_PERF"]' ]; then
         echo "Adding repositories for Ubuntu 25.10 (Questing) on BMG_PERF runner"
         echo "deb http://archive.ubuntu.com/ubuntu/ questing main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/questing.list
@@ -152,30 +243,10 @@ runs:
       fi
       sudo apt-get update
       sudo apt-get install -y linux-tools-$(uname -r)
-      echo "::endgroup::"
-  - name: Set env var for results branch
-    shell: bash
-    run: |
-        # Set env var for results branch
-        # Set BENCHMARK_RESULTS_BRANCH globally for all subsequent steps.
-        # This has to be done this way because of limits of composite actions.
-        BENCHMARK_RESULTS_BRANCH="sycl-benchmark-ci-results"
-        echo "BENCHMARK_RESULTS_BRANCH=$BENCHMARK_RESULTS_BRANCH" >> $GITHUB_ENV
-  - name: Checkout results repo
-    uses: actions/checkout@v5
-    with:
-      ref: ${{ env.BENCHMARK_RESULTS_BRANCH }}
-      path: llvm-ci-perf-results
-  - name: Build and run benchmarks
-    env:
-      # Need to append "_<device>_<backend>" to save name in order to follow
-      # conventions:
-      SAVE_PREFIX: ${{ inputs.save_name }}
-    shell: bash
-    run: |
-      # Build and run benchmarks
 
+      echo "::endgroup::"
       echo "::group::install_python_deps"
+
       echo "Installing python dependencies..."
       # Using --break-system-packages because:
       # - venv is not installed
@@ -186,74 +257,54 @@ runs:
       pip install --user --break-system-packages -r ./devops/scripts/benchmarks/requirements.txt
 
       echo "::endgroup::"
-      echo "::group::establish_parameters_and_vars"
-
-      export CMPLR_ROOT=./toolchain
-      # By default, the benchmark scripts forceload level_zero
-      FORCELOAD_ADAPTER="${ONEAPI_DEVICE_SELECTOR%%:*}"
-      echo "Adapter: $FORCELOAD_ADAPTER"
-
-      case "$ONEAPI_DEVICE_SELECTOR" in
-        level_zero:*) SAVE_SUFFIX="L0" ;;
-        level_zero_v2:*)
-          SAVE_SUFFIX="L0v2"
-          export ONEAPI_DEVICE_SELECTOR="level_zero:gpu"  # "level_zero_v2:gpu" not supported anymore
-          export SYCL_UR_USE_LEVEL_ZERO_V2=1
-          ;;
-        opencl:*) SAVE_SUFFIX="OCL" ;;
-        *) SAVE_SUFFIX="${ONEAPI_DEVICE_SELECTOR%%:*}";;
-      esac
-      case "$RUNNER_TAG" in
-        '["PVC_PERF"]') MACHINE_TYPE="PVC" ;;
-        '["BMG_PERF"]') MACHINE_TYPE="BMG" ;;
-        # Best effort at matching
-        *)
-          MACHINE_TYPE="${RUNNER_TAG#[\"}"
-          MACHINE_TYPE="${MACHINE_TYPE%_PERF=\"]}"
-          ;;
-      esac
-      SAVE_NAME="${SAVE_PREFIX}_${MACHINE_TYPE}_${SAVE_SUFFIX}"
-      echo "SAVE_NAME=$SAVE_NAME" >> $GITHUB_ENV
-      SAVE_TIMESTAMP="$(date -u +'%Y%m%d_%H%M%S')"  # Timestamps are in UTC time
- 
-      # Cache the compute_runtime version from dependencies.json, but perform a
-      # check with L0 version before using it: This value is not guaranteed to
-      # accurately reflect the current compute_runtime version used, as the
-      # docker images are built nightly. 
-      export COMPUTE_RUNTIME_TAG_CACHE="$(cat ./devops/dependencies.json | jq -r .linux.compute_runtime.github_tag)"
-
-      echo "::endgroup::"
-      echo "::group::sycl_ls"
+  - name: Run sycl-ls
+    shell: bash
+    run: |
+      # Run sycl-ls
       sycl-ls --verbose
+  - name: Build and run benchmarks
+    shell: bash
+    env:
+      BENCH_WORKDIR: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}
+      BENCHMARK_RESULTS_REPO_PATH: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_REPO_PATH }}
+    run: |
+      # Build and run benchmarks
+
+      echo "::group::setup_workdir"
+      if [ -n "$BENCH_WORKDIR" ] && [ -d "$BENCH_WORKDIR" ] && [[ "$BENCH_WORKDIR" == *llvm_test_workdir* ]]; then rm -rf "$BENCH_WORKDIR" ; fi
+
+      # Clean up potentially existing, old summary files
+      [ -f "github_summary_exe.md" ] && rm github_summary_exe.md
+      [ -f "github_summary_reg.md" ] && rm github_summary_reg.md
+
       echo "::endgroup::"
       echo "::group::run_benchmarks"
 
-      WORKDIR="$(realpath ./llvm_test_workdir)"
-      if [ -n "$WORKDIR" ] && [ -d "$WORKDIR" ] && [[ "$WORKDIR" == *llvm_test_workdir* ]]; then rm -rf "$WORKDIR" ; fi
-
       numactl --cpunodebind "$NUMA_NODE" --membind "$NUMA_NODE" \
-      ./devops/scripts/benchmarks/main.py "$WORKDIR" \
-        --sycl "$(realpath ./toolchain)" \
+      ./devops/scripts/benchmarks/main.py "$BENCH_WORKDIR" \
+        --sycl "$(realpath $CMPLR_ROOT)" \
         --ur "$(realpath ./ur/install)" \
         --adapter "$FORCELOAD_ADAPTER" \
         --save "$SAVE_NAME" \
         --output-html remote \
-        --results-dir "./llvm-ci-perf-results/" \
-        --output-dir "./llvm-ci-perf-results/" \
+        --results-dir "${BENCHMARK_RESULTS_REPO_PATH}/" \
+        --output-dir "${BENCHMARK_RESULTS_REPO_PATH}/" \
         --preset "$PRESET" \
         --timestamp-override "$SAVE_TIMESTAMP" \
         --detect-version sycl,compute_runtime \
+        --produce-github-summary \
         ${{ inputs.exit_on_failure == 'true' && '--exit-on-failure --iterations 1' || '' }}
       # TODO: add back: "--flamegraph inclusive" once works properly
 
       echo "::endgroup::"
       echo "::group::compare_results"
+
       python3 ./devops/scripts/benchmarks/compare.py to_hist \
         --avg-type EWMA \
         --cutoff "$(date -u -d '7 days ago' +'%Y%m%d_%H%M%S')" \
         --name "$SAVE_NAME" \
-        --compare-file "./llvm-ci-perf-results/results/${SAVE_NAME}_${SAVE_TIMESTAMP}.json" \
-        --results-dir "./llvm-ci-perf-results/results/" \
+        --compare-file "${BENCHMARK_RESULTS_REPO_PATH}/results/${SAVE_NAME}_${SAVE_TIMESTAMP}.json" \
+        --results-dir "${BENCHMARK_RESULTS_REPO_PATH}/results/" \
         --regression-filter '^[a-z_]+_sycl .* CPU count' \
         --regression-filter-type 'SYCL benchmark (measured using CPU cycle count)' \
         --verbose \
@@ -261,33 +312,44 @@ runs:
         ${{ inputs.dry_run == 'true' && '--dry-run' || '' }} \
 
       echo "::endgroup::"
-
+  - name: Run benchmarks integration tests
+    shell: bash
+    if: ${{ github.event_name == 'pull_request' }}
+    env:
+      BENCH_WORKDIR: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}
+      LLVM_BENCHMARKS_UNIT_TESTING: 1
+      COMPUTE_BENCHMARKS_BUILD_PATH: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}/compute-benchmarks-build
+    run: |
       # Run benchmarks' integration tests
+
       # NOTE: Each integration test prints its own group name as part of test script
-      if [ '${{ github.event_name == 'pull_request' }}' = 'true' ]; then
-        export LLVM_BENCHMARKS_UNIT_TESTING=1
-        export COMPUTE_BENCHMARKS_BUILD_PATH=$WORKDIR/compute-benchmarks-build
-        python3 ./devops/scripts/benchmarks/tests/test_integration.py
-      fi
-  - name: Cache changes and upload github summary
+      python3 ./devops/scripts/benchmarks/tests/test_integration.py
+  - name: Upload github summaries and cache changes
     if: always()
     shell: bash
+    env:
+      BENCHMARK_RESULTS_REPO_PATH: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_REPO_PATH }}
     run: |
-      # Cache changes and upload github summary
-      [ -f "github_summary.md" ] && cat github_summary.md >> $GITHUB_STEP_SUMMARY
+      # Upload github summaries and cache changes
+      [ -f "github_summary_exe.md" ] && cat github_summary_exe.md >> $GITHUB_STEP_SUMMARY
+      [ -f "github_summary_reg.md" ] && cat github_summary_reg.md >> $GITHUB_STEP_SUMMARY
 
-      cd "./llvm-ci-perf-results"
+      cd "${BENCHMARK_RESULTS_REPO_PATH}"
       git add .
       for diff in $(git diff HEAD --name-only); do
         mkdir -p "../cached_changes/$(dirname $diff)"
         cp "$diff" "../cached_changes/$diff"
       done
   - name: Push benchmarks results
-    if: inputs.upload_results == 'true' && always()
+    if: always() && inputs.upload_results == 'true'
     shell: bash
+    env:
+      BENCH_WORKDIR: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}
+      BENCHMARK_RESULTS_REPO_PATH: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_REPO_PATH }}
+      BENCHMARK_RESULTS_BRANCH: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_BRANCH }}
     run: |
       # Push benchmarks results
-      cd "./llvm-ci-perf-results"
+      cd "${BENCHMARK_RESULTS_REPO_PATH}"
       git config user.name "github-actions[bot]"
       git config user.email "github-actions[bot]@users.noreply.github.com"
 
@@ -312,7 +374,7 @@ runs:
           cached_result="$(mktemp -d)/$(basename $results_file)"
           mv "$results_file" "$cached_result"
 
-          git reset --hard "origin/$BENCHMARK_RESULTS_BRANCH"
+          git reset --hard "origin/${BENCHMARK_RESULTS_BRANCH}"
           git pull
 
           mv "$cached_result" "$results_file"
@@ -321,10 +383,10 @@ runs:
         echo "Regenerating data.json..."
         cd ../
         ./devops/scripts/benchmarks/main.py \
-          "$(realpath ./llvm_test_workdir)" \
+          "${BENCH_WORKDIR}" \
           --output-html remote \
-          --results-dir "./llvm-ci-perf-results/" \
-          --output-dir "./llvm-ci-perf-results/" \
+          --results-dir "${BENCHMARK_RESULTS_REPO_PATH}/" \
+          --output-dir "${BENCHMARK_RESULTS_REPO_PATH}/" \
           --dry-run
         cd -
       done

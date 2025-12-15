@@ -1,7 +1,5 @@
 // RUN: %{run-aux} %{build} -Wno-error=deprecated-pragma -o %t.out %hip_options
 // RUN: %{run} %t.out
-// RUN: %if preview-breaking-changes-supported %{ %{run-aux} %{build} -Wno-error=deprecated-pragma -fpreview-breaking-changes -o %t2.out %hip_options %}
-// RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
 // REQUIRES: target-amd
 
 #define __HIP_PLATFORM_AMD__

@@ -66,7 +66,10 @@ public:
     MArgs.emplace_back(std::forward<Args>(args)...);
   }
 
-  void clearArgs() { MArgs.clear(); }
+  void clearArgs() {
+    MArgs.clear();
+    MArgShift = 0;
+  }
 
   detail::NDRDescT &getNDRDesc() & { return MNDRDesc; }
 
@@ -88,15 +91,6 @@ public:
     return MDeviceKernelInfoPtr->ParamDescGetter;
   }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // TODO: remove this method in the next ABI-breaking window
-  //       it is used by handler code that will be removed in the next
-  //       ABI-breaking window
-  void setESIMD(bool IsESIMD) {
-    assert(MDeviceKernelInfoPtr);
-    MDeviceKernelInfoPtr->IsESIMD = IsESIMD;
-  }
-#endif
   bool isESIMD() const {
     assert(MDeviceKernelInfoPtr);
     return MDeviceKernelInfoPtr->IsESIMD;
@@ -115,32 +109,7 @@ public:
     MDeviceKernelInfoPtr = Ptr;
   }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  void setKernelInfo(void *KernelFuncPtr, int KernelNumArgs,
-                     KernelParamDescGetterT KernelParamDescGetter,
-                     bool KernelIsESIMD, bool KernelHasSpecialCaptures) {
-    MKernelFuncPtr = KernelFuncPtr;
-
-    assert(MDeviceKernelInfoPtr &&
-           "MDeviceKernelInfoPtr must be set before calling setKernelInfo");
-
-    detail::CompileTimeKernelInfoTy Info;
-    Info.Name = MDeviceKernelInfoPtr->Name;
-    Info.NumParams = KernelNumArgs;
-    Info.ParamDescGetter = KernelParamDescGetter;
-    Info.IsESIMD = KernelIsESIMD;
-    Info.HasSpecialCaptures = KernelHasSpecialCaptures;
-
-    MDeviceKernelInfoPtr->initIfEmpty(Info);
-  }
-#endif
-
   void setKernelFunc(void *KernelFuncPtr) { MKernelFuncPtr = KernelFuncPtr; }
-
-  bool usesAssert() const {
-    assert(MDeviceKernelInfoPtr);
-    return MDeviceKernelInfoPtr->usesAssert();
-  }
 
   // Kernel launch properties getter and setters.
   ur_kernel_cache_config_t getKernelCacheConfig() const {
@@ -311,23 +280,22 @@ public:
         Kprop.get<cuda::cluster_size_key<3>>()->MProperty);
   }
 
-  KernelNameStrRefT getKernelName() const {
+  std::string_view getKernelName() const {
     assert(MDeviceKernelInfoPtr);
-    return static_cast<KernelNameStrRefT>(MDeviceKernelInfoPtr->Name);
+    return MDeviceKernelInfoPtr->Name;
   }
 
   void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                   const int Size, const size_t Index, size_t &IndexShift,
-                  bool IsKernelCreatedFromSource
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-                  ,
-                  bool IsESIMD
-#endif
-  );
+                  bool IsKernelCreatedFromSource);
 
   void extractArgsAndReqs(bool IsKernelCreatedFromSource);
 
   void extractArgsAndReqsFromLambda();
+
+  void incrementArgShift(int Shift);
+
+  int getArgShift() const;
 
 private:
   // Storage for any SYCL Graph dynamic parameters which have been flagged for
@@ -352,6 +320,14 @@ private:
   // A pointer to device kernel information. Cached on the application side in
   // headers or retrieved from program manager.
   DeviceKernelInfo *MDeviceKernelInfoPtr = nullptr;
+
+  // Certain arguments such as structs that contain SYCL special types entail
+  // several hidden set_arg calls for every set_arg called by the user. This
+  // shift is required to make sure the following arguments set by the user have
+  // the correct index. It keeps track of how many of these hidden set_arg calls
+  // have been made so far. The user cannot possibly know this, hence we need to
+  // keep track of this information.
+  int MArgShift = 0;
 };
 
 } // namespace detail

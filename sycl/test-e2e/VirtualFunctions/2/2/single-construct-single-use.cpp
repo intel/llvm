@@ -1,3 +1,5 @@
+// UNSUPPORTED: gpu-intel-gen12
+// UNSUPPORTED-TRACKER: CMPLRLLVM-70595
 // RUN: %{build} -o %t.out %helper-includes
 // RUN: %{run} %t.out
 

@@ -326,7 +326,7 @@ public:
     updateSpecConstSymMap();
   }
 
-  device_image_impl(const std::string &Src, context Context,
+  device_image_impl(const std::string &Src, const context &Context,
                     devices_range Devices, syclex::source_language Lang,
                     include_pairs_t &&IncludePairsVec, private_tag)
       : MBinImage(Src), MContext(std::move(Context)),
@@ -1361,6 +1361,21 @@ private:
 
 public:
   using Base::Base;
+  template <typename Container>
+  decltype(std::declval<Base>().to<Container>()) to() const {
+    return this->Base::to<Container>();
+  }
+
+  template <typename Container>
+  std::enable_if_t<std::is_same_v<Container, std::vector<ur_program_handle_t>>,
+                   Container>
+  to() const {
+    std::vector<ur_program_handle_t> ProgramHandles;
+    ProgramHandles.reserve(size());
+    std::transform(begin(), end(), std::back_inserter(ProgramHandles),
+                   [](device_image_impl &Img) { return Img.get_ur_program(); });
+    return ProgramHandles;
+  }
 };
 
 } // namespace detail

@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -Xclang -verify=expected -Xclang -verify-ignore-unexpected=note -fpreview-breaking-changes -fsyntax-only -fsycl-device-only -ferror-limit=0 %s
+// RUN: %clangxx -fsycl -Xclang -verify=expected -Xclang -verify-ignore-unexpected=note -fsyntax-only -fsycl-device-only -ferror-limit=0 %s
 
 #include <sycl/group_algorithm.hpp>
 

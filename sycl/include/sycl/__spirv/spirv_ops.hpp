@@ -838,19 +838,6 @@ __clc_BarrierTestWait(int64_t *state, int64_t arrival) noexcept;
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT void
 __clc_BarrierArriveAndWait(int64_t *state) noexcept;
 
-#if defined(__SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__) &&                         \
-    !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wpedantic"
-#warning                                                                       \
-    "__SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__ is deprecated and will be removed in a future release."
-#pragma clang diagnostic pop
-#endif
-extern __DPCPP_SYCL_EXTERNAL int
-__spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format, ...);
-extern __DPCPP_SYCL_EXTERNAL int __spirv_ocl_printf(const char *Format, ...);
-#else
 template <typename... Args>
 extern __DPCPP_SYCL_EXTERNAL int
 __spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format,
@@ -858,7 +845,6 @@ __spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format,
 template <typename... Args>
 extern __DPCPP_SYCL_EXTERNAL int __spirv_ocl_printf(const char *Format,
                                                     Args... args);
-#endif
 
 // Native builtin extension
 

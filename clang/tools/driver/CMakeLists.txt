@@ -64,6 +64,7 @@ clang_target_link_libraries(clang
   clangDriver
   clangFrontend
   clangFrontendTool
+  clangOptions
   clangSerialization
   )
 
