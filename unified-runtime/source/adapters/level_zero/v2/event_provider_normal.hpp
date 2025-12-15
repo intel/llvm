@@ -21,16 +21,12 @@
 
 #include "common.hpp"
 #include "event.hpp"
+#include "event_provider.hpp"
 
 #include "../device.hpp"
 #include "../ur_interface_loader.hpp"
 
 namespace v2 {
-
-enum queue_type {
-  QUEUE_REGULAR,
-  QUEUE_IMMEDIATE,
-};
 
 class provider_pool {
 public:

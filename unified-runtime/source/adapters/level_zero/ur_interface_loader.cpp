@@ -235,6 +235,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   pDdiTable->pfnTimestampRecordingExp =
       ur::level_zero::urEnqueueTimestampRecordingExp;
   pDdiTable->pfnNativeCommandExp = ur::level_zero::urEnqueueNativeCommandExp;
+  pDdiTable->pfnGraphExp = ur::level_zero::urEnqueueGraphExp;
 
   return result;
 }
@@ -255,6 +256,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
   pDdiTable->pfnCreateWithNativeHandle =
       ur::level_zero::urEventCreateWithNativeHandle;
   pDdiTable->pfnSetCallback = ur::level_zero::urEventSetCallback;
+
+  return result;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
+    ur_api_version_t version, ur_graph_exp_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
+  }
+
+  pDdiTable->pfnCreateExp = ur::level_zero::urGraphCreateExp;
+  pDdiTable->pfnInstantiateGraphExp =
+      ur::level_zero::urGraphInstantiateGraphExp;
+  pDdiTable->pfnDestroyExp = ur::level_zero::urGraphDestroyExp;
+  pDdiTable->pfnExecutableGraphDestroyExp =
+      ur::level_zero::urGraphExecutableGraphDestroyExp;
+  pDdiTable->pfnIsEmptyExp = ur::level_zero::urGraphIsEmptyExp;
+  pDdiTable->pfnDumpContentsExp = ur::level_zero::urGraphDumpContentsExp;
 
   return result;
 }
@@ -443,6 +463,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetQueueProcAddrTable(
   return result;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urGetQueueExpProcAddrTable(
+    ur_api_version_t version, ur_queue_exp_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
+  }
+
+  pDdiTable->pfnBeginGraphCaptureExp =
+      ur::level_zero::urQueueBeginGraphCaptureExp;
+  pDdiTable->pfnBeginCaptureIntoGraphExp =
+      ur::level_zero::urQueueBeginCaptureIntoGraphExp;
+  pDdiTable->pfnEndGraphCaptureExp = ur::level_zero::urQueueEndGraphCaptureExp;
+  pDdiTable->pfnIsGraphCaptureEnabledExp =
+      ur::level_zero::urQueueIsGraphCaptureEnabledExp;
+
+  return result;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
     ur_api_version_t version, ur_sampler_dditable_t *pDdiTable) {
   auto result = validateProcInputs(version, pDdiTable);
@@ -625,6 +663,10 @@ ur_result_t populateDdiTable(ur_dditable_t *ddi) {
       NAMESPACE_::urGetEventProcAddrTable(UR_API_VERSION_CURRENT, &ddi->Event);
   if (result != UR_RESULT_SUCCESS)
     return result;
+  result = NAMESPACE_::urGetGraphExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                  &ddi->GraphExp);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
   result = NAMESPACE_::urGetIPCExpProcAddrTable(UR_API_VERSION_CURRENT,
                                                 &ddi->IPCExp);
   if (result != UR_RESULT_SUCCESS)
@@ -658,6 +700,10 @@ ur_result_t populateDdiTable(ur_dditable_t *ddi) {
     return result;
   result =
       NAMESPACE_::urGetQueueProcAddrTable(UR_API_VERSION_CURRENT, &ddi->Queue);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = NAMESPACE_::urGetQueueExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                  &ddi->QueueExp);
   if (result != UR_RESULT_SUCCESS)
     return result;
   result = NAMESPACE_::urGetSamplerProcAddrTable(UR_API_VERSION_CURRENT,

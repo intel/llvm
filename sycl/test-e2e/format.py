@@ -353,6 +353,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                     "linux",
                     "windows",
                     "preview-breaking-changes-supported",
+                    "gpu",
                 ]:
                     if cond_features in test.config.available_features:
                         conditions[cond_features] = True

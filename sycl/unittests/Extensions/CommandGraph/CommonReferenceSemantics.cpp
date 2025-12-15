@@ -14,7 +14,10 @@ using namespace sycl::ext::oneapi;
 
 class MockKernel;
 MOCK_INTEGRATION_HEADER(MockKernel)
-
+static sycl::unittest::MockDeviceImage MockKernelImg =
+    sycl::unittest::generateDefaultImage({"MockKernel"});
+static sycl::unittest::MockDeviceImageArray<1> MockKernelImgArray{
+    &MockKernelImg};
 /**
  * Checks that the operators and constructors of graph related classes meet the
  * common reference semantics.
@@ -99,9 +102,7 @@ TEST_F(CommandGraphTest, DynamicParamSemantics) {
   sycl::queue Queue;
   experimental::command_graph Graph(Queue.get_context(), Queue.get_device());
 
-  auto Factory = [&]() {
-    return experimental::dynamic_parameter<int>(Graph, 1);
-  };
+  auto Factory = [&]() { return experimental::dynamic_parameter<int>(1); };
   ASSERT_NO_FATAL_FAILURE(
       testSemantics<experimental::dynamic_parameter<int>>(Factory));
 }
@@ -111,7 +112,7 @@ TEST_F(CommandGraphTest, DynamicWorkGroupMemorySemantics) {
   experimental::command_graph Graph(Queue.get_context(), Queue.get_device());
 
   auto Factory = [&]() {
-    return experimental::dynamic_work_group_memory<int[]>(Graph, 1);
+    return experimental::dynamic_work_group_memory<int[]>(1);
   };
   ASSERT_NO_FATAL_FAILURE(
       testSemantics<experimental::dynamic_work_group_memory<int[]>>(Factory));
@@ -122,7 +123,7 @@ TEST_F(CommandGraphTest, DynamicLocalAccessorSemantics) {
   experimental::command_graph Graph(Queue.get_context(), Queue.get_device());
 
   auto Factory = [&]() {
-    return experimental::dynamic_local_accessor<int, 1>(Graph, 1);
+    return experimental::dynamic_local_accessor<int, 1>(1);
   };
   ASSERT_NO_FATAL_FAILURE(
       (testSemantics<experimental::dynamic_local_accessor<int, 1>>(Factory)));
@@ -217,9 +218,7 @@ TEST_F(CommandGraphTest, DynamicParameterHash) {
   sycl::queue Queue;
   experimental::command_graph Graph(Queue.get_context(), Queue.get_device());
 
-  auto Factory = [&]() {
-    return experimental::dynamic_parameter<int>(Graph, 1);
-  };
+  auto Factory = [&]() { return experimental::dynamic_parameter<int>(1); };
   ASSERT_NO_FATAL_FAILURE(
       testHash<experimental::dynamic_parameter<int>>(Factory));
 }
