@@ -643,6 +643,8 @@ detail::EventImplPtr queue_impl::submit_direct(
   std::unique_lock<std::mutex> Lock(MMutex);
   const bool inOrder = isInOrder();
 
+  NestedCallsTracker tracker;
+
   // Sync with an external event
   std::optional<event> ExternalEvent = popExternalEvent();
   if (ExternalEvent) {

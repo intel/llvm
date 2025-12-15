@@ -30,6 +30,10 @@ public:
   nd_range_view &operator=(nd_range_view &&Desc) = default;
 
   template <int Dims_>
+  nd_range_view(sycl::range<Dims_> &N)
+      : MGlobalSize(&(N[0])), MDims(size_t(Dims_)) {}
+
+  template <int Dims_>
   nd_range_view(sycl::nd_range<Dims_> &ExecutionRange)
       : MGlobalSize(&(ExecutionRange.globalSize[0])),
         MLocalSize(&(ExecutionRange.localSize[0])),

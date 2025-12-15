@@ -192,10 +192,26 @@ template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename KernelType, typename... ReductionsT>
 void parallel_for(queue Q, range<Dimensions> Range, const KernelType &KernelObj,
                   ReductionsT &&...Reductions) {
-  submit(std::move(Q), [&](handler &CGH) {
-    parallel_for<KernelName>(CGH, Range, KernelObj,
-                             std::forward<ReductionsT>(Reductions)...);
-  });
+  using LambdaArgType =
+      sycl::detail::lambda_arg_type<KernelType, item<Dimensions>>;
+  using TransformedArgType = std::conditional_t<
+      std::is_integral<LambdaArgType>::value && Dimensions == 1,
+      item<Dimensions>,
+      typename detail::TransformUserItemType<Dimensions, LambdaArgType>::type>;
+
+  // TODO The handler-less path does not support reductions, and
+  // kernel functions with the kernel_handler type argument yet.
+  if constexpr (sizeof...(ReductionsT) == 0 &&
+                !(detail::KernelLambdaHasKernelHandlerArgT<
+                    KernelType, TransformedArgType>::value)) {
+    detail::submit_kernel_direct_parallel_for<KernelName>(std::move(Q), Range,
+                                                          KernelObj);
+  } else {
+    submit(std::move(Q), [&](handler &CGH) {
+      parallel_for<KernelName>(CGH, Range, KernelObj,
+                               std::forward<ReductionsT>(Reductions)...);
+    });
+  }
 }
 
 template <typename KernelName = sycl::detail::auto_name, int Dimensions,
@@ -215,10 +231,31 @@ template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename Properties, typename KernelType, typename... ReductionsT>
 void parallel_for(queue Q, launch_config<range<Dimensions>, Properties> Config,
                   const KernelType &KernelObj, ReductionsT &&...Reductions) {
-  submit(std::move(Q), [&](handler &CGH) {
-    parallel_for<KernelName>(CGH, Config, KernelObj,
-                             std::forward<ReductionsT>(Reductions)...);
-  });
+  using LambdaArgType =
+      sycl::detail::lambda_arg_type<KernelType, item<Dimensions>>;
+  using TransformedArgType = std::conditional_t<
+      std::is_integral<LambdaArgType>::value && Dimensions == 1,
+      item<Dimensions>,
+      typename detail::TransformUserItemType<Dimensions, LambdaArgType>::type>;
+
+  // TODO The handler-less path does not support reductions, and
+  // kernel functions with the kernel_handler type argument yet.
+  if constexpr (sizeof...(ReductionsT) == 0 &&
+                !(detail::KernelLambdaHasKernelHandlerArgT<
+                    KernelType, TransformedArgType>::value)) {
+    ext::oneapi::experimental::detail::LaunchConfigAccess<range<Dimensions>,
+                                                          Properties>
+        LaunchConfigAccess(Config);
+
+    detail::submit_kernel_direct_parallel_for<KernelName>(
+        std::move(Q), LaunchConfigAccess.getRange(), KernelObj, {},
+        LaunchConfigAccess.getProperties());
+  } else {
+    submit(std::move(Q), [&](handler &CGH) {
+      parallel_for<KernelName>(CGH, Config, KernelObj,
+                               std::forward<ReductionsT>(Reductions)...);
+    });
+  }
 }
 
 template <int Dimensions, typename... ArgsT>
