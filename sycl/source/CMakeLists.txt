@@ -309,6 +309,7 @@ set(SYCL_COMMON_SOURCES
     "detail/os_util.cpp"
     "detail/persistent_device_code_cache.cpp"
     "detail/preview_marker.cpp"
+    "detail/range_rounding.cpp"
     "detail/reduction.cpp"
     "detail/sampler_impl.cpp"
     "detail/stream_impl.cpp"

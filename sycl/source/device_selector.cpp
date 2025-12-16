@@ -33,7 +33,7 @@ namespace detail {
 // itself, so only matching devices will be scored.
 static int getDevicePreference(const device &Device) {
   int Score = 0;
-  const device_impl &DeviceImpl = *getSyclObjImpl(Device).get();
+  const device_impl &DeviceImpl = *getSyclObjImpl(Device);
   // Strongly prefer devices with available images.
   auto &program_manager = sycl::detail::ProgramManager::getInstance();
   if (program_manager.hasCompatibleImage(DeviceImpl))

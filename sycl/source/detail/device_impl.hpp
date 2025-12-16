@@ -127,7 +127,7 @@ template <ur_device_info_t Desc>
 using ur_ret_type = decltype(ur_ret_type_impl<Desc>());
 
 // TODO: Make code thread-safe
-class device_impl : public std::enable_shared_from_this<device_impl> {
+class device_impl {
   struct private_tag {
     explicit private_tag() = default;
   };

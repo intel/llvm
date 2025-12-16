@@ -114,7 +114,7 @@ runs:
       echo "SAVE_TIMESTAMP=$SAVE_TIMESTAMP" >> $GITHUB_ENV
 
       # By default, the benchmark scripts forceload level_zero
-      FORCELOAD_ADAPTER="${ONEAPI_DEVICE_SELECTOR%%:*}"
+      FORCELOAD_ADAPTER="${TARGET_DEVICE%%:*}"
       echo "Adapter: $FORCELOAD_ADAPTER"
       echo "FORCELOAD_ADAPTER=$FORCELOAD_ADAPTER" >> $GITHUB_ENV
 
