@@ -351,9 +351,7 @@ static bool dynamicWGLocalMemory(Module &M) {
 
 PreservedAnalyses SYCLLowerWGLocalMemoryPass::run(Module &M,
                                                   ModuleAnalysisManager &) {
-  bool MadeChanges = allocaWGLocalMemory(M);
-  MadeChanges = dynamicWGLocalMemory(M) || MadeChanges;
-  if (MadeChanges)
-    return PreservedAnalyses::none();
-  return PreservedAnalyses::all();
+  bool Changed = allocaWGLocalMemory(M);
+  Changed |= dynamicWGLocalMemory(M);
+  return Changed ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
