@@ -71,10 +71,6 @@ public:
     return m_EliminatedKernelArgMasks;
   }
 
-  std::unordered_map<std::string_view, int> &getKernelImplicitLocalArgPos() {
-    return m_KernelImplicitLocalArgPos;
-  }
-
   std::unordered_map<std::string,
                      std::unique_ptr<sycl::detail::HostPipeMapEntry>> &
   getHostPipes() {
@@ -304,8 +300,6 @@ void checkAllInvolvedContainers(ProgramManagerExposed &PM,
                  "Kernel name reference count " + CommentPostfix);
   EXPECT_EQ(PM.getEliminatedKernelArgMask().size(), ExpectedImgCount)
       << "Eliminated kernel arg mask " + CommentPostfix;
-  EXPECT_EQ(PM.getKernelImplicitLocalArgPos().size(), ExpectedEntryCount)
-      << "Kernel implicit local arg pos " + CommentPostfix;
 
   if (!MultipleImgsPerEntryTestCase) {
     // FIXME expected to fail for now, device globals cleanup seems to be
@@ -355,10 +349,6 @@ TEST(ImageRemoval, BaseContainers) {
                             generateRefName("B", "HostPipe").c_str());
   PM.addOrInitHostPipeEntry(PipeC::get_host_ptr(),
                             generateRefName("C", "HostPipe").c_str());
-  std::vector<std::string> KernelNames =
-      generateRefNames({"A", "B", "C"}, "Kernel");
-  for (const std::string &Name : KernelNames)
-    PM.getOrCreateDeviceKernelInfo(Name);
 
   checkAllInvolvedContainers(PM, ImagesToRemove.size() + ImagesToKeep.size(),
                              {"A", "B", "C"}, "check failed before removal");
@@ -382,8 +372,6 @@ TEST(ImageRemoval, MultipleImagesPerEntry) {
   convertAndAddImages(PM, ImagesToRemoveSameEntries, NativeImagesForRemoval,
                       TestBinaries);
 
-  std::string KernelName = generateRefName("A", "Kernel");
-  PM.getOrCreateDeviceKernelInfo(KernelName);
   checkAllInvolvedContainers(
       PM, ImagesToRemoveSameEntries.size() + ImagesToKeepSameEntries.size(),
       /*ExpectedEntryCount*/ 1, {"A"}, "check failed before removal",

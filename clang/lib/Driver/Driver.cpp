@@ -5947,11 +5947,11 @@ class OffloadingActionBuilder final {
 
       // Handle defaults architectures
       for (auto &Triple : SYCLTripleList) {
-        // For NVIDIA use SM_50 as a default
+        // For NVIDIA use SM_75 as a default
         if (Triple.isNVPTX() && llvm::none_of(GpuArchList, [&](auto &P) {
               return P.first.isNVPTX();
             })) {
-          const char *DefaultArch = OffloadArchToString(OffloadArch::SM_50);
+          const char *DefaultArch = OffloadArchToString(OffloadArch::SM_75);
           GpuArchList.emplace_back(Triple, DefaultArch);
         }
 
@@ -7666,7 +7666,7 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
       // The default arch is set for NVPTX if not provided.  For AMDGPU, emit
       // an error as the user is responsible to set the arch.
       if (TC.getTriple().isNVPTX())
-        Archs.insert(OffloadArchToString(OffloadArch::SM_50));
+        Archs.insert(OffloadArchToString(OffloadArch::SM_75));
       else if (TC.getTriple().isAMDGPU())
         C.getDriver().Diag(clang::diag::err_drv_sycl_missing_amdgpu_arch)
             << 1 << TC.getTriple().str();

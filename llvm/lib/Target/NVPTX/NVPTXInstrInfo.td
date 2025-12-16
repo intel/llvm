@@ -121,6 +121,7 @@ class callSubtarget<string SubtargetMethod> : Predicate<"Subtarget->" # Subtarge
 def hasAtomAddF64 : Predicate<"Subtarget->hasAtomAddF64()">;
 def hasAtomScope : Predicate<"Subtarget->hasAtomScope()">;
 def hasAtomSemantics : Predicate<"Subtarget->hasAtomSemantics()">;
+def hasMemoryOrdering : Predicate<"Subtarget->hasMemoryOrdering()">;
 def hasAtomBitwise64 : Predicate<"Subtarget->hasAtomBitwise64()">;
 def hasAtomMinMax64 : Predicate<"Subtarget->hasAtomMinMax64()">;
 def hasAtomSwap128 : Predicate<"Subtarget->hasAtomSwap128()">;
@@ -1240,10 +1241,31 @@ def COS_APPROX_f32 :
   BasicFlagsNVPTXInst<(outs B32:$dst), (ins B32:$src), (ins FTZFlag:$ftz),
                       "cos.approx$ftz.f32",
                       [(set f32:$dst, (UnaryOpAllowsApproxFn<fcos> f32:$src))]>;
-def TANH_APPROX_f32 :
-  BasicNVPTXInst<(outs B32:$dst), (ins B32:$src), "tanh.approx.f32",
-                 [(set f32:$dst, (UnaryOpAllowsApproxFn<ftanh> f32:$src))]>,
+
+// NOTE: tanh.approx doesn't support the FTZ flag for f16/f16x2
+def TANH_APPROX_f16 :
+  BasicNVPTXInst<(outs B16:$dst), (ins B16:$src), "tanh.approx.f16",
+                 [(set f16:$dst, (UnaryOpAllowsApproxFn<ftanh> f16:$src))]>,
                  Requires<[hasPTX<70>, hasSM<75>]>;
+
+def TANH_APPROX_f16x2 :
+  BasicNVPTXInst<(outs B32:$dst), (ins B32:$src), "tanh.approx.f16x2",
+                 [(set v2f16:$dst, (UnaryOpAllowsApproxFn<ftanh> v2f16:$src))]>,
+                 Requires<[hasPTX<70>, hasSM<75>]>;
+
+def TANH_APPROX_f32 :
+  BasicFlagsNVPTXInst<(outs B32:$dst), (ins B32:$src), (ins FTZFlag:$ftz),
+                      "tanh.approx$ftz.f32",
+                      [(set f32:$dst, (UnaryOpAllowsApproxFn<ftanh> f32:$src))]>,
+                      Requires<[hasPTX<70>, hasSM<75>]>;
+
+// Patterns for NVVM tanh intrinsics
+def : Pat<(f16 (int_nvvm_tanh_approx_f16 f16:$a)),
+          (TANH_APPROX_f16 f16:$a)>;
+def : Pat<(v2f16 (int_nvvm_tanh_approx_f16x2 v2f16:$a)),
+          (TANH_APPROX_f16x2 v2f16:$a)>;
+def : Pat<(f32 (int_nvvm_tanh_approx_f f32:$a)),
+          (TANH_APPROX_f32 f32:$a, 0)>;
 
 //-----------------------------------
 // Bitwise operations

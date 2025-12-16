@@ -165,8 +165,7 @@ public:
         return false;
       }
       CurrDevice = detail::getSyclObjImpl(
-                       CurrDevice->get_info<info::device::parent_device>())
-                       .get();
+          CurrDevice->get_info<info::device::parent_device>());
     }
 
     return true;
