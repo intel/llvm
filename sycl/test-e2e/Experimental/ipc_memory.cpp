@@ -19,12 +19,34 @@
 #include <linux/prctl.h>
 #include <sys/prctl.h>
 #include <unistd.h>
+#elif defined(__WIN32__) || defined(_WIN32)
+#include <windows.h>
 #endif // defined(__linux__)
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
 constexpr size_t N = 32;
 constexpr const char *CommsFile = "ipc_comms.txt";
+
+void spawn_and_sync(std::string Exe) {
+  std::cout << "Spawning: " << Exe << " 1" << std::endl;
+#if defined(__WIN32__) || defined(_WIN32)
+  STARTUPINFO StartupInfo;
+  PROCESS_INFORMATION ProcInfo;
+
+  std::memset(&ProcInfo, 0, sizeof(ProcInfo));
+  std::memset(&StartupInfo, 0, sizeof(StartupInfo));
+  StartupInfo.cb = sizeof(si);
+  CreateProcess(Exe.c_str(), "1", NULL, NULL, TRUE, 0, NULL, NULL,
+                &StartupInfo, &ProcInfo);
+  WaitForSingleObject(ProcInfo.hProcess, 30000);
+  CloseHandle(ProcInfo.hProcess);
+  CloseHandle(ProcInfo.hThread);
+#else
+  std::string Cmd = Exe + " 1";
+  std::system(Cmd.c_str());
+#endif
+}
 
 int spawner(int argc, char *argv[]) {
   assert(argc == 1);
@@ -64,9 +86,7 @@ int spawner(int argc, char *argv[]) {
     }
 
     // Spawn other process with an argument.
-    std::string Cmd = std::string{argv[0]} + " 1";
-    std::cout << "Spawning: " << Cmd << std::endl;
-    std::system(Cmd.c_str());
+    spawn_and_sync(std::string{argv[0]});
   }
 
   int Failures = 0;
