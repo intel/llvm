@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: cuda
+// XFAIL: nvptx64-nvidia-cuda
 
 // This test verifies whether struct that contains either sycl::local_accesor or
 // sycl::accessor can be used with free function kernels extension.
