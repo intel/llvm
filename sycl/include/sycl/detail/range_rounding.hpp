@@ -200,7 +200,7 @@ std::tuple<range<Dims>, bool> getRoundedRange(range<Dims> UserRange,
   // accept every 64-bit global range, but the GPU backends will not
   // generally accept every 64-bit global range.  So, when we get a
   // non-32-bit global range, we wrap the old kernel in a new kernel
-  // that has each work item peform multiple invocations the old
+  // that has each work item perform multiple invocations the old
   // kernel in a 32-bit global range.
   id<Dims> MaxNWGs = [&] {
     auto [MaxWGs, HasMaxWGs] = getMaxWorkGroups(Device);
