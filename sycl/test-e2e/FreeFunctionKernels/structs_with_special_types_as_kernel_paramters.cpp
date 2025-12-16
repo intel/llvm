@@ -2,6 +2,7 @@
 // RUN: %{run} %t.out
 
 // XFAIL: nvptx64-nvidia-cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20908
 
 // This test verifies whether struct that contains either sycl::local_accesor or
 // sycl::accessor can be used with free function kernels extension.
