@@ -3978,8 +3978,7 @@ auto submit_kernel_direct_parallel_for(const queue &Queue, nd_range<Dims> Range,
                                        const PropertiesT &Props,
                                        const detail::code_location &CodeLoc) {
 
-  using KernelType =
-      std::remove_const_t<std::remove_reference_t<KernelTypeUniversalRef>>;
+  using KernelType = std::decay_t<KernelTypeUniversalRef>;
   using NameT =
       typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 
@@ -4018,8 +4017,7 @@ auto submit_kernel_direct_parallel_for(const queue &Queue, range<Dims> Range,
                           "a range must fit within size_t");
 #endif
 
-  using KernelType =
-      std::remove_const_t<std::remove_reference_t<KernelTypeUniversalRef>>;
+  using KernelType = std::decay_t<KernelTypeUniversalRef>;
   using NameT =
       typename detail::get_kernel_name_t<KernelName, KernelType>::name;
   using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
@@ -4106,8 +4104,7 @@ auto submit_kernel_direct_single_task(const queue &Queue,
                                       const PropertiesT &Props,
                                       const detail::code_location &CodeLoc) {
 
-  using KernelType =
-      std::remove_const_t<std::remove_reference_t<KernelTypeUniversalRef>>;
+  using KernelType = std::decay_t<KernelTypeUniversalRef>;
   using NameT =
       typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 
