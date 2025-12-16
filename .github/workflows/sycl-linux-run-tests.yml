@@ -378,4 +378,5 @@ jobs:
         dry_run: ${{ inputs.benchmark_dry_run }}
         exit_on_failure: ${{ inputs.benchmark_exit_on_failure }}
         build_ref: ${{ inputs.repo_ref }}
-        runner: ${{ inputs.runner }}
+      env:
+        RUNNER_TAG: ${{ inputs.runner }}
