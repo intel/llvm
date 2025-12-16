@@ -5,23 +5,22 @@
 // OFFLOAD-NEW-DRIVER: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
 // OFFLOAD-NEW_DRIVER: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
 // OFFLOAD-NEW_DRIVER: 2: compiler, {1}, ir, (host-sycl)
-// OFFLOAD-NEW_DRIVER: 3: input, "[[INPUT]]", c++, (device-sycl)
-// OFFLOAD-NEW_DRIVER: 4: preprocessor, {3}, c++-cpp-output, (device-sycl)
-// OFFLOAD-NEW_DRIVER: 5: compiler, {4}, ir, (device-sycl)
-// OFFLOAD-NEW_DRIVER: 6: backend, {5}, assembler, (device-sycl)
-// OFFLOAD-NEW_DRIVER: 7: assembler, {6}, object, (device-sycl)
-// OFFLOAD-NEW_DRIVER: 8: offload, "device-sycl (nvptx64-nvidia-cuda)" {7}, object
+// OFFLOAD-NEW_DRIVER: 3: input, "[[INPUT]]", c++, (device-sycl, sm_75)
+// OFFLOAD-NEW_DRIVER: 4: preprocessor, {3}, c++-cpp-output, (device-sycl, sm_75)
+// OFFLOAD-NEW_DRIVER: 5: compiler, {4}, ir, (device-sycl, sm_75)
+// OFFLOAD-NEW_DRIVER: 6: backend, {5}, ir, (device-sycl, sm_75)
+// OFFLOAD-NEW_DRIVER: 7: offload, "device-sycl (nvptx64-nvidia-cuda:sm_75)" {6}, ir
+// OFFLOAD-NEW_DRIVER: 8: input, "[[INPUT]]", c++, (device-sycl)
 // OFFLOAD-NEW_DRIVER: 9: input, "[[INPUT]]", c++, (device-sycl)
 // OFFLOAD-NEW_DRIVER: 10: preprocessor, {9}, c++-cpp-output, (device-sycl)
 // OFFLOAD-NEW_DRIVER: 11: compiler, {10}, ir, (device-sycl)
-// OFFLOAD-NEW_DRIVER: 12: backend, {11}, assembler, (device-sycl)
-// OFFLOAD-NEW_DRIVER: 13: assembler, {12}, object, (device-sycl)
-// OFFLOAD-NEW_DRIVER: 14: offload, "device-sycl (spir64-unknown-unknown)" {13}, object
-// OFFLOAD-NEW_DRIVER: 15: llvm-offload-binary, {8, 14}, image, (device-sycl)
-// OFFLOAD-NEW_DRIVER: 16: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (x86_64-unknown-linux-gnu)" {15}, ir
-// OFFLOAD-NEW_DRIVER: 17: backend, {16}, assembler, (host-sycl)
-// OFFLOAD-NEW_DRIVER: 18: assembler, {17}, object, (host-sycl)
-// OFFLOAD-NEW_DRIVER: 19: clang-linker-wrapper, {18}, image, (host-sycl)
+// OFFLOAD-NEW_DRIVER: 12: backend, {11}, ir, (device-sycl)
+// OFFLOAD-NEW_DRIVER: 13: offload, "device-sycl (spir64-unknown-unknown)" {12}, ir
+// OFFLOAD-NEW_DRIVER: 14: llvm-offload-binary, {7, 13}, image, (device-sycl)
+// OFFLOAD-NEW_DRIVER: 15: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (x86_64-unknown-linux-gnu)" {14}, ir
+// OFFLOAD-NEW_DRIVER: 16: backend, {15}, assembler, (host-sycl)
+// OFFLOAD-NEW_DRIVER: 17: assembler, {16}, object, (host-sycl)
+// OFFLOAD-NEW_DRIVER: 18: clang-linker-wrapper, {17}, image, (host-sycl)
 
 /// Check the toolflow for SYCL compilation using new offload model
 // RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64 --offload-new-driver %s 2>&1 | FileCheck -check-prefix=CHK-FLOW %s
@@ -96,10 +95,10 @@
 // RUN:  | FileCheck -check-prefix=CHK_ARCH \
 // RUN:              -DTRIPLE=amdgcn-amd-amdhsa -DARCH=gfx900 %s
 // RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl \
-// RUN:          -fno-sycl-libspirv -fsycl-targets=nvidia_gpu_sm_50 \
+// RUN:          -fno-sycl-libspirv -fsycl-targets=nvidia_gpu_sm_75 \
 // RUN:          -nogpulib --offload-new-driver %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHK_ARCH \
-// RUN:              -DTRIPLE=nvptx64-nvidia-cuda -DARCH=sm_50 %s
+// RUN:              -DTRIPLE=nvptx64-nvidia-cuda -DARCH=sm_75 %s
 // CHK_ARCH: clang{{.*}} "-triple" "[[TRIPLE]]"
 // CHK_ARCH-SAME: "-fsycl-is-device" {{.*}} "--offload-new-driver"{{.*}} "-o" "[[CC1DEVOUT:.+\.bc]]"
 // CHK_ARCH-NEXT: llvm-offload-binary{{.*}} "--image=file=[[CC1DEVOUT]],triple=[[TRIPLE]],arch=[[ARCH]]{{.*}},kind=sycl{{.*}}"
@@ -174,7 +173,7 @@
 // RUN: %clangxx -fsycl -### -fsycl-targets=nvptx64-nvidia-cuda \
 // RUN:          -fno-sycl-libspirv -nocudalib --offload-new-driver %s 2>&1 \
 // RUN:   | FileCheck -check-prefix NVPTX_DEF_ARCH %s
-// NVPTX_DEF_ARCH: llvm-offload-binary{{.*}} "--image=file={{.*}},triple=nvptx64-nvidia-cuda,arch=sm_50,kind=sycl"
+// NVPTX_DEF_ARCH: llvm-offload-binary{{.*}} "--image=file={{.*}},triple=nvptx64-nvidia-cuda,arch=sm_75,kind=sycl"
 
 /// check for -sycl-embed-ir transmission to clang-linker-wrapper tool
 // RUN: %clangxx -fsycl -### -fsycl-targets=nvptx64-nvidia-cuda \

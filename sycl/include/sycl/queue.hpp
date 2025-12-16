@@ -138,8 +138,7 @@ auto submit_kernel_direct(
     const detail::code_location &CodeLoc = detail::code_location::current()) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
 
-  using KernelType =
-      std::remove_const_t<std::remove_reference_t<KernelTypeUniversalRef>>;
+  using KernelType = std::decay_t<KernelTypeUniversalRef>;
 
   using NameT =
       typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -217,8 +216,7 @@ auto submit_kernel_direct_parallel_for(
     const PropertiesT &Props = ext::oneapi::experimental::empty_properties_t{},
     const detail::code_location &CodeLoc = detail::code_location::current()) {
 
-  using KernelType =
-      std::remove_const_t<std::remove_reference_t<KernelTypeUniversalRef>>;
+  using KernelType = std::decay_t<KernelTypeUniversalRef>;
 
   using LambdaArgType =
       sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
@@ -3313,7 +3311,7 @@ public:
                           RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    using KernelType = std::tuple_element_t<0, std::tuple<RestT...>>;
+    using KernelType = std::decay_t<detail::nth_type_t<0, RestT...>>;
 
     // TODO The handler-less path does not support reductions, and
     // kernel functions with the kernel_handler type argument yet.
@@ -3343,7 +3341,7 @@ public:
   parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    using KernelType = std::tuple_element_t<0, std::tuple<RestT...>>;
+    using KernelType = std::decay_t<detail::nth_type_t<0, RestT...>>;
 
     // TODO The handler-less path does not support reductions, and
     // kernel functions with the kernel_handler type argument yet.
@@ -3405,7 +3403,7 @@ public:
   parallel_for(nd_range<Dims> Range, event DepEvent, RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    using KernelType = std::tuple_element_t<0, std::tuple<RestT...>>;
+    using KernelType = std::decay_t<detail::nth_type_t<0, RestT...>>;
 
     // TODO The handler-less path does not support reductions, and
     // kernel functions with the kernel_handler type argument yet.
@@ -3472,7 +3470,7 @@ public:
                RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    using KernelType = std::tuple_element_t<0, std::tuple<RestT...>>;
+    using KernelType = std::decay_t<detail::nth_type_t<0, RestT...>>;
 
     // TODO The handler-less path does not support reductions, and
     // kernel functions with the kernel_handler type argument yet.
