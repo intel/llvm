@@ -70,7 +70,7 @@ template <> struct to_hip_type<int8_t> {
               sycl::ext::oneapi::experimental::matrix::layout::row_major ||    \
           Layout ==                                                            \
               sycl::ext::oneapi::experimental::matrix::layout::col_major>> {   \
-    sycl::marray<TYPE, SIZE> wi_marray;                                        \
+    sycl::marray<TYPE, SIZE> wi_marray{};                                      \
   };
 
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, a, 16, 16, 4)
@@ -98,7 +98,7 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 16, 16, 4)
   struct joint_matrix_hip<                                                     \
       TYPE, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,   \
       sycl::ext::oneapi::experimental::matrix::layout::dynamic> {              \
-    sycl::marray<TYPE, (M * N) / WAVEFRONT_SIZE> wi_marray;                    \
+    sycl::marray<TYPE, (M * N) / WAVEFRONT_SIZE> wi_marray{};                  \
   };
 
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(float, 16, 16)
