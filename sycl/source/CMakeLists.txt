@@ -85,6 +85,8 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
       OpenCL-Headers
   )
 
+  target_compile_options(${LIB_OBJ_NAME} PRIVATE -fno-rtti)
+
   # Common link step setup
 
   add_library(${LIB_NAME} SHARED

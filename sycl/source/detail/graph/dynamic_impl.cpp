@@ -361,15 +361,15 @@ void dynamic_command_group_impl::finalizeCGFList(
   using CGExecKernelSP = std::shared_ptr<sycl::detail::CGExecKernel>;
   using CGExecKernelWP = std::weak_ptr<sycl::detail::CGExecKernel>;
   for (std::shared_ptr<sycl::detail::CG> CommandGroup : MCommandGroups) {
-    CGExecKernelSP KernelCG =
-        std::dynamic_pointer_cast<sycl::detail::CGExecKernel>(CommandGroup);
+    CGExecKernelSP KernelCG = CommandGroup->getType() == sycl::detail::CGType::Kernel ?
+        std::static_pointer_cast<sycl::detail::CGExecKernel>(CommandGroup) : nullptr;
     std::vector<CGExecKernelWP> Alternatives;
 
     // Add all other command groups except for the current one to the list of
     // alternatives
     for (auto &OtherCG : MCommandGroups) {
-      CGExecKernelSP OtherKernelCG =
-          std::dynamic_pointer_cast<sycl::detail::CGExecKernel>(OtherCG);
+      CGExecKernelSP OtherKernelCG = OtherCG->getType() == sycl::detail::CGType::Kernel ?
+        std::static_pointer_cast<sycl::detail::CGExecKernel>(OtherCG) : nullptr;
       if (KernelCG != OtherKernelCG) {
         Alternatives.push_back(OtherKernelCG);
       }
