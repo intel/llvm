@@ -6641,6 +6641,11 @@ static void PrintNSClosingBraces(raw_ostream &OS, const DeclContext *DC) {
 /// What this visitor does is it iterates over both in sync, picking the right
 /// values from one or another.
 ///
+/// The template argument visitor functions take an additional
+/// ArrayRef<TemplateArgument> argument corresponding to the template arguments
+/// of the outermost template. This is used by some of these functions for
+/// mapping dependent template arguments.
+///
 /// Moral of the story: drop integration header ASAP (but that is blocked
 /// by support for 3rd-party host compilers, which is important).
 class FreeFunctionTemplateKernelArgsPrinter
@@ -6721,6 +6726,8 @@ public:
     const TemplateDecl *TD = CTST->getTemplateName().getAsTemplateDecl();
     if (!TD->getIdentifier())
       TD = TST->getTemplateName().getAsTemplateDecl();
+    assert(TD->getIdentifier() &&
+           "Either the type or the canonical type should have an identifier.");
     TD->printQualifiedName(O);
 
     O << "<";
