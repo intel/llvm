@@ -18,6 +18,8 @@ namespace free_function_info_map {
 __SYCL_EXPORT void add(const char *const *UniqueId,
                        const unsigned *DeviceGlobalPtr, unsigned Size);
 
+__SYCL_EXPORT void remove(const char *const *UniqueId,
+                          const unsigned *DeviceGlobalPtr, unsigned Size);
 } // namespace free_function_info_map
 } // namespace detail
 } // namespace _V1

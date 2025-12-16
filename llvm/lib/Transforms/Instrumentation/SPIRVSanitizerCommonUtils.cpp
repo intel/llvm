@@ -81,4 +81,11 @@ computeKernelMetadataUniqueId(StringRef Prefix,
   return UniqueId;
 }
 
+bool hasESIMDKernel(Module &M) {
+  for (auto &F : M)
+    if (F.hasMetadata("sycl_explicit_simd"))
+      return true;
+  return false;
+}
+
 } // namespace llvm

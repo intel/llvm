@@ -18,7 +18,7 @@ public:
     return m_KernelIDs2BinImage;
   }
 
-  std::unordered_map<sycl::detail::KernelNameStrT, sycl::kernel_id> &
+  std::unordered_map<std::string_view, sycl::kernel_id> &
   getKernelName2KernelID() {
     return m_KernelName2KernelIDs;
   }
@@ -55,29 +55,20 @@ public:
     return NativePrograms;
   }
 
-  std::unordered_map<sycl::detail::KernelNameStrT,
-                     sycl::detail::DeviceKernelInfo> &
+  std::unordered_map<std::string_view, sycl::detail::DeviceKernelInfo> &
   getDeviceKernelInfoMap() {
     return m_DeviceKernelInfoMap;
   }
 
-  std::unordered_map<sycl::detail::KernelNameStrT, int> &
-  getKernelNameRefCount() {
+  std::unordered_map<std::string_view, int> &getKernelNameRefCount() {
     return m_KernelNameRefCount;
   }
 
-  std::unordered_map<const sycl::detail::RTDeviceBinaryImage *,
-                     std::unordered_map<sycl::detail::KernelNameStrT,
-                                        sycl::detail::KernelArgMask>> &
+  std::unordered_map<
+      const sycl::detail::RTDeviceBinaryImage *,
+      std::unordered_map<std::string_view, sycl::detail::KernelArgMask>> &
   getEliminatedKernelArgMask() {
     return m_EliminatedKernelArgMasks;
-  }
-
-  KernelUsesAssertSet &getKernelUsesAssert() { return m_KernelUsesAssert; }
-
-  std::unordered_map<sycl::detail::KernelNameStrT, int> &
-  getKernelImplicitLocalArgPos() {
-    return m_KernelImplicitLocalArgPos;
   }
 
   std::unordered_map<std::string,
@@ -184,8 +175,6 @@ sycl::unittest::MockDeviceImage generateImage(const std::string &ImageId,
 
   PropSet.insert(__SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS,
                  createVFPropertySet(VirtualFunctions));
-  setKernelUsesAssert(std::vector<std::string>{KernelNames.begin()[0]},
-                      PropSet);
 
   PropSet.insert(__SYCL_PROPERTY_SET_SYCL_IMPLICIT_LOCAL_ARG,
                  createPropertySet(ImplicitLocalArg));
@@ -311,11 +300,6 @@ void checkAllInvolvedContainers(ProgramManagerExposed &PM,
                  "Kernel name reference count " + CommentPostfix);
   EXPECT_EQ(PM.getEliminatedKernelArgMask().size(), ExpectedImgCount)
       << "Eliminated kernel arg mask " + CommentPostfix;
-  checkContainer(PM.getKernelUsesAssert(), ExpectedEntryCount,
-                 generateRefNames(ImgIds, "Kernel"),
-                 "KernelUsesAssert " + CommentPostfix);
-  EXPECT_EQ(PM.getKernelImplicitLocalArgPos().size(), ExpectedEntryCount)
-      << "Kernel implicit local arg pos " + CommentPostfix;
 
   if (!MultipleImgsPerEntryTestCase) {
     // FIXME expected to fail for now, device globals cleanup seems to be
@@ -365,10 +349,6 @@ TEST(ImageRemoval, BaseContainers) {
                             generateRefName("B", "HostPipe").c_str());
   PM.addOrInitHostPipeEntry(PipeC::get_host_ptr(),
                             generateRefName("C", "HostPipe").c_str());
-  std::vector<std::string> KernelNames =
-      generateRefNames({"A", "B", "C"}, "Kernel");
-  for (const std::string &Name : KernelNames)
-    PM.getOrCreateDeviceKernelInfo(Name);
 
   checkAllInvolvedContainers(PM, ImagesToRemove.size() + ImagesToKeep.size(),
                              {"A", "B", "C"}, "check failed before removal");
@@ -392,8 +372,6 @@ TEST(ImageRemoval, MultipleImagesPerEntry) {
   convertAndAddImages(PM, ImagesToRemoveSameEntries, NativeImagesForRemoval,
                       TestBinaries);
 
-  std::string KernelName = generateRefName("A", "Kernel");
-  PM.getOrCreateDeviceKernelInfo(KernelName);
   checkAllInvolvedContainers(
       PM, ImagesToRemoveSameEntries.size() + ImagesToKeepSameEntries.size(),
       /*ExpectedEntryCount*/ 1, {"A"}, "check failed before removal",

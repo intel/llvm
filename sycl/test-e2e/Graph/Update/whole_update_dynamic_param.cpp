@@ -31,7 +31,7 @@ int main() {
 
   exp_ext::command_graph GraphA{Queue.get_context(), Queue.get_device()};
 
-  exp_ext::dynamic_parameter InputParam(GraphA, InputDataDevice1);
+  exp_ext::dynamic_parameter InputParam(InputDataDevice1);
   auto KernelLambda = [=]() {
     for (size_t i = 0; i < Size; i++) {
       OutputDataDevice1[i] = InputDataDevice1[i];

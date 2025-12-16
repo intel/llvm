@@ -23,7 +23,8 @@ class OneDnnBench(Suite):
         return "https://github.com/uxlfoundation/oneDNN.git"
 
     def git_tag(self):
-        return "v3.8"
+        # 7 Nov, 2025
+        return "v3.10"
 
     def name(self):
         return "BenchDNN"
@@ -66,8 +67,12 @@ class OneDnnBench(Suite):
                 self.git_tag(),
                 Path(options.workdir),
                 "onednn",
-                force_rebuild=True,
+                use_installdir=False,
             )
+
+        if not self.project.needs_rebuild():
+            log.info(f"Rebuilding {self.project.name} skipped")
+            return
 
         extra_cmake_args = [
             f"-DCMAKE_PREFIX_PATH={options.sycl}",
@@ -80,7 +85,6 @@ class OneDnnBench(Suite):
         ]
         self.project.configure(
             extra_cmake_args,
-            install_prefix=False,
             add_sycl=True,
         )
         self.project.build(
@@ -90,9 +94,6 @@ class OneDnnBench(Suite):
             + self.oneapi.ld_libraries(),
             timeout=60 * 20,
         )
-
-    def teardown(self):
-        pass
 
 
 class OneDnnBenchmark(Benchmark):
@@ -207,6 +208,3 @@ class OneDnnBenchmark(Benchmark):
         if values:
             return sum(values)
         return 0.0
-
-    def teardown(self):
-        pass

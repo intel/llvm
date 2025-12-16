@@ -75,8 +75,12 @@ ur_result_t EnqueueUSMSet(ur_queue_handle_t Queue, void *Ptr, T Value,
                           const ur_event_handle_t *EventWaitList = nullptr,
                           ur_event_handle_t *OutEvent = nullptr) {
   assert(Size % sizeof(T) == 0);
+  thread_local static T StaticValue;
+
+  StaticValue = Value;
   return getContext()->urDdiTable.Enqueue.pfnUSMFill(
-      Queue, Ptr, sizeof(T), &Value, Size, NumEvents, EventWaitList, OutEvent);
+      Queue, Ptr, sizeof(T), &StaticValue, Size, NumEvents, EventWaitList,
+      OutEvent);
 }
 
 void PrintUrBuildLogIfError(ur_result_t Result, ur_program_handle_t Program,

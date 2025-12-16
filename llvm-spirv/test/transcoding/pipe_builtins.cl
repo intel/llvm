@@ -8,15 +8,15 @@
 // RUN: llvm-spirv -r %t.spv -o %t.bc
 // RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
-// CHECK-SPIRV-DAG: Name [[#ConvenienceWriteUint:]] "test_pipe_convenience_write_uint"
-// CHECK-SPIRV-DAG: Name [[#ConvenienceReadUint:]] "test_pipe_convenience_read_uint"
-// CHECK-SPIRV-DAG: Name [[#Write:]] "test_pipe_write"
-// CHECK-SPIRV-DAG: Name [[#Query:]] "test_pipe_query_functions"
-// CHECK-SPIRV-DAG: Name [[#Read:]] "test_pipe_read"
-// CHECK-SPIRV-DAG: Name [[#WorkgroupWriteChar:]] "__clang_ocl_kern_imp_test_pipe_workgroup_write_char"
-// CHECK-SPIRV-DAG: Name [[#WorkgroupReadChar:]] "__clang_ocl_kern_imp_test_pipe_workgroup_read_char"
-// CHECK-SPIRV-DAG: Name [[#SubgroupWriteUint:]] "__clang_ocl_kern_imp_test_pipe_subgroup_write_uint"
-// CHECK-SPIRV-DAG: Name [[#SubgroupReadUint:]] "__clang_ocl_kern_imp_test_pipe_subgroup_read_uint"
+// CHECK-SPIRV-DAG: EntryPoint [[#]] [[#ConvenienceWriteUint:]] "test_pipe_convenience_write_uint"
+// CHECK-SPIRV-DAG: EntryPoint [[#]] [[#ConvenienceReadUint:]] "test_pipe_convenience_read_uint"
+// CHECK-SPIRV-DAG: EntryPoint [[#]] [[#Write:]] "test_pipe_write"
+// CHECK-SPIRV-DAG: EntryPoint [[#]] [[#Query:]] "test_pipe_query_functions"
+// CHECK-SPIRV-DAG: EntryPoint [[#]] [[#Read:]] "test_pipe_read"
+// CHECK-SPIRV-DAG: EntryPoint [[#]] [[#WorkgroupWriteChar:]] "test_pipe_workgroup_write_char"
+// CHECK-SPIRV-DAG: EntryPoint [[#]] [[#WorkgroupReadChar:]] "test_pipe_workgroup_read_char"
+// CHECK-SPIRV-DAG: EntryPoint [[#]] [[#SubgroupWriteUint:]] "test_pipe_subgroup_write_uint"
+// CHECK-SPIRV-DAG: EntryPoint [[#]] [[#SubgroupReadUint:]] "test_pipe_subgroup_read_uint"
 
 // CHECK-SPIRV-DAG: TypePipe [[ROPipeTy:[0-9]+]] 0
 // CHECK-SPIRV-DAG: TypePipe [[WOPipeTy:[0-9]+]] 1

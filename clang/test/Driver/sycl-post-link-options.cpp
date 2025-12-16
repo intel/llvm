@@ -1,4 +1,3 @@
-// REQUIRES: system-linux
 /// Verify same set of sycl-post-link options generated for old and new offloading model
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl -### \
 // RUN:          --no-offload-new-driver -Xdevice-post-link -O0 %s --sysroot=%S/Inputs/SYCL 2>&1 \

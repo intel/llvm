@@ -1,0 +1,1922 @@
+= sycl_ext_oneapi_fp8
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+// This is necessary for asciidoc, but not for asciidoctor
+:cpp: C++
+:dpcpp: DPC++
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2025 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.
+OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 10 specification.
+All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extensions:
+
+* link:../../supported/sycl_ext_oneapi_bfloat16.asciidoc[sycl_ext_oneapi_bfloat16]
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.
+Interfaces defined in this specification may not be implemented yet or may be in
+a preliminary state.
+The specification itself may also change in incompatible ways before it is
+finalized.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+
+== Overview
+
+This extension adds support for conversions between 8-bit floating point types
+and other types.
+Three formats are supported: E4M3, E5M2, and E8M0.
+
+
+== Target support
+
+Some operations in this extension are supported only on certain target device
+architectures.
+These are described in the _Target Support_ clauses below for each operation.
+When the application violates these restrictions, the behavior is undefined.
+However, implementations are encouraged to diagnose either a compile time or a
+runtime error.
+When a runtime error is diagnosed in host code, an assertion failure is
+recommended.
+When a runtime error is diagnosed in device code, it is recommended to either
+throw a synchronous exception from the kernel launch function or to report an
+asynchronous error from the kernel invocation.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.
+An implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_FP8` to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's value
+to determine which of the extension's features the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== Rounding modes
+
+This extension adds the following enumeration of possible rounding modes.
+
+'''
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+enum class rounding {
+  to_even,
+  upward,
+  toward_zero
+};
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+'''
+
+`*to_even*`
+
+The IEEE 754 "roundTiesToEven" rounding mode.
+
+'''
+
+`*upward*`
+
+The IEEE 754 "roundTowardPositive" rounding mode.
+
+'''
+
+`*toward_zero*`
+
+The IEEE 754 "roundTowardZero" rounding mode.
+
+'''
+
+=== Saturation modes
+
+This extension adds the following enumeration of possible saturation modes which
+also affect rounding.
+
+'''
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+enum class saturation {
+  none,
+  finite
+};
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+'''
+
+`*none*`
+
+Values larger in magnitude than the max normal value are converted to either
+Infinity or NaN, as appropriate for the destination type.
+The sign is preserved.
+See the sections below titled "Non-stochastic rounding modes without saturation"
+and "Stochastic rounding without saturation" for the exact details.
+
+'''
+
+`*finite*`
+
+Values larger in magnitude than the max normal value are converted to the max
+normal value preserving the sign.
+
+'''
+
+=== Stochastic rounding helper
+
+This extension adds the following helper that captures a stochastic rounding
+seed value.
+
+'''
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+struct stochastic_seed {
+  explicit stochastic_seed(uint32_t* pseed) : pseed(pseed) {}
+  uint32_t* const pseed;
+};
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+'''
+
+=== The E4M3 type
+
+The E4M3 type is an 8-bit floating-point format with one sign bit, four exponent
+bits and three mantissa bits.
+In order to extend the range, the format deviates from the IEEE-754 style.
+Unlike IEEE-754, an exponent with all 1's is considered a normal value unless
+the mantissa is also all 1's.
+The format cannot represent Infinity, and the value produced when converting an
+infinite result depends on the saturation and rounding mode.
+
+The following table provides the special values of the E4M3 type.
+
+[options="header"]
+[width="80%"]
+[cols="1,2"]
+|====
+| ^| E4M3
+
+| Exponent Bias
+| 7
+
+| Max normal
+| S.1111.110 = 448.0 (1.75 * 2^8^)
+
+| Min normal
+| S.0001.000 = 1.56e-02 (2^-6^)
+
+| Max subnormal
+| S.0000.111 = 1.37e-02 (0.875 * 2^-6^)
+
+| Min subnormal
+| S.0000.001 = 1.95e-03 (2^-9^)
+
+| Infinity
+| N/A
+
+| NaN
+| S.1111.111
+|====
+
+This extension adds the `fp8_e4m3` type, which represents a set of packed E4M3
+values and provides various conversions to other types.
+The number of packed elements is defined by the `N` template parameter.
+
+[_Note:_ Although the `fp8_e4m3` type can be instantiated with any value of `N`,
+most operations on `fp8_e4m3` support only certain values of `N` according to
+the target device architecture.
+See the _Target Support_ clauses in the descriptions below for more details.
+_{endnote}_]
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<size_t N>
+class fp8_e4m3 {
+ public:
+  fp8_e4m3() = default;
+  fp8_e4m3(const fp8_e4m3 &) = default;
+  ~fp8_e4m3() = default;
+  fp8_e4m3& operator=(const fp8_e4m3&) = default;
+
+  // Construct from pack of half, bfloat16, float, double.
+  // Available only when the size of the pack is equal to N.
+
+  // Available only when each type in the pack is half.
+  template<typename... Halfs>
+  explicit fp8_e4m3(Halfs... vals);
+
+  // Available only when each type in the pack is bfloat16.
+  template<typename... Bfloats>
+  explicit fp8_e4m3(Bfloats... vals);
+
+  // Available only when each type in the pack is float.
+  template<typename... Floats>
+  explicit fp8_e4m3(Floats... vals);
+
+  // Available only when each type in the pack is double.
+  template<typename... Doubles>
+  explicit fp8_e4m3(Doubles... vals);
+
+  // Construct from an array of half, bfloat16, float, double.
+
+  explicit fp8_e4m3(half const (&vals)[N], rounding r = rounding::to_even,
+                    saturation s = saturation::finite);
+  explicit fp8_e4m3(bfloat16 const (&vals)[N], rounding r = rounding::to_even,
+                    saturation s = saturation::finite);
+  explicit fp8_e4m3(float const (&vals)[N], rounding r = rounding::to_even,
+                    saturation s = saturation::finite);
+  explicit fp8_e4m3(double const (&vals)[N]);
+
+  // Construct from an marray of half, bfloat16, float, double.
+
+  explicit fp8_e4m3(const marray<half,N>& vals, rounding r = rounding::to_even,
+                    saturation s = saturation::finite);
+  explicit fp8_e4m3(const marray<bfloat16,N>& vals, rounding r = rounding::to_even,
+                    saturation s = saturation::finite);
+  explicit fp8_e4m3(const marray<float,N>& vals, rounding r = rounding::to_even,
+                    saturation s = saturation::finite);
+  explicit fp8_e4m3(const marray<double,N>& vals);
+
+  // Construct with stochastic rounding with user provided seed from an array of
+  // half, bfloat16, float.
+
+  explicit fp8_e4m3(half const (&vals)[N], const stochastic_seed& seed,
+                    saturation s = saturation::finite);
+  explicit fp8_e4m3(bfloat16 const (&vals)[N], const stochastic_seed& seed,
+                    saturation s = saturation::finite);
+  explicit fp8_e4m3(float const (&vals)[N], const stochastic_seed& seed,
+                    saturation s = saturation::finite);
+
+  // Construct with stochastic rounding with user provided seed from an marray
+  // of half, bfloat16, float.
+
+  explicit fp8_e4m3(const marray<half,N>& vals, const stochastic_seed& seed,
+                    saturation s = saturation::finite);
+  explicit fp8_e4m3(const marray<bfloat16,N>& vals, const stochastic_seed& seed,
+                    saturation s = saturation::finite);
+  explicit fp8_e4m3(const marray<float,N>& vals, const stochastic_seed& seed,
+                    saturation s = saturation::finite);
+
+  // Construct from integer types.
+  // Available only when N==1.
+
+  explicit fp8_e4m3(short val);
+  explicit fp8_e4m3(int val);
+  explicit fp8_e4m3(long val);
+  explicit fp8_e4m3(long long val);
+  explicit fp8_e4m3(unsigned short val);
+  explicit fp8_e4m3(unsigned int val);
+  explicit fp8_e4m3(unsigned long val);
+  explicit fp8_e4m3(unsigned long long val);
+
+  // Assign (operator) from half, bfloat16, float, double, and integer types.
+  // Available only when N==1.
+
+  fp8_e4m3& operator=(half val);
+  fp8_e4m3& operator=(bfloat16 val);
+  fp8_e4m3& operator=(float val);
+  fp8_e4m3& operator=(double val);
+  fp8_e4m3& operator=(short val);
+  fp8_e4m3& operator=(int val);
+  fp8_e4m3& operator=(long val);
+  fp8_e4m3& operator=(long long val);
+  fp8_e4m3& operator=(unsigned short val);
+  fp8_e4m3& operator=(unsigned int val);
+  fp8_e4m3& operator=(unsigned long val);
+  fp8_e4m3& operator=(unsigned long long val);
+
+  // Convert to half, bfloat16, float, double.
+  // Available only when N==1.
+
+  explicit operator half() const;
+  explicit operator bfloat16() const;
+  explicit operator float() const;
+  explicit operator double() const;
+
+  // Convert to integer types.
+  // Available only when N==1.
+
+  explicit operator char() const;
+  explicit operator signed char() const;
+  explicit operator short() const;
+  explicit operator int() const;
+  explicit operator long() const;
+  explicit operator long long() const;
+  explicit operator unsigned char() const;
+  explicit operator unsigned short() const;
+  explicit operator unsigned int() const;
+  explicit operator unsigned long() const;
+  explicit operator unsigned long long() const;
+
+  // Convert to bool
+  // Available only when N==1.
+
+  explicit operator bool() const;
+
+  // Convert to marray of half, bfloat16, float
+
+  explicit operator marray<half,N>() const;
+  explicit operator marray<bfloat16,N>() const;
+  explicit operator marray<float,N>() const;
+
+  // Intentionally public to allow access to the raw values.
+
+  uint8_t vals[N];
+};
+
+// Deduction guide available only when the size of the pack is greater than zero.
+template<typename... Ts>
+fp8_e4m3(Ts...) -> fp8_e4m3<sizeof...(Ts)>;
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+==== Trivial constructors, destructor, and copy assignment operator
+
+[source,c++]
+----
+fp8_e4m3() = default;
+fp8_e4m3(const fp8_e4m3 &) = default;
+~fp8_e4m3() = default;
+fp8_e4m3& operator=(const fp8_e4m3&) = default;
+----
+
+The default constructor, copy constructor, destructor, and copy assignment
+operator are all trivial.
+
+==== Constructors
+
+[source,c++]
+----
+template<typename... Halfs>          (1)
+explicit fp8_e4m3(Halfs... vals);
+
+template<typename... Bfloats>        (2)
+explicit fp8_e4m3(Bfloats... vals);
+
+template<typename... Floats>         (3)
+explicit fp8_e4m3(Floats... vals);
+
+template<typename... Doubles>        (4)
+explicit fp8_e4m3(Doubles... vals);
+----
+
+_Constraints_ (1): The size of the `Halfs` pack is `N` and each type in this
+pack is `half`.
+
+_Constraints_ (2): The size of the `Bfloats` pack is `N` and each type in this
+pack is `ext::oneapi::bfloat16`.
+
+_Constraints_ (3): The size of the `Floats` pack is `N` and each type in this
+pack is `float`.
+
+_Constraints_ (4): The size of the `Doubles` pack is `N` and each type in this
+pack is `double`.
+
+_Effects:_ Initializes each element of this `fp8_e4m3` object from the
+corresponding value in the `vals` pack.
+Each value is converted using the `rounding::to_even` rounding mode and the
+`saturation::finite` saturation mode.
+
+_Target Support:_ The number of elements in this `fp8_e4m3` (the `N` template
+parameter) has the following restrictions:
+
+* Host code supports all values of `N`.
+* Device code compiled for Intel Xe3p (CRI) supports only the
+  following `N` values: 1, 2, 3, 4, 8, 16.
+
+'''
+
+[source,c++]
+----
+explicit fp8_e4m3(half const (&vals)[N], rounding r = rounding::to_even,      (1)
+                  saturation s = saturation::finite);
+explicit fp8_e4m3(bfloat16 const (&vals)[N], rounding r = rounding::to_even,  (2)
+                  saturation s = saturation::finite);
+explicit fp8_e4m3(float const (&vals)[N], rounding r = rounding::to_even,     (3)
+                  saturation s = saturation::finite);
+explicit fp8_e4m3(double const (&vals)[N]);                                   (4)
+----
+
+_Effects:_ Initializes each element of this `fp8_e4m3` object from the
+corresponding element in the array `vals`.
+In overloads (1) - (3), each value is converted using the `r` rounding mode and
+the `s` saturation mode.
+In overload (4), each value is converted using the `rounding::to_even` rounding
+mode and the `saturation::finite` saturation mode.
+
+_Target Support:_ The rounding mode `r` and saturation mode `s` values have the
+following restrictions:
+
+* Host code supports only `rounding::to_even` and `saturation::finite`.
+* Device code compiled for Intel Xe3p (CRI) supports only
+  `rounding::to_even` (with either saturation mode).
+
+The number of elements in this `fp8_e4m3` (the `N` template parameter) has the
+following restrictions:
+
+* Host code supports all values of `N`.
+* Device code compiled for Intel Xe3p (CRI) supports only the
+  following `N` values: 1, 2, 3, 4, 8, 16.
+
+'''
+
+[source,c++]
+----
+explicit fp8_e4m3(const marray<half,N>& vals, rounding r = rounding::to_even,      (1)
+                  saturation s = saturation::finite);
+explicit fp8_e4m3(const marray<bfloat16,N>& vals, rounding r = rounding::to_even,  (2)
+                  saturation s = saturation::finite);
+explicit fp8_e4m3(const marray<float,N>& vals, rounding r = rounding::to_even,     (3)
+                  saturation s = saturation::finite);
+explicit fp8_e4m3(const marray<double,N>& vals);                                   (4)
+----
+
+_Effects:_ Initializes each element of this `fp8_e4m3` object from the
+corresponding element in the `marray` object `vals`.
+In overloads (1) - (3), each value is converted using the `r` rounding mode and
+the `s` saturation mode.
+In overload (4), each value is converted using the `rounding::to_even` rounding
+mode and the `saturation::finite` saturation mode.
+
+_Target Support:_ The rounding mode `r` and saturation mode `s` values have the
+following restrictions:
+
+* Host code supports only `rounding::to_even` and `saturation::finite`.
+* Device code compiled for Intel Xe3p (CRI) supports only
+  `rounding::to_even` (with either saturation mode).
+
+The number of elements in this `fp8_e4m3` (the `N` template parameter) has the
+following restrictions:
+
+* Host code supports all values of `N`.
+* Device code compiled for Intel Xe3p (CRI) supports only the
+  following `N` values: 1, 2, 3, 4, 8, 16.
+
+'''
+
+[source,c++]
+----
+explicit fp8_e4m3(half const (&vals)[N], const stochastic_seed& seed,
+                  saturation s = saturation::finite);
+explicit fp8_e4m3(bfloat16 const (&vals)[N], const stochastic_seed& seed,
+                  saturation s = saturation::finite);
+explicit fp8_e4m3(float const (&vals)[N], const stochastic_seed& seed,
+                  saturation s = saturation::finite);
+----
+
+_Effects:_ Initializes each element of this `fp8_e4m3` object from the
+corresponding value in the array `vals` using stochastic rounding.
+The pseudo-random biases are created deterministically using the seed value
+referenced by the helper object `seed`.
+The saturation mode is `s`.
+
+The referenced seed value is also deterministically updated to a new
+pseudo-random value.
+This update is done with a non-atomic operation, so each work-item should
+reference a different seed value to avoid a race condition.
+
+_Target Support:_ These functions are not supported in host code.
+They are only supported in device code as follows:
+
+* Device code compiled for Intel Xe3p (CRI) supports these
+  functions.
+
+The number of elements in this `fp8_e4m3` (the `N` template parameter) has the
+following restrictions:
+
+* Device code compiled for Intel Xe3p (CRI) supports only the
+  following `N` values: 1, 2, 3, 4, 8, 16.
+
+'''
+
+[source,c++]
+----
+explicit fp8_e4m3(const marray<half,N>& vals, const stochastic_seed& seed,
+                  saturation s = saturation::finite);
+explicit fp8_e4m3(const marray<bfloat16,N>& vals, const stochastic_seed& seed,
+                  saturation s = saturation::finite);
+explicit fp8_e4m3(const marray<float,N>& vals, const stochastic_seed& seed,
+                  saturation s = saturation::finite);
+----
+
+_Effects:_ Initializes each element of this `fp8_e4m3` object from the
+corresponding value in the `marray` object `vals` using stochastic rounding.
+The pseudo-random biases are created deterministically using the seed value
+referenced by the helper object `seed`.
+The saturation mode is `s`.
+
+The referenced seed value is also deterministically updated to a new
+pseudo-random value.
+This update is done with a non-atomic operation, so each work-item should
+reference a different seed value to avoid a race condition.
+
+_Target Support:_ These functions are not supported in host code.
+They are only supported in device code as follows:
+
+* Device code compiled for Intel Xe3p (CRI) supports these
+  functions.
+
+The number of elements in this `fp8_e4m3` (the `N` template parameter) has the
+following restrictions:
+
+* Device code compiled for Intel Xe3p (CRI) supports only the
+  following `N` values: 1, 2, 3, 4, 8, 16.
+
+'''
+
+[source,c++]
+----
+explicit fp8_e4m3(short val);
+explicit fp8_e4m3(int val);
+explicit fp8_e4m3(long val);
+explicit fp8_e4m3(long long val);
+explicit fp8_e4m3(unsigned short val);
+explicit fp8_e4m3(unsigned int val);
+explicit fp8_e4m3(unsigned long val);
+explicit fp8_e4m3(unsigned long long val);
+----
+
+_Constraints:_ `N == 1`.
+
+_Effects:_ Initializes the single element of this `fp8_e4m3` object from `val`.
+The value `val` is converted using the `rounding::to_even` rounding mode and the
+`saturation::finite` saturation mode.
+
+'''
+
+==== Assignment operators
+
+[source,c++]
+----
+fp8_e4m3& operator=(half val);
+fp8_e4m3& operator=(bfloat16 val);
+fp8_e4m3& operator=(float val);
+fp8_e4m3& operator=(double val);
+fp8_e4m3& operator=(short val);
+fp8_e4m3& operator=(int val);
+fp8_e4m3& operator=(long val);
+fp8_e4m3& operator=(long long val);
+fp8_e4m3& operator=(unsigned short val);
+fp8_e4m3& operator=(unsigned int val);
+fp8_e4m3& operator=(unsigned long val);
+fp8_e4m3& operator=(unsigned long long val);
+----
+
+_Constraints:_ `N == 1`.
+
+_Effects:_ Assigns the single element of this `fp8_e4m3` object to `val`.
+The value `val` is converted using the `rounding::to_even` rounding mode and the
+`saturation::finite` saturation mode.
+
+_Returns:_ A reference to this `fp8_e4m3` object.
+
+==== Conversion operators
+
+[source,c++]
+----
+explicit operator half() const;
+explicit operator bfloat16() const;
+explicit operator float() const;
+explicit operator double() const;
+----
+
+_Constraints:_ `N == 1`.
+
+_Returns_: The single element of this `fp8_e4m3` object is converted to the
+operator's respective type.
+
+[_Note:_ These conversions are exact, so there is no rounding or saturation
+mode.
+_{endnote}_]
+
+'''
+
+[source,c++]
+----
+explicit operator char() const;
+explicit operator signed char() const;
+explicit operator short() const;
+explicit operator int() const;
+explicit operator long() const;
+explicit operator long long() const;
+explicit operator unsigned char() const;
+explicit operator unsigned short() const;
+explicit operator unsigned int() const;
+explicit operator unsigned long() const;
+explicit operator unsigned long long() const;
+----
+
+_Constraints:_ `N == 1`.
+
+_Returns_: The single element of this `fp8_e4m3` object is converted to the
+operator's respective type using the `rounding::toward_zero` rounding mode.
+
+'''
+
+[source,c++]
+----
+explicit operator bool() const;
+----
+
+_Constraints:_ `N == 1`.
+
+_Returns_: The value `false` if the single element of this `fp8_e4m3` is either
++0 or -0.
+Otherwise, returns the value `true`.
+
+'''
+
+[source,c++]
+----
+explicit operator marray<half,N>() const;      (1)
+explicit operator marray<bfloat16,N>() const;  (2)
+explicit operator marray<float,N>() const;     (3)
+----
+
+_Returns:_ The values of this `fp8_e4m3` object are converted to an `marray` of
+`half`, `ext::oneapi::bfloat16`, or `float`.
+
+_Target Support:_ The number of elements in this `fp8_e4m3` (the `N` template
+parameter) has the following restrictions:
+
+* Host code supports all values of `N`.
+* Device code compiled for Intel Xe3p (CRI) supports only the
+  following `N` values: 1, 2, 3, 4, 8, 16.
+
+[_Note:_ These conversions are exact, so there is no rounding or saturation
+mode.
+_{endnote}_]
+
+'''
+
+==== Member variable
+
+[source,c++]
+----
+uint8_t vals[N];
+----
+
+Provides direct access to the storage of the E4M3 values in this `fp8_e4m3`
+object.
+
+==== Deduction guide
+
+[source,c++]
+----
+template<typename... Ts>
+fp8_e4m3(Ts...) -> fp8_e4m3<sizeof...(Ts)>;
+----
+
+_Constraints:_ The size of the `Ts` pack is greater than zero.
+
+==== Non-stochastic rounding modes with saturation
+
+Conversions to E4M3 using one of the non-stochastic rounding modes and with
+`saturation::finite` work as follows:
+
+* Infinity is converted to the max normal value while preserving the sign.
+* NaN is converted to NaN with an implementation-defined sign.
+* Other values are rounded according to the rounding mode.
+* If the resulting value is larger in magnitude than the max normal value, it is
+  converted to the max normal value while preserving the sign.
+
+==== Non-stochastic rounding modes without saturation
+
+Conversions to E4M3 using one of the non-stochastic rounding modes and with
+`saturation::none` work as follows:
+
+* Infinity is converted to NaN while preserving the sign.
+* NaN is converted to NaN with an implementation-defined sign.
+* Other values are rounded according to the rounding mode.
+* If the resulting value is larger in magnitude than the max normal value, it is
+  converted to NaN while preserving the sign.
+
+==== Stochastic rounding with saturation
+
+Conversions to E4M3 using stochastic rounding and with `saturation::finite` work
+as follows:
+
+* Infinity is converted to the max normal value while preserving the sign.
+* NaN is converted to NaN with an implementation-defined sign.
+
+For other values, a pseudo-random bias is added to the mantissa.
+If this overflows the mantissa, the exponent is incremented by 1 and the
+mantissa is shifted to the right.
+The resulting value is then converted as follows:
+
+* The value is rounded using IEEE 754 "roundTowardZero".
+* If the resulting value is larger in magnitude than the max normal value, it is
+  converted to the max normal value while preserving the sign.
+
+==== Stochastic rounding without saturation
+
+Conversions to E4M3 using stochastic rounding and with `saturation::none` work
+as follows:
+
+* Infinity is converted to NaN while preserving the sign.
+* NaN is converted to NaN with an implementation-defined sign.
+
+For other values, a pseudo-random bias is added to the mantissa.
+If this overflows the mantissa, the exponent is incremented by 1 and the
+mantissa is shifted to the right.
+The resulting value is then converted as follows:
+
+* The value is rounded using IEEE 754 "roundTowardZero".
+* If the resulting value is larger in magnitude than the max normal value,
+  it is converted to NaN while preserving the sign.
+
+==== Integer conversions
+
+Conversions from E4M3 to non-boolean integral types work as follows:
+
+* NaN is converted to an implementation-defined value.
+* Other values are rounded according to the rounding mode.
+* If the resulting value is positive and out-of-range for the integer type, it
+  is converted to the type's maximum value.
+* If the resulting value is negative and out-of-range for the integer type, it
+  is converted to the type's minimum value (which is zero for unsigned types).
+
+=== The E5M2 type
+
+The E5M2 type is a truncated variant of the IEEE 754 half-precision 16-bit
+floating-point format with one sign bit, five exponent bits and two mantissa
+bits.
+The E5M2 format has the same dynamic range as the 16-bit half format, but with
+lower precision.
+
+The following table provides the special values of the E5M2 type.
+
+[options="header"]
+[width="80%"]
+[cols="1,2"]
+|====
+| ^| E5M2
+
+| Exponent Bias
+| 15
+
+| Max normal
+| S.11110.11 = 57344.0 (1.75 * 2^15^)
+
+| Min normal
+| S.00001.00 = 6.10e-05 (2^-14^)
+
+| Max subnormal
+| S.00000.11 = 4.58e-05 (0.75*2^-14^)
+
+| Min subnormal
+| S.00000.01 = 1.53e-05 (2^-16^)
+
+| Infinity
+| S.11111.00
+
+| NaN
+| S.11111.{01,10,11}
+
+|====
+
+This extension adds the `fp8_e5m2` type, which represents a set of packed E5M2
+values and provides various conversions to other types.
+The number of packed elements is defined by the `N` template parameter.
+
+[_Note:_ Although the `fp8_e5m2` type can be instantiated with any value of `N`,
+most operations on `fp8_e5m2` support only certain values of `N` according to
+the target device architecture.
+See the _Target Support_ clauses in the descriptions below for more details.
+_{endnote}_]
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<size_t N>
+class fp8_e5m2 {
+ public:
+  fp8_e5m2() = default;
+  fp8_e5m2(const fp8_e5m2 &) = default;
+  ~fp8_e5m2() = default;
+  fp8_e5m2& operator=(const fp8_e5m2&) = default;
+
+  // Construct from pack of half, bfloat16, float, double.
+  // Available only when the size of the pack is equal to N.
+
+  // Available only when each type in the pack is half.
+  template<typename... Halfs>
+  explicit fp8_e5m2(Halfs... vals);
+
+  // Available only when each type in the pack is bfloat16.
+  template<typename... Bfloats>
+  explicit fp8_e5m2(Bfloats... vals);
+
+  // Available only when each type in the pack is float.
+  template<typename... Floats>
+  explicit fp8_e5m2(Floats... vals);
+
+  // Available only when each type in the pack is double.
+  template<typename... Doubles>
+  explicit fp8_e5m2(Doubles... vals);
+
+  // Construct from an array of half, bfloat16, float, double.
+
+  explicit fp8_e5m2(half const (&vals)[N], rounding r = rounding::to_even,
+                    saturation s = saturation::finite);
+  explicit fp8_e5m2(bfloat16 const (&vals)[N], rounding r = rounding::to_even,
+                    saturation s = saturation::finite);
+  explicit fp8_e5m2(float const (&vals)[N], rounding r = rounding::to_even,
+                    saturation s = saturation::finite);
+  explicit fp8_e5m2(double const (&vals)[N]);
+
+  // Construct from an marray of half, bfloat16, float, double.
+
+  explicit fp8_e5m2(const marray<half,N>& vals, rounding r = rounding::to_even,
+                    saturation s = saturation::finite);
+  explicit fp8_e5m2(const marray<bfloat16,N>& vals, rounding r = rounding::to_even,
+                    saturation s = saturation::finite);
+  explicit fp8_e5m2(const marray<float,N>& vals, rounding r = rounding::to_even,
+                    saturation s = saturation::finite);
+  explicit fp8_e5m2(const marray<double,N>& vals);
+
+  // Construct with stochastic rounding with user provided seed from an array of
+  // half, bfloat16, float.
+
+  explicit fp8_e5m2(half const (&vals)[N], const stochastic_seed& seed,
+                    saturation s = saturation::finite);
+  explicit fp8_e5m2(bfloat16 const (&vals)[N], const stochastic_seed& seed,
+                    saturation s = saturation::finite);
+  explicit fp8_e5m2(double const (&vals)[N], const stochastic_seed& seed,
+                    saturation s = saturation::finite);
+
+  // Construct with stochastic rounding with user provided seed from an marray
+  // of half, bfloat16, float.
+
+  explicit fp8_e5m2(const marray<half,N>& vals, const stochastic_seed& seed,
+                    saturation s = saturation::finite);
+  explicit fp8_e5m2(const marray<bfloat16,N>& vals, const stochastic_seed& seed,
+                    saturation s = saturation::finite);
+  explicit fp8_e5m2(const marray<double,N>& vals, const stochastic_seed& seed,
+                    saturation s = saturation::finite);
+
+  // Construct from integer types.
+  // Available only when N==1.
+
+  explicit fp8_e5m2(short val);
+  explicit fp8_e5m2(int val);
+  explicit fp8_e5m2(long val);
+  explicit fp8_e5m2(long long val);
+  explicit fp8_e5m2(unsigned short val);
+  explicit fp8_e5m2(unsigned int val);
+  explicit fp8_e5m2(unsigned long val);
+  explicit fp8_e5m2(unsigned long long val);
+
+  // Assign (operator) from half, bfloat16, float, double, and integer types.
+  // Available only when N==1.
+
+  fp8_e5m2& operator=(half val);
+  fp8_e5m2& operator=(bfloat16 val);
+  fp8_e5m2& operator=(float val);
+  fp8_e5m2& operator=(double val);
+  fp8_e5m2& operator=(short val);
+  fp8_e5m2& operator=(int val);
+  fp8_e5m2& operator=(long val);
+  fp8_e5m2& operator=(long long val);
+  fp8_e5m2& operator=(unsigned short val);
+  fp8_e5m2& operator=(unsigned int val);
+  fp8_e5m2& operator=(unsigned long val);
+  fp8_e5m2& operator=(unsigned long long val);
+
+  // Convert to half, bfloat16, float, double.
+  // Available only when N==1.
+
+  explicit operator half() const;
+  explicit operator bfloat16() const;
+  explicit operator float() const;
+  explicit operator double() const;
+
+  // Convert to integer types.
+  // Available only when N==1.
+
+  explicit operator char() const;
+  explicit operator signed char() const;
+  explicit operator short() const;
+  explicit operator int() const;
+  explicit operator long() const;
+  explicit operator long long() const;
+  explicit operator unsigned char() const;
+  explicit operator unsigned short() const;
+  explicit operator unsigned int() const;
+  explicit operator unsigned long() const;
+  explicit operator unsigned long long() const;
+
+  // Convert to bool
+  // Available only when N==1.
+
+  explicit operator bool() const;
+
+  // Convert to marray of half, bfloat16, float
+
+  explicit operator marray<half,N>() const;
+  explicit operator marray<bfloat16,N>() const;
+  explicit operator marray<float,N>() const;
+
+  // Intentionally public to allow access to the raw values.
+
+  uint8_t vals[N];
+};
+
+// Deduction guide available only when the size of the pack is greater than zero.
+template<typename... Ts>
+fp8_e5m2(Ts...) -> fp8_e5m2<sizeof...(Ts)>;
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+==== Trivial constructors, destructor, and copy assignment operator
+
+[source,c++]
+----
+fp8_e5m2() = default;
+fp8_e5m2(const fp8_e5m2 &) = default;
+~fp8_e5m2() = default;
+fp8_e5m2& operator=(const fp8_e5m2&) = default;
+----
+
+The default constructor, copy constructor, destructor, and copy assignment
+operator are all trivial.
+
+==== Constructors
+
+[source,c++]
+----
+template<typename... Halfs>          (1)
+explicit fp8_e5m2(Halfs... vals);
+
+template<typename... Bfloats>        (2)
+explicit fp8_e5m2(Bfloats... vals);
+
+template<typename... Floats>         (3)
+explicit fp8_e5m2(Floats... vals);
+
+template<typename... Doubles>        (4)
+explicit fp8_e5m2(Doubles... vals);
+----
+
+_Constraints_ (1): The size of the `Halfs` pack is `N` and each type in this
+pack is `half`.
+
+_Constraints_ (2): The size of the `Bfloats` pack is `N` and each type in this
+pack is `ext::oneapi::bfloat16`.
+
+_Constraints_ (3): The size of the `Floats` pack is `N` and each type in this
+pack is `float`.
+
+_Constraints_ (4): The size of the `Doubles` pack is `N` and each type in this
+pack is `double`.
+
+_Effects:_ Initializes each element of this `fp8_e5m2` object from the
+corresponding value in the `vals` pack.
+Each value is converted using the `rounding::to_even` rounding mode and the
+`saturation::finite` saturation mode.
+
+_Target Support:_ The number of elements in this `fp8_e5m2` (the `N` template
+parameter) has the following restrictions:
+
+* Host code supports all values of `N`.
+* Device code compiled for Intel Xe3p (CRI) supports only the
+  following `N` values: 1, 2, 3, 4, 8, 16.
+
+'''
+
+[source,c++]
+----
+explicit fp8_e5m2(half const (&vals)[N], rounding r = rounding::to_even,      (1)
+                  saturation s = saturation::finite);
+explicit fp8_e5m2(bfloat16 const (&vals)[N], rounding r = rounding::to_even,  (2)
+                  saturation s = saturation::finite);
+explicit fp8_e5m2(float const (&vals)[N], rounding r = rounding::to_even,     (3)
+                  saturation s = saturation::finite);
+explicit fp8_e5m2(double const (&vals)[N]);                                   (4)
+----
+
+_Effects:_ Initializes each element of this `fp8_e5m2` object from the
+corresponding element in the array `vals`.
+In overloads (1) - (3), each value is converted using the `r` rounding mode and
+the `s` saturation mode.
+In overload (4), each value is converted using the `rounding::to_even` rounding
+mode and the `saturation::finite` saturation mode.
+
+_Target Support:_ The rounding mode `r` and saturation mode `s` values have the
+following restrictions:
+
+* Host code supports only `rounding::to_even` and `saturation::finite`.
+* Device code compiled for Intel Xe3p (CRI) supports only
+  `rounding::to_even` (with either saturation mode).
+
+The number of elements in this `fp8_e5m2` (the `N` template parameter) has the
+following restrictions:
+
+* Host code supports all values of `N`.
+* Device code compiled for Intel Xe3p (CRI) supports only the
+  following `N` values: 1, 2, 3, 4, 8, 16.
+
+'''
+
+[source,c++]
+----
+explicit fp8_e5m2(const marray<half,N>& vals, rounding r = rounding::to_even,      (1)
+                  saturation s = saturation::finite);
+explicit fp8_e5m2(const marray<bfloat16,N>& vals, rounding r = rounding::to_even,  (2)
+                  saturation s = saturation::finite);
+explicit fp8_e5m2(const marray<float,N>& vals, rounding r = rounding::to_even,     (3)
+                  saturation s = saturation::finite);
+explicit fp8_e5m2(const marray<double,N>& vals);                                   (4)
+----
+
+_Effects:_ Initializes each element of this `fp8_e5m2` object from the
+corresponding element in the `marray` object `vals`.
+In overloads (1) - (3), each value is converted using the `r` rounding mode and
+the `s` saturation mode.
+In overload (4), each value is converted using the `rounding::to_even` rounding
+mode and the `saturation::finite` saturation mode.
+
+_Target Support:_ The rounding mode `r` and saturation mode `s` values have the
+following restrictions:
+
+* Host code supports only `rounding::to_even` and `saturation::finite`.
+* Device code compiled for Intel Xe3p (CRI) supports only
+  `rounding::to_even` (with either saturation mode).
+
+The number of elements in this `fp8_e5m2` (the `N` template parameter) has the
+following restrictions:
+
+* Host code supports all values of `N`.
+* Device code compiled for Intel Xe3p (CRI) supports only the
+  following `N` values: 1, 2, 3, 4, 8, 16.
+
+'''
+
+[source,c++]
+----
+explicit fp8_e5m2(half const (&vals)[N], const stochastic_seed& seed,
+                  saturation s = saturation::finite);
+explicit fp8_e5m2(bfloat16 const (&vals)[N], const stochastic_seed& seed,
+                  saturation s = saturation::finite);
+explicit fp8_e5m2(double const (&vals)[N], const stochastic_seed& seed,
+                  saturation s = saturation::finite);
+----
+
+_Effects:_ Initializes each element of this `fp8_e5m2` object from the
+corresponding value in the array `vals` using stochastic rounding.
+The pseudo-random biases are created deterministically using the seed value
+referenced by the helper object `seed`.
+The saturation mode is `s`.
+
+The referenced seed value is also deterministically updated to a new
+pseudo-random value.
+This update is done with a non-atomic operation, so each work-item should
+reference a different seed value to avoid a race condition.
+
+_Target Support:_ These functions are not supported in host code.
+They are only supported in device code as follows:
+
+* Device code compiled for Intel Xe3p (CRI) supports these
+  functions.
+
+The number of elements in this `fp8_e5m2` (the `N` template parameter) has the
+following restrictions:
+
+* Device code compiled for Intel Xe3p (CRI) supports only the
+  following `N` values: 1, 2, 3, 4, 8, 16.
+
+'''
+
+[source,c++]
+----
+explicit fp8_e5m2(const marray<half,N>& vals, const stochastic_seed& seed,
+                  saturation s = saturation::finite);
+explicit fp8_e5m2(const marray<bfloat16,N>& vals, const stochastic_seed& seed,
+                  saturation s = saturation::finite);
+explicit fp8_e5m2(const marray<double,N>& vals, const stochastic_seed& seed,
+                  saturation s = saturation::finite);
+----
+
+_Effects:_ Initializes each element of this `fp8_e5m2` object from the
+corresponding value in the `marray` object `vals` using stochastic rounding.
+The pseudo-random biases are created deterministically using the seed value
+referenced by the helper object `seed`.
+The saturation mode is `s`.
+
+The referenced seed value is also deterministically updated to a new
+pseudo-random value.
+This update is done with a non-atomic operation, so each work-item should
+reference a different seed value to avoid a race condition.
+
+_Target Support:_ These functions are not supported in host code.
+They are only supported in device code as follows:
+
+* Device code compiled for Intel Xe3p (CRI) supports these
+  functions.
+
+The number of elements in this `fp8_e5m2` (the `N` template parameter) has the
+following restrictions:
+
+* Device code compiled for Intel Xe3p (CRI) supports only the
+  following `N` values: 1, 2, 3, 4, 8, 16.
+
+'''
+
+[source,c++]
+----
+explicit fp8_e5m2(short val);
+explicit fp8_e5m2(int val);
+explicit fp8_e5m2(long val);
+explicit fp8_e5m2(long long val);
+explicit fp8_e5m2(unsigned short val);
+explicit fp8_e5m2(unsigned int val);
+explicit fp8_e5m2(unsigned long val);
+explicit fp8_e5m2(unsigned long long val);
+----
+
+_Constraints:_ `N == 1`.
+
+_Effects:_ Initializes the single element of this `fp8_e5m2` object from `val`.
+The value `val` is converted using the `rounding::to_even` rounding mode and the
+`saturation::finite` saturation mode.
+
+'''
+
+==== Assignment operators
+
+[source,c++]
+----
+fp8_e5m2& operator=(half val);
+fp8_e5m2& operator=(bfloat16 val);
+fp8_e5m2& operator=(float val);
+fp8_e5m2& operator=(double val);
+fp8_e5m2& operator=(short val);
+fp8_e5m2& operator=(int val);
+fp8_e5m2& operator=(long val);
+fp8_e5m2& operator=(long long val);
+fp8_e5m2& operator=(unsigned short val);
+fp8_e5m2& operator=(unsigned int val);
+fp8_e5m2& operator=(unsigned long val);
+fp8_e5m2& operator=(unsigned long long val);
+----
+
+_Constraints:_ `N == 1`.
+
+_Effects:_ Assigns the single element of this `fp8_e5m2` object to `val`.
+The value `val` is converted using the `rounding::to_even` rounding mode and the
+`saturation::finite` saturation mode.
+
+_Returns:_ A reference to this `fp8_e5m2` object.
+
+==== Conversion operators
+
+[source,c++]
+----
+explicit operator half() const;
+explicit operator bfloat16() const;
+explicit operator float() const;
+explicit operator double() const;
+----
+
+_Constraints:_ `N == 1`.
+
+_Returns_: The single element of this `fp8_e5m2` object is converted to the
+operator's respective type.
+
+[_Note:_ These conversions are exact, so there is no rounding or saturation
+mode.
+_{endnote}_]
+
+'''
+
+[source,c++]
+----
+explicit operator char() const;
+explicit operator signed char() const;
+explicit operator short() const;
+explicit operator int() const;
+explicit operator long() const;
+explicit operator long long() const;
+explicit operator unsigned char() const;
+explicit operator unsigned short() const;
+explicit operator unsigned int() const;
+explicit operator unsigned long() const;
+explicit operator unsigned long long() const;
+----
+
+_Constraints:_ `N == 1`.
+
+_Returns_: The single element of this `fp8_e5m2` object is converted to the
+operator's respective type using the `rounding::toward_zero` rounding mode.
+
+'''
+
+[source,c++]
+----
+explicit operator bool() const;
+----
+
+_Constraints:_ `N == 1`.
+
+_Returns_: The value `false` if the single element of this `fp8_e5m2` is either
++0 or -0.
+Otherwise, returns the value `true`.
+
+'''
+
+[source,c++]
+----
+explicit operator marray<half,N>() const;      (1)
+explicit operator marray<bfloat16,N>() const;  (2)
+explicit operator marray<float,N>() const;     (3)
+----
+
+_Returns:_ The values of this `fp8_e5m2` object are converted to an `marray` of
+`half`, `ext::oneapi::bfloat16`, or `float`.
+
+_Target Support:_ The number of elements in this `fp8_e5m2` (the `N` template
+parameter) has the following restrictions:
+
+* Host code supports all values of `N`.
+* Device code compiled for Intel Xe3p (CRI) supports only the
+  following `N` values: 1, 2, 3, 4, 8, 16.
+
+[_Note:_ These conversions are exact, so there is no rounding or saturation
+mode.
+_{endnote}_]
+
+'''
+
+==== Member variable
+
+[source,c++]
+----
+uint8_t vals[N];
+----
+
+Provides direct access to the storage of the E5M2 values in this `fp8_e5m2`
+object.
+
+==== Deduction guide
+
+[source,c++]
+----
+template<typename... Ts>
+fp8_e5m2(Ts...) -> fp8_e5m2<sizeof...(Ts)>;
+----
+
+_Constraints:_ The size of the `Ts` pack is greater than zero.
+
+==== Non-stochastic rounding modes with saturation
+
+Conversions to E5M2 using one of the non-stochastic rounding modes and with
+`saturation::finite` work as follows:
+
+* Infinity is converted to the max normal value while preserving the sign.
+* NaN is converted to an implementation-defined E5M2 NaN.
+* Other values are rounded according to the rounding mode.
+* If the resulting value is larger in magnitude than the max normal value, it is
+  converted to the max normal value while preserving the sign.
+
+==== Non-stochastic rounding modes without saturation
+
+Conversions to E5M2 using one of the non-stochastic rounding modes and with
+`saturation::none` work as follows:
+
+* Infinity is converted to Infinity while preserving the sign.
+* NaN is converted to an implementation-defined E5M2 NaN.
+* Other values are rounded according to the rounding mode.
+* If the resulting value is larger in magnitude than the max normal value, it is
+  converted to Infinity while preserving the sign.
+
+==== Stochastic rounding with saturation
+
+Conversions to E5M2 using stochastic rounding and with `saturation::finite` work
+as follows:
+
+* Infinity is converted to the max normal value while preserving the sign.
+* NaN is converted to an implementation-defined E5M2 NaN.
+
+For other values, a pseudo-random bias is added to the mantissa.
+If this overflows the mantissa, the exponent is incremented by 1 and the
+mantissa is shifted to the right.
+The resulting value is then converted as follows:
+
+* The value is rounded using IEEE 754 "roundTowardZero".
+* If the resulting value is larger in magnitude than the max normal value, it is
+  converted to the max normal value while preserving the sign.
+
+==== Stochastic rounding without saturation
+
+Conversions to E5M2 using stochastic rounding and with `saturation::none` work
+as follows:
+
+* Infinity is converted to Infinity while preserving the sign.
+* NaN is converted to an implementation-defined E5M2 NaN.
+
+For other values, a pseudo-random bias is added to the mantissa.
+If this overflows the mantissa, the exponent is incremented by 1 and the
+mantissa is shifted to the right.
+The resulting value is then converted as follows:
+
+* The value is rounded using IEEE 754 "roundTowardZero".
+* If the resulting value is larger in magnitude than the max normal value,
+  it is converted to Infinity while preserving the sign.
+
+==== Integer conversions
+
+Conversions from E5M2 to non-boolean integral types work as follows:
+
+* Positive Infinity is converted to the integer type's maximum value.
+* Negative Infinity is converted to the integer type's minimum value (which is
+  zero for unsigned types).
+* NaN is converted to an implementation-defined value.
+* Other values are rounded according to the rounding mode.
+* If the resulting value is positive and out-of-range for the integer type, it
+  is converted to the type's maximum value.
+* If the resulting value is negative and out-of-range for the integer type, it
+  is converted to the type's minimum value.
+
+=== The E8M0 type
+
+The E8M0 type is an 8-bit floating-point format with no sign bit,
+eight exponent bits and no mantissa bits.
+The format cannot represent Infinity, and the value produced when converting an
+infinite result depends on the saturation and rounding mode.
+There is no support for subnormal numbers.
+
+The following table provides the special values of the E8M0 type.
+
+[options="header"]
+[width="80%"]
+[cols="1,2"]
+|====
+| ^| E8M0
+
+| Exponent Bias
+| 127
+
+| Max normal
+| 11111110 = 1.70e+38 (2^127^)
+
+| Min normal
+| 00000000 = 5.88e-39 (2^-127^)
+
+| Max subnormal
+| N/A
+
+| Min subnormal
+| N/A
+
+| Infinity
+| N/A
+
+| NaN
+| 11111111
+
+|====
+
+This extension adds the `fp8_e8m0` type, which represents a set of packed E8M0
+values and provides various conversions to other types.
+The number of packed elements is defined by the `N` template parameter.
+
+[_Note:_ Although the `fp8_e8m0` type can be instantiated with any value of `N`,
+most operations on `fp8_e8m0` support only certain values of `N` according to
+the target device architecture.
+See the _Target Support_ clauses in the descriptions below for more details.
+_{endnote}_]
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<size_t N>
+class fp8_e8m0 {
+ public:
+  fp8_e8m0() = default;
+  fp8_e8m0(const fp8_e8m0 &) = default;
+  ~fp8_e8m0() = default;
+  fp8_e8m0& operator=(const fp8_e8m0&) = default;
+
+  // Construct from pack of half, bfloat16, float, double.
+  // Available only when the size of the pack is equal to N.
+
+  // Available only when each type in the pack is half.
+  template<typename... Halfs>
+  explicit fp8_e8m0(Halfs... vals);
+
+  // Available only when each type in the pack is bfloat16.
+  template<typename... Bfloats>
+  explicit fp8_e8m0(Bfloats... vals);
+
+  // Available only when each type in the pack is float.
+  template<typename... Floats>
+  explicit fp8_e8m0(Floats... vals);
+
+  // Available only when each type in the pack is double.
+  template<typename... Doubles>
+  explicit fp8_e8m0(Doubles... vals);
+
+  // Construct from an array of half, bfloat16, float, double.
+
+  explicit fp8_e8m0(half const (&vals)[N], rounding r = rounding::upward,
+                    saturation s = saturation::finite);
+  explicit fp8_e8m0(bfloat16 const (&vals)[N], rounding r = rounding::upward,
+                    saturation s = saturation::finite);
+  explicit fp8_e8m0(float const (&vals)[N], rounding r = rounding::upward,
+                    saturation s = saturation::finite);
+  explicit fp8_e8m0(double const (&vals)[N]);
+
+  // Construct from an marray of half, bfloat16, float, double.
+
+  explicit fp8_e8m0(const marray<half,N>& vals, rounding r = rounding::upward,
+                    saturation s = saturation::finite);
+  explicit fp8_e8m0(const marray<bfloat16,N>& vals, rounding r = rounding::upward,
+                    saturation s = saturation::finite);
+  explicit fp8_e8m0(const marray<float,N>& vals, rounding r = rounding::upward,
+                    saturation s = saturation::finite);
+  explicit fp8_e8m0(const marray<double,N>& vals);
+
+  // Construct from integer types.
+  // Available only when N==1.
+
+  explicit fp8_e8m0(short val);
+  explicit fp8_e8m0(int val);
+  explicit fp8_e8m0(long val);
+  explicit fp8_e8m0(long long val);
+  explicit fp8_e8m0(unsigned short val);
+  explicit fp8_e8m0(unsigned int val);
+  explicit fp8_e8m0(unsigned long val);
+  explicit fp8_e8m0(unsigned long long val);
+
+  // Assign (operator) from half, bfloat16, float, double, and integer types.
+  // Available only when N==1.
+
+  fp8_e8m0& operator=(half val);
+  fp8_e8m0& operator=(bfloat16 val);
+  fp8_e8m0& operator=(float val);
+  fp8_e8m0& operator=(double val);
+  fp8_e8m0& operator=(short val);
+  fp8_e8m0& operator=(int val);
+  fp8_e8m0& operator=(long val);
+  fp8_e8m0& operator=(long long val);
+  fp8_e8m0& operator=(unsigned short val);
+  fp8_e8m0& operator=(unsigned int val);
+  fp8_e8m0& operator=(unsigned long val);
+  fp8_e8m0& operator=(unsigned long long val);
+
+  // Convert to half, bfloat16, float, double.
+  // Available only when N==1.
+
+  explicit operator half() const;
+  explicit operator bfloat16() const;
+  explicit operator float() const;
+  explicit operator double() const;
+
+  // Convert to integer types.
+  // Available only when N==1.
+
+  explicit operator char() const;
+  explicit operator signed char() const;
+  explicit operator short() const;
+  explicit operator int() const;
+  explicit operator long() const;
+  explicit operator long long() const;
+  explicit operator unsigned char() const;
+  explicit operator unsigned short() const;
+  explicit operator unsigned int() const;
+  explicit operator unsigned long() const;
+  explicit operator unsigned long long() const;
+
+  // Convert to bool
+  // Available only when N==1.
+
+  explicit operator bool() const;
+
+  // Convert to marray of half, bfloat16, float
+
+  explicit operator marray<half,N>() const;
+  explicit operator marray<bfloat16,N>() const;
+  explicit operator marray<float,N>() const;
+
+  // Intentionally public to allow access to the raw values.
+
+  uint8_t vals[N];
+};
+
+// Deduction guide available only when the size of the pack is greater than zero.
+template<typename... Ts>
+fp8_e8m0(Ts...) -> fp8_e8m0<sizeof...(Ts)>;
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+==== Trivial constructors, destructor, and copy assignment operator
+
+[source,c++]
+----
+fp8_e8m0() = default;
+fp8_e8m0(const fp8_e8m0 &) = default;
+~fp8_e8m0() = default;
+fp8_e8m0& operator=(const fp8_e8m0&) = default;
+----
+
+The default constructor, copy constructor, destructor, and copy assignment
+operator are all trivial.
+
+==== Constructors
+
+[source,c++]
+----
+template<typename... Halfs>          (1)
+explicit fp8_e8m0(Halfs... vals);
+
+template<typename... Bfloats>        (2)
+explicit fp8_e8m0(Bfloats... vals);
+
+template<typename... Floats>         (3)
+explicit fp8_e8m0(Floats... vals);
+
+template<typename... Doubles>        (4)
+explicit fp8_e8m0(Doubles... vals);
+----
+
+_Constraints_ (1): The size of the `Halfs` pack is `N` and each type in this
+pack is `half`.
+
+_Constraints_ (2): The size of the `Bfloats` pack is `N` and each type in this
+pack is `ext::oneapi::bfloat16`.
+
+_Constraints_ (3): The size of the `Floats` pack is `N` and each type in this
+pack is `float`.
+
+_Constraints_ (4): The size of the `Doubles` pack is `N` and each type in this
+pack is `double`.
+
+_Effects:_ Initializes each element of this `fp8_e8m0` object from the
+corresponding value in the `vals` pack.
+Each value is converted using the `rounding::upward` rounding mode and the
+`saturation::finite` saturation mode.
+
+_Target Support:_ The number of elements in this `fp8_e8m0` (the `N` template
+parameter) has the following restrictions:
+
+* Host code supports all values of `N`.
+* Device code compiled for Intel Xe3p (CRI) supports only the
+  following `N` values: 1, 2, 3, 4, 8, 16.
+
+'''
+
+[source,c++]
+----
+explicit fp8_e8m0(half const (&vals)[N], rounding r = rounding::upward,      (1)
+                  saturation s = saturation::finite);
+explicit fp8_e8m0(bfloat16 const (&vals)[N], rounding r = rounding::upward,  (2)
+                  saturation s = saturation::finite);
+explicit fp8_e8m0(float const (&vals)[N], rounding r = rounding::upward,     (3)
+                  saturation s = saturation::finite);
+explicit fp8_e8m0(double const (&vals)[N]);                                  (4)
+----
+
+_Effects:_ Initializes each element of this `fp8_e8m0` object from the
+corresponding element in the array `vals`.
+In overloads (1) - (3), each value is converted using the `r` rounding mode and
+the `s` saturation mode.
+In overload (4), each value is converted using the `rounding::upward` rounding
+mode and the `saturation::finite` saturation mode.
+
+_Target Support:_ Host and device code support only `rounding::upward` and
+`saturation::finite`.
+
+The number of elements in this `fp8_e8m0` (the `N` template parameter) has the
+following restrictions:
+
+* Host code supports all values of `N`.
+* Device code compiled for Intel Xe3p (CRI) supports only the
+  following `N` values: 1, 2, 3, 4, 8, 16.
+
+'''
+
+[source,c++]
+----
+explicit fp8_e8m0(const marray<half,N>& vals, rounding r = rounding::upward,      (1)
+                  saturation s = saturation::finite);
+explicit fp8_e8m0(const marray<bfloat16,N>& vals, rounding r = rounding::upward,  (2)
+                  saturation s = saturation::finite);
+explicit fp8_e8m0(const marray<float,N>& vals, rounding r = rounding::upward,     (3)
+                  saturation s = saturation::finite);
+explicit fp8_e8m0(const marray<double,N>& vals);                                  (4)
+----
+
+_Effects:_ Initializes each element of this `fp8_e8m0` object from the
+corresponding element in the `marray` object `vals`.
+In overloads (1) - (3), each value is converted using the `r` rounding mode and
+the `s` saturation mode.
+In overload (4), each value is converted using the `rounding::upward` rounding
+mode and the `saturation::finite` saturation mode.
+
+_Target Support:_ Host and device code support only `rounding::upward` and
+`saturation::finite`.
+
+The number of elements in this `fp8_e8m0` (the `N` template parameter) has the
+following restrictions:
+
+* Host code supports all values of `N`.
+* Device code compiled for Intel Xe3p (CRI) supports only the
+  following `N` values: 1, 2, 3, 4, 8, 16.
+
+'''
+
+[source,c++]
+----
+explicit fp8_e8m0(short val);
+explicit fp8_e8m0(int val);
+explicit fp8_e8m0(long val);
+explicit fp8_e8m0(long long val);
+explicit fp8_e8m0(unsigned short val);
+explicit fp8_e8m0(unsigned int val);
+explicit fp8_e8m0(unsigned long val);
+explicit fp8_e8m0(unsigned long long val);
+----
+
+_Constraints:_ `N == 1`.
+
+_Effects:_ Initializes the single element of this `fp8_e8m0` object from `val`.
+The value `val` is converted using the `rounding::upward` rounding mode and the
+`saturation::finite` saturation mode.
+
+'''
+
+==== Assignment operators
+
+[source,c++]
+----
+fp8_e8m0& operator=(half val);
+fp8_e8m0& operator=(bfloat16 val);
+fp8_e8m0& operator=(float val);
+fp8_e8m0& operator=(double val);
+fp8_e8m0& operator=(short val);
+fp8_e8m0& operator=(int val);
+fp8_e8m0& operator=(long val);
+fp8_e8m0& operator=(long long val);
+fp8_e8m0& operator=(unsigned short val);
+fp8_e8m0& operator=(unsigned int val);
+fp8_e8m0& operator=(unsigned long val);
+fp8_e8m0& operator=(unsigned long long val);
+----
+
+_Constraints:_ `N == 1`.
+
+_Effects:_ Assigns the single element of this `fp8_e8m0` object to `val`.
+The value `val` is converted using the `rounding::upward` rounding mode and the
+`saturation::finite` saturation mode.
+
+_Returns:_ A reference to this `fp8_e8m0` object.
+
+==== Conversion operators
+
+[source,c++]
+----
+explicit operator half() const;      (1)
+explicit operator bfloat16() const;  (2)
+explicit operator float() const;     (3)
+explicit operator double() const;    (4)
+----
+
+_Constraints:_ `N == 1`.
+
+_Returns_: The single element of this `fp8_e8m0` object is assumed to be a
+positive number and is converted to the operator's respective type.
+
+Conversion (1) uses `rounding::to_even` rounding mode.
+If the converted value cannot be represented in `half`, the result is positive
+Infinity.
+
+[_Note:_ Conversions (2) - (4) are exact, so there is no rounding or saturation
+mode.
+_{endnote}_]
+
+'''
+
+[source,c++]
+----
+explicit operator char() const;
+explicit operator signed char() const;
+explicit operator short() const;
+explicit operator int() const;
+explicit operator long() const;
+explicit operator long long() const;
+explicit operator unsigned char() const;
+explicit operator unsigned short() const;
+explicit operator unsigned int() const;
+explicit operator unsigned long() const;
+explicit operator unsigned long long() const;
+----
+
+_Constraints:_ `N == 1`.
+
+_Returns_: The single element of this `fp8_e8m0` object is assumed to be a
+positive number and is converted to the operator's respective type using the
+`rounding::toward_zero` rounding mode.
+
+'''
+
+[source,c++]
+----
+explicit operator bool() const;
+----
+
+_Constraints:_ `N == 1`.
+
+_Returns_: The value `true`.
+
+[_Note:_ The E8M0 format cannot represent the value 0, so this conversion never
+returns `false`.
+_{endnote}_]
+
+'''
+
+[source,c++]
+----
+explicit operator marray<half,N>() const;      (1)
+explicit operator marray<bfloat16,N>() const;  (2)
+explicit operator marray<float,N>() const;     (3)
+----
+
+_Returns:_ The values of this `fp8_e8m0` object are assumed to be positive
+numbers and are converted to an `marray` of `half`, `ext::oneapi::bfloat16`, or
+`float`.
+
+Conversion (1) uses `rounding::to_even` rounding mode.
+If the converted value cannot be represented in `half`, the result is positive
+Infinity.
+
+[_Note:_ Conversions (2) - (3) are exact, so there is no rounding or saturation
+mode.
+_{endnote}_]
+
+_Target Support:_ The number of elements in this `fp8_e8m0` (the `N` template
+parameter) has the following restrictions:
+
+* Host code supports all values of `N`.
+* Device code compiled for Intel Xe3p (CRI) supports only the
+  following `N` values: 1, 2, 3, 4, 8, 16.
+
+'''
+
+==== Member variable
+
+[source,c++]
+----
+uint8_t vals[N];
+----
+
+Provides direct access to the storage of the E8M0 values in this `fp8_e8m0`
+object.
+
+==== Deduction guide
+
+[source,c++]
+----
+template<typename... Ts>
+fp8_e8m0(Ts...) -> fp8_e8m0<sizeof...(Ts)>;
+----
+
+_Constraints:_ The size of the `Ts` pack is greater than zero.
+
+==== Non-stochastic rounding modes with saturation
+
+Conversions to E8M0 using one of the non-stochastic rounding modes and with
+`saturation::finite` work as follows:
+
+* NaN is converted to NaN while dropping the sign.
+* Other values are rounded according to the rounding mode.
+* If the resulting value is larger in magnitude than the max normal value, it is
+  converted to the max normal value while dropping the sign.
+
+==== Non-stochastic rounding modes without saturation
+
+Conversions to E8M0 using one of the non-stochastic rounding modes and with
+`saturation::none` work as follows:
+
+* NaN is converted to NaN while dropping the sign.
+* Other values are rounded according to the rounding mode.
+* If the resulting value is larger in magnitude than the max normal value, it is
+  converted to NaN while dropping the sign.
+
+==== Integer conversions
+
+Conversions from E8M0 to non-boolean integral types work as follows:
+
+* NaN is converted to an implementation-defined value.
+* Other values are considered to be positive and are rounded according to the
+  rounding mode.
+* If the resulting value is out-of-range for the integer type, it is converted
+  to the type's maximum value.
+
+
+== Issues
+
+* Will it be very common to use the 1-element versions of the FP8 types?
+  If so, it might be tedious for users to type `<1>` whenever they declare
+  variables of this type.
+  The best solution in this case would be to rename the class templates as
+  `fp8_e4m3_x` and also add alias(es) like `fp8_e4m3` and `fp8_e4m3_x2`.
+  This would allow usage like this:
++
+```
+fp8_e4m3 s;         // 1-element
+fp8_e4m3_x2 v2;     // 2-element
+fp8_e4m3_x<2> v2b;  // Also 2-element
+```
++
+If we do this, we should rename all of the low-precision FP types (even the
+FP4 ones) because it's important for the names of all these types to follow
+a consistent pattern.
+
+* What is the behavior if the device does *not* support subnormal fp16 (`half`)
+  values and the user up-converts from E5M2 to `half`?
+  If the E5M2 value is a subnormal, the resulting `half` value could also be
+  subnormal.
+  Does the conversion flush to zero in this case?
+
+* What is the behavior in the opposite case where the device does *not* support
+  subnormal fp16 and the user down-converts a subnormal fp16 value to E5M2?
+  (Ignore the question about how the user got a subnormal fp16 if the device
+  does not support it.)
+  Does the down-conversion flush to zero in this case?
+
+* Should we add a non-normative section explaining how {dpcpp} compiler options
+  like `-ffast-math` or `-ftz` affect the conversions in this spec?

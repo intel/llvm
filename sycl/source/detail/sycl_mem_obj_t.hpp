@@ -56,8 +56,8 @@ public:
   SYCLMemObjT(const size_t SizeInBytes, const property_list &Props,
               std::unique_ptr<SYCLMemObjAllocator> Allocator)
       : MAllocator(std::move(Allocator)), MProps(Props), MInteropEvent(nullptr),
-        MInteropContext(nullptr), MInteropMemObject(nullptr),
-        MOpenCLInterop(false), MHostPtrReadOnly(false), MNeedWriteBack(true),
+        MInteropContext(nullptr), MOpenCLInterop(false),
+        MHostPtrReadOnly(false), MNeedWriteBack(true),
         MSizeInBytes(SizeInBytes), MUserPtr(nullptr), MShadowCopy(nullptr),
         MUploadDataFunctor(nullptr), MSharedPtrStorage(nullptr),
         MHostPtrProvided(false) {}
@@ -342,7 +342,7 @@ protected:
   std::shared_ptr<context_impl> MInteropContext;
   // Native backend memory object handle passed by user to interoperability
   // constructor.
-  ur_mem_handle_t MInteropMemObject;
+  ur_mem_handle_t MInteropMemObject = nullptr;
   // Indicates whether memory object is created using interoperability
   // constructor or not.
   bool MOpenCLInterop;

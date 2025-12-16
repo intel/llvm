@@ -47,6 +47,10 @@ int main(int Argc, const char *Argv[]) {
 
   queue Q({sycl::property::queue::in_order{}});
   enqueueKernel_1_fromFile1(&Q);
+  // Should wait for enqueueKernel1 to trigger assert to abort the program,
+  // otherwise we still see assert error msg from file2 since the kernel from
+  // file2 will be launched before kernel from file1 finishes.
+  Q.wait();
   enqueueKernel_2_fromFile2(&Q);
   Q.wait();
 

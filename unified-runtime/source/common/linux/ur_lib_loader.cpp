@@ -78,7 +78,16 @@ LibLoader::loadAdapterLibrary(const char *name) {
 }
 
 void *LibLoader::getFunctionPtr(HMODULE handle, const char *func_name) {
-  return dlsym(handle, func_name);
+  // Clear any existing error
+  dlerror();
+
+  void *ptr = dlsym(handle, func_name);
+  const char *err = dlerror();
+  if (err) {
+    UR_LOG(ERR, "dlsym failed to load function '{}': {}", func_name, err);
+  }
+
+  return ptr;
 }
 
 } // namespace ur_loader

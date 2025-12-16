@@ -198,8 +198,8 @@ extensions that require sm_80 and later architectures also require at least CUDA
 11.0.
 
 The CUDA backend should work on Windows or Linux operating systems with any GPU
-with compute capability (SM version) sm_50 or above. The default SM version for
-the NVIDIA CUDA backend is sm_50. Users of sm_3X devices can attempt to specify
+with compute capability (SM version) sm_75 or above. The default SM version for
+the NVIDIA CUDA backend is sm_75. Users of sm_3X devices can attempt to specify
 the target architecture [ahead of time](#aot-target-architectures), provided
 that they use a 11.X  or earlier CUDA toolkit version, but some features may not be
 supported. The CUDA backend has been tested with different Ubuntu Linux
@@ -351,7 +351,7 @@ You can install zstd using the package manager of your distribution. For example
 ```sh
 sudo apt-get install libzstd-dev
 ```
-Note that the libzstd-dev package provided on Ubuntu 24.04 has a bug ([link](https://bugs.launchpad.net/ubuntu/+source/libzstd/+bug/2086543)) and the zstd static library is not built with the `-fPIC` flag. Linking to this library will result in a build failure. For example: [Issue#15935](https://github.com/intel/llvm/issues/15935). As an alternative, zstd can be built from source either manually or by using the [build_zstd_1_5_6_ub24.sh](https://github.com/intel/llvm/blob/sycl/devops/scripts/build_zstd_1_5_6_ub24.sh) script.
+Note that the libzstd-dev package provided on Ubuntu 24.04 has a bug ([link](https://bugs.launchpad.net/ubuntu/+source/libzstd/+bug/2086543)) and the zstd static library is not built with the `-fPIC` flag. Linking to this library will result in a build failure. For example: [Issue#15935](https://github.com/intel/llvm/issues/15935). As an alternative, zstd can be built from source either manually or by using the [build_zstd.sh](https://github.com/intel/llvm/blob/sycl/devops/scripts/build_zstd.sh) script (it works on Rocky Linux 8.10 / RHEL 8.10 as well).
 
 **Windows**
 

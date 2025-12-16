@@ -2,6 +2,7 @@
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t.txt
 ; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
@@ -16,12 +17,14 @@ entry:
 
 ; CHECK-SPIRV: Decorate [[#]] Alignment 16
 ; CHECK-SPIRV: Decorate [[#SrcVar:]] Alignment [[#SrcAlignment:]]
+; CHECK-SPIRV: Variable [[#]] [[#SrcVar]] 7
 ; CHECK-SPIRV: Bitcast [[#]] [[#]] [[#]]
 ; CHECK-SPIRV: Bitcast [[#]] [[#Src:]] [[#SrcVar]]
 ; CHECK-SPIRV: CopyMemorySized [[#]] [[#Src]] [[#]] 2 [[#SrcAlignment]]
-; CHECK-LLVM: [[SrcVar:@[0-9]+]] = internal unnamed_addr addrspace(2) constant [16 x i8] zeroinitializer, align [[#SrcAlignment:]]
-; CHECK-LLVM: [[SrcOp:%[0-9]+]] = bitcast ptr addrspace(2) [[SrcVar]] to ptr addrspace(2)
-; CHECK-LLVM: call void @llvm.memcpy.p4.p2.i64(ptr addrspace(4) align 16 %0, ptr addrspace(2) align [[#SrcAlignment]] [[SrcOp]], i64 16, i1 false)
+; CHECK-LLVM: %{{[0-9]+}} = alloca [16 x i8], align [[#SrcAlignment:]]
+; CHECK-LLVM: store [16 x i8] zeroinitializer, ptr %{{[0-9]+}}, align 1
+; CHECK-LLVM: [[SrcOp:%[0-9]+]] = bitcast ptr %{{[0-9]+}} to ptr
+; CHECK-LLVM: call void @llvm.memcpy.p4.p0.i64(ptr addrspace(4) align 16 %{{[0-9]+}}, ptr align [[#SrcAlignment]] [[SrcOp]], i64 16, i1 false)
   call void @llvm.memset.p4.i64(ptr addrspace(4) align 16 %r.sroa.0.0.r.ascast.sroa_cast1, i8 0, i64 16, i1 false)
   ret void
 }

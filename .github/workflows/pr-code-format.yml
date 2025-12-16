@@ -21,7 +21,7 @@ jobs:
     if: (github.repository == 'llvm/llvm-project' || github.repository == 'intel/llvm') && !contains(github.event.pull_request.labels.*.name, 'disable-lint')
     steps:
       - name: Fetch LLVM sources
-        uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493 # v5.0.0
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
         with:
           fetch-depth: 2
 
@@ -84,7 +84,7 @@ jobs:
             --end-rev HEAD \
             --changed-files "$CHANGED_FILES"
 
-      - uses: actions/upload-artifact@26f96dfa697d77e81fd5907df203aa23a56210a8 #v4.3.0
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 #v5.0.0
         if: always()
         with:
           name: workflow-args

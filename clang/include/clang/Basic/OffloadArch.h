@@ -104,6 +104,7 @@ enum class OffloadArch {
   GFX1200,
   GFX1201,
   GFX1250,
+  GFX1251,
   AMDGCNSPIRV,
   Generic, // A processor model named 'generic' if the target backend defines a
            // public one.
@@ -166,7 +167,7 @@ enum class OffloadArch {
   LNL_M,
   LAST,
 
-  CudaDefault = OffloadArch::SM_52,
+  CudaDefault = OffloadArch::SM_75,
   HIPDefault = OffloadArch::GFX906,
 };
 

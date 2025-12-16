@@ -57,6 +57,11 @@ __urdlllocal ur_result_t context_t::ddiInit() {
   }
 
   if (UR_RESULT_SUCCESS == result) {
+    result = urGetGraphExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                        &urDdiTable.GraphExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
     result =
         urGetIPCExpProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.IPCExp);
   }
@@ -100,6 +105,11 @@ __urdlllocal ur_result_t context_t::ddiInit() {
   }
 
   if (UR_RESULT_SUCCESS == result) {
+    result = urGetQueueExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                        &urDdiTable.QueueExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
     result =
         urGetSamplerProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.Sampler);
   }
@@ -126,6 +136,11 @@ __urdlllocal ur_result_t context_t::ddiInit() {
   if (UR_RESULT_SUCCESS == result) {
     result =
         urGetDeviceProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.Device);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = urGetDeviceExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                         &urDdiTable.DeviceExp);
   }
 
   return result;

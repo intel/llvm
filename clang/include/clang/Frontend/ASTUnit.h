@@ -22,12 +22,12 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TargetOptions.h"
+#include "clang/Frontend/PrecompiledPreamble.h"
 #include "clang/Lex/HeaderSearchOptions.h"
 #include "clang/Lex/ModuleLoader.h"
 #include "clang/Lex/PreprocessingRecord.h"
 #include "clang/Sema/CodeCompleteConsumer.h"
 #include "clang/Serialization/ASTBitCodes.h"
-#include "clang/Frontend/PrecompiledPreamble.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
@@ -271,10 +271,10 @@ private:
   static void ConfigureDiags(IntrusiveRefCntPtr<DiagnosticsEngine> Diags,
                              ASTUnit &AST, CaptureDiagsKind CaptureDiagnostics);
 
-  void TranslateStoredDiagnostics(FileManager &FileMgr,
-                                  SourceManager &SrcMan,
-                      const SmallVectorImpl<StandaloneDiagnostic> &Diags,
-                            SmallVectorImpl<StoredDiagnostic> &Out);
+  void
+  TranslateStoredDiagnostics(FileManager &FileMgr, SourceManager &SrcMan,
+                             const SmallVectorImpl<StandaloneDiagnostic> &Diags,
+                             SmallVectorImpl<StoredDiagnostic> &Out);
 
   void clearFileLevelDecls();
 
@@ -497,6 +497,11 @@ public:
   const PreprocessorOptions &getPreprocessorOpts() const {
     assert(PPOpts && "ASTUnit does not have preprocessor options");
     return *PPOpts;
+  }
+
+  IntrusiveRefCntPtr<llvm::vfs::FileSystem> getVirtualFileSystemPtr() {
+    // FIXME: Don't defer VFS ownership to the FileManager.
+    return FileMgr->getVirtualFileSystemPtr();
   }
 
   const FileManager &getFileManager() const { return *FileMgr; }
@@ -729,16 +734,15 @@ public:
   /// \returns - The initialized ASTUnit or null if the AST failed to load.
   static std::unique_ptr<ASTUnit> LoadFromASTFile(
       StringRef Filename, const PCHContainerReader &PCHContainerRdr,
-      WhatToLoad ToLoad, std::shared_ptr<DiagnosticOptions> DiagOpts,
+      WhatToLoad ToLoad, IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS,
+      std::shared_ptr<DiagnosticOptions> DiagOpts,
       IntrusiveRefCntPtr<DiagnosticsEngine> Diags,
       const FileSystemOptions &FileSystemOpts,
       const HeaderSearchOptions &HSOpts, const LangOptions *LangOpts = nullptr,
       bool OnlyLocalDecls = false,
       CaptureDiagsKind CaptureDiagnostics = CaptureDiagsKind::None,
       bool AllowASTWithCompilerErrors = false,
-      bool UserFilesAreVolatile = false,
-      IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS =
-          llvm::vfs::getRealFileSystem());
+      bool UserFilesAreVolatile = false);
 
 private:
   /// Helper function for \c LoadFromCompilerInvocation() and

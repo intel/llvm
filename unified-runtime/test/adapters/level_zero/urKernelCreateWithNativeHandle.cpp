@@ -72,7 +72,7 @@ TEST_P(urLevelZeroKernelNativeHandleTest, OwnedHandleRelease) {
   size_t local_size = 1;
   size_t global_size = 1;
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &global_offset,
-                                       &local_size, &global_size, 0, nullptr, 0,
+                                       &local_size, &global_size, nullptr, 0,
                                        nullptr, nullptr));
 
   ASSERT_SUCCESS(urKernelRelease(kernel));

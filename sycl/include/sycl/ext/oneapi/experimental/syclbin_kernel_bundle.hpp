@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/ext/oneapi/experimental/syclbin_properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/kernel_bundle.hpp>
 
@@ -24,6 +25,39 @@
 
 namespace sycl {
 inline namespace _V1 {
+
+namespace detail {
+__SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
+link_impl(const kernel_bundle<bundle_state::object> *ObjectBundles,
+          size_t NumObjectBundles, const std::vector<device> &Devs,
+          bool FastLink);
+
+template <
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t,
+    typename = std::enable_if_t<
+        ext::oneapi::experimental::detail::all_are_properties_of_v<
+            ext::oneapi::experimental::detail::link_props, PropertyListT>>>
+kernel_bundle<bundle_state::executable>
+link_common(const kernel_bundle<bundle_state::object> *ObjectBundles,
+            size_t NumObjectBundles, const std::vector<device> &Devs,
+            PropertyListT Props = {}) {
+  std::vector<device> UniqueDevices = removeDuplicateDevices(Devs);
+
+  bool UseFastLink = [&]() {
+    if constexpr (Props.template has_property<
+                      ext::oneapi::experimental::fast_link>())
+      return Props.template get_property<ext::oneapi::experimental::fast_link>()
+          .value;
+    return false;
+  }();
+
+  KernelBundleImplPtr Impl =
+      link_impl(ObjectBundles, NumObjectBundles, UniqueDevices, UseFastLink);
+  return createSyclObjFromImpl<kernel_bundle<bundle_state::executable>>(
+      std::move(Impl));
+}
+} // namespace detail
+
 namespace ext::oneapi::experimental {
 
 template <bundle_state State, typename PropertyListT = empty_properties_t>
@@ -76,6 +110,46 @@ get_kernel_bundle(const context &Ctxt, const std::filesystem::path &Filename,
                                                 Filename, Props);
 }
 #endif
+
+template <typename PropertyListT = empty_properties_t,
+          typename = std::enable_if_t<detail::all_are_properties_of_v<
+              sycl::detail::link_props, PropertyListT>>>
+kernel_bundle<bundle_state::executable>
+link(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
+     const std::vector<device> &Devs, PropertyListT Props = {}) {
+  return sycl::detail::link_common(ObjectBundles.data(), ObjectBundles.size(),
+                                   Devs, Props);
+}
+
+template <typename PropertyListT = empty_properties_t,
+          typename = std::enable_if_t<detail::all_are_properties_of_v<
+              sycl::detail::link_props, PropertyListT>>>
+kernel_bundle<bundle_state::executable>
+link(const kernel_bundle<bundle_state::object> &ObjectBundle,
+     const std::vector<device> &Devs, PropertyListT Props = {}) {
+  return sycl::detail::link_common(&ObjectBundle, 1, Devs, Props);
+}
+
+template <typename PropertyListT = empty_properties_t,
+          typename = std::enable_if_t<detail::all_are_properties_of_v<
+              sycl::detail::link_props, PropertyListT>>>
+kernel_bundle<bundle_state::executable>
+link(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
+     PropertyListT Props = {}) {
+  std::vector<sycl::device> IntersectDevices =
+      sycl::detail::find_device_intersection(ObjectBundles);
+  return link(ObjectBundles, IntersectDevices, Props);
+}
+
+template <typename PropertyListT = empty_properties_t,
+          typename = std::enable_if_t<detail::all_are_properties_of_v<
+              sycl::detail::link_props, PropertyListT>>>
+kernel_bundle<bundle_state::executable>
+link(const kernel_bundle<bundle_state::object> &ObjectBundle,
+     PropertyListT Props = {}) {
+  return link(std::vector<kernel_bundle<bundle_state::object>>{ObjectBundle},
+              ObjectBundle.get_devices(), Props);
+}
 
 } // namespace ext::oneapi::experimental
 } // namespace _V1

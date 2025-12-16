@@ -247,6 +247,10 @@ void SPIRVToOCLBase::visitCastInst(CastInst &Cast) {
       DstVecTy->getScalarSizeInBits() == 1)
     return;
 
+  // We don't have OpenCL builtins for 4-bit conversions.
+  if (DstVecTy->getScalarSizeInBits() == 4 || SrcTy->getScalarSizeInBits() == 4)
+    return;
+
   // Assemble built-in name -> convert_gentypeN
   std::string CastBuiltInName(kOCLBuiltinName::ConvertPrefix);
   // Check if this is 'floating point -> unsigned integer' cast
@@ -676,6 +680,13 @@ void SPIRVToOCLBase::visitCallGenericCastToPtrExplicitBuiltIn(CallInst *CI,
 
 void SPIRVToOCLBase::visitCallSPIRVCvtBuiltin(CallInst *CI, Op OC,
                                               StringRef DemangledName) {
+  if (auto *TET =
+          dyn_cast<TargetExtType>(CI->getFunctionType()->getReturnType())) {
+    // Preserve any cooperative matrix type conversions as SPIR-V calls.
+    if (TET->getName() == "spirv.CooperativeMatrixKHR") {
+      return;
+    }
+  }
   std::string CastBuiltInName;
   if (isCvtFromUnsignedOpCode(OC))
     CastBuiltInName = "u";

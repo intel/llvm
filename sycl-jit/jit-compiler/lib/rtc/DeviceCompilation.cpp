@@ -20,7 +20,6 @@
 #include <clang/Driver/CudaInstallationDetector.h>
 #include <clang/Driver/Driver.h>
 #include <clang/Driver/LazyDetector.h>
-#include <clang/Driver/Options.h>
 #include <clang/Driver/RocmInstallationDetector.h>
 #include <clang/Driver/ToolChain.h>
 #include <clang/Frontend/ChainedDiagnosticConsumer.h>
@@ -30,6 +29,7 @@
 #include <clang/Frontend/TextDiagnosticBuffer.h>
 #include <clang/Frontend/TextDiagnosticPrinter.h>
 #include <clang/Frontend/Utils.h>
+#include <clang/Options/Options.h>
 #include <clang/Tooling/CompilationDatabase.h>
 #include <clang/Tooling/Tooling.h>
 
@@ -41,6 +41,7 @@
 #include <llvm/Linker/Linker.h>
 #include <llvm/SYCLLowerIR/ESIMD/LowerESIMD.h>
 #include <llvm/SYCLLowerIR/LowerInvokeSimd.h>
+#include <llvm/SYCLLowerIR/SYCLDeviceLibBF16.h>
 #include <llvm/SYCLLowerIR/SYCLJointMatrixTransform.h>
 #include <llvm/SYCLPostLink/ComputeModuleRuntimeInfo.h>
 #include <llvm/SYCLPostLink/ModuleSplitter.h>
@@ -62,7 +63,7 @@
 using namespace clang;
 using namespace clang::tooling;
 using namespace clang::driver;
-using namespace clang::driver::options;
+using namespace clang::options;
 using namespace llvm;
 using namespace llvm::opt;
 using namespace llvm::sycl;
@@ -117,7 +118,7 @@ struct auto_pch_key {
   Error read(llvm::BinaryStreamReader &Reader) {
     (void)AutoPCHError::ID;
     auto ReadStr = [&](std::string &Out) -> Error {
-      std::string::size_type StrLen;
+      std::string::size_type StrLen = 0;
 
       if (auto Err = Reader.readInteger(StrLen))
         return Err;
@@ -219,6 +220,7 @@ class SYCLToolchain {
       // Create a compiler instance to handle the actual work.
       CompilerInstance Compiler(std::move(Invocation),
                                 std::move(PCHContainerOps));
+      Compiler.setVirtualFileSystem(Files->getVirtualFileSystemPtr());
       Compiler.setFileManager(Files);
       // Suppress summary with number of warnings and errors being printed to
       // stdout.
@@ -226,12 +228,11 @@ class SYCLToolchain {
           std::make_unique<llvm::raw_null_ostream>());
 
       // Create the compiler's actual diagnostics engine.
-      Compiler.createDiagnostics(Files->getVirtualFileSystem(), DiagConsumer,
-                                 /*ShouldOwnClient=*/false);
+      Compiler.createDiagnostics(DiagConsumer, /*ShouldOwnClient=*/false);
       if (!Compiler.hasDiagnostics())
         return false;
 
-      Compiler.createSourceManager(*Files);
+      Compiler.createSourceManager();
 
       const bool Success = Compiler.ExecuteAction(FEAction);
 
@@ -435,19 +436,20 @@ class SYCLToolchain {
           return (void)UseCachedPreamble(PCHStorage);
         };
 
-        auto CacheOrErr =
+        llvm::Expected<llvm::FileCache> CacheOrErr =
             llvm::localCache("SYCL RTC Persistent Preambles", "syclrtc-tmp-",
                              PersistentPCHDir, CacheCallback);
 
         assert(CacheOrErr && "Don't see any code path returning Error");
-        auto AddStreamOrErr = (*CacheOrErr)(0, EncodedHash, "");
+        llvm::Expected<llvm::AddStreamFn> AddStreamOrErr =
+            (*CacheOrErr)(0, EncodedHash, "");
         if (!AddStreamOrErr) {
           // Not a hit, but we won't be able to store the data in the cache, so
           // no need to generate precompiled preamble.
           consumeError(AddStreamOrErr.takeError());
           return RunWithoutPCH();
         }
-        auto &AddStream = *AddStreamOrErr;
+        llvm::AddStreamFn &AddStream = *AddStreamOrErr;
         if (!AddStream) {
           // UseCachedPreamble was called by the cache after successfully
           // reading persistent auto-pch file.
@@ -468,9 +470,12 @@ class SYCLToolchain {
         // Any errors updating the persistent preambles cache won't affect
         // current compilation, so ignore any error below:
 
-        auto FileOrErr = AddStream(1, "");
-        if (!FileOrErr)
+        llvm::Expected<std::unique_ptr<llvm::CachedFileStream>> FileOrErr =
+            AddStream(1, "");
+        if (!FileOrErr) {
+          consumeError(FileOrErr.takeError());
           return Success;
+        }
 
         llvm::CachedFileStream *CFS = FileOrErr->get();
         raw_pwrite_stream &OS = *CFS->OS;
@@ -611,12 +616,14 @@ public:
 
   std::string_view getPrefix() const { return Prefix; }
   std::string_view getClangXXExe() const { return ClangXXExe; }
+  std::string_view getLibclcDir() const { return LibclcDir; }
 
 private:
   clang::IgnoringDiagConsumer IgnoreDiag;
   std::string_view Prefix{jit_compiler::resource::ToolchainPrefix.S,
                           jit_compiler::resource::ToolchainPrefix.Size};
   std::string ClangXXExe = (Prefix + "/bin/clang++").str();
+  std::string LibclcDir = Driver::GetResourcesPath(ClangXXExe) + "/lib/libclc/";
 
   PrecompiledPreambles Preambles;
 };
@@ -762,107 +769,57 @@ Expected<ModuleUPtr> jit_compiler::compileDeviceCode(
 
 // This function is a simplified copy of the device library selection process
 // in `clang::driver::tools::SYCL::getDeviceLibraries`, assuming a SPIR-V, or
-// GPU targets (no AoT, no native CPU). Keep in sync!
-static bool getDeviceLibraries(const ArgList &Args,
+// GPU targets (no native CPU). Keep in sync!
+static void getDeviceLibraries(const ArgList &Args,
                                SmallVectorImpl<std::string> &LibraryList,
-                               DiagnosticsEngine &Diags, BinaryFormat Format) {
+                               BinaryFormat Format) {
   // For CUDA/HIP we only need devicelib, early exit here.
   if (Format == BinaryFormat::PTX) {
     LibraryList.push_back(
         Args.MakeArgString("devicelib-nvptx64-nvidia-cuda.bc"));
-    return false;
+    return;
   } else if (Format == BinaryFormat::AMDGCN) {
     LibraryList.push_back(Args.MakeArgString("devicelib-amdgcn-amd-amdhsa.bc"));
-    return false;
+    return;
   }
 
-  struct DeviceLibOptInfo {
-    StringRef DeviceLibName;
-    StringRef DeviceLibOption;
-  };
-
-  // Currently, all SYCL device libraries will be linked by default.
-  llvm::StringMap<bool> DeviceLibLinkInfo = {
-      {"libc", true},          {"libm-fp32", true},   {"libm-fp64", true},
-      {"libimf-fp32", true},   {"libimf-fp64", true}, {"libimf-bf16", true},
-      {"libm-bfloat16", true}, {"internal", true}};
-
-  // If -fno-sycl-device-lib is specified, its values will be used to exclude
-  // linkage of libraries specified by DeviceLibLinkInfo. Linkage of "internal"
-  // libraries cannot be affected via -fno-sycl-device-lib.
-  bool ExcludeDeviceLibs = false;
-
-  bool FoundUnknownLib = false;
-
-  if (Arg *A = Args.getLastArg(OPT_fsycl_device_lib_EQ,
-                               OPT_fno_sycl_device_lib_EQ)) {
-    if (A->getValues().size() == 0) {
-      Diags.Report(diag::warn_drv_empty_joined_argument)
-          << A->getAsString(Args);
-    } else {
-      if (A->getOption().matches(OPT_fno_sycl_device_lib_EQ)) {
-        ExcludeDeviceLibs = true;
-      }
-
-      for (StringRef Val : A->getValues()) {
-        if (Val == "all") {
-          for (const auto &K : DeviceLibLinkInfo.keys()) {
-            DeviceLibLinkInfo[K] = (K == "internal") || !ExcludeDeviceLibs;
-          }
-          break;
-        }
-        auto LinkInfoIter = DeviceLibLinkInfo.find(Val);
-        if (LinkInfoIter == DeviceLibLinkInfo.end() || Val == "internal") {
-          Diags.Report(diag::err_drv_unsupported_option_argument)
-              << A->getSpelling() << Val;
-          FoundUnknownLib = true;
-        }
-        DeviceLibLinkInfo[Val] = !ExcludeDeviceLibs;
-      }
-    }
-  }
-
-  using SYCLDeviceLibsList = SmallVector<DeviceLibOptInfo, 5>;
-
-  const SYCLDeviceLibsList SYCLDeviceWrapperLibs = {
-      {"libsycl-crt", "libc"},
-      {"libsycl-complex", "libm-fp32"},
-      {"libsycl-complex-fp64", "libm-fp64"},
-      {"libsycl-cmath", "libm-fp32"},
-      {"libsycl-cmath-fp64", "libm-fp64"},
+  using SYCLDeviceLibsList = SmallVector<StringRef>;
+  const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt",
+                                             "libsycl-complex",
+                                             "libsycl-complex-fp64",
+                                             "libsycl-cmath",
+                                             "libsycl-cmath-fp64",
 #if defined(_WIN32)
-      {"libsycl-msvc-math", "libm-fp32"},
+                                             "libsycl-msvc-math",
 #endif
-      {"libsycl-imf", "libimf-fp32"},
-      {"libsycl-imf-fp64", "libimf-fp64"},
-      {"libsycl-imf-bf16", "libimf-bf16"}};
-  // ITT annotation libraries are linked in separately whenever the device
-  // code instrumentation is enabled.
-  const SYCLDeviceLibsList SYCLDeviceAnnotationLibs = {
-      {"libsycl-itt-user-wrappers", "internal"},
-      {"libsycl-itt-compiler-wrappers", "internal"},
-      {"libsycl-itt-stubs", "internal"}};
+                                             "libsycl-imf",
+                                             "libsycl-imf-fp64",
+                                             "libsycl-imf-bf16",
+                                             "libsycl-fallback-cstring",
+                                             "libsycl-fallback-complex",
+                                             "libsycl-fallback-complex-fp64",
+                                             "libsycl-fallback-cmath",
+                                             "libsycl-fallback-cmath-fp64",
+                                             "libsycl-fallback-imf",
+                                             "libsycl-fallback-imf-fp64",
+                                             "libsycl-fallback-imf-bf16"};
 
   StringRef LibSuffix = ".bc";
   auto AddLibraries = [&](const SYCLDeviceLibsList &LibsList) {
-    for (const DeviceLibOptInfo &Lib : LibsList) {
-      if (!DeviceLibLinkInfo[Lib.DeviceLibOption]) {
-        continue;
-      }
-      SmallString<128> LibName(Lib.DeviceLibName);
-      llvm::sys::path::replace_extension(LibName, LibSuffix);
-      LibraryList.push_back(Args.MakeArgString(LibName));
+    for (const StringRef &Lib : LibsList) {
+      LibraryList.push_back(Args.MakeArgString(Twine(Lib) + LibSuffix));
     }
   };
 
-  AddLibraries(SYCLDeviceWrapperLibs);
+  AddLibraries(SYCLDeviceLibs);
 
+  const SYCLDeviceLibsList SYCLDeviceAnnotationLibs = {
+      "libsycl-itt-user-wrappers", "libsycl-itt-compiler-wrappers",
+      "libsycl-itt-stubs"};
   if (Args.hasFlag(OPT_fsycl_instrument_device_code,
                    OPT_fno_sycl_instrument_device_code, false)) {
     AddLibraries(SYCLDeviceAnnotationLibs);
   }
-
-  return FoundUnknownLib;
 }
 
 Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
@@ -878,39 +835,32 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
                           /* ShouldOwnClient=*/false);
 
   SmallVector<std::string> LibNames;
-  const bool FoundUnknownLib =
-      getDeviceLibraries(UserArgList, LibNames, Diags, Format);
-  if (FoundUnknownLib) {
-    return createStringError("Could not determine list of device libraries: %s",
-                             BuildLog.c_str());
-  }
+  getDeviceLibraries(UserArgList, LibNames, Format);
   const bool IsCudaHIP =
       Format == BinaryFormat::PTX || Format == BinaryFormat::AMDGCN;
   if (IsCudaHIP) {
     // Based on the OS and the format decide on the version of libspirv.
     // NOTE: this will be problematic if cross-compiling between OSes.
-    std::string Libclc{"clc/"};
-    Libclc.append(
 #ifdef _WIN32
-        "remangled-l32-signed_char.libspirv-"
+    std::string Libclc = "remangled-l32-signed_char.libspirv-";
 #else
-        "remangled-l64-signed_char.libspirv-"
+    std::string Libclc = "remangled-l64-signed_char.libspirv-";
 #endif
-    );
     Libclc.append(Format == BinaryFormat::PTX ? "nvptx64-nvidia-cuda.bc"
                                               : "amdgcn-amd-amdhsa.bc");
     LibNames.push_back(Libclc);
   }
 
   LLVMContext &Context = Module.getContext();
+  SYCLToolchain &TC = SYCLToolchain::instance();
   for (const std::string &LibName : LibNames) {
-    std::string LibPath =
-        (SYCLToolchain::instance().getPrefix() + "/lib/" + LibName).str();
+    std::string LibPath = (LibName.find("libspirv") != std::string::npos)
+                              ? (TC.getLibclcDir() + LibName).str()
+                              : (TC.getPrefix() + "/lib/" + LibName).str();
 
     ModuleUPtr LibModule;
-    if (auto Error = SYCLToolchain::instance()
-                         .loadBitcodeLibrary(LibPath, Context)
-                         .moveInto(LibModule)) {
+    if (auto Error =
+            TC.loadBitcodeLibrary(LibPath, Context).moveInto(LibModule)) {
       return Error;
     }
 
@@ -924,16 +874,14 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   // For GPU targets we need to link against vendor provided libdevice.
   if (IsCudaHIP) {
     Triple T{Module.getTargetTriple()};
-    Driver D{(SYCLToolchain::instance().getPrefix() + "/bin/clang++").str(),
-             T.getTriple(), Diags};
+    Driver D{TC.getClangXXExe(), T.getTriple(), Diags};
     auto [CPU, Features] =
         Translator::getTargetCPUAndFeatureAttrs(&Module, "", Format);
     (void)Features;
     // Helper lambda to link modules.
     auto LinkInLib = [&](const StringRef LibDevice) -> Error {
       ModuleUPtr LibDeviceModule;
-      if (auto Error = SYCLToolchain::instance()
-                           .loadBitcodeLibrary(LibDevice, Context)
+      if (auto Error = TC.loadBitcodeLibrary(LibDevice, Context)
                            .moveInto(LibDeviceModule)) {
         return Error;
       }

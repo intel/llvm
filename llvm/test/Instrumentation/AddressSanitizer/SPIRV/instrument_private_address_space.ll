@@ -20,16 +20,20 @@ define spir_kernel void @kernel() #0 {
 ; CHECK-LABEL: define spir_kernel void @kernel
 entry:
   %p.i = alloca [4 x i32], align 4
-  ; CHECK: %shadow_ptr = call i64 @__asan_mem_to_shadow(i64 %0, i32 0)
-  ; CHECK: call void @__asan_set_shadow_private(i64 %4, i64 2, i8 -15)
-  ; CHECK: call void @__asan_set_shadow_private(i64 %5, i64 1, i8 -13)
+  ; CHECK: %shadow_ptr = call i64 @__asan_mem_to_shadow
+  ; CHECK: [[REG1:%[0-9]+]] = add i64 %shadow_ptr, 0
+  ; CHECK: call void @__asan_set_shadow_private(i64 [[REG1]], i64 2, i8 -15)
+  ; CHECK: [[REG2:%[0-9]+]] = add i64 %shadow_ptr, 3
+  ; CHECK: call void @__asan_set_shadow_private(i64 [[REG2]], i64 1, i8 -13)
   call void @llvm.lifetime.start.p0(ptr nonnull %p.i)
   call void @llvm.memcpy.p0.p1.i64(ptr align 4 %p.i, ptr addrspace(1) align 4 @__const._ZZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_ENKUlvE_clEv.p, i64 16, i1 false)
   %arraydecay.i = getelementptr inbounds [4 x i32], ptr %p.i, i64 0, i64 0
   %0 = addrspacecast ptr %arraydecay.i to ptr addrspace(4)
   %call.i = call spir_func i32 @_Z3fooPii(ptr addrspace(4) %0)
-  ; CHECK: call void @__asan_set_shadow_private(i64 %7, i64 2, i8 0)
-  ; CHECK: call void @__asan_set_shadow_private(i64 %8, i64 1, i8 0)
+  ; CHECK: [[REG3:%[0-9]+]] = add i64 %shadow_ptr, 0
+  ; CHECK: call void @__asan_set_shadow_private(i64 [[REG3]], i64 2, i8 0)
+  ; CHECK: [[REG4:%[0-9]+]] = add i64 %shadow_ptr, 3
+  ; CHECK: call void @__asan_set_shadow_private(i64 [[REG4]], i64 1, i8 0)
   ret void
 }
 

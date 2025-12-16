@@ -124,7 +124,6 @@ dependency graph to the SYCL runtime prior to execution:
 * Unlock DMA hardware features through graph analysis by the runtime.
 
 * Graph optimizations become available, including but not limited to:
-** Kernel fusion/fission.
 ** Inter-node memory reuse from data staying resident on device.
 ** Identification of the peak intermediate output memory requirement, used for
    more optimal memory allocation.
@@ -150,8 +149,7 @@ requirements were considered:
 4. Integrate sub-graphs (previously constructed graphs) when constructing a new
    graph.
 5. Support the USM model of memory as well as buffer/accessor model.
-6. Compatible with other SYCL extensions and features, e.g. kernel fusion &
-   built-in kernels.
+6. Compatible with other SYCL extensions and features, e.g. built-in kernels.
 7. Ability to record a graph with commands submitted to different devices in the
    same context.
 8. Capability to serialize graphs to a binary format which can then be
