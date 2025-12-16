@@ -1077,7 +1077,7 @@ EventImplPtr exec_graph_impl::enqueuePartitionDirectly(
     return nullptr;
   } else {
     auto NewEvent = sycl::detail::event_impl::create_device_event(Queue);
-    NewEvent->setContextImpl(Queue.getContextImpl());
+    NewEvent->setContextImpl(Queue.getContextImplPtr());
     NewEvent->setStateIncomplete();
     NewEvent->setSubmissionTime();
     ur_event_handle_t UrEvent = nullptr;

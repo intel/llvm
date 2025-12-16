@@ -208,7 +208,7 @@ __SYCL_EXPORT void
 addCounterInit(handler &CGH, std::shared_ptr<sycl::detail::queue_impl> &Queue,
                std::shared_ptr<int> &Counter) {
   auto EventImpl = detail::event_impl::create_device_event(*Queue);
-  EventImpl->setContextImpl(Queue->getContextImpl());
+  EventImpl->setContextImpl(Queue->getContextImplPtr());
   EventImpl->setStateIncomplete();
   ur_event_handle_t UREvent = nullptr;
   MemoryManager::fill_usm(Counter.get(), *Queue, sizeof(int), {0}, {},

@@ -79,7 +79,7 @@ template <> device queue_impl::get_info<info::queue::device>() const {
 static event
 prepareSYCLEventAssociatedWithQueue(detail::queue_impl &QueueImpl) {
   auto EventImpl = detail::event_impl::create_device_event(QueueImpl);
-  EventImpl->setContextImpl(QueueImpl.getContextImpl());
+  EventImpl->setContextImpl(QueueImpl.getContextImplPtr());
   EventImpl->setStateIncomplete();
   return detail::createSyclObjFromImpl<event>(EventImpl);
 }

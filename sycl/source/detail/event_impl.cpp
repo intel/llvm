@@ -144,9 +144,9 @@ adapter_impl &event_impl::getAdapter() {
 
 void event_impl::setStateIncomplete() { MState = HES_NotComplete; }
 
-void event_impl::setContextImpl(context_impl &Context) {
+void event_impl::setContextImpl(const std::shared_ptr<context_impl> &Context) {
   MIsHostEvent = false;
-  MContext = Context.shared_from_this();
+  MContext = Context;
 }
 
 event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext,
@@ -170,7 +170,7 @@ event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext,
 event_impl::event_impl(queue_impl &Queue, private_tag)
     : MQueue{Queue.weak_from_this()},
       MIsProfilingEnabled{Queue.MIsProfilingEnabled} {
-  this->setContextImpl(Queue.getContextImpl());
+  this->setContextImpl(Queue.getContextImplPtr());
   MState.store(HES_Complete);
 }
 
