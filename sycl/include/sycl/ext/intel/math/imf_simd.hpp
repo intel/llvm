@@ -13,20 +13,6 @@
 #include <type_traits>
 
 extern "C" {
-unsigned int __imf_vabs2(unsigned int);
-unsigned int __imf_vabs4(unsigned int);
-unsigned int __imf_vneg2(unsigned int);
-unsigned int __imf_vneg4(unsigned int);
-unsigned int __imf_vnegss2(unsigned int);
-unsigned int __imf_vnegss4(unsigned int);
-unsigned int __imf_vabsdiffs2(unsigned int, unsigned int);
-unsigned int __imf_vabsdiffs4(unsigned int, unsigned int);
-unsigned int __imf_vabsdiffu2(unsigned int, unsigned int);
-unsigned int __imf_vabsdiffu4(unsigned int, unsigned int);
-unsigned int __imf_vabsss2(unsigned int);
-unsigned int __imf_vabsss4(unsigned int);
-unsigned int __imf_vadd2(unsigned int, unsigned int);
-unsigned int __imf_vadd4(unsigned int, unsigned int);
 unsigned int __imf_vaddss2(unsigned int, unsigned int);
 unsigned int __imf_vaddss4(unsigned int, unsigned int);
 unsigned int __imf_vaddus2(unsigned int, unsigned int);
@@ -140,6 +126,17 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::intel::math {
 
+/// --------------------------------------------------------------------------
+/// vabs2(x)
+/// Return per-halfword absolute value.
+/// vabs4(x)
+/// Return per-byte absolute value.
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vabs2(unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vabs4(unsigned int);
+};
+
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vabs2(Tp x) {
   return __imf_vabs2(x);
@@ -149,6 +146,17 @@ template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vabs4(Tp x) {
   return __imf_vabs4(x);
 }
+
+/// --------------------------------------------------------------------------
+/// vneg2(x)
+/// Return per-halfword negation.
+/// vneg4(x)
+/// Return per-byte negation.
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vneg2(unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vneg4(unsigned int);
+};
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vneg2(Tp x) {
@@ -160,6 +168,17 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vneg4(Tp x) {
   return __imf_vneg4(x);
 }
 
+/// --------------------------------------------------------------------------
+/// vnegss2(x)
+/// Return per-halfword negation with signed saturation.
+/// vnegss4(x)
+/// Return per-byte negation with signed saturation.
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vnegss2(unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vnegss4(unsigned int);
+};
+
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vnegss2(Tp x) {
   return __imf_vnegss2(x);
@@ -169,6 +188,19 @@ template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vnegss4(Tp x) {
   return __imf_vnegss4(x);
 }
+
+/// --------------------------------------------------------------------------
+/// vabsdiffs2(x), vabsdiffu2(x)
+/// Return per-halfword absolute difference of signed/unsigned integer.
+/// vabsdiffs4(x), vabsdiffu4(x)
+/// Return per-byte absolute difference of signed/unsigned integer.
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vabsdiffs2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vabsdiffs4(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vabsdiffu2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vabsdiffu4(unsigned int, unsigned int);
+};
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
@@ -194,6 +226,17 @@ vabsdiffu4(Tp x, Tp y) {
   return __imf_vabsdiffu4(x, y);
 }
 
+/// --------------------------------------------------------------------------
+/// vabsss2(x)
+/// Return per-halfword absolute value with signed saturation.
+/// vabsss4(x)
+/// Return per-byte absolute value with signed saturation.
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vabsss2(unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vabsss4(unsigned int);
+};
+
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vabsss2(Tp x) {
   return __imf_vabsss2(x);
@@ -203,6 +246,17 @@ template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vabsss4(Tp x) {
   return __imf_vabsss4(x);
 }
+
+/// --------------------------------------------------------------------------
+/// vadd2(x, y)
+/// Return per-halfword unsigned addition ignoring overflow.
+/// vadd4(x, y)
+/// Return per-byte unsigned addition ignoring overflow.
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vadd2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vadd4(unsigned int, unsigned int);
+};
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vadd2(Tp x,

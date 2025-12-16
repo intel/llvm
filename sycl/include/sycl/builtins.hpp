@@ -29,26 +29,6 @@ extern __DPCPP_SYCL_EXTERNAL_LIBC int strncmp(const char *s1, const char *s2,
                                               size_t n);
 extern __DPCPP_SYCL_EXTERNAL_LIBC int rand();
 extern __DPCPP_SYCL_EXTERNAL_LIBC void srand(unsigned int seed);
-extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_vabs2(unsigned int x);
-extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_vabs4(unsigned int x);
-extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_vabsss2(unsigned int x);
-extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_vabsss4(unsigned int x);
-extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_vneg2(unsigned int x);
-extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_vneg4(unsigned int x);
-extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_vnegss2(unsigned int x);
-extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_vnegss4(unsigned int x);
-extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_vabsdiffs2(unsigned int x,
-                                                           unsigned int y);
-extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_vabsdiffs4(unsigned int x,
-                                                           unsigned int y);
-extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_vabsdiffu2(unsigned int x,
-                                                           unsigned int y);
-extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_vabsdiffu4(unsigned int x,
-                                                           unsigned int y);
-extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_vadd2(unsigned int x,
-                                                      unsigned int y);
-extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_vadd4(unsigned int x,
-                                                      unsigned int y);
 extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_vaddss2(unsigned int x,
                                                         unsigned int y);
 extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_vaddss4(unsigned int x,
