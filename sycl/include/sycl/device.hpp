@@ -57,15 +57,14 @@ enum class peer_access {
   access_supported = 0x0,
   atomics_supported = 0x1,
 };
-
+template <typename SYCLObjT> class weak_object;
 } // namespace ext::oneapi
 
 /// The SYCL device class encapsulates a single SYCL device on which kernels
 /// may be executed.
 ///
 /// \ingroup sycl_api
-class __SYCL_STANDALONE_DEBUG __SYCL_EXPORT device
-    : public detail::OwnerLessBase<device> {
+class __SYCL_STANDALONE_DEBUG __SYCL_EXPORT device {
   friend sycl::detail::ImplUtils;
 
 public:
@@ -93,6 +92,12 @@ public:
   /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
   /// takes a device and returns an int
   template <typename DeviceSelector,
+            // `device_impl` (used as a parameter in private ctor) is incomplete
+            // so would result in a error trying to instantiate
+            // `EnableIfSYCL2020DeviceSelectorInvocable` below. Filter it out
+            // before trying to do that.
+            typename = std::enable_if_t<
+                !std::is_same_v<DeviceSelector, detail::device_impl>>,
             typename =
                 detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>>
   explicit device(const DeviceSelector &deviceSelector)
@@ -361,6 +366,12 @@ public:
   /// \return the default context
   context ext_oneapi_get_default_context();
 
+  // Definitions are in `<sycl/ext/oneapi/weak_object.hpp>` to avoid circular
+  // dependencies:
+  inline bool ext_oneapi_owner_before(const device &Other) const noexcept;
+  inline bool ext_oneapi_owner_before(
+      const ext::oneapi::weak_object<device> &Other) const noexcept;
+
   /// Synchronizes with all queues associated with the device.
   void ext_oneapi_wait();
 
@@ -382,8 +393,10 @@ public:
 #endif // defined(__clang__)
 
 private:
-  std::shared_ptr<detail::device_impl> impl;
-  device(std::shared_ptr<detail::device_impl> Impl) : impl(std::move(Impl)) {}
+  // `device_impl`s are owned by the parent platform, user-visible
+  // `sycl::device` is non-owning and thus very cheap.
+  detail::device_impl *impl = nullptr;
+  device(detail::device_impl &impl) : impl(&impl) {}
 
   ur_native_handle_t getNative() const;
 

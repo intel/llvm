@@ -280,7 +280,7 @@
 ??0default_selector@_V1@sycl@@QEAA@$$QEAV012@@Z
 ??0default_selector@_V1@sycl@@QEAA@AEBV012@@Z
 ??0default_selector@_V1@sycl@@QEAA@XZ
-??0device@_V1@sycl@@AEAA@V?$shared_ptr@Vdevice_impl@detail@_V1@sycl@@@std@@@Z
+??0device@_V1@sycl@@AEAA@AEAVdevice_impl@detail@12@@Z
 ??0device@_V1@sycl@@QEAA@$$QEAV012@@Z
 ??0device@_V1@sycl@@QEAA@AEBV012@@Z
 ??0device@_V1@sycl@@QEAA@AEBVdevice_selector@12@@Z
@@ -440,7 +440,6 @@
 ??1context@_V1@sycl@@QEAA@XZ
 ??1cpu_selector@_V1@sycl@@UEAA@XZ
 ??1default_selector@_V1@sycl@@UEAA@XZ
-??1device@_V1@sycl@@QEAA@XZ
 ??1device_image_plain@detail@_V1@sycl@@QEAA@XZ
 ??1device_selector@_V1@sycl@@UEAA@XZ
 ??1dynamic_command_group@experimental@oneapi@ext@_V1@sycl@@QEAA@XZ
@@ -472,8 +471,6 @@
 ??1tls_code_loc_t@detail@_V1@sycl@@QEAA@XZ
 ??4?$OwnerLessBase@Vcontext@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
 ??4?$OwnerLessBase@Vcontext@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
-??4?$OwnerLessBase@Vdevice@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
-??4?$OwnerLessBase@Vdevice@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
 ??4?$OwnerLessBase@Vevent@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
 ??4?$OwnerLessBase@Vevent@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
 ??4?$OwnerLessBase@Vexecutable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
@@ -3875,8 +3872,6 @@
 ?ext_oneapi_memset2d_impl@handler@_V1@sycl@@AEAAXPEAX_KH11@Z
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vcontext@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBV?$weak_object_base@Vcontext@_V1@sycl@@@2oneapi@ext@34@@Z
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vcontext@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBVcontext@34@@Z
-?ext_oneapi_owner_before@?$OwnerLessBase@Vdevice@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBV?$weak_object_base@Vdevice@_V1@sycl@@@2oneapi@ext@34@@Z
-?ext_oneapi_owner_before@?$OwnerLessBase@Vdevice@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBVdevice@34@@Z
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vevent@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBV?$weak_object_base@Vevent@_V1@sycl@@@2oneapi@ext@34@@Z
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vevent@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBVevent@34@@Z
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vexecutable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBV?$weak_object_base@Vexecutable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@@2oneapi@ext@34@@Z
@@ -3895,6 +3890,8 @@
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vqueue@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBVqueue@34@@Z
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vstream@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBV?$weak_object_base@Vstream@_V1@sycl@@@2oneapi@ext@34@@Z
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vstream@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBVstream@34@@Z
+?ext_oneapi_owner_before@device@_V1@sycl@@QEBA_NAEBV123@@Z
+?ext_oneapi_owner_before@device@_V1@sycl@@QEBA_NAEBV?$weak_object@Vdevice@_V1@sycl@@@oneapi@ext@23@@Z
 ?ext_oneapi_prod@queue@_V1@sycl@@QEAAXXZ
 ?ext_oneapi_set_external_event@queue@_V1@sycl@@QEAAXAEBVevent@23@@Z
 ?ext_oneapi_signal_external_semaphore@handler@_V1@sycl@@QEAAXUexternal_semaphore@experimental@oneapi@ext@23@@Z

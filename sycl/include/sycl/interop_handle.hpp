@@ -213,7 +213,7 @@ private:
 #endif
   interop_handle(std::vector<ReqToMem> MemObjs,
                  const std::shared_ptr<detail::queue_impl> &Queue,
-                 const std::shared_ptr<detail::device_impl> &Device,
+                 detail::device_impl &Device,
                  const std::shared_ptr<detail::context_impl> &Context,
                  ur_exp_command_buffer_handle_t Graph = nullptr)
       : MQueue(Queue), MDevice(Device), MContext(Context), MGraph(Graph),
@@ -243,7 +243,7 @@ private:
   __SYCL_EXPORT ur_native_handle_t getNativeGraph() const;
 
   std::shared_ptr<detail::queue_impl> MQueue;
-  std::shared_ptr<detail::device_impl> MDevice;
+  detail::device_impl &MDevice;
   std::shared_ptr<detail::context_impl> MContext;
   ur_exp_command_buffer_handle_t MGraph;
 

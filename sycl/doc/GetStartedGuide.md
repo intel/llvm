@@ -198,8 +198,8 @@ extensions that require sm_80 and later architectures also require at least CUDA
 11.0.
 
 The CUDA backend should work on Windows or Linux operating systems with any GPU
-with compute capability (SM version) sm_50 or above. The default SM version for
-the NVIDIA CUDA backend is sm_50. Users of sm_3X devices can attempt to specify
+with compute capability (SM version) sm_75 or above. The default SM version for
+the NVIDIA CUDA backend is sm_75. Users of sm_3X devices can attempt to specify
 the target architecture [ahead of time](#aot-target-architectures), provided
 that they use a 11.X  or earlier CUDA toolkit version, but some features may not be
 supported. The CUDA backend has been tested with different Ubuntu Linux

@@ -381,17 +381,11 @@ public:
 
   SanitizerType kernelUsesSanitizer() const { return m_SanitizerFoundInImage; }
 
-  std::optional<int>
-  kernelImplicitLocalArgPos(std::string_view KernelName) const {
-    auto it = m_KernelImplicitLocalArgPos.find(KernelName);
-    if (it != m_KernelImplicitLocalArgPos.end())
-      return it->second;
-    return {};
-  }
+  void cacheKernelImplicitLocalArg(const RTDeviceBinaryImage &Img);
 
-  DeviceKernelInfo &
-  getOrCreateDeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
-  DeviceKernelInfo &getOrCreateDeviceKernelInfo(std::string_view KernelName);
+  DeviceKernelInfo &getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
+  DeviceKernelInfo &getDeviceKernelInfo(std::string_view KernelName);
+  DeviceKernelInfo *tryGetDeviceKernelInfo(std::string_view KernelName);
 
   std::set<const RTDeviceBinaryImage *>
   getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
@@ -419,9 +413,6 @@ private:
 
   /// Dumps image to current directory
   void dumpImage(const RTDeviceBinaryImage &Img, uint32_t SequenceID = 0) const;
-
-  /// Add info on kernels using local arg into cache
-  void cacheKernelImplicitLocalArg(const RTDeviceBinaryImage &Img);
 
   std::set<const RTDeviceBinaryImage *>
   collectDependentDeviceImagesForVirtualFunctions(
@@ -528,12 +519,6 @@ protected:
   /// True iff a SPIR-V file has been specified with an environment variable
   bool m_UseSpvFile = false;
   RTDeviceBinaryImageUPtr m_SpvFileImage;
-
-  // std::less<> is a transparent comparator that enabled comparison between
-  // different types without temporary key_type object creation. This includes
-  // standard overloads, such as comparison between std::string and
-  // std::string_view or just char*.
-  std::unordered_map<std::string_view, int> m_KernelImplicitLocalArgPos;
 
   // Map for storing device kernel information. Runtime lookup should be avoided
   // by caching the pointers when possible.
