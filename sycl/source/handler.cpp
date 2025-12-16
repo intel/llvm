@@ -488,7 +488,7 @@ detail::EventImplPtr handler::finalize() {
       // Fetch the device kernel info pointer if it hasn't been set (e.g.
       // in kernel bundle or free function cases).
       impl->MKernelData.setDeviceKernelInfoPtr(
-          &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
+          &detail::ProgramManager::getInstance().getDeviceKernelInfo(
               std::string_view(MKernelName)));
     }
     assert(impl->MKernelData.getKernelName() == MKernelName);
