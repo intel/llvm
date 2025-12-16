@@ -16,6 +16,7 @@
 #include "context.hpp"
 #include "event.hpp"
 #include "event_pool_cache.hpp"
+#include "graph.hpp"
 #include "memory.hpp"
 #include "queue_api.hpp"
 
@@ -548,29 +549,33 @@ public:
         createEventIfRequested(eventPool.get(), phEvent, this));
   }
 
+  ur_result_t enqueueGraphExp(ur_exp_executable_graph_handle_t hGraph,
+                              uint32_t numEventsInWaitList,
+                              const ur_event_handle_t *phEventWaitList,
+                              ur_event_handle_t *phEvent) override {
+    wait_list_view waitListView =
+        wait_list_view(phEventWaitList, numEventsInWaitList);
+
+    return commandListManager.lock()->appendGraph(
+        hGraph, waitListView,
+        createEventIfRequested(eventPool.get(), phEvent, this));
+  }
+
   ur_result_t queueBeginGraphCapteExp() override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    return commandListManager.lock()->beginGraphCapture();
   }
 
   ur_result_t
-  queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t /* hGraph */) override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t hGraph) override {
+    return commandListManager.lock()->beginCaptureIntoGraph(hGraph);
   }
 
-  ur_result_t
-  queueEndGraphCapteExp(ur_exp_graph_handle_t * /* phGraph */) override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  ur_result_t queueEndGraphCapteExp(ur_exp_graph_handle_t *phGraph) override {
+    return commandListManager.lock()->endGraphCapture(phGraph);
   }
 
-  ur_result_t enqueueGraphExp(ur_exp_executable_graph_handle_t /* hGraph */,
-                              uint32_t /* numEventsInWaitList */,
-                              const ur_event_handle_t * /* phEventWaitList */,
-                              ur_event_handle_t * /* phEvent */) override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-  }
-
-  ur_result_t queueIsGraphCapteEnabledExp(bool * /* pResult */) override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  ur_result_t queueIsGraphCapteEnabledExp(bool *pResult) override {
+    return commandListManager.lock()->isGraphCaptureActive(pResult);
   }
 
   ur::RefCount RefCount;
