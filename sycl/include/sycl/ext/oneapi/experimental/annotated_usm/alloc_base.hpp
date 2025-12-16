@@ -69,9 +69,8 @@ aligned_alloc_annotated(size_t align, size_t numBytes, const device &syclDevice,
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "Unknown USM allocation kind was specified.");
 
-  void *rawPtr =
-      sycl::aligned_alloc(combine_align(align, alignFromPropList), numBytes,
-                          syclDevice, syclContext, kind);
+  void *rawPtr = sycl::aligned_alloc(combine_align(align, alignFromPropList),
+                                     numBytes, syclDevice, syclContext, kind);
   return annotated_ptr<void, propertyListB>(rawPtr);
 }
 
