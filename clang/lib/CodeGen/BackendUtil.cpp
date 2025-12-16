@@ -1147,7 +1147,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
           [](ModulePassManager &MPM, OptimizationLevel, ThinOrFullLTOPhase) {
             // Allocate static local memory in SYCL kernel scope for each
             // allocation call. This pass must run after AlwaysInline pass due
-            // to current specification restriction.
+            // to current implementation restriction.
             MPM.addPass(SYCLLowerWGLocalMemoryPass());
           });
     } else if (LangOpts.SYCLIsHost && !LangOpts.SYCLESIMDBuildHostCode) {
