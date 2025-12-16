@@ -39,15 +39,15 @@ static_assert(sfinae_test_binary<annotated_ref<int>>::value);
 template <typename T> struct MyStruct;
 struct MySecondStruct {
   int data;
-  MySecondStruct(){};
-  MySecondStruct(int data) : data(data){};
+  MySecondStruct() {};
+  MySecondStruct(int data) : data(data) {};
 
   operator MyStruct<int>() const;
 };
 template <typename T> struct MyStruct {
   T data;
-  MyStruct(){};
-  MyStruct(T data) : data(data){};
+  MyStruct() {};
+  MyStruct(T data) : data(data) {};
 
   template <typename O>
   auto operator+(const O &rhs) -> decltype(std::declval<T>() + rhs) const {

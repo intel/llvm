@@ -74,7 +74,6 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #include <sycl/multi_ptr.hpp>
 #include <sycl/nd_item.hpp>
 #include <sycl/nd_range.hpp>
-#include <sycl/pipes.hpp>
 #include <sycl/platform.hpp>
 #include <sycl/pointers.hpp>
 #include <sycl/properties/all_properties.hpp>
@@ -91,13 +90,6 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #include <sycl/version.hpp>
 
 #include <sycl/ext/intel/experimental/fp_control_kernel_properties.hpp>
-#include <sycl/ext/intel/experimental/fpga_mem/fpga_datapath.hpp>
-#include <sycl/ext/intel/experimental/fpga_mem/fpga_mem.hpp>
-#include <sycl/ext/intel/experimental/fpga_mem/properties.hpp>
-#include <sycl/ext/intel/experimental/pipe_properties.hpp>
-#include <sycl/ext/intel/experimental/pipes.hpp>
-#include <sycl/ext/intel/experimental/task_sequence.hpp>
-#include <sycl/ext/intel/experimental/task_sequence_properties.hpp>
 #include <sycl/ext/intel/experimental/usm_properties.hpp>
 #include <sycl/ext/intel/usm_pointers.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
@@ -105,7 +97,6 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/experimental/address_cast.hpp>
-#include <sycl/ext/oneapi/experimental/annotated_arg/annotated_arg.hpp>
 #include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp>
 #include <sycl/ext/oneapi/experimental/annotated_usm/alloc_device.hpp>
 #include <sycl/ext/oneapi/experimental/annotated_usm/alloc_host.hpp>

@@ -39,15 +39,6 @@ int main() {
       cout << "Expectedly, cpu device is not found." << std::endl;
     }
   }
-  {
-    try {
-      device d(accelerator_selector_v);
-      cerr << "ACC device is found in error: " << d.is_accelerator()
-           << std::endl;
-    } catch (...) {
-      cout << "Expectedly, ACC device is not found." << std::endl;
-    }
-  }
 
   return 0;
 }

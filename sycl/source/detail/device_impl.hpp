@@ -74,8 +74,6 @@ inline info::device_type ConvertDeviceType(ur_device_type_t UrDevType) {
     return info::device_type::gpu;
   case UR_DEVICE_TYPE_CPU:
     return info::device_type::cpu;
-  case UR_DEVICE_TYPE_FPGA:
-    return info::device_type::accelerator;
   case UR_DEVICE_TYPE_MCA:
   case UR_DEVICE_TYPE_VPU:
   case UR_DEVICE_TYPE_CUSTOM:
@@ -468,7 +466,8 @@ public:
   ///
   /// \return true if SYCL device is an accelerator device
   bool is_accelerator() const {
-    return get_info_impl<UR_DEVICE_INFO_TYPE>() == UR_DEVICE_TYPE_FPGA;
+    // This implementation doesn't support accelerator-type devices.
+    return false;
   }
 
   /// Get associated SYCL platform
@@ -806,22 +805,6 @@ public:
 
     CASE(info::device::image_support) {
       // No devices currently support SYCL 2020 images.
-      return false;
-    }
-
-    CASE(info::device::kernel_kernel_pipe_support) {
-      // We claim, that all Intel FPGA devices support kernel to kernel pipe
-      // feature (at least at the scope of SYCL_INTEL_data_flow_pipes
-      // extension).
-      std::string platform_name = MPlatform.get_info<info::platform::name>();
-      if (platform_name == "Intel(R) FPGA Emulation Platform for OpenCL(TM)" ||
-          platform_name == "Intel(R) FPGA SDK for OpenCL(TM)")
-        return true;
-
-      // TODO: a better way is to query for supported SPIR-V capabilities when
-      // it's started to be possible. Also, if a device's backend supports
-      // SPIR-V 1.1 (where Pipe Storage feature was defined), than it supports
-      // the feature as well.
       return false;
     }
 
@@ -1204,10 +1187,7 @@ public:
     CASE(cpu) { return is_cpu(); }
     CASE(gpu) { return is_gpu(); }
     CASE(accelerator) { return is_accelerator(); }
-    CASE(custom) {
-      return false;
-      // TODO: Implement this for FPGA emulator.
-    }
+    CASE(custom) { return false; }
     CASE(emulated) { return false; }
     CASE(host_debuggable) { return false; }
     CASE(fp16) { return has_extension("cl_khr_fp16"); }
@@ -1232,9 +1212,6 @@ public:
     }
     CASE(usm_host_allocations) {
       return get_info<info::device::usm_host_allocations>();
-    }
-    CASE(ext_intel_mem_channel) {
-      return get_info<info::device::ext_intel_mem_channel>();
     }
     CASE(ext_oneapi_cuda_cluster_group) {
       return get_info<info::device::ext_oneapi_cuda_cluster_group>();
@@ -1524,7 +1501,6 @@ public:
       return get_info_impl_nocheck<UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT>()
           .value_or(0);
     }
-    CASE(ext_intel_fpga_task_sequence) { return is_accelerator(); }
     CASE(ext_oneapi_atomic16) {
       // Likely L0 doesn't check it properly. Need to double-check.
       return has_extension("cl_ext_float_atomics");

@@ -1162,9 +1162,7 @@ public:
       buffer<T, Dims, AllocatorT> &BufferRef, TagT,
       const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
-      : accessor(BufferRef, PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(BufferRef);
-  }
+      : accessor(BufferRef, PropertyList, CodeLoc) {}
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
@@ -1177,9 +1175,7 @@ public:
       const ext::oneapi::accessor_property_list<PropTypes...> &PropertyList =
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
-      : accessor(BufferRef, PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(BufferRef);
-  }
+      : accessor(BufferRef, PropertyList, CodeLoc) {}
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = std::enable_if_t<
@@ -1261,9 +1257,7 @@ public:
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       TagT, const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
-      : accessor(BufferRef, CommandGroupHandler, PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(BufferRef);
-  }
+      : accessor(BufferRef, CommandGroupHandler, PropertyList, CodeLoc) {}
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
@@ -1277,9 +1271,7 @@ public:
       const ext::oneapi::accessor_property_list<PropTypes...> &PropertyList =
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
-      : accessor(BufferRef, CommandGroupHandler, PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(BufferRef);
-  }
+      : accessor(BufferRef, CommandGroupHandler, PropertyList, CodeLoc) {}
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = std::enable_if_t<
@@ -1315,9 +1307,7 @@ public:
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
       TagT, const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
-      : accessor(BufferRef, AccessRange, {}, PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(BufferRef);
-  }
+      : accessor(BufferRef, AccessRange, {}, PropertyList, CodeLoc) {}
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
@@ -1331,9 +1321,7 @@ public:
       const ext::oneapi::accessor_property_list<PropTypes...> &PropertyList =
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
-      : accessor(BufferRef, AccessRange, {}, PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(BufferRef);
-  }
+      : accessor(BufferRef, AccessRange, {}, PropertyList, CodeLoc) {}
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = std::enable_if_t<
@@ -1374,9 +1362,7 @@ public:
       const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, AccessRange, {}, PropertyList,
-                 CodeLoc) {
-    adjustAccPropsInBuf(BufferRef);
-  }
+                 CodeLoc) {}
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
@@ -1391,9 +1377,7 @@ public:
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, AccessRange, {}, PropertyList,
-                 CodeLoc) {
-    adjustAccPropsInBuf(BufferRef);
-  }
+                 CodeLoc) {}
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = std::enable_if_t<
@@ -1488,9 +1472,7 @@ public:
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
       id<Dimensions> AccessOffset, TagT, const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
-      : accessor(BufferRef, AccessRange, AccessOffset, PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(BufferRef);
-  }
+      : accessor(BufferRef, AccessRange, AccessOffset, PropertyList, CodeLoc) {}
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
@@ -1504,9 +1486,7 @@ public:
       const ext::oneapi::accessor_property_list<PropTypes...> &PropertyList =
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
-      : accessor(BufferRef, AccessRange, AccessOffset, PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(BufferRef);
-  }
+      : accessor(BufferRef, AccessRange, AccessOffset, PropertyList, CodeLoc) {}
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = std::enable_if_t<
@@ -1604,9 +1584,7 @@ public:
       const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset,
-                 PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(BufferRef);
-  }
+                 PropertyList, CodeLoc) {}
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
@@ -1621,9 +1599,7 @@ public:
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset,
-                 PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(BufferRef);
-  }
+                 PropertyList, CodeLoc) {}
 
   template <typename... NewPropsT>
   accessor(
@@ -1934,26 +1910,6 @@ private:
       throw sycl::exception(make_error_code(errc::invalid),
           "accessor cannot be both read_only and no_init");
     }
-  }
-
-  template <typename BufT, typename... PropTypes>
-  void adjustAccPropsInBuf(BufT &Buffer) {
-    if constexpr (PropertyListT::template has_property<
-                      sycl::ext::intel::property::buffer_location>()) {
-      auto location = (PropertyListT::template get_property<
-                           sycl::ext::intel::property::buffer_location>())
-                          .get_location();
-      property_list PropList{
-          sycl::property::buffer::detail::buffer_location(location)};
-      Buffer.addOrReplaceAccessorProperties(PropList);
-    } else {
-      deleteAccPropsFromBuf(Buffer);
-    }
-  }
-
-  template <typename BufT> void deleteAccPropsFromBuf(BufT &Buffer) {
-    Buffer.deleteAccProps(
-        sycl::detail::PropWithDataKind::AccPropBufferLocation);
   }
 };
 
