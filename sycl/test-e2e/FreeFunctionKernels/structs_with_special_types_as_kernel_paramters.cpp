@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: nvptx64-nvidia-cuda
+// XFAIL: any-target-is-nvidia && build-only
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20908
 
 // This test verifies whether struct that contains either sycl::local_accesor or
