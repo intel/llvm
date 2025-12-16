@@ -29,21 +29,21 @@ constexpr size_t N = 32;
 constexpr const char *CommsFile = "ipc_comms.txt";
 
 void spawn_and_sync(std::string Exe) {
-  std::cout << "Spawning: " << Exe << " 1" << std::endl;
+  std::string Cmd = Exe + " 1";
+  std::cout << "Spawning: " << Cmd << std::endl;
 #if defined(__WIN32__) || defined(_WIN32)
   STARTUPINFO StartupInfo;
   PROCESS_INFORMATION ProcInfo;
 
   std::memset(&ProcInfo, 0, sizeof(ProcInfo));
   std::memset(&StartupInfo, 0, sizeof(StartupInfo));
-  StartupInfo.cb = sizeof(si);
-  CreateProcess(Exe.c_str(), "1", NULL, NULL, TRUE, 0, NULL, NULL, &StartupInfo,
-                &ProcInfo);
+  StartupInfo.cb = sizeof(StartupInfo);
+  CreateProcessA(NULL, Cmd.c_str(), NULL, NULL, TRUE, 0, NULL, NULL,
+                 &StartupInfo, &ProcInfo);
   WaitForSingleObject(ProcInfo.hProcess, 30000);
   CloseHandle(ProcInfo.hProcess);
   CloseHandle(ProcInfo.hThread);
 #else
-  std::string Cmd = Exe + " 1";
   std::system(Cmd.c_str());
 #endif
 }
