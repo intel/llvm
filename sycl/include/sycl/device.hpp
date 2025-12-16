@@ -360,7 +360,7 @@ public:
   ///
   /// \return the default context
   context ext_oneapi_get_default_context();
-  
+
   /// Synchronizes with all queues associated with the device.
   void ext_oneapi_wait();
 
