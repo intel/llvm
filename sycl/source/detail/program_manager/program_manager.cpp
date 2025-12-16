@@ -2199,7 +2199,7 @@ device_image_plain ProgramManager::getDeviceImageFromBinaryImage(
     const device &Dev) {
   const bundle_state ImgState = getBinImageState(BinImage);
 
-  assert(compatibleWithDevice(BinImage, *getSyclObjImpl(Dev).get()));
+  assert(compatibleWithDevice(BinImage, *getSyclObjImpl(Dev)));
 
   std::shared_ptr<std::vector<sycl::kernel_id>> KernelIDs;
   // Collect kernel names for the image.
