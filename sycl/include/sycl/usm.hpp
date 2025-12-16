@@ -349,6 +349,53 @@ __SYCL_EXPORT void release_from_device_copy(const void *Ptr,
 __SYCL_EXPORT void release_from_device_copy(const void *Ptr,
                                             const queue &Queue);
 
+__SYCL_EXPORT void *malloc_device(size_t numBytes, const device &syclDevice,
+                                  const property_list &propList = {});
+
+template <typename T>
+__SYCL_EXPORT T *malloc_device(size_t count, const device &syclDevice,
+                               const property_list &propList = {});
+
+__SYCL_EXPORT void *aligned_alloc_device(size_t alignment, size_t numBytes,
+                                         const device &syclDevice,
+                                         const property_list &propList = {});
+
+template <typename T>
+__SYCL_EXPORT T *aligned_alloc_device(size_t alignment, size_t count,
+                                      const device &syclDevice,
+                                      const property_list &propList = {});
+
+__SYCL_EXPORT void *malloc_shared(size_t numBytes, const device &syclDevice,
+                                  const property_list &propList = {});
+
+template <typename T>
+__SYCL_EXPORT T *malloc_shared(size_t count, const device &syclDevice,
+                               const property_list &propList = {});
+
+__SYCL_EXPORT void *aligned_alloc_shared(size_t alignment, size_t numBytes,
+                                         const device &syclDevice,
+                                         const property_list &propList = {});
+
+template <typename T>
+__SYCL_EXPORT T *aligned_alloc_shared(size_t alignment, size_t count,
+                                      const device &syclDevice,
+                                      const property_list &propList = {});
+
+__SYCL_EXPORT void *malloc(size_t numBytes, const device &syclDevice,
+                           usm::alloc kind, const property_list &propList = {});
+
+template <typename T>
+__SYCL_EXPORT T *malloc(size_t count, const device &syclDevice, usm::alloc kind,
+                        const property_list &propList = {});
+
+__SYCL_EXPORT void *aligned_alloc(size_t alignment, size_t numBytes,
+                                  const device &syclDevice, usm::alloc kind,
+                                  const property_list &propList = {});
+
+template <typename T>
+__SYCL_EXPORT T *aligned_alloc(size_t alignment, size_t count,
+                               const device &syclDevice, usm::alloc kind,
+                               const property_list &propList = {});
 } // namespace ext::oneapi::experimental
 
 } // namespace _V1
