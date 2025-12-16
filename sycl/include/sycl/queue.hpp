@@ -24,6 +24,7 @@
 #include <sycl/detail/nd_range_view.hpp>
 #include <sycl/detail/optional.hpp>
 #include <sycl/detail/owner_less_base.hpp> // for OwnerLessBase
+#include <sycl/detail/range_rounding.hpp>  // for range rounding utils
 #include <sycl/device.hpp>                 // for device
 #include <sycl/device_selector.hpp>        // for device_selector
 #include <sycl/event.hpp>                  // for event
@@ -41,7 +42,6 @@
 #include <sycl/nd_range.hpp>                         // for nd_range
 #include <sycl/property_list.hpp>                    // for property_list
 #include <sycl/range.hpp>                            // for range
-#include <sycl/range_rounding.hpp>                   // for range rounding utils
 #include <sycl/sycl_span.hpp>                        // for sycl::span
 
 #include <cstddef>     // for size_t
