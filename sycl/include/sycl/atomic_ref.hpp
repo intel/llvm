@@ -49,10 +49,9 @@ template <typename T> struct IsValidAtomicRefType {
 };
 
 template <sycl::access::address_space AS> struct IsValidAtomicRefAddressSpace {
-  static constexpr bool value =
-      (AS == access::address_space::global_space ||
-       AS == access::address_space::local_space ||
-       AS == access::address_space::generic_space);
+  static constexpr bool value = (AS == access::address_space::global_space ||
+                                 AS == access::address_space::local_space ||
+                                 AS == access::address_space::generic_space);
 };
 
 // DefaultOrder parameter is limited to read-modify-write orders
