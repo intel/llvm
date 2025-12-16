@@ -210,12 +210,12 @@ if(LLVM_BUILD_EXAMPLES)
     OrcV2CBindingsLazy
     OrcV2CBindingsVeryLazy
     )
-  if(CMAKE_HOST_UNIX)
+  if(CMAKE_HOST_UNIX AND LLVM_ENABLE_THREADS)
     list(APPEND LLVM_TEST_DEPENDS
       LLJITWithRemoteDebugging
       )
   endif()
-  if (NOT WIN32)
+  if (NOT WIN32 AND NOT CYGWIN)
     list(APPEND LLVM_TEST_DEPENDS
       Bye
       ExampleIRTransforms
