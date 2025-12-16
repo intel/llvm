@@ -2172,6 +2172,42 @@ extractSYCLCompileLinkOptions(ArrayRef<OffloadFile> OffloadFiles) {
   return std::make_pair(std::string(RefCompileOpts), std::string(RefLinkOpts));
 }
 
+static void appendSYCLDeviceOptionsAtLinkTime(const DerivedArgList &LinkerArgs,
+                                              std::string &CompileOptions,
+                                              std::string &LinkOptions) {
+  // Append any additional backend compiler options specified at link time.
+  const llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
+  for (StringRef Arg : LinkerArgs.getAllArgValues(OPT_device_compiler_args_EQ)) {
+    auto [Specifier, Value] = Arg.split('=');
+    StringRef TargetTriple = Specifier; 
+    if (Specifier.contains(':')) {
+      auto [KindStr, TripleStr] = Specifier.split(':');
+      OffloadKind Kind = getOffloadKind(KindStr);
+      TargetTriple = TripleStr;
+      if (Kind != OFK_SYCL)
+        continue;
+    }
+    if (TargetTriple != Triple.getTriple() || Value.empty())
+      continue;
+
+    // Replace -O0 with -cl-opt-disable for non-JIT, and ignore other -O options.
+    if (Value.starts_with("-O") && Value.size() == 3) {
+      if (Value != "-O0" || Triple.getSubArch() == llvm::Triple::NoSubArch)
+        continue;
+      Value = " -cl-opt-disable";
+    }
+
+    CompileOptions += Twine(" ", Value).str();
+  }
+
+  // Append any additional linker options specified at link time.
+  for (StringRef Arg : LinkerArgs.getAllArgValues(OPT_device_linker_args_EQ)) {
+    auto [ArgKey, ArgValue] = Arg.split(' ');
+    LinkOptions += Twine(" ", ArgValue).str();
+  }
+}
+
+
 /// Transforms all the extracted offloading input files into an image that can
 /// be registered by the runtime. If NeedsWrapping is false, writes bundled
 /// output directly without wrapping or host linking.
@@ -2227,22 +2263,9 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       if (!CompileLinkOptionsOrErr)
         return CompileLinkOptionsOrErr.takeError();
 
-      // Append any additional backend compiler options specified at link time.
-      const llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
-      for (StringRef Arg :
-           LinkerArgs.getAllArgValues(OPT_device_compiler_args_EQ)) {
-        auto [ArgTriple, ArgValue] = Arg.split('=');
-        if (ArgTriple == Triple.getTriple() && !ArgValue.empty()) {
-          CompileLinkOptionsOrErr->first += Twine(" ", ArgValue).str();
-        }
-      }
-
-      // Append any additional linker options specified at link time.
-      for (StringRef Arg :
-           LinkerArgs.getAllArgValues(OPT_device_linker_args_EQ)) {
-        auto [ArgKey, ArgValue] = Arg.split(' ');
-        CompileLinkOptionsOrErr->second += Twine(" ", ArgValue).str();
-      }
+      appendSYCLDeviceOptionsAtLinkTime(
+          LinkerArgs, CompileLinkOptionsOrErr->first,
+          CompileLinkOptionsOrErr->second);
 
       SmallVector<StringRef> InputFiles;
       // Write device inputs to an output file for the linker.

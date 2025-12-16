@@ -11271,7 +11271,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       for (Arg *A : ToolChainArgs) {
         if (A->getOption().matches(OPT_Zlinker_input))
           LinkerArgs.emplace_back(A->getValue());
-        else if (Kind != Action::OFK_SYCL && ShouldForward(CompilerOptions, A, *TC))
+        else if (ShouldForward(CompilerOptions, A, *TC))
           A->render(Args, CompilerArgs);
         else if (ShouldForward(LinkerOptions, A, *TC))
           A->render(Args, LinkerArgs);
@@ -11526,10 +11526,12 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
           appendOption(BackendOptString, A);
       }
 
-      if(!BackendOptString.empty()){
+      if (!BackendOptString.empty()) {
         CmdArgs.push_back(
-        Args.MakeArgString("--device-compiler=" + TC->getTripleString() +
-                               "=" + BackendOptString));
+            Args.MakeArgString("--device-compiler=" +
+                                Action::GetOffloadKindName(Action::OFK_SYCL) + ":" +
+                                TC->getTripleString() + "=" +
+                                BackendOptString));
       }
       if(!LinkOptString.empty()){
         CmdArgs.push_back(
