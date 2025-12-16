@@ -422,8 +422,7 @@ To hiloint2double(From x, From y) {
 }
 
 /// --------------------------------------------------------------------------
-/// signed and unsigned int type to double conversions with
-/// rounding towards-zero
+/// signed and unsigned int type to double conversions in rounding towards-zero
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL double __imf_int2double_rn(int);
@@ -538,8 +537,7 @@ To float2half_rz(From x) {
 }
 
 /// --------------------------------------------------------------------------
-/// double to half conversions with
-/// rounding to-nearest-even.
+/// double to half conversions in rounding to-nearest-even.
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL _iml_half_internal __imf_double2half(double);
@@ -1111,8 +1109,7 @@ To ll2bfloat16_rz(From x) {
 }
 
 /// --------------------------------------------------------------------------
-/// double to bfloat16 conversions with
-/// rounding to-nearest-even.
+/// double to bfloat16 conversions in rounding to-nearest-even.
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL uint16_t __imf_double2bfloat16(double);

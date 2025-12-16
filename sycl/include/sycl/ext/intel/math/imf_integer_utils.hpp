@@ -14,6 +14,9 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::intel::math {
 
+/// --------------------------------------------------------------------------
+/// Reverse the bit order of unsigned integral type.
+/// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL unsigned __imf_brev(unsigned);
 __DPCPP_SYCL_EXTERNAL unsigned long long __imf_brevll(unsigned long long);
@@ -25,6 +28,9 @@ template <typename Tp = unsigned long long> unsigned long long brevll(Tp x) {
   return __imf_brevll(x);
 }
 
+/// --------------------------------------------------------------------------
+/// Return selected bytes from two 32-bit unsigned integers.
+/// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL unsigned __imf_byte_perm(unsigned, unsigned, unsigned);
 };
@@ -33,6 +39,9 @@ template <typename Tp = unsigned> unsigned byte_perm(Tp x, Tp y, Tp z) {
   return __imf_byte_perm(x, y, z);
 }
 
+/// --------------------------------------------------------------------------
+/// Return maximum/minimum of the integral type input values.
+/// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL long long __imf_llmax(long long x, long long y);
 __DPCPP_SYCL_EXTERNAL long long __imf_llmin(long long x, long long y);
@@ -76,6 +85,9 @@ unsigned long long ullmin(Tp x, Tp y) {
   return __imf_ullmin(x, y);
 }
 
+/// --------------------------------------------------------------------------
+/// Return the number of consecutive leading 0 bits in 32/64-bit integer
+/// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL int __imf_clz(int);
 __DPCPP_SYCL_EXTERNAL int __imf_clzll(long long);
@@ -85,6 +97,9 @@ template <typename Tp = int> int clz(Tp x) { return __imf_clz(x); }
 
 template <typename Tp = long long> int clzll(Tp x) { return __imf_clzll(x); }
 
+/// --------------------------------------------------------------------------
+/// Find the position of the LSB set to 1 in a 32/64-bit integer
+/// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL int __imf_ffs(int);
 __DPCPP_SYCL_EXTERNAL int __imf_ffsll(long long);
@@ -94,6 +109,14 @@ template <typename Tp = int> int ffs(Tp x) { return __imf_ffs(x); }
 
 template <typename Tp = long long> int ffsll(Tp x) { return __imf_ffsll(x); }
 
+/// --------------------------------------------------------------------------
+/// hadd(x), uhadd(x)
+/// Return average of signed/unsigned int type, avoiding overflow in
+/// intermediate sum.
+/// rhadd(x), urhadd(x)
+/// Return rounded average of signed/unsigned int type, avoiding overflow in
+/// intermediate sum.
+/// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL int __imf_rhadd(int, int);
 __DPCPP_SYCL_EXTERNAL int __imf_hadd(int, int);
@@ -113,6 +136,17 @@ template <typename Tp = unsigned> unsigned uhadd(Tp x, Tp y) {
   return __imf_uhadd(x, y);
 }
 
+/// --------------------------------------------------------------------------
+/// mul24(x), umul24(x)
+/// Return the least significant 32 bits of the product of the least
+/// significant 24 bits of two signed/unsigned integers.
+/// mulhi(x), umulhi(x)
+/// Return the most significant 32 bits of the product of the two 32-bit
+/// signed/unsigned integers.
+/// mul64hi(x), umul64hi(x)
+/// Return the most significant 64 bits of the product of the two 64-bit
+/// signed/unsigned integers.
+/// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL int __imf_mul24(int, int);
 __DPCPP_SYCL_EXTERNAL int __imf_mulhi(int, int);
@@ -144,6 +178,9 @@ unsigned long long umul64hi(Tp x, Tp y) {
   return __imf_umul64hi(x, y);
 }
 
+/// --------------------------------------------------------------------------
+/// Count the number of bits that are set to 1 in a 32-bit integer.
+/// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL int __imf_popc(unsigned);
 __DPCPP_SYCL_EXTERNAL int __imf_popcll(unsigned long long);
@@ -155,6 +192,9 @@ template <typename Tp = unsigned long long> int popcll(Tp x) {
   return __imf_popcll(x);
 }
 
+/// --------------------------------------------------------------------------
+/// Return |x - y| + z for unsigned/signed integers
+/// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL unsigned __imf_sad(int, int, unsigned);
 __DPCPP_SYCL_EXTERNAL unsigned __imf_usad(unsigned, unsigned, unsigned);
