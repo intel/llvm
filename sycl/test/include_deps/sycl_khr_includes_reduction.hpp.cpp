@@ -167,6 +167,7 @@
 // CHECK-NEXT: ext/oneapi/kernel_properties/properties.hpp
 // CHECK-NEXT: ext/oneapi/work_group_scratch_memory.hpp
 // CHECK-NEXT: detail/sycl_local_mem_builtins.hpp
+// CHECK-NEXT: detail/range_rounding.hpp
 // CHECK-NEXT: detail/ur.hpp
 // CHECK-NEXT: ur_api_funcs.def
 // CHECK-NEXT: ext/oneapi/bindless_images_interop.hpp
