@@ -7,7 +7,7 @@
 # REQUIRES: windows
 # UNSUPPORTED: libcxx
 
-# UNSUPPORTED: *
+# UNSUPPORTED: windows
 # UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20915
 
 ??$create_sub_devices@$0BAIG@@device@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@_K@Z
@@ -4379,3 +4379,4 @@
 DllMain
 __sycl_register_lib
 __sycl_unregister_lib
+
