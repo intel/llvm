@@ -50,7 +50,7 @@ ONEAPI_DEVICE_SELECTOR = <selector-string>
 <device> ::= { * | cpu | gpu | <num> | <num>.<num> | <num>.* | *.* | <num>.<num>.<num> | <num>.<num>.* | <num>.*.* | *.*.*  }  // case insensitive
 ```
 
-Each term in the grammar selects a collection of devices from a particular backend. The device names cpu, gpu select all devices from that backend with the corresponding type. A backend's device can also be selected by its numeric index (zero-based) or by using `*` which selects all devices in the backend.
+Each term in the grammar selects a collection of devices from a particular backend. The device names "cpu" and "gpu" select all devices from that backend with the corresponding type. A backend's device can also be selected by its numeric index (zero-based) or by using `*` which selects all devices in the backend.
 
 The dot syntax (e.g. `<num>.<num>`) causes one or more GPU sub-devices to be exposed to the application as SYCL root devices. For example, `1.0` exposes the first sub-device of the second device as a SYCL root device. The syntax `<num>.*` exposes all sub-devices of the give device as SYCL root devices. The syntax `*.*` exposes all sub-devices of all GPU devices as SYCL root devices.
 

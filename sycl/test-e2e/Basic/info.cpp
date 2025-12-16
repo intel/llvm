@@ -51,6 +51,8 @@ template <> std::string info_to_string(info::device_type info) {
     return "cpu";
   case info::device_type::gpu:
     return "gpu";
+  case info::device_type::accelerator:
+    return "accelerator";
   case info::device_type::custom:
     return "custom";
   case info::device_type::automatic:

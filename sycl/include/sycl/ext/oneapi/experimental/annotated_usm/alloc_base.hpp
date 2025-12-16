@@ -53,7 +53,6 @@ aligned_alloc_annotated(size_t align, size_t numBytes, const device &syclDevice,
 
   constexpr size_t alignFromPropList =
       detail::get_property_or<alignment_key, propertyListA>(alignment<0>).value;
-  const property_list &usmPropList = get_usm_property_list<propertyListA>();
 
   if constexpr (propertyListA::template has_property<usm_kind_key>()) {
     constexpr sycl::usm::alloc usmKind =
@@ -72,7 +71,7 @@ aligned_alloc_annotated(size_t align, size_t numBytes, const device &syclDevice,
 
   void *rawPtr =
       sycl::aligned_alloc(combine_align(align, alignFromPropList), numBytes,
-                          syclDevice, syclContext, kind, usmPropList);
+                          syclDevice, syclContext, kind);
   return annotated_ptr<void, propertyListB>(rawPtr);
 }
 
@@ -94,7 +93,6 @@ aligned_alloc_annotated(size_t align, size_t count, const device &syclDevice,
 
   constexpr size_t alignFromPropList =
       detail::get_property_or<alignment_key, propertyListA>(alignment<0>).value;
-  const property_list &usmPropList = get_usm_property_list<propertyListA>();
 
   if constexpr (propertyListA::template has_property<usm_kind_key>()) {
     constexpr sycl::usm::alloc usmKind =
@@ -113,7 +111,7 @@ aligned_alloc_annotated(size_t align, size_t count, const device &syclDevice,
 
   size_t combinedAlign = combine_align(align, alignFromPropList);
   T *rawPtr = sycl::aligned_alloc<T>(combinedAlign, count, syclDevice,
-                                     syclContext, kind, usmPropList);
+                                     syclContext, kind);
   return annotated_ptr<T, propertyListB>(rawPtr);
 }
 

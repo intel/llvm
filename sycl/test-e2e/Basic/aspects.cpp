@@ -30,6 +30,9 @@ int main() {
     } else if (plt.has(aspect::gpu)) {
       std::cout << "Platform #" << pltIdx
                 << " type: GPU supports:" << std::endl;
+    } else if (plt.has(aspect::accelerator)) {
+      std::cout << "Platform #" << pltIdx
+                << " type: Accelerator supports:" << std::endl;
     } else if (plt.has(aspect::custom)) {
       std::cout << "Platform #" << pltIdx
                 << " type: Custom supports:" << std::endl;

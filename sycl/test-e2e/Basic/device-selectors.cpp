@@ -111,6 +111,12 @@ int main() {
            "Incorrect device. Expected CPU.");
   } catch (exception &e) {
   }
+  try {
+    queue acc_queue(accelerator_selector_v);
+    assert(acc_queue.get_device().is_accelerator() &&
+           "Incorrect device. Expected Accelerator.");
+  } catch (exception &e) {
+  }
 
   // ------ aspect_selectors --------
 
@@ -145,6 +151,16 @@ int main() {
     device dev3 = device{aspect_selector<aspect::cpu, aspect::fp64>()};
     assert(dev3.is_cpu() && "Incorrect device, expected CPU.");
     assert(dev3.has(aspect::fp64) && "Device should support aspect::fp64.");
+  } catch (exception &e) {
+  }
+
+  // Pass aspects in an allowlist and a denylist.
+  try {
+    device dev4 = device{aspect_selector(std::vector{aspect::gpu},
+                                         std::vector{aspect::image})};
+    assert(dev4.is_gpu() && "Incorrect device, expected accelerator.");
+    assert(!dev4.has(aspect::image) &&
+           "Device should NOT support aspect::image.");
   } catch (exception &e) {
   }
 

@@ -162,13 +162,6 @@ struct CheckTAndPropListsWithUsmKind<Kind, T, detail::properties_t<PropsA...>,
 //  Utility functions for USM allocation with property support
 ////
 
-// Transform a compile-time property list to a USM property_list (working at
-// runtime). Right there is no property that has its corresponding USM
-// runtime property and is transformable
-template <typename PropertyListT> inline property_list get_usm_property_list() {
-  return {};
-}
-
 // Combine two alignment requirements for a pointer in the following way:
 // 1. if either of the alignments is 0, return the other alignment
 // 2. otherwise return the least common multiple of the two alignments
