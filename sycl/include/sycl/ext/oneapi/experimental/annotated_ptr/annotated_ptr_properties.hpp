@@ -54,15 +54,6 @@ struct PropertyMetaInfo<usm_kind_key::value_t<Kind>> {
   static constexpr const char *name = "sycl-usm-kind";
   static constexpr sycl::usm::alloc value = Kind;
 };
-
-template <typename PropertyListT, sycl::usm::alloc Kind>
-inline constexpr bool is_usm_kind = []() constexpr {
-  if constexpr (PropertyListT::template has_property<usm_kind_key>())
-    return PropertyListT::template get_property<usm_kind_key>() ==
-           usm_kind<Kind>;
-  else
-    return false;
-}();
 } // namespace detail
 
 } // namespace experimental
