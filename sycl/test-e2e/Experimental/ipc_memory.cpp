@@ -37,8 +37,8 @@ void spawn_and_sync(std::string Exe) {
   std::memset(&ProcInfo, 0, sizeof(ProcInfo));
   std::memset(&StartupInfo, 0, sizeof(StartupInfo));
   StartupInfo.cb = sizeof(si);
-  CreateProcess(Exe.c_str(), "1", NULL, NULL, TRUE, 0, NULL, NULL,
-                &StartupInfo, &ProcInfo);
+  CreateProcess(Exe.c_str(), "1", NULL, NULL, TRUE, 0, NULL, NULL, &StartupInfo,
+                &ProcInfo);
   WaitForSingleObject(ProcInfo.hProcess, 30000);
   CloseHandle(ProcInfo.hProcess);
   CloseHandle(ProcInfo.hThread);
