@@ -7,6 +7,9 @@
 # REQUIRES: windows
 # UNSUPPORTED: libcxx
 
+# XFAIL: *
+# XFAIL-TRACKER: https://github.com/intel/llvm/issues/20915
+
 ??$create_sub_devices@$0BAIG@@device@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@_K@Z
 ??$create_sub_devices@$0BAIH@@device@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@AEBV?$vector@_KV?$allocator@_K@std@@@4@@Z
 ??$create_sub_devices@$0BAII@@device@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@W4partition_affinity_domain@info@12@@Z
@@ -281,6 +284,8 @@
 ??0default_selector@_V1@sycl@@QEAA@AEBV012@@Z
 ??0default_selector@_V1@sycl@@QEAA@XZ
 ??0device@_V1@sycl@@AEAA@AEAVdevice_impl@detail@12@@Z
+??0device@_V1@sycl@@QEAA@$$QEAV012@@Z
+??0device@_V1@sycl@@QEAA@AEBV012@@Z
 ??0device@_V1@sycl@@QEAA@AEBVdevice_selector@12@@Z
 ??0device@_V1@sycl@@QEAA@PEAU_cl_device_id@@@Z
 ??0device@_V1@sycl@@QEAA@XZ
@@ -4374,3 +4379,4 @@
 DllMain
 __sycl_register_lib
 __sycl_unregister_lib
+
