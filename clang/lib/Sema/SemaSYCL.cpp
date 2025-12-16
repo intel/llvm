@@ -6683,14 +6683,44 @@ public:
                                         ASTContext &Context)
       : O(O), Policy(Policy), Context(Context) {}
 
-  void Visit(const TemplateSpecializationType *T,
-             const TemplateSpecializationType *CT) {
-    ArrayRef<TemplateArgument> SpecArgs = T->template_arguments();
-    ArrayRef<TemplateArgument> DeclArgs = CT->template_arguments();
+  void Visit(const ParmVarDecl *Param) {
+    // There are cases when we can't directly use neither the original
+    // argument type, nor its canonical version. An example would be:
+    // template<typename T>
+    // void kernel(sycl::accessor<T, 1>);
+    // template void kernel(sycl::accessor<int, 1>);
+    // Accessor has multiple non-type template arguments with default values
+    // and non-qualified type will not include necessary namespaces for all
+    // of them. Qualified type will have that information, but all references
+    // to T will be replaced to something like type-argument-0
+    // What we do instead is we iterate template arguments of both versions
+    // of a type in sync and take elements from one or another to get the best
+    // of both: proper references to template arguments of a kernel itself and
+    // fully-qualified names for enumerations.
+    //
+    // Moral of the story: drop integration header ASAP (but that is blocked
+    // by support for 3rd-party host compilers, which is important).
+    QualType T = Param->getType();
+    QualType CT = T.getCanonicalType();
 
-    const TemplateDecl *TD = CT->getTemplateName().getAsTemplateDecl();
+    const auto *TST = dyn_cast<TemplateSpecializationType>(T.getTypePtr());
+    const auto *CTST = dyn_cast<TemplateSpecializationType>(CT.getTypePtr());
+    if (!TST || !CTST) {
+      O << T.getDesugaredType(Context).getAsString(Policy);
+      return;
+    }
+
+    const TemplateSpecializationType *TSTAsNonAlias =
+        TST->getAsNonAliasTemplateSpecializationType();
+    if (TSTAsNonAlias)
+      TST = TSTAsNonAlias;
+
+    ArrayRef<TemplateArgument> SpecArgs = TST->template_arguments();
+    ArrayRef<TemplateArgument> DeclArgs = CTST->template_arguments();
+
+    const TemplateDecl *TD = CTST->getTemplateName().getAsTemplateDecl();
     if (!TD->getIdentifier())
-      TD = T->getTemplateName().getAsTemplateDecl();
+      TD = TST->getTemplateName().getAsTemplateDecl();
     TD->printQualifiedName(O);
 
     O << "<";
@@ -6792,7 +6822,6 @@ public:
 
   void VisitTemplateExpansionTemplateArgument(const TemplateArgument &Arg,
                                               ArrayRef<TemplateArgument>) {
-    // Likely does not work similar to the one above
     PrintDesugared(Arg);
   }
 
@@ -6802,7 +6831,7 @@ public:
     assert(E && "Failed to get an Expr for an Expression template arg?");
 
     if (Arg.isInstantiationDependent() ||
-        E->getType().getTypePtr()->isScopedEnumeralType()) {
+        E->getType()->isScopedEnumeralType()) {
       // Scoped enumerations can't be implicitly cast from integers, so
       // we don't need to evaluate them.
       // If expression is instantiation-dependent, then we can't evaluate it
@@ -6997,38 +7026,7 @@ private:
       else
         ParmListOstream << ", ";
 
-      // There are cases when we can't directly use neither the original
-      // argument type, nor its canonical version. An example would be:
-      // template<typename T>
-      // void kernel(sycl::accessor<T, 1>);
-      // template void kernel(sycl::accessor<int, 1>);
-      // Accessor has multiple non-type template arguments with default values
-      // and non-qualified type will not include necessary namespaces for all
-      // of them. Qualified type will have that information, but all references
-      // to T will be replaced to something like type-argument-0
-      // What we do instead is we iterate template arguments of both versions
-      // of a type in sync and take elements from one or another to get the best
-      // of both: proper references to template arguments of a kernel itself and
-      // fully-qualified names for enumerations.
-      //
-      // Moral of the story: drop integration header ASAP (but that is blocked
-      // by support for 3rd-party host compilers, which is important).
-      QualType T = Param->getType();
-      QualType CT = T.getCanonicalType();
-
-      const auto *TST = dyn_cast<TemplateSpecializationType>(T.getTypePtr());
-      const auto *CTST = dyn_cast<TemplateSpecializationType>(CT.getTypePtr());
-      if (!TST || !CTST) {
-        ParmListOstream << T.getDesugaredType(Context).getAsString(Policy);
-        continue;
-      }
-
-      const TemplateSpecializationType *TSTAsNonAlias =
-          TST->getAsNonAliasTemplateSpecializationType();
-      if (TSTAsNonAlias)
-        TST = TSTAsNonAlias;
-
-      Printer.Visit(TST, CTST);
+      Printer.Visit(Param);
     }
     return ParamList.str().str();
   }
