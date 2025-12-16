@@ -63,18 +63,6 @@ inline constexpr bool is_usm_kind = []() constexpr {
   else
     return false;
 }();
-
-template <typename PropertyListT>
-struct IsUsmKindDevice
-    : std::bool_constant<is_usm_kind<PropertyListT, sycl::usm::alloc::device>> {
-};
-template <typename PropertyListT>
-struct IsUsmKindHost
-    : std::bool_constant<is_usm_kind<PropertyListT, sycl::usm::alloc::host>> {};
-template <typename PropertyListT>
-struct IsUsmKindShared
-    : std::bool_constant<is_usm_kind<PropertyListT, sycl::usm::alloc::shared>> {
-};
 } // namespace detail
 
 } // namespace experimental
