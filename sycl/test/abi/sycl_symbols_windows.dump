@@ -7,6 +7,9 @@
 # REQUIRES: windows
 # UNSUPPORTED: libcxx
 
+# UNSUPPORTED: windows
+# UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20915
+
 ??$create_sub_devices@$0BAIG@@device@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@_K@Z
 ??$create_sub_devices@$0BAIH@@device@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@AEBV?$vector@_KV?$allocator@_K@std@@@4@@Z
 ??$create_sub_devices@$0BAII@@device@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@W4partition_affinity_domain@info@12@@Z
@@ -4364,3 +4367,4 @@
 DllMain
 __sycl_register_lib
 __sycl_unregister_lib
+
