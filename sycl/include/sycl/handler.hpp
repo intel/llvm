@@ -19,6 +19,7 @@
 #include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/detail/kernel_launch_helper.hpp>
+#include <sycl/detail/range_rounding.hpp>
 #include <sycl/detail/reduction_forward.hpp>
 #include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
@@ -46,7 +47,6 @@
 #include <sycl/nd_range.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
-#include <sycl/range_rounding.hpp>
 #include <sycl/sampler.hpp>
 
 #include <assert.h>
