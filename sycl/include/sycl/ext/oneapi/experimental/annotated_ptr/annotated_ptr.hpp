@@ -11,7 +11,6 @@
 
 #include <sycl/detail/defines.hpp>
 #include <sycl/ext/intel/experimental/cache_control_properties.hpp>
-#include <sycl/ext/intel/experimental/fpga_annotated_properties.hpp>
 #include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr_properties.hpp>
 #include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
@@ -478,18 +477,6 @@ public:
       check_property_list<T *, Props...>::value;
   static_assert(contains_valid_properties,
                 "The property list contains invalid property.");
-  // check the set if FPGA specificed properties are used
-  static constexpr bool hasValidFPGAProperties =
-      detail::checkValidFPGAPropertySet<property_list_t>::value;
-  static_assert(hasValidFPGAProperties,
-                "FPGA Interface properties (i.e. awidth, dwidth, etc.) "
-                "can only be set with BufferLocation together.");
-  // check if conduit and register_map properties are specified together
-  static constexpr bool hasConduitAndRegisterMapProperties =
-      detail::checkHasConduitAndRegisterMap<property_list_t>::value;
-  static_assert(hasConduitAndRegisterMapProperties,
-                "The properties conduit and register_map cannot be "
-                "specified at the same time.");
 };
 
 } // namespace experimental

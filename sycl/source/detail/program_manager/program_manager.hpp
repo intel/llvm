@@ -12,14 +12,12 @@
 #include <detail/device_global_map.hpp>
 #include <detail/device_global_map_entry.hpp>
 #include <detail/device_kernel_info.hpp>
-#include <detail/host_pipe_map_entry.hpp>
 #include <detail/kernel_arg_mask.hpp>
 #include <detail/spec_constant_impl.hpp>
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/device_global_map.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/host_pipe_map.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/detail/util.hpp>
@@ -292,18 +290,6 @@ public:
   std::vector<DeviceGlobalMapEntry *>
   getProfileCounterDeviceGlobalEntries(const context_impl *CtxImpl);
 
-  // The function inserts or initializes a host_pipe entry into the
-  // host_pipe map.
-  void addOrInitHostPipeEntry(const void *HostPipePtr, const char *UniqueId);
-
-  // The function gets a host_pipe entry identified by the unique ID from
-  // the host_pipe map.
-  HostPipeMapEntry *getHostPipeEntry(const std::string &UniqueId);
-
-  // The function gets a host_pipe entry identified by the pointer to the
-  // host_pipe object from the host_pipe map.
-  HostPipeMapEntry *getHostPipeEntry(const void *HostPipePtr);
-
   device_image_plain
   getDeviceImageFromBinaryImage(const RTDeviceBinaryImage *BinImage,
                                 const context &Ctx, const device &Dev);
@@ -381,17 +367,11 @@ public:
 
   SanitizerType kernelUsesSanitizer() const { return m_SanitizerFoundInImage; }
 
-  std::optional<int>
-  kernelImplicitLocalArgPos(std::string_view KernelName) const {
-    auto it = m_KernelImplicitLocalArgPos.find(KernelName);
-    if (it != m_KernelImplicitLocalArgPos.end())
-      return it->second;
-    return {};
-  }
+  void cacheKernelImplicitLocalArg(const RTDeviceBinaryImage &Img);
 
-  DeviceKernelInfo &
-  getOrCreateDeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
-  DeviceKernelInfo &getOrCreateDeviceKernelInfo(std::string_view KernelName);
+  DeviceKernelInfo &getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
+  DeviceKernelInfo &getDeviceKernelInfo(std::string_view KernelName);
+  DeviceKernelInfo *tryGetDeviceKernelInfo(std::string_view KernelName);
 
   std::set<const RTDeviceBinaryImage *>
   getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
@@ -419,9 +399,6 @@ private:
 
   /// Dumps image to current directory
   void dumpImage(const RTDeviceBinaryImage &Img, uint32_t SequenceID = 0) const;
-
-  /// Add info on kernels using local arg into cache
-  void cacheKernelImplicitLocalArg(const RTDeviceBinaryImage &Img);
 
   std::set<const RTDeviceBinaryImage *>
   collectDependentDeviceImagesForVirtualFunctions(
@@ -529,12 +506,6 @@ protected:
   bool m_UseSpvFile = false;
   RTDeviceBinaryImageUPtr m_SpvFileImage;
 
-  // std::less<> is a transparent comparator that enabled comparison between
-  // different types without temporary key_type object creation. This includes
-  // standard overloads, such as comparison between std::string and
-  // std::string_view or just char*.
-  std::unordered_map<std::string_view, int> m_KernelImplicitLocalArgPos;
-
   // Map for storing device kernel information. Runtime lookup should be avoided
   // by caching the pointers when possible.
   std::unordered_map<std::string_view, DeviceKernelInfo> m_DeviceKernelInfoMap;
@@ -553,14 +524,6 @@ protected:
   // Maps between free function kernel name and associated kernel global
   // information.
   std::unordered_map<std::string_view, unsigned> m_FreeFunctionKernelGlobalInfo;
-
-  // Maps between host_pipe identifiers and associated information.
-  std::unordered_map<std::string, std::unique_ptr<HostPipeMapEntry>>
-      m_HostPipes;
-  std::unordered_map<const void *, HostPipeMapEntry *> m_Ptr2HostPipe;
-
-  /// Protects m_HostPipes and m_Ptr2HostPipe.
-  std::mutex m_HostPipesMutex;
 
   using MaterializedEntries =
       std::map<std::vector<unsigned char>, Managed<ur_kernel_handle_t>>;

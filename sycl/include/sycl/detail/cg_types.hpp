@@ -58,15 +58,14 @@ enum class CGType : unsigned int {
   Memset2DUSM = 18,
   CopyToDeviceGlobal = 19,
   CopyFromDeviceGlobal = 20,
-  ReadWriteHostPipe = 21,
-  ExecCommandBuffer = 22,
-  CopyImage = 23,
-  SemaphoreWait = 24,
-  SemaphoreSignal = 25,
-  ProfilingTag = 26,
-  EnqueueNativeCommand = 27,
-  AsyncAlloc = 28,
-  AsyncFree = 29,
+  ExecCommandBuffer = 21,
+  CopyImage = 22,
+  SemaphoreWait = 23,
+  SemaphoreSignal = 24,
+  ProfilingTag = 25,
+  EnqueueNativeCommand = 26,
+  AsyncAlloc = 27,
+  AsyncFree = 28,
 };
 
 template <typename, typename T> struct check_fn_signature {

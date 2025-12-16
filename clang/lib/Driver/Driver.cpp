@@ -5977,11 +5977,11 @@ class OffloadingActionBuilder final {
 
       // Handle defaults architectures
       for (auto &Triple : SYCLTripleList) {
-        // For NVIDIA use SM_50 as a default
+        // For NVIDIA use SM_75 as a default
         if (Triple.isNVPTX() && llvm::none_of(GpuArchList, [&](auto &P) {
               return P.first.isNVPTX();
             })) {
-          const char *DefaultArch = OffloadArchToString(OffloadArch::SM_50);
+          const char *DefaultArch = OffloadArchToString(OffloadArch::SM_75);
           GpuArchList.emplace_back(Triple, DefaultArch);
         }
 
