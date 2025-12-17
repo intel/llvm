@@ -104,7 +104,7 @@ jobs:
   # Manual trigger (dispatch) path:
   sanitize_inputs_dispatch:
     name: '[Dispatch] Sanitize inputs'
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.trigger_nightly == false }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.trigger_nightly == 'false' }}
     runs-on: ubuntu-latest
     env:
       COMMIT_HASH: ${{ inputs.commit_hash }}
