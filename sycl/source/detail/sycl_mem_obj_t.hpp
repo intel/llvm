@@ -107,14 +107,6 @@ public:
     return MProps.get_property<propertyT>();
   }
 
-  void addOrReplaceAccessorProperties(const property_list &PropertyList) {
-    MProps.add_or_replace_accessor_properties(PropertyList);
-  }
-
-  void deleteAccessorProperty(const PropWithDataKind &Kind) {
-    MProps.delete_accessor_property(Kind);
-  }
-
   const std::unique_ptr<SYCLMemObjAllocator> &get_allocator_internal() const {
     return MAllocator;
   }
