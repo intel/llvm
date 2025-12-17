@@ -135,14 +135,12 @@ TEST(CompressionTest, ConcurrentDecompressionOfDeviceImage) {
   _sycl_offload_entry_struct EntryStruct = {
       /*addr*/ nullptr, const_cast<char *>(EntryName), strlen(EntryName),
       /*flags*/ 0, /*reserved*/ 0};
-  sycl_device_binary_struct BinStruct{/*Version*/ 1,
+  sycl_device_binary_struct BinStruct{/*Version*/ 3,
                                       /*Kind*/ 4,
                                       /*Format*/ SYCL_DEVICE_BINARY_TYPE_SPIRV,
                                       /*DeviceTargetSpec*/ nullptr,
                                       /*CompileOptions*/ nullptr,
                                       /*LinkOptions*/ nullptr,
-                                      /*ManifestStart*/ nullptr,
-                                      /*ManifestEnd*/ nullptr,
                                       /*BinaryStart*/ compressedDataPtr,
                                       /*BinaryEnd*/ compressedDataPtr +
                                           compressedSize,

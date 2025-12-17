@@ -1,8 +1,8 @@
 // RUN: %{build} -Wno-error=deprecated-declarations -Wno-error=pointer-to-int-cast -fno-builtin -o %t1.out
 // RUN: %{run} %t1.out
-//
-// RUN: %if target-spir %{ %{build} -Wno-error=deprecated-declarations -Wno-error=pointer-to-int-cast -fno-builtin -fsycl-device-lib-jit-link -Wno-deprecated -o %t2.out %}
-// RUN: %if target-spir && !gpu %{ %{run} %t2.out %}
+
+// XFAIL: windows && gpu-intel-dg2
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20861
 
 #include <cassert>
 #include <cstdint>

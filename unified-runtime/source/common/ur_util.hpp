@@ -167,14 +167,14 @@ getenv_to_vec(const char *env_var_name) {
     return std::nullopt;
   }
 
-  auto is_quoted = [](std::string &str) {
-    return (str.front() == '\'' && str.back() == '\'') ||
-           (str.front() == '"' && str.back() == '"');
+  auto is_quoted = [](const std::string &str) {
+    return str.size() >= 2 && ((str.front() == '\'' && str.back() == '\'') ||
+                               (str.front() == '"' && str.back() == '"'));
   };
-  auto has_colon = [](std::string &str) {
+  auto has_colon = [](const std::string &str) {
     return str.find(':') != std::string::npos;
   };
-  auto has_semicolon = [](std::string &str) {
+  auto has_semicolon = [](const std::string &str) {
     return str.find(';') != std::string::npos;
   };
 
@@ -188,8 +188,7 @@ getenv_to_vec(const char *env_var_name) {
     }
 
     if (is_quoted(value)) {
-      value.erase(value.cbegin());
-      value.erase(value.cend() - 1);
+      value = value.substr(1, value.length() - 2);
     }
 
     values_vec.push_back(value);
@@ -238,27 +237,29 @@ inline std::optional<EnvVarMap> getenv_to_map(const char *env_var_name,
     return std::nullopt;
   }
 
-  auto is_quoted = [](std::string &str) {
-    return (str.front() == '\'' && str.back() == '\'') ||
-           (str.front() == '"' && str.back() == '"');
+  auto is_quoted = [](const std::string &str) {
+    return str.size() >= 2 && ((str.front() == '\'' && str.back() == '\'') ||
+                               (str.front() == '"' && str.back() == '"'));
   };
-  auto has_colon = [](std::string &str) {
+  auto has_colon = [](const std::string &str) {
     return str.find(':') != std::string::npos;
   };
 
   std::stringstream ss(*env_var);
   std::string key_value;
   while (std::getline(ss, key_value, main_delim)) {
-    std::string key;
-    std::string values;
-    std::stringstream kv_ss(key_value);
-
     if (reject_empty && !has_colon(key_value)) {
       throw_wrong_format_map(env_var_name, *env_var);
     }
 
-    std::getline(kv_ss, key, key_value_delim);
-    std::getline(kv_ss, values);
+    size_t colon_pos = key_value.find(key_value_delim);
+    if (colon_pos == std::string::npos) {
+      throw_wrong_format_map(env_var_name, *env_var);
+    }
+
+    std::string key = key_value.substr(0, colon_pos);
+    std::string values = key_value.substr(colon_pos + 1);
+
     if (key.empty() || (reject_empty && values.empty()) ||
         (map.find(key) != map.end() && !allow_duplicate)) {
       throw_wrong_format_map(env_var_name, *env_var);
@@ -269,18 +270,28 @@ inline std::optional<EnvVarMap> getenv_to_map(const char *env_var_name,
     }
 
     std::vector<std::string> values_vec;
-    std::stringstream values_ss(values);
-    std::string value;
-    while (std::getline(values_ss, value, values_delim)) {
+
+    size_t start = 0;
+    size_t pos = 0;
+    while ((pos = values.find(values_delim, start)) != std::string::npos ||
+           start < values.length()) {
+      // No delimiter found, process the last value
+      if (pos == std::string::npos) {
+        pos = values.length();
+      }
+
+      std::string value = values.substr(start, pos - start);
       if (value.empty() || (has_colon(value) && !is_quoted(value))) {
         throw_wrong_format_map(env_var_name, *env_var);
       }
       if (is_quoted(value)) {
-        value.erase(value.cbegin());
-        value.pop_back();
+        value = value.substr(1, value.length() - 2);
       }
-      values_vec.push_back(value);
+      values_vec.push_back(std::move(value));
+
+      start = pos + 1;
     }
+
     if (map.find(key) != map.end()) {
       map[key].insert(map[key].end(), values_vec.begin(), values_vec.end());
     } else {

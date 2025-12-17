@@ -8,9 +8,9 @@
 ; RUN: llvm-spirv -r --spirv-target-env=SPV-IR %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-SPV-IR
 
-; CHECK-LLVM: call spir_func ptr @_Z29async_work_group_strided_copyPU3AS1Dv2_hPU3AS3KS_jj9ocl_event(
+; CHECK-LLVM: call spir_func target("spirv.Event") @_Z29async_work_group_strided_copyPU3AS1Dv2_hPU3AS3KS_jj9ocl_event(
 ; CHECK-LLVM: call spir_func void @_Z17wait_group_eventsiPU3AS49ocl_event(
-; CHECK-LLVM: declare spir_func ptr @_Z29async_work_group_strided_copyPU3AS1Dv2_hPU3AS3KS_jj9ocl_event(ptr addrspace(1), ptr addrspace(3), i32, i32, ptr)
+; CHECK-LLVM: declare spir_func target("spirv.Event") @_Z29async_work_group_strided_copyPU3AS1Dv2_hPU3AS3KS_jj9ocl_event(ptr addrspace(1), ptr addrspace(3), i32, i32, target("spirv.Event"))
 ; CHECK-LLVM: declare spir_func void @_Z17wait_group_eventsiPU3AS49ocl_event(i32, ptr addrspace(4))
 
 ; CHECK-SPV-IR: call spir_func target("spirv.Event") @_Z22__spirv_GroupAsyncCopyiPU3AS1Dv2_cPU3AS3S_jjP13__spirv_Event(i32 2

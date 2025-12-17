@@ -61,9 +61,7 @@ public:
            HandlerSubmissionState::EXPLICIT_KERNEL_BUNDLE_STATE;
   }
 
-  KernelNameStrRefT getKernelName() const {
-    return MKernelData.getKernelName();
-  }
+  std::string_view getKernelName() const { return MKernelData.getKernelName(); }
 
   /// Registers mutually exclusive submission states.
   HandlerSubmissionState MSubmissionState = HandlerSubmissionState::NO_STATE;
@@ -95,25 +93,13 @@ public:
   sycl::ext::oneapi::experimental::prefetch_type MPrefetchType =
       sycl::ext::oneapi::experimental::prefetch_type::device;
 
-  // Program scope pipe information.
-
-  // Pipe name that uniquely identifies a pipe.
-  std::string HostPipeName;
-  // Pipe host pointer, the address of its constexpr __pipe member.
-  void *HostPipePtr = nullptr;
-  // Host pipe read write operation is blocking.
-  bool HostPipeBlocking = false;
-  // The size of returned type for each read.
-  size_t HostPipeTypeSize = 0;
-  // If the pipe operation is read or write, 1 for read 0 for write.
-  bool HostPipeRead = true;
-
   // Extra information for bindless image copy
   ur_image_desc_t MSrcImageDesc = {};
   ur_image_desc_t MDstImageDesc = {};
   ur_image_format_t MSrcImageFormat = {};
   ur_image_format_t MDstImageFormat = {};
   ur_exp_image_copy_flags_t MImageCopyFlags = {};
+  ur_exp_image_copy_input_types_t MImageCopyInputTypes = {};
 
   ur_rect_offset_t MSrcOffset = {};
   ur_rect_offset_t MDestOffset = {};
@@ -222,15 +208,6 @@ public:
 
   // Allocation ptr to be freed asynchronously.
   void *MFreePtr = nullptr;
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // TODO: remove in the next ABI-breaking window
-  // Today they are used only in the handler::setKernelNameBasedCachePtr
-  int MKernelNumArgs = 0;
-  detail::kernel_param_desc_t (*MKernelParamDescGetter)(int) = nullptr;
-  bool MKernelIsESIMD = false;
-  bool MKernelHasSpecialCaptures = true;
-#endif
 
   KernelData MKernelData;
 };

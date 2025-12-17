@@ -15,10 +15,10 @@
 float __ocml_sqrt_f32(float);
 #define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, _f32)
 
-#define __FLOAT_ONLY
+#define __CLC_FLOAT_ONLY
 #include <clc/math/unary_builtin_scalarize.inc>
 
-#undef __FLOAT_ONLY
+#undef __CLC_FLOAT_ONLY
 #undef __CLC_BUILTIN_H
 
 #ifdef cl_khr_fp16
@@ -27,5 +27,5 @@ half __ocml_sqrt_f16(half);
 #define __CLC_BUILTIN_H __CLC_XCONCAT(__CLC_BUILTIN, _f16)
 #endif // cl_khr_fp16
 
-#define __HALF_ONLY
+#define __CLC_HALF_ONLY
 #include <clc/math/unary_builtin_scalarize.inc>

@@ -1,3 +1,6 @@
+// XFAIL: native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20127
+
 // RUN: %{build} -fsyntax-only -o %t.out
 
 #include <sycl/detail/kernel_desc.hpp>

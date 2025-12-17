@@ -266,7 +266,7 @@ PreservedAnalyses SPIRITTAnnotationsPass::run(Module &M,
     if (IsSPIRKernel) {
       Instruction *InsertPt = &*inst_begin(F);
       if (InsertPt->isDebugOrPseudoInst())
-        InsertPt = InsertPt->getNextNonDebugInstruction();
+        InsertPt = InsertPt->getNextNode();
       assert(InsertPt && "Function does not have any real instructions.");
       insertSimpleInstrumentationCall(M, ITT_ANNOTATION_WI_START, InsertPt,
                                       InsertPt->getDebugLoc());

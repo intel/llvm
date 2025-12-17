@@ -22,12 +22,37 @@ endif()
 add_ur_library(ur_common STATIC
     ur_util.cpp
     ur_util.hpp
+    logger/ur_logger.cpp
+    logger/ur_logger.hpp
     latency_tracker.hpp
     offload_bundle_parser.cpp
     offload_bundle_parser.hpp
     $<$<PLATFORM_ID:Windows>:windows/ur_lib_loader.cpp>
     $<$<PLATFORM_ID:Linux,Darwin>:linux/ur_lib_loader.cpp>
 )
+
+# link validation backtrace dependencies
+if(UNIX)
+    find_package(Libbacktrace)
+endif()
+if (VAL_USE_LIBBACKTRACE_BACKTRACE AND LIBBACKTRACE_FOUND)
+    message(STATUS "Using libbacktrace backtrace")
+
+    target_sources(ur_common PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/backtrace_libbacktrace.cpp)
+    target_link_libraries(ur_common PRIVATE Libbacktrace)
+else()
+    message(STATUS "Using default backtrace")
+
+    if(WIN32)
+        target_sources(ur_common PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/backtrace_win.cpp)
+        target_link_libraries(ur_common PRIVATE dbghelp)
+    else()
+        target_sources(ur_common PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/backtrace_lin.cpp)
+    endif()
+endif()
 
 add_library(${PROJECT_NAME}::common ALIAS ur_common)
 
@@ -47,7 +72,7 @@ endif()
 set(UR_USE_EXTERNAL_UMF ON CACHE BOOL "Use a pre-built UMF if available")
 
 if(UR_USE_EXTERNAL_UMF)
-  find_package(umf 1.0.0 QUIET)
+  find_package(umf 1.1.0 QUIET)
 endif()
 if(umf_FOUND)
   message(STATUS "Using preinstalled UMF at ${umf_DIR}, ignoring UMF build related options")
@@ -56,11 +81,12 @@ if(umf_FOUND)
 else()
   set(UMF_REPO "https://github.com/oneapi-src/unified-memory-framework.git")
 
-  # commit e7d285269e04d3c0e70917c24945c80a4ea3313a
-  # Author: Łukasz Stolarczuk <lukasz.stolarczuk@intel.com>
-  # Date:   Tue Sep 16 15:04:27 2025 +0200
-  # 1.0.3 release
-  set(UMF_TAG v1.0.3)
+  # commit 32421ebe1fec714392e711f307df4574af89158f
+  # Author: Rafał Rudnicki <rafal.rudnicki@intel.com>
+  # Date:   Thu Nov 13 15:23:28 2025 +0100
+  # Merge pull request #1543 from bratpiorka/rrudnick_fix_dp_free_chunk
+  # fix Disjoint Pool bucket_free_chunk
+  set(UMF_TAG v1.1.0-dev4)
 
   if(NOT FETCHCONTENT_SOURCE_DIR_UNIFIED-MEMORY-FRAMEWORK)
     message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")

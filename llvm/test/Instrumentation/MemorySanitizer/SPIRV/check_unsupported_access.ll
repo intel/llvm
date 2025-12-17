@@ -10,7 +10,7 @@ entry:
   %_arg_array1.addr.ascast = addrspacecast ptr %_arg_array1.addr to ptr addrspace(4)
 ; CHECK: %_arg_array1.addr.ascast = addrspacecast ptr %_arg_array1.addr to ptr addrspace(4){{.*!nosanitize}}
   call void @llvm.lifetime.start.p0(i64 64, ptr %__SYCLKernel)
-; CHECK: call void @llvm.lifetime.start.p0(i64 64, ptr %__SYCLKernel){{.*!nosanitize}}
+; CHECK-NOT: call void @llvm.lifetime.start.p0
   ret void
 }
 

@@ -59,9 +59,9 @@ public:
                         TheModule->get<SPIRVFunction>(TheId),
                         getSizeInWords(TheName) + Variables.size() + 4),
         Condition(Condition), ExecModel(TheExecModel), Name(TheName),
-        Variables(Variables) {}
+        Variables(std::move(Variables)) {}
   SPIRVConditionalEntryPointINTEL()
-      : SPIRVAnnotation(OpConditionalEntryPointINTEL) {}
+      : SPIRVAnnotation(OpConditionalEntryPointINTEL), Condition() {}
 
   SPIRVId getCondition() const { return Condition; }
   SPIRVExecutionModelKind getExecModel() const { return ExecModel; }
@@ -95,7 +95,7 @@ public:
   SPIRVConditionalExtensionINTEL(SPIRVModule *M, SPIRVId C,
                                  const std::string &SS)
       : SPIRVEntryNoId(M, 2 + getSizeInWords(SS)), Condition(C), S(SS) {}
-  SPIRVConditionalExtensionINTEL() {}
+  SPIRVConditionalExtensionINTEL() : Condition() {}
 
   std::string getExtensionName() const { return S; }
   SPIRVId getCondition() const { return Condition; }
@@ -124,7 +124,7 @@ public:
       : SPIRVEntryNoId(M, 3), Condition(C), Kind(K) {
     updateModuleVersion();
   }
-  SPIRVConditionalCapabilityINTEL() {}
+  SPIRVConditionalCapabilityINTEL() : Condition(), Kind() {}
 
   SPIRVId getCondition() const { return Condition; }
 
@@ -202,7 +202,7 @@ public:
     validate();
   }
   // Incomplete constructor
-  SPIRVSpecConstantTargetINTEL() : SPIRVValue(OC) {}
+  SPIRVSpecConstantTargetINTEL() : SPIRVValue(OC), NumWords(), Target() {}
 
   SPIRVWord getTarget() const { return Target; }
   bool matchesDevice() {
@@ -279,7 +279,8 @@ public:
     validate();
   }
   // Incomplete constructor
-  SPIRVSpecConstantArchitectureINTEL() : SPIRVValue(OC) {}
+  SPIRVSpecConstantArchitectureINTEL()
+      : SPIRVValue(OC), Category(), Family(), CmpOp(), Architecture() {}
 
   SPIRVWord getCategory() { return Category; }
   SPIRVWord getFamily() { return Family; }
@@ -375,7 +376,7 @@ public:
     validate();
   }
   // Incomplete constructor
-  SPIRVSpecConstantCapabilitiesINTEL() : SPIRVValue(OC) {}
+  SPIRVSpecConstantCapabilitiesINTEL() : SPIRVValue(OC), NumWords() {}
 
   std::vector<SPIRVWord> getCapabilities() const { return Capabilities; }
   bool matchesDevice() {

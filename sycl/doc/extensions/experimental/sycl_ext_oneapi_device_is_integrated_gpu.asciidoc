@@ -1,0 +1,111 @@
+= sycl_ext_oneapi_device_is_integrated_gpu
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2025 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 10 specification.
+All references below to the "core SYCL specification" or to section numbers in
+the SYCL specification refer to that revision.
+
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+
+== Overview
+
+This extension allows host code to check whether a SYCL GPU device is "integrated"
+or "discrete". An integrated GPU device often shares memory with the host CPU,
+while a discrete GPU is often a separate card with its own memory. However, some
+GPU devices may not fit neatly into either category, so implementors may provide
+their own judgement when categorizing a GPU device as "integrated" vs. "discrete".
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification. An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_DEVICE_IS_INTEGRATED_GPU` to one of the values defined
+in the implementation supports this feature, or applications can test the
+macro's value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the feature-test
+ macro always has this value.
+|===
+
+=== New device aspect
+
+This extension adds new device aspect:
+
+```c++
+namespace sycl {
+
+enum class aspect : /*unspecified*/ {
+  ext_oneapi_is_integrated_gpu
+};
+
+} // namespace sycl
+```
+
+[width="100%",%header,cols="50%,50%"]
+|===
+|Aspect
+|Description
+
+|`ext_oneapi_is_integrated_gpu`
+|Indicates that the implementation identifies this device as integrated GPU. All devices
+that have this aspect also have `aspect::gpu`.
+|===
+
+== Issues
+
+None.

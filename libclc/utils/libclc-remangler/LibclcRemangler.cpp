@@ -270,7 +270,7 @@ clang::QualType getBaseType(StringRef Name, clang::ASTContext *AST,
     auto *DC = AST->getTranslationUnitDecl();
     auto *ED = EnumDecl::Create(*AST, DC, SourceLocation(), SourceLocation(),
                                 &II, nullptr, false, false, true);
-    Res = AST->getEnumType(ED);
+    Res = AST->getCanonicalTagType(ED);
   }
   return Res;
 }
@@ -620,9 +620,10 @@ private:
             StringRef(KNN->DataStr).split("__spv::").second.str();
         auto *II = &AST->Idents.get(StructName, tok::TokenKind::identifier);
         RD = RecordDecl::Create(*AST, TagTypeKind::Struct, SpvNamespace, SL, SL, II);
-        auto *NNS = NestedNameSpecifier::Create(*AST, nullptr, SpvNamespace);
-        auto RecordQT = AST->getRecordType(RD);
-        NNS = NestedNameSpecifier::Create(*AST, NNS, RecordQT.getTypePtr());
+        NestedNameSpecifier NNS =
+            NestedNameSpecifier(*AST, SpvNamespace, /*Prefix=*/std::nullopt);
+        auto RecordQT = AST->getCanonicalTagType(RD);
+        NNS = NestedNameSpecifier(RecordQT->getTypePtr());
         auto &EnumName =
             AST->Idents.get(Res.getBaseTypeIdentifier()->getName());
         // We need to recreate the enum, now that we have access to all the
@@ -630,8 +631,9 @@ private:
         auto *ED =
             EnumDecl::Create(*AST, RD, SourceLocation(), SourceLocation(),
                              &EnumName, nullptr, false, false, true);
-        Res = AST->getEnumType(ED);
-        Res = AST->getElaboratedType(ElaboratedTypeKeyword::None, NNS, Res);
+        Res = AST->getCanonicalTagType(ED);
+        Res = AST->getTagType(ElaboratedTypeKeyword::None, NNS, ED,
+                              /*OwnsTag=*/false);
         // Store the elaborated type for reuse, this is important as clang uses
         // substitutions for ET based on the object not the name enclosed in.
         NestedNamesQTMap[N] = Res;
@@ -855,7 +857,8 @@ private:
     if (RemangledName == OriginalName)
       return true;
 
-    StringRef CloneName, CloneeName;
+    std::string CloneName;
+    StringRef CloneeName;
     if (CloneeTypeReplacement) {
       CloneName = OriginalName;
       CloneeName = RemangledName;
@@ -864,25 +867,35 @@ private:
       CloneeName = OriginalName;
     }
 
-    // If the clone name already exists in the module then we have to assume it
-    // does the right thing already. We're only going to end up creating a copy
-    // of that function without external users being able to reach it.
+    // If the clone name is an original function in the module, it may later be
+    // remangled and must be replaced. Example (TargetDefaultAddrSpace != 0):
+    // _Z1fPm -> remangled to _Z1fPU3AS0y; remangler clones back to _Z1fPm to
+    // preserve the original. Later, _Z1fPU3AS4m -> remangled to _Z1fPy; we need
+    // to clone _Z1fPy to _Z1fPm, but it already exists. To avoid a clash,
+    // append a temporary suffix (e.g., _Z1fPm$TmpSuffix). The suffix is removed
+    // in post-processing, and the old Z1fPm (clone of _Z1fPU3AS0y) is replaced
+    // by Z1fPm$TmpSuffix.
     if (M->getFunction(CloneName)) {
-      return true;
+      CloneName += TmpSuffix;
+      if (M->getFunction(CloneName))
+        return true;
     }
 
     if (Function *Clonee = M->getFunction(CloneeName)) {
       ValueToValueMapTy Dummy;
       Function *NewF = CloneFunction(Clonee, Dummy);
-      NewF->setName(CloneName.str());
+      NewF->setName(CloneName);
     } else if (Verbose) {
-      errs() << "Could not create copy " << CloneName.data() << " : missing "
+      errs() << "Could not create copy " << CloneName << " : missing "
              << CloneeName.data() << '\n';
     }
     return true;
   }
 
   bool remangleFunction(Function &Func, llvm::Module *M) {
+    if (Func.hasLocalLinkage())
+      return true;
+
     if (!Func.getName().starts_with("_Z"))
       return true;
 
@@ -905,6 +918,7 @@ private:
       return false;
 
     if (RemangledName != MangledName) {
+      RenamedFunctions.insert(MangledName);
       if (Verbose || TestRun) {
         errs() << "Mangling changed:"
                << "\n"
@@ -922,13 +936,12 @@ private:
       // RemangledName may already exist. For instance, the function name
       // _Z1fPU3AS4i would be remangled to _Z1fPi, which is a valid variant and
       // might already be present. Since we cannot alter the name of an existing
-      // variant function that may not have been processed yet, we append a
-      // temporary suffix to RemangledName to prevent a name clash. This
-      // temporary suffix will be removed during the post-processing stage, once
-      // all functions have been handled.
-      if (ASTCtx->getTargetAddressSpace(LangAS::Default) != 0)
-        if (M->getFunction(RemangledName))
-          RemangledName += TmpSuffix;
+      // variant function that may not have been processed yet (it will become a
+      // clone of the original function), we append a temporary suffix to
+      // RemangledName to prevent a name clash. This temporary suffix will be
+      // removed eventually and Old _Z1fPi will be replaced by _Z1fPi$TmpSuffix.
+      if (M->getFunction(RemangledName))
+        RemangledName += TmpSuffix;
 
       // If the remangled name already exists in the module then we have to
       // assume it does the right thing already. We're only going to end up
@@ -949,28 +962,27 @@ private:
     return true;
   }
 
-  // When TargetDefaultAddrSpace is not 0, post-processing is necessary after
-  // all functions have been processed. During this stage, the temporary suffix
-  // is removed from the remangled name.
+  // The temporary suffix is removed from the remangled or cloned name.
   void postProcessRemoveTmpSuffix(llvm::Module *M) {
     if (TestRun)
       return;
-    for (auto &F : *M) {
+    for (auto &F : make_early_inc_range(*M)) {
       StringRef Name = F.getName();
       if (!Name.consume_back(TmpSuffix))
         continue;
-      // If a name clash persists, the old function is renamed. For example,
-      // _Z1fPi is remangled to _Z1fPU3AS0i, and the remangler clones
-      // _Z1fPU3AS0i to _Z1fPi to preserve the original implementation.
-      // Subsequently, _Z1fPU3AS4i is remangled to _Z1fPi, and the remangled
-      // name is temporarily changed to _Z1fPi$TmpSuffix. When attempting to
-      // revert _Z1fPi$TmpSuffix back to _Z1fPi, a clash occurs because _Z1fPi
-      // still exists. Delete the old _Z1fPi which is no longer useful.
       if (auto *Func = M->getFunction(Name)) {
-        Func->replaceAllUsesWith(ConstantPointerNull::get(Func->getType()));
-        Func->eraseFromParent();
+        if (RenamedFunctions.count(Name.str())) {
+          // Drop unuseful clone of the original or remangled function.
+          Func->replaceAllUsesWith(ConstantPointerNull::get(Func->getType()));
+          Func->eraseFromParent();
+        } else {
+          // Name doesn't exist in the original module. Drop unuseful clone of
+          // remangled function.
+          F.eraseFromParent();
+          continue;
+        }
       }
-      // Complete the mangling process from _Z1fPU3AS4i to _Z1fPi.
+      // Complete the mangling process, e.g. from _Z1fPU3AS4i to _Z1fPi.
       F.setName(Name);
     }
   }
@@ -1027,6 +1039,8 @@ private:
   ASTContext *ASTCtx;
   LLVMContext LLVMCtx;
   TargetTypeReplacements Replacements;
+  // Functions in the input module that have been renamed due to remangling.
+  std::unordered_set<std::string> RenamedFunctions;
 };
 
 class LibCLCRemanglerActionFactory {

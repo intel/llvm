@@ -27,7 +27,7 @@ target triple = "spir-unknown-unknown"
 ; Function Attrs: convergent nounwind
 define spir_func void @bar(ptr addrspace(1) %srcImage) local_unnamed_addr #0 {
 entry:
-; CHECK-LLVM: call spir_func void @_Z3foo14ocl_image2d_ro(ptr addrspace(1) %srcImage)
+; CHECK-LLVM: call spir_func void @_Z3foo14ocl_image2d_ro(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) %srcImage)
   tail call spir_func void @_Z3foo14ocl_image2d_ro(ptr addrspace(1) %srcImage) #2
   ret void
 }

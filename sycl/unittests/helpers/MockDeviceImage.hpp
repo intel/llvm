@@ -161,38 +161,7 @@ template <typename T> LifetimeExtender(std::vector<T>) -> LifetimeExtender<T>;
 /// Convenience wrapper for sycl_device_binary_property_set.
 class MockPropertySet {
 public:
-  MockPropertySet(const std::vector<DeviceLibExt> &DeviceLibExts = {}) {
-    // Most of unit-tests are statically linked with SYCL RT. On Linux and Mac
-    // systems that causes incorrect RT installation directory detection, which
-    // prevents proper loading of fallback libraries. See intel/llvm#6945
-    //
-    // Fallback libraries are automatically loaded and linked into device image
-    // unless there is a special property attached to it or special env variable
-    // is set which forces RT to skip fallback libraries.
-    //
-    // By default, property is set to empty mask here so that unit-tests can be
-    // launched under any environment. Some unit tests might create dummy
-    // fallback libaries and require fallback libraries to be loaded, in such
-    // case input vector will be non-empty.
-
-    std::vector<char> Data(/* four elements */ 4,
-                           /* each element is zero */ 0);
-    if (!DeviceLibExts.empty()) {
-      uint32_t DeviceLibReqMask = 0;
-      for (auto Ext : DeviceLibExts) {
-        DeviceLibReqMask |= 0x1
-                            << (static_cast<uint32_t>(Ext) -
-                                static_cast<uint32_t>(
-                                    DeviceLibExt::cl_intel_devicelib_assert));
-      }
-      std::memcpy(Data.data(), &DeviceLibReqMask, sizeof(DeviceLibReqMask));
-    }
-    // Name doesn't matter here, it is not used by RT
-    // Value must be an all-zero 32-bit mask, which would mean that no fallback
-    // libraries are needed to be loaded.
-    MockProperty DeviceLibReqMask("", Data, SYCL_PROPERTY_TYPE_UINT32);
-    insert(__SYCL_PROPERTY_SET_DEVICELIB_REQ_MASK, std::move(DeviceLibReqMask));
-  }
+  MockPropertySet() = default;
 
   /// Adds a new property to the set.
   ///
@@ -251,14 +220,14 @@ private:
   MockDeviceImage(uint16_t Version, uint8_t Kind, uint8_t Format,
                   const std::string &DeviceTargetSpec,
                   const std::string &CompileOptions,
-                  const std::string &LinkOptions, std::vector<char> &&Manifest,
+                  const std::string &LinkOptions,
                   std::vector<unsigned char> &&Binary,
                   internal::LifetimeExtender<MockOffloadEntry> OffloadEntries,
                   MockPropertySet PropertySet)
       : MVersion(Version), MKind(Kind), MFormat(Format),
         MDeviceTargetSpec(DeviceTargetSpec), MCompileOptions(CompileOptions),
-        MLinkOptions(LinkOptions), MManifest(std::move(Manifest)),
-        MBinary(std::move(Binary)), MOffloadEntries(std::move(OffloadEntries)),
+        MLinkOptions(LinkOptions), MBinary(std::move(Binary)),
+        MOffloadEntries(std::move(OffloadEntries)),
         MPropertySet(std::move(PropertySet)) {
     MNativeHandle = {
         MVersion,
@@ -267,8 +236,6 @@ private:
         MDeviceTargetSpec.c_str(),
         MCompileOptions.c_str(),
         MLinkOptions.c_str(),
-        MManifest.empty() ? nullptr : &*MManifest.cbegin(),
-        MManifest.empty() ? nullptr : &*MManifest.crbegin() + 1,
         &*MBinary.begin(),
         (&*MBinary.begin()) + MBinary.size(),
         MOffloadEntries.begin(),
@@ -283,12 +250,12 @@ public:
   MockDeviceImage(uint16_t Version, uint8_t Kind, uint8_t Format,
                   const std::string &DeviceTargetSpec,
                   const std::string &CompileOptions,
-                  const std::string &LinkOptions, std::vector<char> &&Manifest,
+                  const std::string &LinkOptions,
                   std::vector<unsigned char> &&Binary,
                   std::vector<MockOffloadEntry> &&OffloadEntries,
                   MockPropertySet PropertySet)
       : MockDeviceImage(Version, Kind, Format, DeviceTargetSpec, CompileOptions,
-                        LinkOptions, std::move(Manifest), std::move(Binary),
+                        LinkOptions, std::move(Binary),
                         internal::LifetimeExtender(std::move(OffloadEntries)),
                         std::move(PropertySet)) {}
 
@@ -300,7 +267,7 @@ public:
                   MockPropertySet PropertySet)
       : MockDeviceImage(SYCL_DEVICE_BINARY_VERSION,
                         SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL, Format,
-                        DeviceTargetSpec, CompileOptions, LinkOptions, {},
+                        DeviceTargetSpec, CompileOptions, LinkOptions,
                         std::move(Binary),
                         internal::LifetimeExtender(std::move(OffloadEntries)),
                         std::move(PropertySet)) {}
@@ -315,7 +282,7 @@ public:
       : MockDeviceImage(
             SYCL_DEVICE_BINARY_VERSION, SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL,
             SYCL_DEVICE_BINARY_TYPE_SPIRV, __SYCL_DEVICE_BINARY_TARGET_SPIRV64,
-            "", "", {}, std::vector<unsigned char>{1, 2, 3, 4, 5},
+            "", "", std::vector<unsigned char>{1, 2, 3, 4, 5},
             internal::LifetimeExtender(std::move(OffloadEntries)),
             std::move(PropertySet)) {}
 
@@ -338,7 +305,6 @@ private:
   std::string MDeviceTargetSpec;
   std::string MCompileOptions;
   std::string MLinkOptions;
-  std::vector<char> MManifest;
   std::vector<unsigned char> MBinary;
   internal::LifetimeExtender<MockOffloadEntry> MOffloadEntries;
   MockPropertySet MPropertySet;
@@ -352,6 +318,10 @@ public:
   static constexpr size_t NumberOfImages = __NumberOfImages;
 
   MockDeviceImageArray(MockDeviceImage *Imgs) {
+
+    if (!GlobalHandler::isInstanceAlive())
+      GlobalHandler::resetGlobalHandler();
+
     for (size_t Idx = 0; Idx < NumberOfImages; ++Idx)
       MNativeImages[Idx] = Imgs[Idx].convertToNativeType();
 
@@ -460,15 +430,6 @@ inline MockProperty makeSpecConstant(std::vector<char> &ValData,
   return Prop;
 }
 
-/// Utility function to mark kernel as the one using assert
-inline void setKernelUsesAssert(const std::vector<std::string> &Names,
-                                MockPropertySet &Set) {
-  std::vector<MockProperty> Value;
-  for (const std::string &N : Names)
-    Value.push_back({N, {0, 0, 0, 0}, SYCL_PROPERTY_TYPE_UINT32});
-  Set.insert(__SYCL_PROPERTY_SET_SYCL_ASSERT_USED, std::move(Value));
-}
-
 /// Utility function to add specialization constants to property set.
 ///
 /// This function overrides the default spec constant values.
@@ -543,25 +504,6 @@ makeDeviceGlobalInfo(const std::string &Name, const uint32_t TypeSize,
   std::memcpy(DescData.data() + BYTES_FOR_SIZE, &TypeSize, sizeof(TypeSize));
   std::memcpy(DescData.data() + BYTES_FOR_SIZE + sizeof(TypeSize),
               &DeviceImageScoped, sizeof(DeviceImageScoped));
-
-  MockProperty Prop{Name, DescData, SYCL_PROPERTY_TYPE_BYTE_ARRAY};
-
-  return Prop;
-}
-
-/// Utility function to create a host pipe info property.
-///
-/// \param Name is the name of the hostpipe name.
-/// \param TypeSize is the size of the underlying type in the hostpipe.
-/// decorated.
-inline MockProperty makeHostPipeInfo(const std::string &Name,
-                                     const uint32_t TypeSize) {
-  constexpr size_t BYTES_FOR_SIZE = 8;
-  const std::uint64_t BytesForArgs = sizeof(std::uint32_t);
-  std::vector<char> DescData;
-  DescData.resize(BYTES_FOR_SIZE + BytesForArgs);
-  std::memcpy(DescData.data(), &BytesForArgs, sizeof(BytesForArgs));
-  std::memcpy(DescData.data() + BYTES_FOR_SIZE, &TypeSize, sizeof(TypeSize));
 
   MockProperty Prop{Name, DescData, SYCL_PROPERTY_TYPE_BYTE_ARRAY};
 

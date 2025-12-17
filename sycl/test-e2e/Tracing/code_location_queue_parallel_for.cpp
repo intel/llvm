@@ -3,6 +3,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} sycl-trace --sycl  %t.out | FileCheck %s
 
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
 // Test tracing of the code location data for queue.parallel_for in case of
 // failure (exception generation)
 

@@ -1,0 +1,34 @@
+; REQUIRES: spirv-as
+
+; RUN: spirv-as %s --target-env spv1.0 -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -to-text -o - %t.spv | FileCheck %s --check-prefix=CHECK-SPIRV
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+
+               OpCapability Addresses
+               OpCapability Kernel
+               OpCapability ImageBasic
+               OpCapability LiteralSampler
+               OpMemoryModel Physical64 OpenCL
+               OpEntryPoint Kernel %test "test"
+       %void = OpTypeVoid
+  %image2d_t = OpTypeImage %void 2D 0 0 0 0 Unknown ReadOnly
+     %func_t = OpTypeFunction %void %image2d_t
+  %sampler_t = OpTypeSampler
+%sampledimage_t = OpTypeSampledImage %image2d_t
+    %sampler = OpConstantSampler %sampler_t None 0 Nearest
+       %test = OpFunction %void None %func_t
+      %image = OpFunctionParameter %image2d_t
+      %entry = OpLabel
+%sampledimage = OpSampledImage %sampledimage_t %image %sampler
+  %new_image = OpImage %image2d_t %sampledimage
+               OpReturn
+               OpFunctionEnd
+
+; CHECK-SPIRV: SampledImage
+; CHECK-SPIRV: Image
+
+; CHECK-LLVM: define spir_kernel void @test(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) %[[#IMAGE:]])
+; CHECK-LLVM: %[[#SAMPLE:]] = call target("spirv.Sampler") @__translate_sampler_initializer(i32 16)
+; CHECK-LLVM: %[[#]] = call spir_func target("spirv.SampledImage", void, 1, 0, 0, 0, 0, 0, 0) @_Z12SampledImage14ocl_image2d_roPU3AS215__spirv_Sampler(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) %[[#IMAGE]], target("spirv.Sampler") %[[#SAMPLE]])

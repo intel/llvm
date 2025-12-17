@@ -6,6 +6,7 @@
 #include "basic_event_collection.inc"
 //
 // CHECK-DAG: xptiTraceInit: Stream Name = sycl
+// CHECK-DAG: xptiTraceInit: Stream Name = sycl.debug
 // CHECK-DAG: xptiTraceInit: Stream Name = sycl.experimental.buffer
 // CHECK-DAG: xptiTraceInit: Stream Name = sycl.experimental.image
 // CHECK-DAG: xptiTraceInit: Stream Name = sycl.experimental.mem_alloc
@@ -37,9 +38,8 @@
 // CHECK-DAG:    from_source : false
 // CHECK-DAG:    kernel_name : typeinfo name for main::{lambda(sycl::_V1::handler&)#1}::operator()(sycl::_V1::handler&) const::{lambda()#1}
 // CHECK-DAG:    sycl_device : {{.*}}
-// CHECK:      UR Call Begin : urKernelSetArgPointer
-// CHECK-NEXT: UR Call Begin : urKernelGetGroupInfo
-// CHECK-NEXT: UR Call Begin : urEnqueueKernelLaunch
+// CHECK:      UR Call Begin : urKernelGetGroupInfo
+// CHECK-NEXT: UR Call Begin : urEnqueueKernelLaunchWithArgsExp
 // CHECK-NEXT: Signal
 // CHECK-DAG:    queue_id : {{.*}}
 // CHECK-DAG:    sym_line_no : {{.*}}

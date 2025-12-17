@@ -58,7 +58,7 @@
 #endif
 
 #ifndef __SYCL_DEPRECATED
-#if !defined(SYCL2020_DISABLE_DEPRECATION_WARNINGS)
+#if !defined(__SYCL_DISABLE_DEPRECATION_WARNINGS)
 #define __SYCL_DEPRECATED(message) [[deprecated(message)]]
 #else // SYCL_DISABLE_DEPRECATION_WARNINGS
 #define __SYCL_DEPRECATED(message)

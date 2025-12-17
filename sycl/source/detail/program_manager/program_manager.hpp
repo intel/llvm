@@ -12,14 +12,12 @@
 #include <detail/device_global_map.hpp>
 #include <detail/device_global_map_entry.hpp>
 #include <detail/device_kernel_info.hpp>
-#include <detail/host_pipe_map_entry.hpp>
 #include <detail/kernel_arg_mask.hpp>
 #include <detail/spec_constant_impl.hpp>
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/device_global_map.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/host_pipe_map.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/detail/util.hpp>
@@ -76,21 +74,7 @@ class device_impl;
 class devices_range;
 class queue_impl;
 class event_impl;
-// DeviceLibExt is shared between sycl runtime and sycl-post-link tool.
-// If any update is made here, need to sync with DeviceLibExt definition
-// in llvm/tools/sycl-post-link/sycl-post-link.cpp
-enum class DeviceLibExt : std::uint32_t {
-  cl_intel_devicelib_assert,
-  cl_intel_devicelib_math,
-  cl_intel_devicelib_math_fp64,
-  cl_intel_devicelib_complex,
-  cl_intel_devicelib_complex_fp64,
-  cl_intel_devicelib_cstring,
-  cl_intel_devicelib_imf,
-  cl_intel_devicelib_imf_fp64,
-  cl_intel_devicelib_imf_bf16,
-  cl_intel_devicelib_bfloat16,
-};
+class device_images_range;
 
 enum class SanitizerType {
   None,
@@ -133,9 +117,11 @@ class ProgramManager {
 public:
   // Returns the single instance of the program manager for the entire
   // process. Can only be called after staticInit is done.
-  static ProgramManager &getInstance();
+  static ProgramManager &getInstance() {
+    return GlobalHandler::instance().getProgramManager();
+  }
 
-  const RTDeviceBinaryImage &getDeviceImage(KernelNameStrRefT KernelName,
+  const RTDeviceBinaryImage &getDeviceImage(std::string_view KernelName,
                                             context_impl &ContextImpl,
                                             const device_impl &DeviceImpl);
 
@@ -179,7 +165,7 @@ public:
   /// \param KernelName the kernel's name
   Managed<ur_program_handle_t> getBuiltURProgram(context_impl &ContextImpl,
                                                  device_impl &DeviceImpl,
-                                                 KernelNameStrRefT KernelName,
+                                                 std::string_view KernelName,
                                                  const NDRDescT &NDRDesc = {});
 
   /// Builds a program from a given set of images or retrieves that program from
@@ -204,12 +190,12 @@ public:
                                           const NDRDescT &NDRDesc = {});
 
   ur_kernel_handle_t getCachedMaterializedKernel(
-      KernelNameStrRefT KernelName,
+      std::string_view KernelName,
       const std::vector<unsigned char> &SpecializationConsts);
 
   ur_kernel_handle_t getOrCreateMaterializedKernel(
       const RTDeviceBinaryImage &Img, const context &Context,
-      const device &Device, KernelNameStrRefT KernelName,
+      const device &Device, std::string_view KernelName,
       const std::vector<unsigned char> &SpecializationConsts);
 
   ur_program_handle_t getUrProgramFromUrKernel(ur_kernel_handle_t Kernel,
@@ -224,22 +210,33 @@ public:
   static std::string getProgramBuildLog(const ur_program_handle_t &Program,
                                         context_impl &Context);
 
-  uint32_t getDeviceLibReqMask(const RTDeviceBinaryImage &Img);
-
   /// Returns the mask for eliminated kernel arguments for the requested kernel
   /// within the native program.
   /// \param NativePrg the UR program associated with the kernel.
   /// \param KernelName the name of the kernel.
   const KernelArgMask *getEliminatedKernelArgMask(ur_program_handle_t NativePrg,
-                                                  KernelNameStrRefT KernelName);
+                                                  std::string_view KernelName);
 
   // The function returns the unique SYCL kernel identifier associated with a
   // kernel name or nullopt if there is no such ID.
-  std::optional<kernel_id> tryGetSYCLKernelID(KernelNameStrRefT KernelName);
+  std::optional<kernel_id> tryGetSYCLKernelID(std::string_view KernelName) {
+    std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+
+    auto KernelID = m_KernelName2KernelIDs.find(KernelName);
+    if (KernelID == m_KernelName2KernelIDs.end())
+      return std::nullopt;
+
+    return KernelID->second;
+  }
 
   // The function returns the unique SYCL kernel identifier associated with a
   // kernel name or throws a sycl exception if there is no such ID.
-  kernel_id getSYCLKernelID(KernelNameStrRefT KernelName);
+  kernel_id getSYCLKernelID(std::string_view KernelName) {
+    if (std::optional<kernel_id> MaybeKernelID = tryGetSYCLKernelID(KernelName))
+      return *MaybeKernelID;
+    throw exception(make_error_code(errc::runtime),
+                    "No kernel found with the specified name");
+  }
 
   // The function returns a vector containing all unique SYCL kernel identifiers
   // in SYCL device images.
@@ -247,7 +244,7 @@ public:
 
   // The function returns the unique SYCL kernel identifier associated with a
   // built-in kernel name.
-  kernel_id getBuiltInKernelID(KernelNameStrRefT KernelName);
+  kernel_id getBuiltInKernelID(std::string_view KernelName);
 
   // The function inserts or initializes a device_global entry into the
   // device_global map.
@@ -257,6 +254,12 @@ public:
   // The function inserts or initializes a kernel global desc into the
   // kernel global map.
   void registerKernelGlobalInfo(
+      std::unordered_map<std::string_view, unsigned> &&GlobalInfoToCopy);
+
+  // The function removes kernel global descriptors from the
+  // kernel global map when a shared library consisting of SYCL kernels
+  // is unloaded.
+  void unRegisterKernelGlobalInfo(
       std::unordered_map<std::string_view, unsigned> &&GlobalInfoToCopy);
 
   // The function returns a pointer to the kernel global desc identified by
@@ -282,17 +285,10 @@ public:
   std::vector<DeviceGlobalMapEntry *>
   getDeviceGlobalEntries(const std::vector<std::string> &UniqueIds,
                          bool ExcludeDeviceImageScopeDecorated = false);
-  // The function inserts or initializes a host_pipe entry into the
-  // host_pipe map.
-  void addOrInitHostPipeEntry(const void *HostPipePtr, const char *UniqueId);
 
-  // The function gets a host_pipe entry identified by the unique ID from
-  // the host_pipe map.
-  HostPipeMapEntry *getHostPipeEntry(const std::string &UniqueId);
-
-  // The function gets a host_pipe entry identified by the pointer to the
-  // host_pipe object from the host_pipe map.
-  HostPipeMapEntry *getHostPipeEntry(const void *HostPipePtr);
+  // The function gets all device_global entries that are profile counters.
+  std::vector<DeviceGlobalMapEntry *>
+  getProfileCounterDeviceGlobalEntries(const context_impl *CtxImpl);
 
   device_image_plain
   getDeviceImageFromBinaryImage(const RTDeviceBinaryImage *BinImage,
@@ -349,9 +345,13 @@ public:
 
   // Produces set of device images by convering input device images to object
   // the executable state
-  std::vector<device_image_plain>
-  link(const std::vector<device_image_plain> &Imgs, devices_range Devs,
-       const property_list &PropList);
+  std::vector<device_image_plain> link(device_images_range Imgs,
+                                       devices_range Devs,
+                                       const property_list &PropList,
+                                       bool AllowUnresolvedSymbols = false);
+
+  // Dynamically links images in executable state.
+  void dynamicLink(device_images_range Imgs);
 
   // Produces new device image by converting input device image to the
   // executable state
@@ -359,25 +359,19 @@ public:
                            devices_range Devs, const property_list &PropList);
 
   std::tuple<Managed<ur_kernel_handle_t>, std::mutex *, const KernelArgMask *>
-  getOrCreateKernel(const context &Context, KernelNameStrRefT KernelName,
+  getOrCreateKernel(const context &Context, std::string_view KernelName,
                     const property_list &PropList, ur_program_handle_t Program);
 
   ProgramManager();
   ~ProgramManager() = default;
 
-  template <typename NameT>
-  bool kernelUsesAssert(const NameT &KernelName) const {
-    return m_KernelUsesAssert.find(KernelName) != m_KernelUsesAssert.end();
-  }
-
   SanitizerType kernelUsesSanitizer() const { return m_SanitizerFoundInImage; }
 
-  std::optional<int>
-  kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const;
+  void cacheKernelImplicitLocalArg(const RTDeviceBinaryImage &Img);
 
-  DeviceKernelInfo &
-  getOrCreateDeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
-  DeviceKernelInfo &getOrCreateDeviceKernelInfo(KernelNameStrRefT KernelName);
+  DeviceKernelInfo &getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
+  DeviceKernelInfo &getDeviceKernelInfo(std::string_view KernelName);
+  DeviceKernelInfo *tryGetDeviceKernelInfo(std::string_view KernelName);
 
   std::set<const RTDeviceBinaryImage *>
   getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
@@ -399,18 +393,12 @@ private:
   Managed<ur_program_handle_t>
   build(Managed<ur_program_handle_t> Program, context_impl &Context,
         const std::string &CompileOptions, const std::string &LinkOptions,
-        std::vector<ur_device_handle_t> &Devices, uint32_t DeviceLibReqMask,
+        std::vector<ur_device_handle_t> &Devices,
         const std::vector<Managed<ur_program_handle_t>> &ProgramsToLink,
         bool CreatedFromBinary = false);
 
   /// Dumps image to current directory
   void dumpImage(const RTDeviceBinaryImage &Img, uint32_t SequenceID = 0) const;
-
-  /// Add info on kernels using assert into cache
-  void cacheKernelUsesAssertInfo(const RTDeviceBinaryImage &Img);
-
-  /// Add info on kernels using local arg into cache
-  void cacheKernelImplicitLocalArg(const RTDeviceBinaryImage &Img);
 
   std::set<const RTDeviceBinaryImage *>
   collectDependentDeviceImagesForVirtualFunctions(
@@ -430,7 +418,7 @@ protected:
   ///       when C++20 is enabled for the runtime library.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
   //
-  std::unordered_map<KernelNameStrT, kernel_id> m_KernelName2KernelIDs;
+  std::unordered_map<std::string_view, kernel_id> m_KernelName2KernelIDs;
 
   // Maps KernelIDs to device binary images. There can be more than one image
   // in case of SPIRV + AOT.
@@ -457,7 +445,7 @@ protected:
   /// Used for checking if the last image referencing the kernel name
   /// is removed in order to trigger cleanup of kernel specific information.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
-  std::unordered_map<KernelNameStrT, int> m_KernelNameRefCount;
+  std::unordered_map<std::string_view, int> m_KernelNameRefCount;
 
   /// Caches all exported symbols to allow faster lookup when excluding these
   /// from kernel bundles.
@@ -475,7 +463,7 @@ protected:
 
   /// Maps names of built-in kernels to their unique kernel IDs.
   /// Access must be guarded by the m_BuiltInKernelIDsMutex mutex.
-  std::unordered_map<KernelNameStrT, kernel_id> m_BuiltInKernelIDs;
+  std::unordered_map<std::string_view, kernel_id> m_BuiltInKernelIDs;
 
   /// Caches list of device images that use or provide virtual functions from
   /// the same set. Used to simplify access.
@@ -508,7 +496,7 @@ protected:
   std::mutex MNativeProgramsMutex;
 
   using KernelNameToArgMaskMap =
-      std::unordered_map<KernelNameStrT, KernelArgMask>;
+      std::unordered_map<std::string_view, KernelArgMask>;
   /// Maps binary image and kernel name pairs to kernel argument masks which
   /// specify which arguments were eliminated during device code optimization.
   std::unordered_map<const RTDeviceBinaryImage *, KernelNameToArgMaskMap>
@@ -518,17 +506,9 @@ protected:
   bool m_UseSpvFile = false;
   RTDeviceBinaryImageUPtr m_SpvFileImage;
 
-  // std::less<> is a transparent comparator that enabled comparison between
-  // different types without temporary key_type object creation. This includes
-  // standard overloads, such as comparison between std::string and
-  // std::string_view or just char*.
-  using KernelUsesAssertSet = std::set<KernelNameStrT, std::less<>>;
-  KernelUsesAssertSet m_KernelUsesAssert;
-  std::unordered_map<KernelNameStrT, int> m_KernelImplicitLocalArgPos;
-
   // Map for storing device kernel information. Runtime lookup should be avoided
   // by caching the pointers when possible.
-  std::unordered_map<KernelNameStrT, DeviceKernelInfo> m_DeviceKernelInfoMap;
+  std::unordered_map<std::string_view, DeviceKernelInfo> m_DeviceKernelInfoMap;
 
   // Protects m_DeviceKernelInfoMap.
   std::mutex m_DeviceKernelInfoMapMutex;
@@ -545,17 +525,10 @@ protected:
   // information.
   std::unordered_map<std::string_view, unsigned> m_FreeFunctionKernelGlobalInfo;
 
-  // Maps between host_pipe identifiers and associated information.
-  std::unordered_map<std::string, std::unique_ptr<HostPipeMapEntry>>
-      m_HostPipes;
-  std::unordered_map<const void *, HostPipeMapEntry *> m_Ptr2HostPipe;
-
-  /// Protects m_HostPipes and m_Ptr2HostPipe.
-  std::mutex m_HostPipesMutex;
-
   using MaterializedEntries =
       std::map<std::vector<unsigned char>, Managed<ur_kernel_handle_t>>;
-  std::unordered_map<KernelNameStrT, MaterializedEntries> m_MaterializedKernels;
+  std::unordered_map<std::string_view, MaterializedEntries>
+      m_MaterializedKernels;
 
   // Holds bfloat16 device library images, the 1st element is for fallback
   // version and 2nd is for native version. These bfloat16 device library
@@ -565,6 +538,7 @@ protected:
 
   friend class ::ProgramManagerTest;
 };
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

@@ -59,6 +59,9 @@ struct AsanRuntimeData {
   uintptr_t GlobalShadowOffset = 0;
   uintptr_t GlobalShadowOffsetEnd = 0;
 
+  uintptr_t GlobalShadowLowerBound = 0;
+  uintptr_t GlobalShadowUpperBound = 0;
+
   uintptr_t *PrivateBase = nullptr;
   uintptr_t PrivateShadowOffset = 0;
   uintptr_t PrivateShadowOffsetEnd = 0;
@@ -69,6 +72,7 @@ struct AsanRuntimeData {
   LocalArgsInfo *LocalArgs = nullptr; // Ordered by ArgIndex
   uint32_t NumLocalArgs = 0;
 
+  DeviceType DeviceTy = DeviceType::UNKNOWN;
   uint32_t Debug = 0;
 
   int ReportFlag = 0;

@@ -15,9 +15,10 @@
                OpCapability UniformDecoration
                OpMemoryModel Physical64 OpenCL
                OpEntryPoint Kernel %2 "test"
-               OpDecorateId %uint_0 UniformId %uint_0
+               OpDecorateId %tgt_uint_0 UniformId %op_uint_0
        %uint = OpTypeInt 32 0
-     %uint_0 = OpConstant %uint 0
+  %op_uint_0 = OpConstant %uint 0
+ %tgt_uint_0 = OpConstant %uint 0
        %void = OpTypeVoid
           %1 = OpTypeFunction %void
           %2 = OpFunction %void None %1

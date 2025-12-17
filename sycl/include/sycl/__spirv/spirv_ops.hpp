@@ -769,31 +769,6 @@ __spirv_ArbitraryFloatPowNINTEL(sycl::detail::ap_int<WA> A, int32_t MA,
                                 int32_t RoundingMode = 0,
                                 int32_t RoundingAccuracy = 0) noexcept;
 
-template <typename dataT>
-extern __DPCPP_SYCL_EXTERNAL int32_t
-__spirv_ReadPipe(__ocl_RPipeTy<dataT> Pipe, dataT *Data, int32_t Size,
-                 int32_t Alignment) noexcept;
-template <typename dataT>
-extern __DPCPP_SYCL_EXTERNAL int32_t
-__spirv_WritePipe(__ocl_WPipeTy<dataT> Pipe, const dataT *Data, int32_t Size,
-                  int32_t Alignment) noexcept;
-template <typename dataT>
-extern __DPCPP_SYCL_EXTERNAL void
-__spirv_ReadPipeBlockingINTEL(__ocl_RPipeTy<dataT> Pipe, dataT *Data,
-                              int32_t Size, int32_t Alignment) noexcept;
-template <typename dataT>
-extern __DPCPP_SYCL_EXTERNAL void
-__spirv_WritePipeBlockingINTEL(__ocl_WPipeTy<dataT> Pipe, const dataT *Data,
-                               int32_t Size, int32_t Alignment) noexcept;
-template <typename dataT>
-extern __DPCPP_SYCL_EXTERNAL __ocl_RPipeTy<dataT>
-__spirv_CreatePipeFromPipeStorage_read(
-    const ConstantPipeStorage *Storage) noexcept;
-template <typename dataT>
-extern __DPCPP_SYCL_EXTERNAL __ocl_WPipeTy<dataT>
-__spirv_CreatePipeFromPipeStorage_write(
-    const ConstantPipeStorage *Storage) noexcept;
-
 extern __DPCPP_SYCL_EXTERNAL float
 __spirv_ConvertBF16ToFINTEL(uint16_t) noexcept;
 extern __DPCPP_SYCL_EXTERNAL uint16_t
@@ -838,19 +813,6 @@ __clc_BarrierTestWait(int64_t *state, int64_t arrival) noexcept;
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT void
 __clc_BarrierArriveAndWait(int64_t *state) noexcept;
 
-#if defined(__SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__) &&                         \
-    !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wpedantic"
-#warning                                                                       \
-    "__SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__ is deprecated and will be removed in a future release."
-#pragma clang diagnostic pop
-#endif
-extern __DPCPP_SYCL_EXTERNAL int
-__spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format, ...);
-extern __DPCPP_SYCL_EXTERNAL int __spirv_ocl_printf(const char *Format, ...);
-#else
 template <typename... Args>
 extern __DPCPP_SYCL_EXTERNAL int
 __spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format,
@@ -858,7 +820,6 @@ __spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format,
 template <typename... Args>
 extern __DPCPP_SYCL_EXTERNAL int __spirv_ocl_printf(const char *Format,
                                                     Args... args);
-#endif
 
 // Native builtin extension
 

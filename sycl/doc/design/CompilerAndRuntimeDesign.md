@@ -250,7 +250,7 @@ the filetable to get a new filetable:
 construct a wrapper object which embeds all those files.
 
 Note that the graph does not change when more rows (clusters) or columns
-(e.g. a "manifest" file) are added to the table.
+ are added to the table.
 
 #### Enable SYCL offload
 
@@ -889,9 +889,6 @@ The SPIR-V specific C++ enumerators and classes are declared in the file:
 
 The SPIR-V specific C++ function declarations are in the file:
 `sycl/include/CL/__spirv/spirv_ops.hpp`.
-
-The SPIR-V specific functions are implemented in for the SYCL host device here:
-`sycl/source/spirv_ops.cpp`.
 
 ### Address spaces handling
 

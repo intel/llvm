@@ -110,14 +110,14 @@ struct ProgramInfo {
   ur_program_handle_t Handle;
   std::atomic<int32_t> RefCount = 1;
 
-  struct KernelMetada {
+  struct KernelMetadata {
     bool CheckLocals;
     bool CheckPrivates;
     bool TrackOrigins;
   };
 
   // Program is built only once, so we don't need to lock it
-  std::unordered_map<std::string, KernelMetada> KernelMetadataMap;
+  std::unordered_map<std::string, KernelMetadata> KernelMetadataMap;
 
   explicit ProgramInfo(ur_program_handle_t Program) : Handle(Program) {
     [[maybe_unused]] auto Result =
@@ -132,7 +132,7 @@ struct ProgramInfo {
   }
 
   bool isKernelInstrumented(ur_kernel_handle_t Kernel) const;
-  const KernelMetada &getKernelMetadata(ur_kernel_handle_t Kernel) const;
+  const KernelMetadata &getKernelMetadata(ur_kernel_handle_t Kernel) const;
 };
 
 struct ContextInfo {
@@ -225,7 +225,7 @@ struct USMLaunchInfo {
   ur_context_handle_t Context = nullptr;
   ur_device_handle_t Device = nullptr;
   const size_t *GlobalWorkSize = nullptr;
-  const size_t *GlobalWorkOffset = nullptr;
+  std::vector<size_t> GlobalWorkOffset;
   std::vector<size_t> LocalWorkSize;
   uint32_t WorkDim = 0;
 
@@ -233,11 +233,18 @@ struct USMLaunchInfo {
                 const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
                 const size_t *GlobalWorkOffset, uint32_t WorkDim)
       : Data(Context, Device), Context(Context), Device(Device),
-        GlobalWorkSize(GlobalWorkSize), GlobalWorkOffset(GlobalWorkOffset),
-        WorkDim(WorkDim) {
+        GlobalWorkSize(GlobalWorkSize), WorkDim(WorkDim) {
     if (LocalWorkSize) {
       this->LocalWorkSize =
           std::vector<size_t>(LocalWorkSize, LocalWorkSize + WorkDim);
+    }
+    // UR doesn't allow GlobalWorkOffset is null, we need to construct a zero
+    // value array if user doesn't specify its value.
+    if (GlobalWorkOffset) {
+      this->GlobalWorkOffset =
+          std::vector<size_t>(GlobalWorkOffset, GlobalWorkOffset + WorkDim);
+    } else {
+      this->GlobalWorkOffset = std::vector<size_t>(WorkDim, 0);
     }
   }
   ~USMLaunchInfo();

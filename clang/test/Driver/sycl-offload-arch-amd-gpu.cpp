@@ -112,7 +112,7 @@
 
 // TARGET-TRIPLE-AMD-GPU: clang{{.*}} "-triple" "amdgcn-amd-amdhsa"
 // TARGET-TRIPLE-AMD-GPU: "-D__SYCL_TARGET_AMD_GPU_[[MAC_STR]]__"
-// CLANG-OFFLOAD-PACKAGER-AMD: clang-offload-packager{{.*}} "--image={{.*}}triple=amdgcn-amd-amdhsa,arch=[[DEV_STR]],kind=sycl"
+// CLANG-OFFLOAD-PACKAGER-AMD: llvm-offload-binary{{.*}} "--image={{.*}}triple=amdgcn-amd-amdhsa,arch=[[DEV_STR]],kind=sycl"
 
 // Tests for handling an invalid architecture.
 //
@@ -121,6 +121,4 @@
 // RUN: not %clang_cl --offload-new-driver -fsycl --offload-arch=gfx10_3_generic %s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix=ERROR %s
 
-// ERROR: error: SYCL target is invalid: 'gfx10_3_generic'
-
-
+// ERROR: error: unsupported offload gpu architecture: gfx10_3_generic

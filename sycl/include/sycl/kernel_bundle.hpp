@@ -67,6 +67,8 @@ std::enable_if_t<is_kernel_v<Func>, kernel_id> get_kernel_id();
 ///
 /// \ingroup sycl_api
 class __SYCL_EXPORT kernel_id : public detail::OwnerLessBase<kernel_id> {
+  friend sycl::detail::ImplUtils;
+
 public:
   kernel_id() = delete;
 
@@ -84,18 +86,6 @@ private:
       : impl(std::move(Impl)) {}
 
   std::shared_ptr<detail::kernel_id_impl> impl;
-
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 };
 
 namespace detail {
@@ -104,6 +94,8 @@ class device_image_impl;
 // The class is used as a base for device_image for "untemplating" public
 // methods.
 class __SYCL_EXPORT device_image_plain {
+  friend sycl::detail::ImplUtils;
+
 public:
   device_image_plain(const std::shared_ptr<device_image_impl> &Impl)
       : impl(Impl) {}
@@ -123,22 +115,10 @@ public:
 
   bool has_kernel(const kernel_id &KernelID, const device &Dev) const noexcept;
 
+protected:
   ur_native_handle_t getNative() const;
 
-protected:
   std::shared_ptr<device_image_impl> impl;
-
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   backend ext_oneapi_get_backend_impl() const noexcept;
 
@@ -153,6 +133,8 @@ protected:
 template <sycl::bundle_state State>
 class device_image : public detail::device_image_plain,
                      public detail::OwnerLessBase<device_image<State>> {
+  friend sycl::detail::ImplUtils;
+
 public:
   device_image() = delete;
 
@@ -196,17 +178,8 @@ private:
   device_image(std::shared_ptr<detail::device_image_impl> Impl)
       : device_image_plain(std::move(Impl)) {}
 
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
+  // To allow calling device_image_plain::getNative()
+  template <bundle_state> friend class kernel_bundle;
 };
 
 namespace detail {
@@ -215,6 +188,8 @@ using KernelBundleImplPtr = std::shared_ptr<detail::kernel_bundle_impl>;
 
 // The class is used as a base for kernel_bundle to "untemplate" it's methods
 class __SYCL_EXPORT kernel_bundle_plain {
+  friend sycl::detail::ImplUtils;
+
 public:
   kernel_bundle_plain(const detail::KernelBundleImplPtr &Impl)
       : impl(std::move(Impl)) {}
@@ -316,6 +291,8 @@ private:
 template <bundle_state State>
 class kernel_bundle : public detail::kernel_bundle_plain,
                       public detail::OwnerLessBase<kernel_bundle<State>> {
+  friend sycl::detail::ImplUtils;
+
 public:
   using device_image_iterator = const device_image<State> *;
 
@@ -575,17 +552,6 @@ private:
   kernel_bundle(detail::KernelBundleImplPtr Impl)
       : kernel_bundle_plain(std::move(Impl)) {}
 
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
-
   template <backend Backend, bundle_state StateB>
   friend auto get_native(const kernel_bundle<StateB> &Obj)
       -> backend_return_t<Backend, kernel_bundle<StateB>>;
@@ -765,7 +731,8 @@ template <bundle_state State>
 kernel_bundle<State> get_empty_interop_kernel_bundle(const context &Ctx) {
   detail::KernelBundleImplPtr Impl =
       detail::get_empty_interop_kernel_bundle_impl(Ctx, Ctx.get_devices());
-  return detail::createSyclObjFromImpl<sycl::kernel_bundle<State>>(Impl);
+  return detail::createSyclObjFromImpl<sycl::kernel_bundle<State>>(
+      std::move(Impl));
 }
 } // namespace detail
 
@@ -1179,14 +1146,11 @@ build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
                   const std::vector<std::string> &BuildOptions,
                   std::string *LogPtr,
                   const std::vector<std::string> &RegisteredKernelNames) {
-  std::vector<sycl::detail::string_view> Options;
-  Options.reserve(BuildOptions.size());
-  for (const std::string &opt : BuildOptions)
-    Options.push_back(sycl::detail::string_view{opt});
+  std::vector<sycl::detail::string_view> Options{BuildOptions.begin(),
+                                                 BuildOptions.end()};
 
-  std::vector<sycl::detail::string_view> KernelNames;
-  for (const std::string &name : RegisteredKernelNames)
-    KernelNames.push_back(sycl::detail::string_view{name});
+  std::vector<sycl::detail::string_view> KernelNames{
+      RegisteredKernelNames.begin(), RegisteredKernelNames.end()};
 
   if (LogPtr) {
     sycl::detail::string Log;
@@ -1211,15 +1175,11 @@ compile_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
                     const std::vector<std::string> &CompileOptions,
                     std::string *LogPtr,
                     const std::vector<std::string> &RegisteredKernelNames) {
-  std::vector<sycl::detail::string_view> Options;
-  Options.reserve(CompileOptions.size());
-  for (const std::string &opt : CompileOptions)
-    Options.push_back(sycl::detail::string_view{opt});
+  std::vector<sycl::detail::string_view> Options{CompileOptions.begin(),
+                                                 CompileOptions.end()};
 
-  std::vector<sycl::detail::string_view> KernelNames;
-  KernelNames.reserve(RegisteredKernelNames.size());
-  for (const std::string &name : RegisteredKernelNames)
-    KernelNames.push_back(sycl::detail::string_view{name});
+  std::vector<sycl::detail::string_view> KernelNames{
+      RegisteredKernelNames.begin(), RegisteredKernelNames.end()};
 
   sycl::detail::string Log;
   auto result = compile_from_source(SourceKB, Devices, Options,

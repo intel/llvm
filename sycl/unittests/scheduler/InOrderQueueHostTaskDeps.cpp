@@ -21,6 +21,8 @@
 
 using namespace sycl;
 
+namespace oneapiext = ext::oneapi::experimental;
+
 size_t GEventsWaitCounter = 0;
 
 inline ur_result_t redefinedEventsWaitWithBarrier(void *pParams) {
@@ -48,28 +50,30 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
   EXPECT_EQ(GEventsWaitCounter, expectedCount);
 }
 
-enum class CommandType { KERNEL = 1, MEMSET = 2 };
-std::vector<std::pair<CommandType, size_t>> ExecutedCommands;
+enum class CommandType { KERNEL = 1, MEMSET = 2, HOST_TASK = 3 };
+std::vector<std::tuple<CommandType, size_t, size_t>> ExecutedCommands;
 
-inline ur_result_t customEnqueueKernelLaunch(void *pParams) {
-  auto params = *static_cast<ur_enqueue_kernel_launch_params_t *>(pParams);
-  ExecutedCommands.push_back(
-      {CommandType::KERNEL, *params.pnumEventsInWaitList});
+inline ur_result_t customEnqueueKernelLaunchWithArgsExp(void *pParams) {
+  auto params =
+      *static_cast<ur_enqueue_kernel_launch_with_args_exp_params_t *>(pParams);
+  ExecutedCommands.push_back({CommandType::KERNEL, *params.pnumEventsInWaitList,
+                              **params.ppGlobalWorkSize});
   return UR_RESULT_SUCCESS;
 }
 
 inline ur_result_t customEnqueueUSMFill(void *pParams) {
   auto params = *static_cast<ur_enqueue_usm_fill_params_t *>(pParams);
   ExecutedCommands.push_back(
-      {CommandType::MEMSET, *params.pnumEventsInWaitList});
+      {CommandType::MEMSET, *params.pnumEventsInWaitList, 0});
   return UR_RESULT_SUCCESS;
 }
 
 TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
   ExecutedCommands.clear();
   sycl::unittest::UrMock<> Mock;
-  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
-                                           &customEnqueueKernelLaunch);
+  mock::getCallbacks().set_before_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &customEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_before_callback("urEnqueueUSMFill",
                                            &customEnqueueUSMFill);
 
@@ -90,6 +94,7 @@ TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
     CGH.host_task([&] {
       std::unique_lock<std::mutex> lk(CvMutex);
       Cv.wait(lk, [&ready] { return ready; });
+      ExecutedCommands.push_back({CommandType::HOST_TASK, 0, 0});
     });
   });
 
@@ -111,18 +116,23 @@ TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
 
   InOrderQueue.wait();
 
-  ASSERT_EQ(ExecutedCommands.size(), 2u);
-  EXPECT_EQ(ExecutedCommands[0].first /*CommandType*/, CommandType::MEMSET);
-  EXPECT_EQ(ExecutedCommands[0].second /*EventsCount*/, 0u);
-  EXPECT_EQ(ExecutedCommands[1].first /*CommandType*/, CommandType::KERNEL);
-  EXPECT_EQ(ExecutedCommands[1].second /*EventsCount*/, 0u);
+  ASSERT_EQ(ExecutedCommands.size(), 3u);
+  EXPECT_EQ(std::get<0>(ExecutedCommands[0]) /*CommandType*/,
+            CommandType::HOST_TASK);
+  EXPECT_EQ(std::get<0>(ExecutedCommands[1]) /*CommandType*/,
+            CommandType::MEMSET);
+  EXPECT_EQ(std::get<1>(ExecutedCommands[1]) /*EventsCount*/, 0u);
+  EXPECT_EQ(std::get<0>(ExecutedCommands[2]) /*CommandType*/,
+            CommandType::KERNEL);
+  EXPECT_EQ(std::get<1>(ExecutedCommands[2]) /*EventsCount*/, 0u);
 }
 
 TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
   ExecutedCommands.clear();
   sycl::unittest::UrMock<> Mock;
-  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
-                                           &customEnqueueKernelLaunch);
+  mock::getCallbacks().set_before_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &customEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_before_callback("urEnqueueUSMFill",
                                            &customEnqueueUSMFill);
 
@@ -139,6 +149,7 @@ TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
     CGH.host_task([&] {
       std::unique_lock<std::mutex> lk(CvMutex);
       Cv.wait(lk, [&ready] { return ready; });
+      ExecutedCommands.push_back({CommandType::HOST_TASK, 0, 0});
     });
   });
 
@@ -156,9 +167,108 @@ TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
 
   InOrderQueue.wait();
 
+  ASSERT_EQ(ExecutedCommands.size(), 3u);
+  EXPECT_EQ(std::get<0>(ExecutedCommands[0]) /*CommandType*/,
+            CommandType::HOST_TASK);
+  EXPECT_EQ(std::get<0>(ExecutedCommands[1]) /*CommandType*/,
+            CommandType::MEMSET);
+  EXPECT_EQ(std::get<1>(ExecutedCommands[1]) /*EventsCount*/, 0u);
+  EXPECT_EQ(std::get<0>(ExecutedCommands[2]) /*CommandType*/,
+            CommandType::KERNEL);
+  EXPECT_EQ(std::get<1>(ExecutedCommands[2]) /*EventsCount*/, 0u);
+}
+
+TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncsParallelFor) {
+  ExecutedCommands.clear();
+  sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_before_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &customEnqueueKernelLaunchWithArgsExp);
+
+  sycl::platform Plt = sycl::platform();
+
+  context Ctx{Plt};
+  queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
+
+  std::mutex CvMutex;
+  std::condition_variable Cv;
+  bool ready = false;
+
+  InOrderQueue.submit([&](sycl::handler &CGH) {
+    CGH.host_task([&] {
+      std::unique_lock<std::mutex> lk(CvMutex);
+      Cv.wait(lk, [&ready] { return ready; });
+      ExecutedCommands.push_back({CommandType::HOST_TASK, 0, 0});
+    });
+  });
+
+  event Ev2 = InOrderQueue.parallel_for<TestKernel>(
+      nd_range<1>{range{32}, range{32}}, [](nd_item<1>) {});
+
+  {
+    std::unique_lock<std::mutex> lk(CvMutex);
+    ready = true;
+  }
+  Cv.notify_one();
+
+  InOrderQueue.wait();
+
   ASSERT_EQ(ExecutedCommands.size(), 2u);
-  EXPECT_EQ(ExecutedCommands[0].first /*CommandType*/, CommandType::MEMSET);
-  EXPECT_EQ(ExecutedCommands[0].second /*EventsCount*/, 0u);
-  EXPECT_EQ(ExecutedCommands[1].first /*CommandType*/, CommandType::KERNEL);
-  EXPECT_EQ(ExecutedCommands[1].second /*EventsCount*/, 0u);
+  EXPECT_EQ(std::get<0>(ExecutedCommands[0]) /*CommandType*/,
+            CommandType::HOST_TASK);
+  EXPECT_EQ(std::get<1>(ExecutedCommands[0]) /*EventsCount*/, 0u);
+  EXPECT_EQ(std::get<0>(ExecutedCommands[1]) /*CommandType*/,
+            CommandType::KERNEL);
+  EXPECT_EQ(std::get<1>(ExecutedCommands[1]) /*EventsCount*/, 0u);
+}
+
+TEST_F(SchedulerTest, InOrderQueueCrossDepsEnqueueFunctions) {
+  ExecutedCommands.clear();
+  sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_before_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &customEnqueueKernelLaunchWithArgsExp);
+
+  sycl::platform Plt = sycl::platform();
+
+  context Ctx{Plt};
+  queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
+
+  std::mutex CvMutex;
+  std::condition_variable Cv;
+  bool ready = false;
+
+  InOrderQueue.submit([&](sycl::handler &CGH) {
+    CGH.host_task([&] {
+      std::unique_lock<std::mutex> lk(CvMutex);
+      Cv.wait(lk, [&ready] { return ready; });
+      ExecutedCommands.push_back({CommandType::HOST_TASK, 0, 0});
+    });
+  });
+
+  oneapiext::nd_launch<TestKernel>(
+      InOrderQueue, nd_range<1>{range<1>{32}, range<1>{32}}, [](nd_item<1>) {});
+
+  oneapiext::nd_launch<TestKernel>(
+      InOrderQueue, nd_range<1>{range<1>{64}, range<1>{32}}, [](nd_item<1>) {});
+
+  {
+    std::unique_lock<std::mutex> lk(CvMutex);
+    ready = true;
+  }
+  Cv.notify_one();
+
+  InOrderQueue.wait();
+
+  ASSERT_EQ(ExecutedCommands.size(), 3u);
+  EXPECT_EQ(std::get<0>(ExecutedCommands[0]) /*CommandType*/,
+            CommandType::HOST_TASK);
+  EXPECT_EQ(std::get<0>(ExecutedCommands[1]) /*CommandType*/,
+            CommandType::KERNEL);
+  EXPECT_EQ(std::get<1>(ExecutedCommands[1]) /*EventsCount*/, 0u);
+  EXPECT_EQ(std::get<2>(ExecutedCommands[1]) /*GlobalWorkSize*/, 32u);
+  EXPECT_EQ(std::get<0>(ExecutedCommands[2]) /*CommandType*/,
+            CommandType::KERNEL);
+  EXPECT_EQ(std::get<1>(ExecutedCommands[2]) /*EventsCount*/, 0u);
+  EXPECT_EQ(std::get<2>(ExecutedCommands[2]) /*GlobalWorkSize*/, 64u);
 }

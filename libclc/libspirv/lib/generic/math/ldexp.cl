@@ -6,21 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/clc_as_type.h>
+#include <clc/math/clc_ldexp.h>
 #include <libspirv/spirv.h>
 
-#include <clc/math/clc_subnormal_config.h>
-#include <clc/math/math.h>
-#include <clc/math/clc_ldexp.h>
+#define __CLC_FUNCTION __spirv_ocl_ldexp
+#define __CLC_IMPL_FUNCTION(x) __clc_ldexp
 
-#define FUNCTION __spirv_ocl_ldexp
-#define __IMPL_FUNCTION __clc_ldexp
-
-#define __CLC_ARG2_TYPE int
-#define __CLC_BODY <clc/shared/binary_def_scalarize.inc>
+#define __CLC_BODY <clc/shared/binary_def_with_int_second_arg.inc>
 #include <clc/math/gentype.inc>
-#undef __CLC_ARG2_TYPE
 
-#define __CLC_ARG2_TYPE uint
-#define __CLC_BODY <clc/shared/binary_def_scalarize.inc>
+#define __CLC_BODY <binary_def_with_uint_second_arg.inc>
 #include <clc/math/gentype.inc>
-#undef __CLC_ARG2_TYPE

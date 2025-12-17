@@ -142,14 +142,14 @@
   // RUN: FileCheck %s --check-prefix=BAD_TARGET_TRIPLE_ENV
 // RUN: not %clang_cl -c -fsycl -fsycl-targets=amdgcn-amd-amdhsa-sycl -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE_ENV
-// BAD_TARGET_TRIPLE_ENV: error: SYCL target is invalid: 'amdgcn-amd-amdhsa-sycl'
+// BAD_TARGET_TRIPLE_ENV: error: invalid or unsupported offload target: 'amdgcn-amd-amdhsa-sycl'
 
 // Check for invalid SYCL triple for AMD GPUs.
 // RUN: not %clangxx -c -fsycl -nogpulib -fsycl-targets=amdgcn -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE
 // RUN: not %clang_cl -c -fsycl -fsycl-targets=amdgcn-amd -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE
-// BAD_TARGET_TRIPLE: error: SYCL target is invalid: 'amdgcn{{.*}}'
+// BAD_TARGET_TRIPLE: error: invalid or unsupported offload target: 'amdgcn{{.*}}'
 
 /// Test for proper creation of fat object
 // RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx700 \
@@ -171,7 +171,7 @@
 
 /// AMD Test phases, BoundArch settings used for -device target. Additional
 /// offload action used for compilation and backend compilation.
-// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx700 -fno-sycl-device-lib=all \
+// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx700 --no-offloadlib \
 // RUN:   -fno-sycl-instrument-device-code \
 // RUN:   -target x86_64-unknown-linux-gnu -ccc-print-phases %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=AMD_CHECK_PHASES

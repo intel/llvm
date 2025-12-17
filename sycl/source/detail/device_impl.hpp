@@ -74,8 +74,6 @@ inline info::device_type ConvertDeviceType(ur_device_type_t UrDevType) {
     return info::device_type::gpu;
   case UR_DEVICE_TYPE_CPU:
     return info::device_type::cpu;
-  case UR_DEVICE_TYPE_FPGA:
-    return info::device_type::accelerator;
   case UR_DEVICE_TYPE_MCA:
   case UR_DEVICE_TYPE_VPU:
   case UR_DEVICE_TYPE_CUSTOM:
@@ -129,7 +127,7 @@ template <ur_device_info_t Desc>
 using ur_ret_type = decltype(ur_ret_type_impl<Desc>());
 
 // TODO: Make code thread-safe
-class device_impl : public std::enable_shared_from_this<device_impl> {
+class device_impl {
   struct private_tag {
     explicit private_tag() = default;
   };
@@ -190,7 +188,7 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
         return {Error};
       return {Result};
     } else {
-      ur_ret_t Result;
+      ur_ret_t Result{};
       ur_result_t Error = getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
           getHandleRef(), Desc, sizeof(Result), &Result, nullptr);
       if (Error == UR_RESULT_SUCCESS)
@@ -220,7 +218,7 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
             getHandleRef(), Desc, ResultSize, Result.data(), nullptr);
         return Result;
       } else {
-        ur_ret_t Result;
+        ur_ret_t Result{};
         getAdapter().call<UrApiKind::urDeviceGetInfo>(
             getHandleRef(), Desc, sizeof(Result), &Result, nullptr);
         return Result;
@@ -379,13 +377,7 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
   struct InfoInitializer {
     template <typename Desc>
     static void init(device_impl &device, typename Desc::return_type &value) {
-      value = device.
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-              get_info
-#else
-              get_info_abi_workaround
-#endif
-              <Desc, true /* InitializingCache */>();
+      value = device.get_info<Desc, true /* InitializingCache */>();
     }
   };
 
@@ -474,7 +466,8 @@ public:
   ///
   /// \return true if SYCL device is an accelerator device
   bool is_accelerator() const {
-    return get_info_impl<UR_DEVICE_INFO_TYPE>() == UR_DEVICE_TYPE_FPGA;
+    // This implementation doesn't support accelerator-type devices.
+    return false;
   }
 
   /// Get associated SYCL platform
@@ -562,23 +555,8 @@ public:
   ///
   /// \return device info of type described in Table 4.20.
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param, bool InitializingCache = false>
   decltype(auto) get_info() const {
-#define CALL_GET_INFO get_info
-#else
-  // We've been exporting
-  // `device_impl::get_info<ext::<whatever>::info::device::<descriptor>` for no
-  // reason. Have to keep doing that until next ABI breaking window. Also, old
-  // gcc doesn't allow in-class specializations, so they have to go out-of-class
-  // which happens later then implicit instantiatons of delegating to
-  // `get_info<other_descriptor>`. As such, all such calls have to go through
-  // `get_info_abi_workaround` for which we need this ugly macro:
-#define CALL_GET_INFO get_info_abi_workaround
-  template <typename Param> typename Param::return_type get_info() const;
-  template <typename Param, bool InitializingCache = false>
-  decltype(auto) get_info_abi_workaround() const {
-#endif
     using execution_scope = ext::oneapi::experimental::execution_scope;
 
     // With the return type of this function being automatically
@@ -614,12 +592,12 @@ public:
     }
     CASE(info::device::max_work_item_sizes<2>) {
       range<3> r3 =
-          CALL_GET_INFO<info::device::max_work_item_sizes<3>, DependentFalse>();
+          get_info<info::device::max_work_item_sizes<3>, DependentFalse>();
       return range<2>{r3[1], r3[2]};
     }
     CASE(info::device::max_work_item_sizes<1>) {
       range<3> r3 =
-          CALL_GET_INFO<info::device::max_work_item_sizes<3>, DependentFalse>();
+          get_info<info::device::max_work_item_sizes<3>, DependentFalse>();
       return range<1>{r3[2]};
     }
 
@@ -710,8 +688,7 @@ public:
                           ';');
     }
     CASE(info::device::built_in_kernel_ids) {
-      auto names =
-          CALL_GET_INFO<info::device::built_in_kernels, DependentFalse>();
+      auto names = get_info<info::device::built_in_kernels, DependentFalse>();
 
       std::vector<kernel_id> ids;
       ids.reserve(names.size());
@@ -831,22 +808,6 @@ public:
       return false;
     }
 
-    CASE(info::device::kernel_kernel_pipe_support) {
-      // We claim, that all Intel FPGA devices support kernel to kernel pipe
-      // feature (at least at the scope of SYCL_INTEL_data_flow_pipes
-      // extension).
-      std::string platform_name = MPlatform.get_info<info::platform::name>();
-      if (platform_name == "Intel(R) FPGA Emulation Platform for OpenCL(TM)" ||
-          platform_name == "Intel(R) FPGA SDK for OpenCL(TM)")
-        return true;
-
-      // TODO: a better way is to query for supported SPIR-V capabilities when
-      // it's started to be possible. Also, if a device's backend supports
-      // SPIR-V 1.1 (where Pipe Storage feature was defined), than it supports
-      // the feature as well.
-      return false;
-    }
-
     CASE(info::device::usm_device_allocations) {
       return static_cast<bool>(
           get_info_impl<UR_DEVICE_INFO_USM_DEVICE_SUPPORT>() &
@@ -893,25 +854,25 @@ public:
 
     CASE(info::device::ext_oneapi_max_global_work_groups) {
       // Deprecated alias.
-      return CALL_GET_INFO<
+      return get_info<
           ext::oneapi::experimental::info::device::max_global_work_groups,
           DependentFalse>();
     }
     CASE(info::device::ext_oneapi_max_work_groups_1d) {
       // Deprecated alias.
-      return CALL_GET_INFO<
+      return get_info<
           ext::oneapi::experimental::info::device::max_work_groups<1>,
           DependentFalse>();
     }
     CASE(info::device::ext_oneapi_max_work_groups_2d) {
       // Deprecated alias.
-      return CALL_GET_INFO<
+      return get_info<
           ext::oneapi::experimental::info::device::max_work_groups<2>,
           DependentFalse>();
     }
     CASE(info::device::ext_oneapi_max_work_groups_3d) {
       // Deprecated alias.
-      return CALL_GET_INFO<
+      return get_info<
           ext::oneapi::experimental::info::device::max_work_groups<3>,
           DependentFalse>();
     }
@@ -923,20 +884,13 @@ public:
           SupportFlags & UR_KERNEL_LAUNCH_PROPERTIES_FLAG_CLUSTER_DIMENSION);
     }
 
-    // ext_codeplay_device_traits.def
-
-    CASE(ext::codeplay::experimental::info::device::supports_fusion) {
-      // TODO(#15184): Remove this aspect in the next ABI-breaking window.
-      return false;
-    }
-
     // ext_oneapi_device_traits.def
 
     CASE(ext::oneapi::experimental::info::device::max_global_work_groups) {
       return static_cast<size_t>((std::numeric_limits<int>::max)());
     }
     CASE(ext::oneapi::experimental::info::device::max_work_groups<3>) {
-      size_t Limit = CALL_GET_INFO<
+      size_t Limit = get_info<
           ext::oneapi::experimental::info::device::max_global_work_groups,
           DependentFalse>();
 
@@ -949,15 +903,15 @@ public:
                    std::min(Limit, result[0]));
     }
     CASE(ext::oneapi::experimental::info::device::max_work_groups<2>) {
-      id<3> max_3d = CALL_GET_INFO<
-          ext::oneapi::experimental::info::device::max_work_groups<3>,
-          DependentFalse>();
+      id<3> max_3d =
+          get_info<ext::oneapi::experimental::info::device::max_work_groups<3>,
+                   DependentFalse>();
       return id<2>{max_3d[1], max_3d[2]};
     }
     CASE(ext::oneapi::experimental::info::device::max_work_groups<1>) {
-      id<3> max_3d = CALL_GET_INFO<
-          ext::oneapi::experimental::info::device::max_work_groups<3>,
-          DependentFalse>();
+      id<3> max_3d =
+          get_info<ext::oneapi::experimental::info::device::max_work_groups<3>,
+                   DependentFalse>();
       return id<1>{max_3d[2]};
     }
 
@@ -1233,10 +1187,7 @@ public:
     CASE(cpu) { return is_cpu(); }
     CASE(gpu) { return is_gpu(); }
     CASE(accelerator) { return is_accelerator(); }
-    CASE(custom) {
-      return false;
-      // TODO: Implement this for FPGA emulator.
-    }
+    CASE(custom) { return false; }
     CASE(emulated) { return false; }
     CASE(host_debuggable) { return false; }
     CASE(fp16) { return has_extension("cl_khr_fp16"); }
@@ -1261,9 +1212,6 @@ public:
     }
     CASE(usm_host_allocations) {
       return get_info<info::device::usm_host_allocations>();
-    }
-    CASE(ext_intel_mem_channel) {
-      return get_info<info::device::ext_intel_mem_channel>();
     }
     CASE(ext_oneapi_cuda_cluster_group) {
       return get_info<info::device::ext_oneapi_cuda_cluster_group>();
@@ -1478,8 +1426,9 @@ public:
           arch::intel_cpu_dmr,     arch::intel_gpu_pvc,
           arch::intel_gpu_dg2_g10, arch::intel_gpu_dg2_g11,
           arch::intel_gpu_dg2_g12, arch::intel_gpu_bmg_g21,
-          arch::intel_gpu_lnl_m,   arch::intel_gpu_arl_h,
-          arch::intel_gpu_ptl_h,   arch::intel_gpu_ptl_u,
+          arch::intel_gpu_bmg_g31, arch::intel_gpu_lnl_m,
+          arch::intel_gpu_arl_h,   arch::intel_gpu_ptl_h,
+          arch::intel_gpu_ptl_u,   arch::intel_gpu_wcl,
       };
       try {
         return std::any_of(
@@ -1492,7 +1441,7 @@ public:
       }
     }
     CASE(ext_oneapi_is_composite) {
-      auto components = CALL_GET_INFO<
+      auto components = get_info<
           sycl::ext::oneapi::experimental::info::device::component_devices>();
       // Any device with ext_oneapi_is_composite aspect will have at least two
       // constituent component devices.
@@ -1552,7 +1501,6 @@ public:
       return get_info_impl_nocheck<UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT>()
           .value_or(0);
     }
-    CASE(ext_intel_fpga_task_sequence) { return is_accelerator(); }
     CASE(ext_oneapi_atomic16) {
       // Likely L0 doesn't check it properly. Need to double-check.
       return has_extension("cl_ext_float_atomics");
@@ -1580,16 +1528,26 @@ public:
           .value_or(0);
     }
     CASE(ext_oneapi_clock_sub_group) {
-      // Will be updated in a follow-up UR patch.
-      return false;
+      return get_info_impl_nocheck<UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP>()
+          .value_or(0);
     }
     CASE(ext_oneapi_clock_work_group) {
-      // Will be updated in a follow-up UR patch.
-      return false;
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_CLOCK_WORK_GROUP_SUPPORT_EXP>()
+          .value_or(0);
     }
     CASE(ext_oneapi_clock_device) {
-      // Will be updated in a follow-up UR patch.
-      return false;
+      return get_info_impl_nocheck<UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_is_integrated_gpu) {
+      return is_gpu() &&
+             get_info_impl_nocheck<UR_DEVICE_INFO_IS_INTEGRATED_GPU>().value_or(
+                 0);
+    }
+    CASE(ext_oneapi_ipc_memory) {
+      return get_info_impl_nocheck<UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP>()
+          .value_or(0);
     }
     else {
       return false; // This device aspect has not been implemented yet.
@@ -1639,12 +1597,7 @@ public:
   extOneapiArchitectureIs(ext::oneapi::experimental::architecture Arch) const {
 
     return Arch ==
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-           get_info
-#else
-           get_info_abi_workaround
-#endif
-           <ext::oneapi::experimental::info::device::architecture>();
+           get_info<ext::oneapi::experimental::info::device::architecture>();
   }
 
   bool extOneapiArchitectureIs(
@@ -1655,12 +1608,7 @@ public:
         get_category_max_architecture(Category);
     if (CategoryMinArch.has_value() && CategoryMaxArch.has_value()) {
       auto Arch =
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-          get_info
-#else
-          get_info_abi_workaround
-#endif
-          <ext::oneapi::experimental::info::device::architecture>();
+          get_info<ext::oneapi::experimental::info::device::architecture>();
       return CategoryMinArch <= Arch && Arch <= CategoryMaxArch;
     }
     return false;
@@ -1958,7 +1906,7 @@ public:
       // sycl_ext_oneapi_device_architecture, the runtime exception is
       // omitted, and std::nullopt is returned.
       try {
-        return CALL_GET_INFO<
+        return get_info<
             ext::oneapi::experimental::info::device::architecture>();
       } catch (sycl::exception &e) {
         if (e.code() != errc::runtime)
@@ -2017,9 +1965,11 @@ public:
       };
     else if ((architecture::intel_gpu_pvc == DeviceArch) ||
              (architecture::intel_gpu_bmg_g21 == DeviceArch) ||
+             (architecture::intel_gpu_bmg_g31 == DeviceArch) ||
              (architecture::intel_gpu_lnl_m == DeviceArch) ||
              (architecture::intel_gpu_ptl_h == DeviceArch) ||
-             (architecture::intel_gpu_ptl_u == DeviceArch)) {
+             (architecture::intel_gpu_ptl_u == DeviceArch) ||
+             (architecture::intel_gpu_wcl == DeviceArch)) {
       std::vector<ext::oneapi::experimental::matrix::combination> pvc_combs = {
           {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::uint8,
            matrix_type::sint32, matrix_type::sint32},
@@ -2345,66 +2295,6 @@ public:
   }
 };
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <typename Param>
-typename Param::return_type device_impl::get_info() const {
-  return get_info_abi_workaround<Param>();
-}
-
-#define EXPORT_GET_INFO(PARAM)                                                 \
-  template <>                                                                  \
-  __SYCL_EXPORT PARAM::return_type device_impl::get_info<PARAM>() const;
-
-// clang-format off
-EXPORT_GET_INFO(ext::intel::info::device::device_id)
-EXPORT_GET_INFO(ext::intel::info::device::pci_address)
-EXPORT_GET_INFO(ext::intel::info::device::gpu_eu_count)
-EXPORT_GET_INFO(ext::intel::info::device::gpu_eu_simd_width)
-EXPORT_GET_INFO(ext::intel::info::device::gpu_slices)
-EXPORT_GET_INFO(ext::intel::info::device::gpu_subslices_per_slice)
-EXPORT_GET_INFO(ext::intel::info::device::gpu_eu_count_per_subslice)
-EXPORT_GET_INFO(ext::intel::info::device::gpu_hw_threads_per_eu)
-EXPORT_GET_INFO(ext::intel::info::device::max_mem_bandwidth)
-EXPORT_GET_INFO(ext::intel::info::device::uuid)
-EXPORT_GET_INFO(ext::intel::info::device::free_memory)
-EXPORT_GET_INFO(ext::intel::info::device::memory_clock_rate)
-EXPORT_GET_INFO(ext::intel::info::device::memory_bus_width)
-EXPORT_GET_INFO(ext::intel::info::device::max_compute_queue_indices)
-EXPORT_GET_INFO(ext::intel::esimd::info::device::has_2d_block_io_support)
-EXPORT_GET_INFO(ext::intel::info::device::current_clock_throttle_reasons)
-EXPORT_GET_INFO(ext::intel::info::device::fan_speed)
-EXPORT_GET_INFO(ext::intel::info::device::min_power_limit)
-EXPORT_GET_INFO(ext::intel::info::device::max_power_limit)
-
-EXPORT_GET_INFO(ext::codeplay::experimental::info::device::supports_fusion)
-EXPORT_GET_INFO(ext::codeplay::experimental::info::device::max_registers_per_work_group)
-
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_global_work_groups)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_work_groups<1>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_work_groups<2>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_work_groups<3>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_group_progress_capabilities<ext::oneapi::experimental::execution_scope::root_group>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::sub_group_progress_capabilities<ext::oneapi::experimental::execution_scope::root_group>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::sub_group_progress_capabilities<ext::oneapi::experimental::execution_scope::work_group>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_item_progress_capabilities<ext::oneapi::experimental::execution_scope::root_group>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_item_progress_capabilities<ext::oneapi::experimental::execution_scope::work_group>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_item_progress_capabilities<ext::oneapi::experimental::execution_scope::sub_group>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::architecture)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::matrix_combinations)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::image_row_pitch_align)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_image_linear_row_pitch)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_image_linear_width)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_image_linear_height)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::mipmap_max_anisotropy)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::component_devices)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::composite_device)
-EXPORT_GET_INFO(ext::oneapi::info::device::num_compute_units)
-// clang-format on
-
-#undef EXPORT_GET_INFO
-#endif
-
-#undef CALL_GET_INFO
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

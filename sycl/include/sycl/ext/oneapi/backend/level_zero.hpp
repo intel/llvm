@@ -113,7 +113,8 @@ inline device make_device<backend::ext_oneapi_level_zero>(
       continue;
 
     for (auto &d : p.get_devices()) {
-      if (auto maybe_device = find_matching_descendent_device(d, BackendObject))
+      if (auto maybe_device =
+              detail::find_matching_descendent_device(d, BackendObject))
         return *maybe_device;
     }
   }

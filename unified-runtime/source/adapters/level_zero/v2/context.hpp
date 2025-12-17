@@ -56,10 +56,8 @@ struct ur_context_handle_t_ : ur_object {
       return eventPoolCacheImmediate;
     case PoolCacheType::Regular:
       return eventPoolCacheRegular;
-    default:
-      assert(false && "Requested invalid event pool cache type");
-      throw UR_RESULT_ERROR_INVALID_VALUE;
     }
+    UR_FFAILURE("Requested invalid event pool cache type");
   }
   // Checks if Device is covered by this context.
   // For that the Device or its root devices need to be in the context.

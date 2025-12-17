@@ -93,10 +93,11 @@ endforeach()
 # library.
 # Additional compilation options are needed for compiling each device library.
 set(full_build_archs)
+set(imf_build_archs)
 if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
   list(APPEND full_build_archs nvptx64-nvidia-cuda)
   set(compile_opts_nvptx64-nvidia-cuda "-fsycl-targets=nvptx64-nvidia-cuda"
-  "-Xsycl-target-backend" "--cuda-gpu-arch=sm_50" "-nocudalib" "-fno-sycl-libspirv" "-Wno-unsafe-libspirv-not-linked")
+  "-Xsycl-target-backend" "--cuda-gpu-arch=sm_75" "-nocudalib" "-fno-sycl-libspirv" "-Wno-unsafe-libspirv-not-linked")
   set(opt_flags_nvptx64-nvidia-cuda "-O3" "--nvvm-reflect-enable=false")
 endif()
 if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
@@ -111,7 +112,7 @@ set(spv_device_compile_opts -fsycl-device-only -fsycl-device-obj=spirv)
 set(bc_device_compile_opts -fsycl-device-only -fsycl-device-obj=llvmir)
 set(obj-new-offload_device_compile_opts -fsycl -c --offload-new-driver
   -foffload-lto=thin ${sycl_targets_opt})
-set(obj_device_compile_opts -fsycl -c ${sycl_targets_opt})
+set(obj_device_compile_opts -fsycl -c ${sycl_targets_opt} --no-offload-new-driver)
 
 # Compiles and installs a single device library.
 #
@@ -320,7 +321,7 @@ function(add_devicelibs filename)
       FILETYPE ${filetype}
       SRC ${ARG_SRC}
       DEPENDENCIES ${ARG_DEPENDENCIES}
-      EXTRA_OPTS ${ARG_EXTRA_OPTS} ${${filetype}_device_compile_opts})
+      EXTRA_OPTS ${ARG_EXTRA_OPTS})
   endforeach()
 
   foreach(arch IN LISTS ARG_BUILD_ARCHS)
@@ -340,7 +341,7 @@ endfunction()
 # For cross builds, we also need native versions of the tools.
 set(sycl-compiler_deps
   sycl-compiler ${clang_target} ${append-file_target}
-  ${clang-offload-bundler_target} ${clang-offload-packager_target}
+  ${clang-offload-bundler_target} ${llvm-offload-binary_target}
   ${file-table-tform_target} ${llvm-foreach_target} ${llvm-spirv_target}
   ${sycl-post-link_target})
 set(crt_obj_deps wrapper.h device.h spirv_vars.h ${sycl-compiler_deps})
@@ -364,17 +365,17 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
                             -I${UR_SANITIZER_INCLUDE_DIR}
                             -I${CMAKE_CURRENT_SOURCE_DIR})
 
-  set(sanitizer_pvc_compile_opts_obj -fsycl -c
+  set(sanitizer_pvc_compile_opts_obj -fsycl -c --no-offload-new-driver
                                 ${sanitizer_generic_compile_opts}
                                 ${sycl_pvc_target_opt}
                                 -D__LIBDEVICE_PVC__)
 
-  set(sanitizer_cpu_compile_opts_obj -fsycl -c
+  set(sanitizer_cpu_compile_opts_obj -fsycl -c --no-offload-new-driver
                                 ${sanitizer_generic_compile_opts}
                                 ${sycl_cpu_target_opt}
                                 -D__LIBDEVICE_CPU__)
 
-  set(sanitizer_dg2_compile_opts_obj -fsycl -c
+  set(sanitizer_dg2_compile_opts_obj -fsycl -c --no-offload-new-driver
                                 ${sanitizer_generic_compile_opts}
                                 ${sycl_dg2_target_opt}
                                 -D__LIBDEVICE_DG2__)
@@ -494,7 +495,6 @@ add_devicelibs(libsycl-cmath-fp64
   SRC cmath_wrapper_fp64.cpp
   BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${cmath_obj_deps} )
-set(imf_build_archs)
 add_devicelibs(libsycl-imf
   SRC imf_wrapper.cpp
   DEPENDENCIES ${imf_obj_deps}
@@ -706,7 +706,7 @@ endif()
 
 set(obj-new-offload_host_compile_opts ${imf_host_cxx_flags} --offload-new-driver
   -foffload-lto=thin)
-set(obj_host_compile_opts ${imf_host_cxx_flags})
+set(obj_host_compile_opts ${imf_host_cxx_flags} --no-offload-new-driver)
 
 foreach(datatype IN ITEMS fp32 fp64 bf16)
   string(TOUPPER ${datatype} upper_datatype)
@@ -898,3 +898,13 @@ foreach(ftype IN LISTS filetypes)
     COMPONENT libsycldevice)
 endforeach()
 
+set(libsycldevice_build_targets)
+foreach(filetype IN LISTS filetypes)
+  list(APPEND libsycldevice_build_targets libsycldevice-${filetype})
+endforeach()
+
+add_custom_target(install-libsycldevice
+  COMMAND ${CMAKE_COMMAND} -DCMAKE_INSTALL_COMPONENT=libsycldevice -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
+  DEPENDS ${libsycldevice_build_targets}
+)
+add_dependencies(deploy-sycl-toolchain install-libsycldevice)

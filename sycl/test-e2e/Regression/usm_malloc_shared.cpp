@@ -3,6 +3,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
 // This test checks if users will successfully allocate 160, 0, and -16 bytes of
 // shared memory, and also test user can call free() without worrying about
 // nullptr or invalid memory descriptor returned from malloc.

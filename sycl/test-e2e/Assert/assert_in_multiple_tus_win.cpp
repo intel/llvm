@@ -1,9 +1,5 @@
 // REQUIRES: windows
 //
-// L0 does not currently abort after synchronizing with a failing kernel.
-// UNSUPPORTED: level_zero
-// UNSUPPORTED-TRACKER: GSD-11097
-//
 // RUN: %{build} -I %S/Inputs %S/Inputs/kernels_in_file2.cpp -o %t.out
 // RUN: %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt
 //

@@ -83,7 +83,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
                          urBeginEndCallback);
     xptiRegisterCallback(StreamID, xpti::trace_function_with_args_end,
                          urBeginEndCallback);
-  } else if (NameView == "sycl") {
+  } else if (NameView == "sycl" || NameView == "sycl.debug") {
     uint8_t StreamID = xptiRegisterStream(StreamName);
     xptiRegisterCallback(StreamID, xpti::trace_task_begin,
                          taskBeginEndCallback);

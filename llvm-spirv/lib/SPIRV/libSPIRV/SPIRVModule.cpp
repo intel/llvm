@@ -328,8 +328,6 @@ public:
   SPIRVEntry *addTypeStructContinuedINTEL(unsigned NumMembers) override;
   void closeStructType(SPIRVTypeStruct *T, bool) override;
   SPIRVTypeVector *addVectorType(SPIRVType *, SPIRVWord) override;
-  SPIRVTypeJointMatrixINTEL *
-  addJointMatrixINTELType(SPIRVType *, std::vector<SPIRVValue *>) override;
   SPIRVTypeCooperativeMatrixKHR *
   addCooperativeMatrixKHRType(SPIRVType *, std::vector<SPIRVValue *>) override;
   SPIRVTypeTaskSequenceINTEL *addTaskSequenceINTELType() override;
@@ -517,7 +515,8 @@ public:
   SPIRVInstruction *addTransposeInst(SPIRVType *TheType, SPIRVId TheMatrix,
                                      SPIRVBasicBlock *BB) override;
   SPIRVInstruction *addUnaryInst(Op, SPIRVType *, SPIRVValue *,
-                                 SPIRVBasicBlock *) override;
+                                 SPIRVBasicBlock *,
+                                 SPIRVInstruction * = nullptr) override;
   SPIRVInstruction *addVariable(SPIRVType *, SPIRVType *, bool,
                                 SPIRVLinkageTypeKind, SPIRVValue *,
                                 const std::string &, SPIRVStorageClassKind,
@@ -641,6 +640,8 @@ private:
       FloatTypeMap;
   SmallDenseMap<std::pair<unsigned, SPIRVType *>, SPIRVTypePointer *, 4>
       PointerTypeMap;
+  SmallDenseMap<std::pair<SPIRVType *, SPIRVWord>, SPIRVTypeVector *, 4>
+      VectorTypeMap;
   std::unordered_map<unsigned, SPIRVConstant *> LiteralMap;
   std::vector<SPIRVExtInst *> DebugInstVec;
   std::vector<SPIRVExtInst *> AuxDataInstVec;
@@ -659,12 +660,6 @@ SPIRVModuleImpl::~SPIRVModuleImpl() {
 
   for (auto I : IdEntryMap)
     delete I.second;
-
-  for (auto C : CapMap)
-    delete C.second;
-
-  for (auto C : ConditionalCapMap)
-    delete C.second;
 
   for (auto *M : ModuleProcessedVec)
     delete M;
@@ -784,10 +779,12 @@ void SPIRVModuleImpl::addCapability(SPIRVCapabilityKind Cap) {
   addCapabilities(SPIRV::getCapability(Cap));
   SPIRVDBG(spvdbgs() << "addCapability: " << SPIRVCapabilityNameMap::map(Cap)
                      << '\n');
-  if (hasCapability(Cap))
+
+  auto [It, Inserted] = CapMap.try_emplace(Cap);
+  if (!Inserted)
     return;
 
-  auto *CapObj = new SPIRVCapability(this, Cap);
+  auto CapObj = std::make_unique<SPIRVCapability>(this, Cap);
   if (AutoAddExtensions) {
     // While we are reading existing SPIR-V we need to read it as-is and don't
     // add required extensions for each entry automatically
@@ -796,15 +793,16 @@ void SPIRVModuleImpl::addCapability(SPIRVCapabilityKind Cap) {
       addExtension(Ext.value());
   }
 
-  CapMap.insert(std::make_pair(Cap, CapObj));
+  It->second = std::move(CapObj);
 }
 
 void SPIRVModuleImpl::addCapabilityInternal(SPIRVCapabilityKind Cap) {
   if (AutoAddCapability) {
-    if (hasCapability(Cap))
+    auto [It, Inserted] = CapMap.try_emplace(Cap);
+    if (!Inserted)
       return;
 
-    CapMap.insert(std::make_pair(Cap, new SPIRVCapability(this, Cap)));
+    It->second = std::make_unique<SPIRVCapability>(this, Cap);
   }
 }
 
@@ -813,18 +811,19 @@ void SPIRVModuleImpl::addConditionalCapability(SPIRVId Condition,
   SPIRVDBG(spvdbgs() << "addConditionalCapability: "
                      << SPIRVCapabilityNameMap::map(Cap)
                      << ", condition: " << Condition << '\n');
-  if (ConditionalCapMap.find(std::make_pair(Condition, Cap)) !=
-      ConditionalCapMap.end()) {
+  auto Key = std::make_pair(Condition, Cap);
+  auto [It, Inserted] = ConditionalCapMap.try_emplace(Key);
+  if (!Inserted) {
     return;
   }
 
-  auto *CapObj = new SPIRVConditionalCapabilityINTEL(this, Condition, Cap);
+  auto CapObj =
+      std::make_unique<SPIRVConditionalCapabilityINTEL>(this, Condition, Cap);
   if (AutoAddExtensions) {
     assert(false && "Auto adding conditional extensions is not supported.");
   }
 
-  ConditionalCapMap.insert(
-      std::make_pair(std::make_pair(Condition, Cap), CapObj));
+  It->second = std::move(CapObj);
 }
 
 void SPIRVModuleImpl::eraseConditionalCapability(SPIRVId Condition,
@@ -1160,13 +1159,13 @@ void SPIRVModuleImpl::closeStructType(SPIRVTypeStruct *T, bool Packed) {
 
 SPIRVTypeVector *SPIRVModuleImpl::addVectorType(SPIRVType *CompType,
                                                 SPIRVWord CompCount) {
-  return addType(new SPIRVTypeVector(this, getId(), CompType, CompCount));
-}
-
-SPIRVTypeJointMatrixINTEL *
-SPIRVModuleImpl::addJointMatrixINTELType(SPIRVType *CompType,
-                                         std::vector<SPIRVValue *> Args) {
-  return addType(new SPIRVTypeJointMatrixINTEL(this, getId(), CompType, Args));
+  auto Desc = std::make_pair(CompType, CompCount);
+  auto Loc = VectorTypeMap.find(Desc);
+  if (Loc != VectorTypeMap.end())
+    return Loc->second;
+  auto *Ty = new SPIRVTypeVector(this, getId(), CompType, CompCount);
+  VectorTypeMap[Desc] = Ty;
+  return addType(Ty);
 }
 
 SPIRVTypeCooperativeMatrixKHR *
@@ -1721,6 +1720,8 @@ SPIRVInstruction *SPIRVModuleImpl::addBinaryInst(Op TheOpCode, SPIRVType *Type,
                                                  SPIRVValue *Op1,
                                                  SPIRVValue *Op2,
                                                  SPIRVBasicBlock *BB) {
+  if (Type->isTypeFloat(16, FPEncodingBFloat16KHR) && TheOpCode != OpDot)
+    addCapability(internal::CapabilityBFloat16ArithmeticINTEL);
   return addInstruction(SPIRVInstTemplateBase::create(
                             TheOpCode, Type, getId(),
                             getVec(Op1->getId(), Op2->getId()), BB, this),
@@ -1740,14 +1741,16 @@ SPIRVInstruction *SPIRVModuleImpl::addReturnValueInst(SPIRVValue *ReturnValue,
   return addInstruction(new SPIRVReturnValue(ReturnValue, BB), BB);
 }
 
-SPIRVInstruction *SPIRVModuleImpl::addUnaryInst(Op TheOpCode,
-                                                SPIRVType *TheType,
-                                                SPIRVValue *Op,
-                                                SPIRVBasicBlock *BB) {
+SPIRVInstruction *
+SPIRVModuleImpl::addUnaryInst(Op TheOpCode, SPIRVType *TheType, SPIRVValue *Op,
+                              SPIRVBasicBlock *BB,
+                              SPIRVInstruction *InsertBefore) {
+  if (TheType->isTypeFloat(16, FPEncodingBFloat16KHR) && TheOpCode != OpDot)
+    addCapability(internal::CapabilityBFloat16ArithmeticINTEL);
   return addInstruction(
       SPIRVInstTemplateBase::create(TheOpCode, TheType, getId(),
                                     getVec(Op->getId()), BB, this),
-      BB);
+      BB, InsertBefore);
 }
 
 SPIRVInstruction *SPIRVModuleImpl::addVectorExtractDynamicInst(
@@ -2226,7 +2229,7 @@ spv_ostream &operator<<(spv_ostream &O, SPIRVModule &M) {
 
   for (auto &I : M.getConditionalExtensions()) {
     auto Cond = I.first;
-    auto Ext = I.second;
+    const auto &Ext = I.second;
     assert(!Ext.empty() && "Invalid conditional extension");
     O << SPIRVConditionalExtensionINTEL(&M, Cond, Ext);
   }
@@ -2367,21 +2370,18 @@ void SPIRVModuleImpl::addUnknownStructField(SPIRVTypeStruct *Struct, unsigned I,
   UnknownStructFieldMap[Struct].push_back(std::make_pair(I, ID));
 }
 
-namespace {
-SPIRVEntry *parseAndCreateSPIRVEntry(SPIRVWord &WordCount, Op &OpCode,
-                                     SPIRVEntry *Scope, SPIRVModuleImpl &M,
-                                     std::istream &IS) {
-  if (WordCount == 0 || OpCode == OpNop) {
-    return nullptr;
-  }
+static void validateWordCount(SPIRVModuleImpl &M, std::istream &IS,
+                              SPIRVWord WordCount) {
   if (!SPIRVUseTextFormat) {
     std::streampos CurrentPos = IS.tellg();
     IS.seekg(0, std::ios::end);
     std::streamoff RemainingBytes = IS.tellg() - CurrentPos;
     IS.clear();
     IS.seekg(CurrentPos);
+
     std::streamoff ExpectedBytes =
         static_cast<std::streamoff>((WordCount - 1) * sizeof(SPIRVWord));
+
     if (RemainingBytes < ExpectedBytes) {
       M.getErrorLog().checkError(
           false, SPIRVEC_InvalidWordCount,
@@ -2391,6 +2391,16 @@ SPIRVEntry *parseAndCreateSPIRVEntry(SPIRVWord &WordCount, Op &OpCode,
       M.setInvalid();
     }
   }
+}
+
+static SPIRVEntry *parseAndCreateSPIRVEntry(SPIRVWord &WordCount, Op &OpCode,
+                                            SPIRVEntry *Scope,
+                                            SPIRVModuleImpl &M,
+                                            std::istream &IS) {
+  if (WordCount == 0 || OpCode == OpNop) {
+    return nullptr;
+  }
+  validateWordCount(M, IS, WordCount);
   SPIRVEntry *Entry = SPIRVEntry::create(OpCode);
   assert(Entry);
   Entry->setModule(&M);
@@ -2447,7 +2457,6 @@ SPIRVEntry *parseAndCreateSPIRVEntry(SPIRVWord &WordCount, Op &OpCode,
   assert(!IS.bad() && !IS.fail() && "SPIRV stream fails");
   return Entry;
 }
-} // namespace
 
 std::istream &SPIRVModuleImpl::parseSPT(std::istream &I) {
   SPIRVModuleImpl &MI = *this;
@@ -2578,7 +2587,7 @@ std::istream &SPIRVModuleImpl::parseSPIRV(std::istream &I) {
   SPIRVWord Header[5] = {0};
   I.read(reinterpret_cast<char *>(&Header), sizeof(Header));
 
-  SPIRVErrorLog ErrorLog = MI.getErrorLog();
+  SPIRVErrorLog &ErrorLog = MI.getErrorLog();
   if (!ErrorLog.checkError(!I.eof(), SPIRVEC_InvalidModule,
                            "input file is empty") ||
       !ErrorLog.checkError(!I.fail(), SPIRVEC_InvalidModule,

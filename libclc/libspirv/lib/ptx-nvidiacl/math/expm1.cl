@@ -9,7 +9,6 @@
 #include <libspirv/spirv.h>
 
 #include <libspirv/ptx-nvidiacl/libdevice.h>
-#include <clc/clcmacro.h>
 
 #define __CLC_FUNCTION __spirv_ocl_expm1
 #define __CLC_BUILTIN __nv_expm1

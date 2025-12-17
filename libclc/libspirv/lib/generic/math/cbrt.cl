@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/math/clc_cbrt.h>
 #include <libspirv/spirv.h>
-#include <clc/math/clc_cbrt.inc>
 
-#define FUNCTION __spirv_ocl_cbrt
-#define __IMPL_FUNCTION(x) __clc_cbrt
+#define __CLC_FUNCTION __spirv_ocl_cbrt
+#define __CLC_IMPL_FUNCTION(x) __clc_cbrt
 #define __CLC_BODY <clc/shared/unary_def.inc>
 
 #include <clc/math/gentype.inc>

@@ -12,6 +12,8 @@
 
 struct urUSMHostAllocTest : uur::urUSMAllocTest {
   void SetUp() override {
+    // https://github.com/intel/llvm/issues/20208
+    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
     UUR_RETURN_ON_FATAL_FAILURE(urUSMAllocTest::SetUp());
     ASSERT_SUCCESS(uur::GetDeviceUSMHostSupport(device, USMSupport));
     if (!USMSupport) {

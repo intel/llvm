@@ -46,6 +46,9 @@ using namespace llvm::util;
 
 namespace {
 
+/// Enable preview breaking changes.
+static bool PreviewBreakingChanges = false;
+
 /// Note: Returned values are a part of ABI. If you want to change them
 /// then coordinate it with SYCL Runtime.
 int8_t binaryImageFormatToInt8(SYCLBinaryImageFormat Format) {
@@ -137,7 +140,6 @@ struct Wrapper {
   }
 
   // TODO: Drop Version in favor of the Version in Binary Descriptor.
-  // TODO: Drop Manifest fields.
   /// Creates a structure corresponding to:
   /// SYCL specific image descriptor type.
   /// \code
@@ -159,10 +161,6 @@ struct Wrapper {
   ///   // a null-terminated string; target- and compiler-specific options
   ///   // which are suggested to use to "link" program at runtime
   ///   const char *LinkOptions;
-  ///   // Pointer to the manifest data start
-  ///   const unsigned char *ManifestStart;
-  ///   // Pointer to the manifest data end
-  ///   const unsigned char *ManifestEnd;
   ///   // Pointer to the device binary image start
   ///   void *ImageStart;
   ///   // Pointer to the device binary image end
@@ -183,8 +181,6 @@ struct Wrapper {
             PointerType::getUnqual(C), // DeviceTargetSpec
             PointerType::getUnqual(C), // CompileOptions
             PointerType::getUnqual(C), // LinkOptions
-            PointerType::getUnqual(C), // ManifestStart
-            PointerType::getUnqual(C), // ManifestEnd
             PointerType::getUnqual(C), // ImageStart
             PointerType::getUnqual(C), // ImageEnd
             PointerType::getUnqual(C), // EntriesBegin
@@ -545,7 +541,8 @@ struct Wrapper {
     auto *NullPtr = Constant::getNullValue(PointerType::getUnqual(C));
     // DeviceImageStructVersion change log:
     // -- version 2: updated to PI 1.2 binary image format
-    constexpr uint16_t DeviceImageStructVersion = 2;
+    // -- version 3: removed ManifestStart, ManifestEnd pointers
+    constexpr uint16_t DeviceImageStructVersion = 3;
     constexpr uint8_t SYCLOffloadKind = 4; // Corresponds to SYCL
     auto *Version =
         ConstantInt::get(Type::getInt16Ty(C), DeviceImageStructVersion);
@@ -555,10 +552,10 @@ struct Wrapper {
     auto *Target = addStringToModule(Image.Target, Twine(OffloadKindTag) +
                                                        "target." + ImageID);
     auto *CompileOptions =
-        addStringToModule(Options.CompileOptions,
+        addStringToModule(Image.CompileOptions,
                           Twine(OffloadKindTag) + "opts.compile." + ImageID);
     auto *LinkOptions = addStringToModule(
-        Options.LinkOptions, Twine(OffloadKindTag) + "opts.link." + ImageID);
+        Image.LinkOptions, Twine(OffloadKindTag) + "opts.link." + ImageID);
 
     std::pair<Constant *, Constant *> PropSets =
         addPropertySetRegistry(Image.PropertyRegistry);
@@ -573,20 +570,14 @@ struct Wrapper {
           Twine(OffloadKindTag) + ImageID + ".data", Image.Target);
     }
 
-    // TODO: Manifests are going to be removed.
-    // Note: Manifests are deprecated but corresponding nullptr fields should
-    // remain to comply ABI.
-    std::pair<Constant *, Constant *> Manifests = {NullPtr, NullPtr};
-
     // For SYCL image offload entries are defined here, by wrapper, so
     // those are created per image
     std::pair<Constant *, Constant *> ImageEntriesPtrs =
         addOffloadEntriesToModule(Image.Entries);
     Constant *WrappedImage = ConstantStruct::get(
         SyclDeviceImageTy, Version, Kind, Format, Target, CompileOptions,
-        LinkOptions, Manifests.first, Manifests.second, Binary.first,
-        Binary.second, ImageEntriesPtrs.first, ImageEntriesPtrs.second,
-        PropSets.first, PropSets.second);
+        LinkOptions, Binary.first, Binary.second, ImageEntriesPtrs.first,
+        ImageEntriesPtrs.second, PropSets.first, PropSets.second);
 
     if (Options.EmitRegistrationFunctions)
       emitRegistrationFunctions(Binary.first, Image.Image->getBufferSize(),
@@ -648,7 +639,7 @@ struct Wrapper {
   ///  ...
   /// static const char ImageN[] = { <Bufs.back() contents> };
   ///
-  /// static constexpr uint16_t Version = 2;
+  /// static constexpr uint16_t Version = 3;
   /// static constexpr uint16_t OffloadKind = 4; // SYCL
   ///
   /// static const __sycl.tgt_device_image Images[] = {
@@ -660,8 +651,6 @@ struct Wrapper {
   //      NULL,                         /*DeviceTargetSpec*/
   ///     CompileOptions0,              /*CompileOptions0*/
   ///     LinkOptions0,                 /*LinkOptions0*/
-  ///     NULL,                         /*ManifestStart*/
-  ///     NULL,                         /*ManifestEnd*/
   ///     Image0,                       /*ImageStart*/
   ///     Image0 + sizeof(Image0),      /*ImageEnd*/
   ///     __start_offloading_entries0,  /*EntriesBegin*/
@@ -785,7 +774,9 @@ struct Wrapper {
 
 Error llvm::offloading::wrapSYCLBinaries(llvm::Module &M,
                                          const SmallVector<SYCLImage> &Images,
-                                         SYCLWrappingOptions Options) {
+                                         SYCLWrappingOptions Options,
+                                         bool _PreviewBreakingChanges) {
+  PreviewBreakingChanges = _PreviewBreakingChanges;
   Wrapper W(M, Options);
   GlobalVariable *Desc = W.createFatbinDesc(Images);
   if (!Desc)

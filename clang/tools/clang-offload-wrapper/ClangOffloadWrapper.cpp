@@ -81,7 +81,6 @@ using namespace llvm::object;
 static constexpr char COL_CODE[] = "Code";
 static constexpr char COL_SYM[] = "Symbols";
 static constexpr char COL_PROPS[] = "Properties";
-static constexpr char COL_MANIFEST[] = "Manifest";
 
 // Offload models supported by this tool. The support basically means mapping
 // a string representation given at the command line to a value from this
@@ -117,6 +116,11 @@ template <> struct DenseMapInfo<OffloadKind> {
 } // namespace llvm
 
 static cl::opt<bool> Help("h", cl::desc("Alias for -help"), cl::Hidden);
+
+static cl::opt<bool>
+    PreviewBreakingChanges("fpreview-breaking-changes",
+                           cl::desc("Enable preview breaking changes"),
+                           cl::init(false), cl::Hidden);
 
 // Mark all our options with this category, everything else (except for -version
 // and -help) will be hidden.
@@ -250,8 +254,8 @@ static cl::opt<bool> BatchMode(
              "Table files consist of a table of filenames that provide\n"
              "Code, Symbols, Properties, etc.\n"
              "Example input table file in batch mode:\n"
-             "  [Code|Symbols|Properties|Manifest]\n"
-             "  a_0.bc|a_0.sym|a_0.props|a_0.mnf\n"
+             "  [Code|Symbols|Properties]\n"
+             "  a_0.bc|a_0.sym|a_0.props\n"
              "  a_1.bin|||\n"
              "Example usage:\n"
              "  clang-offload-wrapper -batch -host=x86_64-unknown-linux-gnu\n"
@@ -315,18 +319,16 @@ public:
   /// Represents a single image to wrap.
   class Image {
   public:
-    Image(const llvm::StringRef File_, const llvm::StringRef Manif_,
-          const llvm::StringRef Tgt_, BinaryImageFormat Fmt_,
-          const llvm::StringRef CompileOpts_, const llvm::StringRef LinkOpts_,
-          const llvm::StringRef EntriesFile_, const llvm::StringRef PropsFile_)
-        : File(File_.str()), Manif(Manif_.str()), Tgt(Tgt_.str()), Fmt(Fmt_),
+    Image(const llvm::StringRef File_, const llvm::StringRef Tgt_,
+          BinaryImageFormat Fmt_, const llvm::StringRef CompileOpts_,
+          const llvm::StringRef LinkOpts_, const llvm::StringRef EntriesFile_,
+          const llvm::StringRef PropsFile_)
+        : File(File_.str()), Tgt(Tgt_.str()), Fmt(Fmt_),
           CompileOpts(CompileOpts_.str()), LinkOpts(LinkOpts_.str()),
           EntriesFile(EntriesFile_.str()), PropsFile(PropsFile_.str()) {}
 
     /// Name of the file with actual contents
     const std::string File;
-    /// Name of the manifest file
-    const std::string Manif;
     /// Offload target architecture
     const std::string Tgt;
     /// Format
@@ -369,15 +371,14 @@ private:
 
 public:
   void addImage(const OffloadKind Kind, llvm::StringRef File,
-                llvm::StringRef Manif, llvm::StringRef Tgt,
-                const BinaryImageFormat Fmt, llvm::StringRef CompileOpts,
-                llvm::StringRef LinkOpts, llvm::StringRef EntriesFile,
-                llvm::StringRef PropsFile) {
+                llvm::StringRef Tgt, const BinaryImageFormat Fmt,
+                llvm::StringRef CompileOpts, llvm::StringRef LinkOpts,
+                llvm::StringRef EntriesFile, llvm::StringRef PropsFile) {
     std::unique_ptr<SameKindPack> &Pack = Packs[Kind];
     if (!Pack)
       Pack.reset(new SameKindPack());
     Pack->emplace_back(std::make_unique<Image>(
-        File, Manif, Tgt, Fmt, CompileOpts, LinkOpts, EntriesFile, PropsFile));
+        File, Tgt, Fmt, CompileOpts, LinkOpts, EntriesFile, PropsFile));
   }
 
   std::string ToolName;
@@ -476,7 +477,8 @@ private:
 
   // DeviceImageStructVersion change log:
   // -- version 2: updated to PI 1.2 binary image format
-  const uint16_t DeviceImageStructVersion = 2;
+  // -- version 3: removed ManifestStart, ManifestEnd pointers
+  const uint16_t DeviceImageStructVersion = 3;
 
   // typedef enum {
   //   PI_PROPERTY_TYPE_INT32,
@@ -542,10 +544,6 @@ private:
   //    /// a null-terminated string; target- and compiler-specific options
   //    /// which are suggested to use to "link" program at runtime
   //    const char *LinkOptions;
-  //    /// Pointer to the manifest data start
-  //    const unsigned char *ManifestStart;
-  //    /// Pointer to the manifest data end
-  //    const unsigned char *ManifestEnd;
   //    /// Pointer to the device binary image start
   //    void *ImageStart;
   //    /// Pointer to the device binary image end
@@ -568,8 +566,6 @@ private:
               getPtrTy(),          // DeviceTargetSpec
               getPtrTy(),          // CompileOptions
               getPtrTy(),          // LinkOptions
-              getPtrTy(),          // ManifestStart
-              getPtrTy(),          // ManifestEnd
               getPtrTy(),          // ImageStart
               getPtrTy(),          // ImageEnd
               getPtrTy(),          // EntriesBegin
@@ -941,9 +937,9 @@ private:
   /// library. It is defined as follows
   ///
   /// __attribute__((visibility("hidden")))
-  /// extern __tgt_offload_entry *__start_omp_offloading_entries;
+  /// extern __tgt_offload_entry *__start_llvm_offload_entries;
   /// __attribute__((visibility("hidden")))
-  /// extern __tgt_offload_entry *__stop_omp_offloading_entries;
+  /// extern __tgt_offload_entry *__stop_llvm_offload_entries;
   ///
   /// static const char Image0[] = { <Bufs.front() contents> };
   ///  ...
@@ -953,23 +949,23 @@ private:
   ///   {
   ///     Image0,                            /*ImageStart*/
   ///     Image0 + sizeof(Image0),           /*ImageEnd*/
-  ///     __start_omp_offloading_entries,    /*EntriesBegin*/
-  ///     __stop_omp_offloading_entries      /*EntriesEnd*/
+  ///     __start_llvm_offload_entries,      /*EntriesBegin*/
+  ///     __stop_llvm_offload_entries        /*EntriesEnd*/
   ///   },
   ///   ...
   ///   {
   ///     ImageN,                            /*ImageStart*/
   ///     ImageN + sizeof(ImageN),           /*ImageEnd*/
-  ///     __start_omp_offloading_entries,    /*EntriesBegin*/
-  ///     __stop_omp_offloading_entries      /*EntriesEnd*/
+  ///     __start_llvm_offload_entries,      /*EntriesBegin*/
+  ///     __stop_llvm_offload_entries        /*EntriesEnd*/
   ///   }
   /// };
   ///
   /// static const __tgt_bin_desc BinDesc = {
   ///   sizeof(Images) / sizeof(Images[0]),  /*NumDeviceImages*/
   ///   Images,                              /*DeviceImages*/
-  ///   __start_omp_offloading_entries,      /*HostEntriesBegin*/
-  ///   __stop_omp_offloading_entries        /*HostEntriesEnd*/
+  ///   __start_llvm_offload_entries,        /*HostEntriesBegin*/
+  ///   __stop_llvm_offload_entries          /*HostEntriesEnd*/
   /// };
   ///
   /// Global variable that represents BinDesc is returned.
@@ -984,16 +980,16 @@ private:
       // Create external begin/end symbols for the offload entries table.
       auto *EntriesStart = new GlobalVariable(
           M, getEntryTy(), /*isConstant*/ true, GlobalValue::ExternalLinkage,
-          /*Initializer*/ nullptr, "__start_omp_offloading_entries");
+          /*Initializer*/ nullptr, "__start_llvm_offload_entries");
       EntriesStart->setVisibility(GlobalValue::HiddenVisibility);
       auto *EntriesStop = new GlobalVariable(
           M, getEntryTy(), /*isConstant*/ true, GlobalValue::ExternalLinkage,
-          /*Initializer*/ nullptr, "__stop_omp_offloading_entries");
+          /*Initializer*/ nullptr, "__stop_llvm_offload_entries");
       EntriesStop->setVisibility(GlobalValue::HiddenVisibility);
 
       // We assume that external begin/end symbols that we have created above
       // will be defined by the linker. But linker will do that only if linker
-      // inputs have section with "omp_offloading_entries" name which is not
+      // inputs have section with "llvm_offload_entries" name which is not
       // guaranteed. So, we just create dummy zero sized object in the offload
       // entries section to force linker to define those symbols.
       auto *DummyInit =
@@ -1001,7 +997,7 @@ private:
       auto *DummyEntry = new GlobalVariable(
           M, DummyInit->getType(), true, GlobalVariable::ExternalLinkage,
           DummyInit, "__dummy.omp_offloading.entry");
-      DummyEntry->setSection("omp_offloading_entries");
+      DummyEntry->setSection("llvm_offload_entries");
       DummyEntry->setVisibility(GlobalValue::HiddenVisibility);
 
       EntriesB = EntriesStart;
@@ -1018,7 +1014,6 @@ private:
     }
 
     auto *Zero = ConstantInt::get(getSizeTTy(), 0u);
-    auto *NullPtr = Constant::getNullValue(getPtrTy());
     Constant *ZeroZero[] = {Zero, Zero};
 
     // Create initializer for the images array.
@@ -1030,6 +1025,7 @@ private:
       if (Verbose)
         errs() << "adding image: offload kind=" << offloadKindToString(Kind)
                << Img << "\n";
+
       auto *Fver =
           ConstantInt::get(Type::getInt16Ty(C), DeviceImageStructVersion);
       auto *Fknd = ConstantInt::get(Type::getInt8Ty(C), Kind);
@@ -1042,23 +1038,9 @@ private:
       auto *Foptlink = addStringToModule(Img.LinkOpts, Twine(OffloadKindTag) +
                                                            Twine("opts.link.") +
                                                            Twine(ImgId));
-      std::pair<Constant *, Constant *> FMnf;
 
       if (MySymPropReader)
         MySymPropReader->getNextDeviceImageInitializer();
-
-      if (Img.Manif.empty()) {
-        // no manifest - zero out the fields
-        FMnf = std::make_pair(NullPtr, NullPtr);
-      } else {
-        Expected<MemoryBuffer *> MnfOrErr = loadFile(Img.Manif);
-        if (!MnfOrErr)
-          return MnfOrErr.takeError();
-        MemoryBuffer *Mnf = *MnfOrErr;
-        FMnf = addArrayToModule(
-            ArrayRef<char>(Mnf->getBufferStart(), Mnf->getBufferSize()),
-            Twine(OffloadKindTag) + Twine(ImgId) + Twine(".manifest"));
-      }
 
       Expected<std::pair<Constant *, Constant *>> PropSets =
           tformSYCLPropertySetRegistryFileToIR(Img.PropsFile);
@@ -1158,11 +1140,11 @@ private:
         if (!EntriesOrErr)
           return EntriesOrErr.takeError();
         std::pair<Constant *, Constant *> ImageEntriesPtrs = *EntriesOrErr;
-        ImagesInits.push_back(ConstantStruct::get(
-            getSyclDeviceImageTy(), Fver, Fknd, Ffmt, Ftgt, Foptcompile,
-            Foptlink, FMnf.first, FMnf.second, Fbin.first, Fbin.second,
-            ImageEntriesPtrs.first, ImageEntriesPtrs.second,
-            PropSets.get().first, PropSets.get().second));
+        ImagesInits.push_back(
+            ConstantStruct::get(getSyclDeviceImageTy(), Fver, Fknd, Ffmt, Ftgt,
+                                Foptcompile, Foptlink, Fbin.first, Fbin.second,
+                                ImageEntriesPtrs.first, ImageEntriesPtrs.second,
+                                PropSets.get().first, PropSets.get().second));
       } else
         ImagesInits.push_back(ConstantStruct::get(
             getDeviceImageTy(), Fbin.first, Fbin.second, EntriesB, EntriesE));
@@ -1633,7 +1615,6 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &Out,
                               const BinaryWrapper::Image &Img) {
   Out << "\n{\n";
   Out << "  file     = " << Img.File << "\n";
-  Out << "  manifest = " << (Img.Manif.empty() ? "-" : Img.Manif) << "\n";
   Out << "  format   = " << formatToString(Img.Fmt) << "\n";
   Out << "  target   = " << (Img.Tgt.empty() ? "-" : Img.Tgt) << "\n";
   Out << "  compile options  = "
@@ -1789,15 +1770,11 @@ int main(int argc, const char **argv) {
   cl::ParseCommandLineOptions(
       argc, argv,
       "A tool to create a wrapper bitcode for offload target binaries.\n"
-      "Takes offload target binaries and optional manifest files as input\n"
-      "and produces bitcode file containing target binaries packaged as data\n"
-      "and initialization code which registers target binaries in the offload\n"
-      "runtime. Manifest files format and contents are not restricted and are\n"
-      "a subject of agreement between the device compiler and the native\n"
-      "runtime for that device. When present, manifest file name should\n"
-      "immediately follow the corresponding device image filename on the\n"
-      "command line. Options annotating a device binary have effect on all\n"
-      "subsequent input, until redefined.\n"
+      "Takes offload target binaries as input and produces bitcode file\n"
+      "containing target binaries packaged as data and initialization code\n"
+      "which registers target binaries in the offload runtime. Options\n"
+      "annotating a device binary have effect on all subsequent input,\n"
+      "until redefined.\n"
       "\n"
       "For example:\n"
       "  clang-offload-wrapper                   \\\n"
@@ -1810,7 +1787,6 @@ int main(int argc, const char **argv) {
       "          -entries=sym.txt                \\\n"
       "          -properties=props.txt           \\\n"
       "          a.spv                           \\\n"
-      "          a_mf.txt                        \\\n"
       "        -target=xxx                       \\\n"
       "          -format=native                  \\\n"
       "          -compile-opts=\"\"                \\\n"
@@ -1818,19 +1794,18 @@ int main(int argc, const char **argv) {
       "          -entries=\"\"                     \\\n"
       "          -properties=\"\"                  \\\n"
       "          b.bin                           \\\n"
-      "          b_mf.txt                        \\\n"
       "      -kind=openmp                        \\\n"
       "          c.bin\\n"
       "\n"
       "This command generates an x86 wrapper object (.bc) enclosing the\n"
       "following tuples describing a single device binary each:\n"
       "\n"
-      "|offload|target|data  |data |manifest|compile|entries|properties|...|\n"
-      "|  kind |      |format|     |        |options|       |          |...|\n"
-      "|-------|------|------|-----|--------|-------|-------|----------|---|\n"
-      "|sycl   |spir64|spirv |a.spv|a_mf.txt|  -g   |sym.txt|props.txt |...|\n"
-      "|sycl   |xxx   |native|b.bin|b_mf.txt|       |       |          |...|\n"
-      "|openmp |xxx   |native|c.bin|        |       |       |          |...|\n"
+      "|offload|target|data  |data |compile|entries|properties|...|\n"
+      "|  kind |      |format|     |options|       |          |...|\n"
+      "|-------|------|------|-----|-------|-------|----------|---|\n"
+      "|sycl   |spir64|spirv |a.spv|  -g   |sym.txt|props.txt |...|\n"
+      "|sycl   |xxx   |native|b.bin|       |       |          |...|\n"
+      "|openmp |xxx   |native|c.bin|       |       |          |...|\n"
       "\n"
       "|...|    link            |\n"
       "|...|    options         |\n"
@@ -1897,11 +1872,10 @@ int main(int argc, const char **argv) {
     // ID != 0 signal that a new image(s) must be added
     if (ID != 0) {
       // create an image instance using current state
-      if (CurInputGroup.size() > 2) {
-        reportError(
-            createStringError(errc::invalid_argument,
-                              "too many inputs for a single binary image, "
-                              "<binary file> <manifest file>{opt}expected"));
+      if (CurInputGroup.size() > 1) {
+        reportError(createStringError(errc::invalid_argument,
+                                      "too many inputs for a single binary "
+                                      "image, <binary file> expected"));
         return 1;
       }
       if (CurInputGroup.size() != 0) {
@@ -1920,8 +1894,7 @@ int main(int argc, const char **argv) {
 
           // iterate via records
           for (const auto &Row : T.rows()) {
-            Wr.addImage(Knd, Row.getCell(COL_CODE),
-                        Row.getCell(COL_MANIFEST, ""), Tgt, Fmt, CompileOpts,
+            Wr.addImage(Knd, Row.getCell(COL_CODE), Tgt, Fmt, CompileOpts,
                         LinkOpts, Row.getCell(COL_SYM, ""),
                         Row.getCell(COL_PROPS, ""));
           }
@@ -1932,9 +1905,8 @@ int main(int argc, const char **argv) {
             return 1;
           }
           StringRef File = CurInputGroup[0];
-          StringRef Manif = CurInputGroup.size() > 1 ? CurInputGroup[1] : "";
-          Wr.addImage(Knd, File, Manif, Tgt, Fmt, CompileOpts, LinkOpts,
-                      EntriesFile, PropsFile);
+          Wr.addImage(Knd, File, Tgt, Fmt, CompileOpts, LinkOpts, EntriesFile,
+                      PropsFile);
         }
         CurInputGroup.clear();
       }

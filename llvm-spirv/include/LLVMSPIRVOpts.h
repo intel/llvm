@@ -47,6 +47,7 @@
 #include <map>
 #include <optional>
 #include <unordered_map>
+#include <vector>
 
 namespace llvm {
 class IntrinsicInst;
@@ -273,14 +274,14 @@ public:
   }
 
   void setFnVarFeatures(std::vector<uint32_t> Features) noexcept {
-    FnVarFeatures = Features;
+    FnVarFeatures = std::move(Features);
   }
   std::vector<uint32_t> getFnVarFeatures() const noexcept {
     return FnVarFeatures;
   }
 
   void setFnVarCapabilities(std::vector<uint32_t> Capabilities) noexcept {
-    FnVarCapabilities = Capabilities;
+    FnVarCapabilities = std::move(Capabilities);
   }
   std::vector<uint32_t> getFnVarCapabilities() const noexcept {
     return FnVarCapabilities;
@@ -289,7 +290,9 @@ public:
   void setFnVarSpecEnable(bool Val) noexcept { FnVarSpecEnable = Val; }
   bool getFnVarSpecEnable() const noexcept { return FnVarSpecEnable; }
 
-  void setFnVarSpvOut(std::string Val) noexcept { FnVarSpvOut = Val; }
+  void setFnVarSpvOut(std::string Val) noexcept {
+    FnVarSpvOut = std::move(Val);
+  }
   std::string getFnVarSpvOut() const noexcept { return FnVarSpvOut; }
 
   // Check that options passed to --fnvar-xxx flags make sense. Return true on

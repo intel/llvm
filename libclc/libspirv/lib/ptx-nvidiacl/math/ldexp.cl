@@ -30,8 +30,8 @@ _CLC_OVERLOAD _CLC_INLINE static half nv_ldexp_helper(half x, int y) {
 }
 #endif
 
-#define FUNCTION __spirv_ocl_ldexp
-#define __IMPL_FUNCTION nv_ldexp_helper
+#define __CLC_FUNCTION __spirv_ocl_ldexp
+#define __CLC_IMPL_FUNCTION nv_ldexp_helper
 #define __CLC_MIN_VECSIZE 1
 
 #define __CLC_ARG2_TYPE int

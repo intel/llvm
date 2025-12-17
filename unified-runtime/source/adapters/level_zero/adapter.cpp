@@ -47,12 +47,6 @@ public:
                      const std::string &msg) override {
     fprintf(stderr, "%s", msg.c_str());
   }
-
-  ~ur_legacy_sink() {
-#if defined(_WIN32)
-    logger::isTearDowned = true;
-#endif
-  };
 };
 
 // Find the corresponding ZesDevice Handle for a given ZeDevice
@@ -178,24 +172,40 @@ ur_result_t initPlatforms(ur_adapter_handle_t_ *adapter, PlatformVec &platforms,
     ZeDrivers.assign(ZeInitDriversHandles.begin(), ZeInitDriversHandles.end());
     if (ZeDriverGetCount > 0 && adapter->ZeInitDriversCount > 0) {
       for (uint32_t X = 0; X < adapter->ZeInitDriversCount; ++X) {
+        // zeDriverGet and zeInitDrivers can return the driver handles in
+        // reverse order based on driver ordering causing an issue if the
+        // drivers are expected to be in the same order. To resolve, this loop
+        // checks if the driver from zeDriverGet already exists in zeInitDrivers
+        // and only adds it if it is not found.
+        bool unMatchedDriverHandle = false;
+        ze_driver_handle_t driverGetHandle = nullptr;
         for (uint32_t Y = 0; Y < ZeDriverGetCount; ++Y) {
+          unMatchedDriverHandle = true;
           ZeStruct<ze_driver_properties_t> ZeDriverGetProperties;
           ZeStruct<ze_driver_properties_t> ZeInitDriverProperties;
           ZE2UR_CALL(zeDriverGetProperties,
                      (ZeDriverGetHandles[Y], &ZeDriverGetProperties));
           ZE2UR_CALL(zeDriverGetProperties,
                      (ZeInitDriversHandles[X], &ZeInitDriverProperties));
-          // If zeDriverGet driver is different from zeInitDriver driver, add it
-          // to the list. This allows for older drivers to be used alongside
-          // newer drivers.
-          if (ZeDriverGetProperties.driverVersion !=
+          driverGetHandle = ZeDriverGetHandles[Y];
+          // If zeDriverGet driver is the same version as zeInitDriver driver,
+          // then do not add it again.
+          if (ZeDriverGetProperties.driverVersion ==
               ZeInitDriverProperties.driverVersion) {
             UR_LOG(DEBUG,
-                   "\nzeDriverHandle {} added to the zeInitDrivers list "
-                   "of possible handles.\n",
+                   "\nzeDriverHandle {} matched between zeDriverGet and "
+                   "zeInitDrivers. Not adding duplicate driver to list\n",
                    ZeDriverGetHandles[Y]);
-            ZeDrivers.push_back(ZeDriverGetHandles[Y]);
+            unMatchedDriverHandle = false;
+            break;
           }
+        }
+        if (unMatchedDriverHandle) {
+          UR_LOG(DEBUG,
+                 "\nzeDriverHandle {} not found in zeInitDrivers. Adding to "
+                 "driver list.\n",
+                 driverGetHandle);
+          ZeDrivers.push_back(driverGetHandle);
         }
       }
     }
@@ -270,6 +280,14 @@ static bool isBMGorNewer() {
   }
 
   return urResult == UR_RESULT_SUCCESS;
+}
+
+static void releaseStaticLoaderResourcesIfNeeded() {
+#ifdef UR_STATIC_LEVEL_ZERO
+  // Given static linking of the L0 Loader, we must release the static loader
+  // resources if the adapter is not used.
+  zelLoaderContextTeardown();
+#endif
 }
 
 // returns a pair indicating whether to use the V1 adapter and a string
@@ -509,12 +527,14 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
     auto [useV2, reason] = shouldUseV2Adapter();
     if (!useV2) {
       UR_LOG(INFO, "Skipping L0 V2 adapter: {}", reason);
+      releaseStaticLoaderResourcesIfNeeded();
       return;
     }
 #else
     auto [useV1, reason] = shouldUseV1Adapter();
     if (!useV1) {
       UR_LOG(INFO, "Skipping L0 V1 adapter: {}", reason);
+      releaseStaticLoaderResourcesIfNeeded();
       return;
     }
 #endif
@@ -569,6 +589,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
   if (err == UR_RESULT_SUCCESS) {
     Platforms = std::move(platforms);
   } else {
+    UR_LOG(ERR, "Failed to initialize Platforms");
     throw err;
   }
 }

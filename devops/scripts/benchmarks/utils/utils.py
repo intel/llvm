@@ -19,6 +19,19 @@ from options import options
 from utils.logger import log
 
 
+def sanitize_filename(name: str) -> str:
+    """
+    Sanitize a string to be safe for use as a filename or directory name.
+    Replace invalid characters with underscores.
+    Invalid characters: " : < > | * ? \r \n
+    """
+    # Replace invalid characters with underscores
+    # Added space to list to avoid directories with spaces which cause issues in shell commands
+    invalid_chars = r'[":;<>|*?\r\n ]'
+    sanitized = re.sub(invalid_chars, "_", name)
+    return sanitized
+
+
 def run(
     command,
     env_vars={},
@@ -36,11 +49,10 @@ def run(
             command = command.split()
 
         env = os.environ.copy()
-
         for ldlib in ld_library:
             if os.path.isdir(ldlib):
-                env["LD_LIBRARY_PATH"] = (
-                    ldlib + os.pathsep + env.get("LD_LIBRARY_PATH", "")
+                env_vars["LD_LIBRARY_PATH"] = os.pathsep.join(
+                    filter(None, [ldlib, env_vars.get("LD_LIBRARY_PATH", "")])
                 )
             else:
                 log.warning(f"LD_LIBRARY_PATH component does not exist: {ldlib}")
@@ -48,18 +60,25 @@ def run(
         # order is important, we want provided sycl rt libraries to be first
         if add_sycl:
             sycl_bin_path = os.path.join(options.sycl, "bin")
-            env["PATH"] = sycl_bin_path + os.pathsep + env.get("PATH", "")
-            sycl_lib_path = os.path.join(options.sycl, "lib")
-            env["LD_LIBRARY_PATH"] = (
-                sycl_lib_path + os.pathsep + env.get("LD_LIBRARY_PATH", "")
+            env_vars["PATH"] = os.pathsep.join(
+                filter(None, [sycl_bin_path, env_vars.get("PATH", "")])
             )
-
-        env.update(env_vars)
+            sycl_lib_path = os.path.join(options.sycl, "lib")
+            env_vars["LD_LIBRARY_PATH"] = os.pathsep.join(
+                filter(None, [sycl_lib_path, env_vars.get("LD_LIBRARY_PATH", "")])
+            )
 
         command_str = " ".join(command)
         env_str = " ".join(f"{key}={value}" for key, value in env_vars.items())
         full_command_str = f"{env_str} {command_str}".strip()
         log.debug(f"Running: {full_command_str}")
+
+        for key, value in env_vars.items():
+            # Only PATH and LD_LIBRARY_PATH should be prepended to existing values
+            if key in ("PATH", "LD_LIBRARY_PATH") and (old := env.get(key)):
+                env[key] = os.pathsep.join([value, old])
+            else:
+                env[key] = value
 
         # Normalize input to bytes if it's a str
         if isinstance(input, str):
@@ -90,25 +109,6 @@ def run(
         if e.stderr and e.stderr.decode().strip():
             log.error(e.stderr.decode())
         raise
-
-
-def git_clone(dir, name, repo, commit):
-    repo_path = os.path.join(dir, name)
-    log.debug(f"Cloning {repo} into {repo_path} at commit {commit}")
-
-    if os.path.isdir(repo_path) and os.path.isdir(os.path.join(repo_path, ".git")):
-        run("git fetch", cwd=repo_path)
-        run("git reset --hard", cwd=repo_path)
-        run(f"git checkout {commit}", cwd=repo_path)
-    elif not os.path.exists(repo_path):
-        run(f"git clone --recursive {repo} {repo_path}")
-        run(f"git checkout {commit}", cwd=repo_path)
-    else:
-        raise Exception(
-            f"The directory {repo_path} exists but is not a git repository."
-        )
-    log.debug(f"Cloned {repo} into {repo_path} at commit {commit}")
-    return repo_path
 
 
 def prepare_bench_cwd(dir):
@@ -146,17 +146,6 @@ def prepare_workdir(dir, version):
         version_file.write(version)
 
 
-def create_build_path(directory, name):
-    build_path = os.path.join(directory, name)
-
-    if options.rebuild and Path(build_path).exists():
-        shutil.rmtree(build_path)
-
-    Path(build_path).mkdir(parents=True, exist_ok=True)
-
-    return build_path
-
-
 def calculate_checksum(file_path):
     sha_hash = hashlib.sha384()
     with open(file_path, "rb") as f:
@@ -186,7 +175,8 @@ def download(dir, url, file, untar=False, unzip=False, checksum=""):
         if unzip:
             [stripped_gz, _] = os.path.splitext(data_file)
             with gzip.open(data_file, "rb") as f_in, open(stripped_gz, "wb") as f_out:
-                shutil.copyfileobj(f_in, f_out)
+                # copyfileobj expects binary file-like objects; type checker may complain about union types
+                shutil.copyfileobj(f_in, f_out)  # type: ignore[arg-type]
     else:
         log.debug(f"{data_file} exists, skipping...")
     return data_file

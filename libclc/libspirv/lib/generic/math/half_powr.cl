@@ -9,9 +9,9 @@
 #include <clc/math/clc_half_powr.h>
 #include <libspirv/spirv.h>
 
-#define __FLOAT_ONLY
-#define FUNCTION __spirv_ocl_half_powr
-#define __IMPL_FUNCTION(x) __clc_half_powr
+#define __CLC_FLOAT_ONLY
+#define __CLC_FUNCTION __spirv_ocl_half_powr
+#define __CLC_IMPL_FUNCTION(x) __clc_half_powr
 #define __CLC_BODY <clc/shared/binary_def.inc>
 
 #include <clc/math/gentype.inc>

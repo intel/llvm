@@ -12,11 +12,13 @@ add_ur_adapter(${TARGET_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/device.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/enqueue.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/event.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/graph.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/kernel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/memory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/platform.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/program.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/queue.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/sampler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ur2offload.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ur_interface_loader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/usm.cpp
@@ -142,5 +144,6 @@ target_link_libraries(${TARGET_NAME} PRIVATE
 
 target_include_directories(${TARGET_NAME} PRIVATE
     "${UR_OFFLOAD_INCLUDE_DIR}/offload"
+    "${UR_OFFLOAD_INCLUDE_DIR}/"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../"
 )

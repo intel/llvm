@@ -14,7 +14,7 @@
 #include "clang/Driver/Distro.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/InputInfo.h"
-#include "clang/Driver/Options.h"
+#include "clang/Options/Options.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Config/llvm-config.h" // for LLVM_HOST_TRIPLE
 #include "llvm/Option/ArgList.h"
@@ -88,6 +88,8 @@ CudaVersion getCudaVersion(uint32_t raw_version) {
     return CudaVersion::CUDA_126;
   if (raw_version < 12090)
     return CudaVersion::CUDA_128;
+  if (raw_version < 13000)
+    return CudaVersion::CUDA_129;
   return CudaVersion::NEW;
 }
 
@@ -153,9 +155,9 @@ CudaInstallationDetector::CudaInstallationDetector(
       "9.2",  "9.1",  "9.0",  "8.0",  "7.5",  "7.0"};
   auto &FS = D.getVFS();
 
-  if (Args.hasArg(clang::driver::options::OPT_cuda_path_EQ)) {
+  if (Args.hasArg(options::OPT_cuda_path_EQ)) {
     Candidates.emplace_back(
-        Args.getLastArgValue(clang::driver::options::OPT_cuda_path_EQ).str());
+        Args.getLastArgValue(options::OPT_cuda_path_EQ).str());
   } else if (HostTriple.isOSWindows()) {
     // CUDA_PATH is set by the installer, prefer it over other versions that
     // might be present on the system.
@@ -167,7 +169,7 @@ CudaInstallationDetector::CudaInstallationDetector(
           D.SysRoot + "/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v" +
           Ver);
   } else {
-    if (!Args.hasArg(clang::driver::options::OPT_cuda_path_ignore_env)) {
+    if (!Args.hasArg(options::OPT_cuda_path_ignore_env)) {
       // Try to find ptxas binary. If the executable is located in a directory
       // called 'bin/', its parent directory might be a good guess for a valid
       // CUDA installation.
@@ -697,9 +699,12 @@ void NVPTX::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(Args.MakeArgString(
         "--pxtas-path=" + Args.getLastArgValue(options::OPT_ptxas_path_EQ)));
 
-  if (Args.hasArg(options::OPT_cuda_path_EQ))
-    CmdArgs.push_back(Args.MakeArgString(
-        "--cuda-path=" + Args.getLastArgValue(options::OPT_cuda_path_EQ)));
+  if (Args.hasArg(options::OPT_cuda_path_EQ) || TC.CudaInstallation.isValid()) {
+    StringRef CudaPath = Args.getLastArgValue(
+        options::OPT_cuda_path_EQ,
+        llvm::sys::path::parent_path(TC.CudaInstallation.getBinPath()));
+    CmdArgs.push_back(Args.MakeArgString("--cuda-path=" + CudaPath));
+  }
 
   // Add paths specified in LIBRARY_PATH environment variable as -L options.
   addDirectoryList(Args, CmdArgs, "-L", "LIBRARY_PATH");
@@ -765,6 +770,7 @@ void NVPTX::getNVPTXTargetFeatures(const Driver &D, const llvm::Triple &Triple,
   case CudaVersion::CUDA_##CUDA_VER:                                           \
     PtxFeature = "+ptx" #PTX_VER;                                              \
     break;
+    CASE_CUDA_VERSION(129, 88);
     CASE_CUDA_VERSION(128, 87);
     CASE_CUDA_VERSION(126, 85);
     CASE_CUDA_VERSION(125, 85);
@@ -860,6 +866,16 @@ void NVPTXToolChain::addClangTargetOptions(
     const llvm::opt::ArgList &DriverArgs, llvm::opt::ArgStringList &CC1Args,
     Action::OffloadKind DeviceOffloadingKind) const {}
 
+void NVPTXToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
+                                               ArgStringList &CC1Args) const {
+  if (DriverArgs.hasArg(options::OPT_nostdinc) ||
+      DriverArgs.hasArg(options::OPT_nostdlibinc))
+    return;
+
+  if (std::optional<std::string> Path = getStdlibIncludePath())
+    addSystemInclude(DriverArgs, CC1Args, *Path);
+}
+
 bool NVPTXToolChain::supportsDebugInfoOption(const llvm::opt::Arg *A) const {
   const Option &O = A->getOption();
   return (O.matches(options::OPT_gN_Group) &&
@@ -897,7 +913,7 @@ NVPTXToolChain::getSystemGPUArchs(const ArgList &Args) const {
   else
     Program = GetProgramPath("nvptx-arch");
 
-  auto StdoutOrErr = executeToolChainProgram(Program);
+  auto StdoutOrErr = getDriver().executeProgram({Program});
   if (!StdoutOrErr)
     return StdoutOrErr.takeError();
 

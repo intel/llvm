@@ -8,6 +8,8 @@ add_sycl_unittest(KernelAndProgramTests OBJECT
   KernelBuildOptions.cpp
   OutOfResources.cpp
   InMemCacheEviction.cpp
+  KernelArgs.cpp
+  KernelInfoShortcuts.cpp
 )
-target_compile_definitions(KernelAndProgramTests_non_preview PRIVATE -D__SYCL_INTERNAL_API)
-target_compile_definitions(KernelAndProgramTests_preview PRIVATE -D__SYCL_INTERNAL_API)
+target_compile_definitions(KernelAndProgramTests_Non_Preview_Tests PRIVATE __SYCL_INTERNAL_API)
+target_compile_definitions(KernelAndProgramTests_Preview_Tests PRIVATE __SYCL_INTERNAL_API __INTEL_PREVIEW_BREAKING_CHANGES)

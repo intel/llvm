@@ -1,6 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out
 
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
 #include <stdlib.h>
 #include <sycl/detail/core.hpp>
 #include <vector>

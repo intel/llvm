@@ -9,7 +9,6 @@ USER root
 
 RUN apt update && apt install -yqq libllvm14 libllvm15 libz3-4
 
-COPY scripts/get_release.py /
 COPY scripts/install_drivers.sh /
 COPY dependencies.json /
 COPY dependencies-igc-dev.json /

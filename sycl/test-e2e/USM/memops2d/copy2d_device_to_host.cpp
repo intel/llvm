@@ -13,9 +13,6 @@
 // UNSUPPORTED: hip
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/10157
 
-// Temporarily disabled until the failure is addressed.
-// UNSUPPORTED: level_zero && windows
-
 #include "copy2d_common.hpp"
 
 int main() { return test<Alloc::Device, Alloc::Host>(); }

@@ -26,7 +26,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int MajorVersion,
     for (type t : std::initializer_list<type>{type::function_with_args_begin})
       xptiRegisterCallback(StreamID, static_cast<uint16_t>(t), syclUrCallback);
   }
-  if (NameView == "sycl") {
+  if (NameView == "sycl" || NameView == "sycl.debug") {
     uint8_t StreamID = xptiRegisterStream(StreamName);
 
     for (type t : std::initializer_list<type>{

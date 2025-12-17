@@ -218,8 +218,9 @@ void zeParseError(ze_result_t ZeError, const char *&ErrorString);
 #define ZE2UR_CALL_THROWS(ZeName, ZeArgs)                                      \
   {                                                                            \
     ze_result_t ZeResult = ZeName ZeArgs;                                      \
-    if (auto Result = ZeCall().doCall(ZeResult, #ZeName, #ZeArgs, true))       \
+    if (auto Result = ZeCall().doCall(ZeResult, #ZeName, #ZeArgs, true)) {     \
       throw ze2urResult(Result);                                               \
+    }                                                                          \
   }
 
 // Perform traced call to L0 without checking for errors

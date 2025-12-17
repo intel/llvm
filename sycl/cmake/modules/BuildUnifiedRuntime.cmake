@@ -16,6 +16,9 @@ set(UR_BUILD_EXAMPLES "${SYCL_UR_BUILD_TESTS}" CACHE BOOL "" FORCE)
 option(SYCL_UR_FORMAT_CPP_STYLE "Format code style of UR C++ sources" OFF)
 set(UR_FORMAT_CPP_STYLE "${SYCL_UR_FORMAT_CPP_STYLE}" CACHE BOOL "" FORCE)
 
+option(SYCL_UR_ENABLE_ASSERTIONS "Enable assertions for all UR build types" OFF)
+set(UR_ENABLE_ASSERTIONS "${SYCL_UR_ENABLE_ASSERTIONS}" CACHE BOOL "" FORCE)
+
 # Here we override the defaults to unified-runtime
 set(UR_BUILD_XPTI_LIBS OFF CACHE BOOL "")
 set(UR_ENABLE_SYMBOLIZER ON CACHE BOOL "Enable symbolizer for sanitizer layer.")
@@ -23,6 +26,10 @@ set(UR_ENABLE_TRACING ON CACHE BOOL "")
 
 set(UR_EXTERNAL_DEPENDENCIES "sycl-headers" CACHE STRING
   "List of external CMake targets for executables/libraries to depend on" FORCE)
+
+# Force fetch Level Zero loader and headers from github.com
+option(SYCL_UR_FORCE_FETCH_LEVEL_ZERO "Force fetching Level Zero even if preinstalled loader is found" OFF)
+set(UR_FORCE_FETCH_LEVEL_ZERO "${SYCL_UR_FORCE_FETCH_LEVEL_ZERO}" CACHE BOOL "" FORCE)
 
 if("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
   set(UR_BUILD_ADAPTER_L0 ON)

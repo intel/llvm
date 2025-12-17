@@ -6,6 +6,9 @@
 
 // TODO: Fails at JIT compilation for some reason.
 // UNSUPPORTED: hip
+
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 #define SYCL_FALLBACK_ASSERT 1
 
 #include <sycl/detail/core.hpp>

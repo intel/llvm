@@ -596,18 +596,6 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
         ArrayRef<unsigned> Ops = TargetTy->int_params();
         return mapType(T, BM->addBufferSurfaceINTELType(CastAccess(Ops[0])));
       }
-      case internal::OpTypeJointMatrixINTEL: {
-        // The expected representation is:
-        // target("spirv.JointMatrixINTEL", %element_type, %rows%, %cols%,
-        //        %layout%, %scope%, %use%,
-        //        (optional) %element_type_interpretation%)
-        auto *ElemTy = transType(TargetTy->getTypeParameter(0));
-        ArrayRef<unsigned> Ops = TargetTy->int_params();
-        std::vector<SPIRVValue *> Args;
-        for (const auto &Op : Ops)
-          Args.emplace_back(transConstant(getUInt32(M, Op)));
-        return mapType(T, BM->addJointMatrixINTELType(ElemTy, Args));
-      }
       case OpTypeCooperativeMatrixKHR: {
         // The expected representation is:
         // target("spirv.CooperativeMatrixKHR", %element_type, %scope%, %rows%,
@@ -870,6 +858,20 @@ SPIRVType *LLVMToSPIRVBase::transScavengedType(Value *V) {
       if (!Ty) {
         Ty = FnTy->getParamType(Arg.getArgNo());
       }
+      // Preserve element type for byval/sret arguments even when
+      // SPV_KHR_untyped_pointers is enabled. Losing pointee type would make it
+      // impossible to reconstruct the original parameter and will lead to
+      // OpenCL runtime failure due to mismatched memory object semantics.
+      if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_untyped_pointers) &&
+          (Arg.hasByValAttr() || Arg.hasStructRetAttr())) {
+        TypedPointerType *TPT = cast<TypedPointerType>(Ty);
+        auto *NewType = BM->addPointerType(
+            SPIRSPIRVAddrSpaceMap::map(
+                static_cast<SPIRAddressSpace>(TPT->getAddressSpace())),
+            transType(TPT->getElementType()));
+        PT.push_back(NewType);
+        continue;
+      }
       PT.push_back(transType(Ty));
     }
 
@@ -913,25 +915,39 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
     return nullptr;
   }
 
+  // Don't translate FP conversion translator builtins as function declarations.
+  auto MangledName = F->getName();
+  StringRef DemangledName;
+  if (isInternalSPIRVBuiltin(MangledName, DemangledName)) {
+    if (SPIRV::FPConvertToEncodingMap::find(DemangledName)) {
+      // Create an early exit here if none of the extensions are enabled.
+      // Proper checks for the required extensions will be done during TypeFloat
+      // generation.
+      if (!BM->isAllowedToUseExtension(ExtensionID::SPV_EXT_float8) &&
+          !BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_int4) &&
+          !BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_float4)) {
+        std::string ErrorStr =
+            "One of the following extensions: SPV_EXT_float8, SPV_INTEL_float4"
+            "SPV_INTEL_int4 should be enabled to process "
+            "conversion builtins";
+        getErrorLog().checkError(false, SPIRVEC_RequiresExtension, F, ErrorStr);
+      }
+      return nullptr;
+    }
+  }
+
   SPIRVTypeFunction *BFT =
       static_cast<SPIRVTypeFunction *>(transScavengedType(F));
   SPIRVFunction *BF =
       static_cast<SPIRVFunction *>(mapValue(F, BM->addFunction(BFT)));
   BF->setFunctionControlMask(transFunctionControlMask(F));
   if (F->hasName()) {
-    if (isKernel(F)) {
-      /* strip the prefix as the runtime will be looking for this name */
-      std::string Prefix = kSPIRVName::EntrypointPrefix;
-      std::string Name = F->getName().str();
-      BM->setName(BF, Name.substr(Prefix.size()));
-    } else {
-      if (isUniformGroupOperation(F))
-        BM->getErrorLog().checkError(
-            BM->isAllowedToUseExtension(
-                ExtensionID::SPV_KHR_uniform_group_instructions),
-            SPIRVEC_RequiresExtension, "SPV_KHR_uniform_group_instructions\n");
-      BM->setName(BF, F->getName().str());
-    }
+    if (isUniformGroupOperation(F))
+      BM->getErrorLog().checkError(
+          BM->isAllowedToUseExtension(
+              ExtensionID::SPV_KHR_uniform_group_instructions),
+          SPIRVEC_RequiresExtension, "SPV_KHR_uniform_group_instructions\n");
+    BM->setName(BF, F->getName().str());
   }
   if (!isKernel(F) && F->getLinkage() != GlobalValue::InternalLinkage)
     BF->setLinkageType(transLinkageType(F));
@@ -1653,6 +1669,10 @@ SPIRVValue *LLVMToSPIRVBase::transUnaryInst(UnaryInstruction *U,
       } else {
         BOC = OpCrossWorkgroupCastToPtrINTEL;
       }
+    } else if (isa<ConstantPointerNull>(Cast->getPointerOperand()) &&
+               SrcAddrSpace != SPIRAS_Generic) {
+      SPIRVType *TransTy = transScavengedType(U);
+      return BM->addNullConstant(bcast<SPIRVTypePointer>(TransTy));
     } else {
       getErrorLog().checkError(
           SrcAddrSpace == SPIRAS_Generic, SPIRVEC_InvalidModule, U,
@@ -2195,7 +2215,43 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     unsigned ArgNo = Arg->getArgNo();
     SPIRVFunction *BF = BB->getParent();
     // assert(BF->existArgument(ArgNo));
-    return mapValue(V, BF->getArgument(ArgNo));
+    auto *SPVArg = BF->getArgument(ArgNo);
+
+    if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_untyped_pointers) &&
+        (Arg->hasByValAttr() || Arg->hasStructRetAttr()) &&
+        SPVArg->getType()->isTypePointer() &&
+        !SPVArg->getType()->isTypeUntypedPointerKHR()) {
+      // When SPV_KHR_untyped_pointers extension is enabled, bitcast typed
+      // pointer function arguments to untyped pointers for further usage in the
+      // untyped pointers paradigm.
+      // Do this only for safe cases where it would not require tracking uses of
+      // the original typed pointer argument. Otherwise, just keep the original
+      // typed pointer argument to avoid complex transformations later that may
+      // break SPIR-V validity.
+
+      auto PerformBitcastForArg =
+          [&](SPIRVFunctionParameter *BA) -> SPIRVValue * {
+        // Position to insert bitcast should be right after variable insertion
+        // point in the entry basic block.
+        auto *InsertBB = BF->getBasicBlock(0);
+        auto *InsertPoint = InsertBB->getVariableInsertionPoint();
+        auto *UntypedPtrType = BM->addPointerType(
+            BA->getType()->getPointerStorageClass(), nullptr);
+
+        auto *Bitcast = BM->addUnaryInst(OpBitcast, UntypedPtrType, BA,
+                                         InsertBB, InsertPoint);
+        return Bitcast;
+      };
+
+      for (auto *U : V->users()) {
+        auto *Inst = U->stripPointerCasts();
+        if (isa<LoadInst>(Inst) || isa<StoreInst>(Inst) ||
+            isa<MemCpyInst>(Inst)) {
+          return mapValue(V, PerformBitcastForArg(SPVArg));
+        }
+      }
+    }
+    return mapValue(V, SPVArg);
   }
 
   if (CreateForward)
@@ -4013,6 +4069,8 @@ bool LLVMToSPIRVBase::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::fpbuiltin_sqrt:
   case Intrinsic::fpbuiltin_ldexp:
     // INTEL_CUSTOMIZATION end
+  case Intrinsic::stacksave:
+  case Intrinsic::stackrestore:
     return true;
   default:
     // Unknown intrinsics' declarations should always be translated
@@ -4220,6 +4278,20 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   // also must be registered at isKnownIntrinsic function in order to make
   // -spirv-allow-unknown-intrinsics work correctly.
   auto IID = II->getIntrinsicID();
+  switch (IID) {
+  case Intrinsic::fabs:
+  case Intrinsic::fma:
+  case Intrinsic::maxnum:
+  case Intrinsic::minnum:
+  case Intrinsic::fmuladd: {
+    Type *Ty = II->getType();
+    if (Ty->isBFloatTy())
+      BM->addCapability(internal::CapabilityBFloat16ArithmeticINTEL);
+    break;
+  }
+  default:
+    break;
+  }
   switch (IID) {
   case Intrinsic::assume: {
     // llvm.assume translation is currently supported only within
@@ -4818,16 +4890,17 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       std::vector<SPIRVValue *> Elts(TNumElts, transValue(Val, BB));
       Init = BM->addCompositeConstant(CompositeTy, Elts);
     }
-    SPIRVType *VarTy = transPointerType(AT, SPIRV::SPIRAS_Constant);
-    SPIRVValue *Var = BM->addVariable(VarTy, nullptr, /*isConstant*/ true,
+    SPIRVType *VarTy = transPointerType(AT, SPIRV::SPIRAS_Private);
+    SPIRVBasicBlock *EntryBB = BB->getParent()->getBasicBlock(0);
+    SPIRVValue *Var = BM->addVariable(VarTy, nullptr, /*isConstant*/ false,
                                       spv::internal::LinkageTypeInternal, Init,
-                                      "", StorageClassUniformConstant, nullptr);
+                                      "", StorageClassFunction, EntryBB);
     std::vector<SPIRVWord> MemAccess = GetMemoryAccess(
         MSI, BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_4));
     if (!MemAccess.empty() && MemAccess[0] == MemoryAccessAlignedMask)
       Var->setAlignment(MemAccess[1]);
     SPIRVType *SourceTy =
-        transPointerType(Val->getType(), SPIRV::SPIRAS_Constant);
+        transPointerType(Val->getType(), SPIRV::SPIRAS_Private);
     SPIRVValue *Source = BM->addUnaryInst(OpBitcast, SourceTy, Var, BB);
     SPIRVValue *Target = transValue(MSI->getRawDest(), BB);
     return BM->addCopyMemorySizedInst(Target, Source, CompositeTy->getLength(),
@@ -4845,14 +4918,24 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     Op OC = (II->getIntrinsicID() == Intrinsic::lifetime_start)
                 ? OpLifetimeStart
                 : OpLifetimeStop;
-    int64_t Size = dyn_cast<ConstantInt>(II->getOperand(0))->getSExtValue();
-    if (Size == -1)
-      Size = 0;
-    Value *LLVMPtrOp = II->getOperand(1);
+    int64_t Size = 0;
+    Value *LLVMPtrOp = II->getOperand(0);
+    auto *Alloca = cast<AllocaInst>(LLVMPtrOp);
+    if (Alloca->getAllocatedType()->isSized())
+      Size = M->getDataLayout().getTypeAllocSize(Alloca->getAllocatedType());
+
     unsigned PtrAS = cast<PointerType>(LLVMPtrOp->getType())->getAddressSpace();
     auto *PtrOp = transValue(LLVMPtrOp, BB);
-    if (PtrAS == SPIRAS_Private)
+    // INTEL_CUSTOMIZATION begin
+    // Workaround to make older versions of SPIRVReader working with new
+    // rules of LLVM lifetime intrinsics.
+    // TODO: to remove the W/A.
+    if (PtrAS == SPIRAS_Private) {
+      auto *Int8PtrTy =
+          transPointerType(Type::getInt8Ty(M->getContext()), SPIRAS_Private);
+      PtrOp = BM->addUnaryInst(OpBitcast, Int8PtrTy, PtrOp, BB);
       return BM->addLifetimeInst(OC, PtrOp, Size, BB);
+    }
     // If pointer address space is Generic - use original allocation.
     BM->getErrorLog().checkError(
         PtrAS == SPIRAS_Generic, SPIRVEC_InvalidInstruction, II,
@@ -4860,7 +4943,11 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     if (PtrOp->getOpCode() == OpPtrCastToGeneric) {
       auto *UI = static_cast<SPIRVUnary *>(PtrOp);
       PtrOp = UI->getOperand(0);
+      auto *Int8PtrTy =
+          transPointerType(Type::getInt8Ty(M->getContext()), SPIRAS_Private);
+      PtrOp = BM->addUnaryInst(OpBitcast, Int8PtrTy, PtrOp, BB);
     }
+    // INTEL_CUSTOMIZATION end
     return BM->addLifetimeInst(OC, PtrOp, Size, BB);
   }
   // We don't want to mix translation of regular code and debug info, because
@@ -5041,10 +5128,9 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     }
     SPIRVType *Ty = transScavengedType(II);
     auto *PtrVector = transValue(II->getArgOperand(0), BB);
-    uint32_t Alignment =
-        cast<ConstantInt>(II->getArgOperand(1))->getZExtValue();
-    auto *Mask = transValue(II->getArgOperand(2), BB);
-    auto *FillEmpty = transValue(II->getArgOperand(3), BB);
+    uint32_t Alignment = II->getParamAlign(0).valueOrOne().value();
+    auto *Mask = transValue(II->getArgOperand(1), BB);
+    auto *FillEmpty = transValue(II->getArgOperand(2), BB);
     std::vector<SPIRVWord> Ops = {PtrVector->getId(), Alignment, Mask->getId(),
                                   FillEmpty->getId()};
     return BM->addInstTemplate(internal::OpMaskedGatherINTEL, Ops, BB, Ty);
@@ -5061,9 +5147,8 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     }
     auto *InputVector = transValue(II->getArgOperand(0), BB);
     auto *PtrVector = transValue(II->getArgOperand(1), BB);
-    uint32_t Alignment =
-        cast<ConstantInt>(II->getArgOperand(2))->getZExtValue();
-    auto *Mask = transValue(II->getArgOperand(3), BB);
+    uint32_t Alignment = II->getParamAlign(1).valueOrOne().value();
+    auto *Mask = transValue(II->getArgOperand(2), BB);
     std::vector<SPIRVWord> Ops = {InputVector->getId(), PtrVector->getId(),
                                   Alignment, Mask->getId()};
     return BM->addInstTemplate(internal::OpMaskedScatterINTEL, Ops, BB,
@@ -5318,16 +5403,16 @@ LLVMToSPIRVBase::getFPBuiltinType(IntrinsicInst *II, StringRef &OpName) {
   OpName = Name.split('.').first;
   FPBuiltinType Type =
       StringSwitch<FPBuiltinType>(OpName)
-          .Cases("fadd", "fsub", "fmul", "fdiv", "frem",
+          .Cases({"fadd", "fsub", "fmul", "fdiv", "frem"},
                  FPBuiltinType::REGULAR_MATH)
-          .Cases("sin", "cos", "tan", FPBuiltinType::EXT_1OPS)
-          .Cases("sinh", "cosh", "tanh", FPBuiltinType::EXT_1OPS)
-          .Cases("asin", "acos", "atan", FPBuiltinType::EXT_1OPS)
-          .Cases("asinh", "acosh", "atanh", FPBuiltinType::EXT_1OPS)
-          .Cases("exp", "exp2", "exp10", "expm1", FPBuiltinType::EXT_1OPS)
-          .Cases("log", "log2", "log10", "log1p", FPBuiltinType::EXT_1OPS)
-          .Cases("sqrt", "rsqrt", "erf", "erfc", FPBuiltinType::EXT_1OPS)
-          .Cases("atan2", "pow", "hypot", "ldexp", FPBuiltinType::EXT_2OPS)
+          .Cases({"sin", "cos", "tan"}, FPBuiltinType::EXT_1OPS)
+          .Cases({"sinh", "cosh", "tanh"}, FPBuiltinType::EXT_1OPS)
+          .Cases({"asin", "acos", "atan"}, FPBuiltinType::EXT_1OPS)
+          .Cases({"asinh", "acosh", "atanh"}, FPBuiltinType::EXT_1OPS)
+          .Cases({"exp", "exp2", "exp10", "expm1"}, FPBuiltinType::EXT_1OPS)
+          .Cases({"log", "log2", "log10", "log1p"}, FPBuiltinType::EXT_1OPS)
+          .Cases({"sqrt", "rsqrt", "erf", "erfc"}, FPBuiltinType::EXT_1OPS)
+          .Cases({"atan2", "pow", "hypot", "ldexp"}, FPBuiltinType::EXT_2OPS)
           .Case("sincos", FPBuiltinType::EXT_3OPS)
           .Default(FPBuiltinType::UNKNOWN);
   return Type;
@@ -5479,6 +5564,49 @@ SPIRVValue *LLVMToSPIRVBase::transCallInst(CallInst *CI, SPIRVBasicBlock *BB) {
   return transDirectCallInst(CI, BB);
 }
 
+// Helper function to process mini-float or int4 types for FP conversions.
+// Processes type width, packing, and creates the appropriate SPIRV type.
+// Returns the SPIRV type and outputs vector size information.
+static SPIRVType *
+processMiniFPOrInt4Type(Type *LLVMTy, FPEncodingWrap Encoding,
+                        std::function<Type *(Type *)> GetScalarTy,
+                        SPIRVModule *BM, unsigned &OutVecSize) {
+  Type *ScalarTy = GetScalarTy(LLVMTy);
+  unsigned TyWidth = cast<IntegerType>(ScalarTy)->getBitWidth();
+  unsigned VecSize = 0;
+
+  if (TyWidth == 32) {
+    // Int4 or FP4 packed in 32-bit integer, change type and vector size.
+    assert((Encoding == FPEncodingWrap::E2M1 ||
+            Encoding == FPEncodingWrap::Integer) &&
+           "Unknown FP encoding");
+    assert(!isLLVMCooperativeMatrixType(LLVMTy) &&
+           "FP4 and Int4 matrices must not be packed");
+    VecSize = 8;
+    TyWidth = 4;
+  } else if (TyWidth == 8 && (Encoding == FPEncodingWrap::E2M1 ||
+                              Encoding == FPEncodingWrap::Integer)) {
+    assert(!isLLVMCooperativeMatrixType(LLVMTy) &&
+           "FP4 and Int4 matrices must not be packed");
+    // Int4 or FP4 packed in 8-bit integer, change type and vector size.
+    VecSize = 2;
+    TyWidth = 4;
+  } else {
+    if (LLVMTy->isVectorTy())
+      VecSize = cast<VectorType>(LLVMTy)->getElementCount().getFixedValue();
+  }
+
+  SPIRVType *Ty;
+  if (Encoding == FPEncodingWrap::Integer) {
+    Ty = BM->addIntegerType(TyWidth);
+  } else {
+    Ty = BM->addFloatType(TyWidth, Encoding);
+  }
+
+  OutVecSize = VecSize;
+  return Ty;
+}
+
 SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
                                                  SPIRVBasicBlock *BB) {
   SPIRVExtInstSetKind ExtSetKind = SPIRVEIS_Count;
@@ -5498,9 +5626,120 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
       return BV;
   }
 
+  if (isInternalSPIRVBuiltin(MangledName, DemangledName)) {
+    // Logic of the code below is described in
+    // docs/SPIRVMiniFloatsRepresentationInLLVM.rst
+    // A quick recap of the document:
+    // For FP4 and FP8 types (which don't have appropriate counterparts in LLVM)
+    // the translator expect to see external function calls with __builtin_spirv
+    // prefix, names of the functions encode the used in the conversion
+    // FP types and will be used by the translator for proper TypeFloat values
+    // generation. Since in LLVM IR FP8 types are represented by
+    // integer type, we have to insert bitcasts for dependent values that expect
+    // integer inputs or produces integer output that is used in the conversion.
+    if (SPIRV::FPConvertToEncodingMap::find(DemangledName)) {
+      FPConversionDesc FPDesc =
+          SPIRV::FPConvertToEncodingMap::map(DemangledName);
+      Value *Src = CI->getOperand(0);
+      Type *LLVMSrcTy = Src->getType();
+      Type *LLVMDstTy = CI->getType();
+      SPIRVType *SrcTy = nullptr;
+      SPIRVType *DstTy = nullptr;
+
+      auto GetScalarTy = [&](Type *Ty) -> Type * {
+        if (isLLVMCooperativeMatrixType(Ty))
+          return cast<TargetExtType>(Ty)->getTypeParameter(0);
+        return Ty->getScalarType();
+      };
+
+      // FP types representable in LLVM IR, no need for special handling
+      // Also, int4 matrices remain the same.
+      if (FPDesc.SrcEncoding == FPEncodingWrap::IEEE754 ||
+          FPDesc.SrcEncoding == FPEncodingWrap::BF16 ||
+          (FPDesc.SrcEncoding == FPEncodingWrap::Integer &&
+           isLLVMCooperativeMatrixType(LLVMDstTy)))
+        SrcTy = transType(LLVMSrcTy);
+      if (FPDesc.DstEncoding == FPEncodingWrap::IEEE754 ||
+          FPDesc.DstEncoding == FPEncodingWrap::BF16 ||
+          (FPDesc.DstEncoding == FPEncodingWrap::Integer &&
+           (isLLVMCooperativeMatrixType(LLVMDstTy) ||
+            FPDesc.SrcEncoding == FPEncodingWrap::Integer)))
+        DstTy = transType(LLVMDstTy);
+
+      SPIRVValue *SrcOp = transValue(Src, BB);
+
+      if (!SrcTy) {
+        // Src type is 'mini' float or int4.
+        unsigned SrcVecSize = 0;
+        SrcTy = processMiniFPOrInt4Type(LLVMSrcTy, FPDesc.SrcEncoding,
+                                        GetScalarTy, BM, SrcVecSize);
+
+        if (SrcVecSize > 0)
+          SrcTy = BM->addVectorType(SrcTy, SrcVecSize);
+
+        if (isLLVMCooperativeMatrixType(LLVMSrcTy)) {
+          // Create FP4/FP8 matrix with a new type and insert a bitcast.
+          SrcTy = BM->addCooperativeMatrixKHRType(
+              SrcTy,
+              static_cast<SPIRVTypeCooperativeMatrixKHR *>(transType(LLVMSrcTy))
+                  ->getArgs());
+          SrcOp = BM->addUnaryInst(OpBitcast, SrcTy, SrcOp, BB);
+        } else if (FPDesc.SrcEncoding != FPEncodingWrap::Integer ||
+                   (SrcTy->isTypeVector() && !LLVMSrcTy->isVectorTy())) {
+          // Create bitcast for FP4, FP8 and packed Int4.
+          SrcOp = BM->addUnaryInst(OpBitcast, SrcTy, SrcOp, BB);
+        }
+      }
+      if (!DstTy) {
+        // Dst type is 'mini' float or int4.
+        unsigned DstVecSize = 0;
+        DstTy = processMiniFPOrInt4Type(LLVMDstTy, FPDesc.DstEncoding,
+                                        GetScalarTy, BM, DstVecSize);
+
+        if (isLLVMCooperativeMatrixType(LLVMDstTy))
+          // Create FP8 matrix with a new type.
+          DstTy = BM->addCooperativeMatrixKHRType(
+              DstTy,
+              static_cast<SPIRVTypeCooperativeMatrixKHR *>(transType(LLVMDstTy))
+                  ->getArgs());
+
+        if (DstVecSize > 0)
+          DstTy = BM->addVectorType(DstTy, DstVecSize);
+      }
+
+      std::vector<SPIRVValue *> Ops = {SrcOp};
+      const auto OC = static_cast<Op>(FPDesc.ConvOpCode);
+
+      // Translate operands for stochastic roundings.
+      for (size_t I = 1; I != CI->arg_size(); ++I)
+        Ops.push_back(transValue(CI->getOperand(I), BB));
+
+      SPIRVValue *Conv = BM->addInstTemplate(OC, BM->getIds(Ops), BB, DstTy);
+
+      // Representable in LLVM FP types: bitcast is not needed.
+      if (FPDesc.DstEncoding == FPEncodingWrap::IEEE754 ||
+          FPDesc.DstEncoding == FPEncodingWrap::BF16)
+        return Conv;
+      // Originally not-packed integer.
+      if (FPDesc.DstEncoding == FPEncodingWrap::Integer &&
+          (DstTy->isTypeVector() == LLVMDstTy->isVectorTy() ||
+           isLLVMCooperativeMatrixType(LLVMDstTy)))
+        return Conv;
+      // Need to adjust types: create bitcast for FP8 and packed Int4.
+      SPIRVValue *BitCast =
+          BM->addUnaryInst(OpBitcast, transType(CI->getType()), Conv, BB);
+      return BitCast;
+    }
+  }
+
   SmallVector<std::string, 2> Dec;
   if (isBuiltinTransToExtInst(CI->getCalledFunction(), &ExtSetKind, &ExtOp,
                               &Dec)) {
+    if (const auto *FirstArg = F->getArg(0)) {
+      const auto *Type = FirstArg->getType();
+      if (Type->isBFloatTy())
+        BM->addCapability(internal::CapabilityBFloat16ArithmeticINTEL);
+    }
     if (DemangledName.find("__spirv_ocl_printf") != StringRef::npos) {
       auto *FormatStrPtr = cast<PointerType>(CI->getArgOperand(0)->getType());
       if (FormatStrPtr->getAddressSpace() !=
@@ -6010,7 +6249,7 @@ void LLVMToSPIRVBase::transFunction(Function *I) {
 
   if (isKernel(I)) {
     auto Interface = collectEntryPointInterfaces(BF, I);
-    BM->addEntryPoint(ExecutionModelKernel, BF->getId(), BF->getName(),
+    BM->addEntryPoint(ExecutionModelKernel, BF->getId(), I->getName().str(),
                       Interface);
   }
 }
@@ -6372,9 +6611,8 @@ bool LLVMToSPIRVBase::transMetadata() {
 // Work around to translate kernel_arg_type and kernel_arg_type_qual metadata
 static void transKernelArgTypeMD(SPIRVModule *BM, Function *F, MDNode *MD,
                                  std::string MDName) {
-  std::string Prefix = kSPIRVName::EntrypointPrefix;
-  std::string Name = F->getName().str().substr(Prefix.size());
-  std::string KernelArgTypesMDStr = std::string(MDName) + "." + Name + ".";
+  std::string KernelArgTypesMDStr =
+      std::string(MDName) + "." + F->getName().str() + ".";
   for (const auto &TyOp : MD->operands())
     KernelArgTypesMDStr += cast<MDString>(TyOp)->getString().str() + ",";
   BM->getString(KernelArgTypesMDStr);
@@ -6931,6 +7169,18 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
       return BM->addBinaryInst(OC, transScavengedType(CI),
                                transValue(CI->getArgOperand(0), BB),
                                transValue(CI->getArgOperand(1), BB), BB);
+    } else if (OC == OpSubgroupBlockReadINTEL) {
+      SPIRVType *RetTy = transScavengedType(CI);
+      SPIRVValue *Ptr = transValue(CI->getArgOperand(0), BB);
+
+      if (Ptr->getType()->getPointerElementType() != RetTy &&
+          Ptr->getType()->getPointerElementType()->isTypeUntypedPointerKHR()) {
+        // Bitcast untyped pointer to typed pointer.
+        SPIRVType *ExpectedType = BM->addPointerType(
+            Ptr->getType()->getPointerStorageClass(), RetTy->getScalarType());
+        Ptr = BM->addUnaryInst(OpBitcast, ExpectedType, Ptr, BB);
+      }
+      return BM->addUnaryInst(OC, RetTy, Ptr, BB);
     } else if (CI->arg_size() == 1 && !CI->getType()->isVoidTy() &&
                !hasExecScope(OC) && !isAtomicOpCode(OC)) {
       return BM->addUnaryInst(OC, transScavengedType(CI),
@@ -6980,6 +7230,22 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
           SPArgs.push_back(Val->getId());
         } else {
           SPArgs.push_back(cast<ConstantInt>(Args[I])->getZExtValue());
+        }
+      }
+      if (OC == OpSubgroupBlockWriteINTEL) {
+        // First argument should be a pointer to the same scalar type as the
+        // second argument's component type is. Do the bitcast if the pointer is
+        // untyped.
+        if (BM->getValue(SPArgs[0])->getType()->isTypeUntypedPointerKHR()) {
+          // TODO: rewrite vector of IDs to vector of values?
+          SPIRVType *ScalarTy =
+              BM->getValue(SPArgs[1])->getType()->getScalarType();
+          SPIRVType *NewPtrTy = BM->addPointerType(
+              BM->getValue(SPArgs[0])->getType()->getPointerStorageClass(),
+              ScalarTy);
+          SPIRVValue *NewPtr = BM->addUnaryInst(OpBitcast, NewPtrTy,
+                                                BM->getValue(SPArgs[0]), BB);
+          SPArgs[0] = NewPtr->getId();
         }
       }
       BM->addInstTemplate(SPI, SPArgs, BB, SPRetTy);

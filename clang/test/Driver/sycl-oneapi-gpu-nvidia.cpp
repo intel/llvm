@@ -53,14 +53,14 @@
 // RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE_ENV
 // RUN: not %clang_cl -c -fsycl -fsycl-targets=nvptx64-nvidia-cuda-sycl -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE_ENV
-// BAD_TARGET_TRIPLE_ENV: error: SYCL target is invalid: 'nvptx64-nvidia-cuda-sycl'
+// BAD_TARGET_TRIPLE_ENV: error: invalid or unsupported offload target: 'nvptx64-nvidia-cuda-sycl'
 
 // Check for invalid SYCL triple for NVidia GPUs.
 // RUN: not %clangxx -c -fsycl -fsycl-targets=nvptx-nvidia-cuda -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE
 // RUN: not %clang_cl -c -fsycl -fsycl-targets=nvptx-nvidia-cuda -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE
-// BAD_TARGET_TRIPLE: error: SYCL target is invalid: 'nvptx-nvidia-cuda'
+// BAD_TARGET_TRIPLE: error: invalid or unsupported offload target: 'nvptx-nvidia-cuda'
 
 /// Test for proper creation of fat object
 // RUN: %clangxx -c -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_50 \
@@ -82,9 +82,9 @@
 
 /// NVIDIA Test phases, BoundArch settings used for -device target. Additional
 /// offload action used for compilation and backend compilation.
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_50 -fno-sycl-device-lib=all \
+// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_50 --no-offloadlib \
 // RUN:   -fno-sycl-instrument-device-code --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
-// RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/share/clc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
+// RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/libclc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
 // RUN:   -target x86_64-unknown-linux-gnu -ccc-print-phases %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=NVIDIA_CHECK_PHASES
 // NVIDIA_CHECK_PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
@@ -98,15 +98,14 @@
 // NVIDIA_CHECK_PHASES: 8: assembler, {7}, object, (host-sycl)
 // NVIDIA_CHECK_PHASES: 9: linker, {4}, ir, (device-sycl, sm_50)
 // NVIDIA_CHECK_PHASES: 10: input, "{{.*}}libspirv-nvptx64{{.*}}", ir, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 11: input, "{{.*}}libdevice{{.*}}", ir, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 12: linker, {9, 10, 11}, ir, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 13: sycl-post-link, {12}, ir, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 14: file-table-tform, {13}, ir, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 15: backend, {14}, assembler, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 16: assembler, {15}, object, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 17: linker, {15, 16}, cuda-fatbin, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 18: foreach, {14, 17}, cuda-fatbin, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 19: file-table-tform, {13, 18}, tempfiletable, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 20: clang-offload-wrapper, {19}, object, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 21: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {20}, object
-// NVIDIA_CHECK_PHASES: 22: linker, {8, 21}, image, (host-sycl)
+// NVIDIA_CHECK_PHASES: 11: linker, {9, 10}, ir, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 12: sycl-post-link, {11}, ir, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 13: file-table-tform, {12}, ir, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 14: backend, {13}, assembler, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 15: assembler, {14}, object, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 16: linker, {14, 15}, cuda-fatbin, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 17: foreach, {13, 16}, cuda-fatbin, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 18: file-table-tform, {12, 17}, tempfiletable, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 19: clang-offload-wrapper, {18}, object, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 20: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {19}, object
+// NVIDIA_CHECK_PHASES: 21: linker, {8, 20}, image, (host-sycl)

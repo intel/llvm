@@ -114,10 +114,13 @@ public:
   bool enableScalableVectorization() const override {
     return ST->hasVInstructions();
   }
+  bool preferPredicateOverEpilogue(TailFoldingInfo *TFI) const override {
+    return ST->hasVInstructions();
+  }
   TailFoldingStyle
   getPreferredTailFoldingStyle(bool IVUpdateMayOverflow) const override {
-    return ST->hasVInstructions() ? TailFoldingStyle::Data
-                                  : TailFoldingStyle::DataWithoutLaneMask;
+    return ST->hasVInstructions() ? TailFoldingStyle::DataWithEVL
+                                  : TailFoldingStyle::None;
   }
   std::optional<unsigned> getMaxVScale() const override;
   std::optional<unsigned> getVScaleForTuning() const override;
@@ -129,7 +132,7 @@ public:
 
   unsigned getMaximumVF(unsigned ElemWidth, unsigned Opcode) const override;
 
-  bool preferAlternateOpcodeVectorization() const override { return false; }
+  bool preferAlternateOpcodeVectorization() const override;
 
   bool preferEpilogueVectorization() const override {
     // Epilogue vectorization is usually unprofitable - tail folding or
@@ -138,9 +141,10 @@ public:
     return false;
   }
 
+  bool shouldConsiderVectorizationRegPressure() const override { return true; }
+
   InstructionCost
-  getMaskedMemoryOpCost(unsigned Opcode, Type *Src, Align Alignment,
-                        unsigned AddressSpace,
+  getMaskedMemoryOpCost(const MemIntrinsicCostAttributes &MICA,
                         TTI::TargetCostKind CostKind) const override;
 
   InstructionCost
@@ -154,6 +158,9 @@ public:
 
   void getPeelingPreferences(Loop *L, ScalarEvolution &SE,
                              TTI::PeelingPreferences &PP) const override;
+
+  bool getTgtMemIntrinsic(IntrinsicInst *Inst,
+                          MemIntrinsicInfo &Info) const override;
 
   unsigned getMinVectorRegisterBitWidth() const override {
     return ST->useRVVForFixedLengthVectors() ? 16 : 0;
@@ -173,6 +180,10 @@ public:
   InstructionCost
   getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
                         TTI::TargetCostKind CostKind) const override;
+
+  InstructionCost
+  getAddressComputationCost(Type *PTy, ScalarEvolution *SE, const SCEV *Ptr,
+                            TTI::TargetCostKind CostKind) const override;
 
   InstructionCost getInterleavedMemoryOpCost(
       unsigned Opcode, Type *VecTy, unsigned Factor, ArrayRef<unsigned> Indices,
@@ -240,6 +251,11 @@ public:
                                      unsigned Index, const Value *Op0,
                                      const Value *Op1) const override;
 
+  InstructionCost
+  getIndexedVectorInstrCostFromEnd(unsigned Opcode, Type *Val,
+                                   TTI::TargetCostKind CostKind,
+                                   unsigned Index) const override;
+
   InstructionCost getArithmeticInstrCost(
       unsigned Opcode, Type *Ty, TTI::TargetCostKind CostKind,
       TTI::OperandValueInfo Op1Info = {TTI::OK_AnyValue, TTI::OP_None},
@@ -269,11 +285,13 @@ public:
   }
 
   bool isLegalMaskedLoad(Type *DataType, Align Alignment,
-                         unsigned /*AddressSpace*/) const override {
+                         unsigned /*AddressSpace*/,
+                         TTI::MaskKind /*MaskKind*/) const override {
     return isLegalMaskedLoadStore(DataType, Alignment);
   }
   bool isLegalMaskedStore(Type *DataType, Align Alignment,
-                          unsigned /*AddressSpace*/) const override {
+                          unsigned /*AddressSpace*/,
+                          TTI::MaskKind /*MaskKind*/) const override {
     return isLegalMaskedLoadStore(DataType, Alignment);
   }
 
@@ -364,6 +382,8 @@ public:
 
     switch (RdxDesc.getRecurrenceKind()) {
     case RecurKind::Add:
+    case RecurKind::Sub:
+    case RecurKind::AddChainWithSubs:
     case RecurKind::And:
     case RecurKind::Or:
     case RecurKind::Xor:
@@ -397,6 +417,10 @@ public:
   }
 
   bool enableInterleavedAccessVectorization() const override { return true; }
+
+  bool enableMaskedInterleavedAccessVectorization() const override {
+    return ST->hasVInstructions();
+  }
 
   unsigned getMinTripCountTailFoldingThreshold() const override;
 

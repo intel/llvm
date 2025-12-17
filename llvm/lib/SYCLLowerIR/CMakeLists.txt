@@ -39,7 +39,6 @@ add_llvm_component_library(LLVMSYCLLowerIR
   DeviceGlobals.cpp
   ESIMD/LowerESIMDVLoadVStore.cpp
   ESIMD/LowerESIMDSlmReservation.cpp
-  HostPipes.cpp
   LowerInvokeSimd.cpp
   LowerWGLocalMemory.cpp
   LowerWGScope.cpp
@@ -48,7 +47,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   SYCLAddOptLevelAttribute.cpp
   SYCLConditionalCallOnDevice.cpp
   SYCLCreateNVVMAnnotations.cpp
-  SYCLDeviceLibReqMask.cpp
+  SYCLDeviceLibBF16.cpp
   SYCLDeviceRequirements.cpp
   SYCLKernelParamOptInfo.cpp
   SYCLJointMatrixTransform.cpp
@@ -62,7 +61,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   GlobalOffset.cpp
   TargetHelpers.cpp
 
-  SanitizerKernelMetadata.cpp
+  SanitizerPostOptimizer.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR

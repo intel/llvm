@@ -34,7 +34,7 @@ function(add_sycl_unittest_internal test_dirname link_variant is_preview)
   # Chaning CMAKE_CURRENT_BINARY_DIR should not affect this variable in its
   # parent scope.
   if (${is_preview})
-    set(CMAKE_CURRENT_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/Preview")
+      set(CMAKE_CURRENT_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/Preview")
   endif()
 
   if ("${link_variant}" MATCHES "SHARED")
@@ -150,7 +150,6 @@ function(add_sycl_unittest_internal test_dirname link_variant is_preview)
         -Wno-inconsistent-missing-override
     )
   endif()
-  
   target_compile_definitions(${test_dirname} PRIVATE SYCL_DISABLE_FSYCL_SYCLHPP_WARNING)
 endfunction()
 
@@ -158,8 +157,11 @@ endfunction()
 #
 # Will compile the list of files together to create two builds, with and without
 # the SYCL preview features enabled.
-# Produces two binaries, named `basename(test_name_prefix_non_preview)` and `basename(test_name_prefix_preview)`
+# Produces two binaries, named `basename(test_name_prefix_Non_Preview_Tests)` and `basename(test_name_prefix_Preview_Tests)`
+# Note: in case of changing test names below, please also adjust the test suffix
+# in sycl/test/Unit/lit.cfg.py in the line which looks like this:
+#   `config.test_format = lit.formats.GoogleTest(config.llvm_build_mode, <...>)`
 macro(add_sycl_unittest test_name_prefix link_variant)
-  add_sycl_unittest_internal(${test_name_prefix}_non_preview ${link_variant} FALSE ${ARGN})
-  add_sycl_unittest_internal(${test_name_prefix}_preview ${link_variant} TRUE ${ARGN})
+  add_sycl_unittest_internal(${test_name_prefix}_Non_Preview_Tests ${link_variant} FALSE ${ARGN})
+  add_sycl_unittest_internal(${test_name_prefix}_Preview_Tests ${link_variant} TRUE ${ARGN})
 endmacro()

@@ -67,7 +67,7 @@ runs:
       cmake -GNinja -B build-e2e -S./llvm/sycl/test-e2e -DCMAKE_CXX_COMPILER="${{ inputs.sycl_compiler || '$(which clang++).exe' }}" -DLEVEL_ZERO_LIBS_DIR="D:\\github\\level-zero_win-sdk\\lib" -DLEVEL_ZERO_INCLUDE="D:\\github\\level-zero_win-sdk\\include" -DLLVM_LIT="..\\llvm\\llvm\\utils\\lit\\lit.py" ${{ steps.cmake_opts.outputs.opts }}
 
   - name: Keep track of files after configuring E2E step
-    if: ${{ always() && !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only'}}
+    if: ${{ !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only' }}
     shell: bash
     run: ls build-e2e > e2econf_files.txt
 
@@ -76,7 +76,7 @@ runs:
     continue-on-error: true
     shell: bash
     env:
-      LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time ${{ inputs.e2e_testing_mode == 'run-only' && 1200 || 3600 }} --time-tests --param print_features=True --param test-mode=${{ inputs.testing_mode }} --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
+      LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time ${{ inputs.testing_mode == 'run-only' && 1200 || 3600 }} --time-tests --param print_features=True --param test-mode=${{ inputs.testing_mode }} --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
     run: |
       cmake --build build-e2e --target check-sycl-e2e > e2e.log 2>&1
   # Two steps below are duplicated between Lin/Win actions, updates must change both
@@ -103,21 +103,25 @@ runs:
   # CMake issues related to absolute paths we reconfigure the build-e2e
   # folder on the run system.
   - name: Remove E2E configuration files
-    if: ${{ always() && !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only'}}
+    if: ${{ !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only' }}
     shell: bash
     run: |
       for FILE in $(cat e2econf_files.txt); do rm -r build-e2e/$FILE; done
       rm e2econf_files.txt
 
   - name: Pack E2E test binaries
-    if: ${{ always() && !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only'}}
+    if: ${{ !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only' }}
     shell: bash
     run: |
       tar -czf e2e_bin.tar.gz -C build-e2e .
   - name: Upload E2E test binaries
-    if: ${{ always() && !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only'}}
+    if: ${{ !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only' }}
     uses: actions/upload-artifact@v4
     with:
       name: ${{ inputs.binaries_artifact }}
       path: e2e_bin.tar.gz
       retention-days: ${{ inputs.retention-days }}
+  - name: Cleanup E2E tests
+    if: ${{ !cancelled() }}
+    shell: bash
+    run: rm -rf build-e2e

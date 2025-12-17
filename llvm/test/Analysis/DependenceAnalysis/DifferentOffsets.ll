@@ -11,7 +11,7 @@
 define i32 @alias_with_different_offsets(ptr nocapture %A) {
 ; CHECK-LABEL: 'alias_with_different_offsets'
 ; CHECK-NEXT:  Src: store i32 2, ptr %arrayidx, align 1 --> Dst: store i32 2, ptr %arrayidx, align 1
-; CHECK-NEXT:    da analyze - none!
+; CHECK-NEXT:    da analyze - confused!
 ; CHECK-NEXT:  Src: store i32 2, ptr %arrayidx, align 1 --> Dst: %0 = load i32, ptr %A, align 1
 ; CHECK-NEXT:    da analyze - confused!
 ; CHECK-NEXT:  Src: %0 = load i32, ptr %A, align 1 --> Dst: %0 = load i32, ptr %A, align 1
@@ -149,11 +149,10 @@ define void @multidim_accesses(ptr %A) {
 ; CHECK-NEXT:  Src: store i32 1, ptr %idx0, align 4 --> Dst: store i32 1, ptr %idx0, align 4
 ; CHECK-NEXT:    da analyze - none!
 ; CHECK-NEXT:  Src: store i32 1, ptr %idx0, align 4 --> Dst: store i32 1, ptr %idx1, align 4
-; CHECK-NEXT:    da analyze - consistent output [0 0 0|<]!
+; CHECK-NEXT:    da analyze - output [<= * *|<]!
 ; CHECK-NEXT:  Src: store i32 1, ptr %idx1, align 4 --> Dst: store i32 1, ptr %idx1, align 4
 ; CHECK-NEXT:    da analyze - none!
 ;
-; FIXME: the dependence distance is not constant. Distance vector should be [* * *|<]!
 ; for (i = 0; i < 256; i++)
 ;   for (j = 0; j < 256; j++)
 ;      for (k = 0; k < 256; k++) {
@@ -207,11 +206,11 @@ end:
 ;        *((long long *)idx) = 1;
 ;      }
 ;
-; FIXME: There are loop-carried dependencies across iterations in the store.
+; There are loop-carried dependencies across iterations in the store.
 define void @multidim_accesses2(ptr %A) {
 ; CHECK-LABEL: 'multidim_accesses2'
 ; CHECK-NEXT:  Src: store i64 1, ptr %idx, align 4 --> Dst: store i64 1, ptr %idx, align 4
-; CHECK-NEXT:    da analyze - none!
+; CHECK-NEXT:    da analyze - confused!
 ;
 entry:
   br label %for.i

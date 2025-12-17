@@ -9,3 +9,6 @@
 // Test -O0 with `--offload-new-driver`
 // RUN: %{run-aux} %clangxx %O0 -fsycl -fsycl-targets=spir64-x86_64 %S/Inputs/aot.cpp
 // RUN: %{run} %t.out
+
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142

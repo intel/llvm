@@ -1,6 +1,5 @@
 ;; Test to check that freeze instruction does not cause a crash
-; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: llvm-spirv %s -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; All freeze instructions should be deleted and uses of freeze's result should be replaced
 ; with freeze's source or a random constant if freeze's source is poison or undef.

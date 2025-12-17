@@ -14,11 +14,6 @@
 #include <type_traits>
 #include <variant>
 
-/// This macro must be defined to 1 when SYCL implementation allows user
-/// applications to explicitly declare certain class types as device copyable
-/// by adding specializations of is_device_copyable type trait class.
-#define SYCL_DEVICE_COPYABLE 1
-
 namespace sycl {
 inline namespace _V1 {
 /// is_device_copyable is a user specializable class template to indicate

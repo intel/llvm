@@ -29,23 +29,17 @@
 
 namespace ur_lib {
 ///////////////////////////////////////////////////////////////////////////////
-context_t *getContext() { return context_t::get_direct(); }
-
-///////////////////////////////////////////////////////////////////////////////
 context_t::context_t() { parseEnvEnabledLayers(); }
 
-///////////////////////////////////////////////////////////////////////////////
-context_t::~context_t() {}
-
 void context_t::parseEnvEnabledLayers() {
-  auto maybeEnableEnvVarMap = getenv_to_map("UR_ENABLE_LAYERS", false);
-  if (!maybeEnableEnvVarMap.has_value()) {
+  auto maybeEnableEnvVarVec = getenv_to_vec("UR_ENABLE_LAYERS");
+  if (!maybeEnableEnvVarVec.has_value()) {
     return;
   }
-  auto enableEnvVarMap = maybeEnableEnvVarMap.value();
+  auto enableEnvVarVec = maybeEnableEnvVarVec.value();
 
-  for (auto &key : enableEnvVarMap) {
-    enabledLayerNames.insert(key.first);
+  for (auto &layer : enableEnvVarVec) {
+    enabledLayerNames.insert(layer);
   }
 }
 
