@@ -59,13 +59,6 @@ on:
           - 'false'
           - 'true'
         default: 'true'
-      exit_on_failure:
-        description: Fail benchmark script on any error. Limit number of iterations to just test correctness.
-        type: choice
-        options:
-          - 'false'
-          - 'true'
-        default: 'false'
       runner:
         description: Self-hosted runner to use for the benchmarks
         type: choice
@@ -78,6 +71,13 @@ on:
         options:
           - 'level_zero:gpu'
           - 'level_zero_v2:gpu'
+      exit_on_failure:
+        description: Fail benchmark script on any error. If true, limit number of iterations to just test correctness.
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+        default: 'false'
       # Special input to trigger nightly benchmarking; rest of inputs are ignored in that case.
       trigger_nightly:
         description: Trigger nightly benchmarking (run and save Baseline)
