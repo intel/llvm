@@ -24,7 +24,7 @@ using _iml_half_internal = uint16_t;
 using _iml_bf16_internal = uint16_t;
 
 #include <sycl/bit_cast.hpp>
-#include <sycl/builtins.hpp>
+#include <sycl/detail/defines_elementary.hpp>
 #include <sycl/ext/intel/math/imf_fp_conversions.hpp>
 #include <sycl/ext/intel/math/imf_half_trivial.hpp>
 #include <sycl/ext/intel/math/imf_integer_utils.hpp>

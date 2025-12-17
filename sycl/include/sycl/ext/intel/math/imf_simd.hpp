@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <sycl/detail/defines_elementary.hpp>
 #include <type_traits>
 
 namespace sycl {
