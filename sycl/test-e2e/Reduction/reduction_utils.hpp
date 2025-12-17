@@ -365,7 +365,7 @@ int testInner(queue &Q, OptionalIdentity<T, HasIdentity> Identity, T Init,
 
   // Compute.
   Q.submit([&](handler &CGH) {
-    // Helper for creating the reductions depending on the existance of an
+    // Helper for creating the reductions depending on the existence of an
     // identity.
     auto CreateReduction = [&]() {
       if constexpr (HasIdentity) {
@@ -476,7 +476,7 @@ int testUSMInner(queue &Q, OptionalIdentity<T, HasIdentity> Identity, T Init,
 
   // Compute.
   Q.submit([&](handler &CGH) {
-     // Helper for creating the reductions depending on the existance of an
+     // Helper for creating the reductions depending on the existence of an
      // identity.
      auto CreateReduction = [&]() {
        if constexpr (HasIdentity) {
