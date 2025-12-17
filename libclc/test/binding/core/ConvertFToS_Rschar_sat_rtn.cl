@@ -18,15 +18,15 @@ test___spirv_ConvertFToS_Rschar_sat_rtn(__clc_fp32_t args_0) {
 }
 
 #ifdef cl_khr_fp64
-__attribute__((overloadable))
-__clc_schar_t test___spirv_ConvertFToS_Rschar_sat_rtn(__clc_fp64_t args_0) {
+__attribute__((overloadable)) __clc_schar_t
+test___spirv_ConvertFToS_Rschar_sat_rtn(__clc_fp64_t args_0) {
   return __spirv_ConvertFToS_Rschar_sat_rtn(args_0);
 }
 
 #endif
 #ifdef cl_khr_fp16
-__attribute__((overloadable))
-__clc_schar_t test___spirv_ConvertFToS_Rschar_sat_rtn(__clc_fp16_t args_0) {
+__attribute__((overloadable)) __clc_schar_t
+test___spirv_ConvertFToS_Rschar_sat_rtn(__clc_fp16_t args_0) {
   return __spirv_ConvertFToS_Rschar_sat_rtn(args_0);
 }
 
