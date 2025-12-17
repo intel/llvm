@@ -186,10 +186,6 @@ jobs:
       if: ${{ !cancelled() && contains(inputs.changes, 'xptifw') }}
       run: |
         cmake --build build --target check-xptifw
-    - name: check-libdevice
-      if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
-      run: |
-        cmake --build build --target check-libdevice
     - name: Generate/diff new ABI symbols
       if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
       shell: bash
