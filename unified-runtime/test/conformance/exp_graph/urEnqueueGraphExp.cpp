@@ -9,12 +9,20 @@
 
 #include <vector>
 
-using urEnqueueGraphExpTest = uur::urGraphExecutableExpTest;
+struct urEnqueueGraphExpTest : uur::urGraphExecutableExpTest {
+  void SetUp() override {
+    UUR_RETURN_ON_FATAL_FAILURE(uur::urGraphExecutableExpTest::SetUp());
+
+    // TODO: Re-enable urEnqueueGraph tests on L0V2.
+    // See: https://github.com/intel/llvm/issues/20884.
+    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+  }
+};
 
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueGraphExpTest);
 
 TEST_P(urEnqueueGraphExpTest, Success) {
-  verifyData(false);
+  ASSERT_NO_FATAL_FAILURE(verifyData(false));
   ASSERT_SUCCESS(urEnqueueGraphExp(queue, exGraph, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -41,12 +49,12 @@ TEST_P(urEnqueueGraphExpTest, InvalidNullHandleExGraph) {
 
 TEST_P(urEnqueueGraphExpTest, InvalidEventWaitListArray) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST,
-                   urEnqueueGraphExp(queue, nullptr, 1, nullptr, nullptr));
+                   urEnqueueGraphExp(queue, exGraph, 1, nullptr, nullptr));
 }
 
 TEST_P(urEnqueueGraphExpTest, InvalidEventWaitListSize) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST,
-                   urEnqueueGraphExp(queue, nullptr, 0,
+                   urEnqueueGraphExp(queue, exGraph, 0,
                                      (ur_event_handle_t *)0xC0FFEE, nullptr));
 }
 

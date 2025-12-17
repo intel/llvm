@@ -682,13 +682,6 @@ detail::EventImplPtr handler::finalize() {
         std::move(impl->CGData), MCodeLoc));
     break;
   }
-  case detail::CGType::ReadWriteHostPipe: {
-    CommandGroup.reset(new detail::CGReadWriteHostPipe(
-        impl->HostPipeName, impl->HostPipeBlocking, impl->HostPipePtr,
-        impl->HostPipeTypeSize, impl->HostPipeRead, std::move(impl->CGData),
-        MCodeLoc));
-    break;
-  }
   case detail::CGType::ExecCommandBuffer: {
     detail::queue_impl *Queue = impl->get_queue_or_null();
     std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> ParentGraph =
@@ -897,19 +890,6 @@ void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
 }
 
 using namespace sycl::detail;
-bool handler::DisableRangeRounding() {
-  return SYCLConfig<SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING>::get();
-}
-
-bool handler::RangeRoundingTrace() {
-  return SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE>::get();
-}
-
-void handler::GetRangeRoundingSettings(size_t &MinFactor, size_t &GoodFactor,
-                                       size_t &MinRange) {
-  SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS>::GetSettings(
-      MinFactor, GoodFactor, MinRange);
-}
 
 void handler::memcpy(void *Dest, const void *Src, size_t Count) {
   throwIfActionIsCreated();
@@ -1540,26 +1520,6 @@ backend handler::getDeviceBackend() const {
   return impl->get_device().getBackend();
 }
 
-void handler::ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
-                                       size_t Size, bool Block) {
-  impl->HostPipeName = std::string_view(Name);
-  impl->HostPipePtr = Ptr;
-  impl->HostPipeTypeSize = Size;
-  impl->HostPipeBlocking = Block;
-  impl->HostPipeRead = 1;
-  setType(detail::CGType::ReadWriteHostPipe);
-}
-
-void handler::ext_intel_write_host_pipe(detail::string_view Name, void *Ptr,
-                                        size_t Size, bool Block) {
-  impl->HostPipeName = std::string_view(Name);
-  impl->HostPipePtr = Ptr;
-  impl->HostPipeTypeSize = Size;
-  impl->HostPipeBlocking = Block;
-  impl->HostPipeRead = 0;
-  setType(detail::CGType::ReadWriteHostPipe);
-}
-
 void handler::memcpyToDeviceGlobal(const void *DeviceGlobalPtr, const void *Src,
                                    bool IsDeviceImageScoped, size_t NumBytes,
                                    size_t Offset) {
@@ -1662,27 +1622,6 @@ kernel_bundle<bundle_state::input> handler::getKernelBundle() const {
       *KernelBundleImplPtr);
 }
 
-std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
-  device_impl &DeviceImpl = impl->get_device();
-  std::array<size_t, 3> UrResult = {};
-  auto Ret = DeviceImpl.getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
-      DeviceImpl.getHandleRef(),
-      UrInfoCode<
-          ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
-      sizeof(UrResult), &UrResult, nullptr);
-  if (Ret == UR_RESULT_SUCCESS) {
-    return UrResult;
-  }
-  return {};
-}
-
-std::tuple<std::array<size_t, 3>, bool> handler::getMaxWorkGroups_v2() {
-  auto ImmRess = getMaxWorkGroups();
-  if (ImmRess)
-    return {*ImmRess, true};
-  return {std::array<size_t, 3>{0, 0, 0}, false};
-}
-
 void handler::registerDynamicParameter(
     ext::oneapi::experimental::detail::dynamic_parameter_impl *DynamicParamImpl,
     int ArgIndex) {
@@ -1703,6 +1642,10 @@ void handler::registerDynamicParameter(
 }
 
 bool handler::eventNeeded() const { return impl->MEventNeeded; }
+
+device handler::get_device() const {
+  return detail::createSyclObjFromImpl<device>(impl->get_device());
+}
 
 void *handler::storeRawArg(const void *Ptr, size_t Size) {
   impl->CGData.MArgsStorage.emplace_back(Size);
