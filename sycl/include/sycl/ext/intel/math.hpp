@@ -43,7 +43,7 @@ static_assert(sizeof(sycl::half) == sizeof(_iml_half_internal),
 
 /// --------------------------------------------------------------------------
 /// saturate(x) function
-/// Clamp the float input to [+0.0, 1.0].
+/// Clamps the float input to [+0.0, 1.0].
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL float __imf_saturatef(float);
@@ -56,7 +56,7 @@ std::enable_if_t<std::is_same_v<Tp, float>, float> saturate(Tp x) {
 
 /// --------------------------------------------------------------------------
 /// copysign(x) function
-/// Create value with given magnitude, copying sign of second input.
+/// Creates value with given magnitude, copying sign of second input.
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL float __imf_copysignf(float, float);
@@ -85,7 +85,7 @@ std::enable_if_t<std::is_same_v<Tp, sycl::half>, sycl::half> copysign(Tp x,
 
 /// --------------------------------------------------------------------------
 /// ceil(x) function
-/// Return ceiling value of the input.
+/// Returns ceiling value of the input.
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL float __imf_ceilf(float);
@@ -116,7 +116,7 @@ std::enable_if_t<std::is_same_v<Tp, sycl::half2>, sycl::half2> ceil(Tp x) {
 
 /// --------------------------------------------------------------------------
 /// floor(x) function
-/// Return the largest integral value less than or equal to input.
+/// Returns the largest integral value less than or equal to input.
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL float __imf_floorf(float);
@@ -147,7 +147,7 @@ std::enable_if_t<std::is_same_v<Tp, sycl::half2>, sycl::half2> floor(Tp x) {
 
 /// --------------------------------------------------------------------------
 /// inv(x) function
-/// Return 1.0 / x.
+/// Returns 1.0 / x.
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL float __imf_invf(float);
@@ -178,7 +178,7 @@ std::enable_if_t<std::is_same_v<Tp, sycl::half2>, sycl::half2> inv(Tp x) {
 
 /// --------------------------------------------------------------------------
 /// rint(x) function
-/// round a floating-point value to the nearest integer value.
+/// Rounds a floating-point value to the nearest integer value.
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL float __imf_rintf(float);
@@ -209,7 +209,7 @@ std::enable_if_t<std::is_same_v<Tp, sycl::half2>, sycl::half2> rint(Tp x) {
 
 /// --------------------------------------------------------------------------
 /// sqrt(x) function
-/// Return square root of input.
+/// Returns square root of input.
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL float __imf_sqrtf(float);
@@ -240,7 +240,7 @@ std::enable_if_t<std::is_same_v<Tp, sycl::half2>, sycl::half2> sqrt(Tp x) {
 
 /// --------------------------------------------------------------------------
 /// rsqrt(x) function
-/// Return 1.0 / sqrt(x).
+/// Returns 1.0 / sqrt(x).
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL float __imf_rsqrtf(float);
@@ -271,7 +271,7 @@ std::enable_if_t<std::is_same_v<Tp, sycl::half2>, sycl::half2> rsqrt(Tp x) {
 
 /// --------------------------------------------------------------------------
 /// trunc(x) function
-/// Truncate input to the integral part.
+/// Truncates input to the integral part.
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL float __imf_truncf(float);
@@ -302,7 +302,7 @@ std::enable_if_t<std::is_same_v<Tp, sycl::half2>, sycl::half2> trunc(Tp x) {
 
 /// --------------------------------------------------------------------------
 /// rcp64h(x) function
-/// Provide high 32 bits of 1.0 / x.
+/// Provides high 32 bits of 1.0 / x.
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL double __imf_rcp64h(double);

@@ -15,7 +15,7 @@ inline namespace _V1 {
 namespace ext::intel::math {
 
 /// --------------------------------------------------------------------------
-/// Reverse the bit order of unsigned integral type.
+/// Reverses the bit order of unsigned integral type.
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL unsigned __imf_brev(unsigned);
@@ -29,7 +29,7 @@ template <typename Tp = unsigned long long> unsigned long long brevll(Tp x) {
 }
 
 /// --------------------------------------------------------------------------
-/// Return selected bytes from two 32-bit unsigned integers.
+/// Returns selected bytes from two 32-bit unsigned integers.
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL unsigned __imf_byte_perm(unsigned, unsigned, unsigned);
@@ -40,7 +40,7 @@ template <typename Tp = unsigned> unsigned byte_perm(Tp x, Tp y, Tp z) {
 }
 
 /// --------------------------------------------------------------------------
-/// Return maximum/minimum of the integral type input values.
+/// Returns maximum/minimum of the integral type input values.
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL long long __imf_llmax(long long x, long long y);
@@ -86,7 +86,7 @@ unsigned long long ullmin(Tp x, Tp y) {
 }
 
 /// --------------------------------------------------------------------------
-/// Return the number of consecutive leading 0 bits in 32/64-bit integer
+/// Returns the number of consecutive leading 0 bits in 32/64-bit integer
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL int __imf_clz(int);
@@ -98,7 +98,7 @@ template <typename Tp = int> int clz(Tp x) { return __imf_clz(x); }
 template <typename Tp = long long> int clzll(Tp x) { return __imf_clzll(x); }
 
 /// --------------------------------------------------------------------------
-/// Find the position of the LSB set to 1 in a 32/64-bit integer
+/// Finds the position of the LSB set to 1 in a 32/64-bit integer
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL int __imf_ffs(int);
@@ -111,10 +111,10 @@ template <typename Tp = long long> int ffsll(Tp x) { return __imf_ffsll(x); }
 
 /// --------------------------------------------------------------------------
 /// hadd(x), uhadd(x)
-/// Return average of signed/unsigned int type, avoiding overflow in
+/// Returns average of signed/unsigned int type, avoiding overflow in
 /// intermediate sum.
 /// rhadd(x), urhadd(x)
-/// Return rounded average of signed/unsigned int type, avoiding overflow in
+/// Returns rounded average of signed/unsigned int type, avoiding overflow in
 /// intermediate sum.
 /// --------------------------------------------------------------------------
 extern "C" {
@@ -138,13 +138,13 @@ template <typename Tp = unsigned> unsigned uhadd(Tp x, Tp y) {
 
 /// --------------------------------------------------------------------------
 /// mul24(x), umul24(x)
-/// Return the least significant 32 bits of the product of the least
+/// Returns the least significant 32 bits of the product of the least
 /// significant 24 bits of two signed/unsigned integers.
 /// mulhi(x), umulhi(x)
-/// Return the most significant 32 bits of the product of the two 32-bit
+/// Returns the most significant 32 bits of the product of the two 32-bit
 /// signed/unsigned integers.
 /// mul64hi(x), umul64hi(x)
-/// Return the most significant 64 bits of the product of the two 64-bit
+/// Returns the most significant 64 bits of the product of the two 64-bit
 /// signed/unsigned integers.
 /// --------------------------------------------------------------------------
 extern "C" {
@@ -179,7 +179,7 @@ unsigned long long umul64hi(Tp x, Tp y) {
 }
 
 /// --------------------------------------------------------------------------
-/// Count the number of bits that are set to 1 in a 32-bit integer.
+/// Counts the number of bits that are set to 1 in a 32-bit integer.
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL int __imf_popc(unsigned);
@@ -193,7 +193,7 @@ template <typename Tp = unsigned long long> int popcll(Tp x) {
 }
 
 /// --------------------------------------------------------------------------
-/// Return |x - y| + z for unsigned/signed integers
+/// Returns |x - y| + z for unsigned/signed integers
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL unsigned __imf_sad(int, int, unsigned);

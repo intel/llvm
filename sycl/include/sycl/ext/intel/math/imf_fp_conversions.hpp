@@ -20,8 +20,8 @@ inline namespace _V1 {
 namespace ext::intel::math {
 
 /// --------------------------------------------------------------------------
-/// float to integral conversions
-/// Support rounding down/up/to-nearest-even/towards-zero
+/// Float to integral conversions
+/// Supports rounding down/up/to-nearest-even/towards-zero
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL int __imf_float2int_rd(float);
@@ -119,8 +119,8 @@ To float2ull_rz(From x) {
 }
 
 /// --------------------------------------------------------------------------
-/// integral to float conversions
-/// Support rounding down/up/to-nearest-even/towards-zero
+/// Integral to float conversions
+/// Supports rounding down/up/to-nearest-even/towards-zero
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL float __imf_int2float_rd(int);
@@ -218,7 +218,7 @@ To uint2float_rz(From x) {
 }
 
 /// --------------------------------------------------------------------------
-/// Reinterpret bits in float type as int/unsigned int type and vice versa.
+/// Reinterprets bits in float type as int/unsigned int type and vice versa.
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL int __imf_float_as_int(float);
@@ -246,8 +246,8 @@ To uint_as_float(From x) {
 }
 
 /// --------------------------------------------------------------------------
-/// double to float conversions
-/// Support rounding down/up/to-nearest-even/towards-zero
+/// Double to float conversions
+/// Supports rounding down/up/to-nearest-even/towards-zero
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL float __imf_double2float_rd(double);
@@ -277,7 +277,7 @@ To double2float_rz(From x) {
 }
 
 /// --------------------------------------------------------------------------
-/// Reinterpret high/low 32 bits in a double as a signed integer.
+/// Reinterprets high/low 32 bits in a double as a signed integer.
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL int __imf_double2hiint(double);
@@ -293,8 +293,8 @@ template <typename To = int, typename From = double> To double2loint(From x) {
 }
 
 /// --------------------------------------------------------------------------
-/// double to integral conversions
-/// Support rounding down/up/to-nearest-even/towards-zero
+/// Double to integral conversions
+/// Supports rounding down/up/to-nearest-even/towards-zero
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL int __imf_double2int_rd(double);
@@ -392,7 +392,7 @@ To double2ull_rz(From x) {
 }
 
 /// --------------------------------------------------------------------------
-/// Reinterpret bits in double as long long and vice versa.
+/// Reinterprets bits in double as long long and vice versa.
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL long long __imf_double_as_longlong(double);
@@ -410,7 +410,7 @@ To longlong_as_double(From x) {
 }
 
 /// --------------------------------------------------------------------------
-/// Reinterpret 2 32-bit integers as high and low 32-bits in a double value.
+/// Reinterprets 2 32-bit integers as high and low 32-bits in a double value.
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL double __imf_hiloint2double(int, int);
@@ -422,7 +422,7 @@ To hiloint2double(From x, From y) {
 }
 
 /// --------------------------------------------------------------------------
-/// signed and unsigned int type to double conversions in rounding towards-zero
+/// Signed and unsigned int type to double conversions in rounding towards-zero
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL double __imf_int2double_rn(int);
@@ -439,8 +439,8 @@ To uint2double_rn(From x) {
 }
 
 /// --------------------------------------------------------------------------
-/// signed and unsigned long long type to double conversions
-/// Support rounding down/up/to-nearest-even/towards-zero
+/// Signed and unsigned long long type to double conversions
+/// Supports rounding down/up/to-nearest-even/towards-zero
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL double __imf_ll2double_rd(long long);
@@ -494,7 +494,7 @@ To ull2double_rz(From x) {
 }
 
 /// --------------------------------------------------------------------------
-/// half to float conversions
+/// Half to float conversions
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL float __imf_half2float(_iml_half_internal);
@@ -506,8 +506,8 @@ To half2float(From x) {
 }
 
 /// --------------------------------------------------------------------------
-/// float to half conversions
-/// Support rounding down/up/to-nearest-even/towards-zero
+/// Float to half conversions
+/// Supports rounding down/up/to-nearest-even/towards-zero
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL _iml_half_internal __imf_float2half_rd(float);
@@ -537,7 +537,7 @@ To float2half_rz(From x) {
 }
 
 /// --------------------------------------------------------------------------
-/// double to half conversions in rounding to-nearest-even.
+/// Double to half conversions in rounding to-nearest-even.
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL _iml_half_internal __imf_double2half(double);
@@ -549,8 +549,8 @@ To double2half(From x) {
 }
 
 /// --------------------------------------------------------------------------
-/// half to integral type conversions
-/// Support rounding down/up/to-nearest-even/towards-zero
+/// Half to integral type conversions
+/// Supports rounding down/up/to-nearest-even/towards-zero
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL int __imf_half2int_rd(_iml_half_internal);
@@ -700,8 +700,8 @@ To half2ull_rz(From x) {
 }
 
 /// --------------------------------------------------------------------------
-/// integral type to half conversions
-/// Support rounding down/up/to-nearest-even/towards-zero
+/// Integral type to half conversions
+/// Supports rounding down/up/to-nearest-even/towards-zero
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL _iml_half_internal __imf_int2half_rd(int);
@@ -851,7 +851,7 @@ To ull2half_rz(From x) {
 }
 
 /// --------------------------------------------------------------------------
-/// Reinterpret bits in bfloat16 type as short/unsigned short and vice versa.
+/// Reinterprets bits in bfloat16 type as short/unsigned short and vice versa.
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL short __imf_bfloat16_as_short(uint16_t);
@@ -885,7 +885,7 @@ To short_as_bfloat16(From x) {
 }
 
 /// --------------------------------------------------------------------------
-/// bfloat16 to float conversions
+/// Bfloat16 to float conversions
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL float __imf_bfloat162float(uint16_t);
@@ -897,8 +897,8 @@ To bfloat162float(From x) {
 }
 
 /// --------------------------------------------------------------------------
-/// float to bfloat16 conversions
-/// Support rounding down/up/to-nearest-even/towards-zero
+/// Float to bfloat16 conversions
+/// Supports rounding down/up/to-nearest-even/towards-zero
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL uint16_t __imf_float2bfloat16_rd(float);
@@ -938,8 +938,8 @@ To float2bfloat16_rz(From x) {
 }
 
 /// --------------------------------------------------------------------------
-/// integral to bfloat16 conversions
-/// Support rounding down/up/to-nearest-even/towards-zero
+/// Integral to bfloat16 conversions
+/// Supports rounding down/up/to-nearest-even/towards-zero
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL uint16_t __imf_ushort2bfloat16_rd(unsigned short);
@@ -1109,7 +1109,7 @@ To ll2bfloat16_rz(From x) {
 }
 
 /// --------------------------------------------------------------------------
-/// double to bfloat16 conversions in rounding to-nearest-even.
+/// Double to bfloat16 conversions in rounding to-nearest-even.
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL uint16_t __imf_double2bfloat16(double);
@@ -1121,8 +1121,8 @@ To double2bfloat16(From x) {
 }
 
 /// --------------------------------------------------------------------------
-/// bfloat16 to integral conversions
-/// Support rounding down/up/to-nearest-even/towards-zero
+/// Bfloat16 to integral conversions
+/// Supports rounding down/up/to-nearest-even/towards-zero
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL unsigned short __imf_bfloat162ushort_rd(uint16_t);

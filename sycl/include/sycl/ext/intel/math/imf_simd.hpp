@@ -12,125 +12,15 @@
 
 #include <type_traits>
 
-extern "C" {
-unsigned int __imf_vaddss2(unsigned int, unsigned int);
-unsigned int __imf_vaddss4(unsigned int, unsigned int);
-unsigned int __imf_vaddus2(unsigned int, unsigned int);
-unsigned int __imf_vaddus4(unsigned int, unsigned int);
-unsigned int __imf_vsub2(unsigned int, unsigned int);
-unsigned int __imf_vsub4(unsigned int, unsigned int);
-unsigned int __imf_vsubss2(unsigned int, unsigned int);
-unsigned int __imf_vsubss4(unsigned int, unsigned int);
-unsigned int __imf_vsubus2(unsigned int, unsigned int);
-unsigned int __imf_vsubus4(unsigned int, unsigned int);
-unsigned int __imf_vhaddu2(unsigned int, unsigned int);
-unsigned int __imf_vhaddu4(unsigned int, unsigned int);
-unsigned int __imf_vavgs2(unsigned int, unsigned int);
-unsigned int __imf_vavgs4(unsigned int, unsigned int);
-unsigned int __imf_vavgu2(unsigned int, unsigned int);
-unsigned int __imf_vavgu4(unsigned int, unsigned int);
-unsigned int __imf_vcmpeq2(unsigned int, unsigned int);
-unsigned int __imf_vcmpeq4(unsigned int, unsigned int);
-unsigned int __imf_vcmpges2(unsigned int, unsigned int);
-unsigned int __imf_vcmpges4(unsigned int, unsigned int);
-unsigned int __imf_vcmpgeu2(unsigned int, unsigned int);
-unsigned int __imf_vcmpgeu4(unsigned int, unsigned int);
-unsigned int __imf_vcmpgts2(unsigned int, unsigned int);
-unsigned int __imf_vcmpgts4(unsigned int, unsigned int);
-unsigned int __imf_vcmpgtu2(unsigned int, unsigned int);
-unsigned int __imf_vcmpgtu4(unsigned int, unsigned int);
-unsigned int __imf_vcmples2(unsigned int, unsigned int);
-unsigned int __imf_vcmples4(unsigned int, unsigned int);
-unsigned int __imf_vcmpleu2(unsigned int, unsigned int);
-unsigned int __imf_vcmpleu4(unsigned int, unsigned int);
-unsigned int __imf_vcmplts2(unsigned int, unsigned int);
-unsigned int __imf_vcmplts4(unsigned int, unsigned int);
-unsigned int __imf_vcmpltu2(unsigned int, unsigned int);
-unsigned int __imf_vcmpltu4(unsigned int, unsigned int);
-unsigned int __imf_vcmpne2(unsigned int, unsigned int);
-unsigned int __imf_vcmpne4(unsigned int, unsigned int);
-unsigned int __imf_vmaxs2(unsigned int, unsigned int);
-unsigned int __imf_vmaxs4(unsigned int, unsigned int);
-unsigned int __imf_vmaxu2(unsigned int, unsigned int);
-unsigned int __imf_vmaxu4(unsigned int, unsigned int);
-unsigned int __imf_vmins2(unsigned int, unsigned int);
-unsigned int __imf_vmins4(unsigned int, unsigned int);
-unsigned int __imf_vminu2(unsigned int, unsigned int);
-unsigned int __imf_vminu4(unsigned int, unsigned int);
-unsigned int __imf_vseteq2(unsigned int, unsigned int);
-unsigned int __imf_vseteq4(unsigned int, unsigned int);
-unsigned int __imf_vsetne2(unsigned int, unsigned int);
-unsigned int __imf_vsetne4(unsigned int, unsigned int);
-unsigned int __imf_vsetges2(unsigned int, unsigned int);
-unsigned int __imf_vsetges4(unsigned int, unsigned int);
-unsigned int __imf_vsetgeu2(unsigned int, unsigned int);
-unsigned int __imf_vsetgeu4(unsigned int, unsigned int);
-unsigned int __imf_vsetgts2(unsigned int, unsigned int);
-unsigned int __imf_vsetgts4(unsigned int, unsigned int);
-unsigned int __imf_vsetgtu2(unsigned int, unsigned int);
-unsigned int __imf_vsetgtu4(unsigned int, unsigned int);
-unsigned int __imf_vsetles2(unsigned int, unsigned int);
-unsigned int __imf_vsetles4(unsigned int, unsigned int);
-unsigned int __imf_vsetleu2(unsigned int, unsigned int);
-unsigned int __imf_vsetleu4(unsigned int, unsigned int);
-unsigned int __imf_vsetlts2(unsigned int, unsigned int);
-unsigned int __imf_vsetlts4(unsigned int, unsigned int);
-unsigned int __imf_vsetltu2(unsigned int, unsigned int);
-unsigned int __imf_vsetltu4(unsigned int, unsigned int);
-unsigned int __imf_vsads2(unsigned int, unsigned int);
-unsigned int __imf_vsads4(unsigned int, unsigned int);
-unsigned int __imf_vsadu2(unsigned int, unsigned int);
-unsigned int __imf_vsadu4(unsigned int, unsigned int);
-unsigned int __imf_viaddmax_s16x2(unsigned int, unsigned int, unsigned int);
-unsigned int __imf_viaddmax_s16x2_relu(unsigned int, unsigned int,
-                                       unsigned int);
-int __imf_viaddmax_s32(int, int, int);
-int __imf_viaddmax_s32_relu(int, int, int);
-unsigned int __imf_viaddmax_u16x2(unsigned int, unsigned int, unsigned int);
-unsigned int __imf_viaddmax_u32(unsigned int, unsigned int, unsigned int);
-
-unsigned int __imf_viaddmin_s16x2(unsigned int, unsigned int, unsigned int);
-unsigned int __imf_viaddmin_s16x2_relu(unsigned int, unsigned int,
-                                       unsigned int);
-int __imf_viaddmin_s32(int, int, int);
-int __imf_viaddmin_s32_relu(int, int, int);
-unsigned int __imf_viaddmin_u16x2(unsigned int, unsigned int, unsigned int);
-unsigned int __imf_viaddmin_u32(unsigned int, unsigned int, unsigned int);
-unsigned int __imf_vibmax_s16x2(unsigned int, unsigned int, bool *, bool *);
-int __imf_vibmax_s32(int, int, bool *);
-unsigned int __imf_vibmax_u16x2(unsigned int, unsigned int, bool *, bool *);
-unsigned int __imf_vibmax_u32(unsigned int, unsigned int, bool *);
-unsigned int __imf_vibmin_s16x2(unsigned int, unsigned int, bool *, bool *);
-int __imf_vibmin_s32(int, int, bool *);
-unsigned int __imf_vibmin_u16x2(unsigned int, unsigned int, bool *, bool *);
-unsigned int __imf_vibmin_u32(unsigned int, unsigned int, bool *);
-unsigned int __imf_vimax3_s16x2(unsigned int, unsigned int, unsigned int);
-unsigned int __imf_vimax3_s16x2_relu(unsigned int, unsigned int, unsigned int);
-unsigned int __imf_vimin3_s16x2(unsigned int, unsigned int, unsigned int);
-unsigned int __imf_vimin3_s16x2_relu(unsigned int, unsigned int, unsigned int);
-int __imf_vimax3_s32(int, int, int);
-int __imf_vimax3_s32_relu(int, int, int);
-int __imf_vimin3_s32(int, int, int);
-int __imf_vimin3_s32_relu(int, int, int);
-unsigned int __imf_vimax3_u16x2(unsigned int, unsigned int, unsigned int);
-unsigned int __imf_vimax3_u32(unsigned int, unsigned int, unsigned int);
-unsigned int __imf_vimin3_u16x2(unsigned int, unsigned int, unsigned int);
-unsigned int __imf_vimin3_u32(unsigned int, unsigned int, unsigned int);
-unsigned int __imf_vimax_s16x2_relu(unsigned int, unsigned int);
-int __imf_vimax_s32_relu(int, int);
-unsigned int __imf_vimin_s16x2_relu(unsigned int, unsigned int);
-int __imf_vimin_s32_relu(int, int);
-};
-
 namespace sycl {
 inline namespace _V1 {
 namespace ext::intel::math {
 
 /// --------------------------------------------------------------------------
 /// vabs2(x)
-/// Return per-halfword absolute value.
+/// Returns per-halfword absolute value.
 /// vabs4(x)
-/// Return per-byte absolute value.
+/// Returns per-byte absolute value.
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vabs2(unsigned int);
@@ -149,9 +39,9 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vabs4(Tp x) {
 
 /// --------------------------------------------------------------------------
 /// vneg2(x)
-/// Return per-halfword negation.
+/// Returns per-halfword negation.
 /// vneg4(x)
-/// Return per-byte negation.
+/// Returns per-byte negation.
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vneg2(unsigned int);
@@ -170,9 +60,9 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vneg4(Tp x) {
 
 /// --------------------------------------------------------------------------
 /// vnegss2(x)
-/// Return per-halfword negation with signed saturation.
+/// Returns per-halfword negation with signed saturation.
 /// vnegss4(x)
-/// Return per-byte negation with signed saturation.
+/// Returns per-byte negation with signed saturation.
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vnegss2(unsigned int);
@@ -191,9 +81,9 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vnegss4(Tp x) {
 
 /// --------------------------------------------------------------------------
 /// vabsdiffs2(x), vabsdiffu2(x)
-/// Return per-halfword absolute difference of signed/unsigned integer.
+/// Returns per-halfword absolute difference of signed/unsigned integer.
 /// vabsdiffs4(x), vabsdiffu4(x)
-/// Return per-byte absolute difference of signed/unsigned integer.
+/// Returns per-byte absolute difference of signed/unsigned integer.
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vabsdiffs2(unsigned int, unsigned int);
@@ -228,9 +118,9 @@ vabsdiffu4(Tp x, Tp y) {
 
 /// --------------------------------------------------------------------------
 /// vabsss2(x)
-/// Return per-halfword absolute value with signed saturation.
+/// Returns per-halfword absolute value with signed saturation.
 /// vabsss4(x)
-/// Return per-byte absolute value with signed saturation.
+/// Returns per-byte absolute value with signed saturation.
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vabsss2(unsigned int);
@@ -249,9 +139,9 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vabsss4(Tp x) {
 
 /// --------------------------------------------------------------------------
 /// vadd2(x, y)
-/// Return per-halfword unsigned addition ignoring overflow.
+/// Returns per-halfword unsigned addition ignoring overflow.
 /// vadd4(x, y)
-/// Return per-byte unsigned addition ignoring overflow.
+/// Returns per-byte unsigned addition ignoring overflow.
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vadd2(unsigned int, unsigned int);
@@ -270,6 +160,17 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vadd4(Tp x,
   return __imf_vadd4(x, y);
 }
 
+/// --------------------------------------------------------------------------
+/// vaddss2(x, y)
+/// Returns per-halfword signed addition with signed saturation.
+/// vaddss4(x, y)
+/// Returns per-byte signed addition with signed saturation.
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vaddss2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vaddss4(unsigned int, unsigned int);
+};
+
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vaddss2(Tp x,
                                                                          Tp y) {
@@ -281,6 +182,17 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vaddss4(Tp x,
                                                                          Tp y) {
   return __imf_vaddss4(x, y);
 }
+
+/// --------------------------------------------------------------------------
+/// vaddus2(x, y)
+/// Returns per-halfword unsigned addition with unsigned saturation.
+/// vaddus4(x, y)
+/// Returns per-byte unsigned addition with unsigned saturation.
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vaddus2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vaddus4(unsigned int, unsigned int);
+};
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vaddus2(Tp x,
@@ -294,6 +206,17 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vaddus4(Tp x,
   return __imf_vaddus4(x, y);
 }
 
+/// --------------------------------------------------------------------------
+/// vsub2(x, y)
+/// Returns per-halfword unsigned subtraction ignoring overflow.
+/// vsub4(x, y)
+/// Returns per-byte unsigned subtraction ignoring overflow.
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vsub2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vsub4(unsigned int, unsigned int);
+};
+
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vsub2(Tp x,
                                                                        Tp y) {
@@ -305,6 +228,17 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vsub4(Tp x,
                                                                        Tp y) {
   return __imf_vsub4(x, y);
 }
+
+/// --------------------------------------------------------------------------
+/// vsubss2(x, y)
+/// Returns per-halfword signed subtraction with signed saturation.
+/// vsubss4(x, y)
+/// Returns per-byte signed subtraction with signed saturation.
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vsubss2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vsubss4(unsigned int, unsigned int);
+};
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vsubss2(Tp x,
@@ -318,6 +252,17 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vsubss4(Tp x,
   return __imf_vsubss4(x, y);
 }
 
+/// --------------------------------------------------------------------------
+/// vsubus2(x, y)
+/// Returns per-halfword unsigned subtraction with unsigned saturation.
+/// vsubus4(x, y)
+/// Returns per-byte unsigned subtraction with unsigned saturation.
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vsubus2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vsubus4(unsigned int, unsigned int);
+};
+
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vsubus2(Tp x,
                                                                          Tp y) {
@@ -330,6 +275,17 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vsubus4(Tp x,
   return __imf_vsubus4(x, y);
 }
 
+/// --------------------------------------------------------------------------
+/// vhaddu2(x, y)
+/// Returns per-halfword unsigned average.
+/// vhaddu4(x, y)
+/// Returns per-byte unsigned average.
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vhaddu2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vhaddu4(unsigned int, unsigned int);
+};
+
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vhaddu2(Tp x,
                                                                          Tp y) {
@@ -341,6 +297,23 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vhaddu4(Tp x,
                                                                          Tp y) {
   return __imf_vhaddu4(x, y);
 }
+
+/// --------------------------------------------------------------------------
+/// vavgs2(x, y)
+/// Returns per-halfword signed rounded average.
+/// vavgs4(x, y)
+/// Returns per-byte signed rounded average.
+/// vavgu2(x, y)
+/// Returns per-halfword unsigned rounded average.
+/// vavgu4(x, y)
+/// Returns per-byte unsigned rounded average.
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vavgs2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vavgs4(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vavgu2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vavgu4(unsigned int, unsigned int);
+};
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vavgs2(Tp x,
@@ -365,6 +338,38 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vavgu4(Tp x,
                                                                         Tp y) {
   return __imf_vavgu4(x, y);
 }
+
+/// --------------------------------------------------------------------------
+/// Performs per-halfword/byte comparison and returns the combined result.
+/// Splits input unsigned integer into 2 0r 4 parts, compares corresponding
+/// parts. Returns 0xFFFF/0xFF if corresponding comparison succeeds, otherwise
+/// returns 0. The supported comparison includes:
+/// eq(==), ges(>= for signed), geu(>= for unsigned), gts(> for signed),
+/// gtu(> for unsigned), les(<= for signed), leu(<= for unsigned),
+/// lts(< for signed), ltu(< for unsigned), ne(!=).
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vcmpeq2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vcmpeq4(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vcmpges2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vcmpges4(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vcmpgeu2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vcmpgeu4(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vcmpgts2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vcmpgts4(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vcmpgtu2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vcmpgtu4(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vcmples2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vcmples4(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vcmpleu2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vcmpleu4(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vcmplts2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vcmplts4(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vcmpltu2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vcmpltu4(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vcmpne2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vcmpne4(unsigned int, unsigned int);
+};
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vcmpeq2(Tp x,
@@ -486,6 +491,27 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vcmpne4(Tp x,
   return __imf_vcmpne4(x, y);
 }
 
+/// --------------------------------------------------------------------------
+/// vmaxs2(x, y), vmaxu2(x, y)
+/// Returns per-halfword signed/unsigned maximum value.
+/// vmaxs4(x, y), vmaxu4(x, y)
+/// Returns per-byte signed/unsigned maximum value.
+/// vmins2(x, y), vminu2(x, y)
+/// Returns per-halfword signed/unsigned minimum value.
+/// vmins4(x, y), vminu4(x, y)
+/// Returns per-byte signed/unsigned minimum value.
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vmaxs2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vmaxs4(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vmaxu2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vmaxu4(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vmins2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vmins4(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vminu2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vminu4(unsigned int, unsigned int);
+};
+
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vmaxs2(Tp x,
                                                                         Tp y) {
@@ -533,6 +559,33 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vminu4(Tp x,
                                                                         Tp y) {
   return __imf_vminu4(x, y);
 }
+
+/// --------------------------------------------------------------------------
+/// Similar to vcmp* functions but returns 1 if  corresponding comparison
+/// succeeds.
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vseteq2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vseteq4(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vsetne2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vsetne4(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vsetges2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vsetges4(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vsetgeu2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vsetgeu4(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vsetgts2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vsetgts4(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vsetgtu2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vsetgtu4(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vsetles2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vsetles4(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vsetleu2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vsetleu4(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vsetlts2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vsetlts4(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vsetltu2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vsetltu4(unsigned int, unsigned int);
+};
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vseteq2(Tp x,
@@ -654,6 +707,19 @@ vsetltu4(Tp x, Tp y) {
   return __imf_vsetltu4(x, y);
 }
 
+/// --------------------------------------------------------------------------
+/// vsads2(x, y), vsadu2(x, y)
+/// Returns per-halfword sum of absolute difference of signed/unsigned.
+/// vsads4(x, y), vsadu4(x, y)
+/// Returns per-byte sum of absolute difference of signed/unsigned.
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vsads2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vsads4(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vsadu2(unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vsadu4(unsigned int, unsigned int);
+};
+
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vsads2(Tp x,
                                                                         Tp y) {
@@ -677,6 +743,59 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vsadu4(Tp x,
                                                                         Tp y) {
   return __imf_vsadu4(x, y);
 }
+
+/// --------------------------------------------------------------------------
+/// viaddmax_s16x2(x, y, z), viaddmax_u16x2(x, y, z)
+/// Splits 4 bytes of each input into 2 half-word values which are interpreted
+/// as signed/unsigned shorts. For corresponding parts function performs:
+/// max(x_part + y_part), z_part). Partial results are recombined and returned
+/// as unsigned integer.
+/// viaddmax_s32(x, y, z), viaddmax_u32(x, y, z)
+/// Returns max(x + y, z).
+/// viaddmax_s16x2_relu(x, y, z)
+/// Splits 4 bytes of each input into 2 half-word values which are interpreted
+/// as signed shorts. For corresponding parts function performs:
+/// max(max(x_part + y_part, z_part), 0). Partial results are recombined and
+/// returned as unsigned integer.
+/// viaddmax_s32_relu(x, y, z)
+/// Returns max(max(x + y, z), 0).
+/// viaddmin_s16x2(x, y, z), viaddmin_u16x2(x, y, z)
+/// Splits 4 bytes of each input into 2 half-word values which are interpreted
+/// as signed/unsigned shorts. For corresponding parts function performs:
+/// min(x_part + y_part), z_part). Partial results are recombined and returned
+/// as unsigned integer.
+/// viaddmin_s32(x, y, z), viaddmin_u32(x, y, z)
+/// Returns min(x + y, z).
+/// viaddmin_s16x2_relu(x, y, z)
+/// Splits 4 bytes of each input into 2 half-word values which are interpreted
+/// as signed shorts. For corresponding parts function performs:
+/// max(min(x_part + y_part, z_part), 0). Partial results are recombined and
+/// returned as unsigned integer.
+/// viaddmin_s32_relu(x, y, z)
+/// Returns max(min(x + y, z), 0).
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL unsigned int
+__imf_viaddmax_s16x2(unsigned int, unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int
+__imf_viaddmax_s16x2_relu(unsigned int, unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL int __imf_viaddmax_s32(int, int, int);
+__DPCPP_SYCL_EXTERNAL int __imf_viaddmax_s32_relu(int, int, int);
+__DPCPP_SYCL_EXTERNAL unsigned int
+__imf_viaddmax_u16x2(unsigned int, unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int
+__imf_viaddmax_u32(unsigned int, unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int
+__imf_viaddmin_s16x2(unsigned int, unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int
+__imf_viaddmin_s16x2_relu(unsigned int, unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL int __imf_viaddmin_s32(int, int, int);
+__DPCPP_SYCL_EXTERNAL int __imf_viaddmin_s32_relu(int, int, int);
+__DPCPP_SYCL_EXTERNAL unsigned int
+__imf_viaddmin_u16x2(unsigned int, unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int
+__imf_viaddmin_u32(unsigned int, unsigned int, unsigned int);
+};
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
@@ -748,6 +867,41 @@ viaddmin_u32(Tp x, Tp y, Tp z) {
   return __imf_viaddmin_u32(x, y, z);
 }
 
+/// --------------------------------------------------------------------------
+/// vibmax_s16x2(x, y, p_hi, p_lo), vibmax_u16x2(x, y, p_hi, p_lo)
+/// Splits 4 bytes of each input into 2 half-word values which are interpreted
+/// as signed/unsigned shorts. For corresponding parts, return max(x_part,
+/// y_part). Partial results are recombined and returned as unsigned int.
+/// 'p_hi' and 'p_lo' are 2 bool pointers, set the result:
+/// *p_hi = (x_high >= y_high), *p_lo = (x_low >= y_low)
+/// vibmax_s32(x, y, p), vibmax_u32(x, y, p)
+/// Returns max(x, y), also sets: *p = (x >= y).
+/// vibmin_s16x2(x, y, p_hi, p_lo), vibmin_u16x2(x, y, p_hi, p_lo)
+/// Splits 4 bytes of each input into 2 half-word values which are interpreted
+/// as signed/unsigned shorts. For corresponding parts, return min(x_part,
+/// y_part). Partial results are recombined and returned as unsigned int.
+/// 'p_hi' and 'p_lo' are 2 bool pointers, set the result:
+/// *p_hi = (x_high <= y_high), *p_lo = (x_low <= y_low)
+/// vibmin_s32(x, y, p), vibmin_u32(x, y, p)
+/// Returns min(x, y), also sets: *p = (x <= y).
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL unsigned int
+__imf_vibmax_s16x2(unsigned int, unsigned int, bool *, bool *);
+__DPCPP_SYCL_EXTERNAL int __imf_vibmax_s32(int, int, bool *);
+__DPCPP_SYCL_EXTERNAL unsigned int
+__imf_vibmax_u16x2(unsigned int, unsigned int, bool *, bool *);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vibmax_u32(unsigned int, unsigned int,
+                                                    bool *);
+__DPCPP_SYCL_EXTERNAL unsigned int
+__imf_vibmin_s16x2(unsigned int, unsigned int, bool *, bool *);
+__DPCPP_SYCL_EXTERNAL int __imf_vibmin_s32(int, int, bool *);
+__DPCPP_SYCL_EXTERNAL unsigned int
+__imf_vibmin_u16x2(unsigned int, unsigned int, bool *, bool *);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vibmin_u32(unsigned int, unsigned int,
+                                                    bool *);
+};
+
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
 vibmax_s16x2(Tp x, Tp y, bool *p_hi, bool *p_lo) {
@@ -793,6 +947,44 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
 vibmin_u32(Tp x, Tp y, bool *p) {
   return __imf_vibmin_u32(x, y, p);
 }
+
+/// --------------------------------------------------------------------------
+/// vimax3_s16x2(x, y, z), vimax3_u16x2(x, y, z)
+/// Splits 4 bytes of each input into 2 half-word values which are interpreted
+/// as signed/unsigned shorts. For corresponding parts, returns
+/// max(x_part, y_part, z_part). Partial results are recombined and returned as
+/// unsigned int.
+/// vimax3_s32(x, y, z), vimax3_u32(x, y, z)
+/// Reinterpret input as signed int and returns max(x, y, z).
+/// vimin3_s16x2(x, y, z), vimin3_u16x2(x, y, z)
+/// Splits 4 bytes of each input into 2 half-word values which are interpreted
+/// as signed/unsigned shorts. Returns min(x_part, y_part, z_part) for each
+/// part. Partial results are recombined and returned as unsigned int.
+/// vimin3_s32(x, y, z), vimin3_u32(x, y, z)
+/// Reinterpret input as signed int and returns min(x, y, z).
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL unsigned int
+__imf_vimax3_s16x2(unsigned int, unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int
+__imf_vimax3_s16x2_relu(unsigned int, unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int
+__imf_vimin3_s16x2(unsigned int, unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int
+__imf_vimin3_s16x2_relu(unsigned int, unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL int __imf_vimax3_s32(int, int, int);
+__DPCPP_SYCL_EXTERNAL int __imf_vimax3_s32_relu(int, int, int);
+__DPCPP_SYCL_EXTERNAL int __imf_vimin3_s32(int, int, int);
+__DPCPP_SYCL_EXTERNAL int __imf_vimin3_s32_relu(int, int, int);
+__DPCPP_SYCL_EXTERNAL unsigned int
+__imf_vimax3_u16x2(unsigned int, unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vimax3_u32(unsigned int, unsigned int,
+                                                    unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int
+__imf_vimin3_u16x2(unsigned int, unsigned int, unsigned int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vimin3_u32(unsigned int, unsigned int,
+                                                    unsigned int);
+};
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
@@ -863,6 +1055,29 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
 vimin3_u32(Tp x, Tp y, Tp z) {
   return __imf_vimin3_u32(x, y, z);
 }
+
+/// --------------------------------------------------------------------------
+/// vimax_s16x2_relu(x, y)
+/// Splits 4 bytes of each input into 2 half-word values which are interpreted
+/// as signed shorts. Returns max(x_part, y_part, 0) for each part. Partial
+/// results are recombined and returned as unsigned int.
+/// vimax_s32_relu(x, y)
+/// Reinterpret input as signed int and returns max(x, y, 0).
+/// vimin_s16x2_relu(x, y)
+/// Splits 4 bytes of each input into 2 half-word values which are interpreted
+/// as signed shorts. Returns max(min(x_part, y_part), 0) for each part. Partial
+/// results are recombined and returned as unsigned int.
+/// vimin_s32_relu(x, y)
+/// Reinterpret input as signed int and returns max(min(x, y), 0).
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vimax_s16x2_relu(unsigned int,
+                                                          unsigned int);
+__DPCPP_SYCL_EXTERNAL int __imf_vimax_s32_relu(int, int);
+__DPCPP_SYCL_EXTERNAL unsigned int __imf_vimin_s16x2_relu(unsigned int,
+                                                          unsigned int);
+__DPCPP_SYCL_EXTERNAL int __imf_vimin_s32_relu(int, int);
+};
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, int>, int> vimax_s32_relu(Tp x, Tp y) {
