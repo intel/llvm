@@ -287,9 +287,11 @@ public:
 
   adapter_impl &getAdapter() const { return MContext->getAdapter(); }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   const std::shared_ptr<context_impl> &getContextImplPtr() const {
     return MContext;
   }
+#endif
 
   context_impl &getContextImpl() const { return *MContext; }
 

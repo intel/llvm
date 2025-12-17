@@ -571,7 +571,7 @@ Command::Command(
     MEvent->setSubmittedQueue(Queue);
   MEvent->setCommand(this);
   if (MQueue)
-    MEvent->setContextImpl(MQueue->getContextImplPtr());
+    MEvent->setContextImpl(MQueue->getContextImpl());
   MEvent->setStateIncomplete();
   MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
@@ -1300,7 +1300,7 @@ ur_result_t ReleaseCommand::enqueueImp() {
 
     std::shared_ptr<event_impl> UnmapEventImpl =
         event_impl::create_device_event(*Queue);
-    UnmapEventImpl->setContextImpl(Queue->getContextImplPtr());
+    UnmapEventImpl->setContextImpl(Queue->getContextImpl());
     UnmapEventImpl->setStateIncomplete();
     ur_event_handle_t UREvent = nullptr;
 
@@ -1519,7 +1519,7 @@ MemCpyCommand::MemCpyCommand(const Requirement &SrcReq,
       MSrcReq(SrcReq), MSrcAllocaCmd(SrcAllocaCmd), MDstReq(DstReq),
       MDstAllocaCmd(DstAllocaCmd) {
   if (MSrcQueue) {
-    MEvent->setContextImpl(MSrcQueue->getContextImplPtr());
+    MEvent->setContextImpl(MSrcQueue->getContextImpl());
   }
 
   MWorkerQueue = !MQueue ? MSrcQueue : MQueue;
@@ -1692,7 +1692,7 @@ MemCpyCommandHost::MemCpyCommandHost(const Requirement &SrcReq,
       MSrcReq(SrcReq), MSrcAllocaCmd(SrcAllocaCmd), MDstReq(DstReq),
       MDstPtr(DstPtr) {
   if (MSrcQueue) {
-    MEvent->setContextImpl(MSrcQueue->getContextImplPtr());
+    MEvent->setContextImpl(MSrcQueue->getContextImpl());
   }
 
   MWorkerQueue = !MQueue ? MSrcQueue : MQueue;

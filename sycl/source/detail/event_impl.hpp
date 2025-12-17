@@ -179,7 +179,7 @@ public:
   ///
   /// Provided UrContext inside Context must be associated
   /// with the UrEvent object stored in this class
-  void setContextImpl(const std::shared_ptr<context_impl> &Context);
+  void setContextImpl(context_impl &Context);
 
   /// Clear the event state
   void setStateIncomplete();
