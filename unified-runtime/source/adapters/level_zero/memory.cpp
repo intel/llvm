@@ -13,6 +13,10 @@
 #include <string.h>
 #include <ur/ur.hpp>
 
+#ifdef _WIN32
+#include <umf/experimental/ctl.h>
+#endif
+
 #include "context.hpp"
 #include "event.hpp"
 #include "helpers/memory_helpers.hpp"
@@ -1952,9 +1956,20 @@ ur_result_t urEnqueueWriteHostPipe(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+void enableWindowsUMFIPCWorkaround() {
+#ifdef _WIN32
+  // UMF on Windows currently requires a workaround for IPC to work.
+  int useImportExportForIPC = 1;
+  umfCtlSet("umf.provider.default.LEVEL_ZERO.params.use_import_export_for_IPC",
+            &useImportExportForIPC, sizeof(useImportExportForIPC));
+#endif
+}
+
 ur_result_t urIPCGetMemHandleExp(ur_context_handle_t, void *pMem,
                                  void **ppIPCMemHandleData,
                                  size_t *pIPCMemHandleDataSizeRet) {
+  enableWindowsUMFIPCWorkaround();
+
   umf_memory_pool_handle_t umfPool;
   auto urRet = umf::umf2urResult(umfPoolByPtr(pMem, &umfPool));
   if (urRet)
@@ -1983,6 +1998,8 @@ ur_result_t urIPCOpenMemHandleExp(ur_context_handle_t hContext,
                                   ur_device_handle_t hDevice,
                                   void *pIPCMemHandleData,
                                   size_t ipcMemHandleDataSize, void **ppMem) {
+  enableWindowsUMFIPCWorkaround();
+
   auto *pool = hContext->DefaultPool.getPool(usm::pool_descriptor{
       &hContext->DefaultPool, hContext, hDevice, UR_USM_TYPE_DEVICE, false});
   if (!pool)
