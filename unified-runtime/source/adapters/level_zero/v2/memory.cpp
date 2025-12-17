@@ -791,8 +791,6 @@ inline ur_result_t enableWindowsUMFIPCWorkaround(
   // UMF on Windows currently requires a workaround for IPC to work.
   umf_memory_provider_handle_t umfProvider = nullptr;
   UR_CALL(umf::umf2urResult(umfPoolGetMemoryProvider(umfPool, &umfProvider)));
-  if (urRet)
-    return urRet;
   int useImportExportForIPC = 1;
   UR_CALL(umf::umf2urResult(umfCtlSet(
       "umf.provider.by_handle.{}.LEVEL_ZERO.params.use_import_export_for_IPC",
