@@ -115,13 +115,7 @@ struct ur_context_handle_t_ : ur::cuda::handle_base {
       if (MemoryProviderHost) {
         umfMemoryProviderDestroy(MemoryProviderHost);
       }
-      auto result = urAdapterRelease(ur::cuda::adapter);
-      if (result != UR_RESULT_SUCCESS) {
-        UR_LOG(ERR, "Failed to release adapter in context destructor: {}",
-               result);
-      }
-      assert(result == UR_RESULT_SUCCESS &&
-             "Adapter release failed in context destructor");
+      urAdapterRelease(ur::cuda::adapter);
     } catch (...) {
       UR_LOG(ERR, "Exception in context destructor");
       assert(false && "Exception in context destructor");

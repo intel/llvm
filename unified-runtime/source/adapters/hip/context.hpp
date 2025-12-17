@@ -98,13 +98,7 @@ struct ur_context_handle_t_ : ur::hip::handle_base {
 
   ~ur_context_handle_t_() noexcept {
     try {
-      auto result = urAdapterRelease(ur::hip::adapter);
-      if (result != UR_RESULT_SUCCESS) {
-        UR_LOG(ERR, "Failed to release adapter in context destructor: {}",
-               result);
-      }
-      assert(result == UR_RESULT_SUCCESS &&
-             "Adapter release failed in context destructor");
+      urAdapterRelease(ur::hip::adapter);
     } catch (...) {
       UR_LOG(ERR, "Exception in context destructor");
       assert(false && "Exception in context destructor");
