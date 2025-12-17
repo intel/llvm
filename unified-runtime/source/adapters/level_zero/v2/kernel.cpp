@@ -194,11 +194,18 @@ ur_kernel_handle_t_::getProperties(ur_device_handle_t hDevice) const {
 }
 
 ur_result_t ur_kernel_handle_t_::setArgValue(
-    uint32_t argIndex, size_t argSize,
+    ur_device_handle_t hDevice, uint32_t argIndex, size_t argSize,
     const ur_kernel_arg_value_properties_t * /*pProperties*/,
     const void *pArgValue) {
   if (argIndex > zeCommonProperties.numKernelArgs - 1) {
     return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
+  }
+
+  if (hDevice) { // Set argument only on the specified device
+    auto &deviceKernel = deviceKernels[deviceIndex(hDevice)].value();
+    UR_CALL(setArgValueOnZeKernel(deviceKernel.hKernel.get(), argIndex, argSize,
+                                  pArgValue));
+    return UR_RESULT_SUCCESS;
   }
 
   for (auto &singleDeviceKernel : deviceKernels) {
@@ -213,12 +220,13 @@ ur_result_t ur_kernel_handle_t_::setArgValue(
 }
 
 ur_result_t ur_kernel_handle_t_::setArgPointer(
-    uint32_t argIndex,
+    ur_device_handle_t hDevice, uint32_t argIndex,
     const ur_kernel_arg_pointer_properties_t * /*pProperties*/,
     const void *pArgValue) {
 
   // KernelSetArgValue is expecting a pointer to the argument
-  return setArgValue(argIndex, sizeof(const void *), nullptr, &pArgValue);
+  return setArgValue(hDevice, argIndex, sizeof(const void *), nullptr,
+                     &pArgValue);
 }
 
 ur_program_handle_t ur_kernel_handle_t_::getProgramHandle() const {
@@ -429,7 +437,8 @@ ur_result_t urKernelSetArgValue(
   TRACK_SCOPE_LATENCY("urKernelSetArgValue");
 
   std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
-  return hKernel->setArgValue(argIndex, argSize, pProperties, pArgValue);
+  return hKernel->setArgValue(nullptr, argIndex, argSize, pProperties,
+                              pArgValue);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
@@ -492,7 +501,7 @@ ur_result_t urKernelSetArgLocal(
 
   std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
 
-  return hKernel->setArgValue(argIndex, argSize, nullptr, nullptr);
+  return hKernel->setArgValue(nullptr, argIndex, argSize, nullptr, nullptr);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
@@ -736,7 +745,7 @@ ur_result_t urKernelSetArgSampler(
     ur_sampler_handle_t hArgValue) try {
   TRACK_SCOPE_LATENCY("urKernelSetArgSampler");
   std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
-  return hKernel->setArgValue(argIndex, sizeof(void *), nullptr,
+  return hKernel->setArgValue(nullptr, argIndex, sizeof(void *), nullptr,
                               &hArgValue->ZeSampler);
 } catch (...) {
   return exceptionToResult(std::current_exception());
