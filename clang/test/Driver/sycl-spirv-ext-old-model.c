@@ -73,7 +73,6 @@
 // CHECK-CPU-SAME:,+SPV_INTEL_fpga_invocation_pipelining_attributes
 // CHECK-CPU-SAME:,+SPV_INTEL_fpga_latency_control
 // CHECK-CPU-SAME:,+SPV_INTEL_task_sequence
-// CHECK-CPU-SAME:,+SPV_INTEL_global_variable_host_access
 // CHECK-CPU-SAME:,+SPV_INTEL_bfloat16_conversion
 // CHECK-CPU-SAME:,+SPV_INTEL_joint_matrix
 // CHECK-CPU-SAME:,+SPV_INTEL_hw_thread_queries
@@ -84,3 +83,4 @@
 // CHECK-CPU-SAME:,+SPV_KHR_non_semantic_info
 // CHECK-CPU-SAME:,+SPV_KHR_cooperative_matrix
 // CHECK-CPU-SAME:,+SPV_INTEL_fp_max_error
+// CHECK-CPU-SAME:,+SPV_INTEL_global_variable_host_access

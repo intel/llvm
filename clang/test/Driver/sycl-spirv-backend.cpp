@@ -22,6 +22,7 @@
 // CHECK-SAME:,+SPV_INTEL_subgroups
 // CHECK-SAME:,+SPV_INTEL_tensor_float32_conversion
 // CHECK-SAME:,+SPV_INTEL_variable_length_array
+// CHECK-SAME:,+SPV_INTEL_global_variable_host_access
 // CHECK-SAME:,+SPV_KHR_16bit_storage
 // CHECK-SAME:,+SPV_KHR_cooperative_matrix
 // CHECK-SAME:,+SPV_KHR_expect_assume
