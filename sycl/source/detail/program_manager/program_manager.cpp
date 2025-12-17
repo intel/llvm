@@ -24,7 +24,6 @@
 #include <sycl/backend_types.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/kernel_properties.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/detail/util.hpp>
@@ -272,32 +271,14 @@ static void
 appendCompileOptionsForGRFSizeProperties(std::string &CompileOpts,
                                          const RTDeviceBinaryImage &Img,
                                          bool IsEsimdImage) {
-  // TODO: sycl-register-alloc-mode is deprecated and should be removed in the
-  // next ABI break.
-  sycl_device_binary_property RegAllocModeProp =
-      Img.getProperty("sycl-register-alloc-mode");
   sycl_device_binary_property GRFSizeProp = Img.getProperty("sycl-grf-size");
 
-  if (!RegAllocModeProp && !GRFSizeProp)
+  if (!GRFSizeProp)
     return;
-  // The mutual exclusivity of these properties should have been checked in
-  // sycl-post-link.
-  assert(!RegAllocModeProp || !GRFSizeProp);
-  bool Is256GRF = false;
-  bool IsAutoGRF = false;
-  if (RegAllocModeProp) {
-    uint32_t RegAllocModePropVal =
-        DeviceBinaryProperty(RegAllocModeProp).asUint32();
-    Is256GRF = RegAllocModePropVal ==
-               static_cast<uint32_t>(register_alloc_mode_enum::large);
-    IsAutoGRF = RegAllocModePropVal ==
-                static_cast<uint32_t>(register_alloc_mode_enum::automatic);
-  } else {
-    assert(GRFSizeProp);
-    uint32_t GRFSizePropVal = DeviceBinaryProperty(GRFSizeProp).asUint32();
-    Is256GRF = GRFSizePropVal == 256;
-    IsAutoGRF = GRFSizePropVal == 0;
-  }
+
+  uint32_t GRFSizePropVal = DeviceBinaryProperty(GRFSizeProp).asUint32();
+  bool Is256GRF = GRFSizePropVal == 256;
+  bool IsAutoGRF = GRFSizePropVal == 0;
   if (Is256GRF) {
     if (!CompileOpts.empty())
       CompileOpts += " ";
