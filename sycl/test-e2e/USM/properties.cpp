@@ -9,7 +9,5 @@ int main() {
 
   // Ensure properties are supported when constructing the allocator:
   sycl::usm_allocator<int, sycl::usm::alloc::shared> allocator{
-      q,
-      {sycl::ext::oneapi::property::usm::device_read_only{},
-       sycl::ext::intel::experimental::property::usm::buffer_location{1}}};
+      q, {sycl::ext::oneapi::property::usm::device_read_only{}}};
 }

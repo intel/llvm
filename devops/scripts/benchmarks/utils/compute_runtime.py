@@ -94,7 +94,7 @@ class ComputeRuntime:
             # Repos with commit hashes as refs can't be cloned shallowly.
             GitProject(
                 "https://github.com/intel/vc-intrinsics",
-                "9d255266e1df8f1dc5d11e1fbb03213acfaa4fc7",
+                "3d76a9b8f87a29272f9ef90cbe0b7aef66cd3648",
                 Path(options.workdir),
                 "vc-intrinsics",
                 no_suffix_src=True,
@@ -102,7 +102,7 @@ class ComputeRuntime:
             )
             llvm_project = GitProject(
                 "https://github.com/llvm/llvm-project",
-                "llvmorg-15.0.7",
+                "llvmorg-16.0.6",
                 Path(options.workdir),
                 "llvm-project",
                 no_suffix_src=True,
@@ -110,21 +110,21 @@ class ComputeRuntime:
             llvm_projects = llvm_project.src_dir / "llvm" / "projects"
             GitProject(
                 "https://github.com/intel/opencl-clang",
-                "ocl-open-150",
+                "ocl-open-160",
                 llvm_projects,
                 "opencl-clang",
                 no_suffix_src=True,
             )
             GitProject(
                 "https://github.com/KhronosGroup/SPIRV-LLVM-Translator",
-                "llvm_release_150",
+                "llvm_release_160",
                 llvm_projects,
                 "llvm-spirv",
                 no_suffix_src=True,
             )
             GitProject(
                 "https://github.com/KhronosGroup/SPIRV-Tools.git",
-                "f289d047f49fb60488301ec62bafab85573668cc",
+                "049de81a0f8ac3f5c092f56a103b66c90bc90ec3",
                 Path(options.workdir),
                 "SPIRV-Tools",
                 no_suffix_src=True,
@@ -132,7 +132,7 @@ class ComputeRuntime:
             )
             GitProject(
                 "https://github.com/KhronosGroup/SPIRV-Headers.git",
-                "0e710677989b4326ac974fd80c5308191ed80965",
+                "6146b3d9ad4fcc5fb512209d348e97ce03749169",
                 Path(options.workdir),
                 "SPIRV-Headers",
                 no_suffix_src=True,
