@@ -96,9 +96,13 @@ public:
 
   FastKernelSubcacheT &getKernelSubcache() { return MFastKernelSubcache; }
 
-  std::optional<int> getImplicitLocalArgPos() const {
+  const std::optional<int> &getImplicitLocalArgPos() const {
     return MImplicitLocalArgPos;
   }
+
+  // Implicit local argument position is used only for some backends, so this
+  // function allows setting it as more images are added.
+  void setImplicitLocalArgPos(int Pos);
 
 private:
   bool isCompileTimeInfoSet() const { return KernelSize != 0; }

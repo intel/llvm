@@ -235,10 +235,11 @@ public:
   std::mutex *getCacheMutex() const { return MCacheMutex; }
   std::string_view getName() const;
 
+  bool checkOwnsDeviceKernelInfo();
   DeviceKernelInfo &getDeviceKernelInfo() {
-    return MIsInterop
-               ? MInteropDeviceKernelInfo
-               : ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
+    return MOwnsDeviceKernelInfo
+               ? MDeviceKernelInfo
+               : ProgramManager::getInstance().getDeviceKernelInfo(
                      std::string_view(getName()));
   }
 
@@ -255,9 +256,11 @@ private:
   std::mutex *MCacheMutex = nullptr;
   mutable std::string MName;
 
-  // It is used for the interop kernels only.
+  // Used for images that aren't obtained with standard SYCL offline
+  // compilation.
   // For regular kernel we get DeviceKernelInfo from the ProgramManager.
-  DeviceKernelInfo MInteropDeviceKernelInfo;
+  bool MOwnsDeviceKernelInfo = false;
+  DeviceKernelInfo MDeviceKernelInfo;
 
   bool isBuiltInKernel(device_impl &Device) const;
   void checkIfValidForNumArgsInfoQuery() const;
