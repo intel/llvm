@@ -11,7 +11,6 @@
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
-#include "llvm/SYCLLowerIR/HostPipes.h"
 #include "llvm/SYCLLowerIR/TargetHelpers.h"
 
 #include "llvm/ADT/APInt.h"
@@ -600,12 +599,6 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
       auto VarName = getGlobalVariableUniqueId(GV);
       MDOps.push_back(buildSpirvDecorMetadata(Ctx, SpirvHostAccessDecor,
                                               HostAccessDecorValue, VarName));
-    }
-
-    if (isHostPipeVariable(GV)) {
-      auto VarName = getGlobalVariableUniqueId(GV);
-      MDOps.push_back(buildSpirvDecorMetadata(
-          Ctx, SpirvHostAccessDecor, SpirvHostAccessDefaultValue, VarName));
     }
 
     // Add the generated metadata to the variable

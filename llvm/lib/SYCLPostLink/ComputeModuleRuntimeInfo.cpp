@@ -14,7 +14,6 @@
 #include "llvm/IR/PassInstrumentation.h"
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
-#include "llvm/SYCLLowerIR/HostPipes.h"
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/SYCLLowerIR/SYCLKernelParamOptInfo.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
@@ -388,10 +387,6 @@ PropSetRegTy computeModuleProperties(const Module &M,
       PropSet.add(PropSetRegTy::SYCL_DEVICE_GLOBALS, DevGlobalPropertyMap);
   }
 
-  auto HostPipePropertyMap = collectHostPipeProperties(M);
-  if (!HostPipePropertyMap.empty()) {
-    PropSet.add(PropSetRegTy::SYCL_HOST_PIPES, HostPipePropertyMap);
-  }
   bool IsSpecConstantDefault =
       M.getNamedMetadata(
           SpecConstantsPass::SPEC_CONST_DEFAULT_VAL_MODULE_MD_STRING) !=
