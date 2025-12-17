@@ -10,6 +10,10 @@
 
 #include <cuda.h>
 
+#ifdef _WIN32
+#include <umf/experimental/ctl.h>
+#endif
+
 #include "common.hpp"
 #include "context.hpp"
 #include "enqueue.hpp"
@@ -591,9 +595,20 @@ CUsurfObject SurfaceMem::getSurface(const ur_device_handle_t Device) {
   return SurfObjs[OuterMemStruct->getContext()->getDeviceIndex(Device)];
 }
 
+void enableWindowsUMFIPCWorkaround() {
+#ifdef _WIN32
+  // UMF on Windows currently requires a workaround for IPC to work.
+  int useImportExportForIPC = 1;
+  umfCtlSet("umf.provider.default.LEVEL_ZERO.params.use_import_export_for_IPC",
+            &useImportExportForIPC, sizeof(useImportExportForIPC));
+#endif
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL
 urIPCGetMemHandleExp(ur_context_handle_t, void *pMem, void **ppIPCMemHandleData,
                      size_t *pIPCMemHandleDataSizeRet) {
+  enableWindowsUMFIPCWorkaround();
+
   umf_memory_pool_handle_t umfPool;
   auto urRet = umf::umf2urResult(umfPoolByPtr(pMem, &umfPool));
   if (urRet)
@@ -622,6 +637,8 @@ urIPCPutMemHandleExp(ur_context_handle_t, void *pIPCMemHandleData) {
 UR_APIEXPORT ur_result_t UR_APICALL urIPCOpenMemHandleExp(
     ur_context_handle_t, ur_device_handle_t hDevice, void *pIPCMemHandleData,
     size_t ipcMemHandleDataSize, void **ppMem) {
+  enableWindowsUMFIPCWorkaround();
+
   umf_memory_pool_handle_t umfPool = hDevice->MemoryPoolDevice;
 
   size_t umfHandleSize = 0;
