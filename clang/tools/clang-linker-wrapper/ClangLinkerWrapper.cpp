@@ -2190,13 +2190,6 @@ static void appendSYCLDeviceOptionsAtLinkTime(const DerivedArgList &LinkerArgs,
     if (TargetTriple != Triple.getTriple() || Value.empty())
       continue;
 
-    // Replace -O0 with -cl-opt-disable for non-JIT, and ignore other -O options.
-    if (Value.starts_with("-O") && Value.size() == 3) {
-      if (Value != "-O0" || Triple.getSubArch() == llvm::Triple::NoSubArch)
-        continue;
-      Value = " -cl-opt-disable";
-    }
-
     CompileOptions += Twine(" ", Value).str();
   }
 

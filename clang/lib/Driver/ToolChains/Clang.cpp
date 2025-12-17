@@ -11264,18 +11264,24 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
       // We do not use a bound architecture here so options passed only to a
       // specific architecture via -Xarch_<cpu> will not be forwarded.
-      ArgStringList CompilerArgs;
-      ArgStringList LinkerArgs;
       const DerivedArgList &ToolChainArgs =
           C.getArgsForToolChain(TC, /*BoundArch=*/"", Kind);
+      DerivedArgList CompilerArgs(ToolChainArgs.getBaseArgs());
+      ArgStringList LinkerArgsStrings;
       for (Arg *A : ToolChainArgs) {
         if (A->getOption().matches(OPT_Zlinker_input))
-          LinkerArgs.emplace_back(A->getValue());
+          A->render(Args, LinkerArgsStrings);
         else if (ShouldForward(CompilerOptions, A, *TC))
-          A->render(Args, CompilerArgs);
+          CompilerArgs.append(A);
         else if (ShouldForward(LinkerOptions, A, *TC))
-          A->render(Args, LinkerArgs);
+          A->render(Args, LinkerArgsStrings);
       }
+
+      ArgStringList CompilerArgsStrings;
+      const toolchains::SYCLToolChain &SYCLTC =
+            static_cast<const toolchains::SYCLToolChain &>(*TC);
+      const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+      SYCLTC.AddImpliedTargetArgs(SYCLTC.getTriple(), CompilerArgs, CompilerArgsStrings, JA, *HostTC);
 
       // If the user explicitly requested it via `--offload-arch` we should
       // extract it from any static libraries if present.
@@ -11285,13 +11291,13 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       // If this is OpenMP the device linker will need `-lompdevice`.
       if (Kind == Action::OFK_OpenMP && !Args.hasArg(OPT_no_offloadlib) &&
           (TC->getTriple().isAMDGPU() || TC->getTriple().isNVPTX()))
-        LinkerArgs.emplace_back("-lompdevice");
+        LinkerArgsStrings.emplace_back("-lompdevice");
 
       // Forward all of these to the appropriate toolchain.
-      for (StringRef Arg : CompilerArgs)
+      for (StringRef Arg : CompilerArgsStrings)
         CmdArgs.push_back(Args.MakeArgString(
             "--device-compiler=" + TC->getTripleString() + "=" + Arg));
-      for (StringRef Arg : LinkerArgs)
+      for (StringRef Arg : LinkerArgsStrings)
         CmdArgs.push_back(Args.MakeArgString(
             "--device-linker=" + TC->getTripleString() + "=" + Arg));
 
