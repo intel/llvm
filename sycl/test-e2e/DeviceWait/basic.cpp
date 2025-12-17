@@ -12,7 +12,7 @@
 constexpr size_t NContexts = 2;
 constexpr size_t NQueues = 6;
 
-int main() {
+int main() try {
   sycl::device D;
   std::array<sycl::context, NContexts> Contexts{sycl::context{D},
                                                 sycl::context{D}};
@@ -47,4 +47,7 @@ int main() {
     }
   }
   return Failed;
+} catch (sycl::exception &e) {
+  std::cout << "Exception thrown: " << e.what() << std::endl;
+  throw;
 }
