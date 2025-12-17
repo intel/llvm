@@ -1056,15 +1056,17 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
                             "Device does not support Command Graph update");
     }
   }
-  // Copy nodes from GraphImpl and merge any subgraph nodes into this graph.
-  duplicateNodes();
 
   // Create native UR executable graph if the modifiable graph uses native
   // recording
-  if (GraphImpl->isNativeRecordingEnabled() &&
-      GraphImpl->getNativeGraphHandle()) {
+  if (GraphImpl->isNativeRecordingEnabled()) {
     context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
     sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
+    // bool isEmpty = true;
+    // Adapter.call_nocheck<sycl::detail::UrApiKind::urGraphIsEmptyExp>(
+    //     GraphImpl->getNativeGraphHandle(), &isEmpty);
+    // if (isEmpty)
+    //   printf("Empty graph!\n");
     ur_result_t Result =
         Adapter
             .call_nocheck<sycl::detail::UrApiKind::urGraphInstantiateGraphExp>(
@@ -1074,6 +1076,9 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
       throw sycl::exception(sycl::make_error_code(errc::runtime),
                             "Failed to instantiate native UR executable graph");
     }
+  } else {
+    // Copy nodes from GraphImpl and merge any subgraph nodes into this graph.
+    duplicateNodes();
   }
 
   if (auto PlaceholderQueuePtr = GraphImpl->getLastRecordedQueue()) {
@@ -1096,8 +1101,12 @@ exec_graph_impl::~exec_graph_impl() {
 
     // Clean up native UR executable graph if it was created
     if (MNativeExecutableGraphHandle) {
-      urGraphExecutableGraphDestroyExp(MNativeExecutableGraphHandle);
-      MNativeExecutableGraphHandle = nullptr;
+      ur_result_t Res = Adapter.call_nocheck<
+          sycl::detail::UrApiKind::urGraphExecutableGraphDestroyExp>(
+          MNativeExecutableGraphHandle);
+      if (Res == UR_RESULT_SUCCESS) {
+        MNativeExecutableGraphHandle = nullptr;
+      }
     }
 
     // Clean up any graph-owned allocations that were allocated
