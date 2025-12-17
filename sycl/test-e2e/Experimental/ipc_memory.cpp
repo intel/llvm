@@ -48,7 +48,8 @@ void spawn_and_sync(std::string Exe) {
 #endif
 }
 
-int spawner(int argc, char *argv[]) {
+int spawner(int argc, char *argv[]) try {
+  std::cout << "Running spanwer..." << std::endl;
   assert(argc == 1);
   sycl::queue Q;
 
@@ -101,9 +102,13 @@ int spawner(int argc, char *argv[]) {
   }
   sycl::free(DataPtr, Q);
   return Failures;
+} catch (sycl::exception &e) {
+  std::cout << "Spawner failed: " << e.what() << std::endl;
+  throw;
 }
 
-int consumer() {
+int consumer() try {
+  std::cout << "Running consumer..." << std::endl;
   sycl::queue Q;
 
   // Read the handle data.
@@ -143,6 +148,9 @@ int consumer() {
   syclexp::ipc_memory::close(DataPtr, Q.get_context());
 
   return Failures;
+} catch (sycl::exception &e) {
+  std::cout << "Consumer failed: " << e.what() << std::endl;
+  throw;
 }
 
 int main(int argc, char *argv[]) {
