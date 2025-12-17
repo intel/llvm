@@ -202,7 +202,6 @@ RTDeviceBinaryImage::RTDeviceBinaryImage(sycl_device_binary Bin) {
   ImportedSymbols.init(Bin, __SYCL_PROPERTY_SET_SYCL_IMPORTED_SYMBOLS);
   DeviceGlobals.init(Bin, __SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS);
   DeviceRequirements.init(Bin, __SYCL_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS);
-  HostPipes.init(Bin, __SYCL_PROPERTY_SET_SYCL_HOST_PIPES);
   VirtualFunctions.init(Bin, __SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS);
   RegisteredKernels.init(Bin, __SYCL_PROPERTY_SET_SYCL_REGISTERED_KERNELS);
   Misc.init(Bin, __SYCL_PROPERTY_SET_SYCL_MISC_PROP);
@@ -519,8 +518,6 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
       naiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
         return Img.getDeviceGlobals();
       });
-  auto MergedHostPipes = naiveMergeBinaryProperties(
-      Imgs, [](const RTDeviceBinaryImage &Img) { return Img.getHostPipes(); });
   auto MergedVirtualFunctions =
       naiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
         return Img.getVirtualFunctions();
@@ -542,12 +539,12 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
         return Img.getRegisteredKernels();
       });
 
-  std::array<const std::vector<sycl_device_binary_property> *, 10> MergedVecs{
+  std::array<const std::vector<sycl_device_binary_property> *, 9> MergedVecs{
       &MergedSpecConstants,      &MergedSpecConstantsDefaultValues,
       &MergedKernelParamOptInfo, &MergedDeviceGlobals,
-      &MergedHostPipes,          &MergedVirtualFunctions,
-      &MergedImplicitLocalArg,   &MergedKernelNames,
-      &MergedExportedSymbols,    &MergedRegisteredKernels};
+      &MergedVirtualFunctions,   &MergedImplicitLocalArg,
+      &MergedKernelNames,        &MergedExportedSymbols,
+      &MergedRegisteredKernels};
 
   // Exclusive merges.
   auto MergedProgramMetadata =
@@ -663,7 +660,6 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
                     SpecConstDefaultValuesMap);
   CopyPropertiesVec(MergedKernelParamOptInfo, KernelParamOptInfo);
   CopyPropertiesVec(MergedDeviceGlobals, DeviceGlobals);
-  CopyPropertiesVec(MergedHostPipes, HostPipes);
   CopyPropertiesVec(MergedVirtualFunctions, VirtualFunctions);
   CopyPropertiesVec(MergedImplicitLocalArg, ImplicitLocalArg);
   CopyPropertiesVec(MergedKernelNames, KernelNames);

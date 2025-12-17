@@ -72,19 +72,19 @@ bool hasDeviceImageScopeProperty(const GlobalVariable &GV) {
   return hasProperty(GV, SYCL_DEVICE_IMAGE_SCOPE_ATTR);
 }
 
-/// Returns the unique id for the device global or host pipe variable.
+/// Returns the unique id for the device global variable.
 ///
 /// The function gets this value from the LLVM IR attribute \c
 /// sycl-unique-id.
 ///
-/// @param GV [in] Device Global or Hostpipe variable.
+/// @param GV [in] Device Global variable.
 ///
-/// @returns the unique id of the device global or hostpipe variable
+/// @returns the unique id of the device global variable
 /// represented in the LLVM IR by \c GV.
 StringRef getGlobalVariableUniqueId(const GlobalVariable &GV) {
   assert(GV.hasAttribute(SYCL_UNIQUE_ID_ATTR) &&
          "a 'sycl-unique-id' string must be associated with every device "
-         "global or hostpipe variable");
+         "global variable");
   return GV.getAttribute(SYCL_UNIQUE_ID_ATTR).getValueAsString();
 }
 

@@ -413,29 +413,6 @@ public:
   char getValue() const { return MValue; }
 };
 
-/// "ReadWriteHostPipe" command group class.
-class CGReadWriteHostPipe : public CG {
-  std::string PipeName;
-  bool Blocking;
-  void *HostPtr;
-  size_t TypeSize;
-  bool IsReadOp;
-
-public:
-  CGReadWriteHostPipe(const std::string &Name, bool Block, void *Ptr,
-                      size_t Size, bool Read, CG::StorageInitHelper CGData,
-                      detail::code_location loc = {})
-      : CG(CGType::ReadWriteHostPipe, std::move(CGData), std::move(loc)),
-        PipeName(Name), Blocking(Block), HostPtr(Ptr), TypeSize(Size),
-        IsReadOp(Read) {}
-
-  const std::string &getPipeName() { return PipeName; }
-  void *getHostPtr() { return HostPtr; }
-  size_t getTypeSize() { return TypeSize; }
-  bool isBlocking() { return Blocking; }
-  bool isReadHostPipe() { return IsReadOp; }
-};
-
 /// "Copy to device_global" command group class.
 class CGCopyToDeviceGlobal : public CG {
   void *MSrc;

@@ -543,9 +543,6 @@ static const char *getUrDeviceTarget(const char *URDeviceTarget) {
     return UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64;
   else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0)
     return UR_DEVICE_BINARY_TARGET_SPIRV64_GEN;
-  else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) ==
-           0)
-    return UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA;
   else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_NVPTX64) == 0)
     return UR_DEVICE_BINARY_TARGET_NVPTX64;
   else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_AMDGCN) == 0)
@@ -1774,38 +1771,6 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
 
   // ... and initialize associated device_global information
   m_DeviceGlobals.initializeEntries(Img.get());
-  // ... and initialize associated host_pipe information
-  {
-    std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
-    auto HostPipes = Img->getHostPipes();
-    for (const sycl_device_binary_property &HostPipe : HostPipes) {
-      ByteArray HostPipeInfo = DeviceBinaryProperty(HostPipe).asByteArray();
-
-      // The supplied host_pipe info property is expected to contain:
-      // * 8 bytes - Size of the property.
-      // * 4 bytes - Size of the underlying type in the host_pipe.
-      // Note: Property may be padded.
-
-      HostPipeInfo.dropBytes(8);
-      auto TypeSize = HostPipeInfo.consume<std::uint32_t>();
-      assert(HostPipeInfo.empty() && "Extra data left!");
-
-      auto ExistingHostPipe = m_HostPipes.find(HostPipe->Name);
-      if (ExistingHostPipe != m_HostPipes.end()) {
-        // If it has already been registered we update the information.
-        ExistingHostPipe->second->initialize(TypeSize);
-        ExistingHostPipe->second->initialize(Img.get());
-      } else {
-        // If it has not already been registered we create a new entry.
-        // Note: Pointer to the host pipe is not available here, so it
-        //       cannot be set until registration happens.
-        auto EntryUPtr =
-            std::make_unique<HostPipeMapEntry>(HostPipe->Name, TypeSize);
-        EntryUPtr->initialize(Img.get());
-        m_HostPipes.emplace(HostPipe->Name, std::move(EntryUPtr));
-      }
-    }
-  }
 
   m_DeviceImages.insert({RawImg, std::move(Img)});
 }
@@ -1871,25 +1836,6 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
     }
 
     m_DeviceGlobals.eraseEntries(Img);
-
-    {
-      std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
-      auto HostPipes = Img->getHostPipes();
-      for (const sycl_device_binary_property &HostPipe : HostPipes) {
-        if (auto HostPipesIt = m_HostPipes.find(HostPipe->Name);
-            HostPipesIt != m_HostPipes.end()) {
-          auto findHostPipesByValue = std::find_if(
-              m_Ptr2HostPipe.begin(), m_Ptr2HostPipe.end(),
-              [&HostPipesIt](
-                  const std::pair<const void *, HostPipeMapEntry *> &Entry) {
-                return Entry.second == HostPipesIt->second.get();
-              });
-          if (findHostPipesByValue != m_Ptr2HostPipe.end())
-            m_Ptr2HostPipe.erase(findHostPipesByValue);
-          m_HostPipes.erase(HostPipesIt);
-        }
-      }
-    }
 
     // Purge references to the image in native programs map
     {
@@ -2027,8 +1973,7 @@ bundle_state
 ProgramManager::getBinImageState(const RTDeviceBinaryImage *BinImage) {
   auto IsAOTBinary = [](const char *Format) {
     return ((strcmp(Format, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
-            (strcmp(Format, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) ||
-            (strcmp(Format, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0));
+            (strcmp(Format, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0));
   };
 
   // Three possible initial states:
@@ -2161,37 +2106,6 @@ ProgramManager::getProfileCounterDeviceGlobalEntries(
                      });
   ProfileCounters.erase(NewEnd, ProfileCounters.end());
   return ProfileCounters;
-}
-
-void ProgramManager::addOrInitHostPipeEntry(const void *HostPipePtr,
-                                            const char *UniqueId) {
-  std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
-
-  auto ExistingHostPipe = m_HostPipes.find(UniqueId);
-  if (ExistingHostPipe != m_HostPipes.end()) {
-    ExistingHostPipe->second->initialize(HostPipePtr);
-    m_Ptr2HostPipe.insert({HostPipePtr, ExistingHostPipe->second.get()});
-    return;
-  }
-
-  auto EntryUPtr = std::make_unique<HostPipeMapEntry>(UniqueId, HostPipePtr);
-  auto NewEntry = m_HostPipes.emplace(UniqueId, std::move(EntryUPtr));
-  m_Ptr2HostPipe.insert({HostPipePtr, NewEntry.first->second.get()});
-}
-
-HostPipeMapEntry *
-ProgramManager::getHostPipeEntry(const std::string &UniqueId) {
-  std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
-  auto Entry = m_HostPipes.find(UniqueId);
-  assert(Entry != m_HostPipes.end() && "Host pipe entry not found");
-  return Entry->second.get();
-}
-
-HostPipeMapEntry *ProgramManager::getHostPipeEntry(const void *HostPipePtr) {
-  std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
-  auto Entry = m_Ptr2HostPipe.find(HostPipePtr);
-  assert(Entry != m_Ptr2HostPipe.end() && "Host pipe entry not found");
-  return Entry->second;
 }
 
 device_image_plain ProgramManager::getDeviceImageFromBinaryImage(
@@ -3534,9 +3448,6 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
     if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) {
       return DevImpl.is_gpu() && (BE == sycl::backend::opencl ||
                                   BE == sycl::backend::ext_oneapi_level_zero);
-    }
-    if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0) {
-      return DevImpl.is_accelerator();
     }
     if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_NVPTX64) == 0 ||
         strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_LLVM_NVPTX64) == 0) {
