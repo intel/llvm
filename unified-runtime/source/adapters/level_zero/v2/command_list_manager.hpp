@@ -45,6 +45,25 @@ struct wait_list_view {
   }
 };
 
+struct graph_capture_tracking_data_t {
+  void enableCapture(ur_exp_graph_handle_t graph) {
+    capturedGraph = graph;
+    enableCapture();
+  }
+  void enableCapture() { active = true; }
+  void disableCapture() {
+    active = false;
+    capturedGraph = nullptr;
+  }
+
+  ur_exp_graph_handle_t getGraph() const { return capturedGraph; }
+  bool isActive() const { return active; }
+
+private:
+  bool active = false;
+  ur_exp_graph_handle_t capturedGraph = nullptr;
+};
+
 struct ur_command_list_manager {
   ur_command_list_manager(ur_context_handle_t context,
                           ur_device_handle_t device,
@@ -227,6 +246,15 @@ struct ur_command_list_manager {
       const ur_kernel_launch_ext_properties_t *launchPropList,
       wait_list_view &waitListView, ur_event_handle_t phEvent);
 
+  /************ Graph methods *************/
+  ur_result_t appendGraph(ur_exp_executable_graph_handle_t hGraph,
+                          wait_list_view &waitListView,
+                          ur_event_handle_t hEvent);
+  ur_result_t beginGraphCapture();
+  ur_result_t beginCaptureIntoGraph(ur_exp_graph_handle_t hGraph);
+  ur_result_t endGraphCapture(ur_exp_graph_handle_t *phGraph);
+  ur_result_t isGraphCaptureActive(bool *pResult);
+
   v2::raii::command_list_unique_handle &&releaseCommandList();
 
   void replaceCommandList(v2::raii::command_list_unique_handle &&cmdlist);
@@ -301,4 +329,6 @@ private:
   std::vector<ur_kernel_handle_t> submittedKernels;
   v2::raii::command_list_unique_handle zeCommandList;
   std::vector<ze_event_handle_t> waitList;
+
+  graph_capture_tracking_data_t graphCapture;
 };

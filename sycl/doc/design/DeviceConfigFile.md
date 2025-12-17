@@ -166,7 +166,6 @@ def AspectExt_intel_gpu_slices : Aspect<"ext_intel_gpu_slices">;
 def AspectExt_intel_gpu_subslices_per_slice : Aspect<"ext_intel_gpu_subslices_per_slice">;
 def AspectExt_intel_gpu_eu_count_per_subslice : Aspect<"ext_intel_gpu_eu_count_per_subslice">;
 def AspectExt_intel_max_mem_bandwidth : Aspect<"ext_intel_max_mem_bandwidth">;
-def AspectExt_intel_mem_channel : Aspect<"ext_intel_mem_channel">;
 def AspectUsm_atomic_host_allocations : Aspect<"usm_atomic_host_allocations">;
 def AspectUsm_atomic_shared_allocations : Aspect<"usm_atomic_shared_allocations">;
 def AspectAtomic64 : Aspect<"atomic64">;
