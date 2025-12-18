@@ -705,7 +705,7 @@ def remove_level_zero_suffix(devices):
 
 
 available_devices = {
-    "opencl": ("cpu", "gpu", "fpga"),
+    "opencl": ("cpu", "gpu"),
     "cuda": "gpu",
     "level_zero": "gpu",
     "hip": "gpu",
@@ -1078,24 +1078,17 @@ for full_name, sycl_device in zip(
     sg_sizes = set(dev_sg_sizes[0]).intersection(*dev_sg_sizes)
     lit_config.note("SG sizes for {}: {}".format(sycl_device, ", ".join(sg_sizes)))
 
-    # Currently, for fpga, the architecture reported by sycl-ls will always
-    # be unknown, as there are currently no architectures specified for fpga
-    # in sycl_ext_oneapi_device_architecture. Skip adding architecture features
-    # in this case.
-    if sycl_device == "opencl:fpga":
-        architectures = set()
-    else:
-        lit_config.note(
-            "Architectures for {}: {}".format(sycl_device, ", ".join(architectures))
-        )
-        if len(architectures) != 1 or "unknown" in architectures:
-            if not config.allow_unknown_arch:
-                lit_config.error(
-                    "Cannot detect architecture for {}\nstdout:\n{}\nstderr:\n{}".format(
-                        sycl_device, sycl_ls_sp.stdout, sycl_ls_sp.stderr
-                    )
+    lit_config.note(
+        "Architectures for {}: {}".format(sycl_device, ", ".join(architectures))
+    )
+    if len(architectures) != 1 or "unknown" in architectures:
+        if not config.allow_unknown_arch:
+            lit_config.error(
+                "Cannot detect architecture for {}\nstdout:\n{}\nstderr:\n{}".format(
+                    sycl_device, sycl_ls_sp.stdout, sycl_ls_sp.stderr
                 )
-            architectures = set()
+            )
+        architectures = set()
 
     aspect_features = set("aspect-" + a for a in aspects)
     sg_size_features = set("sg-" + s for s in sg_sizes)
@@ -1129,7 +1122,7 @@ for full_name, sycl_device in zip(
             dev = "gpu"
         else:
             dev = backend_devices
-    features.add(dev.replace("fpga", "accelerator"))
+    features.add(dev)
     if "level_zero_v2" in full_name:
         features.add("level_zero_v2_adapter")
     elif "level_zero_v1" in full_name:

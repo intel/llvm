@@ -13,6 +13,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/event.hpp>
 #include <sycl/ext/oneapi/experimental/enqueue_types.hpp>
+#include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/handler.hpp>
@@ -177,6 +178,21 @@ void single_task(queue Q, const kernel &KernelObj, ArgsT &&...Args) {
   submit(std::move(Q), [&](handler &CGH) {
     single_task(CGH, KernelObj, std::forward<ArgsT>(Args)...);
   });
+}
+
+// Free function kernel single_task enqueue functions
+template <auto *Func, typename... ArgsT>
+void single_task(queue Q, [[maybe_unused]] kernel_function_s<Func> KernelFunc,
+                 ArgsT &&...Args) {
+  detail::submit_kernel_direct_single_task(std::move(Q),
+                                           [Args...]() { Func(Args...); });
+}
+
+template <auto *Func, typename... ArgsT>
+void single_task(handler &CGH,
+                 [[maybe_unused]] kernel_function_s<Func> KernelFunc,
+                 ArgsT &&...Args) {
+  CGH.single_task([Args...]() { Func(Args...); });
 }
 
 // TODO: Make overloads for scalar arguments for range.
@@ -355,6 +371,48 @@ void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
   submit(std::move(Q), [&](handler &CGH) {
     nd_launch(CGH, Config, KernelObj, std::forward<ArgsT>(Args)...);
   });
+}
+
+// Free function kernel nd_launch enqueue functions
+template <auto *Func, int Dimensions, typename... ArgsT>
+void nd_launch(queue Q, nd_range<Dimensions> Range,
+               [[maybe_unused]] kernel_function_s<Func> KernelFunc,
+               ArgsT &&...Args) {
+  detail::submit_kernel_direct_parallel_for(
+      std::move(Q), Range, [Args...](sycl::nd_item<>) { Func(Args...); });
+}
+
+template <auto *Func, int Dimensions, typename... ArgsT>
+void nd_launch(handler &CGH, nd_range<Dimensions> Range,
+               [[maybe_unused]] kernel_function_s<Func> KernelFunc,
+               ArgsT &&...Args) {
+  CGH.parallel_for(Range, [Args...](sycl::nd_item<>) { Func(Args...); });
+}
+
+template <auto *Func, int Dimensions, typename Properties, typename... ArgsT>
+void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
+               [[maybe_unused]] kernel_function_s<Func> KernelFunc,
+               ArgsT &&...Args) {
+
+  ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
+                                                        Properties>
+      ConfigAccess(Config);
+  detail::submit_kernel_direct_parallel_for(
+      std::move(Q), ConfigAccess.getRange(),
+      [Args...](sycl::nd_item<>) { Func(Args...); }, {},
+      ConfigAccess.getProperties());
+}
+
+template <auto *Func, int Dimensions, typename Properties, typename... ArgsT>
+void nd_launch(handler &CGH,
+               launch_config<nd_range<Dimensions>, Properties> Config,
+               [[maybe_unused]] kernel_function_s<Func> KernelFunc,
+               ArgsT &&...Args) {
+  ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
+                                                        Properties>
+      ConfigAccess(Config);
+  CGH.parallel_for(ConfigAccess.getRange(), ConfigAccess.getProperties(),
+                   [Args...](sycl::nd_item<>) { Func(Args...); });
 }
 
 inline void memcpy(handler &CGH, void *Dest, const void *Src, size_t NumBytes) {
