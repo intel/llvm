@@ -2172,34 +2172,39 @@ extractSYCLCompileLinkOptions(ArrayRef<OffloadFile> OffloadFiles) {
   return std::make_pair(std::string(RefCompileOpts), std::string(RefLinkOpts));
 }
 
+// Append SYCL device compiler and linker options specified at link time,
+// filtering by target triple and offload kind.
 static void appendSYCLDeviceOptionsAtLinkTime(const DerivedArgList &LinkerArgs,
                                               std::string &CompileOptions,
                                               std::string &LinkOptions) {
-  // Append any additional backend compiler options specified at link time.
   const llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
-  for (StringRef Arg : LinkerArgs.getAllArgValues(OPT_device_compiler_args_EQ)) {
-    auto [Specifier, Value] = Arg.split('=');
-    StringRef TargetTriple = Specifier; 
-    if (Specifier.contains(':')) {
-      auto [KindStr, TripleStr] = Specifier.split(':');
-      OffloadKind Kind = getOffloadKind(KindStr);
-      TargetTriple = TripleStr;
-      if (Kind != OFK_SYCL)
+  auto processDeviceArgs = [&](unsigned OptID, std::string &Options) {
+    for (StringRef Arg : LinkerArgs.getAllArgValues(OptID)) {
+      StringRef Value, TargetTriple, Kind;
+      if (Arg.contains('=')) {
+        std::pair<StringRef, StringRef> SplitResult = Arg.split('=');
+        StringRef Specifier = SplitResult.first;
+        Value = SplitResult.second;
+        if (Specifier.contains(':')) {
+          std::pair<StringRef, StringRef> KindSplit = Specifier.split(':');
+          Kind = KindSplit.first;
+          TargetTriple = KindSplit.second;
+        } else {
+          TargetTriple = Specifier;
+        }
+      } else {
+        Value = Arg;
+      }
+      if (Value.empty() || 
+          (!TargetTriple.empty() && TargetTriple != Triple.getTriple()) || 
+          (!Kind.empty() && getOffloadKind(Kind) != OFK_SYCL))
         continue;
+      Options += Twine(" ", Value).str();
     }
-    if (TargetTriple != Triple.getTriple() || Value.empty())
-      continue;
-
-    CompileOptions += Twine(" ", Value).str();
-  }
-
-  // Append any additional linker options specified at link time.
-  for (StringRef Arg : LinkerArgs.getAllArgValues(OPT_device_linker_args_EQ)) {
-    auto [ArgKey, ArgValue] = Arg.split(' ');
-    LinkOptions += Twine(" ", ArgValue).str();
-  }
+  };
+  processDeviceArgs(OPT_device_compiler_args_EQ, CompileOptions);
+  processDeviceArgs(OPT_device_linker_args_EQ, LinkOptions);
 }
-
 
 /// Transforms all the extracted offloading input files into an image that can
 /// be registered by the runtime. If NeedsWrapping is false, writes bundled
