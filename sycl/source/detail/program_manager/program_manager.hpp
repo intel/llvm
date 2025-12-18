@@ -431,7 +431,7 @@ protected:
   /// NOTE: This may be acquired while \ref Sync::getGlobalLock() is held so to
   /// avoid deadlocks care must be taken not to acquire
   /// \ref Sync::getGlobalLock() while holding this mutex.
-  // TODO This currently serves as the mutex or multiple maps that are not
+  // TODO This currently serves as the mutex for multiple maps that are not
   // always accessed together, probably should be split into multiple mutexes.
   std::mutex m_ImgMapsMutex;
 
