@@ -10,6 +10,7 @@
 #pragma once
 
 #include <unordered_set>
+#include <variant>
 
 #include "common.hpp"
 #include "common/ur_ref_count.hpp"
@@ -97,8 +98,10 @@ struct ur_kernel_handle_t_ : ur_object {
   struct ArgumentInfo {
     uint32_t Index;
     size_t Size;
-    // const ur_mem_handle_t_ *Value;
-    ur_mem_handle_t_ *Value;
+    // Value may be either a memory object or a raw pointer value (for pointer
+    // arguments). Resolve at enqueue time per-device to ensure correct handle
+    // is used for that device.
+    std::variant<ur_mem_handle_t, const void *> Value;
     ur_mem_handle_t_::access_mode_t AccessMode{ur_mem_handle_t_::unknown};
   };
   // Arguments that still need to be set (with zeKernelSetArgumentValue)
