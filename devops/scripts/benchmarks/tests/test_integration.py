@@ -194,11 +194,21 @@ class TestE2E(unittest.TestCase):
             "KernelSubmitMultiQueue large",
             {"pytorch", "L0"},
         )
+        self._checkCase(
+            "torch_benchmark_l0 batchSize 512, slmNum 1, warmupIterations 1",
+            "KernelSubmitSlmSize small",
+            {"pytorch", "L0"},
+        )
 
     def test_torch_sycl(self):
         self._checkCase(
             "torch_benchmark_sycl kernelsPerQueue 10, workgroupCount 512, workgroupSize 256",
             "KernelSubmitMultiQueue medium",
+            {"pytorch", "SYCL"},
+        )
+        self._checkCase(
+            "torch_benchmark_sycl batchSize 512, slmNum -1, warmupIterations 1",
+            "KernelSubmitSlmSize max",
             {"pytorch", "SYCL"},
         )
 
@@ -208,6 +218,12 @@ class TestE2E(unittest.TestCase):
             "KernelSubmitMultiQueue small",
             {"pytorch", "SYCL"},
         )
+        self._checkCase(
+            "torch_benchmark_syclpreview batchSize 512, slmNum 1024, warmupIterations 1",
+            "KernelSubmitSlmSize medium",
+            {"pytorch", "SYCL"},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
