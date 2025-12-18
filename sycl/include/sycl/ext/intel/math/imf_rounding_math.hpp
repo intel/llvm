@@ -17,7 +17,7 @@ namespace ext::intel::math {
 
 /// --------------------------------------------------------------------------
 /// Adds 2 float values
-/// Supports rounding down/up/to-nearest-even/towards-zero
+/// Supports rounding down/to-nearest-even/up/towards-zero
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL float __imf_fadd_rd(float, float);
@@ -44,7 +44,7 @@ template <typename Tp = float> Tp fadd_rz(Tp x, Tp y) {
 
 /// --------------------------------------------------------------------------
 /// Substracts 2 float values
-/// Supports rounding down/up/to-nearest-even/towards-zero
+/// Supports rounding down/to-nearest-even/up/towards-zero
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL float __imf_fsub_rd(float, float);
@@ -71,7 +71,7 @@ template <typename Tp = float> Tp fsub_rz(Tp x, Tp y) {
 
 /// --------------------------------------------------------------------------
 /// Multiplies 2 float values
-/// Supports rounding down/up/to-nearest-even/towards-zero
+/// Supports rounding down/to-nearest-even/up/towards-zero
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL float __imf_fmul_rd(float, float);
@@ -98,7 +98,7 @@ template <typename Tp = float> Tp fmul_rz(Tp x, Tp y) {
 
 /// --------------------------------------------------------------------------
 /// Divides 2 float values
-/// Supports rounding down/up/to-nearest-even/towards-zero
+/// Supports rounding down/to-nearest-even/up/towards-zero
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL float __imf_fdiv_rd(float, float);
@@ -125,7 +125,7 @@ template <typename Tp = float> Tp fdiv_rz(Tp x, Tp y) {
 
 /// --------------------------------------------------------------------------
 /// Reciprocal  of a float value
-/// Supports rounding down/up/to-nearest-even/towards-zero
+/// Supports rounding down/to-nearest-even/up/towards-zero
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL float __imf_frcp_rd(float);
@@ -144,7 +144,7 @@ template <typename Tp = float> Tp frcp_rz(Tp x) { return __imf_frcp_rz(x); }
 
 /// --------------------------------------------------------------------------
 /// Returns result of 'x * y + z' for float values
-/// Supports rounding down/up/to-nearest-even/towards-zero
+/// Supports rounding down/to-nearest-even/up/towards-zero
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL float __imf_fmaf_rd(float, float, float);
@@ -171,7 +171,7 @@ template <typename Tp = float> Tp fmaf_rz(Tp x, Tp y, Tp z) {
 
 /// --------------------------------------------------------------------------
 /// Square root of a float value
-/// Supports rounding down/up/to-nearest-even/towards-zero
+/// Supports rounding down/to-nearest-even/up/towards-zero
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL float __imf_sqrtf_rd(float);
@@ -190,7 +190,7 @@ template <typename Tp = float> Tp fsqrt_rz(Tp x) { return __imf_sqrtf_rz(x); }
 
 /// --------------------------------------------------------------------------
 /// Adds 2 double values
-/// Supports rounding down/up/to-nearest-even/towards-zero
+/// Supports rounding down/to-nearest-even/up/towards-zero
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL double __imf_dadd_rd(double, double);
@@ -217,7 +217,7 @@ template <typename Tp = double> Tp dadd_rz(Tp x, Tp y) {
 
 /// --------------------------------------------------------------------------
 /// Substracts 2 double values
-/// Supports rounding down/up/to-nearest-even/towards-zero
+/// Supports rounding down/to-nearest-even/up/towards-zero
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL double __imf_dsub_rd(double, double);
@@ -244,7 +244,7 @@ template <typename Tp = double> Tp dsub_rz(Tp x, Tp y) {
 
 /// --------------------------------------------------------------------------
 /// Multiplies 2 double values
-/// Supports rounding down/up/to-nearest-even/towards-zero
+/// Supports rounding down/to-nearest-even/up/towards-zero
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL double __imf_dmul_rd(double, double);
@@ -271,7 +271,7 @@ template <typename Tp = double> Tp dmul_rz(Tp x, Tp y) {
 
 /// --------------------------------------------------------------------------
 /// Divides 2 double values
-/// Supports rounding down/up/to-nearest-even/towards-zero
+/// Supports rounding down/to-nearest-even/up/towards-zero
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL double __imf_ddiv_rd(double, double);
@@ -298,7 +298,7 @@ template <typename Tp = double> Tp ddiv_rz(Tp x, Tp y) {
 
 /// --------------------------------------------------------------------------
 /// Returns reciprocal  of a double value
-/// Supports rounding down/up/to-nearest-even/towards-zero
+/// Supports rounding down/to-nearest-even/up/towards-zero
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL double __imf_drcp_rd(double);
@@ -317,7 +317,7 @@ template <typename Tp = double> Tp drcp_rz(Tp x) { return __imf_drcp_rz(x); }
 
 /// --------------------------------------------------------------------------
 /// Returns result of 'x * y + z' for double values
-/// Supports rounding down/up/to-nearest-even/towards-zero
+/// Supports rounding down/to-nearest-even/up/towards-zero
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL double __imf_fma_rd(double, double, double);
@@ -344,7 +344,7 @@ template <typename Tp = double> Tp fma_rz(Tp x, Tp y, Tp z) {
 
 /// --------------------------------------------------------------------------
 /// Square root of a double value
-/// Supports rounding down/up/to-nearest-even/towards-zero
+/// Supports rounding down/to-nearest-even/up/towards-zero
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL double __imf_sqrt_rd(double);
