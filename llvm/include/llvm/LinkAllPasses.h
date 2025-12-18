@@ -131,7 +131,6 @@ struct ForcePassLinking {
     (void)llvm::createGVNPass();
     (void)llvm::createPostDomTree();
     (void)llvm::createMergeICmpsLegacyPass();
-    (void)llvm::createExpandLargeDivRemPass();
     (void)llvm::createExpandMemCmpLegacyPass();
     std::string buf;
     llvm::raw_string_ostream os(buf);
