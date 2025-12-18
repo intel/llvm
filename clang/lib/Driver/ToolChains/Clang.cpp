@@ -11267,17 +11267,17 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       const DerivedArgList &ToolChainArgs =
           C.getArgsForToolChain(TC, /*BoundArch=*/"", Kind);
       DerivedArgList CompilerArgs(ToolChainArgs.getBaseArgs());
+      ArgStringList CompilerArgsStrings;
       ArgStringList LinkerArgsStrings;
       for (Arg *A : ToolChainArgs) {
         if (A->getOption().matches(OPT_Zlinker_input))
-          A->render(Args, LinkerArgsStrings);
+          LinkerArgsStrings.emplace_back(A->getValue());
         else if (ShouldForward(CompilerOptions, A, *TC))
           CompilerArgs.append(A);
         else if (ShouldForward(LinkerOptions, A, *TC))
           A->render(Args, LinkerArgsStrings);
       }
 
-      ArgStringList CompilerArgsStrings;
       const toolchains::SYCLToolChain &SYCLTC =
             static_cast<const toolchains::SYCLToolChain &>(*TC);
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
@@ -11505,9 +11505,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(
           Args.MakeArgString("-sycl-allow-device-image-dependencies"));
 
-    // Pass the backend compiler option and linker option specified
-    // at link time via  --device-compiler options and --device-linker= 
-    // correspondingly to the clang-linker-wrapper.
+    // Pass backend compiler and linker options specified at link time to 
+    // clang-linker-wrapper. Link-time options passed via -Xsycl-target-backend 
+    // are forwarded using --device-compiler, while options passed via 
+    // -Xsycl-target-linker are forwarded using --device-linker.
     const toolchains::SYCLToolChain &SYCLTC =
         static_cast<const toolchains::SYCLToolChain &>(getToolChain());
     for (auto &ToolChainMember :
@@ -11541,7 +11542,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       }
       if(!LinkOptString.empty()){
         CmdArgs.push_back(
-        Args.MakeArgString("--device-linker=" + LinkOptString));
+        Args.MakeArgString("--device-linker=" + 
+                            Action::GetOffloadKindName(Action::OFK_SYCL) + ":" +
+                            TC->getTripleString() + "=" +
+                            LinkOptString));
       }
     }
 
