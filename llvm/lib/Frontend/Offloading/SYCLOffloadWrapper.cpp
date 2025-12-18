@@ -538,7 +538,6 @@ struct Wrapper {
 
   Constant *wrapImage(const SYCLImage &Image, Twine ImageID,
                       StringRef OffloadKindTag) {
-    auto *NullPtr = Constant::getNullValue(PointerType::getUnqual(C));
     // DeviceImageStructVersion change log:
     // -- version 2: updated to PI 1.2 binary image format
     // -- version 3: removed ManifestStart, ManifestEnd pointers

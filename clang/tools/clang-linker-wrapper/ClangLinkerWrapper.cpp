@@ -260,7 +260,7 @@ Expected<OffloadFile> getInputBitcodeLibrary(StringRef Input) {
   auto NewBinaryOrErr = OffloadBinary::create(*Binary);
   if (!NewBinaryOrErr)
     return NewBinaryOrErr.takeError();
-  return OffloadFile(std::move(*NewBinaryOrErr), std::move(Binary));
+  return OffloadFile(std::move(NewBinaryOrErr.get()[0]), std::move(Binary));
 }
 
 std::string getMainExecutable(const char *Name) {
