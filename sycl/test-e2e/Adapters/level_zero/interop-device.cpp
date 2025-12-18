@@ -30,7 +30,7 @@ void for_each_descendent_dev(sycl::device dev, FuncTy F) {
 
   // I'm not sure if remaining partitioning schems are actually supported by any
   // of the existing Level-Zero devices. Make sure we still cover that
-  // possibility in this test to accomodate any future situation.
+  // possibility in this test to accommodate any future situation.
 
   if (supports(sycl::info::partition_property::partition_equally)) {
     std::cout << "Equally" << std::endl;
