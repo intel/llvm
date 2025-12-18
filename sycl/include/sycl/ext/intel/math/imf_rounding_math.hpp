@@ -24,7 +24,7 @@ __DPCPP_SYCL_EXTERNAL float __imf_fadd_rz(float, float);
 __DPCPP_SYCL_EXTERNAL float __imf_fadd_rn(float, float);
 __DPCPP_SYCL_EXTERNAL float __imf_fadd_ru(float, float);
 __DPCPP_SYCL_EXTERNAL float __imf_fadd_rd(float, float);
-};
+}
 
 template <typename Tp = float> Tp fadd_rd(Tp x, Tp y) {
   return __imf_fadd_rd(x, y);
@@ -51,7 +51,7 @@ __DPCPP_SYCL_EXTERNAL float __imf_fsub_rz(float, float);
 __DPCPP_SYCL_EXTERNAL float __imf_fsub_rn(float, float);
 __DPCPP_SYCL_EXTERNAL float __imf_fsub_ru(float, float);
 __DPCPP_SYCL_EXTERNAL float __imf_fsub_rd(float, float);
-};
+}
 
 template <typename Tp = float> Tp fsub_rd(Tp x, Tp y) {
   return __imf_fsub_rd(x, y);
@@ -78,7 +78,7 @@ __DPCPP_SYCL_EXTERNAL float __imf_fmul_rz(float, float);
 __DPCPP_SYCL_EXTERNAL float __imf_fmul_rn(float, float);
 __DPCPP_SYCL_EXTERNAL float __imf_fmul_ru(float, float);
 __DPCPP_SYCL_EXTERNAL float __imf_fmul_rd(float, float);
-};
+}
 
 template <typename Tp = float> Tp fmul_rd(Tp x, Tp y) {
   return __imf_fmul_rd(x, y);
@@ -105,7 +105,7 @@ __DPCPP_SYCL_EXTERNAL float __imf_fdiv_rz(float, float);
 __DPCPP_SYCL_EXTERNAL float __imf_fdiv_rn(float, float);
 __DPCPP_SYCL_EXTERNAL float __imf_fdiv_ru(float, float);
 __DPCPP_SYCL_EXTERNAL float __imf_fdiv_rd(float, float);
-};
+}
 
 template <typename Tp = float> Tp fdiv_rd(Tp x, Tp y) {
   return __imf_fdiv_rd(x, y);
@@ -132,7 +132,7 @@ __DPCPP_SYCL_EXTERNAL float __imf_frcp_rz(float);
 __DPCPP_SYCL_EXTERNAL float __imf_frcp_rn(float);
 __DPCPP_SYCL_EXTERNAL float __imf_frcp_ru(float);
 __DPCPP_SYCL_EXTERNAL float __imf_frcp_rd(float);
-};
+}
 
 template <typename Tp = float> Tp frcp_rd(Tp x) { return __imf_frcp_rd(x); }
 
@@ -151,7 +151,7 @@ __DPCPP_SYCL_EXTERNAL float __imf_fmaf_rz(float, float, float);
 __DPCPP_SYCL_EXTERNAL float __imf_fmaf_rn(float, float, float);
 __DPCPP_SYCL_EXTERNAL float __imf_fmaf_ru(float, float, float);
 __DPCPP_SYCL_EXTERNAL float __imf_fmaf_rd(float, float, float);
-};
+}
 
 template <typename Tp = float> Tp fmaf_rd(Tp x, Tp y, Tp z) {
   return __imf_fmaf_rd(x, y, z);
@@ -178,7 +178,7 @@ __DPCPP_SYCL_EXTERNAL float __imf_sqrtf_rz(float);
 __DPCPP_SYCL_EXTERNAL float __imf_sqrtf_rn(float);
 __DPCPP_SYCL_EXTERNAL float __imf_sqrtf_ru(float);
 __DPCPP_SYCL_EXTERNAL float __imf_sqrtf_rd(float);
-};
+}
 
 template <typename Tp = float> Tp fsqrt_rd(Tp x) { return __imf_sqrtf_rd(x); }
 
@@ -197,7 +197,7 @@ __DPCPP_SYCL_EXTERNAL double __imf_dadd_rz(double, double);
 __DPCPP_SYCL_EXTERNAL double __imf_dadd_rn(double, double);
 __DPCPP_SYCL_EXTERNAL double __imf_dadd_ru(double, double);
 __DPCPP_SYCL_EXTERNAL double __imf_dadd_rd(double, double);
-};
+}
 
 template <typename Tp = double> Tp dadd_rd(Tp x, Tp y) {
   return __imf_dadd_rd(x, y);
@@ -224,7 +224,7 @@ __DPCPP_SYCL_EXTERNAL double __imf_dsub_rz(double, double);
 __DPCPP_SYCL_EXTERNAL double __imf_dsub_rn(double, double);
 __DPCPP_SYCL_EXTERNAL double __imf_dsub_ru(double, double);
 __DPCPP_SYCL_EXTERNAL double __imf_dsub_rd(double, double);
-};
+}
 
 template <typename Tp = double> Tp dsub_rd(Tp x, Tp y) {
   return __imf_dsub_rd(x, y);
@@ -251,7 +251,7 @@ __DPCPP_SYCL_EXTERNAL double __imf_dmul_rz(double, double);
 __DPCPP_SYCL_EXTERNAL double __imf_dmul_rn(double, double);
 __DPCPP_SYCL_EXTERNAL double __imf_dmul_ru(double, double);
 __DPCPP_SYCL_EXTERNAL double __imf_dmul_rd(double, double);
-};
+}
 
 template <typename Tp = double> Tp dmul_rd(Tp x, Tp y) {
   return __imf_dmul_rd(x, y);
@@ -278,7 +278,7 @@ __DPCPP_SYCL_EXTERNAL double __imf_ddiv_rz(double, double);
 __DPCPP_SYCL_EXTERNAL double __imf_ddiv_rn(double, double);
 __DPCPP_SYCL_EXTERNAL double __imf_ddiv_ru(double, double);
 __DPCPP_SYCL_EXTERNAL double __imf_ddiv_rd(double, double);
-};
+}
 
 template <typename Tp = double> Tp ddiv_rd(Tp x, Tp y) {
   return __imf_ddiv_rd(x, y);
@@ -305,7 +305,7 @@ __DPCPP_SYCL_EXTERNAL double __imf_drcp_rz(double);
 __DPCPP_SYCL_EXTERNAL double __imf_drcp_rn(double);
 __DPCPP_SYCL_EXTERNAL double __imf_drcp_ru(double);
 __DPCPP_SYCL_EXTERNAL double __imf_drcp_rd(double);
-};
+}
 
 template <typename Tp = double> Tp drcp_rd(Tp x) { return __imf_drcp_rd(x); }
 
@@ -324,7 +324,7 @@ __DPCPP_SYCL_EXTERNAL double __imf_fma_rz(double, double, double);
 __DPCPP_SYCL_EXTERNAL double __imf_fma_rn(double, double, double);
 __DPCPP_SYCL_EXTERNAL double __imf_fma_ru(double, double, double);
 __DPCPP_SYCL_EXTERNAL double __imf_fma_rd(double, double, double);
-};
+}
 
 template <typename Tp = double> Tp fma_rd(Tp x, Tp y, Tp z) {
   return __imf_fma_rd(x, y, z);
@@ -351,7 +351,7 @@ __DPCPP_SYCL_EXTERNAL double __imf_sqrt_rz(double);
 __DPCPP_SYCL_EXTERNAL double __imf_sqrt_rn(double);
 __DPCPP_SYCL_EXTERNAL double __imf_sqrt_ru(double);
 __DPCPP_SYCL_EXTERNAL double __imf_sqrt_rd(double);
-};
+}
 
 template <typename Tp = double> Tp dsqrt_rd(Tp x) { return __imf_sqrt_rd(x); }
 

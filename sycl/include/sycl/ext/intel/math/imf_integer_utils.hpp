@@ -21,7 +21,7 @@ namespace ext::intel::math {
 extern "C" {
 __DPCPP_SYCL_EXTERNAL unsigned __imf_brev(unsigned);
 __DPCPP_SYCL_EXTERNAL unsigned long long __imf_brevll(unsigned long long);
-};
+}
 
 template <typename Tp = unsigned> unsigned brev(Tp x) { return __imf_brev(x); }
 
@@ -34,7 +34,7 @@ template <typename Tp = unsigned long long> unsigned long long brevll(Tp x) {
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL unsigned __imf_byte_perm(unsigned, unsigned, unsigned);
-};
+}
 
 template <typename Tp = unsigned> unsigned byte_perm(Tp x, Tp y, Tp z) {
   return __imf_byte_perm(x, y, z);
@@ -54,7 +54,7 @@ __DPCPP_SYCL_EXTERNAL unsigned long long __imf_ullmin(unsigned long long x,
                                                       unsigned long long y);
 __DPCPP_SYCL_EXTERNAL unsigned __imf_umax(unsigned x, unsigned y);
 __DPCPP_SYCL_EXTERNAL unsigned __imf_umin(unsigned x, unsigned y);
-};
+}
 
 template <typename Tp = int> int max(Tp x, Tp y) { return __imf_max(x, y); }
 
@@ -92,7 +92,7 @@ unsigned long long ullmin(Tp x, Tp y) {
 extern "C" {
 __DPCPP_SYCL_EXTERNAL int __imf_clz(int);
 __DPCPP_SYCL_EXTERNAL int __imf_clzll(long long);
-};
+}
 
 template <typename Tp = int> int clz(Tp x) { return __imf_clz(x); }
 
@@ -104,7 +104,7 @@ template <typename Tp = long long> int clzll(Tp x) { return __imf_clzll(x); }
 extern "C" {
 __DPCPP_SYCL_EXTERNAL int __imf_ffs(int);
 __DPCPP_SYCL_EXTERNAL int __imf_ffsll(long long);
-};
+}
 
 template <typename Tp = int> int ffs(Tp x) { return __imf_ffs(x); }
 
@@ -123,7 +123,7 @@ __DPCPP_SYCL_EXTERNAL int __imf_rhadd(int, int);
 __DPCPP_SYCL_EXTERNAL int __imf_hadd(int, int);
 __DPCPP_SYCL_EXTERNAL unsigned __imf_uhadd(unsigned, unsigned);
 __DPCPP_SYCL_EXTERNAL unsigned __imf_urhadd(unsigned, unsigned);
-};
+}
 
 template <typename Tp = int> int hadd(Tp x, Tp y) { return __imf_hadd(x, y); }
 
@@ -156,7 +156,7 @@ __DPCPP_SYCL_EXTERNAL unsigned __imf_umul24(unsigned, unsigned);
 __DPCPP_SYCL_EXTERNAL unsigned __imf_umulhi(unsigned, unsigned);
 __DPCPP_SYCL_EXTERNAL unsigned long long __imf_umul64hi(unsigned long long,
                                                         unsigned long long);
-};
+}
 
 template <typename Tp = int> int mul24(Tp x, Tp y) { return __imf_mul24(x, y); }
 
@@ -185,7 +185,7 @@ unsigned long long umul64hi(Tp x, Tp y) {
 extern "C" {
 __DPCPP_SYCL_EXTERNAL int __imf_popc(unsigned);
 __DPCPP_SYCL_EXTERNAL int __imf_popcll(unsigned long long);
-};
+}
 
 template <typename Tp = unsigned> int popc(Tp x) { return __imf_popc(x); }
 
@@ -199,7 +199,7 @@ template <typename Tp = unsigned long long> int popcll(Tp x) {
 extern "C" {
 __DPCPP_SYCL_EXTERNAL unsigned __imf_sad(int, int, unsigned);
 __DPCPP_SYCL_EXTERNAL unsigned __imf_usad(unsigned, unsigned, unsigned);
-};
+}
 
 template <typename Tp1 = int, typename Tp2 = unsigned>
 unsigned sad(Tp1 x, Tp1 y, Tp2 z) {

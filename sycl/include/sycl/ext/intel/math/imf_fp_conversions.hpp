@@ -40,7 +40,7 @@ __DPCPP_SYCL_EXTERNAL unsigned long long int __imf_float2ull_rd(float);
 __DPCPP_SYCL_EXTERNAL unsigned long long int __imf_float2ull_rn(float);
 __DPCPP_SYCL_EXTERNAL unsigned long long int __imf_float2ull_ru(float);
 __DPCPP_SYCL_EXTERNAL unsigned long long int __imf_float2ull_rz(float);
-};
+}
 
 template <typename To = int, typename From = float> To float2int_rd(From x) {
   return __imf_float2int_rd(x);
@@ -139,7 +139,7 @@ __DPCPP_SYCL_EXTERNAL float __imf_ull2float_rd(unsigned long long int);
 __DPCPP_SYCL_EXTERNAL float __imf_ull2float_rn(unsigned long long int);
 __DPCPP_SYCL_EXTERNAL float __imf_ull2float_ru(unsigned long long int);
 __DPCPP_SYCL_EXTERNAL float __imf_ull2float_rz(unsigned long long int);
-};
+}
 
 template <typename To = float, typename From = long long>
 To ll2float_rd(From x) {
@@ -225,7 +225,7 @@ __DPCPP_SYCL_EXTERNAL int __imf_float_as_int(float);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_float_as_uint(float);
 __DPCPP_SYCL_EXTERNAL float __imf_int_as_float(int);
 __DPCPP_SYCL_EXTERNAL float __imf_uint_as_float(unsigned int);
-};
+}
 
 template <typename To = int, typename From = float> To float_as_int(From x) {
   return __imf_float_as_int(x);
@@ -254,7 +254,7 @@ __DPCPP_SYCL_EXTERNAL float __imf_double2float_rd(double);
 __DPCPP_SYCL_EXTERNAL float __imf_double2float_rn(double);
 __DPCPP_SYCL_EXTERNAL float __imf_double2float_ru(double);
 __DPCPP_SYCL_EXTERNAL float __imf_double2float_rz(double);
-};
+}
 
 template <typename To = float, typename From = double>
 To double2float_rd(From x) {
@@ -282,7 +282,7 @@ To double2float_rz(From x) {
 extern "C" {
 __DPCPP_SYCL_EXTERNAL int __imf_double2hiint(double);
 __DPCPP_SYCL_EXTERNAL int __imf_double2loint(double);
-};
+}
 
 template <typename To = int, typename From = double> To double2hiint(From x) {
   return __imf_double2hiint(x);
@@ -313,7 +313,7 @@ __DPCPP_SYCL_EXTERNAL unsigned long long __imf_double2ull_rd(double);
 __DPCPP_SYCL_EXTERNAL unsigned long long __imf_double2ull_rn(double);
 __DPCPP_SYCL_EXTERNAL unsigned long long __imf_double2ull_ru(double);
 __DPCPP_SYCL_EXTERNAL unsigned long long __imf_double2ull_rz(double);
-};
+}
 
 template <typename To = int, typename From = double> To double2int_rd(From x) {
   return __imf_double2int_rd(x);
@@ -397,7 +397,7 @@ To double2ull_rz(From x) {
 extern "C" {
 __DPCPP_SYCL_EXTERNAL long long __imf_double_as_longlong(double);
 __DPCPP_SYCL_EXTERNAL double __imf_longlong_as_double(long long);
-};
+}
 
 template <typename To = long long, typename From = double>
 To double_as_longlong(From x) {
@@ -414,7 +414,7 @@ To longlong_as_double(From x) {
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL double __imf_hiloint2double(int, int);
-};
+}
 
 template <typename To = double, typename From = int>
 To hiloint2double(From x, From y) {
@@ -427,7 +427,7 @@ To hiloint2double(From x, From y) {
 extern "C" {
 __DPCPP_SYCL_EXTERNAL double __imf_int2double_rn(int);
 __DPCPP_SYCL_EXTERNAL double __imf_uint2double_rn(unsigned);
-};
+}
 
 template <typename To = double, typename From = int> To int2double_rn(From x) {
   return __imf_int2double_rn(x);
@@ -451,7 +451,7 @@ __DPCPP_SYCL_EXTERNAL double __imf_ull2double_rd(unsigned long long);
 __DPCPP_SYCL_EXTERNAL double __imf_ull2double_rn(unsigned long long);
 __DPCPP_SYCL_EXTERNAL double __imf_ull2double_ru(unsigned long long);
 __DPCPP_SYCL_EXTERNAL double __imf_ull2double_rz(unsigned long long);
-};
+}
 
 template <typename To = double, typename From = long long>
 To ll2double_rd(From x) {
@@ -498,7 +498,7 @@ To ull2double_rz(From x) {
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL float __imf_half2float(_iml_half_internal);
-};
+}
 
 template <typename To = float, typename From = sycl::half>
 To half2float(From x) {
@@ -514,7 +514,7 @@ __DPCPP_SYCL_EXTERNAL _iml_half_internal __imf_float2half_rd(float);
 __DPCPP_SYCL_EXTERNAL _iml_half_internal __imf_float2half_rn(float);
 __DPCPP_SYCL_EXTERNAL _iml_half_internal __imf_float2half_ru(float);
 __DPCPP_SYCL_EXTERNAL _iml_half_internal __imf_float2half_rz(float);
-};
+}
 
 template <typename To = sycl::half, typename From = float>
 To float2half_rn(From x) {
@@ -541,7 +541,7 @@ To float2half_rz(From x) {
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL _iml_half_internal __imf_double2half(double);
-};
+}
 
 template <typename To = sycl::half, typename From = double>
 To double2half(From x) {
@@ -577,7 +577,7 @@ __DPCPP_SYCL_EXTERNAL unsigned short __imf_half2ushort_rd(_iml_half_internal);
 __DPCPP_SYCL_EXTERNAL unsigned short __imf_half2ushort_rn(_iml_half_internal);
 __DPCPP_SYCL_EXTERNAL unsigned short __imf_half2ushort_ru(_iml_half_internal);
 __DPCPP_SYCL_EXTERNAL unsigned short __imf_half2ushort_rz(_iml_half_internal);
-};
+}
 
 template <typename To = int, typename From = sycl::half>
 To half2int_rn(From x) {
@@ -728,7 +728,7 @@ __DPCPP_SYCL_EXTERNAL _iml_half_internal __imf_ushort2half_rd(unsigned short);
 __DPCPP_SYCL_EXTERNAL _iml_half_internal __imf_ushort2half_rn(unsigned short);
 __DPCPP_SYCL_EXTERNAL _iml_half_internal __imf_ushort2half_ru(unsigned short);
 __DPCPP_SYCL_EXTERNAL _iml_half_internal __imf_ushort2half_rz(unsigned short);
-};
+}
 
 template <typename To = sycl::half, typename From = int>
 To int2half_rn(From x) {
@@ -858,7 +858,7 @@ __DPCPP_SYCL_EXTERNAL short __imf_bfloat16_as_short(uint16_t);
 __DPCPP_SYCL_EXTERNAL unsigned short __imf_bfloat16_as_ushort(uint16_t);
 __DPCPP_SYCL_EXTERNAL uint16_t __imf_short_as_bfloat16(short);
 __DPCPP_SYCL_EXTERNAL uint16_t __imf_ushort_as_bfloat16(unsigned short);
-};
+}
 
 template <typename To = unsigned short,
           typename From = sycl::ext::oneapi::bfloat16>
@@ -889,7 +889,7 @@ To short_as_bfloat16(From x) {
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL float __imf_bfloat162float(uint16_t);
-};
+}
 
 template <typename To = float, typename From = sycl::ext::oneapi::bfloat16>
 To bfloat162float(From x) {
@@ -905,7 +905,7 @@ __DPCPP_SYCL_EXTERNAL uint16_t __imf_float2bfloat16_rd(float);
 __DPCPP_SYCL_EXTERNAL uint16_t __imf_float2bfloat16_rn(float);
 __DPCPP_SYCL_EXTERNAL uint16_t __imf_float2bfloat16_ru(float);
 __DPCPP_SYCL_EXTERNAL uint16_t __imf_float2bfloat16_rz(float);
-};
+}
 
 template <typename To = sycl::ext::oneapi::bfloat16, typename From = float>
 To float2bfloat16(From x) {
@@ -966,7 +966,7 @@ __DPCPP_SYCL_EXTERNAL uint16_t __imf_ll2bfloat16_rd(long long);
 __DPCPP_SYCL_EXTERNAL uint16_t __imf_ll2bfloat16_rn(long long);
 __DPCPP_SYCL_EXTERNAL uint16_t __imf_ll2bfloat16_ru(long long);
 __DPCPP_SYCL_EXTERNAL uint16_t __imf_ll2bfloat16_rz(long long);
-};
+}
 
 template <typename To = sycl::ext::oneapi::bfloat16,
           typename From = unsigned short>
@@ -1113,7 +1113,7 @@ To ll2bfloat16_rz(From x) {
 /// --------------------------------------------------------------------------
 extern "C" {
 __DPCPP_SYCL_EXTERNAL uint16_t __imf_double2bfloat16(double);
-};
+}
 
 template <typename To = sycl::ext::oneapi::bfloat16, typename From = double>
 To double2bfloat16(From x) {
@@ -1149,7 +1149,7 @@ __DPCPP_SYCL_EXTERNAL long long __imf_bfloat162ll_rd(uint16_t);
 __DPCPP_SYCL_EXTERNAL long long __imf_bfloat162ll_rn(uint16_t);
 __DPCPP_SYCL_EXTERNAL long long __imf_bfloat162ll_ru(uint16_t);
 __DPCPP_SYCL_EXTERNAL long long __imf_bfloat162ll_rz(uint16_t);
-};
+}
 
 template <typename To = unsigned int,
           typename From = sycl::ext::oneapi::bfloat16>

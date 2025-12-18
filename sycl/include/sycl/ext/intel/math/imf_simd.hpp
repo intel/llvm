@@ -26,7 +26,7 @@ namespace ext::intel::math {
 extern "C" {
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vabs2(unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vabs4(unsigned int);
-};
+}
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vabs2(Tp x) {
@@ -47,7 +47,7 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vabs4(Tp x) {
 extern "C" {
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vneg2(unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vneg4(unsigned int);
-};
+}
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vneg2(Tp x) {
@@ -68,7 +68,7 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vneg4(Tp x) {
 extern "C" {
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vnegss2(unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vnegss4(unsigned int);
-};
+}
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vnegss2(Tp x) {
@@ -91,7 +91,7 @@ __DPCPP_SYCL_EXTERNAL unsigned int __imf_vabsdiffs2(unsigned int, unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vabsdiffs4(unsigned int, unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vabsdiffu2(unsigned int, unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vabsdiffu4(unsigned int, unsigned int);
-};
+}
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
@@ -126,7 +126,7 @@ vabsdiffu4(Tp x, Tp y) {
 extern "C" {
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vabsss2(unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vabsss4(unsigned int);
-};
+}
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vabsss2(Tp x) {
@@ -147,7 +147,7 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vabsss4(Tp x) {
 extern "C" {
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vadd2(unsigned int, unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vadd4(unsigned int, unsigned int);
-};
+}
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vadd2(Tp x,
@@ -170,7 +170,7 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vadd4(Tp x,
 extern "C" {
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vaddss2(unsigned int, unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vaddss4(unsigned int, unsigned int);
-};
+}
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vaddss2(Tp x,
@@ -193,7 +193,7 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vaddss4(Tp x,
 extern "C" {
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vaddus2(unsigned int, unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vaddus4(unsigned int, unsigned int);
-};
+}
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vaddus2(Tp x,
@@ -216,7 +216,7 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vaddus4(Tp x,
 extern "C" {
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vsub2(unsigned int, unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vsub4(unsigned int, unsigned int);
-};
+}
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vsub2(Tp x,
@@ -239,7 +239,7 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vsub4(Tp x,
 extern "C" {
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vsubss2(unsigned int, unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vsubss4(unsigned int, unsigned int);
-};
+}
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vsubss2(Tp x,
@@ -262,7 +262,7 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vsubss4(Tp x,
 extern "C" {
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vsubus2(unsigned int, unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vsubus4(unsigned int, unsigned int);
-};
+}
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vsubus2(Tp x,
@@ -285,7 +285,7 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vsubus4(Tp x,
 extern "C" {
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vhaddu2(unsigned int, unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vhaddu4(unsigned int, unsigned int);
-};
+}
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vhaddu2(Tp x,
@@ -314,7 +314,7 @@ __DPCPP_SYCL_EXTERNAL unsigned int __imf_vavgs2(unsigned int, unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vavgs4(unsigned int, unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vavgu2(unsigned int, unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vavgu4(unsigned int, unsigned int);
-};
+}
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vavgs2(Tp x,
@@ -370,7 +370,7 @@ __DPCPP_SYCL_EXTERNAL unsigned int __imf_vcmpltu2(unsigned int, unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vcmpltu4(unsigned int, unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vcmpne2(unsigned int, unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vcmpne4(unsigned int, unsigned int);
-};
+}
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vcmpeq2(Tp x,
@@ -511,7 +511,7 @@ __DPCPP_SYCL_EXTERNAL unsigned int __imf_vmins2(unsigned int, unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vmins4(unsigned int, unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vminu2(unsigned int, unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vminu4(unsigned int, unsigned int);
-};
+}
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vmaxs2(Tp x,
@@ -586,7 +586,7 @@ __DPCPP_SYCL_EXTERNAL unsigned int __imf_vsetlts2(unsigned int, unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vsetlts4(unsigned int, unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vsetltu2(unsigned int, unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vsetltu4(unsigned int, unsigned int);
-};
+}
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vseteq2(Tp x,
@@ -719,7 +719,7 @@ __DPCPP_SYCL_EXTERNAL unsigned int __imf_vsads2(unsigned int, unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vsads4(unsigned int, unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vsadu2(unsigned int, unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vsadu4(unsigned int, unsigned int);
-};
+}
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vsads2(Tp x,
@@ -796,7 +796,7 @@ __DPCPP_SYCL_EXTERNAL unsigned int
 __imf_viaddmin_u16x2(unsigned int, unsigned int, unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int
 __imf_viaddmin_u32(unsigned int, unsigned int, unsigned int);
-};
+}
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
@@ -901,7 +901,7 @@ __DPCPP_SYCL_EXTERNAL unsigned int
 __imf_vibmin_u16x2(unsigned int, unsigned int, bool *, bool *);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vibmin_u32(unsigned int, unsigned int,
                                                     bool *);
-};
+}
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
@@ -985,7 +985,7 @@ __DPCPP_SYCL_EXTERNAL unsigned int
 __imf_vimin3_u16x2(unsigned int, unsigned int, unsigned int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vimin3_u32(unsigned int, unsigned int,
                                                     unsigned int);
-};
+}
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
@@ -1078,7 +1078,7 @@ __DPCPP_SYCL_EXTERNAL int __imf_vimax_s32_relu(int, int);
 __DPCPP_SYCL_EXTERNAL unsigned int __imf_vimin_s16x2_relu(unsigned int,
                                                           unsigned int);
 __DPCPP_SYCL_EXTERNAL int __imf_vimin_s32_relu(int, int);
-};
+}
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, int>, int> vimax_s32_relu(Tp x, Tp y) {
