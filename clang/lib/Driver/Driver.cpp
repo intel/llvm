@@ -101,6 +101,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Host.h"
 #include "llvm/TargetParser/RISCVISAInfo.h"
+#include <cassert>
 #include <cstdlib> // ::getenv
 #include <map>
 #include <memory>
@@ -1189,18 +1190,19 @@ static bool addSYCLDefaultTriple(Compilation &C,
   llvm::Triple DefaultTriple =
       C.getDriver().getSYCLDeviceTriple(getDefaultSYCLArch(C));
   for (const auto &SYCLTriple : SYCLTriples) {
+    // Check current set of triples to see if the default has already been set.
     if (SYCLTriple == DefaultTriple)
+      return false;
+    // TODO: Do we need this check? Don't we already detect the default triple
+    // in the previous condition?
+    if (SYCLTriple.getSubArch() == llvm::Triple::NoSubArch &&
+        SYCLTriple.isSPIROrSPIRV())
       return false;
     // If we encounter a known non-spir* target, do not add the default triple.
     if (SYCLTriple.isNVPTX() || SYCLTriple.isAMDGCN())
       return false;
   }
-  // Check current set of triples to see if the default has already been set.
-  for (const auto &SYCLTriple : SYCLTriples) {
-    if (SYCLTriple.getSubArch() == llvm::Triple::NoSubArch &&
-        SYCLTriple.isSPIROrSPIRV())
-      return false;
-  }
+  // TODO: Why do we insert at the beginning? This is expensive operation.
   SYCLTriples.insert(SYCLTriples.begin(), DefaultTriple);
   return true;
 }
@@ -1504,9 +1506,10 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         Triples.push_back(T);
       }
       if (addSYCLDefaultTriple(C, Triples)) {
-        llvm::Triple TT =
-            llvm::Triple(getSYCLDeviceTriple(getDefaultSYCLArch(C)));
-        auto &TC = getOffloadToolChain(C.getInputArgs(), Action::OFK_SYCL, TT,
+        assert(!Triples.empty() &&
+               "addSYCLDefaultTriple should add at least one triple");
+        auto &TC = getOffloadToolChain(C.getInputArgs(), Action::OFK_SYCL,
+                                       Triples.front(),
                                        C.getDefaultToolChain().getTriple());
         C.addOffloadDeviceToolChain(&TC, Action::OFK_SYCL);
       }
