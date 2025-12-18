@@ -115,19 +115,16 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  std::unique_ptr<llvm::object::OffloadBinary> ParsedOffloadBinary;
   MemoryBufferRef SYCLBINImageBuffer = [&]() {
-    if (llvm::Error E =
-            llvm::object::OffloadBinary::create(**FileMemBufferOrError)
-                .moveInto(ParsedOffloadBinary)) {
+    auto OffloadBinaryVecOrError =
+        llvm::object::OffloadBinary::create(**FileMemBufferOrError);
+    if (!OffloadBinaryVecOrError) {
       // If we failed to load as an offload binary, it may still be a SYCLBIN at
       // an outer level.
-      std::ignore = (bool)llvm::handleErrors(
-          std::move(E),
-          [](std::unique_ptr<ECError>) -> Error { return Error::success(); });
+      consumeError(OffloadBinaryVecOrError.takeError());
       return MemoryBufferRef(**FileMemBufferOrError);
     } else {
-      return MemoryBufferRef(ParsedOffloadBinary->getImage(), "");
+      return MemoryBufferRef(OffloadBinaryVecOrError.get()[0]->getImage(), "");
     }
   }();
 
