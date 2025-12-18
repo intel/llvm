@@ -136,24 +136,6 @@ static bool isDeviceBinaryTypeSupported(context_impl &ContextImpl,
   });
 }
 
-// getFormatStr is used for debug-printing, so it may be unused.
-[[maybe_unused]] static const char *getFormatStr(ur::DeviceBinaryType Format) {
-  switch (Format) {
-  case SYCL_DEVICE_BINARY_TYPE_NONE:
-    return "none";
-  case SYCL_DEVICE_BINARY_TYPE_NATIVE:
-    return "native";
-  case SYCL_DEVICE_BINARY_TYPE_SPIRV:
-    return "SPIR-V";
-  case SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE:
-    return "LLVM IR";
-  case SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NONE:
-    return "compressed none";
-  }
-  assert(false && "Unknown device image format");
-  return "unknown";
-}
-
 // The string produced by this function might be localized, with commas and
 // periods inserted. Presently, it is used only for user facing error output.
 [[maybe_unused]] auto VecToString = [](auto &Vec) -> std::string {
@@ -517,7 +499,8 @@ static const char *getUrDeviceTarget(const char *URDeviceTarget) {
     return UR_DEVICE_BINARY_TARGET_UNKNOWN;
   else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_SPIRV32) == 0)
     return UR_DEVICE_BINARY_TARGET_SPIRV32;
-  else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0)
+  else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0 ||
+           strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_NEW) == 0)
     return UR_DEVICE_BINARY_TARGET_SPIRV64;
   else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) ==
            0)
@@ -614,7 +597,8 @@ static bool checkLinkingSupport(const device_impl &DeviceImpl,
                                 const RTDeviceBinaryImage &Img) {
   const char *Target = Img.getRawData().DeviceTargetSpec;
   // TODO replace with extension checks once implemented in UR.
-  if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0) {
+  if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0 ||
+      strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_NEW) == 0) {
     return true;
   }
   if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) {
@@ -1498,6 +1482,10 @@ void ProgramManager::cacheKernelImplicitLocalArg(
 DeviceKernelInfo &
 ProgramManager::getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
+  if constexpr (DbgProgMgr > 0) {
+    std::cerr << ">>> ProgramManager::getDeviceKernelInfo(\""
+              << Info.Name.data() << "\")\n";
+  }
   auto It = m_DeviceKernelInfoMap.find(Info.Name);
   assert(It != m_DeviceKernelInfoMap.end());
   It->second.setCompileTimeInfoIfNeeded(Info);
@@ -3428,7 +3416,8 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
       assert(false && "Unhandled liboffload platform");
       return false;
     }
-    if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0) {
+    if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0 ||
+        strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_NEW) == 0) {
       return (BE == sycl::backend::opencl ||
               BE == sycl::backend::ext_oneapi_level_zero);
     }
