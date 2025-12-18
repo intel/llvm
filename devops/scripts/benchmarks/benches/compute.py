@@ -385,6 +385,46 @@ class ComputeBench(Suite):
                 ),
             ]
 
+        # Add TorchLinearKernelSize benchmarks
+        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+
+            def createTorchLinearKernelSizeBench(variant_name: str, **kwargs):
+                return TorchLinearKernelSize(
+                    self,
+                    runtime,
+                    variant_name,
+                    PROFILERS.TIMER,
+                    **kwargs,
+                )
+
+            benches += [
+                createTorchLinearKernelSizeBench(
+                    "array32",
+                    kernelBatchSize=512,
+                    kernelSize=32,
+                ),
+                createTorchLinearKernelSizeBench(
+                    "array128",
+                    kernelBatchSize=512,
+                    kernelSize=128,
+                ),
+                createTorchLinearKernelSizeBench(
+                    "array512",
+                    kernelBatchSize=512,
+                    kernelSize=512,
+                ),
+                createTorchLinearKernelSizeBench(
+                    "array1024",
+                    kernelBatchSize=512,
+                    kernelSize=1024,
+                ),
+                createTorchLinearKernelSizeBench(
+                    "array5120",
+                    kernelBatchSize=512,
+                    kernelSize=5120,
+                ),
+            ]
+
         # Add UR-specific benchmarks
         benches += [
             # TODO: multithread_benchmark_ur fails with segfault
@@ -910,6 +950,20 @@ class TorchSlmSize(TorchBenchmark):
             suite,
             runtime,
             "KernelSubmitSlmSize",
+            variant_name,
+            profiler_type,
+            **kwargs,
+        )
+
+
+class TorchLinearKernelSize(TorchBenchmark):
+    def __init__(
+        self, suite, runtime: RUNTIMES, variant_name: str, profiler_type, **kwargs
+    ):
+        super().__init__(
+            suite,
+            runtime,
+            "KernelSubmitLinearKernelSize",
             variant_name,
             profiler_type,
             **kwargs,

@@ -199,6 +199,11 @@ class TestE2E(unittest.TestCase):
             "KernelSubmitSlmSize small",
             {"pytorch", "L0"},
         )
+        self._checkCase(
+            "torch_benchmark_l0 kernelBatchSize 512, kernelSize 32",
+            "KernelSubmitLinearKernelSize array32",
+            {"pytorch", "L0"},
+        )
 
     def test_torch_sycl(self):
         self._checkCase(
@@ -211,6 +216,11 @@ class TestE2E(unittest.TestCase):
             "KernelSubmitSlmSize max",
             {"pytorch", "SYCL"},
         )
+        self._checkCase(
+            "torch_benchmark_sycl kernelBatchSize 512, kernelSize 5120",
+            "KernelSubmitLinearKernelSize array5120",
+            {"pytorch", "SYCL"},
+        )
 
     def test_torch_syclpreview(self):
         self._checkCase(
@@ -221,6 +231,11 @@ class TestE2E(unittest.TestCase):
         self._checkCase(
             "torch_benchmark_syclpreview batchSize 512, slmNum 1024, warmupIterations 1",
             "KernelSubmitSlmSize medium",
+            {"pytorch", "SYCL"},
+        )
+        self._checkCase(
+            "torch_benchmark_syclpreview kernelBatchSize 512, kernelSize 512",
+            "KernelSubmitLinearKernelSize array512",
             {"pytorch", "SYCL"},
         )
 
