@@ -1180,21 +1180,16 @@ llvm::Triple Driver::getSYCLDeviceTriple(StringRef TargetArch,
   return llvm::Triple(TargetArch);
 }
 
+/// Returns true if a triple is added to SYCLTriples, false otherwise
 static bool addSYCLDefaultTriple(Compilation &C,
                                  SmallVectorImpl<llvm::Triple> &SYCLTriples) {
-  /// Returns true if a triple is added to SYCLTriples, false otherwise
   if (!C.getDriver().isSYCLDefaultTripleImplied())
     return false;
   if (C.getInputArgs().hasArg(options::OPT_fsycl_force_target_EQ))
     return false;
-  llvm::Triple DefaultTriple =
-      C.getDriver().getSYCLDeviceTriple(getDefaultSYCLArch(C));
   for (const auto &SYCLTriple : SYCLTriples) {
-    // Check current set of triples to see if the default has already been set.
-    if (SYCLTriple == DefaultTriple)
-      return false;
-    // TODO: Do we need this check? Don't we already detect the default triple
-    // in the previous condition?
+    // Check current set of triples to see if the default (i.e. spir64) has
+    // already been set.
     if (SYCLTriple.getSubArch() == llvm::Triple::NoSubArch &&
         SYCLTriple.isSPIROrSPIRV())
       return false;
@@ -1202,8 +1197,8 @@ static bool addSYCLDefaultTriple(Compilation &C,
     if (SYCLTriple.isNVPTX() || SYCLTriple.isAMDGCN())
       return false;
   }
-  // TODO: Why do we insert at the beginning? This is expensive operation.
-  SYCLTriples.insert(SYCLTriples.begin(), DefaultTriple);
+  SYCLTriples.insert(SYCLTriples.begin(),
+                     C.getDriver().getSYCLDeviceTriple(getDefaultSYCLArch(C)));
   return true;
 }
 
