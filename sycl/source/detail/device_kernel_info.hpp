@@ -100,6 +100,9 @@ public:
   }
 
   const sycl::kernel_id &getKernelID() const {
+    // Expected to be called only for DeviceKernelInfo instances created by
+    // program manager (as opposed to allocated by sycl::kernel with
+    // origins other than SYCL offline compilation).
     assert(MKernelID);
     return *MKernelID;
   }
