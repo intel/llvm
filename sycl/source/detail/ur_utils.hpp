@@ -77,6 +77,24 @@ DeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
                                       size_t ImgSize);
 } // namespace ur
 
+// getFormatStr is used for debug-printing, so it may be unused.
+[[maybe_unused]] static const char *getFormatStr(ur::DeviceBinaryType Format) {
+  switch (Format) {
+  case SYCL_DEVICE_BINARY_TYPE_NONE:
+    return "none";
+  case SYCL_DEVICE_BINARY_TYPE_NATIVE:
+    return "native";
+  case SYCL_DEVICE_BINARY_TYPE_SPIRV:
+    return "SPIR-V";
+  case SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE:
+    return "LLVM IR";
+  case SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NONE:
+    return "compressed none";
+  }
+  assert(false && "Unknown device image format");
+  return "unknown";
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

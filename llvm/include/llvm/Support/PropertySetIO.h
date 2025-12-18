@@ -227,7 +227,7 @@ public:
       "reqd_work_group_size_uint64_t";
 
   // SYCLBIN specific property sets.
-  //how would we name it???
+  // how would we name it???
   static constexpr char SYCLBIN_GLOBAL_METADATA[] = "SYCLBIN/global metadata";
   static constexpr char SYCLBIN_IR_MODULE_METADATA[] =
       "SYCLBIN/ir module metadata";
