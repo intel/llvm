@@ -968,6 +968,7 @@ private:
   void postProcessRemoveTmpSuffix(llvm::Module *M) {
     if (TestRun)
       return;
+    std::vector<Function *> ToErase;
     for (auto &F : make_early_inc_range(*M)) {
       StringRef Name = F.getName();
       if (!Name.consume_back(TmpSuffix))
@@ -976,7 +977,7 @@ private:
         if (RenamedFunctions.count(Name.str())) {
           // Drop unuseful clone of the original or remangled function.
           Func->replaceAllUsesWith(ConstantPointerNull::get(Func->getType()));
-          Func->eraseFromParent();
+          ToErase.push_back(Func);
         } else {
           // Name doesn't exist in the original module. Drop unuseful clone of
           // remangled function.
@@ -987,6 +988,8 @@ private:
       // Complete the mangling process, e.g. from _Z1fPU3AS4i to _Z1fPi.
       F.setName(Name);
     }
+    for (auto *F : ToErase)
+      F->eraseFromParent();
   }
 
   void handleModule(llvm::Module *M) {
