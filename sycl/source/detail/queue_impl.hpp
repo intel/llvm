@@ -244,6 +244,13 @@ public:
 
   ~queue_impl() {
     try {
+      {
+        std::lock_guard<std::mutex> lock(workerMutex);
+        workerRunning = false;
+      }
+      workerCV.notify_all();
+      workerThread.join();
+      
 #if XPTI_ENABLE_INSTRUMENTATION
       // The trace event created in the constructor should be active through the
       // lifetime of the queue object as member variable. We will send a
@@ -1106,6 +1113,37 @@ protected:
   friend class sycl::ext::oneapi::experimental::detail::node_impl;
 
   void verifyProps(const property_list &Props) const;
+
+  private:
+    mutable std::mutex workerMutex;
+    std::vector<std::function<void()>> workerQueue;
+    std::condition_variable workerCV;
+    bool workerRunning = true;
+  public:
+    void enqueueWorkerTask(std::function<void()> task) {
+      {
+        std::lock_guard<std::mutex> lock(workerMutex);
+        workerQueue.push_back(std::move(task));
+      }
+      workerCV.notify_one();
+    }
+
+    void processWorkerTasks() {
+      while (true) {
+        std::vector<std::function<void()>> tasksToProcess;
+        {
+          std::unique_lock<std::mutex> lock(workerMutex);
+          if (!workerRunning) return;
+          workerCV.wait(lock, [&]() {return !workerQueue.empty() || !workerRunning;});
+          tasksToProcess.swap(workerQueue);
+        }
+        for (auto &task : tasksToProcess) {
+          task();
+        }
+      }
+    }
+  private:
+    std::thread workerThread = std::thread(&queue_impl::processWorkerTasks, this);
 };
 
 } // namespace detail
