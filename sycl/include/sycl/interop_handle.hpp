@@ -109,7 +109,7 @@ public:
 #endif
   }
 
-  /// Returns an underlying native backend object associated with teh queue
+  /// Returns an underlying native backend object associated with the queue
   /// that the host task was submitted to. If the command group was submitted
   /// with a secondary queue and the fall-back was triggered, the queue that
   /// is associated with the interop_handle must be the fall-back queue.
