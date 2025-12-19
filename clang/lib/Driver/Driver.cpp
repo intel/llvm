@@ -1194,7 +1194,7 @@ static bool addSYCLDefaultTriple(Compilation &C,
         SYCLTriple.isSPIROrSPIRV())
       return false;
     // If we encounter a known non-spir* target, do not add the default triple.
-    if (SYCLTriple.isNVPTX() || SYCLTriple.isAMDGCN())
+    if (!SYCLTriple.isSPIROrSPIRV())
       return false;
   }
   SYCLTriples.push_back(
