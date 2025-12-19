@@ -2786,7 +2786,7 @@ void enqueueImpKernel(
   context_impl &ContextImpl = Queue.getContextImpl();
   device_impl &DeviceImpl = Queue.getDeviceImpl();
   ur_kernel_handle_t Kernel = nullptr;
-  std::mutex *KernelMutex = nullptr;
+  std::mutex *KernelMutex = nullptr;  // FIXME: probably ansync call breaks this mutex
   ur_program_handle_t Program = nullptr;
   const KernelArgMask *EliminatedArgMask;
 
@@ -2846,7 +2846,7 @@ void enqueueImpKernel(
     EventsWaitList = std::move(EventsWithDeviceGlobalInits);
   }
 
-  ur_result_t Error = UR_RESULT_SUCCESS;
+  //ur_result_t Error = UR_RESULT_SUCCESS; // FIXME: abort on failure
   {
     // When KernelMutex is null, this means that in-memory caching is
     // disabled, which means that kernel object is not shared, so no locking
