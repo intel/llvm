@@ -93,8 +93,14 @@ class App:
             ],
             capture_output=True,
         )
-        print("MAIN_PY_STDOUT:\n" + proc.stdout.decode() if proc.stdout else "<empty>")
-        print("MAIN_PY_STDERR:\n" + proc.stderr.decode() if proc.stderr else "<empty>")
+        print(
+            "MAIN_PY_STDOUT:",
+            "\n" + proc.stdout.decode() if proc.stdout else " <empty>",
+        )
+        print(
+            "MAIN_PY_STDERR:",
+            "\n" + proc.stderr.decode() if proc.stderr else " <empty>",
+        )
         return proc.returncode
 
     def get_output(self):
