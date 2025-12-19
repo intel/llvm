@@ -1197,8 +1197,8 @@ static bool addSYCLDefaultTriple(Compilation &C,
     if (SYCLTriple.isNVPTX() || SYCLTriple.isAMDGCN())
       return false;
   }
-  SYCLTriples.insert(SYCLTriples.begin(),
-                     C.getDriver().getSYCLDeviceTriple(getDefaultSYCLArch(C)));
+  SYCLTriples.push_back(
+      C.getDriver().getSYCLDeviceTriple(getDefaultSYCLArch(C)));
   return true;
 }
 
@@ -1504,7 +1504,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         assert(!Triples.empty() &&
                "addSYCLDefaultTriple should add at least one triple");
         auto &TC = getOffloadToolChain(C.getInputArgs(), Action::OFK_SYCL,
-                                       Triples.front(),
+                                       Triples.back(),
                                        C.getDefaultToolChain().getTriple());
         C.addOffloadDeviceToolChain(&TC, Action::OFK_SYCL);
       }
@@ -6320,8 +6320,8 @@ class OffloadingActionBuilder final {
       if (addSYCLDefaultTriple(C, SYCLTripleList)) {
         // If a SYCLDefaultTriple is added to SYCLTripleList,
         // add new target to SYCLTargetInfoList
-        llvm::Triple TT = SYCLTripleList.front();
-        auto TCIt = llvm::find_if(
+        llvm::Triple TT = SYCLTripleList.back();
+        const auto *TCIt = llvm::find_if(
             ToolChains, [&](auto &TC) { return TT == TC->getTriple(); });
         SYCLTargetInfoList.emplace_back(*TCIt, nullptr);
       }
