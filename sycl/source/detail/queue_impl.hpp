@@ -250,7 +250,7 @@ public:
       }
       workerCV.notify_all();
       workerThread.join();
-      
+
 #if XPTI_ENABLE_INSTRUMENTATION
       // The trace event created in the constructor should be active through the
       // lifetime of the queue object as member variable. We will send a

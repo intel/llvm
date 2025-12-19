@@ -2383,10 +2383,11 @@ static void GetUrArgsBasedOnType(
   }
 }
 
-static ur_result_t SetKernelParamsAndLaunch(
-    queue_impl &Queue, std::vector<ArgDesc> &Args,
+// FIXME: was ur_result_t return value
+static void SetKernelParamsAndLaunch(
+    queue_impl &Queue, std::vector<ArgDesc> Args, // Args had ref
     device_image_impl *DeviceImageImpl, ur_kernel_handle_t Kernel,
-    NDRDescT &NDRDesc, std::vector<ur_event_handle_t> &RawEvents,
+    NDRDescT NDRDesc, std::vector<ur_event_handle_t> RawEvents, // NDRDescT had ref, RawEvents had ref
     detail::event_impl *OutEventImpl, const KernelArgMask *EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     bool IsCooperative, bool KernelUsesClusterLaunch,
@@ -2530,8 +2531,18 @@ static ur_result_t SetKernelParamsAndLaunch(
   if (Error == UR_RESULT_SUCCESS && OutEventImpl) {
     OutEventImpl->setHandle(UREvent);
   }
-
-  return Error;
+  // FIXME: handle errors asynchronously somehow
+  if (Error != UR_RESULT_SUCCESS) {
+    std::cerr << "Failed to launch kernel '"
+              << demangleKernelName(DeviceKernelInfo.Name) << "': "
+              << codeToString(Error) << std::endl;
+    abort();
+    // throw sycl::exception(
+    //     sycl::make_error_code(sycl::errc::kernel_argument),
+    //     "Failed to launch kernel '" + demangleKernelName(DeviceKernelInfo.Name) +
+    //         "': " + codeToString(Error));
+  }
+  //return Error;
 }
 
 // Sets arguments for a given kernel and device based on the argument type.
@@ -2853,18 +2864,28 @@ void enqueueImpKernel(
           sizeof(ur_kernel_cache_config_t), nullptr, &KernelCacheConfig);
     }
 
-    Error = SetKernelParamsAndLaunch(
-        Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList,
-        OutEventImpl, EliminatedArgMask, getMemAllocationFunc,
-        KernelIsCooperative, KernelUsesClusterLaunch, WorkGroupMemorySize,
-        BinImage, DeviceKernelInfo, KernelFuncPtr);
+    // was: Error =
+    // SetKernelParamsAndLaunch(
+    //     Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList,
+    //     OutEventImpl, EliminatedArgMask, getMemAllocationFunc,
+    //     KernelIsCooperative, KernelUsesClusterLaunch, WorkGroupMemorySize,
+    //     BinImage, DeviceKernelInfo, KernelFuncPtr);
+
+    Queue.enqueueWorkerTask(std::bind(SetKernelParamsAndLaunch,
+         std::ref(Queue), Args, DeviceImageImpl, Kernel, NDRDesc,
+         EventsWaitList,
+         OutEventImpl, EliminatedArgMask,
+         getMemAllocationFunc,
+         KernelIsCooperative, KernelUsesClusterLaunch, WorkGroupMemorySize,
+         BinImage, std::ref(DeviceKernelInfo), KernelFuncPtr));
   }
-  if (UR_RESULT_SUCCESS != Error) {
-    // If we have got non-success error code, let's analyze it to emit nice
-    // exception explaining what was wrong
-    detail::enqueue_kernel_launch::handleErrorOrWarning(Error, DeviceImpl,
-                                                        Kernel, NDRDesc);
-  }
+  // FIXME: abort on error for now
+  // if (UR_RESULT_SUCCESS != Error) {
+  //   // If we have got non-success error code, let's analyze it to emit nice
+  //   // exception explaining what was wrong
+  //   detail::enqueue_kernel_launch::handleErrorOrWarning(Error, DeviceImpl,
+  //                                                       Kernel, NDRDesc);
+  // }
 }
 
 namespace {
