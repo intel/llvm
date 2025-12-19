@@ -1118,11 +1118,13 @@ protected:
     mutable std::mutex workerMutex;
     std::vector<std::function<void()>> workerQueue;
     std::condition_variable workerCV;
+    std::condition_variable bufferFullCV;
     bool workerRunning = true;
   public:
     void enqueueWorkerTask(std::function<void()> task) {
       {
-        std::lock_guard<std::mutex> lock(workerMutex);
+        std::unique_lock<std::mutex> lock(workerMutex);
+        bufferFullCV.wait(lock, [&]() {return workerQueue.size() < 256;});
         workerQueue.push_back(std::move(task));
       }
       workerCV.notify_one();
@@ -1137,6 +1139,7 @@ protected:
           workerCV.wait(lock, [&]() {return !workerQueue.empty() || !workerRunning;});
           tasksToProcess.swap(workerQueue);
         }
+        bufferFullCV.notify_all();
         for (auto &task : tasksToProcess) {
           task();
         }
