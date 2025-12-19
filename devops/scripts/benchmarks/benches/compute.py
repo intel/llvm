@@ -170,6 +170,7 @@ class ComputeBench(Suite):
                             profiler_type=PROFILERS.CPU_COUNTER,
                         )
                     )
+        return benches
 
         # Add SinKernelGraph benchmarks
         sin_kernel_graph_params = product(
