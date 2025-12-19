@@ -6,7 +6,7 @@
 // RUN: %{build} --offload-new-driver -E -o %t.ii
 
 // Compile preprocessed file.
-// RUN: %clangxx -Wno-error=unused-command-line-argument -fsycl %{sycl_target_opts} --offload-new-driver %t.ii -o %t.out
+// RUN: %clangxx -Wno-error -fsycl %{sycl_target_opts} --offload-new-driver %t.ii -o %t.out
 
 // RUN: %{run} %t.out
 

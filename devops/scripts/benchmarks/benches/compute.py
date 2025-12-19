@@ -61,8 +61,8 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        # Nov 17, 2025
-        return "932ae79f7cca7e156285fc10a59610927c769e89"
+        # Dec 17, 2025
+        return "420549188cd8900c27cf9b04fd859ebe81876a99"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -182,7 +182,7 @@ class ComputeBench(Suite):
                 GraphApiSinKernelGraph(self, runtime, with_graphs, num_kernels)
             )
 
-            # Add ULLS benchmarks
+        # Add ULLS benchmarks
         for runtime in list(RUNTIMES):
             if runtime == RUNTIMES.SYCL:
                 benches.append(
@@ -208,25 +208,17 @@ class ComputeBench(Suite):
             measure_completion_time,
             use_events,
         ) in submit_graph_params:
-            # Non-sycl runtimes have to be run with emulated graphs,
-            # see: https://github.com/intel/compute-benchmarks/commit/d81d5d602739482b9070c872a28c0b5ebb41de70
-            emulate_graphs = (
-                0 if runtime in (RUNTIMES.SYCL, RUNTIMES.SYCL_PREVIEW) else 1
-            )
-            benches.append(
-                GraphApiSubmitGraph(
-                    self,
-                    runtime,
-                    in_order_queue,
-                    num_kernels,
-                    measure_completion_time,
-                    use_events,
-                    emulate_graphs,
-                    useHostTasks=0,
-                )
-            )
-            if runtime == RUNTIMES.SYCL:
-                # Create CPU count variant
+            # SYCL only supports graph mode, UR supports only emulation with command buffers,
+            # and L0 supports both modes via graph and command list APIs.
+            if runtime == RUNTIMES.SYCL or runtime == RUNTIMES.SYCL_PREVIEW:
+                emulate_graphs = [0]
+            elif runtime == RUNTIMES.UR:
+                emulate_graphs = [1]
+            else:  # level-zero
+                # SubmitGraph with L0 graph segfaults on PVC
+                device_arch = getattr(options, "device_architecture", "")
+                emulate_graphs = [1] if "pvc" in device_arch else [0, 1]
+            for emulate_graph in emulate_graphs:
                 benches.append(
                     GraphApiSubmitGraph(
                         self,
@@ -235,11 +227,25 @@ class ComputeBench(Suite):
                         num_kernels,
                         measure_completion_time,
                         use_events,
-                        emulate_graphs,
+                        emulate_graph,
                         useHostTasks=0,
-                        profiler_type=PROFILERS.CPU_COUNTER,
                     )
                 )
+                if runtime == RUNTIMES.SYCL:
+                    # Create CPU count variant
+                    benches.append(
+                        GraphApiSubmitGraph(
+                            self,
+                            runtime,
+                            in_order_queue,
+                            num_kernels,
+                            measure_completion_time,
+                            use_events,
+                            emulate_graph,
+                            useHostTasks=0,
+                            profiler_type=PROFILERS.CPU_COUNTER,
+                        )
+                    )
 
         # Add other benchmarks
         benches += [
@@ -346,6 +352,36 @@ class ComputeBench(Suite):
                     workgroupCount=256,
                     workgroupSize=124,
                     kernelsPerQueue=4,
+                ),
+            ]
+
+        # Add TorchSlmSize benchmarks
+        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+
+            def createTorchSlmSizeBench(variant_name: str, **kwargs):
+                return TorchSlmSize(
+                    self,
+                    runtime,
+                    variant_name,
+                    PROFILERS.TIMER,
+                    **{**kwargs, "warmupIterations": 1},
+                )
+
+            benches += [
+                createTorchSlmSizeBench(
+                    "small",
+                    batchSize=512,
+                    slmNum=1,
+                ),
+                createTorchSlmSizeBench(
+                    "medium",
+                    batchSize=512,
+                    slmNum=1024,
+                ),
+                createTorchSlmSizeBench(
+                    "max",
+                    batchSize=512,
+                    slmNum=-1,
                 ),
             ]
 
@@ -753,7 +789,7 @@ class ExecImmediateCopyQueue(ComputeBenchmark):
             f"--ioq={self._ioq}",
             f"--IsCopyOnly={self._is_copy_only}",
             "--MeasureCompletionTime=0",
-            f"--src={self._destination}",
+            f"--src={self._source}",
             f"--dst={self._destination}",
             f"--size={self._size}",
             "--withCopyOffload=0",
@@ -804,25 +840,31 @@ class RecordAndReplay(ComputeBenchmark):
         return [f"--{k}={v}" for k, v in self._rr_params.items()]
 
 
-class TorchMultiQueue(ComputeBenchmark):
+class TorchBenchmark(ComputeBenchmark):
     def __init__(
-        self, suite, runtime: RUNTIMES, variant_name: str, profiler_type, **kwargs
+        self,
+        suite,
+        runtime: RUNTIMES,
+        bench_name: str,
+        variant_name: str,
+        profiler_type,
+        **kwargs,
     ):
         self._variant_name = variant_name
-        self._smq_params = kwargs
+        self._torch_params = kwargs
         self._iterations_regular = 1000
         self._iterations_trace = 10
         super().__init__(
             suite,
             f"torch_benchmark_{runtime.value}",
-            "KernelSubmitMultiQueue",
+            bench_name,
             runtime,
             profiler_type,
         )
 
     def name(self):
         ret = []
-        for k, v in self._smq_params.items():
+        for k, v in self._torch_params.items():
             ret.append(f"{k} {v}")
         ret.sort()
         return self._bench_name + " " + ", ".join(ret)
@@ -842,8 +884,36 @@ class TorchMultiQueue(ComputeBenchmark):
     def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
         iters = self._get_iters(run_trace)
         return [f"--iterations={iters}"] + [
-            f"--{k}={v}" for k, v in self._smq_params.items()
+            f"--{k}={v}" for k, v in self._torch_params.items()
         ]
+
+
+class TorchMultiQueue(TorchBenchmark):
+    def __init__(
+        self, suite, runtime: RUNTIMES, variant_name: str, profiler_type, **kwargs
+    ):
+        super().__init__(
+            suite,
+            runtime,
+            "KernelSubmitMultiQueue",
+            variant_name,
+            profiler_type,
+            **kwargs,
+        )
+
+
+class TorchSlmSize(TorchBenchmark):
+    def __init__(
+        self, suite, runtime: RUNTIMES, variant_name: str, profiler_type, **kwargs
+    ):
+        super().__init__(
+            suite,
+            runtime,
+            "KernelSubmitSlmSize",
+            variant_name,
+            profiler_type,
+            **kwargs,
+        )
 
 
 class QueueInOrderMemcpy(ComputeBenchmark):
@@ -1178,6 +1248,7 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         self._use_events = useEvents
         self._use_host_tasks = useHostTasks
         self._emulate_graphs = emulate_graphs
+        self._emulate_str = " with graph emulation" if self._emulate_graphs else ""
         self._ioq_str = "in order" if self._in_order_queue else "out of order"
         self._measure_str = (
             " with measure completion" if self._measure_completion_time else ""
@@ -1196,10 +1267,10 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         )
 
     def name(self):
-        return f"graph_api_benchmark_{self._runtime.value} SubmitGraph{self._use_events_str}{self._host_tasks_str} numKernels:{self._num_kernels} ioq {self._in_order_queue} measureCompletion {self._measure_completion_time}{self._cpu_count_str()}"
+        return f"graph_api_benchmark_{self._runtime.value} SubmitGraph{self._use_events_str}{self._host_tasks_str}{self._emulate_str} numKernels:{self._num_kernels} ioq {self._in_order_queue} measureCompletion {self._measure_completion_time}{self._cpu_count_str()}"
 
     def display_name(self) -> str:
-        return f"{self._runtime.value.upper()} SubmitGraph {self._ioq_str}{self._measure_str}{self._use_events_str}{self._host_tasks_str}, {self._num_kernels} kernels{self._cpu_count_str(separator=',')}"
+        return f"{self._runtime.value.upper()} SubmitGraph {self._ioq_str}{self._measure_str}{self._use_events_str}{self._host_tasks_str}{self._emulate_str}, {self._num_kernels} kernels{self._cpu_count_str(separator=',')}"
 
     def explicit_group(self):
         return f"SubmitGraph {self._ioq_str}{self._measure_str}{self._use_events_str}{self._host_tasks_str}, {self._num_kernels} kernels{self._cpu_count_str(separator=',')}"

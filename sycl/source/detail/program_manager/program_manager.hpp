@@ -12,14 +12,12 @@
 #include <detail/device_global_map.hpp>
 #include <detail/device_global_map_entry.hpp>
 #include <detail/device_kernel_info.hpp>
-#include <detail/host_pipe_map_entry.hpp>
 #include <detail/kernel_arg_mask.hpp>
 #include <detail/spec_constant_impl.hpp>
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/device_global_map.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/host_pipe_map.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/detail/util.hpp>
@@ -293,18 +291,6 @@ public:
   std::vector<DeviceGlobalMapEntry *>
   getProfileCounterDeviceGlobalEntries(const context_impl *CtxImpl);
 
-  // The function inserts or initializes a host_pipe entry into the
-  // host_pipe map.
-  void addOrInitHostPipeEntry(const void *HostPipePtr, const char *UniqueId);
-
-  // The function gets a host_pipe entry identified by the unique ID from
-  // the host_pipe map.
-  HostPipeMapEntry *getHostPipeEntry(const std::string &UniqueId);
-
-  // The function gets a host_pipe entry identified by the pointer to the
-  // host_pipe object from the host_pipe map.
-  HostPipeMapEntry *getHostPipeEntry(const void *HostPipePtr);
-
   device_image_plain
   getDeviceImageFromBinaryImage(const RTDeviceBinaryImage *BinImage,
                                 const context &Ctx, const device &Dev);
@@ -535,14 +521,6 @@ protected:
   // Maps between free function kernel name and associated kernel global
   // information.
   std::unordered_map<std::string_view, unsigned> m_FreeFunctionKernelGlobalInfo;
-
-  // Maps between host_pipe identifiers and associated information.
-  std::unordered_map<std::string, std::unique_ptr<HostPipeMapEntry>>
-      m_HostPipes;
-  std::unordered_map<const void *, HostPipeMapEntry *> m_Ptr2HostPipe;
-
-  /// Protects m_HostPipes and m_Ptr2HostPipe.
-  std::mutex m_HostPipesMutex;
 
   using MaterializedEntries =
       std::map<std::vector<unsigned char>, Managed<ur_kernel_handle_t>>;

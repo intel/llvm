@@ -66,17 +66,6 @@ public:
     return m_EliminatedKernelArgMasks;
   }
 
-  std::unordered_map<std::string,
-                     std::unique_ptr<sycl::detail::HostPipeMapEntry>> &
-  getHostPipes() {
-    return m_HostPipes;
-  }
-
-  std::unordered_map<const void *, sycl::detail::HostPipeMapEntry *> &
-  getPtrToHostPipe() {
-    return m_Ptr2HostPipe;
-  }
-
   sycl::detail::DeviceGlobalMap &getDeviceGlobals() { return m_DeviceGlobals; }
 };
 
@@ -137,15 +126,7 @@ sycl::ext::oneapi::experimental::device_global<int> DeviceGlobalA;
 sycl::ext::oneapi::experimental::device_global<int> DeviceGlobalB;
 sycl::ext::oneapi::experimental::device_global<int> DeviceGlobalC;
 
-class PipeIDA;
-class PipeIDB;
-class PipeIDC;
-using PipeA = sycl::ext::intel::experimental::pipe<PipeIDA, int, 10>;
-using PipeB = sycl::ext::intel::experimental::pipe<PipeIDB, int, 10>;
-using PipeC = sycl::ext::intel::experimental::pipe<PipeIDC, int, 10>;
-
-sycl::unittest::MockDeviceImage generateImage(const std::string &ImageId,
-                                              bool AddHostPipes = true) {
+sycl::unittest::MockDeviceImage generateImage(const std::string &ImageId) {
   sycl::unittest::MockPropertySet PropSet;
 
   std::initializer_list<std::string> KernelNames{
@@ -180,11 +161,7 @@ sycl::unittest::MockDeviceImage generateImage(const std::string &ImageId,
       std::vector<sycl::unittest::MockProperty>{
           sycl::unittest::makeDeviceGlobalInfo(
               generateRefName(ImageId, "DeviceGlobal"), sizeof(int), 0)});
-  if (AddHostPipes)
-    PropSet.insert(__SYCL_PROPERTY_SET_SYCL_HOST_PIPES,
-                   std::vector<sycl::unittest::MockProperty>{
-                       sycl::unittest::makeHostPipeInfo(
-                           generateRefName(ImageId, "HostPipe"), sizeof(int))});
+
   std::vector<unsigned char> Bin{0};
 
   std::vector<sycl::unittest::MockOffloadEntry> Entries =
@@ -229,9 +206,9 @@ static std::array<sycl::unittest::MockDeviceImage, 1> ImagesToRemove = {
     generateImage("C")};
 
 static std::array<sycl::unittest::MockDeviceImage, 1> ImagesToKeepSameEntries =
-    {generateImage("A", /*AddHostPipe*/ false)};
+    {generateImage("A")};
 static std::array<sycl::unittest::MockDeviceImage, 1>
-    ImagesToRemoveSameEntries = {generateImage("A", /*AddHostPipe*/ false)};
+    ImagesToRemoveSameEntries = {generateImage("A")};
 
 static std::array<sycl::unittest::MockDeviceImage, 2> ImagesToKeepKernelOnly = {
     generateImageKernelOnly("A"), generateImageKernelOnly("B")};
@@ -299,23 +276,15 @@ void checkAllInvolvedContainers(ProgramManagerExposed &PM,
     checkContainer(PM.getDeviceGlobals(), ExpectedEntryCount,
                    generateRefNames(ImgIds, "DeviceGlobal"),
                    "Device globals " + CommentPostfix);
-
-    // The test case with the same entries in multiple images doesn't support
-    // host pipes since those are assumed to be unique.
-    checkContainer(PM.getHostPipes(), ExpectedEntryCount,
-                   generateRefNames(ImgIds, "HostPipe"),
-                   "Host pipes " + CommentPostfix);
-    EXPECT_EQ(PM.getPtrToHostPipe().size(), ExpectedEntryCount)
-        << "Pointer to host pipe " + CommentPostfix;
   }
 }
 
 void checkAllInvolvedContainers(ProgramManagerExposed &PM, size_t ExpectedCount,
                                 const std::vector<std::string> &ImgIds,
                                 const std::string &CommentPostfix,
-                                bool CheckHostPipes = false) {
+                                bool MultipleImgsPerEntryTestCase = false) {
   checkAllInvolvedContainers(PM, ExpectedCount, ExpectedCount, ImgIds,
-                             CommentPostfix, CheckHostPipes);
+                             CommentPostfix, MultipleImgsPerEntryTestCase);
 }
 
 TEST(ImageRemoval, BaseContainers) {
@@ -335,12 +304,6 @@ TEST(ImageRemoval, BaseContainers) {
                                 generateRefName("B", "DeviceGlobal").c_str());
   PM.addOrInitDeviceGlobalEntry(&DeviceGlobalC,
                                 generateRefName("C", "DeviceGlobal").c_str());
-  PM.addOrInitHostPipeEntry(PipeA::get_host_ptr(),
-                            generateRefName("A", "HostPipe").c_str());
-  PM.addOrInitHostPipeEntry(PipeB::get_host_ptr(),
-                            generateRefName("B", "HostPipe").c_str());
-  PM.addOrInitHostPipeEntry(PipeC::get_host_ptr(),
-                            generateRefName("C", "HostPipe").c_str());
 
   checkAllInvolvedContainers(PM, ImagesToRemove.size() + ImagesToKeep.size(),
                              {"A", "B", "C"}, "check failed before removal");
