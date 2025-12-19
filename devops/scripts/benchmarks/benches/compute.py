@@ -364,7 +364,7 @@ class ComputeBench(Suite):
                     runtime,
                     variant_name,
                     PROFILERS.TIMER,
-                    **kwargs,
+                    **{**kwargs, "warmupIterations": 1},
                 )
 
             benches += [
@@ -372,19 +372,16 @@ class ComputeBench(Suite):
                     "small",
                     batchSize=512,
                     slmNum=1,
-                    warmupIterations=1,
                 ),
                 createTorchSlmSizeBench(
                     "medium",
                     batchSize=512,
                     slmNum=1024,
-                    warmupIterations=1,
                 ),
                 createTorchSlmSizeBench(
                     "max",
                     batchSize=512,
                     slmNum=-1,
-                    warmupIterations=1,
                 ),
             ]
 
