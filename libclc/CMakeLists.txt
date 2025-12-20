@@ -402,11 +402,9 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
   set( BUILD_LIBSPIRV_${t} FALSE )
   if ( t STREQUAL amdgcn--amdhsa OR t STREQUAL nvptx64--nvidiacl OR t STREQUAL native_cpu )
     set( libspirv_lib_files )
-    set( libspirv_gen_files )
     set( BUILD_LIBSPIRV_${t} TRUE )
 
     if ( NOT ENABLE_RUNTIME_SUBNORMAL )
-      list( APPEND libspirv_gen_files spirv-convert.cl )
       list( APPEND libspirv_lib_files libspirv/lib/generic/subnormal_use_default.ll )
     endif()
 
@@ -561,7 +559,6 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
         COMPILE_FLAGS ${spirv_build_flags}
         OPT_FLAGS ${opt_flags}
         LIB_FILES ${libspirv_lib_files}
-        GEN_FILES ${libspirv_gen_files}
         ALIASES ${${d}_aliases}
         PARENT_TARGET libspirv-builtins
         # Link in the CLC builtins and internalize their symbols
