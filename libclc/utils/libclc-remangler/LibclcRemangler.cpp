@@ -977,6 +977,7 @@ private:
         if (RenamedFunctions.count(Name.str())) {
           // Drop unuseful clone of the original or remangled function.
           Func->replaceAllUsesWith(ConstantPointerNull::get(Func->getType()));
+          Func->setName("");
           ToErase.push_back(Func);
         } else {
           // Name doesn't exist in the original module. Drop unuseful clone of
