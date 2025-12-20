@@ -103,6 +103,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Host.h"
 #include "llvm/TargetParser/RISCVISAInfo.h"
+#include <cassert>
 #include <cstdlib> // ::getenv
 #include <map>
 #include <memory>
@@ -1147,29 +1148,25 @@ llvm::Triple Driver::getSYCLDeviceTriple(StringRef TargetArch,
   return llvm::Triple(TargetArch);
 }
 
+/// Returns true if a triple is added to SYCLTriples, false otherwise
 static bool addSYCLDefaultTriple(Compilation &C,
                                  SmallVectorImpl<llvm::Triple> &SYCLTriples) {
-  /// Returns true if a triple is added to SYCLTriples, false otherwise
   if (!C.getDriver().isSYCLDefaultTripleImplied())
     return false;
   if (C.getInputArgs().hasArg(options::OPT_fsycl_force_target_EQ))
     return false;
-  llvm::Triple DefaultTriple =
-      C.getDriver().getSYCLDeviceTriple(getDefaultSYCLArch(C));
   for (const auto &SYCLTriple : SYCLTriples) {
-    if (SYCLTriple == DefaultTriple)
-      return false;
-    // If we encounter a known non-spir* target, do not add the default triple.
-    if (SYCLTriple.isNVPTX() || SYCLTriple.isAMDGCN())
-      return false;
-  }
-  // Check current set of triples to see if the default has already been set.
-  for (const auto &SYCLTriple : SYCLTriples) {
+    // Check current set of triples to see if the default (i.e. spir64) has
+    // already been set.
     if (SYCLTriple.getSubArch() == llvm::Triple::NoSubArch &&
         SYCLTriple.isSPIROrSPIRV())
       return false;
+    // If we encounter a known non-spir* target, do not add the default triple.
+    if (!SYCLTriple.isSPIROrSPIRV())
+      return false;
   }
-  SYCLTriples.insert(SYCLTriples.begin(), DefaultTriple);
+  SYCLTriples.push_back(
+      C.getDriver().getSYCLDeviceTriple(getDefaultSYCLArch(C)));
   return true;
 }
 
@@ -1472,9 +1469,10 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         Triples.push_back(T);
       }
       if (addSYCLDefaultTriple(C, Triples)) {
-        llvm::Triple TT =
-            llvm::Triple(getSYCLDeviceTriple(getDefaultSYCLArch(C)));
-        auto &TC = getOffloadToolChain(C.getInputArgs(), Action::OFK_SYCL, TT,
+        assert(!Triples.empty() &&
+               "addSYCLDefaultTriple should add at least one triple");
+        auto &TC = getOffloadToolChain(C.getInputArgs(), Action::OFK_SYCL,
+                                       Triples.back(),
                                        C.getDefaultToolChain().getTriple());
         C.addOffloadDeviceToolChain(&TC, Action::OFK_SYCL);
       }
@@ -6292,8 +6290,8 @@ class OffloadingActionBuilder final {
       if (addSYCLDefaultTriple(C, SYCLTripleList)) {
         // If a SYCLDefaultTriple is added to SYCLTripleList,
         // add new target to SYCLTargetInfoList
-        llvm::Triple TT = SYCLTripleList.front();
-        auto TCIt = llvm::find_if(
+        llvm::Triple TT = SYCLTripleList.back();
+        const auto *TCIt = llvm::find_if(
             ToolChains, [&](auto &TC) { return TT == TC->getTriple(); });
         SYCLTargetInfoList.emplace_back(*TCIt, nullptr);
       }
