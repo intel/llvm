@@ -23,7 +23,7 @@ int main() {
 // of these UR objects. So, we currently shutdown without releasing them and
 // windows should handle the memory cleanup.
 
-// CHECK-RELEASE: <--- urContextRelease(
 // CHECK-RELEASE: <--- urKernelRelease(
 // CHECK-RELEASE: <--- urProgramRelease(
+// CHECK-RELEASE: <--- urContextRelease(
 // CHECK-RELEASE: <--- urDeviceRelease(
