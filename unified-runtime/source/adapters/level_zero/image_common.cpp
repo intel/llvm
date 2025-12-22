@@ -731,33 +731,25 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
   UR_ASSERT(Origin, UR_RESULT_ERROR_INVALID_VALUE);
   UR_ASSERT(Region, UR_RESULT_ERROR_INVALID_VALUE);
 
+  // Runtime validation of Origin values based on image type
   if (ZeImageDesc.type == ZE_IMAGE_TYPE_1D) {
-    Region->height = 1;
-    Region->depth = 1;
+    if (Origin->y != 0 || Origin->z != 0) {
+      return UR_RESULT_ERROR_INVALID_VALUE;
+    }
+  } else if (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY) {
+    if (Origin->y != 0) {
+      return UR_RESULT_ERROR_INVALID_VALUE;
+    }
   } else if (ZeImageDesc.type == ZE_IMAGE_TYPE_2D) {
-    Region->depth = 1;
+    if (Origin->z != 0) {
+      return UR_RESULT_ERROR_INVALID_VALUE;
+    }
   }
 
-#ifndef NDEBUG
-  UR_ASSERT((ZeImageDesc.type == ZE_IMAGE_TYPE_1D && Origin->y == 0 &&
-             Origin->z == 0) ||
-                (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Origin->y == 0) ||
-                (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Origin->z == 0) ||
-                (ZeImageDesc.type == ZE_IMAGE_TYPE_2DARRAY) ||
-                (ZeImageDesc.type == ZE_IMAGE_TYPE_3D),
-            UR_RESULT_ERROR_INVALID_VALUE);
-
-  UR_ASSERT(Region->width && Region->height && Region->depth,
-            UR_RESULT_ERROR_INVALID_VALUE);
-  UR_ASSERT(
-      (ZeImageDesc.type == ZE_IMAGE_TYPE_1D && Region->height == 1 &&
-       Region->depth == 1) ||
-          (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Region->height == 1) ||
-          (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Region->depth == 1) ||
-          (ZeImageDesc.type == ZE_IMAGE_TYPE_2DARRAY) ||
-          (ZeImageDesc.type == ZE_IMAGE_TYPE_3D),
-      UR_RESULT_ERROR_INVALID_VALUE);
-#endif // !NDEBUG
+  // Verify Region width is non-zero
+  if (Region->width == 0) {
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  }
 
   uint32_t OriginX = ur_cast<uint32_t>(Origin->x);
   uint32_t OriginY = ur_cast<uint32_t>(Origin->y);
@@ -767,9 +759,8 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
   uint32_t Height = ur_cast<uint32_t>(Region->height);
   uint32_t Depth = ur_cast<uint32_t>(Region->depth);
 
+  // Normalize Region dimensions based on image type
   if (ZeImageDesc.type == ZE_IMAGE_TYPE_1D) {
-    OriginY = 0;
-    OriginZ = 0;
     Height = 1;
     Depth = 1;
   } else if (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY) {
@@ -777,14 +768,31 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
     // Level Zero expects the array layer in originY/height for 1D arrays.
     OriginY = ur_cast<uint32_t>(Origin->z);
     OriginZ = 0;
-    Height = ur_cast<uint32_t>(Region->depth);
+    Height = ur_cast<uint32_t>(Region->depth); // Array layer count
     Depth = 1;
+    fprintf(stderr,
+            "[DEBUG] 1DARRAY normalization: OriginY=%u (from z), OriginZ=0, "
+            "Height=%u (array layers), Depth=1\n",
+            OriginY, Height);
   } else if (ZeImageDesc.type == ZE_IMAGE_TYPE_2D) {
-    OriginZ = 0;
     Depth = 1;
   }
 
   ZeRegion = {OriginX, OriginY, OriginZ, Width, Height, Depth};
+
+#ifndef NDEBUG
+  // Post-normalization assertions
+  UR_ASSERT((ZeImageDesc.type == ZE_IMAGE_TYPE_1D && Origin->y == 0 &&
+             Origin->z == 0) ||
+                (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Origin->y == 0) ||
+                (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Origin->z == 0) ||
+                (ZeImageDesc.type == ZE_IMAGE_TYPE_2DARRAY) ||
+                (ZeImageDesc.type == ZE_IMAGE_TYPE_3D),
+            UR_RESULT_ERROR_INVALID_VALUE);
+
+  UR_ASSERT(ZeRegion.width && ZeRegion.height && ZeRegion.depth,
+            UR_RESULT_ERROR_INVALID_VALUE);
+#endif // !NDEBUG
 
   return UR_RESULT_SUCCESS;
 }
