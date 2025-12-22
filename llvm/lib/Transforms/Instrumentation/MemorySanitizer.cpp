@@ -6834,7 +6834,39 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
     // AVX Vector Neural Network Instructions: bytes
     //
-    // Multiply and Add Packed Signed and Unsigned Bytes
+    // Multiply and Add Signed Bytes
+    //   < 4 x i32> @llvm.x86.avx2.vpdpbssd.128
+    //                  (< 4 x i32>, <16 x i8>, <16 x i8>)
+    //   < 8 x i32> @llvm.x86.avx2.vpdpbssd.256
+    //                  (< 8 x i32>, <32 x i8>, <32 x i8>)
+    //   <16 x i32> @llvm.x86.avx10.vpdpbssd.512
+    //                  (<16 x i32>, <64 x i8>, <64 x i8>)
+    //
+    // Multiply and Add Signed Bytes With Saturation
+    //   < 4 x i32> @llvm.x86.avx2.vpdpbssds.128
+    //                  (< 4 x i32>, <16 x i8>, <16 x i8>)
+    //   < 8 x i32> @llvm.x86.avx2.vpdpbssds.256
+    //                  (< 8 x i32>, <32 x i8>, <32 x i8>)
+    //   <16 x i32> @llvm.x86.avx10.vpdpbssds.512
+    //                  (<16 x i32>, <64 x i8>, <64 x i8>)
+    //
+    // Multiply and Add Signed and Unsigned Bytes
+    //   < 4 x i32> @llvm.x86.avx2.vpdpbsud.128
+    //                  (< 4 x i32>, <16 x i8>, <16 x i8>)
+    //   < 8 x i32> @llvm.x86.avx2.vpdpbsud.256
+    //                  (< 8 x i32>, <32 x i8>, <32 x i8>)
+    //   <16 x i32> @llvm.x86.avx10.vpdpbsud.512
+    //                  (<16 x i32>, <64 x i8>, <64 x i8>)
+    //
+    // Multiply and Add Signed and Unsigned Bytes With Saturation
+    //   < 4 x i32> @llvm.x86.avx2.vpdpbsuds.128
+    //                  (< 4 x i32>, <16 x i8>, <16 x i8>)
+    //   < 8 x i32> @llvm.x86.avx2.vpdpbsuds.256
+    //                  (< 8 x i32>, <32 x i8>, <32 x i8>)
+    //   <16 x i32> @llvm.x86.avx512.vpdpbusds.512
+    //                  (<16 x i32>, <64 x i8>, <64 x i8>)
+    //
+    // Multiply and Add Unsigned and Signed Bytes
     //   < 4 x i32> @llvm.x86.avx512.vpdpbusd.128
     //                  (< 4 x i32>, <16 x i8>, <16 x i8>)
     //   < 8 x i32> @llvm.x86.avx512.vpdpbusd.256
@@ -6847,23 +6879,24 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     //                  (< 4 x i32>, <16 x i8>, <16 x i8>)
     //   < 8 x i32> @llvm.x86.avx512.vpdpbusds.256
     //                  (< 8 x i32>, <32 x i8>, <32 x i8>)
-    //   <16 x i32> @llvm.x86.avx512.vpdpbusds.512
+    //   <16 x i32> @llvm.x86.avx10.vpdpbsuds.512
     //                  (<16 x i32>, <64 x i8>, <64 x i8>)
     //
-    //   < 4 x i32> @llvm.x86.avx2.vpdpbssd.128
-    //                  (< 4 x i32>, < 4 x i32>, < 4 x i32>)
-    //   < 8 x i32> @llvm.x86.avx2.vpdpbssd.256
-    //                  (< 8 x i32>, < 8 x i32>, < 8 x i32>)
+    // Multiply and Add Unsigned Bytes
+    //   < 4 x i32> @llvm.x86.avx2.vpdpbuud.128
+    //                  (< 4 x i32>, <16 x i8>, <16 x i8>)
+    //   < 8 x i32> @llvm.x86.avx2.vpdpbuud.256
+    //                  (< 8 x i32>, <32 x i8>, <32 x i8>)
+    //   <16 x i32> @llvm.x86.avx10.vpdpbuud.512
+    //                  (<16 x i32>, <64 x i8>, <64 x i8>)
     //
-    //   < 4 x i32> @llvm.x86.avx2.vpdpbssds.128
-    //                  (< 4 x i32>, < 4 x i32>, < 4 x i32>)
-    //   < 8 x i32> @llvm.x86.avx2.vpdpbssds.256
-    //                  (< 8 x i32>, < 8 x i32>, < 8 x i32>)
-    //
-    //   <16 x i32> @llvm.x86.avx10.vpdpbssd.512
-    //                  (<16 x i32>, <16 x i32>, <16 x i32>)
-    //   <16 x i32> @llvm.x86.avx10.vpdpbssds.512
-    //                  (<16 x i32>, <16 x i32>, <16 x i32>)
+    // Multiply and Add Unsigned Bytes With Saturation
+    //   < 4 x i32> @llvm.x86.avx2.vpdpbuuds.128
+    //                  (< 4 x i32>, <16 x i8>, <16 x i8>)
+    //   < 8 x i32> @llvm.x86.avx2.vpdpbuuds.256
+    //                  (< 8 x i32>, <32 x i8>, <32 x i8>)
+    //   <16 x i32> @llvm.x86.avx10.vpdpbuuds.512
+    //                  (<16 x i32>, <64 x i8>, <64 x i8>)
     //
     // These intrinsics are auto-upgraded into non-masked forms:
     //   <4 x i32> @llvm.x86.avx512.mask.vpdpbusd.128
@@ -6916,7 +6949,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     case Intrinsic::x86_avx2_vpdpbuuds_256:
     case Intrinsic::x86_avx10_vpdpbuuds_512:
       handleVectorPmaddIntrinsic(I, /*ReductionFactor=*/4,
-                                 /*ZeroPurifies=*/true, /*EltSizeInBits=*/8);
+                                 /*ZeroPurifies=*/true);
       break;
 
     // AVX Vector Neural Network Instructions: words
@@ -7036,7 +7069,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     case Intrinsic::x86_avx2_vpdpwuuds_256:
     case Intrinsic::x86_avx10_vpdpwuuds_512:
       handleVectorPmaddIntrinsic(I, /*ReductionFactor=*/2,
-                                 /*ZeroPurifies=*/true, /*EltSizeInBits=*/16);
+                                 /*ZeroPurifies=*/true);
       break;
 
     // Dot Product of BF16 Pairs Accumulated Into Packed Single
