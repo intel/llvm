@@ -10,7 +10,7 @@ To enable L0 v2 adapter at runtime, set, `SYCL_UR_USE_LEVEL_ZERO_V2=1`.
 
 This forces UR and SYCL to use the v2 adapter instead of the legacy version.
 
-Alternatively, `UR_ADAPTER_FORCE_LOAD` env variable can be used.
+Alternatively, `UR_ADAPTERS_FORCE_LOAD` env variable can be used.
 
 SYCL E2E tests can be used to test v2 adapter by passing `level_zero_v2:gpu` to llvm-lit `sycl_devices`.
 
