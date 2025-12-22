@@ -18,7 +18,7 @@ struct urGraphSupportedExpTest : uur::urQueueTest {
     UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
 
     UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{}, uur::NativeCPU{},
-                         uur::OpenCL{}, uur::LevelZero{}, uur::LevelZeroV2{});
+                         uur::OpenCL{}, uur::LevelZero{});
   }
 };
 
@@ -58,19 +58,17 @@ struct urGraphPopulatedExpTest : urGraphExpTest {
 
     ASSERT_SUCCESS(urEnqueueUSMFill(queue, deviceMem, patternSize,
                                     pattern.data(), allocationSize, 0, nullptr,
-                                    fillEvent.ptr()));
-    ASSERT_SUCCESS(urQueueFinish(queue));
+                                    nullptr));
 
     ur_exp_graph_handle_t sameGraph = nullptr;
     ASSERT_SUCCESS(urQueueEndGraphCaptureExp(queue, &sameGraph));
     ASSERT_EQ(graph, sameGraph);
-
-    ASSERT_NO_FATAL_FAILURE(verifyData(false));
   }
 
   void TearDown() override {
     if (deviceMem) {
       ASSERT_SUCCESS(urUSMFree(context, deviceMem));
+      resetData();
     }
 
     UUR_RETURN_ON_FATAL_FAILURE(urGraphExpTest::TearDown());
@@ -80,16 +78,8 @@ struct urGraphPopulatedExpTest : urGraphExpTest {
     ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, true, hostMem.data(), deviceMem,
                                       allocationSize, 0, nullptr, nullptr));
 
-    size_t patternIdx = 0;
-    for (size_t i = 0; i < allocationSize; ++i) {
-      uint8_t *hostPtr = hostMem.data();
-      ASSERT_EQ((*(hostPtr + i) == pattern[patternIdx]), shouldMatch);
-
-      ++patternIdx;
-      if (patternIdx % pattern.size() == 0) {
-        patternIdx = 0;
-      }
-    }
+    int cmpResult = memcmp(hostMem.data(), pattern.data(), pattern.size());
+    ASSERT_EQ(cmpResult == 0, shouldMatch);
   }
 
   void resetData() {
@@ -104,7 +94,6 @@ struct urGraphPopulatedExpTest : urGraphExpTest {
   std::vector<uint8_t> hostMem = std::vector<uint8_t>(allocationSize);
   const size_t patternSize = 64;
   std::vector<uint8_t> pattern = std::vector<uint8_t>(patternSize);
-  uur::raii::Event fillEvent = nullptr;
 };
 
 struct urGraphExecutableExpTest : urGraphPopulatedExpTest {

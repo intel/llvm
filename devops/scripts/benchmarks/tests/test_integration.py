@@ -3,6 +3,7 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import argparse
 import json
 import os
 import shutil
@@ -15,6 +16,7 @@ from collections import namedtuple
 sys.path.append(f"{os.path.dirname(__file__)}/../")
 from utils.workdir_version import INTERNAL_WORKDIR_VERSION
 
+VERBOSE_LOGS = False
 
 DataJson = namedtuple("DataJson", ["runs", "metadata", "tags", "names"])
 DataJsonRun = namedtuple("DataJsonRun", ["name", "results"])
@@ -65,7 +67,7 @@ class App:
 
         # TODO: not yet tested: "--detect-version", "sycl,compute_runtime"
 
-        procesResult = subprocess.run(
+        proc = subprocess.run(
             [
                 "./devops/scripts/benchmarks/main.py",
                 self.WORKDIR_DIR,
@@ -86,13 +88,14 @@ class App:
                 "--stddev-threshold",
                 "999999999.9",
                 "--exit-on-failure",
+                "--verbose" if VERBOSE_LOGS else "--log-level=info",
                 *args,
             ],
             capture_output=True,
         )
-        print("MAIN_PY_STDOUT:\n" + procesResult.stdout.decode())
-        print("MAIN_PY_STDERR:\n" + procesResult.stderr.decode())
-        return procesResult.returncode
+        print("MAIN_PY_STDOUT:\n" + proc.stdout.decode() if proc.stdout else "<empty>")
+        print("MAIN_PY_STDERR:\n" + proc.stderr.decode() if proc.stderr else "<empty>")
+        return proc.returncode
 
     def get_output(self):
         with open(os.path.join(self.OUTPUT_DIR, "data.json")) as f:
@@ -134,9 +137,6 @@ class App:
                 tags=out["benchmarkTags"],
                 names=out["defaultCompareNames"],
             )
-
-
-# add "--verbose" for debug logs
 
 
 class TestE2E(unittest.TestCase):
@@ -194,11 +194,21 @@ class TestE2E(unittest.TestCase):
             "KernelSubmitMultiQueue large",
             {"pytorch", "L0"},
         )
+        self._checkCase(
+            "torch_benchmark_l0 batchSize 512, slmNum 1, warmupIterations 1",
+            "KernelSubmitSlmSize small",
+            {"pytorch", "L0"},
+        )
 
     def test_torch_sycl(self):
         self._checkCase(
             "torch_benchmark_sycl kernelsPerQueue 10, workgroupCount 512, workgroupSize 256",
             "KernelSubmitMultiQueue medium",
+            {"pytorch", "SYCL"},
+        )
+        self._checkCase(
+            "torch_benchmark_sycl batchSize 512, slmNum -1, warmupIterations 1",
+            "KernelSubmitSlmSize max",
             {"pytorch", "SYCL"},
         )
 
@@ -208,6 +218,22 @@ class TestE2E(unittest.TestCase):
             "KernelSubmitMultiQueue small",
             {"pytorch", "SYCL"},
         )
+        self._checkCase(
+            "torch_benchmark_syclpreview batchSize 512, slmNum 1024, warmupIterations 1",
+            "KernelSubmitSlmSize medium",
+            {"pytorch", "SYCL"},
+        )
+
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="SYCL's benchmark test framework")
+    parser.add_argument(
+        "--verbose",
+        help="Set benchmark framework's logging level to DEBUG.",
+        action="store_true",
+    )
+
+    args = parser.parse_args()
+    VERBOSE_LOGS = args.verbose
+
     unittest.main()

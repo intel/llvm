@@ -15,10 +15,7 @@
 int main() {
   bool MismatchFound = false;
 
-  auto selector_v = [](const sycl::device &d) {
-    return std::max(cpu_selector_v(d), accelerator_selector_v(d));
-  };
-  sycl::device Device{selector_v};
+  sycl::device Device{sycl::default_selector_v};
   auto Devices = Device.create_sub_devices<
       sycl::info::partition_property::partition_equally>(2);
 

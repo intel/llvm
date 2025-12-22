@@ -16,7 +16,7 @@ inline namespace _V1 {
 namespace detail {
 
 DeviceKernelInfo &getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info) {
-  return ProgramManager::getInstance().getOrCreateDeviceKernelInfo(Info);
+  return ProgramManager::getInstance().getDeviceKernelInfo(Info);
 }
 
 } // namespace detail
