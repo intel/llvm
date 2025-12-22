@@ -187,6 +187,7 @@ void test() {
   TEST(exp10, 1);
   TEST(exp2, 1);
   TEST(rint, 1);
+  TEST(tanh, 1);
 
   // log, log2, log10, sqrt, rsqrt testing, the input
   // must be positive.
