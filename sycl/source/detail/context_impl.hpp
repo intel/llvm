@@ -165,8 +165,7 @@ public:
         return false;
       }
       CurrDevice = detail::getSyclObjImpl(
-                       CurrDevice->get_info<info::device::parent_device>())
-                       .get();
+          CurrDevice->get_info<info::device::parent_device>());
     }
 
     return true;
@@ -183,9 +182,6 @@ public:
   ///
   /// \return a native handle.
   ur_native_handle_t getNative() const;
-
-  // Returns true if buffer_location property is supported by devices
-  bool isBufferLocationSupported() const;
 
   /// Adds an associated device global to the tracked associates.
   void addAssociatedDeviceGlobal(const void *DeviceGlobalPtr);
@@ -218,9 +214,6 @@ public:
   std::optional<ur_program_handle_t>
   getProgramForDeviceGlobal(const device &Device,
                             DeviceGlobalMapEntry *DeviceGlobalEntry);
-  /// Gets a program associated with a HostPipe Entry from the cache.
-  std::optional<ur_program_handle_t>
-  getProgramForHostPipe(const device &Device, HostPipeMapEntry *HostPipeEntry);
 
   /// Gets a program associated with Dev / Images pairs.
   std::optional<ur_program_handle_t>

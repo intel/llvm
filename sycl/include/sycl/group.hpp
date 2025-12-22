@@ -39,7 +39,7 @@ inline namespace _V1 {
 template <int Dimensions> class h_item;
 
 namespace detail {
-// Implements a barrier accross work items within a work group.
+// Implements a barrier across work items within a work group.
 inline void workGroupBarrier() {
 #ifdef __SYCL_DEVICE_ONLY__
   constexpr uint32_t flags =

@@ -12,8 +12,6 @@ __SYCL_DATA_LESS_PROP(ext::oneapi::property::buffer, use_pinned_host_memory, Buf
 // Contains data field, defined explicitly.
 __SYCL_MANUALLY_DEFINED_PROP(property::buffer, use_mutex)
 __SYCL_MANUALLY_DEFINED_PROP(property::buffer, context_bound)
-__SYCL_MANUALLY_DEFINED_PROP(property::buffer, mem_channel)
-__SYCL_MANUALLY_DEFINED_PROP(property::buffer::detail, buffer_location)
 
 #undef __SYCL_DATA_LESS_PROP
 #undef __SYCL_MANUALLY_DEFINED_PROP

@@ -12,8 +12,8 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(urGraphInstantiateGraphExpTest);
 
 TEST_P(urGraphInstantiateGraphExpTest, InvalidEmptyGraph) {
   ur_exp_executable_graph_handle_t exGraph = nullptr;
-  ASSERT_SUCCESS(urGraphInstantiateGraphExp(graph, &exGraph));
-  ASSERT_SUCCESS(urGraphExecutableGraphDestroyExp(exGraph));
+  ASSERT_EQ(urGraphInstantiateGraphExp(graph, &exGraph),
+            UR_RESULT_ERROR_INVALID_ARGUMENT);
 }
 
 TEST_P(urGraphInstantiateGraphExpTest, InvalidNullHandleGraph) {

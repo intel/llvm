@@ -109,7 +109,6 @@ Miscellaneous properties:
 | Key                             | Value type            | Value                                                                                                            |
 | ------------------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | "isEsimdImage"                  | 32 bit integer. ("1") | 1 if the image is ESIMD and 0 or missing otherwise.                                                              |
-| "sycl-register-alloc-mode"      | 32 bit integer. ("1") | The register allocation mode: 2 for large and 0 or missing for automatic.                                        |
 | "sycl-grf-size"                 | 32 bit integer. ("1") | The GRF size. Automatic if 0 or missing.                                                                         |
 | "optLevel"                      | 32 bit integer. ("1") | Optimization level, corresponding to the `-O` option used during compilation.                                    |
 | "sanUsed"                       | Byte array. ("2")     | Specifying if address sanitization ("asan") or memory sanitization ("msan") is used. Missing if neither is used. |
@@ -192,26 +191,6 @@ Set of device requirements for the entire module:
 
 
 See also [OptionalDeviceFeatures.md](OptionalDeviceFeatures.md).
-
-
-### [SYCL/host pipes]
-
-__Key:__ Host pipe variable name.
-
-__Value type:__ Byte array. ("2")
-
-__Value:__ Information about the host pipe variable with the following
-fields: 
-
-```c++
-  // Encodes size of the underlying type T of the host pipe variable.
-  uint32_t Size;
-```
-
-__Notes:__
-
-1. If this property set is missing, the binary does not contain any host pipe
-variables.
 
 
 ### [SYCL/virtual functions]

@@ -6,11 +6,12 @@
 
 #include "fixtures.h"
 
-using urQueueEndGraphCaptureExpTest = uur::urGraphPopulatedExpTest;
+using urQueueEndGraphCaptureExpTest = uur::urGraphExpTest;
 
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urQueueEndGraphCaptureExpTest);
 
 TEST_P(urQueueEndGraphCaptureExpTest, SuccessSameGraph) {
+  ASSERT_SUCCESS(urQueueBeginCaptureIntoGraphExp(queue, graph));
   ur_exp_graph_handle_t sameGraph = nullptr;
   ASSERT_SUCCESS(urQueueEndGraphCaptureExp(queue, &sameGraph));
   ASSERT_EQ(graph, sameGraph);

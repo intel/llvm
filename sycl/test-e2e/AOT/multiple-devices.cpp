@@ -6,6 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+// XFAIL: new-offload-model && run-mode
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20797
+
 // REQUIRES: opencl-aot, ocloc, any-device-is-cpu, any-device-is-gpu, target-spir, opencl-cpu-rt
 
 // Produce a fat object for all targets (generic SPIR-V, CPU, GPU)

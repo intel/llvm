@@ -40,12 +40,12 @@ interop_handle::getNativeMem(detail::Requirement *Req) const {
   detail::adapter_impl &Adapter = MQueue->getAdapter();
   ur_native_handle_t Handle;
   Adapter.call<detail::UrApiKind::urMemGetNativeHandle>(
-      Iter->second, MDevice->getHandleRef(), &Handle);
+      Iter->second, MDevice.getHandleRef(), &Handle);
   return Handle;
 }
 
 ur_native_handle_t interop_handle::getNativeDevice() const {
-  return MDevice->getNative();
+  return MDevice.getNative();
 }
 
 ur_native_handle_t interop_handle::getNativeContext() const {
