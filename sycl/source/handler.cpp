@@ -505,8 +505,7 @@ detail::EventImplPtr handler::finalize() {
           !KernelBundleImpPtr->tryGetKernel(impl->getKernelName())) {
         detail::device_impl &Dev = impl->get_device();
         kernel_id KernelID =
-            detail::ProgramManager::getInstance().getSYCLKernelID(
-                impl->getKernelName());
+            impl->MKernelData.getDeviceKernelInfoPtr()->getKernelID();
         bool KernelInserted = KernelBundleImpPtr->add_kernel(
             KernelID, detail::createSyclObjFromImpl<device>(Dev));
         // If kernel was not inserted and the bundle is in input mode we try
