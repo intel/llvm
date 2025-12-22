@@ -993,10 +993,10 @@ private:
 
     detail::checkValueRange<Dims>(params...);
     if constexpr (SetNumWorkGroups) {
-      convertToRangeViewAndSetDescriptor(params...,
+      convertToRangeViewAndSetDescriptor(std::move(params)...,
                                          /*SetNumWorkGroups=*/true);
     } else {
-      convertToRangeViewAndSetDescriptor(params...);
+      convertToRangeViewAndSetDescriptor(std::move(params)...);
     }
 
     StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
