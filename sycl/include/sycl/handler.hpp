@@ -279,6 +279,13 @@ template <int Dims> bool range_size_fits_in_size_t(const range<Dims> &r) {
   return true;
 }
 
+template <int Dims, typename LambdaArgType> struct TransformUserItemType {
+  using type = std::conditional_t<
+      std::is_convertible_v<nd_item<Dims>, LambdaArgType>, nd_item<Dims>,
+      std::conditional_t<std::is_convertible_v<item<Dims>, LambdaArgType>,
+                         item<Dims>, LambdaArgType>>;
+};
+
 } // namespace detail
 
 /// Command group handler class.
@@ -778,13 +785,6 @@ private:
 
   device get_device() const;
 
-  template <int Dims, typename LambdaArgType> struct TransformUserItemType {
-    using type = std::conditional_t<
-        std::is_convertible_v<nd_item<Dims>, LambdaArgType>, nd_item<Dims>,
-        std::conditional_t<std::is_convertible_v<item<Dims>, LambdaArgType>,
-                           item<Dims>, LambdaArgType>>;
-  };
-
   /// Defines and invokes a SYCL kernel function for the specified range.
   ///
   /// The SYCL kernel function is defined as a lambda function or a named
@@ -823,7 +823,7 @@ private:
     // sycl::item/sycl::nd_item to transport item information
     using TransformedArgType = std::conditional_t<
         std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
-        typename TransformUserItemType<Dims, LambdaArgType>::type>;
+        typename detail::TransformUserItemType<Dims, LambdaArgType>::type>;
 
     static_assert(!std::is_same_v<TransformedArgType, sycl::nd_item<Dims>>,
                   "Kernel argument cannot have a sycl::nd_item type in "
@@ -1349,7 +1349,7 @@ public:
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
     using TransformedArgType = std::conditional_t<
         std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
-        typename TransformUserItemType<Dims, LambdaArgType>::type>;
+        typename detail::TransformUserItemType<Dims, LambdaArgType>::type>;
     wrap_kernel<detail::WrapAs::parallel_for, KernelName, TransformedArgType,
                 Dims>(KernelFunc, {} /*Props*/, NumWorkItems, WorkItemOffset);
   }
