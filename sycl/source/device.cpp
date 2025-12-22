@@ -17,9 +17,6 @@
 #include <sycl/device_selector.hpp>
 #include <sycl/info/info_desc.hpp>
 
-#include <algorithm>
-#include <iterator>
-
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
