@@ -1,6 +1,8 @@
 # -*- Python -*-
 
 import os
+import platform
+import shlex
 
 import lit.formats
 import lit.util
@@ -60,10 +62,6 @@ clang_flags = [
     config.libclc_target,
     "-Xclang",
     "-fdeclare-spirv-builtins",
-    "-Xclang",
-    "-mlink-builtin-bitcode",
-    "-Xclang",
-    os.path.join(config.libclc_output_dir, f"libspirv-{config.libclc_target}.bc"),
     "-nogpulib",
 ]
 
@@ -73,6 +71,23 @@ if config.libclc_target == "amdgcn--amdhsa":
     clang_flags += ["-Xclang", "-cl-ext=-cl_khr_fp16"]
 
 llvm_config.use_clang(additional_flags=clang_flags)
+
+link_libspirv = "-Xclang -mlink-builtin-bitcode -Xclang "
+libspirv = os.path.abspath(os.path.join(config.libclc_output_dir, f"libspirv-{config.libclc_target}.bc"))
+config.substitutions.append(("%link-libspirv", f"{link_libspirv}{shlex.quote(libspirv)}"))
+
+if config.libclc_target == "nvptx64--nvidiacl":
+    libclc_target_canonical = "nvptx64-nvidia-cuda"
+elif config.libclc_target == "amdgcn--amdhsa":
+    libclc_target_canonical = "amdgcn-amd-amdhsa"
+else:
+    libclc_target_canonical = config.libclc_target
+if "cygwin" in config.host_triple:
+    remangled_libspirv = f"remangled-l32-signed_char.libspirv-{libclc_target_canonical}.bc"
+else:
+    remangled_libspirv = f"remangled-l64-signed_char.libspirv-{libclc_target_canonical}.bc"
+remangled_libspirv = os.path.join(config.libclc_output_dir, remangled_libspirv)
+config.substitutions.append(("%link-remangled-libspirv", f"{link_libspirv}{shlex.quote(remangled_libspirv)}"))
 
 config.substitutions.append(("%PATH%", config.environment["PATH"]))
 
