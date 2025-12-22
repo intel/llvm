@@ -731,19 +731,17 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
   UR_ASSERT(Origin, UR_RESULT_ERROR_INVALID_VALUE);
   UR_ASSERT(Region, UR_RESULT_ERROR_INVALID_VALUE);
 
-  if (ZeImageDesc.type == ZE_IMAGE_TYPE_1D ||
-      ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY) {
+  if (ZeImageDesc.type == ZE_IMAGE_TYPE_1D) {
     Region->height = 1;
     Region->depth = 1;
-  } else if (ZeImageDesc.type == ZE_IMAGE_TYPE_2D ||
-             ZeImageDesc.type == ZE_IMAGE_TYPE_2DARRAY) {
+  } else if (ZeImageDesc.type == ZE_IMAGE_TYPE_2D) {
     Region->depth = 1;
   }
 
 #ifndef NDEBUG
   UR_ASSERT((ZeImageDesc.type == ZE_IMAGE_TYPE_1D && Origin->y == 0 &&
              Origin->z == 0) ||
-                (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Origin->z == 0) ||
+                (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Origin->y == 0) ||
                 (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Origin->z == 0) ||
                 (ZeImageDesc.type == ZE_IMAGE_TYPE_2DARRAY) ||
                 (ZeImageDesc.type == ZE_IMAGE_TYPE_3D),
@@ -754,7 +752,7 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
   UR_ASSERT(
       (ZeImageDesc.type == ZE_IMAGE_TYPE_1D && Region->height == 1 &&
        Region->depth == 1) ||
-          (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Region->depth == 1) ||
+          (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Region->height == 1) ||
           (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Region->depth == 1) ||
           (ZeImageDesc.type == ZE_IMAGE_TYPE_2DARRAY) ||
           (ZeImageDesc.type == ZE_IMAGE_TYPE_3D),
@@ -766,12 +764,25 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
   uint32_t OriginZ = ur_cast<uint32_t>(Origin->z);
 
   uint32_t Width = ur_cast<uint32_t>(Region->width);
-  uint32_t Height = (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY)
-                        ? ZeImageDesc.arraylevels
-                        : ur_cast<uint32_t>(Region->height);
-  uint32_t Depth = (ZeImageDesc.type == ZE_IMAGE_TYPE_2DARRAY)
-                       ? ZeImageDesc.arraylevels
-                       : ur_cast<uint32_t>(Region->depth);
+  uint32_t Height = ur_cast<uint32_t>(Region->height);
+  uint32_t Depth = ur_cast<uint32_t>(Region->depth);
+
+  if (ZeImageDesc.type == ZE_IMAGE_TYPE_1D) {
+    OriginY = 0;
+    OriginZ = 0;
+    Height = 1;
+    Depth = 1;
+  } else if (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY) {
+    // UR uses z for the array layer when describing a 1D array subregion.
+    // Level Zero expects the array layer in originY/height for 1D arrays.
+    OriginY = ur_cast<uint32_t>(Origin->z);
+    OriginZ = 0;
+    Height = ur_cast<uint32_t>(Region->depth);
+    Depth = 1;
+  } else if (ZeImageDesc.type == ZE_IMAGE_TYPE_2D) {
+    OriginZ = 0;
+    Depth = 1;
+  }
 
   ZeRegion = {OriginX, OriginY, OriginZ, Width, Height, Depth};
 
@@ -812,6 +823,8 @@ ur_result_t bindlessImagesHandleCopyFlags(
 
   ZeStruct<ze_image_desc_t> zeSrcImageDesc;
   ur2zeImageDesc(pSrcImageFormat, pSrcImageDesc, zeSrcImageDesc);
+  ZeStruct<ze_image_desc_t> zeDstImageDesc;
+  ur2zeImageDesc(pDstImageFormat, pDstImageDesc, zeDstImageDesc);
   uint32_t SrcPixelSizeInBytes = getPixelSizeBytes(pSrcImageFormat);
   uint32_t DstPixelSizeInBytes = getPixelSizeBytes(pDstImageFormat);
 
@@ -862,7 +875,7 @@ ur_result_t bindlessImagesHandleCopyFlags(
   case UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_IMAGE: {
     // Copy between two ze_image_handle_t's
     ze_image_region_t DstRegion;
-    UR_CALL(getZeImageRegionHelper(zeSrcImageDesc, DstPixelSizeInBytes,
+    UR_CALL(getZeImageRegionHelper(zeDstImageDesc, DstPixelSizeInBytes,
                                    &pCopyRegion->dstOffset,
                                    &pCopyRegion->copyExtent, DstRegion));
 
@@ -884,7 +897,7 @@ ur_result_t bindlessImagesHandleCopyFlags(
   case UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_IMAGE: {
     // Copy from USM to ze_image_handle_t
     ze_image_region_t DstRegion;
-    UR_CALL(getZeImageRegionHelper(zeSrcImageDesc, DstPixelSizeInBytes,
+    UR_CALL(getZeImageRegionHelper(zeDstImageDesc, DstPixelSizeInBytes,
                                    &pCopyRegion->dstOffset,
                                    &pCopyRegion->copyExtent, DstRegion));
 

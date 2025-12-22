@@ -210,10 +210,12 @@ verify_sub_copy(const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
             static_cast<bool>(result[2]));
   };
 
-  sycl::range<3> SrcImageSize = {SrcImgDesc.width, SrcImgDesc.height,
-                                 SrcImgDesc.depth};
-  sycl::range<3> DestImageSize = {DestImgDesc.width, DestImgDesc.height,
-                                  DestImgDesc.depth};
+  sycl::range<3> SrcImageSize = {
+      SrcImgDesc.width, SrcImgDesc.height,
+      SrcImgDesc.array_size > 1 ? SrcImgDesc.array_size : SrcImgDesc.depth};
+  sycl::range<3> DestImageSize = {
+      DestImgDesc.width, DestImgDesc.height,
+      DestImgDesc.array_size > 1 ? DestImgDesc.array_size : DestImgDesc.depth};
 
   if (isOutOfRange(SrcImageSize, SrcOffset, CopyExtent) ||
       isOutOfRange(DestImageSize, DestOffset, CopyExtent)) {
