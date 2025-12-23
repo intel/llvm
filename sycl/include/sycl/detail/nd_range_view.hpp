@@ -39,6 +39,11 @@ public:
         MLocalSize(&(ExecutionRange.localSize[0])),
         MOffset(&(ExecutionRange.offset[0])), MDims{size_t(Dims_)} {}
 
+  nd_range_view(const size_t *MGlobalSize_, const size_t *MLocalSize_,
+                const size_t *MOffset_, size_t MDims_)
+      : MGlobalSize(MGlobalSize_), MLocalSize(MLocalSize_), MOffset(MOffset_),
+        MDims(MDims_) {}
+
   const size_t *MGlobalSize = nullptr;
   const size_t *MLocalSize = nullptr;
   const size_t *MOffset = nullptr;
