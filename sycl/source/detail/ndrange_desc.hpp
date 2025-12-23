@@ -38,8 +38,10 @@ public:
       : Dims{NDRangeView.MDims} {
     if (!NDRangeView.MGlobalSize) {
       init();
-    } else if (!NDRangeView.MLocalSize) {
+    } else if (!NDRangeView.MLocalSize && !NDRangeView.MOffset) {
       init(&(NDRangeView.MGlobalSize[0]), SetNumWorkGroups);
+    } else if (!NDRangeView.MLocalSize) {
+      init(NDRangeView.MGlobalSize, NDRangeView.MOffset);
     } else {
       init(NDRangeView.MGlobalSize, NDRangeView.MLocalSize,
            NDRangeView.MOffset);
@@ -61,10 +63,7 @@ public:
   template <int Dims_>
   NDRDescT(sycl::range<Dims_> NumWorkItems, sycl::id<Dims_> Offset)
       : Dims{size_t(Dims_)} {
-    for (size_t I = 0; I < Dims_; ++I) {
-      GlobalSize[I] = NumWorkItems[I];
-      GlobalOffset[I] = Offset[I];
-    }
+    init(NumWorkItems, Offset);
   }
 
   template <int Dims_>
@@ -114,6 +113,13 @@ private:
       for (size_t I = Dims; I < 3; ++I) {
         GlobalSize[I] = 1;
       }
+    }
+  }
+
+  void init(const size_t *NumWorkItems, const size_t *Offset) {
+    for (size_t I = 0; I < Dims; ++I) {
+      GlobalSize[I] = NumWorkItems[I];
+      GlobalOffset[I] = Offset[I];
     }
   }
 
