@@ -57,13 +57,6 @@ markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl) {
   BufImpl->markAsInternal();
 }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-// TODO: Check if two ABI exports below are still necessary.
-#endif
-device_impl &getDeviceImplFromHandler(handler &CGH) {
-  return getSyclObjImpl(CGH)->get_device();
-}
-
 device getDeviceFromHandler(handler &CGH) {
   return createSyclObjFromImpl<device>(getSyclObjImpl(CGH)->get_device());
 }
