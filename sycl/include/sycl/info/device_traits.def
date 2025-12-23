@@ -182,8 +182,6 @@ __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(device, image_support, bool,
 
 // Extensions/deprecated
 __SYCL_PARAM_TRAITS_SPEC(device, atomic64, bool,UR_DEVICE_INFO_ATOMIC_64)
-__SYCL_PARAM_TRAITS_SPEC(device, kernel_kernel_pipe_support, bool,
-                         UR_DEVICE_INFO_FORCE_UINT32)
 __SYCL_PARAM_TRAITS_SPEC(device, reference_count, uint32_t,
                          UR_DEVICE_INFO_REFERENCE_COUNT)
 // To be dropped (has alternatives/not needed)
@@ -206,8 +204,6 @@ __SYCL_PARAM_TRAITS_SPEC(device, sub_group_independent_forward_progress, bool,
                          UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_srgb, bool,
                          UR_DEVICE_INFO_IMAGE_SRGB)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_mem_channel, bool,
-                         UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT)
 
 //Deprecated oneapi/intel extension
 //TODO:Remove when possible

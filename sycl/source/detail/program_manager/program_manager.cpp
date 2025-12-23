@@ -24,7 +24,6 @@
 #include <sycl/backend_types.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/kernel_properties.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/detail/util.hpp>
@@ -272,32 +271,14 @@ static void
 appendCompileOptionsForGRFSizeProperties(std::string &CompileOpts,
                                          const RTDeviceBinaryImage &Img,
                                          bool IsEsimdImage) {
-  // TODO: sycl-register-alloc-mode is deprecated and should be removed in the
-  // next ABI break.
-  sycl_device_binary_property RegAllocModeProp =
-      Img.getProperty("sycl-register-alloc-mode");
   sycl_device_binary_property GRFSizeProp = Img.getProperty("sycl-grf-size");
 
-  if (!RegAllocModeProp && !GRFSizeProp)
+  if (!GRFSizeProp)
     return;
-  // The mutual exclusivity of these properties should have been checked in
-  // sycl-post-link.
-  assert(!RegAllocModeProp || !GRFSizeProp);
-  bool Is256GRF = false;
-  bool IsAutoGRF = false;
-  if (RegAllocModeProp) {
-    uint32_t RegAllocModePropVal =
-        DeviceBinaryProperty(RegAllocModeProp).asUint32();
-    Is256GRF = RegAllocModePropVal ==
-               static_cast<uint32_t>(register_alloc_mode_enum::large);
-    IsAutoGRF = RegAllocModePropVal ==
-                static_cast<uint32_t>(register_alloc_mode_enum::automatic);
-  } else {
-    assert(GRFSizeProp);
-    uint32_t GRFSizePropVal = DeviceBinaryProperty(GRFSizeProp).asUint32();
-    Is256GRF = GRFSizePropVal == 256;
-    IsAutoGRF = GRFSizePropVal == 0;
-  }
+
+  uint32_t GRFSizePropVal = DeviceBinaryProperty(GRFSizeProp).asUint32();
+  bool Is256GRF = GRFSizePropVal == 256;
+  bool IsAutoGRF = GRFSizePropVal == 0;
   if (Is256GRF) {
     if (!CompileOpts.empty())
       CompileOpts += " ";
@@ -543,9 +524,6 @@ static const char *getUrDeviceTarget(const char *URDeviceTarget) {
     return UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64;
   else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0)
     return UR_DEVICE_BINARY_TARGET_SPIRV64_GEN;
-  else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) ==
-           0)
-    return UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA;
   else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_NVPTX64) == 0)
     return UR_DEVICE_BINARY_TARGET_NVPTX64;
   else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_AMDGCN) == 0)
@@ -689,8 +667,8 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
                     "Cannot resolve external symbols, linking is unsupported "
                     "for the backend");
 
-  // Access to m_ExportedSymbolImages must be guarded by m_KernelIDsMutex.
-  std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+  // Access to m_ExportedSymbolImages must be guarded by m_ImgMapsMutex.
+  std::lock_guard<std::mutex> ImgMapsGuard(m_ImgMapsMutex);
 
   while (!WorkList.empty()) {
     std::string Symbol = WorkList.front();
@@ -770,8 +748,8 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
   if (!WorkList.empty()) {
     // Guard read access to m_VFSet2BinImage:
     // TODO: a better solution should be sought in the future, i.e. a different
-    // mutex than m_KernelIDsMutex, check lock check pattern, etc.
-    std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+    // mutex than m_ImgMapsMutex, check lock check pattern, etc.
+    std::lock_guard<std::mutex> ImgMapsGuard(m_ImgMapsMutex);
 
     while (!WorkList.empty()) {
       std::string SetName = WorkList.front();
@@ -1333,11 +1311,12 @@ ProgramManager::getDeviceImage(std::string_view KernelName,
 
   const RTDeviceBinaryImage *Img = nullptr;
   {
-    std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
-    if (auto KernelId = m_KernelName2KernelIDs.find(KernelName);
-        KernelId != m_KernelName2KernelIDs.end()) {
-      Img = getBinImageFromMultiMap(m_KernelIDs2BinImage, KernelId->second,
-                                    ContextImpl, DeviceImpl);
+    std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
+    if (auto It = m_DeviceKernelInfoMap.find(KernelName);
+        It != m_DeviceKernelInfoMap.end()) {
+      Img = getBinImageFromMultiMap(m_KernelIDs2BinImage,
+                                    It->second.getKernelID(), ContextImpl,
+                                    DeviceImpl);
     }
   }
 
@@ -1369,7 +1348,7 @@ const RTDeviceBinaryImage &ProgramManager::getDeviceImage(
     debugPrintBinaryImages();
   }
 
-  std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+  std::lock_guard<std::mutex> ImgMapsGuard(m_ImgMapsMutex);
   std::vector<sycl_device_binary> RawImgs(ImageSet.size());
   auto ImageIterator = ImageSet.begin();
   for (size_t i = 0; i < ImageSet.size(); i++, ImageIterator++)
@@ -1510,27 +1489,34 @@ void ProgramManager::cacheKernelImplicitLocalArg(
       Img.getImplicitLocalArg();
   if (ImplicitLocalArgRange.isAvailable())
     for (auto Prop : ImplicitLocalArgRange) {
-      m_KernelImplicitLocalArgPos[Prop->Name] =
-          DeviceBinaryProperty(Prop).asUint32();
+      auto It = m_DeviceKernelInfoMap.find(Prop->Name);
+      assert(It != m_DeviceKernelInfoMap.end());
+      It->second.setImplicitLocalArgPos(DeviceBinaryProperty(Prop).asUint32());
     }
 }
 
-DeviceKernelInfo &ProgramManager::getOrCreateDeviceKernelInfo(
-    const CompileTimeKernelInfoTy &Info) {
+DeviceKernelInfo &
+ProgramManager::getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
-  auto [Iter, Inserted] = m_DeviceKernelInfoMap.try_emplace(Info.Name, Info);
-  if (!Inserted)
-    Iter->second.setCompileTimeInfoIfNeeded(Info);
-  return Iter->second;
+  auto It = m_DeviceKernelInfoMap.find(Info.Name);
+  assert(It != m_DeviceKernelInfoMap.end());
+  It->second.setCompileTimeInfoIfNeeded(Info);
+  return It->second;
 }
 
 DeviceKernelInfo &
-ProgramManager::getOrCreateDeviceKernelInfo(std::string_view KernelName) {
+ProgramManager::getDeviceKernelInfo(std::string_view KernelName) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
-  CompileTimeKernelInfoTy DefaultCompileTimeInfo{KernelName};
-  auto Result =
-      m_DeviceKernelInfoMap.try_emplace(KernelName, DefaultCompileTimeInfo);
-  return Result.first->second;
+  auto It = m_DeviceKernelInfoMap.find(KernelName);
+  assert(It != m_DeviceKernelInfoMap.end());
+  return It->second;
+}
+
+DeviceKernelInfo *
+ProgramManager::tryGetDeviceKernelInfo(std::string_view KernelName) {
+  std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
+  auto It = m_DeviceKernelInfoMap.find(KernelName);
+  return It != m_DeviceKernelInfoMap.end() ? &It->second : nullptr;
 }
 
 static bool isBfloat16DeviceLibImage(sycl_device_binary RawImg,
@@ -1635,7 +1621,7 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
   }
 
   // Fill maps for kernel bundles
-  std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+  std::lock_guard<std::mutex> ImgMapsGuard(m_ImgMapsMutex);
 
   // For bfloat16 device library image, it doesn't include any kernel, device
   // global, virtual function, so just skip adding it to any related maps.
@@ -1709,27 +1695,31 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
       m_BinImg2KernelIDs[Img.get()];
   KernelIDs.reset(new std::vector<kernel_id>);
 
+  std::lock_guard<std::mutex> DKIGuard(m_DeviceKernelInfoMapMutex);
+
   for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
        EntriesIt = EntriesIt->Increment()) {
 
     auto name = EntriesIt->GetName();
 
-    // Skip creating unique kernel ID if it is an exported device
+    // Skip creating device kernel information if it is an exported device
     // function. Exported device functions appear in the offload entries
     // among kernels, but are identifiable by being listed in properties.
     if (m_ExportedSymbolImages.find(name) != m_ExportedSymbolImages.end())
       continue;
 
-    // ... and create a unique kernel ID for the entry
-    auto It = m_KernelName2KernelIDs.find(name);
-    if (It == m_KernelName2KernelIDs.end()) {
+    auto It = m_DeviceKernelInfoMap.find(std::string_view(name));
+    if (It == m_DeviceKernelInfoMap.end()) {
       sycl::kernel_id KernelID = detail::createSyclObjFromImpl<sycl::kernel_id>(
           std::make_shared<detail::kernel_id_impl>(name));
-
-      It = m_KernelName2KernelIDs.emplace_hint(It, name, KernelID);
+      CompileTimeKernelInfoTy DefaultCompileTimeInfo{std::string_view(name)};
+      It = m_DeviceKernelInfoMap.emplace_hint(
+          It, std::piecewise_construct, std::forward_as_tuple(name),
+          std::forward_as_tuple(DefaultCompileTimeInfo, KernelID));
     }
-    m_KernelIDs2BinImage.insert(std::make_pair(It->second, Img.get()));
-    KernelIDs->push_back(It->second);
+    m_KernelIDs2BinImage.insert(
+        std::make_pair(It->second.getKernelID(), Img.get()));
+    KernelIDs->push_back(It->second.getKernelID());
 
     // Keep track of image to kernel name reference count for cleanup.
     m_KernelNameRefCount[name]++;
@@ -1763,38 +1753,6 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
 
   // ... and initialize associated device_global information
   m_DeviceGlobals.initializeEntries(Img.get());
-  // ... and initialize associated host_pipe information
-  {
-    std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
-    auto HostPipes = Img->getHostPipes();
-    for (const sycl_device_binary_property &HostPipe : HostPipes) {
-      ByteArray HostPipeInfo = DeviceBinaryProperty(HostPipe).asByteArray();
-
-      // The supplied host_pipe info property is expected to contain:
-      // * 8 bytes - Size of the property.
-      // * 4 bytes - Size of the underlying type in the host_pipe.
-      // Note: Property may be padded.
-
-      HostPipeInfo.dropBytes(8);
-      auto TypeSize = HostPipeInfo.consume<std::uint32_t>();
-      assert(HostPipeInfo.empty() && "Extra data left!");
-
-      auto ExistingHostPipe = m_HostPipes.find(HostPipe->Name);
-      if (ExistingHostPipe != m_HostPipes.end()) {
-        // If it has already been registered we update the information.
-        ExistingHostPipe->second->initialize(TypeSize);
-        ExistingHostPipe->second->initialize(Img.get());
-      } else {
-        // If it has not already been registered we create a new entry.
-        // Note: Pointer to the host pipe is not available here, so it
-        //       cannot be set until registration happens.
-        auto EntryUPtr =
-            std::make_unique<HostPipeMapEntry>(HostPipe->Name, TypeSize);
-        EntryUPtr->initialize(Img.get());
-        m_HostPipes.emplace(HostPipe->Name, std::move(EntryUPtr));
-      }
-    }
-  }
 
   m_DeviceImages.insert({RawImg, std::move(Img)});
 }
@@ -1820,7 +1778,7 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
   if (DeviceBinary->NumDeviceBinaries == 0)
     return;
   // Acquire lock to read and modify maps for kernel bundles
-  std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+  std::lock_guard<std::mutex> ImgMapsGuard(m_ImgMapsMutex);
 
   // Acquire lock to erase DeviceKernelInfoMap
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
@@ -1861,25 +1819,6 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
 
     m_DeviceGlobals.eraseEntries(Img);
 
-    {
-      std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
-      auto HostPipes = Img->getHostPipes();
-      for (const sycl_device_binary_property &HostPipe : HostPipes) {
-        if (auto HostPipesIt = m_HostPipes.find(HostPipe->Name);
-            HostPipesIt != m_HostPipes.end()) {
-          auto findHostPipesByValue = std::find_if(
-              m_Ptr2HostPipe.begin(), m_Ptr2HostPipe.end(),
-              [&HostPipesIt](
-                  const std::pair<const void *, HostPipeMapEntry *> &Entry) {
-                return Entry.second == HostPipesIt->second.get();
-              });
-          if (findHostPipesByValue != m_Ptr2HostPipe.end())
-            m_Ptr2HostPipe.erase(findHostPipesByValue);
-          m_HostPipes.erase(HostPipesIt);
-        }
-      }
-    }
-
     // Purge references to the image in native programs map
     {
       std::lock_guard<std::mutex> NativeProgramsGuard(MNativeProgramsMutex);
@@ -1908,9 +1847,10 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
         continue;
       }
 
-      auto Name2IDIt = m_KernelName2KernelIDs.find(Name);
-      if (Name2IDIt != m_KernelName2KernelIDs.end())
-        removeFromMultimapByVal(m_KernelIDs2BinImage, Name2IDIt->second, Img);
+      auto DKIIt = m_DeviceKernelInfoMap.find(Name);
+      assert(DKIIt != m_DeviceKernelInfoMap.end());
+      removeFromMultimapByVal(m_KernelIDs2BinImage, DKIIt->second.getKernelID(),
+                              Img);
 
       auto RefCountIt = m_KernelNameRefCount.find(Name);
       assert(RefCountIt != m_KernelNameRefCount.end());
@@ -1922,11 +1862,8 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
       if (--RefCount == 0) {
         // TODO aggregate all these maps into a single one since their entries
         // share lifetime.
-        m_KernelImplicitLocalArgPos.erase(Name);
-        m_DeviceKernelInfoMap.erase(Name);
+        m_DeviceKernelInfoMap.erase(DKIIt);
         m_KernelNameRefCount.erase(RefCountIt);
-        if (Name2IDIt != m_KernelName2KernelIDs.end())
-          m_KernelName2KernelIDs.erase(Name2IDIt);
       }
     }
 
@@ -2017,8 +1954,7 @@ bundle_state
 ProgramManager::getBinImageState(const RTDeviceBinaryImage *BinImage) {
   auto IsAOTBinary = [](const char *Format) {
     return ((strcmp(Format, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
-            (strcmp(Format, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) ||
-            (strcmp(Format, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0));
+            (strcmp(Format, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0));
   };
 
   // Three possible initial states:
@@ -2035,7 +1971,7 @@ ProgramManager::getBinImageState(const RTDeviceBinaryImage *BinImage) {
 }
 
 bool ProgramManager::hasCompatibleImage(const device_impl &DeviceImpl) {
-  std::lock_guard<std::mutex> Guard(m_KernelIDsMutex);
+  std::lock_guard<std::mutex> Guard(m_ImgMapsMutex);
 
   return std::any_of(
       m_BinImg2KernelIDs.cbegin(), m_BinImg2KernelIDs.cend(),
@@ -2045,19 +1981,19 @@ bool ProgramManager::hasCompatibleImage(const device_impl &DeviceImpl) {
 }
 
 std::vector<kernel_id> ProgramManager::getAllSYCLKernelIDs() {
-  std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+  std::lock_guard<std::mutex> DKIGuard(m_DeviceKernelInfoMapMutex);
 
   std::vector<sycl::kernel_id> AllKernelIDs;
-  AllKernelIDs.reserve(m_KernelName2KernelIDs.size());
-  for (std::pair<std::string_view, kernel_id> KernelID :
-       m_KernelName2KernelIDs) {
-    AllKernelIDs.push_back(KernelID.second);
+  AllKernelIDs.reserve(m_DeviceKernelInfoMap.size());
+  for (const std::pair<const std::string_view, DeviceKernelInfo> &Pair :
+       m_DeviceKernelInfoMap) {
+    AllKernelIDs.push_back(Pair.second.getKernelID());
   }
   return AllKernelIDs;
 }
 
 kernel_id ProgramManager::getBuiltInKernelID(std::string_view KernelName) {
-  std::lock_guard<std::mutex> BuiltInKernelIDsGuard(m_BuiltInKernelIDsMutex);
+  std::lock_guard<std::mutex> BuiltInImgMapsGuard(m_BuiltInKernelIDsMutex);
 
   auto KernelID = m_BuiltInKernelIDs.find(KernelName);
   if (KernelID == m_BuiltInKernelIDs.end()) {
@@ -2108,7 +2044,7 @@ ProgramManager::getKernelGlobalInfoDesc(const char *UniqueId) {
 std::set<const RTDeviceBinaryImage *>
 ProgramManager::getRawDeviceImages(const std::vector<kernel_id> &KernelIDs) {
   std::set<const RTDeviceBinaryImage *> BinImages;
-  std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+  std::lock_guard<std::mutex> ImgMapsGuard(m_ImgMapsMutex);
   for (const kernel_id &KID : KernelIDs) {
     auto Range = m_KernelIDs2BinImage.equal_range(KID);
     for (auto It = Range.first, End = Range.second; It != End; ++It)
@@ -2153,48 +2089,17 @@ ProgramManager::getProfileCounterDeviceGlobalEntries(
   return ProfileCounters;
 }
 
-void ProgramManager::addOrInitHostPipeEntry(const void *HostPipePtr,
-                                            const char *UniqueId) {
-  std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
-
-  auto ExistingHostPipe = m_HostPipes.find(UniqueId);
-  if (ExistingHostPipe != m_HostPipes.end()) {
-    ExistingHostPipe->second->initialize(HostPipePtr);
-    m_Ptr2HostPipe.insert({HostPipePtr, ExistingHostPipe->second.get()});
-    return;
-  }
-
-  auto EntryUPtr = std::make_unique<HostPipeMapEntry>(UniqueId, HostPipePtr);
-  auto NewEntry = m_HostPipes.emplace(UniqueId, std::move(EntryUPtr));
-  m_Ptr2HostPipe.insert({HostPipePtr, NewEntry.first->second.get()});
-}
-
-HostPipeMapEntry *
-ProgramManager::getHostPipeEntry(const std::string &UniqueId) {
-  std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
-  auto Entry = m_HostPipes.find(UniqueId);
-  assert(Entry != m_HostPipes.end() && "Host pipe entry not found");
-  return Entry->second.get();
-}
-
-HostPipeMapEntry *ProgramManager::getHostPipeEntry(const void *HostPipePtr) {
-  std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
-  auto Entry = m_Ptr2HostPipe.find(HostPipePtr);
-  assert(Entry != m_Ptr2HostPipe.end() && "Host pipe entry not found");
-  return Entry->second;
-}
-
 device_image_plain ProgramManager::getDeviceImageFromBinaryImage(
     const RTDeviceBinaryImage *BinImage, const context &Ctx,
     const device &Dev) {
   const bundle_state ImgState = getBinImageState(BinImage);
 
-  assert(compatibleWithDevice(BinImage, *getSyclObjImpl(Dev).get()));
+  assert(compatibleWithDevice(BinImage, *getSyclObjImpl(Dev)));
 
   std::shared_ptr<std::vector<sycl::kernel_id>> KernelIDs;
   // Collect kernel names for the image.
   {
-    std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+    std::lock_guard<std::mutex> ImgMapsGuard(m_ImgMapsMutex);
     KernelIDs = m_BinImg2KernelIDs[BinImage];
   }
 
@@ -2224,7 +2129,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
     }
     BinImages = getRawDeviceImages(KernelIDs);
   } else {
-    std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+    std::lock_guard<std::mutex> ImgMapsGuard(m_ImgMapsMutex);
     for (auto &ImageUPtr : m_BinImg2KernelIDs) {
       BinImages.insert(ImageUPtr.first);
     }
@@ -2283,7 +2188,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
         ImgInfo.State = getBinImageState(BinImage);
         // Collect kernel names for the image
         {
-          std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+          std::lock_guard<std::mutex> ImgMapsGuard(m_ImgMapsMutex);
           ImgInfo.KernelIDs = m_BinImg2KernelIDs[BinImage];
         }
         ImgInfo.Deps = collectDeviceImageDeps(*BinImage, Dev);
@@ -2380,7 +2285,7 @@ ProgramManager::createDependencyImage(const context &Ctx, devices_range Devs,
                                       bundle_state DepState) {
   std::shared_ptr<std::vector<sycl::kernel_id>> DepKernelIDs;
   {
-    std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+    std::lock_guard<std::mutex> ImgMapsGuard(m_ImgMapsMutex);
     // For device library images, they are not in m_BinImg2KernelIDs since
     // no kernel is included.
     auto DepIt = m_BinImg2KernelIDs.find(DepImage);
@@ -2503,7 +2408,7 @@ ProgramManager::getSYCLDeviceImages(const context &Ctx, devices_range Devs,
     return {};
 
   {
-    std::lock_guard<std::mutex> BuiltInKernelIDsGuard(m_BuiltInKernelIDsMutex);
+    std::lock_guard<std::mutex> BuiltInImgMapsGuard(m_BuiltInKernelIDsMutex);
 
     for (auto &It : m_BuiltInKernelIDs) {
       if (std::find(KernelIDs.begin(), KernelIDs.end(), It.second) !=
@@ -2933,7 +2838,7 @@ ur_kernel_handle_t ProgramManager::getCachedMaterializedKernel(
               << "KernelName: " << KernelName << "\n";
 
   {
-    std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+    std::lock_guard<std::mutex> ImgMapsGuard(m_ImgMapsMutex);
     if (auto KnownMaterializations = m_MaterializedKernels.find(KernelName);
         KnownMaterializations != m_MaterializedKernels.end()) {
       if constexpr (DbgProgMgr > 0)
@@ -2990,7 +2895,7 @@ ur_kernel_handle_t ProgramManager::getOrCreateMaterializedKernel(
       BuildProgram, KernelName.data(), &UrKernel);
   ur_kernel_handle_t RawUrKernel = UrKernel;
   {
-    std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+    std::lock_guard<std::mutex> ImgMapsGuard(m_ImgMapsMutex);
     m_MaterializedKernels[KernelName][SpecializationConsts] =
         std::move(UrKernel);
   }
@@ -3524,9 +3429,6 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
     if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) {
       return DevImpl.is_gpu() && (BE == sycl::backend::opencl ||
                                   BE == sycl::backend::ext_oneapi_level_zero);
-    }
-    if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0) {
-      return DevImpl.is_accelerator();
     }
     if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_NVPTX64) == 0 ||
         strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_LLVM_NVPTX64) == 0) {

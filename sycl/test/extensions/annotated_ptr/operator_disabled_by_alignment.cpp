@@ -1,7 +1,6 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 
 #include "sycl/sycl.hpp"
-#include <sycl/ext/intel/fpga_extensions.hpp>
 
 #include <iostream>
 
@@ -12,9 +11,7 @@ using namespace ext::oneapi::experimental;
 using namespace ext::intel::experimental;
 
 struct MyIP {
-  annotated_ptr<int, decltype(properties(buffer_location<0>, awidth<32>,
-                                         dwidth<32>, alignment<8>))>
-      a;
+  annotated_ptr<int, decltype(properties(alignment<8>))> a;
 
   int b;
 

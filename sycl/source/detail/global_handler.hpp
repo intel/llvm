@@ -43,7 +43,7 @@ class GlobalHandler {
 public:
   static bool isInstanceAlive() { return RTGlobalObjHandler != nullptr; }
   /// \return a reference to a GlobalHandler singleton instance. The reference
-  /// is valid as long as runtime library is loaded (i.e. untill `DllMain` or
+  /// is valid as long as runtime library is loaded (i.e. until `DllMain` or
   /// `__attribute__((destructor))` is called).
   static GlobalHandler &instance() { return *RTGlobalObjHandler; }
 

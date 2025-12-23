@@ -374,14 +374,14 @@ class SYCLBuffer(SYCLValue):
 class SYCLDevice(SYCLValue):
     """Provides information about a sycl::device from a gdb.Value."""
 
-    IMPL_OFFSET_TO_PLATFORM = 0x18
+    IMPL_OFFSET_TO_PLATFORM = 0x8
     PLATFORM_OFFSET_TO_BACKEND = 0x20
 
     def __init__(self, gdb_value):
         super().__init__(gdb_value)
 
     def impl_ptr(self):
-        return self.gdb_value()["impl"]["_M_ptr"]
+        return self.gdb_value()["impl"]
 
     def backend(self):
         char_ptr = SYCLType.char_type().pointer()

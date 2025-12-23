@@ -31,7 +31,7 @@
 
 namespace {
 void *alignedAllocHost(size_t Alignment, size_t Size, const sycl::context &Ctxt,
-                       const sycl::property_list &PropList,
+                       [[maybe_unused]] const sycl::property_list &PropList,
                        const sycl::detail::code_location &CodeLoc) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Stash the code location information and propagate
@@ -72,20 +72,6 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const sycl::context &Ctxt,
 
   ur_usm_desc_t UsmDesc{};
   UsmDesc.align = Alignment;
-
-  ur_usm_alloc_location_desc_t UsmLocationDesc{};
-  UsmLocationDesc.stype = UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC;
-
-  if (PropList.has_property<
-          sycl::ext::intel::experimental::property::usm::buffer_location>() &&
-      Ctxt.get_platform().has_extension("cl_intel_mem_alloc_buffer_location")) {
-    UsmLocationDesc.location = static_cast<uint32_t>(
-        PropList
-            .get_property<sycl::ext::intel::experimental::property::usm::
-                              buffer_location>()
-            .get_buffer_location());
-    UsmDesc.pNext = &UsmLocationDesc;
-  }
 
   Error = Adapter->call_nocheck<sycl::detail::UrApiKind::urUSMHostAlloc>(
       urCtx, &UsmDesc,
@@ -143,21 +129,6 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
     ur_usm_desc_t UsmDesc{};
     UsmDesc.align = Alignment;
 
-    ur_usm_alloc_location_desc_t UsmLocationDesc{};
-    UsmLocationDesc.stype = UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC;
-
-    // Buffer location is only supported on FPGA devices
-    if (PropList.has_property<
-            sycl::ext::intel::experimental::property::usm::buffer_location>() &&
-        DevImpl->has_extension("cl_intel_mem_alloc_buffer_location")) {
-      UsmLocationDesc.location = static_cast<uint32_t>(
-          PropList
-              .get_property<sycl::ext::intel::experimental::property::usm::
-                                buffer_location>()
-              .get_buffer_location());
-      UsmDesc.pNext = &UsmLocationDesc;
-    }
-
     Error = Adapter.call_nocheck<detail::UrApiKind::urUSMDeviceAlloc>(
         C, Dev, &UsmDesc,
         /*pool=*/nullptr, Size, &RetVal);
@@ -170,9 +141,6 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
     ur_usm_desc_t UsmDesc{};
     UsmDesc.align = Alignment;
 
-    ur_usm_alloc_location_desc_t UsmLocationDesc{};
-    UsmLocationDesc.stype = UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC;
-
     ur_usm_device_desc_t UsmDeviceDesc{};
     UsmDeviceDesc.stype = UR_STRUCTURE_TYPE_USM_DEVICE_DESC;
     UsmDeviceDesc.flags = 0;
@@ -182,17 +150,6 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
     if (PropList.has_property<
             sycl::ext::oneapi::property::usm::device_read_only>()) {
       UsmDeviceDesc.flags |= UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY;
-    }
-
-    if (PropList.has_property<
-            sycl::ext::intel::experimental::property::usm::buffer_location>() &&
-        DevImpl->has_extension("cl_intel_mem_alloc_buffer_location")) {
-      UsmLocationDesc.location = static_cast<uint32_t>(
-          PropList
-              .get_property<sycl::ext::intel::experimental::property::usm::
-                                buffer_location>()
-              .get_buffer_location());
-      UsmDeviceDesc.pNext = &UsmLocationDesc;
     }
 
     Error = Adapter.call_nocheck<detail::UrApiKind::urUSMSharedAlloc>(
@@ -245,7 +202,7 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
 #endif
   void *RetVal =
       alignedAllocInternal(Alignment, Size, getSyclObjImpl(Ctxt).get(),
-                           getSyclObjImpl(Dev).get(), Kind, PropList);
+                           getSyclObjImpl(Dev), Kind, PropList);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Once the allocation is complete, update metadata with the memory pointer
   // before the mem_alloc_end event is sent

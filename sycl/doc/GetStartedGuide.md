@@ -1,7 +1,7 @@
 # Getting Started with oneAPI DPC++
 
 The DPC++ Compiler compiles C++ and SYCL\* source files with code for both CPU
-and a wide range of compute accelerators such as GPU and FPGA.
+and GPU.
 
 ## Table of contents
 
@@ -23,7 +23,6 @@ and a wide range of compute accelerators such as GPU and FPGA.
     * [Obtain prerequisites for ahead of time (AOT) compilation](#obtain-prerequisites-for-ahead-of-time-aot-compilation)
       * [GPU](#gpu)
       * [CPU](#cpu)
-      * [Accelerator](#accelerator)
     * [Test DPC++ toolchain](#test-dpc-toolchain)
       * [Run in-tree LIT tests](#run-in-tree-lit-tests)
       * [Run DPC++ E2E tests](#run-dpc-e2e-tests)
@@ -198,8 +197,8 @@ extensions that require sm_80 and later architectures also require at least CUDA
 11.0.
 
 The CUDA backend should work on Windows or Linux operating systems with any GPU
-with compute capability (SM version) sm_50 or above. The default SM version for
-the NVIDIA CUDA backend is sm_50. Users of sm_3X devices can attempt to specify
+with compute capability (SM version) sm_75 or above. The default SM version for
+the NVIDIA CUDA backend is sm_75. Users of sm_3X devices can attempt to specify
 the target architecture [ahead of time](#aot-target-architectures), provided
 that they use a 11.X  or earlier CUDA toolkit version, but some features may not be
 supported. The CUDA backend has been tested with different Ubuntu Linux
@@ -407,8 +406,8 @@ To run DPC++ applications on Level Zero devices, Level Zero implementation(s)
 must be present in the system. You can find the link to the Level Zero spec in
 the following section [Find More](#find-more).
 
-The Level Zero RT for `GPU`, OpenCL RT for `GPU`, OpenCL RT for `CPU`, FPGA
-emulation RT and TBB runtime which are needed to run DPC++ application
+The Level Zero RT for `GPU`, OpenCL RT for `GPU`, OpenCL RT for `CPU` 
+and TBB runtime which are needed to run DPC++ application
 on Intel `GPU` or Intel `CPU` devices can be downloaded using links in
 [the dependency configuration file](../../devops/dependencies.json)
 and installed following the instructions below. The same versions are used in
@@ -416,15 +415,10 @@ PR testing.
 
 **Linux**:
 
-1) Extract the archive. For example, for the archives
-`oclcpuexp_<cpu_version>.tar.gz` and `fpgaemu_<fpga_version>.tar.gz` you would
-run the following commands
+1) Extract the archive. For example, for the archive
+`oclcpuexp_<cpu_version>.tar.gz` you would run the following commands
 
     ```bash
-    # Extract OpenCL FPGA emulation RT
-    mkdir -p /opt/intel/oclfpgaemu_<fpga_version>
-    cd /opt/intel/oclfpgaemu_<fpga_version>
-    tar zxvf fpgaemu_<fpga_version>.tar.gz
     # Extract OpenCL CPU RT
     mkdir -p /opt/intel/oclcpuexp_<cpu_version>
     cd /opt/intel/oclcpuexp_<cpu_version>
@@ -434,9 +428,6 @@ run the following commands
 2) Create ICD file pointing to the new runtime (requires sudo access)
 
     ```bash
-    # OpenCL FPGA emulation RT
-    echo  /opt/intel/oclfpgaemu_<fpga_version>/x64/libintelocl_emu.so | sudo tee
-      /etc/OpenCL/vendors/intel_fpgaemu.icd
     # OpenCL CPU RT
     echo /opt/intel/oclcpuexp_<cpu_version>/x64/libintelocl.so | sudo tee
       /etc/OpenCL/vendors/intel_expcpu.icd
@@ -456,15 +447,6 @@ for the archive oneapi-tbb-<tbb_version>-lin.tgz:
 folder:
 
     ```bash
-    # OpenCL FPGA emulation RT
-    ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbb.so
-      /opt/intel/oclfpgaemu_<fpga_version>/x64/libtbb.so
-    ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbbmalloc.so
-      /opt/intel/oclfpgaemu_<fpga_version>/x64/libtbbmalloc.so
-    ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbb.so.12
-      /opt/intel/oclfpgaemu_<fpga_version>/x64/libtbb.so.12
-    ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbbmalloc.so.2
-      /opt/intel/oclfpgaemu_<fpga_version>/x64/libtbbmalloc.so.2
     # OpenCL CPU RT
     ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbb.so
       /opt/intel/oclcpuexp_<cpu_version>/x64/libtbb.so
@@ -479,8 +461,6 @@ folder:
 5) Configure library paths (requires sudo access)
 
     ```bash
-    echo /opt/intel/oclfpgaemu_<fpga_version>/x64 | sudo tee
-      /etc/ld.so.conf.d/libintelopenclexp.conf
     echo /opt/intel/oclcpuexp_<cpu_version>/x64 | sudo tee -a
       /etc/ld.so.conf.d/libintelopenclexp.conf
     sudo ldconfig -f /etc/ld.so.conf.d/libintelopenclexp.conf
@@ -494,8 +474,7 @@ OpenCL runtime for Intel `GPU` installer may re-write some important
 files or settings and make existing OpenCL runtime for Intel `CPU` runtime
 not working properly.
 
-2) Extract the archive with OpenCL runtime for Intel `CPU` and/or for Intel
-`FPGA` emulation using links in
+2) Extract the archive with OpenCL runtime for Intel `CPU` using links in
 [the dependency configuration file](../../devops/dependencies.json).  For
 example, to `c:\oclcpu_rt_<cpu_version>`.
 
@@ -513,9 +492,6 @@ extracted files are in `c:\oclcpu_rt_<cpu_version>\` folder, then type the
 command:
 
     ```bash
-    # Install OpenCL FPGA emulation RT
-    # Answer Y to clean previous OCL_ICD_FILENAMES configuration and ICD records cleanup
-    c:\oclfpga_rt_<fpga_version>\install.bat c:\oneapi-tbb-<tbb_version>\redist\intel64\vc14
     # Install OpenCL CPU RT
     # Answer N for ICD records cleanup
     c:\oclcpu_rt_<cpu_version>\install.bat c:\oneapi-tbb-<tbb_version>\redist\intel64\vc14
@@ -529,7 +505,6 @@ AOT compiler for each device type:
 
 * `GPU`, Level Zero and OpenCL runtimes are supported,
 * `CPU`, OpenCL runtime is supported,
-* `Accelerator` (FPGA or FPGA emulation), OpenCL runtime is supported.
 
 #### GPU
 
@@ -558,15 +533,6 @@ AOT compiler for each device type:
 * CPU AOT compiler `opencl-aot` is enabled by default. For more, see
 [opencl-aot documentation](https://github.com/intel/llvm/blob/sycl/opencl/opencl-aot/README.md).
 
-#### Accelerator
-
-* Accelerator AOT compiler `aoc` is a part of
-[Intel&reg; oneAPI Base Toolkit](https://software.intel.com/content/www/us/en/develop/tools/oneapi/base-toolkit.html)
-(Intel&reg; oneAPI DPC++/C++ Compiler component).  
-Make sure that these binaries are available in `PATH` environment variable:
-
-  * `aoc` from `<oneAPI installation location>/compiler/<version>/<OS>/lib/oclfpga/bin`
-  * `aocl-ioc64` from `<oneAPI installation location>/compiler/<version>/<OS>/bin`
 
 ### Test DPC++ toolchain
 
@@ -720,8 +686,7 @@ The results are correct!
 ```
 
 **NOTE**: oneAPI DPC++/SYCL developers can specify SYCL device for execution
-using device selectors (e.g. `sycl::cpu_selector_v`, `sycl::gpu_selector_v`,
-[Intel FPGA selector(s)](extensions/supported/sycl_ext_intel_fpga_device_selector.asciidoc))
+using device selectors (e.g. `sycl::cpu_selector_v`, `sycl::gpu_selector_v`)
 as explained in following section
 [Code the program for a specific GPU](#code-the-program-for-a-specific-gpu).
 
@@ -760,14 +725,13 @@ simplify passing the specific architectures, for example
  [Users Manual](UsersManual.md#generic-options), for the `-fsycl-targets`
  option.
 
-To build simple-sycl-app ahead of time for GPU, CPU or Accelerator devices,
+To build simple-sycl-app ahead of time for GPU or CPU devices,
 specify the target architecture.  The examples provided use a supported
 alias for the target, representing a full triple.  Additional details can
 be found in the [Users Manual](UsersManual.md#generic-options).
 
 ```-fsycl-targets=spir64_gen``` for GPU,
-```-fsycl-targets=spir64_x86_64``` for CPU,
-```-fsycl-targets=spir64_fpga``` for Accelerator.
+```-fsycl-targets=spir64_x86_64``` for CPU.
 
 Multiple target architectures are supported.
 
@@ -785,7 +749,6 @@ more. To find available options, execute:
 
 ```ocloc compile --help``` for GPU,
 ```opencl-aot --help``` for CPU,
-```aoc -help -sycl``` for Accelerator.
 
 The `simple-sycl-app.exe` application doesn't specify SYCL device for
 execution, so SYCL runtime will use `default_selector` logic to select one
@@ -838,8 +801,8 @@ available, a "device selector" may be used. A "device selector" is a ranking
 function (C++ Callable) that will give an integer ranking value to all the
 devices on the system. It can be passed to `sycl::queue`, `sycl::device` and
 `sycl::platform` constructors. The highest ranking device is then selected. SYCL
-has built-in device selectors for selecting a generic GPU, CPU, or accelerator
-device, as well as one for a default device. Additionally, a user can define
+has built-in device selectors for selecting a generic GPU, CPU, as well as one
+for a default device. Additionally, a user can define
 their own as function, lambda, or functor class. Device selectors returning
 negative values will "reject" a device ensuring it is not selected, but values 0
 or higher will be selected by the highest score with ties resolved by an

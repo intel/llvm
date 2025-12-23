@@ -55,6 +55,7 @@ config.recursiveExpansionLimit = 10
 # To be filled by lit.local.cfg files.
 config.required_features = []
 config.unsupported_features = []
+config.xfail_features = []
 
 # test-mode: Set if tests should run normally or only build/run
 config.test_mode = lit_config.params.get("test-mode", "full")
@@ -704,7 +705,7 @@ def remove_level_zero_suffix(devices):
 
 
 available_devices = {
-    "opencl": ("cpu", "gpu", "fpga"),
+    "opencl": ("cpu", "gpu"),
     "cuda": "gpu",
     "level_zero": "gpu",
     "hip": "gpu",
@@ -917,12 +918,14 @@ for sycl_device in config.sycl_devices:
 
     env = copy.copy(llvm_config.config.environment)
 
+    backend_for_selector = backend.replace("_v2", "").replace("_v1", "")
+
     # Find all available devices under the backend
-    env["ONEAPI_DEVICE_SELECTOR"] = backend + ":*"
+    env["ONEAPI_DEVICE_SELECTOR"] = backend_for_selector + ":*"
 
     detected_architectures = []
 
-    platform_devices = remove_level_zero_suffix(backend + ":*")
+    platform_devices = backend_for_selector + ":*"
 
     for line in get_sycl_ls_verbose(platform_devices, env).stdout.splitlines():
         if re.match(r" *Architecture:", line):
@@ -983,6 +986,11 @@ if config.test_mode != "build-only":
         lit_config.note(
             "sycl-jit was not found. Tests requiring sycl-jit will be skipped."
         )
+
+# Check for enabled NewOffloadModel
+if lit_config.params.get("enable_new_offload_model", "False") != "False":
+    config.available_features.add("new-offload-model")
+    config.cxx_flags += " --offload-new-driver "
 
 # That has to be executed last so that all device-independent features have been
 # discovered already.
@@ -1070,24 +1078,17 @@ for full_name, sycl_device in zip(
     sg_sizes = set(dev_sg_sizes[0]).intersection(*dev_sg_sizes)
     lit_config.note("SG sizes for {}: {}".format(sycl_device, ", ".join(sg_sizes)))
 
-    # Currently, for fpga, the architecture reported by sycl-ls will always
-    # be unknown, as there are currently no architectures specified for fpga
-    # in sycl_ext_oneapi_device_architecture. Skip adding architecture features
-    # in this case.
-    if sycl_device == "opencl:fpga":
-        architectures = set()
-    else:
-        lit_config.note(
-            "Architectures for {}: {}".format(sycl_device, ", ".join(architectures))
-        )
-        if len(architectures) != 1 or "unknown" in architectures:
-            if not config.allow_unknown_arch:
-                lit_config.error(
-                    "Cannot detect architecture for {}\nstdout:\n{}\nstderr:\n{}".format(
-                        sycl_device, sycl_ls_sp.stdout, sycl_ls_sp.stderr
-                    )
+    lit_config.note(
+        "Architectures for {}: {}".format(sycl_device, ", ".join(architectures))
+    )
+    if len(architectures) != 1 or "unknown" in architectures:
+        if not config.allow_unknown_arch:
+            lit_config.error(
+                "Cannot detect architecture for {}\nstdout:\n{}\nstderr:\n{}".format(
+                    sycl_device, sycl_ls_sp.stdout, sycl_ls_sp.stderr
                 )
-            architectures = set()
+            )
+        architectures = set()
 
     aspect_features = set("aspect-" + a for a in aspects)
     sg_size_features = set("sg-" + s for s in sg_sizes)
@@ -1114,7 +1115,14 @@ for full_name, sycl_device in zip(
     features.update(device_family)
 
     be, dev = sycl_device.split(":")
-    features.add(dev.replace("fpga", "accelerator"))
+    if dev.isdigit():
+        backend_devices = available_devices.get(be, "gpu")
+        if isinstance(backend_devices, tuple):
+            # arch-selection is typically used to select gpu device
+            dev = "gpu"
+        else:
+            dev = backend_devices
+    features.add(dev)
     if "level_zero_v2" in full_name:
         features.add("level_zero_v2_adapter")
     elif "level_zero_v1" in full_name:

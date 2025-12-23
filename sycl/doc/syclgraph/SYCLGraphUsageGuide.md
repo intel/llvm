@@ -576,7 +576,7 @@ sycl::buffer bufferB{...};
 sycl_ext::dynamic_parameter dynParamAccessor(myGraph, bufferA.get_access());
 
 sycl_ext::node kernelNode = myGraph.add([&](handler& cgh) {
-    // Require the accessor contained in the dynamic paramter
+    // Require the accessor contained in the dynamic parameter
     cgh.require(dynParamAccessor);
     // Set the arg on the kernel using the dynamic parameter directly
     cgh.set_args(dynParamAccessor);

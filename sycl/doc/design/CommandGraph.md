@@ -255,7 +255,7 @@ collisions. In practice there are only a few current scenarios where `set_arg()`
 can be used:
 
 * The proposed ["Free Function Kernel"
-  extension](../extensions/proposed/sycl_ext_oneapi_free_function_kernels.asciidoc)
+  extension](../extensions/experimental/sycl_ext_oneapi_free_function_kernels.asciidoc)
 * OpenCL interop kernels created from SPIR-V source at runtime.
 
 A workaround for the lambda capture issues is the "Whole-Graph Update" feature.

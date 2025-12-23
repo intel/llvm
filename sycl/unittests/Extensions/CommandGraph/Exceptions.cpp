@@ -923,7 +923,6 @@ TEST_F(CommandGraphTest, DynamicCommandGroupMismatchAccessorEdges) {
 // correct exception behaviour.
 TEST_F(CommandGraphTest, AsyncAllocKindExceptionCheck) {
   auto Context = Queue.get_context();
-  auto Device = Queue.get_device();
 
   void *Ptr1 = nullptr;
   void *Ptr2 = nullptr;

@@ -31,6 +31,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/nd_range_view.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/event.hpp>
 #include <sycl/handler.hpp>
@@ -488,7 +489,7 @@ detail::EventImplPtr handler::finalize() {
       // Fetch the device kernel info pointer if it hasn't been set (e.g.
       // in kernel bundle or free function cases).
       impl->MKernelData.setDeviceKernelInfoPtr(
-          &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
+          &detail::ProgramManager::getInstance().getDeviceKernelInfo(
               std::string_view(MKernelName)));
     }
     assert(impl->MKernelData.getKernelName() == MKernelName);
@@ -505,8 +506,7 @@ detail::EventImplPtr handler::finalize() {
           !KernelBundleImpPtr->tryGetKernel(impl->getKernelName())) {
         detail::device_impl &Dev = impl->get_device();
         kernel_id KernelID =
-            detail::ProgramManager::getInstance().getSYCLKernelID(
-                impl->getKernelName());
+            impl->MKernelData.getDeviceKernelInfoPtr()->getKernelID();
         bool KernelInserted = KernelBundleImpPtr->add_kernel(
             KernelID, detail::createSyclObjFromImpl<device>(Dev));
         // If kernel was not inserted and the bundle is in input mode we try
@@ -680,13 +680,6 @@ detail::EventImplPtr handler::finalize() {
     CommandGroup.reset(new detail::CGCopyFromDeviceGlobal(
         MSrcPtr, MDstPtr, impl->MIsDeviceImageScoped, MLength, impl->MOffset,
         std::move(impl->CGData), MCodeLoc));
-    break;
-  }
-  case detail::CGType::ReadWriteHostPipe: {
-    CommandGroup.reset(new detail::CGReadWriteHostPipe(
-        impl->HostPipeName, impl->HostPipeBlocking, impl->HostPipePtr,
-        impl->HostPipeTypeSize, impl->HostPipeRead, std::move(impl->CGData),
-        MCodeLoc));
     break;
   }
   case detail::CGType::ExecCommandBuffer: {
@@ -897,19 +890,6 @@ void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
 }
 
 using namespace sycl::detail;
-bool handler::DisableRangeRounding() {
-  return SYCLConfig<SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING>::get();
-}
-
-bool handler::RangeRoundingTrace() {
-  return SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE>::get();
-}
-
-void handler::GetRangeRoundingSettings(size_t &MinFactor, size_t &GoodFactor,
-                                       size_t &MinRange) {
-  SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS>::GetSettings(
-      MinFactor, GoodFactor, MinRange);
-}
 
 void handler::memcpy(void *Dest, const void *Src, size_t Count) {
   throwIfActionIsCreated();
@@ -1540,26 +1520,6 @@ backend handler::getDeviceBackend() const {
   return impl->get_device().getBackend();
 }
 
-void handler::ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
-                                       size_t Size, bool Block) {
-  impl->HostPipeName = std::string_view(Name);
-  impl->HostPipePtr = Ptr;
-  impl->HostPipeTypeSize = Size;
-  impl->HostPipeBlocking = Block;
-  impl->HostPipeRead = 1;
-  setType(detail::CGType::ReadWriteHostPipe);
-}
-
-void handler::ext_intel_write_host_pipe(detail::string_view Name, void *Ptr,
-                                        size_t Size, bool Block) {
-  impl->HostPipeName = std::string_view(Name);
-  impl->HostPipePtr = Ptr;
-  impl->HostPipeTypeSize = Size;
-  impl->HostPipeBlocking = Block;
-  impl->HostPipeRead = 0;
-  setType(detail::CGType::ReadWriteHostPipe);
-}
-
 void handler::memcpyToDeviceGlobal(const void *DeviceGlobalPtr, const void *Src,
                                    bool IsDeviceImageScoped, size_t NumBytes,
                                    size_t Offset) {
@@ -1662,27 +1622,6 @@ kernel_bundle<bundle_state::input> handler::getKernelBundle() const {
       *KernelBundleImplPtr);
 }
 
-std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
-  device_impl &DeviceImpl = impl->get_device();
-  std::array<size_t, 3> UrResult = {};
-  auto Ret = DeviceImpl.getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
-      DeviceImpl.getHandleRef(),
-      UrInfoCode<
-          ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
-      sizeof(UrResult), &UrResult, nullptr);
-  if (Ret == UR_RESULT_SUCCESS) {
-    return UrResult;
-  }
-  return {};
-}
-
-std::tuple<std::array<size_t, 3>, bool> handler::getMaxWorkGroups_v2() {
-  auto ImmRess = getMaxWorkGroups();
-  if (ImmRess)
-    return {*ImmRess, true};
-  return {std::array<size_t, 3>{0, 0, 0}, false};
-}
-
 void handler::registerDynamicParameter(
     ext::oneapi::experimental::detail::dynamic_parameter_impl *DynamicParamImpl,
     int ArgIndex) {
@@ -1704,6 +1643,10 @@ void handler::registerDynamicParameter(
 
 bool handler::eventNeeded() const { return impl->MEventNeeded; }
 
+device handler::get_device() const {
+  return detail::createSyclObjFromImpl<device>(impl->get_device());
+}
+
 void *handler::storeRawArg(const void *Ptr, size_t Size) {
   impl->CGData.MArgsStorage.emplace_back(Size);
   void *Storage = static_cast<void *>(impl->CGData.MArgsStorage.back().data());
@@ -1712,13 +1655,15 @@ void *handler::storeRawArg(const void *Ptr, size_t Size) {
 }
 
 void handler::SetHostTask(std::function<void()> Func) {
-  setNDRangeDescriptor(range<1>(1));
+  range<1> r(1);
+  setNDRangeDescriptor(detail::nd_range_view(r));
   impl->MHostTask.reset(new detail::HostTask(std::move(Func)));
   setType(detail::CGType::CodeplayHostTask);
 }
 
 void handler::SetHostTask(std::function<void(interop_handle)> Func) {
-  setNDRangeDescriptor(range<1>(1));
+  range<1> r(1);
+  setNDRangeDescriptor(detail::nd_range_view(r));
   impl->MHostTask.reset(new detail::HostTask(std::move(Func)));
   setType(detail::CGType::CodeplayHostTask);
 }
@@ -1729,7 +1674,8 @@ void handler::addLifetimeSharedPtrStorage(std::shared_ptr<const void> SPtr) {
 
 void handler::addArg(detail::kernel_param_kind_t ArgKind, void *Req,
                      int AccessTarget, int ArgIndex) {
-  impl->MKernelData.addArg(ArgKind, Req, AccessTarget, ArgIndex);
+  impl->MKernelData.addArg(ArgKind, Req, AccessTarget,
+                           ArgIndex + impl->MKernelData.getArgShift());
 }
 
 void handler::setArgsToAssociatedAccessors() {
@@ -1760,49 +1706,19 @@ void handler::setDeviceKernelInfo(kernel &&Kernel) {
   // `lambdaAndKernelHaveEqualName` calls can handle that.
 }
 
-void handler::setNDRangeDescriptor(sycl::range<3> N, bool SetNumWorkGroups) {
-  impl->MKernelData.setNDRDesc(NDRDescT{N, SetNumWorkGroups});
-}
-void handler::setNDRangeDescriptor(sycl::range<3> NumWorkItems,
-                                   sycl::id<3> Offset) {
-  impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, Offset});
-}
-void handler::setNDRangeDescriptor(sycl::range<3> NumWorkItems,
-                                   sycl::range<3> LocalSize,
-                                   sycl::id<3> Offset) {
-  impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, LocalSize, Offset});
-}
-
-void handler::setNDRangeDescriptor(sycl::range<2> N, bool SetNumWorkGroups) {
-  impl->MKernelData.setNDRDesc(NDRDescT{N, SetNumWorkGroups});
-}
-void handler::setNDRangeDescriptor(sycl::range<2> NumWorkItems,
-                                   sycl::id<2> Offset) {
-  impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, Offset});
-}
-void handler::setNDRangeDescriptor(sycl::range<2> NumWorkItems,
-                                   sycl::range<2> LocalSize,
-                                   sycl::id<2> Offset) {
-  impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, LocalSize, Offset});
-}
-
-void handler::setNDRangeDescriptor(sycl::range<1> N, bool SetNumWorkGroups) {
-  impl->MKernelData.setNDRDesc(NDRDescT{N, SetNumWorkGroups});
-}
-void handler::setNDRangeDescriptor(sycl::range<1> NumWorkItems,
-                                   sycl::id<1> Offset) {
-  impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, Offset});
-}
-void handler::setNDRangeDescriptor(sycl::range<1> NumWorkItems,
-                                   sycl::range<1> LocalSize,
-                                   sycl::id<1> Offset) {
-  impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, LocalSize, Offset});
+void handler::setNDRangeDescriptor(sycl::detail::nd_range_view rv,
+                                   bool SetNumWorkGroups) {
+  impl->MKernelData.setNDRDesc(NDRDescT{rv, SetNumWorkGroups});
 }
 
 void handler::setDeviceKernelInfoPtr(
     sycl::detail::DeviceKernelInfo *DeviceKernelInfoPtr) {
   assert(!impl->MKernelData.getDeviceKernelInfoPtr() && "Already set!");
   impl->MKernelData.setDeviceKernelInfoPtr(DeviceKernelInfoPtr);
+}
+
+void handler::incrementArgShift(int Shift) {
+  impl->MKernelData.incrementArgShift(Shift);
 }
 
 void handler::setKernelFunc(void *KernelFuncPtr) {

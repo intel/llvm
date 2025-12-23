@@ -54,27 +54,6 @@ struct PropertyMetaInfo<usm_kind_key::value_t<Kind>> {
   static constexpr const char *name = "sycl-usm-kind";
   static constexpr sycl::usm::alloc value = Kind;
 };
-
-template <typename PropertyListT, sycl::usm::alloc Kind>
-inline constexpr bool is_usm_kind = []() constexpr {
-  if constexpr (PropertyListT::template has_property<usm_kind_key>())
-    return PropertyListT::template get_property<usm_kind_key>() ==
-           usm_kind<Kind>;
-  else
-    return false;
-}();
-
-template <typename PropertyListT>
-struct IsUsmKindDevice
-    : std::bool_constant<is_usm_kind<PropertyListT, sycl::usm::alloc::device>> {
-};
-template <typename PropertyListT>
-struct IsUsmKindHost
-    : std::bool_constant<is_usm_kind<PropertyListT, sycl::usm::alloc::host>> {};
-template <typename PropertyListT>
-struct IsUsmKindShared
-    : std::bool_constant<is_usm_kind<PropertyListT, sycl::usm::alloc::shared>> {
-};
 } // namespace detail
 
 } // namespace experimental
