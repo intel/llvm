@@ -4604,8 +4604,11 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
   // handle it now.
   if (AliasAttr *Attr = Global->getAttr<AliasAttr>()) {
     // Emit the alias here if it is not SYCL device compilation.
-    if (!LangOpts.SYCLIsDevice)
+    if (!LangOpts.SYCLIsDevice) {
+      if (shouldSkipAliasEmission(*this, Global))
+	return;
       return EmitAliasDefinition(GD);
+    }
     // Defer for SYCL devices, until either the alias or what it aliases
     // is used.
     StringRef MangledName = getMangledName(GD);
