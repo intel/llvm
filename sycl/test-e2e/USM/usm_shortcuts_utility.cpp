@@ -46,12 +46,27 @@ int main() {
         (int *)malloc(N * sizeof(int), dev, usm::alloc::host, property_list{});
     check_and_free(array, dev, ctxt, usm::alloc::host);
 
+    array = malloc<int>(N * sizeof(int), dev, usm::alloc::host);
+    check_and_free(array, dev, ctxt, usm::alloc::host);
+
+    array =
+        malloc<int>(N * sizeof(int), dev, usm::alloc::host, property_list{});
+    check_and_free(array, dev, ctxt, usm::alloc::host);
+
     array = (int *)aligned_alloc(alignof(long long), N * sizeof(int), dev,
                                  usm::alloc::host);
     check_and_free(array, dev, ctxt, usm::alloc::host);
 
     array = (int *)aligned_alloc(alignof(long long), N * sizeof(int), dev,
                                  usm::alloc::host, property_list{});
+    check_and_free(array, dev, ctxt, usm::alloc::host);
+
+    array = aligned_alloc<int>(alignof(long long), N * sizeof(int), dev,
+                               usm::alloc::host);
+    check_and_free(array, dev, ctxt, usm::alloc::host);
+
+    array = aligned_alloc<int>(alignof(long long), N * sizeof(int), dev,
+                               usm::alloc::host, property_list{});
     check_and_free(array, dev, ctxt, usm::alloc::host);
   }
 
@@ -65,11 +80,29 @@ int main() {
             ext::intel::experimental::property::usm::buffer_location{2}});
     check_and_free(array, dev, ctxt, usm::alloc::shared);
 
+    array = malloc_shared<int>(N * sizeof(int), dev);
+    check_and_free(array, dev, ctxt, usm::alloc::shared);
+
+    array = malloc_shared<int>(
+        N * sizeof(int), dev,
+        property_list{
+            ext::intel::experimental::property::usm::buffer_location{2}});
+    check_and_free(array, dev, ctxt, usm::alloc::shared);
+
     array =
         (int *)aligned_alloc_shared(alignof(long long), N * sizeof(int), dev);
     check_and_free(array, dev, ctxt, usm::alloc::shared);
 
     array = (int *)aligned_alloc_shared(
+        alignof(long long), N * sizeof(int), dev,
+        property_list{
+            ext::intel::experimental::property::usm::buffer_location{2}});
+    check_and_free(array, dev, ctxt, usm::alloc::shared);
+
+    array = aligned_alloc_shared<int>(alignof(long long), N * sizeof(int), dev);
+    check_and_free(array, dev, ctxt, usm::alloc::shared);
+
+    array = aligned_alloc_shared<int>(
         alignof(long long), N * sizeof(int), dev,
         property_list{
             ext::intel::experimental::property::usm::buffer_location{2}});
@@ -86,12 +119,28 @@ int main() {
             ext::intel::experimental::property::usm::buffer_location(2)});
     check_and_free(array, dev, ctxt, usm::alloc::device);
 
+    array = malloc_device<int>(N * sizeof(int), dev);
+    check_and_free(array, dev, ctxt, usm::alloc::device);
+
+    array = malloc_device<int>(
+        N, dev,
+        property_list{
+            ext::intel::experimental::property::usm::buffer_location(2)});
+    check_and_free(array, dev, ctxt, usm::alloc::device);
+
     array =
         (int *)aligned_alloc_device(alignof(long long), N * sizeof(int), dev);
     check_and_free(array, dev, ctxt, usm::alloc::device);
 
     array = (int *)aligned_alloc_device(alignof(long long), N * sizeof(int),
                                         dev, property_list{});
+    check_and_free(array, dev, ctxt, usm::alloc::device);
+
+    array = aligned_alloc_device<int>(alignof(long long), N * sizeof(int), dev);
+    check_and_free(array, dev, ctxt, usm::alloc::device);
+
+    array = aligned_alloc_device<int>(alignof(long long), N * sizeof(int), dev,
+                                      property_list{});
     check_and_free(array, dev, ctxt, usm::alloc::device);
   }
 

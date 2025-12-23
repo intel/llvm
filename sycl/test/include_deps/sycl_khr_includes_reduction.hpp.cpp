@@ -183,5 +183,6 @@
 // CHECK-NEXT: ext/oneapi/experimental/event_mode_property.hpp
 // CHECK-NEXT: sycl_span.hpp
 // CHECK-NEXT: usm.hpp
+// CHECK-NEXT: platform.hpp
 // CHECK-NEXT: usm/usm_pointer_info.hpp
 // CHECK-EMPTY:

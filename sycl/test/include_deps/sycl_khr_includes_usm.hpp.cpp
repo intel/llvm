@@ -170,6 +170,7 @@
 // CHECK-NEXT: kernel.hpp
 // CHECK-NEXT: sampler.hpp
 // CHECK-NEXT: sycl_span.hpp
+// CHECK-NEXT: platform.hpp
 // CHECK-NEXT: usm/usm_pointer_info.hpp
 // CHECK-NEXT: usm/usm_allocator.hpp
 // CHECK-EMPTY:
