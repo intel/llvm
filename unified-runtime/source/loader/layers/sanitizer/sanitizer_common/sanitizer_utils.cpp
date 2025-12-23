@@ -358,4 +358,13 @@ void PrintUrBuildLogIfError(ur_result_t Result, ur_program_handle_t Program,
   }
 }
 
+ur_result_t EnqueueUSMSetZero(ur_queue_handle_t Queue, void *Ptr, size_t Size,
+                              uint32_t NumEvents,
+                              const ur_event_handle_t *EventWaitList,
+                              ur_event_handle_t *OutEvent) {
+  static const char Zero = 0;
+  return getContext()->urDdiTable.Enqueue.pfnUSMFill(
+      Queue, Ptr, 1, &Zero, Size, NumEvents, EventWaitList, OutEvent);
+}
+
 } // namespace ur_sanitizer_layer
