@@ -31,6 +31,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/nd_range_view.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/event.hpp>
 #include <sycl/handler.hpp>
@@ -505,8 +506,7 @@ detail::EventImplPtr handler::finalize() {
           !KernelBundleImpPtr->tryGetKernel(impl->getKernelName())) {
         detail::device_impl &Dev = impl->get_device();
         kernel_id KernelID =
-            detail::ProgramManager::getInstance().getSYCLKernelID(
-                impl->getKernelName());
+            impl->MKernelData.getDeviceKernelInfoPtr()->getKernelID();
         bool KernelInserted = KernelBundleImpPtr->add_kernel(
             KernelID, detail::createSyclObjFromImpl<device>(Dev));
         // If kernel was not inserted and the bundle is in input mode we try
@@ -1655,13 +1655,15 @@ void *handler::storeRawArg(const void *Ptr, size_t Size) {
 }
 
 void handler::SetHostTask(std::function<void()> Func) {
-  setNDRangeDescriptor(range<1>(1));
+  range<1> r(1);
+  setNDRangeDescriptor(detail::nd_range_view(r));
   impl->MHostTask.reset(new detail::HostTask(std::move(Func)));
   setType(detail::CGType::CodeplayHostTask);
 }
 
 void handler::SetHostTask(std::function<void(interop_handle)> Func) {
-  setNDRangeDescriptor(range<1>(1));
+  range<1> r(1);
+  setNDRangeDescriptor(detail::nd_range_view(r));
   impl->MHostTask.reset(new detail::HostTask(std::move(Func)));
   setType(detail::CGType::CodeplayHostTask);
 }
@@ -1704,43 +1706,9 @@ void handler::setDeviceKernelInfo(kernel &&Kernel) {
   // `lambdaAndKernelHaveEqualName` calls can handle that.
 }
 
-void handler::setNDRangeDescriptor(sycl::range<3> N, bool SetNumWorkGroups) {
-  impl->MKernelData.setNDRDesc(NDRDescT{N, SetNumWorkGroups});
-}
-void handler::setNDRangeDescriptor(sycl::range<3> NumWorkItems,
-                                   sycl::id<3> Offset) {
-  impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, Offset});
-}
-void handler::setNDRangeDescriptor(sycl::range<3> NumWorkItems,
-                                   sycl::range<3> LocalSize,
-                                   sycl::id<3> Offset) {
-  impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, LocalSize, Offset});
-}
-
-void handler::setNDRangeDescriptor(sycl::range<2> N, bool SetNumWorkGroups) {
-  impl->MKernelData.setNDRDesc(NDRDescT{N, SetNumWorkGroups});
-}
-void handler::setNDRangeDescriptor(sycl::range<2> NumWorkItems,
-                                   sycl::id<2> Offset) {
-  impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, Offset});
-}
-void handler::setNDRangeDescriptor(sycl::range<2> NumWorkItems,
-                                   sycl::range<2> LocalSize,
-                                   sycl::id<2> Offset) {
-  impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, LocalSize, Offset});
-}
-
-void handler::setNDRangeDescriptor(sycl::range<1> N, bool SetNumWorkGroups) {
-  impl->MKernelData.setNDRDesc(NDRDescT{N, SetNumWorkGroups});
-}
-void handler::setNDRangeDescriptor(sycl::range<1> NumWorkItems,
-                                   sycl::id<1> Offset) {
-  impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, Offset});
-}
-void handler::setNDRangeDescriptor(sycl::range<1> NumWorkItems,
-                                   sycl::range<1> LocalSize,
-                                   sycl::id<1> Offset) {
-  impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, LocalSize, Offset});
+void handler::setNDRangeDescriptor(sycl::detail::nd_range_view rv,
+                                   bool SetNumWorkGroups) {
+  impl->MKernelData.setNDRDesc(NDRDescT{rv, SetNumWorkGroups});
 }
 
 void handler::setDeviceKernelInfoPtr(
