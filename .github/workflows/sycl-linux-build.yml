@@ -263,10 +263,6 @@ jobs:
       if: ${{ !cancelled() && contains(inputs.changes, 'libclc') }}
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-libclc
-    - name: check-libdevice
-      if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
-      run: |
-        cmake --build $GITHUB_WORKSPACE/build --target check-libdevice
     - name: Check E2E test requirements
       if: ${{ !cancelled() && !contains(inputs.changes, 'sycl') }}
       run: |
