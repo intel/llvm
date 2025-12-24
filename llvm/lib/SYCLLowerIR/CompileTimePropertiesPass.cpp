@@ -28,7 +28,6 @@ namespace {
 
 constexpr StringRef SyclHostAccessAttr = "sycl-host-access";
 constexpr StringRef SyclPipelinedAttr = "sycl-pipelined";
-constexpr StringRef SyclRegisterAllocModeAttr = "sycl-register-alloc-mode";
 constexpr StringRef SyclGrfSizeAttr = "sycl-grf-size";
 
 constexpr StringRef SpirvDecorMdKind = "spirv.Decorations";
@@ -482,24 +481,20 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
                                             MDNode::get(Ctx, ClusterMDArgs));
   }
 
-  if ((AttrKindStr == SyclRegisterAllocModeAttr ||
-       AttrKindStr == SyclGrfSizeAttr) &&
-      !llvm::esimd::isESIMD(F)) {
-    // TODO: Remove SYCL_REGISTER_ALLOC_MODE_ATTR support in next ABI break.
+  if ((AttrKindStr == SyclGrfSizeAttr) && !llvm::esimd::isESIMD(F)) {
     uint32_t PropVal = getAttributeAsInteger<uint32_t>(Attr);
-    if (AttrKindStr == SyclGrfSizeAttr) {
-      // The RegisterAllocMode metadata supports only 0, 128, and 256 for
-      // PropVal.
-      if (PropVal != 0 && PropVal != 128 && PropVal != 256)
-        return std::nullopt;
-      // Map sycl-grf-size values to RegisterAllocMode values used in SPIR-V.
-      static constexpr int SMALL_GRF_REGALLOCMODE_VAL = 1;
-      static constexpr int LARGE_GRF_REGALLOCMODE_VAL = 2;
-      if (PropVal == 128)
-        PropVal = SMALL_GRF_REGALLOCMODE_VAL;
-      else if (PropVal == 256)
-        PropVal = LARGE_GRF_REGALLOCMODE_VAL;
-    }
+    // The RegisterAllocMode metadata supports only 0, 128, and 256 for
+    // PropVal.
+    if (PropVal != 0 && PropVal != 128 && PropVal != 256)
+      return std::nullopt;
+    // Map sycl-grf-size values to RegisterAllocMode values used in SPIR-V.
+    static constexpr int SMALL_GRF_REGALLOCMODE_VAL = 1;
+    static constexpr int LARGE_GRF_REGALLOCMODE_VAL = 2;
+    if (PropVal == 128)
+      PropVal = SMALL_GRF_REGALLOCMODE_VAL;
+    else if (PropVal == 256)
+      PropVal = LARGE_GRF_REGALLOCMODE_VAL;
+
     Metadata *AttrMDArgs[] = {ConstantAsMetadata::get(
         Constant::getIntegerValue(Type::getInt32Ty(Ctx), APInt(32, PropVal)))};
     return std::pair<std::string, MDNode *>("RegisterAllocMode",

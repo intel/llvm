@@ -263,17 +263,7 @@ __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
   using reference =
       sycl::ext::oneapi::experimental::annotated_ref<T, property_list_t>;
 
-#ifdef __ENABLE_USM_ADDR_SPACE__
-  using global_pointer_t = std::conditional_t<
-      detail::IsUsmKindDevice<property_list_t>::value,
-      typename sycl::ext::intel::decorated_device_ptr<T>::pointer,
-      std::conditional_t<
-          detail::IsUsmKindHost<property_list_t>::value,
-          typename sycl::ext::intel::decorated_host_ptr<T>::pointer,
-          typename decorated_global_ptr<T>::pointer>>;
-#else
   using global_pointer_t = typename decorated_global_ptr<T>::pointer;
-#endif // __ENABLE_USM_ADDR_SPACE__
 
   T *m_Ptr;
 
