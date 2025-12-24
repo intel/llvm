@@ -617,7 +617,7 @@ public:
     // these between tests
     detail::GlobalHandler::instance().prepareSchedulerToRelease(true);
     detail::GlobalHandler::instance().releaseDefaultContexts();
-    // the platform cache is cleared at the BEGINING of the mock.
+    // the platform cache is cleared at the BEGINNING of the mock.
 
     mock::getCallbacks().resetCallbacks();
   }

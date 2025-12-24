@@ -10,6 +10,7 @@
 #pragma once
 
 #include "common.hpp"
+#include "external/driver_experimental/zex_graph.h"
 #include "ur_api.h"
 #include "ze_api.h"
 #include "ze_ddi.h"
@@ -168,4 +169,34 @@ struct ur_platform_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter>,
     bool DriverSupportsCooperativeKernelLaunchWithArgs = false;
     bool DisableZeLaunchKernelWithArgs = false;
   } ZeCommandListAppendLaunchKernelWithArgumentsExt;
+
+  struct ZeGraphExtension {
+    bool Supported = false;
+    ze_result_t (*zeGraphCreateExp)(ze_context_handle_t hContext,
+                                    ze_graph_handle_t *phGraph, void *pNext);
+    ze_result_t (*zeCommandListBeginGraphCaptureExp)(
+        ze_command_list_handle_t hCommandList, void *pNext);
+    ze_result_t (*zeCommandListBeginCaptureIntoGraphExp)(
+        ze_command_list_handle_t hCommandList, ze_graph_handle_t hGraph,
+        void *pNext);
+    ze_result_t (*zeCommandListEndGraphCaptureExp)(
+        ze_command_list_handle_t hCommandList, ze_graph_handle_t *phGraph,
+        void *pNext);
+    ze_result_t (*zeCommandListInstantiateGraphExp)(
+        ze_graph_handle_t hGraph,
+        ze_executable_graph_handle_t *phExecutableGraph, void *pNext);
+    ze_result_t (*zeCommandListAppendGraphExp)(
+        ze_command_list_handle_t hCommandList,
+        ze_executable_graph_handle_t hGraph, void *pNext,
+        ze_event_handle_t hSignalEvent, uint32_t numWaitEvents,
+        ze_event_handle_t *phWaitEvents);
+    ze_result_t (*zeGraphDestroyExp)(ze_graph_handle_t hGraph);
+    ze_result_t (*zeExecutableGraphDestroyExp)(
+        ze_executable_graph_handle_t hGraph);
+    ze_result_t (*zeCommandListIsGraphCaptureEnabledExp)(
+        ze_command_list_handle_t hCommandList);
+    ze_result_t (*zeGraphIsEmptyExp)(ze_graph_handle_t hGraph);
+    ze_result_t (*zeGraphDumpContentsExp)(ze_graph_handle_t hGraph,
+                                          const char *filePath, void *pNext);
+  } ZeGraphExt;
 };

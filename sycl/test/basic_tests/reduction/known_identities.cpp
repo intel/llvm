@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl -fsyntax-only %s
 
-// Tests the existance and specializations of known identities.
+// Tests the existence and specializations of known identities.
 
 #include <sycl/sycl.hpp>
 

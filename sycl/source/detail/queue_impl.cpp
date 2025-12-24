@@ -624,7 +624,7 @@ EventImplPtr queue_impl::submit_graph_direct_impl(
                                       detail::CGType::ExecCommandBuffer),
               /*SchedulerBypass*/ false};
     } else {
-      return ExecGraph->enqueue(*this, CGData, EventNeeded);
+      return ExecGraph->enqueue(*this, std::move(CGData), EventNeeded);
     }
   };
   // If the graph contains a host task, we may need to insert a barrier prior
@@ -642,6 +642,8 @@ detail::EventImplPtr queue_impl::submit_direct(
   detail::CG::StorageInitHelper CGData;
   std::unique_lock<std::mutex> Lock(MMutex);
   const bool inOrder = isInOrder();
+
+  NestedCallsTracker tracker;
 
   // Sync with an external event
   std::optional<event> ExternalEvent = popExternalEvent();
