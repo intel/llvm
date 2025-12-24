@@ -177,7 +177,7 @@ DEVICE_EXTERN_C
 void __assert_fail(const char *expr, const char *file, unsigned int line,
                    const char *func) {
 #if defined(__NVPTX__) || defined(__AMDGCN__)
-  __assertfail(expr, file, func, nullptr, 1);
+  __assertfail(expr, file, line, func, 1);
 #else
   __devicelib_assert_fail(
       expr, file, line, func, __spirv_BuiltInGlobalInvocationId(0),
