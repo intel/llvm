@@ -58,6 +58,7 @@ void llvm::initializeCodeGen(PassRegistry &Registry) {
   initializeInterleavedLoadCombinePass(Registry);
   initializeInterleavedAccessPass(Registry);
   initializeJMCInstrumenterPass(Registry);
+  initializeLibcallLoweringInfoWrapperPass(Registry);
   initializeLiveDebugValuesLegacyPass(Registry);
   initializeLiveDebugVariablesWrapperLegacyPass(Registry);
   initializeLiveIntervalsWrapperPassPass(Registry);
