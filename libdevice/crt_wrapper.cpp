@@ -138,16 +138,7 @@ void srand(unsigned int seed) {
 DEVICE_EXTERN_C void __assertfail(const char *__message, const char *__file,
                                   unsigned __line, const char *__function,
                                   size_t charSize);
-
-DEVICE_EXTERN_C inline void
-__devicelib_assert_fail(const char *expr, const char *file, int32_t line,
-                        const char *func, uint64_t gid0, uint64_t gid1,
-                        uint64_t gid2, uint64_t lid0, uint64_t lid1,
-                        uint64_t lid2) {
-  __assertfail(expr, file, line, func, 1);
-}
 #endif
-
 #if defined(_WIN32)
 // Truncates a wide (16 or 32 bit) string (wstr) into an ASCII string (str).
 // Any non-ASCII characters are replaced by question mark '?'.
@@ -171,21 +162,29 @@ void _wassert(const wchar_t *wexpr, const wchar_t *wfile, unsigned line) {
   char expr[256];
   __truncate_wchar_char_str(wexpr, expr, sizeof(expr));
 
+#if defined(__NVPTX__) || defined(__AMDGCN__)
+  __assertfail(expr, file, line, nullptr, 1);
+#else
   __devicelib_assert_fail(
       expr, file, line, /*func=*/nullptr, __spirv_BuiltInGlobalInvocationId(0),
       __spirv_BuiltInGlobalInvocationId(1),
       __spirv_BuiltInGlobalInvocationId(2), __spirv_BuiltInLocalInvocationId(0),
       __spirv_BuiltInLocalInvocationId(1), __spirv_BuiltInLocalInvocationId(2));
 }
+#endif
 #else
 DEVICE_EXTERN_C
 void __assert_fail(const char *expr, const char *file, unsigned int line,
                    const char *func) {
+#if defined(__NVPTX__) || defined(__AMDGCN__)
+  __assertfail(expr, file, func, nullptr, 1);
+#else
   __devicelib_assert_fail(
       expr, file, line, func, __spirv_BuiltInGlobalInvocationId(0),
       __spirv_BuiltInGlobalInvocationId(1),
       __spirv_BuiltInGlobalInvocationId(2), __spirv_BuiltInLocalInvocationId(0),
       __spirv_BuiltInLocalInvocationId(1), __spirv_BuiltInLocalInvocationId(2));
+#endif
 }
 
 // In GCC-15, std::__glibcxx_assert_fail is added to do runtime check for some
