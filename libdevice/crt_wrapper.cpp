@@ -134,6 +134,25 @@ void srand(unsigned int seed) {
   RAND_NEXT_ACC[gid1] = seed;
 }
 
+#if defined(__NVPTX__) || defined(__AMDGCN__)
+DEVICE_EXTERN_C void __assertfail(const char *__message, const char *__file,
+                                  unsigned __line, const char *__function,
+                                  size_t charSize);
+
+DEVICE_EXTERN_C inline void
+__devicelib_assert_fail(const char *expr, const char *file, int32_t line,
+                        const char *func, uint64_t gid0, uint64_t gid1,
+                        uint64_t gid2, uint64_t lid0, uint64_t lid1,
+                        uint64_t lid2) {
+  __assertfail(expr, file, line, func, 1);
+}
+
+DEVICE_EXTERN_C void _wassert(const char *_Message, const char *_File,
+                              unsigned _Line) {
+  __assertfail(_Message, _File, _Line, 0, 1);
+}
+#endif
+
 #if defined(_WIN32)
 // Truncates a wide (16 or 32 bit) string (wstr) into an ASCII string (str).
 // Any non-ASCII characters are replaced by question mark '?'.
