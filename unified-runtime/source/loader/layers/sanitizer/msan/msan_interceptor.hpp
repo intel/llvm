@@ -207,9 +207,9 @@ struct MsanRuntimeDataWrapper {
     Host.NumLocalArgs = LocalArgs.size();
     const size_t LocalArgsInfoSize =
         sizeof(MsanLocalArgsInfo) * Host.NumLocalArgs;
-    UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-        Context, Device, nullptr, nullptr, LocalArgsInfoSize,
-        ur_cast<void **>(&Host.LocalArgs)));
+    UR_CALL(SafeAllocate(Context, Device, LocalArgsInfoSize, nullptr, nullptr,
+                         AllocType::DEVICE_USM,
+                         ur_cast<void **>(&Host.LocalArgs)));
 
     UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
         Queue, true, Host.LocalArgs, &LocalArgs[0], LocalArgsInfoSize, 0,
