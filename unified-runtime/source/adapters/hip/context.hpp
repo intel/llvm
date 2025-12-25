@@ -96,8 +96,13 @@ struct ur_context_handle_t_ : ur::hip::handle_base {
     UR_CHECK_ERROR(urAdapterRetain(ur::hip::adapter));
   };
 
-  ~ur_context_handle_t_() {
-    UR_CHECK_ERROR(urAdapterRelease(ur::hip::adapter));
+  ~ur_context_handle_t_() noexcept {
+    try {
+      urAdapterRelease(ur::hip::adapter);
+    } catch (...) {
+      UR_LOG(ERR, "Exception in context destructor");
+      assert(false && "Exception in context destructor");
+    }
   }
 
   ur_context_handle_t_(const ur_context_handle_t_ &) = delete;
