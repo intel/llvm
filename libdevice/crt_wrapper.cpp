@@ -170,6 +170,7 @@ void _wassert(const wchar_t *wexpr, const wchar_t *wfile, unsigned line) {
       __spirv_BuiltInGlobalInvocationId(1),
       __spirv_BuiltInGlobalInvocationId(2), __spirv_BuiltInLocalInvocationId(0),
       __spirv_BuiltInLocalInvocationId(1), __spirv_BuiltInLocalInvocationId(2));
+#endif
 }
 #endif
 #else
