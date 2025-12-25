@@ -322,7 +322,7 @@ _Effects_: Equivalent to:
 [source,c++,indent=2]
 ----
 sycl::context ctxt = syclDevice.get_platform().khr_get_default_context();
-return sycl::malloc_shared<T>(count, syclDevice, ctxt, kind, propList);
+return sycl::malloc<T>(count, syclDevice, ctxt, kind, propList);
 ----
 
 '''
