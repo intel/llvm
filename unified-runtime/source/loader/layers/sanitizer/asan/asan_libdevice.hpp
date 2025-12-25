@@ -88,24 +88,27 @@ constexpr uint64_t ASAN_PRIVATE_SIZE = 0xffffffULL + 1;
 
 // These magic values are written to shadow for better error
 // reporting.
-constexpr int kUsmDeviceRedzoneMagic = (char)0x81;
-constexpr int kUsmHostRedzoneMagic = (char)0x82;
-constexpr int kUsmSharedRedzoneMagic = (char)0x83;
-constexpr int kMemBufferRedzoneMagic = (char)0x84;
-constexpr int kDeviceGlobalRedzoneMagic = (char)0x85;
-constexpr int kNullPointerRedzoneMagic = (char)0x86;
+constexpr int8_t kUsmDeviceRedzoneMagic = (int8_t)0x81;
+constexpr int8_t kUsmHostRedzoneMagic = (int8_t)0x82;
+constexpr int8_t kUsmSharedRedzoneMagic = (int8_t)0x83;
+constexpr int8_t kMemBufferRedzoneMagic = (int8_t)0x84;
+constexpr int8_t kDeviceGlobalRedzoneMagic = (int8_t)0x85;
+constexpr int8_t kNullPointerRedzoneMagic = (int8_t)0x86;
 
-constexpr int kUsmDeviceDeallocatedMagic = (char)0x91;
-constexpr int kUsmHostDeallocatedMagic = (char)0x92;
-constexpr int kUsmSharedDeallocatedMagic = (char)0x93;
-constexpr int kMemBufferDeallocatedMagic = (char)0x93;
+constexpr int8_t kUsmDeviceDeallocatedMagic = (int8_t)0x91;
+constexpr int8_t kUsmHostDeallocatedMagic = (int8_t)0x92;
+constexpr int8_t kUsmSharedDeallocatedMagic = (int8_t)0x93;
+constexpr int8_t kMemBufferDeallocatedMagic = (int8_t)0x93;
 
-constexpr int kSharedLocalRedzoneMagic = (char)0xa1;
+constexpr int8_t kSharedLocalRedzoneMagic = (int8_t)0xa1;
 
 // Same with host ASan stack
-const int kPrivateLeftRedzoneMagic = (char)0xf1;
-const int kPrivateMidRedzoneMagic = (char)0xf2;
-const int kPrivateRightRedzoneMagic = (char)0xf3;
+const int8_t kPrivateLeftRedzoneMagic = (int8_t)0xf1;
+const int8_t kPrivateMidRedzoneMagic = (int8_t)0xf2;
+const int8_t kPrivateRightRedzoneMagic = (int8_t)0xf3;
+
+// Unknown shadow value
+constexpr int8_t kUnknownMagic = (int8_t)0xff;
 
 constexpr auto kSPIR_AsanDeviceGlobalMetadata = "__AsanDeviceGlobalMetadata";
 constexpr auto kSPIR_AsanSpirKernelMetadata = "__AsanKernelMetadata";
