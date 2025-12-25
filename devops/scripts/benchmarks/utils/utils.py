@@ -48,6 +48,30 @@ def run(
         if isinstance(command, str):
             command = command.split()
 
+        is_gdb_mode = os.environ.get("LLVM_BENCHMARKS_USE_GDB", "") == "true"
+        if (
+            filter(lambda x: x == "/compute-benchmarks-build/bin/" in command, command)
+            and is_gdb_mode
+        ):
+            gdb_cmd = [
+                "gdb",
+                "-return-child-result",
+                "--batch",
+                "--ex",
+                "set confirm off",
+                "--ex",
+                "add-auto-load-safe-path /",
+                "--ex",
+                "run",
+                "--ex",
+                "bt",
+                "--ex",
+                "quit",
+                "--args",
+            ] + command
+            command = gdb_cmd
+            log.info(f"Running in gdb mode: {command}")
+
         env = os.environ.copy()
         for ldlib in ld_library:
             if os.path.isdir(ldlib):
