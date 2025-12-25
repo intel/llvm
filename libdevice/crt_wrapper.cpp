@@ -172,7 +172,6 @@ void _wassert(const wchar_t *wexpr, const wchar_t *wfile, unsigned line) {
       __spirv_BuiltInLocalInvocationId(1), __spirv_BuiltInLocalInvocationId(2));
 #endif
 }
-#endif
 #else
 DEVICE_EXTERN_C
 void __assert_fail(const char *expr, const char *file, unsigned int line,
