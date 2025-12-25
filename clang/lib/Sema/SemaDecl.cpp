@@ -8197,6 +8197,7 @@ NamedDecl *Sema::ActOnVariableDeclarator(
     // constexpr unless their types are decorated with global_variable_allowed
     // attribute.
     if (SCSpec == DeclSpec::SCS_static && !R.isConstant(Context) &&
+        !NewVD->getType()->isDependentType() &&
         !SYCL().isTypeDecoratedWithDeclAttribute<SYCLGlobalVariableAllowedAttr>(
             NewVD->getType()) &&
         !SYCL().isTypeDecoratedWithDeclAttribute<SYCLScopeAttr>(
