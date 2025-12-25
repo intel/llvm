@@ -1,0 +1,28 @@
+//===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+// RUN: %clang -emit-llvm -S -o - %s | FileCheck %s
+
+#include <libspirv/spirv_types.h>
+
+// CHECK-NOT: declare {{.*}} @_Z
+// CHECK-NOT: call {{[^ ]*}} bitcast
+__attribute__((overloadable)) __clc_vec2_schar_t
+test___spirv_SConvert_Rschar2_sat(__clc_vec2_int16_t args_0) {
+  return __spirv_SConvert_Rschar2_sat(args_0);
+}
+
+__attribute__((overloadable)) __clc_vec2_schar_t
+test___spirv_SConvert_Rschar2_sat(__clc_vec2_int32_t args_0) {
+  return __spirv_SConvert_Rschar2_sat(args_0);
+}
+
+__attribute__((overloadable)) __clc_vec2_schar_t
+test___spirv_SConvert_Rschar2_sat(__clc_vec2_int64_t args_0) {
+  return __spirv_SConvert_Rschar2_sat(args_0);
+}
