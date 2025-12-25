@@ -2,9 +2,6 @@
 // RUN: %{run} %t.out
 
 // Test flakily fails on PVC and BMG.
-// UNSUPPORTED: arch-intel_gpu_pvc || arch-intel_gpu_bmg_g21
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16401
-// BMG ticket: https://github.com/intel/llvm/issues/17251
 
 //==----------------accessor.cpp - SYCL accessor basic test ----------------==//
 //
