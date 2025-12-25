@@ -131,8 +131,17 @@ int main() {
     auto Platforms = sycl::platform::get_platforms();
     if (Platforms.empty())
       throw std::runtime_error("No platform is found");
-    else if (Platforms.size() != 1)
-      throw std::runtime_error("Expected only one platform.");
+
+    std::string FirstName =
+        Platforms.at(0).get_info<sycl::info::platform::name>();
+    std::string FirstVer =
+        Platforms.at(0).get_info<sycl::info::platform::version>();
+    for (const auto &P : Platforms) {
+      if (P.get_info<sycl::info::platform::name>() != FirstName ||
+          P.get_info<sycl::info::platform::version>() != FirstVer) {
+        throw std::runtime_error("Allowlist matched multiple platform types");
+      }
+    }
 
     return 0;
   }
