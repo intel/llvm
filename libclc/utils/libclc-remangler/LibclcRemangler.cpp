@@ -850,7 +850,7 @@ private:
       bool CloneeTypeReplacement = false) {
     Remangler ATR{ASTCtx, FunctionTree, TypeReplacements};
 
-    std::string const RemangledName = ATR.remangle();
+    std::string RemangledName = ATR.remangle();
 
     if (ATR.hasFailed())
       return false;
@@ -865,7 +865,7 @@ private:
       CloneName = OriginalName;
       CloneeName = RemangledName;
     } else {
-      CloneName = RemangledName;
+      CloneName = std::move(RemangledName);
       CloneeName = OriginalName;
     }
 
