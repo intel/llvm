@@ -26,6 +26,7 @@ on:
     - '.github/workflows/sycl-rel-nightly-launch.yml'
     - '.github/workflows/sycl-trivy.yml'
     - '.github/workflows/sycl-coverity.yml'
+    - '.github/workflows/sycl-weekly.yml'
     - 'devops/containers/**'
     - 'devops/actions/build_container/**'
     - 'unified-runtime/examples/**'
