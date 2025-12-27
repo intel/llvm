@@ -7,6 +7,9 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: target-spir
 
+// XFAIL: windows && intel_gpu_lnl_m
+// XFAIL-TRACKER: CMPLRLLVM-72111
+
 // REQUIRES: aspect-ext_intel_matrix
 
 // RUN: %{build} -o %t.out
