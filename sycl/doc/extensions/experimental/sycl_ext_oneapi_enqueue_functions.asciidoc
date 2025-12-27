@@ -301,6 +301,26 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
+template <typename KernelName, typename KernelType, typename Properties>
+void single_task(sycl::queue q, Properties properties, const KernelType& k);
+
+template <typename KernelName, typename KernelType, typename Properties>
+void single_task(sycl::handler &h, Properties properties, const KernelType& k);
+
+}
+----
+!====
+_Effects_: Enqueues a kernel function to the `sycl::queue` or `sycl::handler`
+as a single task, using the kernel launch properties specified by `properties`.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
 template <typename Args...>
 void single_task(sycl::queue q, const sycl::kernel& k, Args&&... args);
 
@@ -313,6 +333,29 @@ void single_task(sycl::handler &h, const sycl::kernel& k, Args&&... args);
 _Effects_: Enqueues a kernel object to the `sycl::queue` or `sycl::handler` as
 a single task. The arguments in `args` are passed to the kernel in the same
 order.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename Properties, typename Args...>
+void single_task(sycl::queue q, Properties properties, const sycl::kernel& k,
+                 Args&&... args);
+
+template <typename Properties, typename Args...>
+void single_task(sycl::handler &h, Properties properties, const sycl::kernel& k,
+                 Args&&... args);
+
+}
+----
+!====
+_Effects_: Enqueues a kernel object to the `sycl::queue` or `sycl::handler` as
+a single task, using the kernel launch properties specified by `properties`. The
+arguments in `args` are passed to the kernel in the same order.
 
 |====
 
@@ -574,6 +617,28 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
+template <typename Properties>
+void memcpy(sycl::queue q, Properties properties, void* dest, const void* src,
+            size_t numBytes);
+
+template <typename Properties>
+void memcpy(sycl::handler &h, Properties properties, void* dest, const void* src,
+            size_t numBytes);
+
+}
+----
+!====
+_Effects_: Enqueues a `memcpy` to the `sycl::queue` or `sycl::handler` using the
+launch properties specified by `properties`.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
 template <typename T>
 void copy(sycl::queue q, const T* src, T* dest, size_t count);
 
@@ -593,6 +658,28 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
+template <typename T, typename Properties>
+void copy(sycl::queue q, Properties properties, const T* src, T* dest,
+          size_t count);
+
+template <typename T, typename Properties>
+void copy(sycl::handler &h, Properties properties, const T* src, T* dest,
+          size_t count);
+
+}
+----
+!====
+_Effects_: Enqueues a `copy` to the `sycl::queue` or `sycl::handler` using the
+launch properties specified by `properties`.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
 void memset(sycl::queue q, void* ptr, int value, size_t numBytes);
 
 void memset(sycl::handler &h, void* ptr, int value, size_t numBytes);
@@ -601,6 +688,28 @@ void memset(sycl::handler &h, void* ptr, int value, size_t numBytes);
 ----
 !====
 _Effects_: Enqueues a `memset` to the `sycl::queue` or `sycl::handler`.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename Properties>
+void memset(sycl::queue q, Properties properties, void* ptr, int value,
+            size_t numBytes);
+
+template <typename Properties>
+void memset(sycl::handler &h, Properties properties, void* ptr, int value,9
+            size_t numBytes);
+
+}
+----
+!====
+_Effects_: Enqueues a `memset` to the `sycl::queue` or `sycl::handler` using the
+launch properties specified by `properties`.
 
 a|
 [frame=all,grid=none]
@@ -629,6 +738,28 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
+template <typename T, typename Properties>
+void fill(sycl::queue q, Properties properties, T* ptr, const T& pattern,
+          size_t count);
+
+template <typename T, typename Properties>
+void fill(sycl::handler &h, Properties properties, T* ptr, const T& pattern,
+          size_t count);
+
+}
+----
+!====
+_Effects_: Enqueues a `fill` to the `sycl::queue` or `sycl::handler` using the
+launch properties specified by `properties`.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
 void prefetch(sycl::queue q, void* ptr, size_t numBytes);
 
 void prefetch(sycl::handler &h, void* ptr, size_t numBytes);
@@ -646,6 +777,26 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
+template <typename Properties>
+void prefetch(sycl::queue q, Properties properties, void* ptr, size_t numBytes);
+
+template <typename Properties>
+void prefetch(sycl::handler &h, Properties properties, void* ptr, size_t numBytes);
+
+}
+----
+!====
+_Effects_: Enqueues a `prefetch` to the `sycl::queue` or `sycl::handler` using
+the launch properties specified by `properties`.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
 void mem_advise(sycl::queue q, void* ptr, size_t numBytes, int advice);
 
 void mem_advise(sycl::handler &h, void* ptr, size_t numBytes, int advice);
@@ -654,6 +805,28 @@ void mem_advise(sycl::handler &h, void* ptr, size_t numBytes, int advice);
 ----
 !====
 _Effects_: Enqueues a `mem_advise` to the `sycl::queue` or `sycl::handler`.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename Properties>
+void mem_advise(sycl::queue q, Properties properties, void* ptr, size_t numBytes,
+                int advice);
+
+template <typename Properties>
+void mem_advise(sycl::handler &h, Properties properties, void* ptr, size_t numBytes,
+                int advice);
+
+}
+----
+!====
+_Effects_: Enqueues a `mem_advise` to the `sycl::queue` or `sycl::handler` using
+the launch properties specified by `properties`.
 
 |====
 
@@ -673,16 +846,19 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
-void barrier(sycl::queue q);
+template <typename Properties = empty_properties_t>
+void barrier(sycl::queue q, Properties properties = {});
 
-void barrier(sycl::handler &h);
+template <typename Properties = empty_properties_t>
+void barrier(sycl::handler &h, Properties properties = {});
 
 }
 ----
 !====
-_Effects_: Enqueues a command barrier to the `sycl::queue` or `sycl::handler`.
+_Effects_: Enqueues a command barrier to the `sycl::queue` or `sycl::handler`
+using the properties specified by `properties`.
 Any commands submitted after this barrier cannot begin execution until all
-previously submitted commands (and any commands associated with dependendent
+previously submitted commands (and any commands associated with dependent
 events) have completed.
 
 a|
@@ -710,6 +886,31 @@ associated with other dependent events) have completed.
 commands unless the `queue` is in-order. Implementations may be able to
 optimize such partial barriers.
 _{endnote}_]
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename Properties>
+void partial_barrier(sycl::queue q, Properties properties,
+                     const std::vector<sycl::event>& events);
+
+template <typename Properties>
+void partial_barrier(sycl::handler &h, Properties properties,
+                     const std::vector<sycl::event>& events);
+
+}
+----
+!====
+_Effects_: Enqueues a _partial_ command barrier to the `sycl::queue` or
+`sycl::handler` using the properties specified by `properties`. Any commands
+submitted after this barrier cannot begin execution until all commands
+associated with `events` (and any commands associated with other dependent
+events) have completed.
 |====
 
 ==== Command Graph
@@ -734,10 +935,35 @@ void execute_graph(sycl::handler &h, command_graph<graph_state::executable> &g);
 }
 ----
 !====
-_Constraints_: Device and context associated with queue need to be identical 
+_Preconditions_: Device and context associated with queue need to be identical
 to device and context provided at command graph creation.
 
 _Effects_: Submits an executable command graph to the `sycl::queue` or `sycl::handler`.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename Properties>
+void execute_graph(sycl::queue q, Properties properties,
+                   command_graph<graph_state::executable> &g);
+
+template <typename Properties>
+void execute_graph(sycl::handler &h, Properties properties,
+                   command_graph<graph_state::executable> &g);
+
+}
+----
+!====
+_Preconditions_: Device and context associated with queue need to be identical
+to device and context provided at command graph creation.
+
+_Effects_: Submits an executable command graph to the `sycl::queue` or
+`sycl::handler` using the launch properties specified by `properties`.
 
 |====
 
