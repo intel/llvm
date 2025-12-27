@@ -269,8 +269,8 @@ UUR_PLATFORM_TEST_SUITE_WITH_PARAM(
 TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
   // https://github.com/intel/llvm/issues/19033
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
-
+  // UUR_KNOWN_FAILURE_ON(uur::CUDA{});
+  
   auto waitOnEvent = std::get<0>(getParam()).value;
   auto runBackgroundCheck = std::get<1>(getParam()).value;
 
