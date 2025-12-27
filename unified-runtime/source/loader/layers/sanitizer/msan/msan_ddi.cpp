@@ -1598,7 +1598,8 @@ ur_result_t urEnqueueUSMMemcpy(
                            (void *)SrcShadow, size, 0, nullptr, &Event));
       Events.push_back(Event);
     }
-    {
+    if (getContext()->Options.MsanCheckHostAndSharedUSM ||
+        (IsDeviceUSM(hContext, pSrc) && IsDeviceUSM(hContext, pDst))) {
       const auto SrcOriginBegin = SrcDI->Shadow->MemToOrigin((uptr)pSrc);
       const auto SrcOriginEnd =
           SrcDI->Shadow->MemToOrigin((uptr)pSrc + size - 1) +
@@ -1764,7 +1765,8 @@ ur_result_t urEnqueueUSMMemcpy2D(
       Events.push_back(Event);
     }
 
-    {
+    if (getContext()->Options.MsanCheckHostAndSharedUSM ||
+        (IsDeviceUSM(hContext, pSrc) && IsDeviceUSM(hContext, pDst))) {
       auto pfnUSMMemcpy = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy;
 
       for (size_t HeightIndex = 0; HeightIndex < height; HeightIndex++) {
