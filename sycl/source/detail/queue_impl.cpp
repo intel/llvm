@@ -387,7 +387,7 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 }
 
 EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
-    KernelData &KData, std::vector<detail::EventImplPtr> &DepEvents,
+    KernelData &&KData, std::vector<detail::EventImplPtr> &&DepEvents,
     bool EventNeeded, detail::kernel_impl *KernelImplPtr,
     detail::kernel_bundle_impl *KernelBundleImpPtr,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
@@ -552,9 +552,9 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
       // the function pointer to the original function
       KData.setKernelFunc(HostKernel.getPtr());
 
-      return {submit_kernel_scheduler_bypass(KData, CGData.MEvents,
-                                             CallerNeedsEvent, nullptr, nullptr,
-                                             CodeLoc, IsTopCodeLoc),
+      return {submit_kernel_scheduler_bypass(
+                  std::move(KData), std::move(CGData.MEvents), CallerNeedsEvent,
+                  nullptr, nullptr, CodeLoc, IsTopCodeLoc),
               /*SchedulerBypass*/ true};
     }
     std::unique_ptr<detail::CG> CommandGroup;
@@ -574,7 +574,7 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
         KData.getNDRDesc(), std::move(HostKernelPtr),
         nullptr, // Kernel
         nullptr, // KernelBundle
-        std::move(CGData), std::move(KData).getArgs(),
+        std::move(CGData), std::move(KData.getArgs()),
         *KData.getDeviceKernelInfoPtr(), std::move(StreamStorage),
         std::move(AuxiliaryResources), detail::CGType::Kernel,
         KData.getKernelCacheConfig(), KData.isCooperative(),

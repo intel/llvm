@@ -56,8 +56,6 @@ public:
 
   const ArgsVecT &getArgs() const & { return MArgs; }
 
-  ArgsVecT &&getArgs() && { return std::move(MArgs); }
-
   void setArgs(const ArgsVecT &Args) { MArgs = Args; }
 
   void addArg(const detail::ArgDesc &Arg) { MArgs.push_back(Arg); }

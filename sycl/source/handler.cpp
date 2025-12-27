@@ -419,6 +419,16 @@ void handler::setHandlerKernelBundle(kernel Kernel) {
 }
 
 detail::EventImplPtr handler::finalize() {
+  // ScopedInvalidation is used for invalidating the impl of this handler when
+  // finalize returns.
+  struct ScopedInvalidation {
+    ~ScopedInvalidation() {
+      Owner.implOwner.reset();
+      Owner.impl = nullptr;
+    }
+    handler &Owner;
+  } ScopedInvalidator{*this};
+
   const auto &type = getType();
   detail::queue_impl *Queue = impl->get_queue_or_null();
   ext::oneapi::experimental::detail::graph_impl *Graph =
@@ -555,8 +565,9 @@ detail::EventImplPtr handler::finalize() {
 
       detail::EventImplPtr ResultEvent =
           impl->get_queue().submit_kernel_scheduler_bypass(
-              impl->MKernelData, impl->CGData.MEvents, impl->MEventNeeded,
-              MKernel.get(), KernelBundleImpPtr, MCodeLoc, impl->MIsTopCodeLoc);
+              std::move(impl->MKernelData), std::move(impl->CGData.MEvents),
+              impl->MEventNeeded, MKernel.get(), KernelBundleImpPtr, MCodeLoc,
+              impl->MIsTopCodeLoc);
       return ResultEvent;
     }
   }
