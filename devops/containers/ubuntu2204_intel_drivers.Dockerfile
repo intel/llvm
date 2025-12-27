@@ -17,9 +17,11 @@ ENV INSTALL_LOCATION=/runtimes
 RUN --mount=type=secret,id=github_token \
     GITHUB_TOKEN=$(cat /run/secrets/github_token) /install_drivers.sh dependencies.json --all
 
+COPY scripts/install_opencl.sh /install_opencl.sh
+RUN /install_opencl.sh
+
 COPY scripts/drivers_entrypoint.sh /drivers_entrypoint.sh
 
 USER sycl
 
 ENTRYPOINT ["/bin/bash", "/drivers_entrypoint.sh"]
-
