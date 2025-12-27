@@ -338,5 +338,15 @@ context device::ext_oneapi_get_default_context() {
   return impl->get_platform().khr_get_default_context();
 }
 
+void device::ext_oneapi_wait() {
+  if (!has(aspect::ext_oneapi_device_wait))
+    throw sycl::exception(
+        make_error_code(errc::feature_not_supported),
+        "Device does not support aspect::ext_oneapi_device_wait.");
+  impl->wait();
+}
+
+void device::ext_oneapi_throw_asynchronous() { impl->throwAsynchronous(); }
+
 } // namespace _V1
 } // namespace sycl

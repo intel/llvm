@@ -238,8 +238,10 @@ public:
   // `std::shared_ptr` allocations.
   template <typename... Ts>
   static std::shared_ptr<queue_impl> create(Ts &&...args) {
-    return std::make_shared<queue_impl>(std::forward<Ts>(args)...,
-                                        private_tag{});
+    auto ImplPtr =
+        std::make_shared<queue_impl>(std::forward<Ts>(args)..., private_tag{});
+    ImplPtr->getDeviceImpl().registerQueue(ImplPtr);
+    return ImplPtr;
   }
 
   ~queue_impl() {
@@ -702,6 +704,12 @@ public:
   const async_handler &getAsynchHandler() const noexcept {
     return MAsyncHandler;
   }
+
+  /// Waits for all not-yet-enqueued and host_task commands in the queue and
+  /// clears the events associated with the queue (if out-of-order.)
+  /// Note: This should only be called if the queue is guaranteed to be
+  /// synchronized by the caller.
+  void waitForRuntimeLevelCmdsAndClear();
 
 protected:
   EventImplPtr insertHelperBarrier();

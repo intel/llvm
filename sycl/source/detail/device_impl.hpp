@@ -1549,6 +1549,10 @@ public:
       return get_info_impl_nocheck<UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP>()
           .value_or(0);
     }
+    CASE(ext_oneapi_device_wait) {
+      return get_info_impl_nocheck<UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP>()
+          .value_or(0);
+    }
     else {
       return false; // This device aspect has not been implemented yet.
     }
@@ -2211,6 +2215,22 @@ public:
     return {};
   }
 
+  /// Synchronizes with all queues on the device.
+  void wait() const;
+
+  // Dispatch all unconsumed asynchronous exception to the appropriate handlers.
+  void throwAsynchronous();
+
+  void registerQueue(const std::weak_ptr<queue_impl> &Q) {
+    std::lock_guard<std::mutex> Lock(MQueuesMutex);
+    MQueues.insert(Q);
+  }
+
+  void unregisterQueue(const std::weak_ptr<queue_impl> &Q) {
+    std::lock_guard<std::mutex> Lock(MQueuesMutex);
+    MQueues.erase(Q);
+  }
+
 private:
   ur_device_handle_t MDevice = 0;
   // This is used for getAdapter so should be above other properties.
@@ -2220,6 +2240,13 @@ private:
   std::pair<uint64_t, uint64_t> MDeviceHostBaseTime{0, 0};
 
   const ur_device_handle_t MRootDevice;
+
+  // Devices track a list of active queues on it, to allow for synchronization
+  // with host_task and not-yet-enqueued commands.
+  std::mutex MQueuesMutex;
+  std::set<std::weak_ptr<queue_impl>,
+           std::owner_less<std::weak_ptr<queue_impl>>>
+      MQueues;
 
   // Order of caches matters! UR must come before SYCL info descriptors (because
   // get_info calls get_info_impl but the opposite never happens) and both

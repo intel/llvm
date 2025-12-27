@@ -9,6 +9,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/jit_compiler.hpp>
 #include <detail/platform_impl.hpp>
+#include <detail/scheduler/scheduler.hpp>
 #include <detail/ur_info_code.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
@@ -465,6 +466,24 @@ device_impl::getImmediateProgressGuarantee(
     }
   }
   return forward_progress_guarantee::weakly_parallel;
+}
+
+void device_impl::wait() const {
+  // Firstly, all associated queues should be cleaned through of all
+  // not-yet-enqueued commands and host_task.
+  for (const std::weak_ptr<queue_impl> &WQueue : MQueues) {
+    std::shared_ptr<queue_impl> Queue = WQueue.lock();
+    assert(Queue && "Queue should never be dangling in the list of queues "
+                    "associated with the device!");
+    Queue->waitForRuntimeLevelCmdsAndClear();
+  }
+
+  // Then we synchronize the entire device.
+  getAdapter().call<detail::UrApiKind::urDeviceWaitExp>(getHandleRef());
+}
+
+void device_impl::throwAsynchronous() {
+  Scheduler::getInstance().flushAsyncExceptions();
 }
 
 } // namespace detail
