@@ -1,4 +1,8 @@
 // REQUIRES: level_zero, level_zero_dev_kit
+
+// UNSUPPORTED: arch-intel_gpu_mtl_u
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20898
+
 // RUN: %{build} -o %t.out %level_zero_options
 // RUN: %{run} %t.out
 
