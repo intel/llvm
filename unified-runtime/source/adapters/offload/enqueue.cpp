@@ -443,19 +443,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     ur_queue_handle_t hQueue, bool blocking, void *pDst, const void *pSrc,
     size_t size, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  auto GetDevice = [&](const void *Ptr) {
-    auto Res = hQueue->UrContext->getAllocType(Ptr);
-    if (!Res)
-      return Adapter->HostDevice;
-    return Res->Type == OL_ALLOC_TYPE_HOST ? Adapter->HostDevice
-                                           : hQueue->OffloadDevice;
-  };
+  ol_alloc_type_t DstTy;
+  OL_RETURN_ON_ERR(hQueue->UrContext->getAllocType(pDst, DstTy));
+  ol_device_handle_t Dst =
+      DstTy == OL_ALLOC_TYPE_HOST ? Adapter->HostDevice : hQueue->OffloadDevice;
 
-  return doMemcpy(UR_COMMAND_USM_MEMCPY, hQueue, pDst, GetDevice(pDst), pSrc,
-                  GetDevice(pSrc), size, blocking, numEventsInWaitList,
-                  phEventWaitList, phEvent);
+  ol_alloc_type_t SrcTy;
+  OL_RETURN_ON_ERR(hQueue->UrContext->getAllocType(pSrc, SrcTy));
+  ol_device_handle_t Src =
+      SrcTy == OL_ALLOC_TYPE_HOST ? Adapter->HostDevice : hQueue->OffloadDevice;
 
-  return UR_RESULT_SUCCESS;
+  return doMemcpy(UR_COMMAND_USM_MEMCPY, hQueue, pDst, Dst, pSrc, Src, size,
+                  blocking, numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMAdvise(
