@@ -817,9 +817,6 @@ public:
           "Device associated with command group handler does not have "
           "aspect::image.");
 
-    detail::unsampledImageConstructorNotification(
-        detail::getSyclObjImpl(ImageRef).get(), this->impl.get(), AccessTarget,
-        AccessMode, (const void *)typeid(DataT).name(), sizeof(DataT), CodeLoc);
     detail::associateWithHandler(CommandGroupHandlerRef, this, AccessTarget);
     GDBMethodsAnchor();
   }
@@ -957,9 +954,6 @@ public:
                    PropList) {
     addHostUnsampledImageAccessorAndWait(base_class::impl.get());
 
-    detail::unsampledImageConstructorNotification(
-        detail::getSyclObjImpl(ImageRef).get(), this->impl.get(), std::nullopt,
-        AccessMode, (const void *)typeid(DataT).name(), sizeof(DataT), CodeLoc);
   }
 
   /* -- common interface members -- */
@@ -1106,9 +1100,6 @@ public:
           "Device associated with command group handler does not have "
           "aspect::image.");
 
-    detail::sampledImageConstructorNotification(
-        detail::getSyclObjImpl(ImageRef).get(), this->impl.get(), AccessTarget,
-        (const void *)typeid(DataT).name(), sizeof(DataT), CodeLoc);
     detail::associateWithHandler(CommandGroupHandlerRef, this, AccessTarget);
     GDBMethodsAnchor();
   }
@@ -1222,9 +1213,6 @@ public:
                    ImageRef.getSampler(), PropList) {
     addHostSampledImageAccessorAndWait(base_class::impl.get());
 
-    detail::sampledImageConstructorNotification(
-        detail::getSyclObjImpl(ImageRef).get(), this->impl.get(), std::nullopt,
-        (const void *)typeid(DataT).name(), sizeof(DataT), CodeLoc);
   }
 
   /* -- common interface members -- */

@@ -210,9 +210,6 @@ public:
                      std::make_unique<
                          detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>()),
         Range(bufferRange) {
-    buffer_plain::constructorNotification(
-        CodeLoc, (void *)impl.get(), nullptr, (const void *)typeid(T).name(),
-        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   buffer(const range<dimensions> &bufferRange, AllocatorT allocator,
@@ -223,9 +220,6 @@ public:
             std::make_unique<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator)),
         Range(bufferRange) {
-    buffer_plain::constructorNotification(
-        CodeLoc, (void *)impl.get(), nullptr, (const void *)typeid(T).name(),
-        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   buffer(T *hostData, const range<dimensions> &bufferRange,
@@ -236,9 +230,6 @@ public:
                      std::make_unique<
                          detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>()),
         Range(bufferRange) {
-    buffer_plain::constructorNotification(
-        CodeLoc, (void *)impl.get(), hostData, (const void *)typeid(T).name(),
-        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   buffer(T *hostData, const range<dimensions> &bufferRange,
@@ -249,9 +240,6 @@ public:
             std::make_unique<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator)),
         Range(bufferRange) {
-    buffer_plain::constructorNotification(
-        CodeLoc, (void *)impl.get(), hostData, (const void *)typeid(T).name(),
-        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   template <typename _T = T>
@@ -264,9 +252,6 @@ public:
                      std::make_unique<
                          detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>()),
         Range(bufferRange) {
-    buffer_plain::constructorNotification(
-        CodeLoc, (void *)impl.get(), hostData, (const void *)typeid(T).name(),
-        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   template <typename _T = T>
@@ -279,9 +264,6 @@ public:
             std::make_unique<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator)),
         Range(bufferRange) {
-    buffer_plain::constructorNotification(
-        CodeLoc, (void *)impl.get(), hostData, (const void *)typeid(T).name(),
-        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   buffer(const std::shared_ptr<T> &hostData,
@@ -294,10 +276,6 @@ public:
                 allocator),
             std::is_const<T>::value),
         Range(bufferRange) {
-    buffer_plain::constructorNotification(
-        CodeLoc, (void *)impl.get(), (void *)hostData.get(),
-        (const void *)typeid(T).name(), dimensions, sizeof(T),
-        detail::rangeToArray(Range).data());
   }
 
   buffer(const std::shared_ptr<T[]> &hostData,
@@ -310,10 +288,6 @@ public:
                 allocator),
             std::is_const<T>::value),
         Range(bufferRange) {
-    buffer_plain::constructorNotification(
-        CodeLoc, (void *)impl.get(), (void *)hostData.get(),
-        (const void *)typeid(T).name(), dimensions, sizeof(T),
-        detail::rangeToArray(Range).data());
   }
 
   buffer(const std::shared_ptr<T> &hostData,
@@ -326,10 +300,6 @@ public:
                          detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(),
                      std::is_const<T>::value),
         Range(bufferRange) {
-    buffer_plain::constructorNotification(
-        CodeLoc, (void *)impl.get(), (void *)hostData.get(),
-        (const void *)typeid(T).name(), dimensions, sizeof(T),
-        detail::rangeToArray(Range).data());
   }
 
   buffer(const std::shared_ptr<T[]> &hostData,
@@ -342,10 +312,6 @@ public:
                          detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(),
                      std::is_const<T>::value),
         Range(bufferRange) {
-    buffer_plain::constructorNotification(
-        CodeLoc, (void *)impl.get(), (void *)hostData.get(),
-        (const void *)typeid(T).name(), dimensions, sizeof(T),
-        detail::rangeToArray(Range).data());
   }
 
   template <class InputIterator, int N = dimensions,
@@ -374,10 +340,6 @@ public:
                 allocator),
             detail::iterator_to_const_type_t<InputIterator>::value),
         Range(range<1>(std::distance(first, last))) {
-    size_t r[3] = {Range[0], 0, 0};
-    buffer_plain::constructorNotification(CodeLoc, (void *)impl.get(), &first,
-                                          (const void *)typeid(T).name(),
-                                          dimensions, sizeof(T), r);
   }
 
   template <class InputIterator, int N = dimensions,
@@ -406,10 +368,6 @@ public:
                 detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(),
             detail::iterator_to_const_type_t<InputIterator>::value),
         Range(range<1>(std::distance(first, last))) {
-    size_t r[3] = {Range[0], 0, 0};
-    buffer_plain::constructorNotification(CodeLoc, (void *)impl.get(), &first,
-                                          (const void *)typeid(T).name(),
-                                          dimensions, sizeof(T), r);
   }
 
   // This constructor is a prototype for a future SYCL specification
@@ -425,10 +383,6 @@ public:
             std::make_unique<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator)),
         Range(range<1>(container.size())) {
-    size_t r[3] = {Range[0], 0, 0};
-    buffer_plain::constructorNotification(
-        CodeLoc, (void *)impl.get(), container.data(),
-        (const void *)typeid(T).name(), dimensions, sizeof(T), r);
   }
 
   // This constructor is a prototype for a future SYCL specification
@@ -445,9 +399,6 @@ public:
       : buffer_plain(b.impl), Range(subRange),
         OffsetInBytes(getOffsetInBytes<T>(baseIndex, b.Range)),
         IsSubBuffer(true) {
-    buffer_plain::constructorNotification(
-        CodeLoc, (void *)impl.get(), impl.get(), (const void *)typeid(T).name(),
-        dimensions, sizeof(T), detail::rangeToArray(Range).data());
 
     if (b.is_sub_buffer())
       throw sycl::exception(make_error_code(errc::invalid),
@@ -464,18 +415,12 @@ public:
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(rhs.impl), Range(rhs.Range),
         OffsetInBytes(rhs.OffsetInBytes), IsSubBuffer(rhs.IsSubBuffer) {
-    buffer_plain::constructorNotification(
-        CodeLoc, (void *)impl.get(), impl.get(), (const void *)typeid(T).name(),
-        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   buffer(buffer &&rhs,
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(std::move(rhs.impl)), Range(rhs.Range),
         OffsetInBytes(rhs.OffsetInBytes), IsSubBuffer(rhs.IsSubBuffer) {
-    buffer_plain::constructorNotification(
-        CodeLoc, (void *)impl.get(), impl.get(), (const void *)typeid(T).name(),
-        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   buffer &operator=(const buffer &rhs) = default;
@@ -760,9 +705,6 @@ private:
         Range{0} {
 
     Range[0] = buffer_plain::getSize() / sizeof(T);
-    buffer_plain::constructorNotification(
-        CodeLoc, (void *)impl.get(), &MemObject, (const void *)typeid(T).name(),
-        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   // Reinterpret contructor
@@ -772,9 +714,6 @@ private:
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(Impl), Range(reinterpretRange),
         OffsetInBytes(reinterpretOffset), IsSubBuffer(isSubBuffer) {
-    buffer_plain::constructorNotification(
-        CodeLoc, (void *)impl.get(), Impl.get(), (const void *)typeid(T).name(),
-        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   template <typename Type, int N>
