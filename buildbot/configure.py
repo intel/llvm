@@ -21,8 +21,7 @@ def do_configure(args, passthrough_args):
     if not os.path.isdir(abs_obj_dir):
         os.makedirs(abs_obj_dir)
 
-    llvm_external_projects = "sycl;llvm-spirv;opencl;xpti;xptifw;compiler-rt"
-
+    llvm_external_projects = "sycl;llvm-spirv;opencl;xpti;xptifw"
     # libdevice build requires a working SYCL toolchain, which is not the case
     # with macOS target right now.
     if sys.platform != "darwin":
@@ -66,6 +65,9 @@ def do_configure(args, passthrough_args):
     xpti_enable_werror = "OFF"
     llvm_enable_zstd = "ON"
     spirv_enable_dis = "OFF"
+
+    llvm_external_projects+=";compiler-rt"
+    llvm_enable_runtimes ="compiler-rt"
 
     if sys.platform != "darwin":
         # For more info on the enablement of level_zero_v2 refer to this document:
@@ -147,7 +149,9 @@ def do_configure(args, passthrough_args):
             print("#############################################")
 
         # For clang-format, clang-tidy and code coverage
-        llvm_enable_projects += ";clang-tools-extra;compiler-rt"
+        llvm_enable_projects += ";clang-tools-extra"
+        if "compiler-rt" not in llvm_enable_runtimes:
+            llvm_enable_runtimes += ";compiler-rt"
         if sys.platform != "darwin":
             # libclc is required for CI validation
             libclc_enabled = True
@@ -195,6 +199,7 @@ def do_configure(args, passthrough_args):
         "-DLLVM_EXTERNAL_LIBDEVICE_SOURCE_DIR={}".format(libdevice_dir),
         "-DLLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR={}".format(jit_dir),
         "-DLLVM_ENABLE_PROJECTS={}".format(llvm_enable_projects),
+        "-DLLVM_ENABLE_RUNTIMES={}".format(llvm_enable_runtimes),
         "-DSYCL_BUILD_PI_HIP_PLATFORM={}".format(sycl_build_pi_hip_platform),
         "-DLLVM_BUILD_TOOLS=ON",
         "-DLLVM_ENABLE_ZSTD={}".format(llvm_enable_zstd),
