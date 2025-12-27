@@ -1,9 +1,6 @@
 // FIXME flaky fail on CUDA and HIP
 // UNSUPPORTED: cuda || hip
 //
-// XFAIL: (opencl && gpu)
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/11364
-//
 // RUN: %{build} -I %S/Inputs %S/Inputs/kernels_in_file2.cpp -o %t.out %threads_lib
 //
 // Since this is a multi-threaded application enable memory tracking and
