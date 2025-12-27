@@ -398,11 +398,23 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                     code = lit.Test.XFAIL
             return code
 
+        def check_leak(output):
+            keyword_found = False
+            leak_pattern = r"LEAK\s*=\s*\d+"
+            for line in output.splitlines():
+                if keyword_found and re.search(leak_pattern, line):
+                    return lit.Test.FAIL
+                if "Check balance of create/destroy calls" in line:
+                    keyword_found = True
+            return lit.Test.PASS
+
         if len(triples) == 1 and test.config.test_mode == "build-only":
             result.code = map_result(test.config.available_features, result.code)
         if len(devices_for_test) == 1:
             device = devices_for_test[0]
             result.code = map_result(test.config.sycl_dev_features[device], result.code)
+        if litConfig.params.get("ur_l0_leaks_debug") and result.code is lit.Test.PASS:
+            result.code = check_leak(result.output)
 
         # Set this to empty so internal lit code won't change our result if it incorrectly
         # thinks the test should XFAIL. This can happen when our XFAIL condition relies on
