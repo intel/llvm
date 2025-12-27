@@ -48,10 +48,6 @@ TEST_P(urEventGetInfoTest, SuccessRoundtripContext) {
 }
 
 TEST_P(urEventGetInfoTest, SuccessRoundtripCommandQueue) {
-  UUR_KNOWN_FAILURE_ON(uur::HIP{}, uur::CUDA{});
-  // Segfaults
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
-
   const ur_event_info_t property_name = UR_EVENT_INFO_COMMAND_QUEUE;
   size_t property_size = sizeof(ur_queue_handle_t);
 
@@ -66,6 +62,10 @@ TEST_P(urEventGetInfoTest, SuccessRoundtripCommandQueue) {
   ur_queue_handle_t property_value = nullptr;
   ASSERT_SUCCESS(urEventGetInfo(from_native_event, property_name, property_size,
                                 &property_value, nullptr));
+  if (property_value == nullptr) {
+    GTEST_SKIP()
+        << "Backend cannot regenerate command queues from native handles";
+  }
 
   // We can't assume that the two queue handles are equal (since creating the
   // link to the UR structures has been severed by going through native handle,

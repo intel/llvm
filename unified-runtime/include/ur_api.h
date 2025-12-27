@@ -7391,6 +7391,8 @@ typedef enum ur_command_t {
   UR_COMMAND_READ_HOST_PIPE = 25,
   /// Event created by ::urEnqueueWriteHostPipe
   UR_COMMAND_WRITE_HOST_PIPE = 26,
+  /// Command type used by events created by ::urEventCreateWithNativeHandle
+  UR_COMMAND_FROM_NATIVE = 27,
   /// Event created by ::urEnqueueCommandBufferExp
   UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP = 0x1000,
   /// Event created by ::urBindlessImagesWaitExternalSemaphoreExp
@@ -7439,7 +7441,10 @@ typedef enum ur_event_status_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Event query information type
 typedef enum ur_event_info_t {
-  /// [::ur_queue_handle_t] Command queue information of an event object
+  /// [::ur_queue_handle_t] Command queue information of an event object.
+  /// This may be NULL if the event was created via
+  /// ::urEventCreateWithNativeHandle and the adapter has no associated UR
+  /// queue
   UR_EVENT_INFO_COMMAND_QUEUE = 0,
   /// [::ur_context_handle_t] Context information of an event object
   UR_EVENT_INFO_CONTEXT = 1,

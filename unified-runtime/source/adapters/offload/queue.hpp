@@ -14,7 +14,6 @@
 #include <ur_api.h>
 
 #include "common.hpp"
-#include "event.hpp"
 
 constexpr size_t OOO_QUEUE_POOL_SIZE = 32;
 
@@ -66,24 +65,7 @@ struct ur_queue_handle_t_ : RefCounted {
     return OL_SUCCESS;
   }
 
-  ol_result_t nextQueueNoLock(ol_queue_handle_t &Handle) {
-    auto &Slot = OffloadQueues[(QueueOffset++) % OffloadQueues.size()];
-
-    if (!Slot) {
-      if (auto Res = olCreateQueue(OffloadDevice, &Slot)) {
-        return Res;
-      }
-
-      if (auto Event = Barrier) {
-        if (auto Res = olWaitEvents(Slot, &Event->OffloadEvent, 1)) {
-          return Res;
-        }
-      }
-    }
-
-    Handle = Slot;
-    return nullptr;
-  }
+  ol_result_t nextQueueNoLock(ol_queue_handle_t &Handle);
 
   ol_result_t nextQueue(ol_queue_handle_t &Handle) {
     std::lock_guard<std::mutex> Lock(OooMutex);

@@ -975,9 +975,9 @@ ur_result_t urEventCreateWithNativeHandle(
   auto ZeEvent = ur_cast<ze_event_handle_t>(NativeEvent);
   ur_event_handle_t_ *UREvent{};
   try {
-    UREvent = new ur_event_handle_t_(ZeEvent, nullptr /* ZeEventPool */,
-                                     Context, UR_EXT_COMMAND_TYPE_USER,
-                                     Properties->isNativeHandleOwned);
+    UREvent = new ur_event_handle_t_(
+        ZeEvent, nullptr /* ZeEventPool */, Context, UR_COMMAND_FROM_NATIVE,
+        Properties ? Properties->isNativeHandleOwned : false);
     UREvent->RefCountExternal++;
 
   } catch (const std::bad_alloc &) {

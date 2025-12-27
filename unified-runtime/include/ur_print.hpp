@@ -10772,6 +10772,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_command_t value) {
   case UR_COMMAND_WRITE_HOST_PIPE:
     os << "UR_COMMAND_WRITE_HOST_PIPE";
     break;
+  case UR_COMMAND_FROM_NATIVE:
+    os << "UR_COMMAND_FROM_NATIVE";
+    break;
   case UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP:
     os << "UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP";
     break;
