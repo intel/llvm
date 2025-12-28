@@ -20323,7 +20323,8 @@ void Sema::ActOnFields(Scope *S, SourceLocation RecLoc, Decl *EnclosingDecl,
       CDecl->setIvarRBraceLoc(RBrac);
     }
   }
-  ProcessAPINotes(Record);
+  if (Record && !isa<ClassTemplateSpecializationDecl>(Record))
+    ProcessAPINotes(Record);
 }
 
 // Given an integral type, return the next larger integral type
