@@ -11212,6 +11212,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       OPT_R_value_Group,
       OPT_R_Group,
       OPT_Xcuda_ptxas,
+      OPT_ftarget_register_alloc_mode_EQ,
       OPT_ftime_report,
       OPT_ftime_trace,
       OPT_ftime_trace_EQ,
@@ -11276,10 +11277,16 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
           A->render(Args, LinkerArgsStrings);
       }
 
-      const toolchains::SYCLToolChain &SYCLTC =
+      if(Kind == Action::OFK_SYCL) {
+        const toolchains::SYCLToolChain &SYCLTC =
             static_cast<const toolchains::SYCLToolChain &>(*TC);
-      const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
-      SYCLTC.AddImpliedTargetArgs(SYCLTC.getTriple(), CompilerArgs, CompilerArgsStrings, JA, *HostTC);
+        const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+        SYCLTC.AddImpliedTargetArgs(SYCLTC.getTriple(), CompilerArgs, CompilerArgsStrings, JA, *HostTC);
+      } else {
+         for (Arg *A : CompilerArgs) {
+          A->render(CompilerArgs, CompilerArgsStrings);
+        }
+      }
 
       // If the user explicitly requested it via `--offload-arch` we should
       // extract it from any static libraries if present.
