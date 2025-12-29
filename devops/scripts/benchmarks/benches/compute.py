@@ -442,6 +442,41 @@ class ComputeBench(Suite):
                 ),
             ]
 
+        # Add TorchMemoryReuse benchmarks
+        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+
+            def createTorchMemoryReuseBench(variant_name: str, **kwargs):
+                return TorchMemoryReuse(
+                    self,
+                    runtime,
+                    variant_name,
+                    PROFILERS.TIMER,
+                    **kwargs,
+                )
+
+            benches += [
+                createTorchMemoryReuseBench(
+                    "Int32Large",
+                    kernelBatchSize=4096,
+                    dataType="Int32",
+                ),
+                createTorchMemoryReuseBench(
+                    "Int32Medium",
+                    kernelBatchSize=512,
+                    dataType="Int32",
+                ),
+                createTorchMemoryReuseBench(
+                    "FloatLarge",
+                    kernelBatchSize=4096,
+                    dataType="Float",
+                ),
+                createTorchMemoryReuseBench(
+                    "FloatMedium",
+                    kernelBatchSize=512,
+                    dataType="Float",
+                ),
+            ]
+
         # Add TorchLinearKernelSize benchmarks
         for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
 
@@ -1035,6 +1070,20 @@ class TorchLinearKernelSize(TorchBenchmark):
             suite,
             runtime,
             "KernelSubmitLinearKernelSize",
+            variant_name,
+            profiler_type,
+            **kwargs,
+        )
+
+
+class TorchMemoryReuse(TorchBenchmark):
+    def __init__(
+        self, suite, runtime: RUNTIMES, variant_name: str, profiler_type, **kwargs
+    ):
+        super().__init__(
+            suite,
+            runtime,
+            "KernelSubmitMemoryReuse",
             variant_name,
             profiler_type,
             **kwargs,
