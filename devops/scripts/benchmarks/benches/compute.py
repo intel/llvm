@@ -61,8 +61,8 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        # Dec 17, 2025
-        return "420549188cd8900c27cf9b04fd859ebe81876a99"
+        # Dec 23, 2025
+        return "a9546fe49b6291dbd5238dc966a2909d8ad72992"
 
     def setup(self) -> None:
         if options.sycl is None:
