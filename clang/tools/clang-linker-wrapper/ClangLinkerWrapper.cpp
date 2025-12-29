@@ -457,9 +457,8 @@ void printVersion(raw_ostream &OS) {
 }
 
 namespace nvptx {
-Expected<StringRef>
-fatbinary(ArrayRef<std::pair<StringRef, StringRef>> InputFiles,
-          const ArgList &Args) {
+Expected<StringRef> fatbinary(ArrayRef<OffloadingImage> Images,
+                              const ArgList &Args) {
   llvm::TimeTraceScope TimeScope("NVPTX fatbinary");
   // NVPTX uses the fatbinary program to bundle the linked images.
   Expected<std::string> FatBinaryPath =
@@ -481,9 +480,26 @@ fatbinary(ArrayRef<std::pair<StringRef, StringRef>> InputFiles,
   CmdArgs.push_back(Triple.isArch64Bit() ? "-64" : "-32");
   CmdArgs.push_back("--create");
   CmdArgs.push_back(*TempFileOrErr);
-  for (const auto &[File, Arch] : InputFiles)
-    CmdArgs.push_back(
-        Args.MakeArgString("--image=profile=" + Arch + ",file=" + File));
+  for (const OffloadingImage &Image : Images) {
+    StringRef File = Image.Image->getBufferIdentifier();
+    StringRef Arch = Image.StringData.lookup("arch");
+
+    // Determine the kind based on image type
+    const char *Kind = "elf";
+    if (Image.TheImageKind == ImageKind::IMG_PTX)
+      Kind = "ptx";
+
+    // Extract numeric SM value from arch
+    // Arch can be "sm_75", "compute_75", or just "75"
+    StringRef SMValue = Arch;
+    if (Arch.starts_with("sm_"))
+      SMValue = Arch.drop_front(3);
+    else if (Arch.starts_with("compute_"))
+      SMValue = Arch.drop_front(8);
+
+    CmdArgs.push_back(Args.MakeArgString("--image3=kind=" + Twine(Kind) +
+                                         ",sm=" + SMValue + ",file=" + File));
+  }
 
   if (Error Err = executeCommands(*FatBinaryPath, CmdArgs))
     return std::move(Err);
@@ -1992,12 +2008,7 @@ bundleSYCL(ArrayRef<OffloadingImage> Images) {
 
 Expected<SmallVector<std::unique_ptr<MemoryBuffer>>>
 bundleCuda(ArrayRef<OffloadingImage> Images, const ArgList &Args) {
-  SmallVector<std::pair<StringRef, StringRef>, 4> InputFiles;
-  for (const OffloadingImage &Image : Images)
-    InputFiles.emplace_back(std::make_pair(Image.Image->getBufferIdentifier(),
-                                           Image.StringData.lookup("arch")));
-
-  auto FileOrErr = nvptx::fatbinary(InputFiles, Args);
+  auto FileOrErr = nvptx::fatbinary(Images, Args);
   if (!FileOrErr)
     return FileOrErr.takeError();
 
@@ -2279,7 +2290,7 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       }
       for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
         SmallVector<StringRef> Files = {SplitModules[I].ModuleFilePath};
-        SmallVector<std::pair<StringRef, StringRef>, 4> BundlerInputFiles;
+        SmallVector<OffloadingImage, 4> BundlerImages;
         auto ClangOutputOrErr =
             linkDevice(Files, LinkerArgs, true /* IsSYCLKind */,
                        CompileLinkOptionsOrErr->first);
@@ -2292,14 +2303,35 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
               nvptx::ptxas(*ClangOutputOrErr, LinkerArgs, Arch);
           if (!PtxasOutputOrErr)
             return PtxasOutputOrErr.takeError();
-          BundlerInputFiles.emplace_back(*ClangOutputOrErr, VirtualArch);
-          BundlerInputFiles.emplace_back(*PtxasOutputOrErr, Arch);
-          auto BundledFileOrErr =
-              nvptx::fatbinary(BundlerInputFiles, LinkerArgs);
+
+          // Create OffloadingImage for PTX output
+          OffloadingImage PtxImage;
+          PtxImage.TheImageKind = ImageKind::IMG_PTX;
+          PtxImage.TheOffloadKind = OffloadKind::OFK_Cuda;
+          PtxImage.StringData["arch"] = VirtualArch;
+          auto PtxBuffer = MemoryBuffer::getFile(*ClangOutputOrErr);
+          if (!PtxBuffer)
+            return createFileError(*ClangOutputOrErr, PtxBuffer.getError());
+          PtxImage.Image = std::move(*PtxBuffer);
+          BundlerImages.push_back(std::move(PtxImage));
+
+          // Create OffloadingImage for Cubin output
+          OffloadingImage CubinImage;
+          CubinImage.TheImageKind = ImageKind::IMG_Cubin;
+          CubinImage.TheOffloadKind = OffloadKind::OFK_Cuda;
+          CubinImage.StringData["arch"] = Arch;
+          auto CubinBuffer = MemoryBuffer::getFile(*PtxasOutputOrErr);
+          if (!CubinBuffer)
+            return createFileError(*PtxasOutputOrErr, CubinBuffer.getError());
+          CubinImage.Image = std::move(*CubinBuffer);
+          BundlerImages.push_back(std::move(CubinImage));
+
+          auto BundledFileOrErr = nvptx::fatbinary(BundlerImages, LinkerArgs);
           if (!BundledFileOrErr)
             return BundledFileOrErr.takeError();
           SplitModules[I].ModuleFilePath = *BundledFileOrErr;
         } else if (Triple.isAMDGCN()) {
+          SmallVector<std::pair<StringRef, StringRef>, 4> BundlerInputFiles;
           BundlerInputFiles.emplace_back(*ClangOutputOrErr, Arch);
           auto BundledFileOrErr =
               amdgcn::fatbinary(BundlerInputFiles, LinkerArgs);

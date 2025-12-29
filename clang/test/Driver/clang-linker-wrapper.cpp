@@ -121,7 +121,7 @@
 // CHK-CMDS-AOT-NV-NEXT: sycl-post-link{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
 // CHK-CMDS-AOT-NV-NEXT: clang{{.*}} -o [[CLANGOUT:.*]] -dumpdir a.out.nvptx64.sm_50.img. --target=nvptx64-nvidia-cuda -march={{.*}}
 // CHK-CMDS-AOT-NV-NEXT: ptxas{{.*}} --output-file [[PTXASOUT:.*]] [[CLANGOUT]]
-// CHK-CMDS-AOT-NV-NEXT: fatbinary{{.*}} --create [[FATBINOUT:.*]] --image=profile={{.*}},file=[[CLANGOUT]] --image=profile={{.*}},file=[[PTXASOUT]]
+// CHK-CMDS-AOT-NV-NEXT: fatbinary{{.*}} --create [[FATBINOUT:[^ ]+]]{{.*}}[[CLANGOUT]]{{.*}}[[PTXASOUT]]
 // CHK-CMDS-AOT-NV-NEXT: offload-wrapper: output: [[WRAPPEROUT:.*]].bc, input: [[FATBINOUT]]
 // CHK-CMDS-AOT-NV-NEXT: clang{{.*}} -c -o [[LLCOUT:.*]] [[WRAPPEROUT]]
 // CHK-CMDS-AOT-NV-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]] HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
@@ -166,7 +166,7 @@
 // CHK-CMDS-AOT-NV-EMBED-IR-NEXT: clang{{.*}} -c -o [[LLCOUT1:.*]] [[WRAPPEROUT1]]
 // CHK-CMDS-AOT-NV-EMBED-IR-NEXT: clang{{.*}} -o [[CLANGOUT:.*]] -dumpdir a.out.nvptx64.sm_50.img. --target=nvptx64-nvidia-cuda -march={{.*}}
 // CHK-CMDS-AOT-NV-EMBED-IR-NEXT: ptxas{{.*}} --output-file [[PTXASOUT:.*]] [[CLANGOUT]]
-// CHK-CMDS-AOT-NV-EMBED-IR-NEXT: fatbinary{{.*}} --create [[FATBINOUT:.*]] --image=profile={{.*}},file=[[CLANGOUT]] --image=profile={{.*}},file=[[PTXASOUT]]
+// CHK-CMDS-AOT-NV-EMBED-IR-NEXT: fatbinary{{.*}}--create [[FATBINOUT:[^ ]+]]{{.*}}[[CLANGOUT]]{{.*}}[[PTXASOUT]]
 // CHK-CMDS-AOT-NV-EMBED-IR-NEXT: offload-wrapper: output: [[WRAPPEROUT:.*]].bc, input: [[FATBINOUT]]
 // CHK-CMDS-AOT-NV-EMBED-IR-NEXT: clang{{.*}} -c -o [[LLCOUT2:.*]] [[WRAPPEROUT]]
 // CHK-CMDS-AOT-NV-EMBED-IR-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT1]] [[LLCOUT2]] HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
