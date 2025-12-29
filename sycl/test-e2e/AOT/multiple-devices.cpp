@@ -8,7 +8,7 @@
 // End-to-End test for testing appropriate AOT-compiled device image got selected 
 // correctly from a fat binary built for multiple device targets
 
-// UNSUPPORTED: linux && run-mode
+// UNSUPPORTED: *
 // This test should not be supported because device name should be specified 
 // at the same time when compiling AOT of fat binary for GPU or generic SPIR-V.
 // A modified test can be found at NewOffloadDriver/aot-multiple-device.cpp

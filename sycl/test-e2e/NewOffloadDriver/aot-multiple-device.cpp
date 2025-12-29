@@ -1,12 +1,12 @@
-//==--------------- aot-multiple-device.cpp ---------------------------------==//
+//==--------------- aot-multiple-device.cpp -------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// End-to-End test for testing appropriate AOT-compiled device image got selected 
-// correctly from a fat binary built for multiple device targets
+// End-to-End test for testing appropriate AOT-compiled device image got
+// selected correctly from a fat binary built for multiple device targets
 
 // This test is copied from AOT/multiple_devices.cpp
 // and modified to test with the New Offloading Model.
