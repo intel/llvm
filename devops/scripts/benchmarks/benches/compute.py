@@ -322,6 +322,63 @@ class ComputeBench(Suite):
                 ),
             ]
 
+        # Add TorchSingleQueue benchmarks
+        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+
+            def createTorchSingleQueueBench(variant_name: str, **kwargs):
+                return TorchSingleQueue(
+                    self,
+                    runtime,
+                    variant_name,
+                    PROFILERS.TIMER,
+                    **{
+                        **kwargs,
+                        "KernelBatchSize": 512,
+                        "KernelName": "Add",
+                        "KernelParamsNum": 5,
+                        "KernelSubmitPattern": "Single",
+                    },
+                )
+
+            benches += [
+                createTorchSingleQueueBench(
+                    "Int32Large",
+                    KernelDataType="Int32",
+                    KernelWGCount=4096,
+                    KernelWGSize=512,
+                ),
+                createTorchSingleQueueBench(
+                    "Int32Medium",
+                    KernelDataType="Int32",
+                    KernelWGCount=512,
+                    KernelWGSize=256,
+                ),
+                createTorchSingleQueueBench(
+                    "Int32Small",
+                    KernelDataType="Int32",
+                    KernelWGCount=256,
+                    KernelWGSize=128,
+                ),
+                createTorchSingleQueueBench(
+                    "MixedLarge",
+                    KernelDataType="Mixed",
+                    KernelWGCount=4096,
+                    KernelWGSize=512,
+                ),
+                createTorchSingleQueueBench(
+                    "MixedMedium",
+                    KernelDataType="Mixed",
+                    KernelWGCount=512,
+                    KernelWGSize=256,
+                ),
+                createTorchSingleQueueBench(
+                    "MixedSmall",
+                    KernelDataType="Mixed",
+                    KernelWGCount=256,
+                    KernelWGSize=128,
+                ),
+            ]
+
         # Add TorchMultiQueue benchmarks
         for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
 
@@ -350,7 +407,7 @@ class ComputeBench(Suite):
                 createTorchMultiQueueBench(
                     "small",
                     workgroupCount=256,
-                    workgroupSize=124,
+                    workgroupSize=128,
                     kernelsPerQueue=4,
                 ),
             ]
@@ -926,6 +983,20 @@ class TorchBenchmark(ComputeBenchmark):
         return [f"--iterations={iters}"] + [
             f"--{k}={v}" for k, v in self._torch_params.items()
         ]
+
+
+class TorchSingleQueue(TorchBenchmark):
+    def __init__(
+        self, suite, runtime: RUNTIMES, variant_name: str, profiler_type, **kwargs
+    ):
+        super().__init__(
+            suite,
+            runtime,
+            "KernelSubmitSingleQueue",
+            variant_name,
+            profiler_type,
+            **kwargs,
+        )
 
 
 class TorchMultiQueue(TorchBenchmark):

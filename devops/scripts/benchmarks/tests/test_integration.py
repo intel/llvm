@@ -196,6 +196,11 @@ class TestE2E(unittest.TestCase):
 
     def test_torch_l0(self):
         self._checkCase(
+            "torch_benchmark_l0 KernelBatchSize 512, KernelDataType Int32, KernelName Add, KernelParamsNum 5, KernelSubmitPattern Single, KernelWGCount 4096, KernelWGSize 512",
+            "KernelSubmitSingleQueue Int32Large",
+            {"pytorch", "L0"},
+        )
+        self._checkCase(
             "torch_benchmark_l0 kernelsPerQueue 20, workgroupCount 4096, workgroupSize 512",
             "KernelSubmitMultiQueue large",
             {"pytorch", "L0"},
@@ -212,6 +217,11 @@ class TestE2E(unittest.TestCase):
         )
 
     def test_torch_sycl(self):
+        self._checkCase(
+            "torch_benchmark_sycl KernelBatchSize 512, KernelDataType Mixed, KernelName Add, KernelParamsNum 5, KernelSubmitPattern Single, KernelWGCount 512, KernelWGSize 256",
+            "KernelSubmitSingleQueue MixedMedium",
+            {"pytorch", "SYCL"},
+        )
         self._checkCase(
             "torch_benchmark_sycl kernelsPerQueue 10, workgroupCount 512, workgroupSize 256",
             "KernelSubmitMultiQueue medium",
@@ -230,7 +240,12 @@ class TestE2E(unittest.TestCase):
 
     def test_torch_syclpreview(self):
         self._checkCase(
-            "torch_benchmark_syclpreview kernelsPerQueue 4, workgroupCount 256, workgroupSize 124",
+            "torch_benchmark_syclpreview KernelBatchSize 512, KernelDataType Mixed, KernelName Add, KernelParamsNum 5, KernelSubmitPattern Single, KernelWGCount 256, KernelWGSize 128",
+            "KernelSubmitSingleQueue MixedSmall",
+            {"pytorch", "SYCL"},
+        )
+        self._checkCase(
+            "torch_benchmark_syclpreview kernelsPerQueue 4, workgroupCount 256, workgroupSize 128",
             "KernelSubmitMultiQueue small",
             {"pytorch", "SYCL"},
         )
