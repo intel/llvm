@@ -888,6 +888,11 @@ static bool isUnsupportedDeviceGlobal(const GlobalVariable *G) {
     return true;
   if (G->getName().starts_with("__usid_str"))
     return true;
+  // Globals with __profd/__profc prefix are inserted by profiling pass, we
+  // don't neeed to instrument them.
+  if (G->getName().starts_with("__profd") ||
+      G->getName().starts_with("__profc"))
+    return true;
   if ((!ClSpirOffloadLocals && G->getAddressSpace() == kSpirOffloadLocalAS) ||
       G->getAddressSpace() == kSpirOffloadConstantAS)
     return true;

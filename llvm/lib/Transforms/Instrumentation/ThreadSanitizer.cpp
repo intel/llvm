@@ -497,6 +497,11 @@ bool ThreadSanitizerOnSpirv::isUnsupportedDeviceGlobal(
     return true;
   if (G.getName().starts_with("__usid_str"))
     return true;
+  // Globals with __profd/__profc prefix are inserted by profiling pass, we
+  // don't neeed to instrument them.
+  if (G.getName().starts_with("__profd") ||
+      G.getName().starts_with("__profc"))
+    return true;
   // Global variables have constant address space will not trigger race
   // condition.
   if (G.getAddressSpace() == kSpirOffloadConstantAS)
