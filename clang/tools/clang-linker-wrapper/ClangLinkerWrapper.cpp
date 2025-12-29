@@ -741,8 +741,9 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args,
 
   // Enable the driver to invoke sycl-post-link with the device architecture
   // when Intel GPU targets are passed in -fsycl-targets.
-  // IsDevicePassedWithSyclTargetBackend is checked to ensure the device architecture is not
-  // passed through -Xsycl-target-backend=spir64_gen "-device <arch>" format
+  // IsDevicePassedWithSyclTargetBackend is checked to ensure the device
+  // architecture is not passed through -Xsycl-target-backend=spir64_gen
+  // "-device <arch>" forma
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
 
@@ -2195,8 +2196,8 @@ static void appendSYCLDeviceOptionsAtLinkTime(const DerivedArgList &LinkerArgs,
       } else {
         Value = Arg;
       }
-      if (Value.empty() || 
-          (!TargetTriple.empty() && TargetTriple != Triple.getTriple()) || 
+      if (Value.empty() ||
+          (!TargetTriple.empty() && TargetTriple != Triple.getTriple()) ||
           (!Kind.empty() && getOffloadKind(Kind) != OFK_SYCL))
         continue;
       Options += Twine(" ", Value).str();
@@ -2261,9 +2262,9 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       if (!CompileLinkOptionsOrErr)
         return CompileLinkOptionsOrErr.takeError();
 
-      appendSYCLDeviceOptionsAtLinkTime(
-          LinkerArgs, CompileLinkOptionsOrErr->first,
-          CompileLinkOptionsOrErr->second);
+      appendSYCLDeviceOptionsAtLinkTime(LinkerArgs,
+                                        CompileLinkOptionsOrErr->first,
+                                        CompileLinkOptionsOrErr->second);
 
       SmallVector<StringRef> InputFiles;
       // Write device inputs to an output file for the linker.

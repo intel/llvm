@@ -11277,13 +11277,15 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
           A->render(Args, LinkerArgsStrings);
       }
 
-      if(Kind == Action::OFK_SYCL) {
+      if (Kind == Action::OFK_SYCL) {
         const toolchains::SYCLToolChain &SYCLTC =
             static_cast<const toolchains::SYCLToolChain &>(*TC);
-        const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
-        SYCLTC.AddImpliedTargetArgs(SYCLTC.getTriple(), CompilerArgs, CompilerArgsStrings, JA, *HostTC);
+       const ToolChain *HostTC =
+            C.getSingleOffloadToolChain<Action::OFK_Host>();
+        SYCLTC.AddImpliedTargetArgs(SYCLTC.getTriple(), CompilerArgs,
+                                    CompilerArgsStrings, JA, *HostTC);
       } else {
-         for (Arg *A : CompilerArgs) {
+        for (Arg *A : CompilerArgs) {
           A->render(CompilerArgs, CompilerArgsStrings);
         }
       }
@@ -11510,8 +11512,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(
           Args.MakeArgString("-sycl-allow-device-image-dependencies"));
 
-    // Pass backend compiler and linker options specified at link time to 
-    // clang-linker-wrapper. Link-time options passed via -Xsycl-target-backend 
+    // Pass backend compiler and linker options specified at link time to
+    // clang-linker-wrapper. Link-time options passed via -Xsycl-target-backend
     // are forwarded using --device-compiler, while options passed via 
     // -Xsycl-target-linker are forwarded using --device-linker.
     const toolchains::SYCLToolChain &SYCLTC =
@@ -11539,18 +11541,15 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       }
 
       if (!BackendOptString.empty()) {
-        CmdArgs.push_back(
-            Args.MakeArgString("--device-compiler=" +
-                                Action::GetOffloadKindName(Action::OFK_SYCL) + ":" +
-                                TC->getTripleString() + "=" +
-                                BackendOptString));
+        CmdArgs.push_back(Args.MakeArgString(
+            "--device-compiler=" +
+            Action::GetOffloadKindName(Action::OFK_SYCL) + ":" +
+            TC->getTripleString() + "=" + BackendOptString));
       }
-      if(!LinkOptString.empty()){
-        CmdArgs.push_back(
-        Args.MakeArgString("--device-linker=" + 
-                            Action::GetOffloadKindName(Action::OFK_SYCL) + ":" +
-                            TC->getTripleString() + "=" +
-                            LinkOptString));
+      if (!LinkOptString.empty()) {
+        CmdArgs.push_back(Args.MakeArgString(
+            "--device-linker=" + Action::GetOffloadKindName(Action::OFK_SYCL) +
+            ":" + TC->getTripleString() + "=" + LinkOptString));
       }
     }
 
