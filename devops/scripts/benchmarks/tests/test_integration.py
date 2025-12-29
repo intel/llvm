@@ -233,8 +233,8 @@ class TestE2E(unittest.TestCase):
             {"pytorch", "SYCL"},
         )
         self._checkCase(
-            "torch_benchmark_sycl batchSize 512, slmNum -1, warmupIterations 1",
-            "KernelSubmitSlmSize max",
+            "torch_benchmark_sycl batchSize 512, slmNum 16384, warmupIterations 1",
+            "KernelSubmitSlmSize large",
             {"pytorch", "SYCL"},
         )
         self._checkCase(

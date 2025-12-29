@@ -436,9 +436,9 @@ class ComputeBench(Suite):
                     slmNum=1024,
                 ),
                 createTorchSlmSizeBench(
-                    "max",
+                    "large",
                     batchSize=512,
-                    slmNum=-1,
+                    slmNum=16384,
                 ),
             ]
 
