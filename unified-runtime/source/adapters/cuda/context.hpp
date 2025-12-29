@@ -108,18 +108,13 @@ struct ur_context_handle_t_ : ur::cuda::handle_base {
   };
 
   ~ur_context_handle_t_() noexcept {
-    try {
-      if (MemoryPoolHost) {
-        umfPoolDestroy(MemoryPoolHost);
-      }
-      if (MemoryProviderHost) {
-        umfMemoryProviderDestroy(MemoryProviderHost);
-      }
-      urAdapterRelease(ur::cuda::adapter);
-    } catch (...) {
-      UR_LOG(ERR, "Exception in context destructor");
-      assert(false && "Exception in context destructor");
+    if (MemoryPoolHost) {
+      umfPoolDestroy(MemoryPoolHost);
     }
+    if (MemoryProviderHost) {
+      umfMemoryProviderDestroy(MemoryProviderHost);
+    }
+    urAdapterRelease(ur::cuda::adapter);
   }
 
   void invokeExtendedDeleters() {
