@@ -14,14 +14,14 @@
 // REQUIRES: opencl-aot, ocloc, any-device-is-cpu, any-device-is-gpu, target-spir, opencl-cpu-rt
 
 // Produce a fat object for all targets (generic SPIR-V, CPU, GPU)
-// RUN: %clangxx --offload-new-driver -fsycl -fsycl-targets=spir64,spir64_x86_64,spir64_gen %S/Inputs/aot.cpp -c -o %t.o
+// RUN: %{run-aux} %clangxx --offload-new-driver -fsycl -fsycl-targets=spir64,spir64_x86_64,spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %S/Inputs/aot.cpp -c -o %t.o
 
 // AOT image selection with CPU and GPU targets available
-// RUN: %{run-aux} %clangxx --offload-new-driver -fsycl -fsycl-targets=spir64_x86_64,spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %t.o -o %t_cpu_gpu.out
+// RUN: %{run-aux} %clangxx --offload-new-driver -fsycl -fsycl-targets=spir64_x86_64,spir64_gen %t.o -o %t_cpu_gpu.out
 // RUN: %{run} %t_cpu_gpu.out
 
 // AOT image selection with generic SPIR-V and GPU target available
-// RUN: %clangxx --offload-new-driver -fsycl -fsycl-targets=spir64,spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %t.o -o %t_spv_gpu.out
+// RUN: %{run-aux} %clangxx --offload-new-driver -fsycl -fsycl-targets=spir64,spir64_gen %t.o -o %t_spv_gpu.out
 // Check that execution on AOT-compatible devices is unaffected
 // RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t_spv_gpu.out
 
