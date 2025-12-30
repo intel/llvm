@@ -5,20 +5,20 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// End-to-End test for testing appropriate AOT-compiled device image got selected 
-// correctly from a fat binary built for multiple device targets
+// End-to-End test for testing appropriate AOT-compiled device image got
+// selected correctly from a fat binary built for multiple device targets
 
 // UNSUPPORTED: target={{.*}}
 
-// This test should not be supported because device names should be specified 
+// This test should not be supported because device names should be specified
 // when compiling AOT fat binaries for GPU targets.
 //
-// Explanation: In the old offloading model, when compiling a fat binary for 
-// multiple device targets A, B, C and linking only with targets A and B, 
-// the AOT images for only targets A and B are selected from the fat binary. 
-// However, in the new offloading model, the AOT images for all targets A, B, C 
-// will be selected during linking even though only A and B are specified. 
-// Therefore, when compiling AOT fat binaries for GPU, the device name must be 
+// Explanation: In the old offloading model, when compiling a fat binary for
+// multiple device targets A, B, C and linking only with targets A and B,
+// the AOT images for only targets A and B are selected from the fat binary.
+// However, in the new offloading model, the AOT images for all targets A, B, C
+// will be selected during linking even though only A and B are specified.
+// Therefore, when compiling AOT fat binaries for GPU, the device name must be
 // specified, otherwise linking will fail due to missing device names.
 //
 // A modified test can be found at NewOffloadDriver/aot-multiple-device.cpp

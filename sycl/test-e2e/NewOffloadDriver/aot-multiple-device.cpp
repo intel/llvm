@@ -5,11 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// End-to-End test for testing that AOT-compiled device images for multiple devices
-// are handled properly during linking.
-// In the new offloading model, when compiling a fat binary for multiple device
-// targets A, B, C and linking only with targets A and B, the AOT images for all
-// targets A, B, C will be selected during linking even though only A and B are specified.
+// End-to-End test for testing that AOT-compiled device images for multiple
+// devices are handled properly during linking. In the new offloading model,
+// when compiling a fat binary for multiple device targets A, B, C and linking
+// only with targets A and B, the AOT images for all targets A, B, C will be
+// selected during linking even though only A and B are specified.
 
 // This test is copied from AOT/multiple_devices.cpp
 // and modified to test with the New Offloading Model.
@@ -27,7 +27,7 @@
 // AOT image selection with generic SPIR-V and GPU target available.
 // Check that all targets compiled in the fat binary are selected during
 // linking (including CPU even though it is not specified during linking).
-// RUN: %clangxx --offload-new-driver -fsycl -fsycl-targets=spir64,spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -v %t.o -o %t_spv_gpu.out 2>&1 | FileCheck %s --check-prefix=CHECK-DEVICE
+// RUN: %{run-aux} %clangxx --offload-new-driver -fsycl -fsycl-targets=spir64,spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -v %t.o -o %t_spv_gpu.out 2>&1 | FileCheck %s --check-prefix=CHECK-DEVICE
 // Check that execution on AOT-compatible devices is unaffected
 // RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t_spv_gpu.out
 
