@@ -93,8 +93,14 @@ class App:
             ],
             capture_output=True,
         )
-        print("MAIN_PY_STDOUT:\n" + proc.stdout.decode() if proc.stdout else "<empty>")
-        print("MAIN_PY_STDERR:\n" + proc.stderr.decode() if proc.stderr else "<empty>")
+        print(
+            "MAIN_PY_STDOUT:",
+            "\n" + proc.stdout.decode() if proc.stdout else " <empty>",
+        )
+        print(
+            "MAIN_PY_STDERR:",
+            "\n" + proc.stderr.decode() if proc.stderr else " <empty>",
+        )
         return proc.returncode
 
     def get_output(self):
@@ -190,6 +196,11 @@ class TestE2E(unittest.TestCase):
 
     def test_torch_l0(self):
         self._checkCase(
+            "torch_benchmark_l0 KernelBatchSize 512, KernelDataType Int32, KernelName Add, KernelParamsNum 5, KernelSubmitPattern Single, KernelWGCount 4096, KernelWGSize 512",
+            "KernelSubmitSingleQueue Int32Large",
+            {"pytorch", "L0"},
+        )
+        self._checkCase(
             "torch_benchmark_l0 kernelsPerQueue 20, workgroupCount 4096, workgroupSize 512",
             "KernelSubmitMultiQueue large",
             {"pytorch", "L0"},
@@ -199,28 +210,68 @@ class TestE2E(unittest.TestCase):
             "KernelSubmitSlmSize small",
             {"pytorch", "L0"},
         )
+        self._checkCase(
+            "torch_benchmark_l0 kernelBatchSize 512, kernelSize 32",
+            "KernelSubmitLinearKernelSize array32",
+            {"pytorch", "L0"},
+        )
+        self._checkCase(
+            "torch_benchmark_l0 dataType Int32, kernelBatchSize 4096",
+            "KernelSubmitMemoryReuse Int32Large",
+            {"pytorch", "L0"},
+        )
 
     def test_torch_sycl(self):
+        self._checkCase(
+            "torch_benchmark_sycl KernelBatchSize 512, KernelDataType Mixed, KernelName Add, KernelParamsNum 5, KernelSubmitPattern Single, KernelWGCount 512, KernelWGSize 256",
+            "KernelSubmitSingleQueue MixedMedium",
+            {"pytorch", "SYCL"},
+        )
         self._checkCase(
             "torch_benchmark_sycl kernelsPerQueue 10, workgroupCount 512, workgroupSize 256",
             "KernelSubmitMultiQueue medium",
             {"pytorch", "SYCL"},
         )
         self._checkCase(
-            "torch_benchmark_sycl batchSize 512, slmNum -1, warmupIterations 1",
-            "KernelSubmitSlmSize max",
+            "torch_benchmark_sycl batchSize 512, slmNum 16384, warmupIterations 1",
+            "KernelSubmitSlmSize large",
+            {"pytorch", "SYCL"},
+        )
+        self._checkCase(
+            "torch_benchmark_sycl kernelBatchSize 512, kernelSize 5120",
+            "KernelSubmitLinearKernelSize array5120",
+            {"pytorch", "SYCL"},
+        )
+        self._checkCase(
+            "torch_benchmark_sycl dataType Float, kernelBatchSize 4096",
+            "KernelSubmitMemoryReuse FloatLarge",
             {"pytorch", "SYCL"},
         )
 
     def test_torch_syclpreview(self):
         self._checkCase(
-            "torch_benchmark_syclpreview kernelsPerQueue 4, workgroupCount 256, workgroupSize 124",
+            "torch_benchmark_syclpreview KernelBatchSize 512, KernelDataType Mixed, KernelName Add, KernelParamsNum 5, KernelSubmitPattern Single, KernelWGCount 256, KernelWGSize 128",
+            "KernelSubmitSingleQueue MixedSmall",
+            {"pytorch", "SYCL"},
+        )
+        self._checkCase(
+            "torch_benchmark_syclpreview kernelsPerQueue 4, workgroupCount 256, workgroupSize 128",
             "KernelSubmitMultiQueue small",
             {"pytorch", "SYCL"},
         )
         self._checkCase(
             "torch_benchmark_syclpreview batchSize 512, slmNum 1024, warmupIterations 1",
             "KernelSubmitSlmSize medium",
+            {"pytorch", "SYCL"},
+        )
+        self._checkCase(
+            "torch_benchmark_syclpreview kernelBatchSize 512, kernelSize 512",
+            "KernelSubmitLinearKernelSize array512",
+            {"pytorch", "SYCL"},
+        )
+        self._checkCase(
+            "torch_benchmark_syclpreview dataType Float, kernelBatchSize 512",
+            "KernelSubmitMemoryReuse FloatMedium",
             {"pytorch", "SYCL"},
         )
 
