@@ -1,8 +1,3 @@
-// This test is flaky in NewOffloadModel mode among different targets at
-// Windows.
-// UNSUPPORTED: new-offload-model && windows && run-mode
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20797
-
 // REQUIRES: level_zero
 //
 // UNSUPPORTED: windows && level_zero_v2_adapter
