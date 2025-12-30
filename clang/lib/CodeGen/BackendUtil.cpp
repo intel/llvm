@@ -1125,7 +1125,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     // configure the pipeline.
     OptimizationLevel Level = mapToLevel(CodeGenOpts);
 
-    if (LangOpts.SYCLIsDevice)
+    if (LangOpts.SYCLIsDevice) {
       PB.registerPipelineStartEPCallback([&](ModulePassManager &MPM,
                                              OptimizationLevel Level) {
         MPM.addPass(SYCLVirtualFunctionsAnalysisPass());
@@ -1139,17 +1139,23 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
             /*FP64ConvEmu=*/CodeGenOpts.FP64ConvEmu,
             /*ExcludeAspects=*/{"fp64"}));
         MPM.addPass(SYCLPropagateJointMatrixUsagePass());
-        // Lowers static/dynamic local memory builtin calls.
-        MPM.addPass(SYCLLowerWGLocalMemoryPass());
         // Compile-time properties pass must create standard metadata as early
         // as possible to make them available for other passes.
         MPM.addPass(CompileTimePropertiesPass());
       });
-    else if (LangOpts.SYCLIsHost && !LangOpts.SYCLESIMDBuildHostCode)
+      PB.registerOptimizerEarlyEPCallback(
+          [](ModulePassManager &MPM, OptimizationLevel, ThinOrFullLTOPhase) {
+            // Allocate static local memory in SYCL kernel scope for each
+            // allocation call. This pass must run after AlwaysInline pass due
+            // to current implementation restriction.
+            MPM.addPass(SYCLLowerWGLocalMemoryPass());
+          });
+    } else if (LangOpts.SYCLIsHost && !LangOpts.SYCLESIMDBuildHostCode) {
       PB.registerPipelineStartEPCallback(
           [&](ModulePassManager &MPM, OptimizationLevel Level) {
             MPM.addPass(ESIMDRemoveHostCodePass());
           });
+    }
 
     // Add the InferAddressSpaces and SYCLOptimizeBarriers passes for all
     // the SPIR[V] targets
