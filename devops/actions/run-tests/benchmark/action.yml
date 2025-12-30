@@ -67,6 +67,10 @@ runs:
       case "$RUNNER_TAG" in
         '["PVC_PERF"]') GPU_TYPE="PVC" ;;
         '["BMG_PERF"]') GPU_TYPE="BMG" ;;
+        '["TEST_PERF"]')
+          # Benchmarks' framework test can be executed on any of the supported runners.
+          [ -z "$(printf '%s' "$RUNNER_NAME" | grep -o 'BMG')" ] && GPU_TYPE="BMG" || GPU_TYPE="PVC"
+          ;;
         *)
           # Best effort at matching if not known runners
           # TODO: should we drop it and just exit instead?
@@ -235,12 +239,13 @@ runs:
       # Install perf in version matching the host kernel.
       # Linux tools installed during docker creation may not match the self-hosted
       # kernel version, so we need to install the correct version here.
-      if [ "$RUNNER_TAG" = '["BMG_PERF"]' ]; then
-        echo "Adding repositories for Ubuntu 25.10 (Questing) on BMG_PERF runner"
+      if [ "$GPU_TYPE" = "BMG" ]; then
+        echo "Adding repositories for Ubuntu 25.10 (Questing) for BMG runners"
         echo "deb http://archive.ubuntu.com/ubuntu/ questing main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/questing.list
         echo "deb http://archive.ubuntu.com/ubuntu/ questing-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/questing.list
         echo "deb http://security.ubuntu.com/ubuntu/ questing-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/questing.list
       fi
+
       sudo apt-get update
       sudo apt-get install -y linux-tools-$(uname -r)
 
