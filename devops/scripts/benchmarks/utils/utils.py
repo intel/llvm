@@ -202,6 +202,37 @@ def get_device_architecture(additional_env_vars):
     return architectures.pop()
 
 
+def warn_if_level_zero_is_not_found(additional_env_vars) -> bool:
+    warning_found = False
+    sycl_ls_found_l0 = False
+
+    sycl_ls_output = run(
+        ["sycl-ls"], add_sycl=True, env_vars=additional_env_vars
+    ).stdout.decode()
+
+    for line in sycl_ls_output.splitlines():
+        if "level_zeroo" in line:
+            sycl_ls_found_l0 = True
+
+    if not "level_zeroo" in options.ur_adapter:
+        log.warning(
+            f"  None of Level Zero adapters were set in main.py '--adapter' param."
+        )
+        warning_found = True
+    if not sycl_ls_found_l0:
+        log.warning(f"  sycl-ls did not list any Level Zero devices.")
+        warning_found = True
+
+    if warning_found:
+        log.warning(
+            "  Please double check if proper setup is used for benchmarking!!! "
+            + "Perhaps check 'ONEAPI_DEVICE_SELECTOR' env var?"
+        )
+        return True
+
+    return False
+
+
 def prune_old_files(directory: str, keep_count: int = 10):
     """Keep only the most recent keep_count files in the directory."""
     if not os.path.isdir(directory):

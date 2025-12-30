@@ -885,6 +885,10 @@ if __name__ == "__main__":
         execution_stats["warnings"] += 1
 
     log.info(f"Selected device architecture: {options.device_architecture}")
+    if options.ur_adapter:
+        log.info(f"Selected adapter (to force load): {options.ur_adapter}")
+    if warn_if_level_zero_is_not_found(additional_env_vars):
+        execution_stats["warnings"] += 1
 
     main(
         args.benchmark_directory,
