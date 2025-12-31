@@ -211,10 +211,10 @@ def warn_if_level_zero_is_not_found(additional_env_vars) -> bool:
     ).stdout.decode()
 
     for line in sycl_ls_output.splitlines():
-        if "level_zeroo" in line:
+        if "level_zero" in line:
             sycl_ls_found_l0 = True
 
-    if not "level_zeroo" in options.ur_adapter:
+    if not "level_zero" in options.ur_adapter:
         log.warning(
             f"  None of Level Zero adapters were set in main.py '--adapter' param."
         )
