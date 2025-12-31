@@ -232,9 +232,9 @@ def process_results(
 def collect_metadata(suites):
     metadata = {}
 
-    for s in suites:
-        metadata.update(s.additional_metadata())
-        suite_benchmarks = s.benchmarks()
+    for suite in suites:
+        metadata.update(suite.additional_metadata())
+        suite_benchmarks = suite.benchmarks()
         for benchmark in suite_benchmarks:
             results = benchmark.get_metadata()
             metadata.update(results)
@@ -289,23 +289,20 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
     benchmarks = []
     failures = {}
 
-    # TODO: rename "s", rename setup in suite to suite_setup, rename setup in benchmark to benchmark_setup
-    # TODO: do not add benchmarks whose suite setup failed
-    # TODO: add a mode where we fail entire script in case of setup (or other) failures and use in CI
-
-    for s in suites:
-        if s.name() not in enabled_suites(options.preset):
+    for suite in suites:
+        if suite.name() not in enabled_suites(options.preset):
             continue
 
-        # filter out benchmarks that are disabled
+        # Filter out benchmarks with filter given by user
         suite_benchmarks = [
-            benchmark for benchmark in s.benchmarks() if benchmark.enabled()
+            benchmark for benchmark in suite.benchmarks() if benchmark.enabled()
         ]
         if filter:
-            # log.info(f"all benchmarks:\n" + "\n".join([b.name() for b in suite_benchmarks]))
             log.debug(
-                f"Filtering {len(suite_benchmarks)} benchmarks in {s.name()} suite for {filter.pattern}"
+                f"All benchmarks in suite '{suite.name()}' ({len(suite_benchmarks)}):\n"
+                + "\n".join([b.name() for b in suite_benchmarks])
             )
+            log.debug(f"Filtering '{suite.name()}' suite for: '{filter.pattern}'")
             suite_benchmarks = [
                 benchmark
                 for benchmark in suite_benchmarks
@@ -313,19 +310,19 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
             ]
 
         if suite_benchmarks:
-            log.info(f"Setting up {type(s).__name__}")
+            log.info(f"Setting up {type(suite).__name__}")
             try:
-                s.setup()
+                suite.setup()
             except Exception as e:
                 if options.exit_on_failure:
                     raise e
-                failures[s.name()] = f"Suite '{s.name()}' setup failure: {e}"
+                failures[suite.name()] = f"Suite '{suite.name()}' setup failure: {e}"
                 log.error(
-                    f"Suite {type(s).__name__} setup failed. Benchmarks won't be added."
+                    f"Suite {type(suite).__name__} setup failed. Benchmarks won't be added."
                 )
                 log.error(f"failed: {e}")
             else:
-                log.info(f"{type(s).__name__} setup complete.")
+                log.info(f"{type(suite).__name__} setup complete.")
                 benchmarks += suite_benchmarks
 
     for benchmark in benchmarks:
@@ -888,6 +885,10 @@ if __name__ == "__main__":
         execution_stats["warnings"] += 1
 
     log.info(f"Selected device architecture: {options.device_architecture}")
+    if options.ur_adapter:
+        log.info(f"Selected adapter (to force load): {options.ur_adapter}")
+    if warn_if_level_zero_is_not_found(additional_env_vars):
+        execution_stats["warnings"] += 1
 
     main(
         args.benchmark_directory,
