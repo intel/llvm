@@ -11280,7 +11280,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       if (Kind == Action::OFK_SYCL) {
         const toolchains::SYCLToolChain &SYCLTC =
             static_cast<const toolchains::SYCLToolChain &>(*TC);
-       const ToolChain *HostTC =
+        const ToolChain *HostTC =
             C.getSingleOffloadToolChain<Action::OFK_Host>();
         SYCLTC.AddImpliedTargetArgs(SYCLTC.getTriple(), CompilerArgs,
                                     CompilerArgsStrings, JA, *HostTC);
@@ -11514,7 +11514,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     // Pass backend compiler and linker options specified at link time to
     // clang-linker-wrapper. Link-time options passed via -Xsycl-target-backend
-    // are forwarded using --device-compiler, while options passed via 
+    // are forwarded using --device-compiler, while options passed via
     // -Xsycl-target-linker are forwarded using --device-linker.
     const toolchains::SYCLToolChain &SYCLTC =
         static_cast<const toolchains::SYCLToolChain &>(getToolChain());
