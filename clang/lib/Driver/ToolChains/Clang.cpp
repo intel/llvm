@@ -5238,9 +5238,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       (JA.isHostOffloading(C.getActiveOffloadKinds()) &&
        Args.hasFlag(options::OPT_offload_new_driver,
                     options::OPT_no_offload_new_driver,
-                    C.isOffloadingHostKind(Action::OFK_Cuda))) ||
-      (JA.isHostOffloading(Action::OFK_SYCL) &&
-       C.getDriver().GetUseNewOffloadDriverForSYCLOffload(C, Args));
+                    C.isOffloadingHostKind(Action::OFK_Cuda)));
 
   bool IsRDCMode =
       Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc, IsSYCL);
@@ -11286,16 +11284,14 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       if (Kind == Action::OFK_OpenMP && !Args.hasArg(OPT_no_offloadlib) &&
           (TC->getTriple().isAMDGPU() || TC->getTriple().isNVPTX()))
         LinkerArgs.emplace_back("-lompdevice");
-      
+
       // Forward all of these to the appropriate toolchain.
-      if (!C.hasOffloadToolChain<Action::OFK_SYCL>()) {
-        for (StringRef Arg : CompilerArgs)
-          CmdArgs.push_back(Args.MakeArgString(
-              "--device-compiler=" + TC->getTripleString() + "=" + Arg));
-        for (StringRef Arg : LinkerArgs)
-          CmdArgs.push_back(Args.MakeArgString(
-              "--device-linker=" + TC->getTripleString() + "=" + Arg));
-      }
+      for (StringRef Arg : CompilerArgs)
+        CmdArgs.push_back(Args.MakeArgString(
+            "--device-compiler=" + TC->getTripleString() + "=" + Arg));
+      for (StringRef Arg : LinkerArgs)
+        CmdArgs.push_back(Args.MakeArgString(
+            "--device-linker=" + TC->getTripleString() + "=" + Arg));
 
       // Forward the LTO mode relying on the Driver's parsing.
       if (C.getDriver().getOffloadLTOMode() == LTOK_Full)
@@ -11501,21 +11497,41 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(
           Args.MakeArgString("-sycl-allow-device-image-dependencies"));
 
-    // For AOT, pass along backend target args via --device-compiler options
-    // to the clang-linker-wrapper.
+    // Pass the backend compiler option and linker option specified
+    // at link time via  --device-compiler options and --device-linker= 
+    // correspondingly to the clang-linker-wrapper.
     const toolchains::SYCLToolChain &SYCLTC =
         static_cast<const toolchains::SYCLToolChain &>(getToolChain());
     for (auto &ToolChainMember :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       const ToolChain *TC = ToolChainMember.second;
+      if (!TC->getTriple().isSPIROrSPIRV())
+        continue;
       ArgStringList BuildArgs;
-      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
       SmallString<128> BackendOptString;
-      if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen || (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_x86_64)) {
-        for (const auto &A : BuildArgs)
+      SmallString<128> LinkOptString;
+      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
+      for (const auto &A : BuildArgs)
+        appendOption(BackendOptString, A);
+
+      BuildArgs.clear();
+      SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);
+      for (const auto &A : BuildArgs) {
+        if (TC->getTriple().getSubArch() == llvm::Triple::NoSubArch)
+          appendOption(LinkOptString, A);
+        else
+          // For AOT, combine the Backend and Linker strings into one.
           appendOption(BackendOptString, A);
-        CmdArgs.push_back(Args.MakeArgString(
-            "--device-compiler=" + TC->getTripleString() + "=" + BackendOptString));
+      }
+
+      if(!BackendOptString.empty()){
+        CmdArgs.push_back(
+        Args.MakeArgString("--device-compiler=" + TC->getTripleString() +
+                               "=" + BackendOptString));
+      }
+      if(!LinkOptString.empty()){
+        CmdArgs.push_back(
+        Args.MakeArgString("--device-linker=" + LinkOptString));
       }
     }
 
