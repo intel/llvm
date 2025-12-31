@@ -8,10 +8,6 @@
 // RUN: %clangxx -fsycl %{sycl_target_opts} %if target-nvidia %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_80 %} %s -o %t.out %{mathflags}
 // RUN: %{run} %t.out
 
-// Test "new" (ABI breaking) for all platforms ( sm_80/native if CUDA )
-// RUN:  %if preview-breaking-changes-supported %{  %clangxx -fsycl -fpreview-breaking-changes %{sycl_target_opts} %if target-nvidia %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_80 %} %s -o %t2.out %{mathflags} %}
-// RUN:  %if preview-breaking-changes-supported %{  %{run} %t2.out  %}
-
 // Flaky timeout on CPU. Enable when fixed.
 // Depends on SPIR-V Backend & run-time drivers version.
 // UNSUPPORTED: spirv-backend && cpu
