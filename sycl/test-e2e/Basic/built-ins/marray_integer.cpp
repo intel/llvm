@@ -1,7 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-
 #include "helpers.hpp"
 
 int main() {
