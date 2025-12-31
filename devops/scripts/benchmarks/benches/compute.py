@@ -999,7 +999,7 @@ class TorchBenchmark(ComputeBenchmark):
         for k, v in self._torch_params.items():
             ret.append(f"{k} {v}")
         ret.sort()
-        return self._bench_name + " " + ", ".join(ret)
+        return self._bench_name + " " + self._test + " " + ", ".join(ret)
 
     def display_name(self) -> str:
         return f"{self.explicit_group()} {self._runtime.value}"
