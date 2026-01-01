@@ -2167,7 +2167,7 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
        TranslatedArgs->hasFlag(options::OPT_fopenmp_new_driver,
                                options::OPT_no_offload_new_driver, true)) ||
       TranslatedArgs->hasFlag(options::OPT_offload_new_driver,
-                                options::OPT_no_offload_new_driver, false))
+                              options::OPT_no_offload_new_driver, false))
     setUseNewOffloadingDriver();
 
   // Construct the list of abstract actions to perform for this compilation. On
