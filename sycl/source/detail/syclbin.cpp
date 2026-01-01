@@ -98,13 +98,9 @@ std::pair<const char *, size_t> getImageInOffloadBinary(const char *Data,
     throw sycl::exception(make_error_code(errc::invalid),
                           "Incorrect Offload Binary magic number.");
 
-  if (Header->Version != 1)
+  if (Header->Version == 0 || Header->Version > 2)
     throw sycl::exception(make_error_code(errc::invalid),
                           "Unsupported Offload Binary version number.");
-
-  if (Header->EntrySize != sizeof(OffloadBinaryEntryType))
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Unexpected number of offload entries.");
 
   if (Header->EntryOffset + sizeof(OffloadBinaryEntryType) > Size)
     throw sycl::exception(make_error_code(errc::invalid),
