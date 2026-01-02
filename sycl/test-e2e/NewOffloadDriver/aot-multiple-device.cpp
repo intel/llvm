@@ -19,6 +19,8 @@
 // It is required to specify the device name when compiling AOT for GPU.
 // RUN: %{run-aux} %clangxx --offload-new-driver -fsycl -fsycl-targets=spir64,spir64_x86_64,spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %S/Inputs/aot.cpp -c -o %t.o
 
+// Check that all targets compiled in the fat binary are selected during
+// linking.
 // RUN: %{run-aux} %clangxx --offload-new-driver -fsycl -fsycl-targets=spir64_x86_64,spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -v %t.o -o %t_cpu_gpu.out 2>&1 | FileCheck %s --check-prefix=CHECK-DEVICE
 // RUN: %{run} %t_cpu_gpu.out
 
