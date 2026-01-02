@@ -50,10 +50,6 @@ on:
         type: string
         required: false
 
-      e2e_binaries_new_offload_model_artifact:
-        type: string
-        required: false
-
     outputs:
       build_conclusion:
         value: ${{ jobs.build.outputs.build_conclusion }}
@@ -115,7 +111,7 @@ jobs:
         $exitCode = $LASTEXITCODE
         Remove-Item -Path "windows_detect_hung_tests.ps1"
         exit $exitCode
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
       with:
         sparse-checkout: |
           devops/actions
@@ -198,7 +194,7 @@ jobs:
         diff -Naur src/sycl/test/abi/sycl_symbols_windows.dump build/new_sycl_symbols_windows.dump || true
     - name: Upload new ABI symbols
       if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: sycl_windows_abi_symbols
         path: build/new_sycl_symbols_windows.dump
@@ -213,7 +209,7 @@ jobs:
       run: tar -czf ${{ inputs.toolchain_artifact_filename }} -C install .
     - name: Upload toolchain release
       if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: ${{ inputs.release_toolchain_artifact }}
         path: ${{ inputs.toolchain_artifact_filename }}
@@ -232,7 +228,7 @@ jobs:
         tar -czf ${{ inputs.toolchain_artifact_filename }} -C install .
     - name: Upload toolchain
       if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: sycl_windows_default
         path: ${{ inputs.toolchain_artifact_filename }}
@@ -253,21 +249,6 @@ jobs:
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
         extra_lit_opts: --param sycl_build_targets="spir"
-        cxx: ${{ inputs.cxx }}
-
-    - name: Build E2E tests with New Offload Model
-      if: |
-        inputs.e2e_binaries_artifact &&
-        !cancelled() &&
-        steps.build.conclusion == 'success' &&
-        contains(github.event.pull_request.labels.*.name, 'new-offload-model')
-      uses: ./devops/actions/run-tests/windows/e2e
-      with:
-        ref: ${{ inputs.ref || github.sha }}
-        testing_mode: build-only
-        target_devices: all
-        binaries_artifact: ${{ inputs.e2e_binaries_new_offload_model_artifact }}
-        extra_lit_opts: --param sycl_build_targets="spir" --param enable_new_offload_model=True
         cxx: ${{ inputs.cxx }}
 
     - name:  Detect hung tests

@@ -14,7 +14,7 @@
 
 // -ffp-model=precise is added to not depend on compiler defaults.
 
-// XFAIL: run-mode && arch-intel_gpu_pvc && igc-dev
+// XFAIL: run-mode && arch-intel_gpu_pvc
 // XFAIL-TRACKER: GSD-10510, GSD-11778
 
 #include "common.hpp"
