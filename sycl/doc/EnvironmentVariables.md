@@ -3,7 +3,7 @@
 This document describes environment variables that are having effect on DPC++
 compiler and runtime.
 
-## Controlling DPC++ runtime
+## Controlling DPC++ runtime 
 
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
