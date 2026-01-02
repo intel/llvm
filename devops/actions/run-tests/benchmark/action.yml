@@ -384,6 +384,7 @@ runs:
         cd ../
         ./devops/scripts/benchmarks/main.py \
           "${BENCH_WORKDIR}" \
+          --sycl "$(realpath $CMPLR_ROOT)" \
           --output-html remote \
           --results-dir "${BENCHMARK_RESULTS_REPO_PATH}/" \
           --output-dir "${BENCHMARK_RESULTS_REPO_PATH}/" \
