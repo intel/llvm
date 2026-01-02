@@ -106,7 +106,7 @@ jobs:
     # - downloading DPC++ should be integrated somehow; most likely use nightly release.
     #
     - name: Checkout LLVM
-      uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v4.1.1
+      uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.0
 
     # for some reason it's required to re-configure python for venv to work properly.
     - name: Set up Python 3.12
