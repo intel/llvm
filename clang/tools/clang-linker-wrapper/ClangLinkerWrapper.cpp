@@ -741,9 +741,6 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args,
 
   // Enable the driver to invoke sycl-post-link with the device architecture
   // when Intel GPU targets are passed in -fsycl-targets.
-  // IsDevicePassedWithSyclTargetBackend is checked to ensure the device
-  // architecture is not passed through -Xsycl-target-backend=spir64_gen
-  // "-device <arch>" forma
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
 
@@ -955,11 +952,14 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
 
 /// Adds all AOT backend options required for SYCL AOT compilation step to
 /// \p CmdArgs.
+/// \p Args is passed to provide MakeArgString function for creating persistent
+/// string storage.
 /// \p IsCPU is a bool used to distinguish whether the target is an Intel GPU or
 /// Intel CPU.
 /// \p BackendOptions is a string containing backend compilation options. For
 /// example, "-options -cl-opt-disable".
-static void addSYCLBackendOptions(SmallVector<StringRef, 8> &CmdArgs,
+static void addSYCLBackendOptions(const ArgList &Args,
+                                  SmallVector<StringRef, 8> &CmdArgs,
                                   bool IsCPU, StringRef BackendOptions) {
   if (IsCPU) {
     BackendOptions.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
@@ -985,9 +985,8 @@ static void addSYCLBackendOptions(SmallVector<StringRef, 8> &CmdArgs,
       // Split the options string by spaces and rejoin to normalize whitespace
       SmallVector<StringRef, 8> AfterArgs;
       AfterOptions.split(AfterArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-      static std::vector<std::string> StringStorage;
-      StringStorage.emplace_back(llvm::join(AfterArgs, " "));
-      CmdArgs.push_back(StringStorage.back());
+      std::string JoinedOptions = llvm::join(AfterArgs, " ");
+      CmdArgs.push_back(Args.MakeArgString(JoinedOptions));
     }
   }
 }
@@ -1011,7 +1010,7 @@ static Expected<StringRef> runAOTCompileIntelCPU(StringRef InputFile,
 
   CmdArgs.push_back(*OpenCLAOTPath);
   CmdArgs.push_back("--device=cpu");
-  addSYCLBackendOptions(CmdArgs, /* IsCPU */ true, BackendOptions);
+  addSYCLBackendOptions(Args, CmdArgs, /* IsCPU */ true, BackendOptions);
   // Create a new file to write the translated file to.
   auto TempFileOrErr =
       createOutputFile(sys::path::filename(ExecutableName), "out");
@@ -1051,7 +1050,7 @@ static Expected<StringRef> runAOTCompileIntelGPU(StringRef InputFile,
     CmdArgs.push_back("-device");
     CmdArgs.push_back(Arch);
   }
-  addSYCLBackendOptions(CmdArgs, /* IsCPU */ false, BackendOptions);
+  addSYCLBackendOptions(Args, CmdArgs, /* IsCPU */ false, BackendOptions);
   // Create a new file to write the translated file to.
   auto TempFileOrErr =
       createOutputFile(sys::path::filename(ExecutableName), "out");
@@ -2178,18 +2177,15 @@ extractSYCLCompileLinkOptions(ArrayRef<OffloadFile> OffloadFiles) {
 static void appendSYCLDeviceOptionsAtLinkTime(const DerivedArgList &LinkerArgs,
                                               std::string &CompileOptions,
                                               std::string &LinkOptions) {
-  const llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
+  const StringRef TripleStr = LinkerArgs.getLastArgValue(OPT_triple_EQ);
   auto processDeviceArgs = [&](unsigned OptID, std::string &Options) {
     for (StringRef Arg : LinkerArgs.getAllArgValues(OptID)) {
       StringRef Value, TargetTriple, Kind;
       if (Arg.contains('=')) {
-        std::pair<StringRef, StringRef> SplitResult = Arg.split('=');
-        StringRef Specifier = SplitResult.first;
-        Value = SplitResult.second;
+        StringRef Specifier;
+        std::tie(Specifier, Value) = Arg.split('=');
         if (Specifier.contains(':')) {
-          std::pair<StringRef, StringRef> KindSplit = Specifier.split(':');
-          Kind = KindSplit.first;
-          TargetTriple = KindSplit.second;
+          std::tie(Kind, TargetTriple) = Specifier.split(':');
         } else {
           TargetTriple = Specifier;
         }
@@ -2197,7 +2193,7 @@ static void appendSYCLDeviceOptionsAtLinkTime(const DerivedArgList &LinkerArgs,
         Value = Arg;
       }
       if (Value.empty() ||
-          (!TargetTriple.empty() && TargetTriple != Triple.getTriple()) ||
+          (!TargetTriple.empty() && TargetTriple != TripleStr) ||
           (!Kind.empty() && getOffloadKind(Kind) != OFK_SYCL))
         continue;
       Options += Twine(" ", Value).str();

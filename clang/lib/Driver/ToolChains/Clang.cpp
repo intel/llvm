@@ -5239,6 +5239,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
        Args.hasFlag(options::OPT_offload_new_driver,
                     options::OPT_no_offload_new_driver,
                     C.isOffloadingHostKind(Action::OFK_Cuda)));
+
   bool IsRDCMode =
       Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc, IsSYCL);
   auto LTOMode = IsDeviceOffloadAction ? D.getOffloadLTOMode() : D.getLTOMode();
@@ -11262,18 +11263,18 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
       // We do not use a bound architecture here so options passed only to a
       // specific architecture via -Xarch_<cpu> will not be forwarded.
+      ArgStringList CompilerArgs;
+      ArgStringList LinkerArgs;
       const DerivedArgList &ToolChainArgs =
           C.getArgsForToolChain(TC, /*BoundArch=*/"", Kind);
-      DerivedArgList CompilerArgs(ToolChainArgs.getBaseArgs());
-      ArgStringList CompilerArgsStrings;
-      ArgStringList LinkerArgsStrings;
+      DerivedArgList BaseCompilerArgs(ToolChainArgs.getBaseArgs());
       for (Arg *A : ToolChainArgs) {
         if (A->getOption().matches(OPT_Zlinker_input))
-          LinkerArgsStrings.emplace_back(A->getValue());
+          LinkerArgs.emplace_back(A->getValue());
         else if (ShouldForward(CompilerOptions, A, *TC))
-          CompilerArgs.append(A);
+          BaseCompilerArgs.append(A);
         else if (ShouldForward(LinkerOptions, A, *TC))
-          A->render(Args, LinkerArgsStrings);
+          A->render(Args, LinkerArgs);
       }
 
       if (Kind == Action::OFK_SYCL) {
@@ -11281,11 +11282,11 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
             static_cast<const toolchains::SYCLToolChain &>(*TC);
         const ToolChain *HostTC =
             C.getSingleOffloadToolChain<Action::OFK_Host>();
-        SYCLTC.AddImpliedTargetArgs(SYCLTC.getTriple(), CompilerArgs,
-                                    CompilerArgsStrings, JA, *HostTC);
+        SYCLTC.AddImpliedTargetArgs(SYCLTC.getTriple(), BaseCompilerArgs,
+                                    CompilerArgs, JA, *HostTC);
       } else {
-        for (Arg *A : CompilerArgs) {
-          A->render(CompilerArgs, CompilerArgsStrings);
+        for (Arg *A : BaseCompilerArgs) {
+          CompilerArgs.emplace_back(A->getValue());
         }
       }
 
@@ -11297,13 +11298,13 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       // If this is OpenMP the device linker will need `-lompdevice`.
       if (Kind == Action::OFK_OpenMP && !Args.hasArg(OPT_no_offloadlib) &&
           (TC->getTriple().isAMDGPU() || TC->getTriple().isNVPTX()))
-        LinkerArgsStrings.emplace_back("-lompdevice");
+        LinkerArgs.emplace_back("-lompdevice");
 
       // Forward all of these to the appropriate toolchain.
-      for (StringRef Arg : CompilerArgsStrings)
+      for (StringRef Arg : CompilerArgs)
         CmdArgs.push_back(Args.MakeArgString(
             "--device-compiler=" + TC->getTripleString() + "=" + Arg));
-      for (StringRef Arg : LinkerArgsStrings)
+      for (StringRef Arg : LinkerArgs)
         CmdArgs.push_back(Args.MakeArgString(
             "--device-linker=" + TC->getTripleString() + "=" + Arg));
 
