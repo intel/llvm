@@ -374,8 +374,8 @@ runs:
           cached_result="$(mktemp -d)/$(basename $results_file)"
           mv "$results_file" "$cached_result"
 
+          git fetch origin "${BENCHMARK_RESULTS_BRANCH}"
           git reset --hard "origin/${BENCHMARK_RESULTS_BRANCH}"
-          git pull
 
           mv "$cached_result" "$results_file"
         fi
