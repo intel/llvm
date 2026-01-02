@@ -10,22 +10,22 @@
 ; CHECK-SPV-BACK: TypeVoid [[VoidTy:[0-9]+]]
 
 ; CHECK-LABEL: spir_kernel void @testChar
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_ciPU3AS1c(<2 x i8> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_ciPU3AS1c(<3 x i8> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_ciPU3AS1c(<4 x i8> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_ciPU3AS1c(<8 x i8> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_ciPU3AS1c(<16 x i8> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_ciPU3AS3c(<2 x i8> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_ciPU3AS3c(<3 x i8> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_ciPU3AS3c(<4 x i8> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_ciPU3AS3c(<8 x i8> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_ciPU3AS3c(<16 x i8> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_ciPc(<2 x i8> {{.*}}, i32 0, ptr {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_ciPc(<3 x i8> {{.*}}, i32 0, ptr {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_ciPc(<4 x i8> {{.*}}, i32 0, ptr {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_ciPc(<8 x i8> {{.*}}, i32 0, ptr {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_ciPc(<16 x i8> {{.*}}, i32 0, ptr {{.*}})
-
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_cjPU3AS1c(<2 x i8> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_cjPU3AS1c(<3 x i8> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_cjPU3AS1c(<4 x i8> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_cjPU3AS1c(<8 x i8> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_cjPU3AS1c(<16 x i8> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_cjPU3AS3c(<2 x i8> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_cjPU3AS3c(<3 x i8> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_cjPU3AS3c(<4 x i8> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_cjPU3AS3c(<8 x i8> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_cjPU3AS3c(<16 x i8> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_cjPc(<2 x i8> {{.*}}, i32 0, ptr {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_cjPc(<3 x i8> {{.*}}, i32 0, ptr {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_cjPc(<4 x i8> {{.*}}, i32 0, ptr {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_cjPc(<8 x i8> {{.*}}, i32 0, ptr {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_cjPc(<16 x i8> {{.*}}, i32 0, ptr {{.*}})
+;
 ; CHECK-SPV-BACK ExtInst [[VoidTy]] {{.*}} [[Set]] vstoren
 ; CHECK-SPV-BACK ExtInst [[VoidTy]] {{.*}} [[Set]] vstoren
 ; CHECK-SPV-BACK ExtInst [[VoidTy]] {{.*}} [[Set]] vstoren
@@ -59,22 +59,22 @@
 ; CHECK-CL20: call spir_func void @_Z8vstore16Dv16_cjPc(<16 x i8> {{.*}}, i32 0, ptr {{.*}})
 
 ; CHECK-LABEL: spir_kernel void @testShort
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_siPU3AS1s(<2 x i16> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_siPU3AS1s(<3 x i16> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_siPU3AS1s(<4 x i16> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_siPU3AS1s(<8 x i16> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_siPU3AS1s(<16 x i16> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_siPU3AS3s(<2 x i16> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_siPU3AS3s(<3 x i16> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_siPU3AS3s(<4 x i16> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_siPU3AS3s(<8 x i16> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_siPU3AS3s(<16 x i16> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_siPs(<2 x i16> {{.*}}, i32 0, ptr {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_siPs(<3 x i16> {{.*}}, i32 0, ptr {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_siPs(<4 x i16> {{.*}}, i32 0, ptr {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_siPs(<8 x i16> {{.*}}, i32 0, ptr {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_siPs(<16 x i16> {{.*}}, i32 0, ptr {{.*}})
-
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_sjPU3AS1s(<2 x i16> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_sjPU3AS1s(<3 x i16> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_sjPU3AS1s(<4 x i16> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_sjPU3AS1s(<8 x i16> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_sjPU3AS1s(<16 x i16> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_sjPU3AS3s(<2 x i16> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_sjPU3AS3s(<3 x i16> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_sjPU3AS3s(<4 x i16> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_sjPU3AS3s(<8 x i16> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_sjPU3AS3s(<16 x i16> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_sjPs(<2 x i16> {{.*}}, i32 0, ptr {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_sjPs(<3 x i16> {{.*}}, i32 0, ptr {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_sjPs(<4 x i16> {{.*}}, i32 0, ptr {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_sjPs(<8 x i16> {{.*}}, i32 0, ptr {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_sjPs(<16 x i16> {{.*}}, i32 0, ptr {{.*}})
+;
 ; CHECK-SPV-BACK ExtInst [[VoidTy]] {{.*}} [[Set]] vstoren
 ; CHECK-SPV-BACK ExtInst [[VoidTy]] {{.*}} [[Set]] vstoren
 ; CHECK-SPV-BACK ExtInst [[VoidTy]] {{.*}} [[Set]] vstoren
@@ -108,22 +108,22 @@
 ; CHECK-CL20: call spir_func void @_Z8vstore16Dv16_sjPs(<16 x i16> {{.*}}, i32 0, ptr {{.*}})
 
 ; CHECK-LABEL: spir_kernel void @testInt
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_iiPU3AS1i(<2 x i32> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_iiPU3AS1i(<3 x i32> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_iiPU3AS1i(<4 x i32> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_iiPU3AS1i(<8 x i32> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_iiPU3AS1i(<16 x i32> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_iiPU3AS3i(<2 x i32> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_iiPU3AS3i(<3 x i32> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_iiPU3AS3i(<4 x i32> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_iiPU3AS3i(<8 x i32> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_iiPU3AS3i(<16 x i32> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_iiPi(<2 x i32> {{.*}}, i32 0, ptr {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_iiPi(<3 x i32> {{.*}}, i32 0, ptr {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_iiPi(<4 x i32> {{.*}}, i32 0, ptr {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_iiPi(<8 x i32> {{.*}}, i32 0, ptr {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_iiPi(<16 x i32> {{.*}}, i32 0, ptr {{.*}})
-
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_ijPU3AS1i(<2 x i32> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_ijPU3AS1i(<3 x i32> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_ijPU3AS1i(<4 x i32> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_ijPU3AS1i(<8 x i32> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_ijPU3AS1i(<16 x i32> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_ijPU3AS3i(<2 x i32> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_ijPU3AS3i(<3 x i32> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_ijPU3AS3i(<4 x i32> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_ijPU3AS3i(<8 x i32> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_ijPU3AS3i(<16 x i32> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_ijPi(<2 x i32> {{.*}}, i32 0, ptr {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_ijPi(<3 x i32> {{.*}}, i32 0, ptr {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_ijPi(<4 x i32> {{.*}}, i32 0, ptr {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_ijPi(<8 x i32> {{.*}}, i32 0, ptr {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_ijPi(<16 x i32> {{.*}}, i32 0, ptr {{.*}})
+;
 ; CHECK-SPV-BACK ExtInst [[VoidTy]] {{.*}} [[Set]] vstoren
 ; CHECK-SPV-BACK ExtInst [[VoidTy]] {{.*}} [[Set]] vstoren
 ; CHECK-SPV-BACK ExtInst [[VoidTy]] {{.*}} [[Set]] vstoren
@@ -157,22 +157,22 @@
 ; CHECK-CL20: call spir_func void @_Z8vstore16Dv16_ijPi(<16 x i32> {{.*}}, i32 0, ptr {{.*}})
 
 ; CHECK-LABEL: spir_kernel void @testLong
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_liPU3AS1l(<2 x i64> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_liPU3AS1l(<3 x i64> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_liPU3AS1l(<4 x i64> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_liPU3AS1l(<8 x i64> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_liPU3AS1l(<16 x i64> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_liPU3AS3l(<2 x i64> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_liPU3AS3l(<3 x i64> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_liPU3AS3l(<4 x i64> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_liPU3AS3l(<8 x i64> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_liPU3AS3l(<16 x i64> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_liPl(<2 x i64> {{.*}}, i32 0, ptr {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_liPl(<3 x i64> {{.*}}, i32 0, ptr {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_liPl(<4 x i64> {{.*}}, i32 0, ptr {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_liPl(<8 x i64> {{.*}}, i32 0, ptr {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_liPl(<16 x i64> {{.*}}, i32 0, ptr {{.*}})
-
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_ljPU3AS1l(<2 x i64> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_ljPU3AS1l(<3 x i64> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_ljPU3AS1l(<4 x i64> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_ljPU3AS1l(<8 x i64> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_ljPU3AS1l(<16 x i64> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_ljPU3AS3l(<2 x i64> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_ljPU3AS3l(<3 x i64> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_ljPU3AS3l(<4 x i64> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_ljPU3AS3l(<8 x i64> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_ljPU3AS3l(<16 x i64> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_ljPl(<2 x i64> {{.*}}, i32 0, ptr {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_ljPl(<3 x i64> {{.*}}, i32 0, ptr {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_ljPl(<4 x i64> {{.*}}, i32 0, ptr {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_ljPl(<8 x i64> {{.*}}, i32 0, ptr {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_ljPl(<16 x i64> {{.*}}, i32 0, ptr {{.*}})
+;
 ; CHECK-SPV-BACK ExtInst [[VoidTy]] {{.*}} [[Set]] vstoren
 ; CHECK-SPV-BACK ExtInst [[VoidTy]] {{.*}} [[Set]] vstoren
 ; CHECK-SPV-BACK ExtInst [[VoidTy]] {{.*}} [[Set]] vstoren
@@ -206,22 +206,22 @@
 ; CHECK-CL20: call spir_func void @_Z8vstore16Dv16_ljPl(<16 x i64> {{.*}}, i32 0, ptr {{.*}})
  
 ; CHECK-LABEL: spir_kernel void @testHalf
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_DhiPU3AS1Dh(<2 x half> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_DhiPU3AS1Dh(<3 x half> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_DhiPU3AS1Dh(<4 x half> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_DhiPU3AS1Dh(<8 x half> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_DhiPU3AS1Dh(<16 x half> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_DhiPU3AS3Dh(<2 x half> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_DhiPU3AS3Dh(<3 x half> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_DhiPU3AS3Dh(<4 x half> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_DhiPU3AS3Dh(<8 x half> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_DhiPU3AS3Dh(<16 x half> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_DhiPDh(<2 x half> {{.*}}, i32 0, ptr {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_DhiPDh(<3 x half> {{.*}}, i32 0, ptr {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_DhiPDh(<4 x half> {{.*}}, i32 0, ptr {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_DhiPDh(<8 x half> {{.*}}, i32 0, ptr {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_DhiPDh(<16 x half> {{.*}}, i32 0, ptr {{.*}})
- 
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_DhjPU3AS1Dh(<2 x half> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_DhjPU3AS1Dh(<3 x half> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_DhjPU3AS1Dh(<4 x half> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_DhjPU3AS1Dh(<8 x half> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_DhjPU3AS1Dh(<16 x half> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_DhjPU3AS3Dh(<2 x half> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_DhjPU3AS3Dh(<3 x half> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_DhjPU3AS3Dh(<4 x half> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_DhjPU3AS3Dh(<8 x half> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_DhjPU3AS3Dh(<16 x half> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_DhjPDh(<2 x half> {{.*}}, i32 0, ptr {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_DhjPDh(<3 x half> {{.*}}, i32 0, ptr {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_DhjPDh(<4 x half> {{.*}}, i32 0, ptr {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_DhjPDh(<8 x half> {{.*}}, i32 0, ptr {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_DhjPDh(<16 x half> {{.*}}, i32 0, ptr {{.*}})
+;
 ; CHECK-SPV-BACK ExtInst [[VoidTy]] {{.*}} [[Set]] vstoren
 ; CHECK-SPV-BACK ExtInst [[VoidTy]] {{.*}} [[Set]] vstoren
 ; CHECK-SPV-BACK ExtInst [[VoidTy]] {{.*}} [[Set]] vstoren
@@ -255,22 +255,22 @@
 ; CHECK-CL20: call spir_func void @_Z8vstore16Dv16_DhjPDh(<16 x half> {{.*}}, i32 0, ptr {{.*}})
 
 ; CHECK-LABEL: spir_kernel void @testFloat
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_fiPU3AS1f(<2 x float> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_fiPU3AS1f(<3 x float> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_fiPU3AS1f(<4 x float> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_fiPU3AS1f(<8 x float> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_fiPU3AS1f(<16 x float> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_fiPU3AS3f(<2 x float> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_fiPU3AS3f(<3 x float> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_fiPU3AS3f(<4 x float> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_fiPU3AS3f(<8 x float> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_fiPU3AS3f(<16 x float> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_fiPf(<2 x float> {{.*}}, i32 0, ptr {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_fiPf(<3 x float> {{.*}}, i32 0, ptr {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_fiPf(<4 x float> {{.*}}, i32 0, ptr {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_fiPf(<8 x float> {{.*}}, i32 0, ptr {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_fiPf(<16 x float> {{.*}}, i32 0, ptr {{.*}})
-
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_fjPU3AS1f(<2 x float> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_fjPU3AS1f(<3 x float> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_fjPU3AS1f(<4 x float> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_fjPU3AS1f(<8 x float> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_fjPU3AS1f(<16 x float> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_fjPU3AS3f(<2 x float> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_fjPU3AS3f(<3 x float> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_fjPU3AS3f(<4 x float> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_fjPU3AS3f(<8 x float> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_fjPU3AS3f(<16 x float> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_fjPf(<2 x float> {{.*}}, i32 0, ptr {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_fjPf(<3 x float> {{.*}}, i32 0, ptr {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_fjPf(<4 x float> {{.*}}, i32 0, ptr {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_fjPf(<8 x float> {{.*}}, i32 0, ptr {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_fjPf(<16 x float> {{.*}}, i32 0, ptr {{.*}})
+;
 ; CHECK-SPV-BACK ExtInst [[VoidTy]] {{.*}} [[Set]] vstoren
 ; CHECK-SPV-BACK ExtInst [[VoidTy]] {{.*}} [[Set]] vstoren
 ; CHECK-SPV-BACK ExtInst [[VoidTy]] {{.*}} [[Set]] vstoren
@@ -304,22 +304,22 @@
 ; CHECK-CL20: call spir_func void @_Z8vstore16Dv16_fjPf(<16 x float> {{.*}}, i32 0, ptr {{.*}})
 
 ; CHECK-LABEL: spir_kernel void @testDouble
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_diPU3AS1d(<2 x double> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_diPU3AS1d(<3 x double> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_diPU3AS1d(<4 x double> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_diPU3AS1d(<8 x double> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_diPU3AS1d(<16 x double> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_diPU3AS3d(<2 x double> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_diPU3AS3d(<3 x double> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_diPU3AS3d(<4 x double> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_diPU3AS3d(<8 x double> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_diPU3AS3d(<16 x double> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_diPd(<2 x double> {{.*}}, i32 0, ptr {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_diPd(<3 x double> {{.*}}, i32 0, ptr {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_diPd(<4 x double> {{.*}}, i32 0, ptr {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_diPd(<8 x double> {{.*}}, i32 0, ptr {{.*}})
-; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_diPd(<16 x double> {{.*}}, i32 0, ptr {{.*}})
-
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_djPU3AS1d(<2 x double> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_djPU3AS1d(<3 x double> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_djPU3AS1d(<4 x double> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_djPU3AS1d(<8 x double> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_djPU3AS1d(<16 x double> {{.*}}, i32 0, ptr addrspace(1) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_djPU3AS3d(<2 x double> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_djPU3AS3d(<3 x double> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_djPU3AS3d(<4 x double> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_djPU3AS3d(<8 x double> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_djPU3AS3d(<16 x double> {{.*}}, i32 0, ptr addrspace(3) {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv2_djPd(<2 x double> {{.*}}, i32 0, ptr {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv3_djPd(<3 x double> {{.*}}, i32 0, ptr {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv4_djPd(<4 x double> {{.*}}, i32 0, ptr {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv8_djPd(<8 x double> {{.*}}, i32 0, ptr {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z19__spirv_ocl_vstorenDv16_djPd(<16 x double> {{.*}}, i32 0, ptr {{.*}})
+;
 ; CHECK-SPV-BACK ExtInst [[VoidTy]] {{.*}} [[Set]] vstoren
 ; CHECK-SPV-BACK ExtInst [[VoidTy]] {{.*}} [[Set]] vstoren
 ; CHECK-SPV-BACK ExtInst [[VoidTy]] {{.*}} [[Set]] vstoren

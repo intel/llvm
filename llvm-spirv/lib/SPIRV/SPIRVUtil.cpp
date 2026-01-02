@@ -2710,6 +2710,21 @@ public:
     case OpenCLLIB::Shuffle2:
       addUnsignedArg(2);
       break;
+    case OpenCLLIB::Vloadn:
+    case OpenCLLIB::Vload_half:
+    case OpenCLLIB::Vload_halfn:
+    case OpenCLLIB::Vloada_halfn:
+      addUnsignedArg(0);
+      break;
+    case OpenCLLIB::Vstoren:
+    case OpenCLLIB::Vstore_half:
+    case OpenCLLIB::Vstore_half_r:
+    case OpenCLLIB::Vstore_halfn:
+    case OpenCLLIB::Vstore_halfn_r:
+    case OpenCLLIB::Vstorea_halfn:
+    case OpenCLLIB::Vstorea_halfn_r:
+      addUnsignedArg(1);
+      break;
     default:;
       // No special handling is needed
     }
