@@ -646,24 +646,6 @@ struct host_access_key {
                      std::integral_constant<host_access_enum, Access>>;
 };
 
-enum class init_mode_enum : /* unspecified */ { 
-  reprogram,
-  reset
-};
-
-struct init_mode_key {
-  template <init_mode_enum Trigger>
-  using value_t =
-      property_value<init_mode_key,
-                     std::integral_constant<init_mode_enum, Trigger>>;
-};
-
-struct implement_in_csr_key {
-  template <bool Enable>
-  using value_t =
-      property_value<implement_in_csr_key, std::bool_constant<Enable>>;
-};
-
 inline constexpr device_image_scope_key::value_t device_image_scope;
 
 template <host_access_enum Access>
@@ -677,28 +659,11 @@ inline constexpr host_access_key::value_t<host_access_enum::read_write>
 inline constexpr host_access_key::value_t<host_access_enum::none>
     host_access_none;
 
-template <init_mode_enum Trigger>
-inline constexpr init_mode_key::value_t<Trigger> init_mode;
-inline constexpr init_mode_key::value_t<init_mode_enum::reprogram>
-    init_mode_reprogram;
-inline constexpr init_mode_key::value_t<init_mode_enum::reset> init_mode_reset;
-
-template <bool Enable>
-inline constexpr implement_in_csr_key::value_t<Enable> implement_in_csr;
-inline constexpr implement_in_csr_key::value_t<true> implement_in_csr_on;
-inline constexpr implement_in_csr_key::value_t<false> implement_in_csr_off;
-
 template <typename T, typename PropertyListT>
 struct is_property_key_of<device_image_scope_key, device_global<T, PropertyListT>>
   : std::true_type {};
 template <typename T, typename PropertyListT>
 struct is_property_key_of<host_access_key, device_global<T, PropertyListT>>
-  : std::true_type {};
-template <typename T, typename PropertyListT>
-struct is_property_key_of<init_mode_key, device_global<T, PropertyListT>>
-  : std::true_type {};
-template <typename T, typename PropertyListT>
-struct is_property_key_of<implement_in_csr_key, device_global<T, PropertyListT>>
   : std::true_type {};
 
 } // namespace sycl::ext::oneapi::experimental
@@ -714,8 +679,7 @@ a|
 device_image_scope
 ----
 a|
-This property is most useful for kernels that are submitted to an FPGA device,
-but it may be used with any kernel. Normally, a single instance of a device
+Normally, a single instance of a device
 global variable is allocated for each device, and that instance is shared by
 all kernels that belong to the same context and are submitted to the same 
 device, regardless of which _device image_ contains the kernel.
@@ -723,7 +687,7 @@ When this property is specified, it is an assertion by the user that on a given
 device a given device_global decorated with this property is only ever accessed 
 in a single _device_image_. An
 implementation may be able to optimize accesses to the device global when this
-property is specified (especially on an FPGA device), but the user must be aware
+property is specified, but the user must be aware
 of which _device image_ contains the kernels that use the variable.
 
 A device global that is decorated with this property may not be accessed from
@@ -759,58 +723,18 @@ host_access
 a|
 This property provides an assertion by the user telling the implementation
 whether the host code copies to or from the device global.  As a result, the
-implementation may be able to perform certain optimizations.  Although this
-property may be used with any device, it is generally only beneficial when used
-on FPGA devices.
+implementation may be able to perform certain optimizations.
 
 The following values are supported:
 
 * `read`: The user asserts that the host code may copy from (read) the
-  variable, but it will never copy to (write) it.  For an FPGA device, only a
-  read port is exposed.
+  variable, but it will never copy to (write) it.
 * `write`: The user asserts that the host code may copy to (write) the
-  variable, but it never copy from (read) it.  For an FPGA device, only a write
-  port is exposed.
+  variable, but it never copy from (read) it.
 * `none`: The user asserts that the host code will never copy to or copy
-  from the variable.  For an FPGA device, no external ports are exposed.
+  from the variable.
 * `read_write`: The user provides no assertions, and the host code may either
-  copy to or copy from the variable.  This is the default.  For an FPGA device,
-  a read/write port is exposed.
-
-a|
-[source,c++]
-----
-init_mode
-----
-a|
-This property is only meaningful when used with an FPGA device.  It is ignored
-for other devices.  The following values are supported:
-
-* `reprogram`: Initialization is performed by reprogramming the device.  This
-  may require more frequent reprogramming but may reduce area.
-* `reset`: Initialization is performed by sending a reset signal to the device.
-  This may increase area but may reduce reprogramming frequency.
-
-If the `init_mode` property is not specified, the default behavior is
-equivalent to one of the values listed above, but the choice is implementation
-defined.
-
-a|
-[source,c++]
-----
-implement_in_csr
-----
-a|
-This property is only meaningful when used with an FPGA device.  It is ignored
-for other devices.  The following values are supported:
-
-* `true`: Access to this memory is done through a CSR interface shared with
-  kernel arguments.
-* `false`: Access to this memory is done through a dedicated interface.
-
-If the `implement_in_csr` property is not specified, the default behavior is
-equivalent to one of the values listed above, but the choice is implementation
-defined.
+  copy to or copy from the variable.  This is the default.
 
 |===
 
@@ -848,7 +772,7 @@ _device images_:
 * A kernel that uses specialization constants may have a new instance in a new
   _device image_ each time the application sets a new value for the
   specialization constant.  However, this happens only if the device supports
-  native specialization constants, which is not the case for FPGA devices.
+  native specialization constants.
 ====
 
 === Relax language restrictions for SYCL device functions

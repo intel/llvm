@@ -73,7 +73,8 @@ public:
     auto MObjImplPtr = this->MObjWeakPtr.lock();
     if (!MObjImplPtr)
       return std::nullopt;
-    return sycl::detail::createSyclObjFromImpl<SYCLObjT>(MObjImplPtr);
+    return sycl::detail::createSyclObjFromImpl<SYCLObjT>(
+        std::move(MObjImplPtr));
   }
   SYCLObjT lock() const {
     std::optional<SYCLObjT> OptionalObj = try_lock();
@@ -233,6 +234,67 @@ private:
   weak_object<detail::GlobalBufAccessorT> MWeakGlobalFlushBuf;
 };
 
+template <> class weak_object<device> {
+  friend sycl::device;
+
+  detail::device_impl *dev_impl = nullptr;
+
+public:
+  using object_type = device;
+
+  constexpr weak_object() noexcept = default;
+  weak_object(const device &dev) noexcept
+      : dev_impl(detail::getSyclObjImpl(dev)) {}
+  weak_object(const weak_object &Other) noexcept = default;
+  weak_object(weak_object &&Other) noexcept = default;
+
+  weak_object &operator=(const device &Other) noexcept {
+    this->dev_impl = detail::getSyclObjImpl(Other);
+    return *this;
+  }
+  weak_object &operator=(const weak_object &Other) noexcept = default;
+  weak_object &operator=(weak_object &&Other) noexcept = default;
+
+  bool expired() const noexcept { return dev_impl == nullptr; }
+
+  void reset() noexcept { dev_impl = nullptr; }
+
+#ifndef __SYCL_DEVICE_ONLY__
+  std::optional<device> try_lock() const noexcept {
+    if (!dev_impl)
+      return std::nullopt;
+    return sycl::detail::createSyclObjFromImpl<device>(*dev_impl);
+  }
+  device lock() const {
+    std::optional<device> OptionalObj = try_lock();
+    if (!OptionalObj)
+      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                            "Referenced object has expired.");
+    return *OptionalObj;
+  }
+  bool owner_before(const device &Other) const noexcept {
+    return dev_impl < detail::getSyclObjImpl(Other);
+  }
+  bool owner_before(const weak_object &Other) const noexcept {
+    return dev_impl < Other.dev_impl;
+  }
+#else
+  // On device calls to these functions are disallowed, so declare them but
+  // don't define them to avoid compilation failures.
+  std::optional<device> try_lock() const noexcept;
+  device lock() const;
+  bool owner_before(const device &Other) const noexcept;
+  bool owner_before(const weak_object &Other) const noexcept;
+#endif // __SYCL_DEVICE_ONLY__
+};
 } // namespace ext::oneapi
+inline bool
+device::ext_oneapi_owner_before(const device &Other) const noexcept {
+  return impl < Other.impl;
+}
+inline bool device::ext_oneapi_owner_before(
+    const ext::oneapi::weak_object<device> &Other) const noexcept {
+  return impl < Other.dev_impl;
+}
 } // namespace _V1
 } // namespace sycl

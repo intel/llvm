@@ -39,9 +39,9 @@ Design Documents for the oneAPI DPC++ Compiler
    design/ParallelForRangeRounding
    design/SYCLInstrumentationUsingXPTI
    design/ITTAnnotations
+   design/DeviceCodeCoverage
    design/DeviceGlobal
    design/CompileTimeProperties
-   design/HostPipes
    design/ESIMDStatelesAccessors
    design/ESIMDDesignNotes
    design/DeviceIf

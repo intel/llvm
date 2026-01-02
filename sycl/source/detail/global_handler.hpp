@@ -11,9 +11,6 @@
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/util.hpp>
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-#include <deque>
-#endif
 #include <memory>
 #include <unordered_map>
 
@@ -29,10 +26,6 @@ class adapter_impl;
 class ods_target_list;
 class XPTIRegistry;
 class ThreadPool;
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-struct KernelNameBasedCacheT;
-class DeviceKernelInfo;
-#endif
 
 /// Wrapper class for global data structures with non-trivial destructors.
 ///
@@ -50,7 +43,7 @@ class GlobalHandler {
 public:
   static bool isInstanceAlive() { return RTGlobalObjHandler != nullptr; }
   /// \return a reference to a GlobalHandler singleton instance. The reference
-  /// is valid as long as runtime library is loaded (i.e. untill `DllMain` or
+  /// is valid as long as runtime library is loaded (i.e. until `DllMain` or
   /// `__attribute__((destructor))` is called).
   static GlobalHandler &instance() { return *RTGlobalObjHandler; }
 
@@ -75,9 +68,6 @@ public:
   ods_target_list &getOneapiDeviceSelectorTargets(const std::string &InitValue);
   XPTIRegistry &getXPTIRegistry();
   ThreadPool &getHostTaskThreadPool();
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  KernelNameBasedCacheT *createKernelNameBasedCache();
-#endif
   static void registerStaticVarShutdownHandler();
 
   bool isOkToDefer() const;
@@ -133,9 +123,6 @@ private:
   InstWithLock<XPTIRegistry> MXPTIRegistry;
   // Thread pool for host task and event callbacks execution
   InstWithLock<ThreadPool> MHostTaskThreadPool;
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  InstWithLock<std::deque<DeviceKernelInfo>> MDeviceKernelInfoStorage;
-#endif
 
   static GlobalHandler *RTGlobalObjHandler;
 };

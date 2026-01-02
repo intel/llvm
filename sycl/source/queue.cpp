@@ -92,7 +92,8 @@ queue::ext_oneapi_get_graph() const {
 
   return sycl::detail::createSyclObjFromImpl<
       ext::oneapi::experimental::command_graph<
-          ext::oneapi::experimental::graph_state::modifiable>>(Graph);
+          ext::oneapi::experimental::graph_state::modifiable>>(
+      std::move(Graph));
 }
 
 void queue::throw_asynchronous() { impl->throw_asynchronous(); }
@@ -163,17 +164,17 @@ event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                           /*CallerNeedsEvent=*/true);
 }
 
-event queue::submit_with_event_impl(
-    const detail::type_erased_cgfo_ty &CGH,
-    const detail::v1::SubmissionInfo &SubmitInfo,
-    const detail::code_location &CodeLoc, bool IsTopCodeLoc) const {
+event queue::submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
+                                    const detail::SubmissionInfo &SubmitInfo,
+                                    const detail::code_location &CodeLoc,
+                                    bool IsTopCodeLoc) const {
   return impl->submit_with_event(CGH, SubmitInfo, CodeLoc, IsTopCodeLoc);
 }
 
-void queue::submit_without_event_impl(
-    const detail::type_erased_cgfo_ty &CGH,
-    const detail::v1::SubmissionInfo &SubmitInfo,
-    const detail::code_location &CodeLoc, bool IsTopCodeLoc) const {
+void queue::submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
+                                      const detail::SubmissionInfo &SubmitInfo,
+                                      const detail::code_location &CodeLoc,
+                                      bool IsTopCodeLoc) const {
   impl->submit_without_event(CGH, SubmitInfo, CodeLoc, IsTopCodeLoc);
 }
 
@@ -277,16 +278,6 @@ event queue::memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
                                       /*CallerNeedsEvent=*/true);
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-bool queue::device_has(aspect Aspect) const {
-  // avoid creating sycl object from impl
-  return impl->getDeviceImpl().has(Aspect);
-}
-
-// TODO(#15184) Remove this function in the next ABI-breaking window.
-bool queue::ext_codeplay_supports_fusion() const { return false; }
-#endif
-
 sycl::detail::optional<event> queue::ext_oneapi_get_last_event_impl() const {
   if (!is_in_order())
     throw sycl::exception(
@@ -328,6 +319,28 @@ void submit_kernel_direct_without_event_impl(
   getSyclObjImpl(Queue)->submit_kernel_direct_without_event(
       RangeView, HostKernel, DeviceKernelInfo, DepEvents, Props, CodeLoc,
       IsTopCodeLoc);
+}
+
+event submit_graph_direct_with_event_impl(
+    const queue &Queue,
+    ext::oneapi::experimental::command_graph<
+        ext::oneapi::experimental::graph_state::executable> &G,
+    sycl::span<const event> DepEvents, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return getSyclObjImpl(Queue)->submit_graph_direct_with_event(
+      getSyclObjImpl(G), DepEvents, TlsCodeLocCapture.query(),
+      TlsCodeLocCapture.isToplevel());
+}
+
+void submit_graph_direct_without_event_impl(
+    const queue &Queue,
+    ext::oneapi::experimental::command_graph<
+        ext::oneapi::experimental::graph_state::executable> &G,
+    sycl::span<const event> DepEvents, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  getSyclObjImpl(Queue)->submit_graph_direct_without_event(
+      getSyclObjImpl(G), DepEvents, TlsCodeLocCapture.query(),
+      TlsCodeLocCapture.isToplevel());
 }
 
 } // namespace _V1

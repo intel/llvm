@@ -188,7 +188,6 @@ RTDeviceBinaryImage::RTDeviceBinaryImage(sycl_device_binary Bin) {
   SpecConstIDMap.init(Bin, __SYCL_PROPERTY_SET_SPEC_CONST_MAP);
   SpecConstDefaultValuesMap.init(
       Bin, __SYCL_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP);
-  DeviceLibReqMask.init(Bin, __SYCL_PROPERTY_SET_DEVICELIB_REQ_MASK);
   DeviceLibMetadata.init(Bin, __SYCL_PROPERTY_SET_DEVICELIB_METADATA);
   KernelParamOptInfo.init(Bin, __SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO);
   ImplicitLocalArg.init(Bin, __SYCL_PROPERTY_SET_SYCL_IMPLICIT_LOCAL_ARG);
@@ -203,7 +202,6 @@ RTDeviceBinaryImage::RTDeviceBinaryImage(sycl_device_binary Bin) {
   ImportedSymbols.init(Bin, __SYCL_PROPERTY_SET_SYCL_IMPORTED_SYMBOLS);
   DeviceGlobals.init(Bin, __SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS);
   DeviceRequirements.init(Bin, __SYCL_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS);
-  HostPipes.init(Bin, __SYCL_PROPERTY_SET_SYCL_HOST_PIPES);
   VirtualFunctions.init(Bin, __SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS);
   RegisteredKernels.init(Bin, __SYCL_PROPERTY_SET_SYCL_REGISTERED_KERNELS);
   Misc.init(Bin, __SYCL_PROPERTY_SET_SYCL_MISC_PROP);
@@ -218,10 +216,6 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage()
   Bin->Kind = SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
   Bin->CompileOptions = "";
   Bin->LinkOptions = "";
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  Bin->ManifestStart = nullptr;
-  Bin->ManifestEnd = nullptr;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   Bin->BinaryStart = nullptr;
   Bin->BinaryEnd = nullptr;
   Bin->EntriesBegin = nullptr;
@@ -524,8 +518,6 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
       naiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
         return Img.getDeviceGlobals();
       });
-  auto MergedHostPipes = naiveMergeBinaryProperties(
-      Imgs, [](const RTDeviceBinaryImage &Img) { return Img.getHostPipes(); });
   auto MergedVirtualFunctions =
       naiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
         return Img.getVirtualFunctions();
@@ -547,18 +539,14 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
         return Img.getRegisteredKernels();
       });
 
-  std::array<const std::vector<sycl_device_binary_property> *, 10> MergedVecs{
+  std::array<const std::vector<sycl_device_binary_property> *, 9> MergedVecs{
       &MergedSpecConstants,      &MergedSpecConstantsDefaultValues,
       &MergedKernelParamOptInfo, &MergedDeviceGlobals,
-      &MergedHostPipes,          &MergedVirtualFunctions,
-      &MergedImplicitLocalArg,   &MergedKernelNames,
-      &MergedExportedSymbols,    &MergedRegisteredKernels};
+      &MergedVirtualFunctions,   &MergedImplicitLocalArg,
+      &MergedKernelNames,        &MergedExportedSymbols,
+      &MergedRegisteredKernels};
 
   // Exclusive merges.
-  auto MergedDeviceLibReqMask =
-      exclusiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
-        return Img.getDeviceLibReqMask();
-      });
   auto MergedProgramMetadata =
       exclusiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
         return Img.getProgramMetadata();
@@ -575,9 +563,8 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
 
   std::array<const std::unordered_map<std::string_view,
                                       const sycl_device_binary_property> *,
-             4>
-      MergedMaps{&MergedDeviceLibReqMask, &MergedProgramMetadata,
-                 &MergedImportedSymbols, &MergedMisc};
+             3>
+      MergedMaps{&MergedProgramMetadata, &MergedImportedSymbols, &MergedMisc};
 
   // When merging exported and imported, the exported symbols may cancel out
   // some of the imported symbols.
@@ -673,14 +660,12 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
                     SpecConstDefaultValuesMap);
   CopyPropertiesVec(MergedKernelParamOptInfo, KernelParamOptInfo);
   CopyPropertiesVec(MergedDeviceGlobals, DeviceGlobals);
-  CopyPropertiesVec(MergedHostPipes, HostPipes);
   CopyPropertiesVec(MergedVirtualFunctions, VirtualFunctions);
   CopyPropertiesVec(MergedImplicitLocalArg, ImplicitLocalArg);
   CopyPropertiesVec(MergedKernelNames, KernelNames);
   CopyPropertiesVec(MergedExportedSymbols, ExportedSymbols);
   CopyPropertiesVec(MergedRegisteredKernels, RegisteredKernels);
 
-  CopyPropertiesMap(MergedDeviceLibReqMask, DeviceLibReqMask);
   CopyPropertiesMap(MergedProgramMetadata, ProgramMetadata);
   CopyPropertiesMap(MergedImportedSymbols, ImportedSymbols);
   CopyPropertiesMap(MergedMisc, Misc);

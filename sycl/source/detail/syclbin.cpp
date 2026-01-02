@@ -143,8 +143,6 @@ const char *getDeviceTargetSpecFromTriple(std::string_view Triple) {
     return __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64;
   if (Target == __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN)
     return __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN;
-  if (Target == __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA)
-    return __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA;
   if (Target == __SYCL_DEVICE_BINARY_TARGET_NVPTX64)
     return __SYCL_DEVICE_BINARY_TARGET_NVPTX64;
   if (Target == __SYCL_DEVICE_BINARY_TARGET_AMDGCN)
@@ -310,10 +308,6 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
           __SYCL_DEVICE_BINARY_TARGET_SPIRV64; // TODO: Determine.
       DeviceBinary.CompileOptions = nullptr;
       DeviceBinary.LinkOptions = nullptr;
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-      DeviceBinary.ManifestStart = nullptr;
-      DeviceBinary.ManifestEnd = nullptr;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
       DeviceBinary.BinaryStart =
           reinterpret_cast<const unsigned char *>(IRM.RawIRBytes.data());
       DeviceBinary.BinaryEnd = reinterpret_cast<const unsigned char *>(
@@ -347,10 +341,6 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
           getDeviceTargetSpecFromTriple(TargetTriple);
       DeviceBinary.CompileOptions = nullptr;
       DeviceBinary.LinkOptions = nullptr;
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-      DeviceBinary.ManifestStart = nullptr;
-      DeviceBinary.ManifestEnd = nullptr;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
       DeviceBinary.BinaryStart = reinterpret_cast<const unsigned char *>(
           NDCI.RawDeviceCodeImageBytes.data());
       DeviceBinary.BinaryEnd = reinterpret_cast<const unsigned char *>(

@@ -47,16 +47,12 @@ int main() {
   check<buffer<int>, 40, 8>();
   check<context, 16, 8>();
   check<cpu_selector, 8, 8>();
-  check<device, 16, 8>();
+  check<device, 8, 8>();
   check<device_event, 8, 8>();
   check<device_selector, 8, 8>();
   check<event, 16, 8>();
   check<gpu_selector, 8, 8>();
-#ifdef _MSC_VER
-  check<handler, 168, 8>();
-#else
   check<handler, 176, 8>();
-#endif
   check<image<1>, 16, 8>();
   check<kernel, 16, 8>();
   check<detail::nd_range_view, 32, 8>();

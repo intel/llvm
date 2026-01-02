@@ -94,3 +94,37 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t /*hQueue*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
+
+UR_APIEXPORT ur_result_t
+urQueueBeginGraphCaptureExp(ur_queue_handle_t /* hQueue */) {
+
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t urQueueBeginCaptureIntoGraphExp(
+    ur_queue_handle_t /* hQueue */, ur_exp_graph_handle_t /* hGraph */) {
+
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t urQueueEndGraphCaptureExp(
+    ur_queue_handle_t /* hQueue */, ur_exp_graph_handle_t * /* phGraph */) {
+
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t
+urEnqueueGraphExp(ur_queue_handle_t /* hQueue */,
+                  ur_exp_executable_graph_handle_t /* hGraph */,
+                  uint32_t /* numEventsInWaitList */,
+                  const ur_event_handle_t * /* phEventWaitList */,
+                  ur_event_handle_t * /* phEvent */) {
+
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t urQueueIsGraphCaptureEnabledExp(
+    ur_queue_handle_t /* hQueue */, bool * /* hResult */) {
+
+  DIE_NO_IMPLEMENTATION;
+}

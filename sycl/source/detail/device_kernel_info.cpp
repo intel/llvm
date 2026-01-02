@@ -12,34 +12,9 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-DeviceKernelInfo::DeviceKernelInfo(const CompileTimeKernelInfoTy &Info)
-    : CompileTimeKernelInfoTy(Info)
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-      ,
-      Name(Info.Name.data())
-#endif
-{
-  init(Name.data());
-}
-
-void DeviceKernelInfo::init(KernelNameStrRefT KernelName) {
-  auto &PM = detail::ProgramManager::getInstance();
-  MImplicitLocalArgPos = PM.kernelImplicitLocalArgPos(KernelName);
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  MInitialized.store(true);
-#endif
-}
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-void DeviceKernelInfo::initIfEmpty(const CompileTimeKernelInfoTy &Info) {
-  if (MInitialized.load())
-    return;
-
-  CompileTimeKernelInfoTy::operator=(Info);
-  Name = Info.Name.data();
-  init(Name.data());
-}
-#endif
+DeviceKernelInfo::DeviceKernelInfo(const CompileTimeKernelInfoTy &Info,
+                                   std::optional<sycl::kernel_id> KernelID)
+    : CompileTimeKernelInfoTy{Info}, MKernelID{std::move(KernelID)} {}
 
 template <typename OtherTy>
 inline constexpr bool operator==(const CompileTimeKernelInfoTy &LHS,
@@ -65,14 +40,14 @@ void DeviceKernelInfo::setCompileTimeInfoIfNeeded(
     const CompileTimeKernelInfoTy &Info) {
   if (!isCompileTimeInfoSet())
     CompileTimeKernelInfoTy::operator=(Info);
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  // In case of 6.3 compatibility mode the KernelSize is not passed to the
-  // runtime. So, it will always be 0 and this assert fails.
   assert(isCompileTimeInfoSet());
-#endif
   assert(Info == *this);
 }
 
+void DeviceKernelInfo::setImplicitLocalArgPos(int Pos) {
+  assert(!MImplicitLocalArgPos.has_value() || MImplicitLocalArgPos == Pos);
+  MImplicitLocalArgPos = Pos;
+}
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

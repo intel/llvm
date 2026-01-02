@@ -451,6 +451,31 @@ public:
       uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
       ur_event_handle_t *phEvent) override;
 
+  ur_result_t queueBeginGraphCapteExp() override {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  ur_result_t
+  queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t /* hGraph */) override {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  ur_result_t
+  queueEndGraphCapteExp(ur_exp_graph_handle_t * /* phGraph */) override {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  ur_result_t enqueueGraphExp(ur_exp_executable_graph_handle_t /* hGraph */,
+                              uint32_t /* numEventsInWaitList */,
+                              const ur_event_handle_t * /* phEventWaitList */,
+                              ur_event_handle_t * /* phEvent */) override {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  ur_result_t queueIsGraphCapteEnabledExp(bool * /* pResult */) override {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
   ur::RefCount RefCount;
 };
 

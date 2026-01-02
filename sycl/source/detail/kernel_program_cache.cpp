@@ -14,7 +14,7 @@ inline namespace _V1 {
 namespace detail {
 
 void KernelProgramCache::traceKernelImpl(const char *Msg,
-                                         KernelNameStrRefT KernelName,
+                                         std::string_view KernelName,
                                          bool IsFastKernelCache) {
   std::string Identifier =
       "[IsFastCache: " + std::to_string(IsFastKernelCache) +

@@ -21,8 +21,10 @@ using _iml_half_internal = _Float16;
 using _iml_half_internal = uint16_t;
 #endif
 
+using _iml_bf16_internal = uint16_t;
+
 #include <sycl/bit_cast.hpp>
-#include <sycl/builtins.hpp>
+#include <sycl/detail/defines_elementary.hpp>
 #include <sycl/ext/intel/math/imf_fp_conversions.hpp>
 #include <sycl/ext/intel/math/imf_half_trivial.hpp>
 #include <sycl/ext/intel/math/imf_integer_utils.hpp>
@@ -32,35 +34,6 @@ using _iml_half_internal = uint16_t;
 #include <sycl/half_type.hpp>
 #include <type_traits>
 
-extern "C" {
-float __imf_saturatef(float);
-float __imf_copysignf(float, float);
-double __imf_copysign(double, double);
-_iml_half_internal __imf_copysignf16(_iml_half_internal, _iml_half_internal);
-float __imf_ceilf(float);
-double __imf_ceil(double);
-_iml_half_internal __imf_ceilf16(_iml_half_internal);
-float __imf_floorf(float);
-double __imf_floor(double);
-_iml_half_internal __imf_floorf16(_iml_half_internal);
-float __imf_rintf(float);
-double __imf_rint(double);
-_iml_half_internal __imf_invf16(_iml_half_internal);
-float __imf_invf(float);
-double __imf_inv(double);
-_iml_half_internal __imf_rintf16(_iml_half_internal);
-float __imf_sqrtf(float);
-double __imf_sqrt(double);
-_iml_half_internal __imf_sqrtf16(_iml_half_internal);
-float __imf_rsqrtf(float);
-double __imf_rsqrt(double);
-_iml_half_internal __imf_rsqrtf16(_iml_half_internal);
-float __imf_truncf(float);
-double __imf_trunc(double);
-_iml_half_internal __imf_truncf16(_iml_half_internal);
-double __imf_rcp64h(double);
-};
-
 namespace sycl {
 inline namespace _V1 {
 namespace ext::intel::math {
@@ -68,9 +41,28 @@ namespace ext::intel::math {
 static_assert(sizeof(sycl::half) == sizeof(_iml_half_internal),
               "sycl::half is not compatible with _iml_half_internal.");
 
+/// --------------------------------------------------------------------------
+/// saturate(x) function
+/// Clamps the float input to [+0.0, 1.0].
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL float __imf_saturatef(float);
+}
+
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, float>, float> saturate(Tp x) {
   return __imf_saturatef(x);
+}
+
+/// --------------------------------------------------------------------------
+/// copysign(x) function
+/// Creates value with given magnitude, copying sign of second input.
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL float __imf_copysignf(float, float);
+__DPCPP_SYCL_EXTERNAL double __imf_copysign(double, double);
+__DPCPP_SYCL_EXTERNAL
+_iml_half_internal __imf_copysignf16(_iml_half_internal, _iml_half_internal);
 }
 
 template <typename Tp>
@@ -89,6 +81,16 @@ std::enable_if_t<std::is_same_v<Tp, sycl::half>, sycl::half> copysign(Tp x,
   _iml_half_internal xi = sycl::bit_cast<_iml_half_internal>(x);
   _iml_half_internal yi = sycl::bit_cast<_iml_half_internal>(y);
   return sycl::bit_cast<sycl::half>(__imf_copysignf16(xi, yi));
+}
+
+/// --------------------------------------------------------------------------
+/// ceil(x) function
+/// Returns ceiling value of the input.
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL float __imf_ceilf(float);
+__DPCPP_SYCL_EXTERNAL double __imf_ceil(double);
+__DPCPP_SYCL_EXTERNAL _iml_half_internal __imf_ceilf16(_iml_half_internal);
 }
 
 template <typename Tp>
@@ -112,6 +114,16 @@ std::enable_if_t<std::is_same_v<Tp, sycl::half2>, sycl::half2> ceil(Tp x) {
   return sycl::half2{ceil(x.s0()), ceil(x.s1())};
 }
 
+/// --------------------------------------------------------------------------
+/// floor(x) function
+/// Returns the largest integral value less than or equal to input.
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL float __imf_floorf(float);
+__DPCPP_SYCL_EXTERNAL double __imf_floor(double);
+__DPCPP_SYCL_EXTERNAL _iml_half_internal __imf_floorf16(_iml_half_internal);
+}
+
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, float>, float> floor(Tp x) {
   return __imf_floorf(x);
@@ -131,6 +143,16 @@ std::enable_if_t<std::is_same_v<Tp, sycl::half>, sycl::half> floor(Tp x) {
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, sycl::half2>, sycl::half2> floor(Tp x) {
   return sycl::half2{floor(x.s0()), floor(x.s1())};
+}
+
+/// --------------------------------------------------------------------------
+/// inv(x) function
+/// Returns 1.0 / x.
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL float __imf_invf(float);
+__DPCPP_SYCL_EXTERNAL double __imf_inv(double);
+__DPCPP_SYCL_EXTERNAL _iml_half_internal __imf_invf16(_iml_half_internal);
 }
 
 template <typename Tp>
@@ -154,6 +176,16 @@ std::enable_if_t<std::is_same_v<Tp, sycl::half2>, sycl::half2> inv(Tp x) {
   return sycl::half2{inv(x.s0()), inv(x.s1())};
 }
 
+/// --------------------------------------------------------------------------
+/// rint(x) function
+/// Rounds a floating-point value to the nearest integer value.
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL float __imf_rintf(float);
+__DPCPP_SYCL_EXTERNAL double __imf_rint(double);
+__DPCPP_SYCL_EXTERNAL _iml_half_internal __imf_rintf16(_iml_half_internal);
+}
+
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, float>, float> rint(Tp x) {
   return __imf_rintf(x);
@@ -173,6 +205,16 @@ std::enable_if_t<std::is_same_v<Tp, sycl::half>, sycl::half> rint(Tp x) {
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, sycl::half2>, sycl::half2> rint(Tp x) {
   return sycl::half2{rint(x.s0()), rint(x.s1())};
+}
+
+/// --------------------------------------------------------------------------
+/// sqrt(x) function
+/// Returns square root of input.
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL float __imf_sqrtf(float);
+__DPCPP_SYCL_EXTERNAL double __imf_sqrt(double);
+__DPCPP_SYCL_EXTERNAL _iml_half_internal __imf_sqrtf16(_iml_half_internal);
 }
 
 template <typename Tp>
@@ -196,6 +238,16 @@ std::enable_if_t<std::is_same_v<Tp, sycl::half2>, sycl::half2> sqrt(Tp x) {
   return sycl::half2{sqrt(x.s0()), sqrt(x.s1())};
 }
 
+/// --------------------------------------------------------------------------
+/// rsqrt(x) function
+/// Returns 1.0 / sqrt(x).
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL float __imf_rsqrtf(float);
+__DPCPP_SYCL_EXTERNAL double __imf_rsqrt(double);
+__DPCPP_SYCL_EXTERNAL _iml_half_internal __imf_rsqrtf16(_iml_half_internal);
+}
+
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, float>, float> rsqrt(Tp x) {
   return __imf_rsqrtf(x);
@@ -215,6 +267,16 @@ std::enable_if_t<std::is_same_v<Tp, sycl::half>, sycl::half> rsqrt(Tp x) {
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, sycl::half2>, sycl::half2> rsqrt(Tp x) {
   return sycl::half2{rsqrt(x.s0()), rsqrt(x.s1())};
+}
+
+/// --------------------------------------------------------------------------
+/// trunc(x) function
+/// Truncates input to the integral part.
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL float __imf_truncf(float);
+__DPCPP_SYCL_EXTERNAL double __imf_trunc(double);
+__DPCPP_SYCL_EXTERNAL _iml_half_internal __imf_truncf16(_iml_half_internal);
 }
 
 template <typename Tp>
@@ -238,9 +300,45 @@ std::enable_if_t<std::is_same_v<Tp, sycl::half2>, sycl::half2> trunc(Tp x) {
   return sycl::half2{trunc(x.s0()), trunc(x.s1())};
 }
 
+/// --------------------------------------------------------------------------
+/// rcp64h(x) function
+/// Provides high 32 bits of 1.0 / x.
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL double __imf_rcp64h(double);
+}
+
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, double>, double> rcp64h(Tp x) {
   return __imf_rcp64h(x);
+}
+
+/// --------------------------------------------------------------------------
+/// sigmoid(x) function
+/// --------------------------------------------------------------------------
+extern "C" {
+__DPCPP_SYCL_EXTERNAL _iml_bf16_internal __imf_fsigmbf16(_iml_bf16_internal x);
+__DPCPP_SYCL_EXTERNAL _iml_half_internal __imf_fsigmf16(_iml_half_internal x);
+__DPCPP_SYCL_EXTERNAL float __imf_fsigmf(float x);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, sycl::half>, sycl::half> sigmoid(Tp x) {
+  _iml_half_internal xi = sycl::bit_cast<_iml_half_internal>(x);
+  return sycl::bit_cast<sycl::half>(__imf_fsigmf16(xi));
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, sycl::ext::oneapi::bfloat16>,
+                 sycl::ext::oneapi::bfloat16>
+sigmoid(Tp x) {
+  _iml_bf16_internal xi = sycl::bit_cast<_iml_bf16_internal>(x);
+  return sycl::bit_cast<sycl::ext::oneapi::bfloat16>(__imf_fsigmbf16(xi));
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, float>, float> sigmoid(Tp x) {
+  return __imf_fsigmf(x);
 }
 
 } // namespace ext::intel::math

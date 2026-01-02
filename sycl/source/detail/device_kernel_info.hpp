@@ -11,12 +11,13 @@
 #include <detail/kernel_arg_mask.hpp>
 #include <hash_table8.hpp>
 #include <sycl/detail/compile_time_kernel_info.hpp>
-#include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/ur.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 #include <mutex>
 #include <optional>
+#include <string_view>
 
 namespace sycl {
 inline namespace _V1 {
@@ -84,52 +85,38 @@ struct FastKernelSubcacheT {
 // information that is uniform between different submissions of the same
 // kernel). Pointers to instances of this class are stored in header function
 // templates as a static variable to avoid repeated runtime lookup overhead.
-// TODO Currently this class duplicates information fetched from the program
-// manager. Instead, we should merge all of this information
-// into this structure and get rid of the other KernelName -> * maps.
 class DeviceKernelInfo : public CompileTimeKernelInfoTy {
 public:
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Needs to own the kernel name string in non-preview builds since we pass it
-  // using a temporary string instead of a string view there.
-  std::string Name;
-#endif
+  DeviceKernelInfo(const CompileTimeKernelInfoTy &Info,
+                   std::optional<sycl::kernel_id> KernelID = std::nullopt);
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  DeviceKernelInfo() = default;
-#endif
-  DeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
-
-  void init(KernelNameStrRefT KernelName);
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Initialize default-created entry that has no data recorded:
-  void initIfEmpty(const CompileTimeKernelInfoTy &Info);
-#endif
+  void init(std::string_view KernelName);
   void setCompileTimeInfoIfNeeded(const CompileTimeKernelInfoTy &Info);
 
-  FastKernelSubcacheT &getKernelSubcache() {
-    assertInitialized();
-    return MFastKernelSubcache;
-  }
+  FastKernelSubcacheT &getKernelSubcache() { return MFastKernelSubcache; }
 
-  std::optional<int> getImplicitLocalArgPos() const {
-    assertInitialized();
+  const std::optional<int> &getImplicitLocalArgPos() const {
     return MImplicitLocalArgPos;
   }
 
-private:
-  void assertInitialized() const {
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    assert(MInitialized.load() && "Data needs to be initialized before use");
-#endif
+  const sycl::kernel_id &getKernelID() const {
+    // Expected to be called only for DeviceKernelInfo instances created by
+    // program manager (as opposed to allocated by sycl::kernel with
+    // origins other than SYCL offline compilation).
+    assert(MKernelID);
+    return *MKernelID;
   }
+
+  // Implicit local argument position is used only for some backends, so this
+  // function allows setting it as more images are added.
+  void setImplicitLocalArgPos(int Pos);
+
+private:
   bool isCompileTimeInfoSet() const { return KernelSize != 0; }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  std::atomic<bool> MInitialized = false;
-#endif
   FastKernelSubcacheT MFastKernelSubcache;
   std::optional<int> MImplicitLocalArgPos;
+  const std::optional<sycl::kernel_id> MKernelID;
 };
 
 } // namespace detail

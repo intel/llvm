@@ -411,7 +411,6 @@ private:
                               SmallString<128> &CrashDiagDir);
 
 public:
-
   /// Takes the path to a binary that's either in bin/ or lib/ and returns
   /// the path to clang's resource directory.
   static std::string GetResourcesPath(StringRef BinaryPath);

@@ -46,6 +46,10 @@ public:
   static int NumSyncPoints(const exec_graph_impl &Impl) {
     return Impl.MSyncPoints.size();
   }
+  static std::shared_ptr<sycl::detail::queue_impl>
+  GetQueueImpl(const exec_graph_impl &Impl) {
+    return Impl.MQueueImpl;
+  }
 };
 
 // Common Test fixture

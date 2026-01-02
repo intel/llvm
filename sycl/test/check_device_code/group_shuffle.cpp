@@ -56,24 +56,15 @@ SYCL_EXTERNAL void test_shuffle1(sycl::sub_group &sg, vec<bfloat16, 4> *buf,
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META29:![0-9]+]])
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP14_I]]), !noalias [[META26]]
 // CHECK-NEXT:    store i64 [[TMP0]], ptr [[AGG_TMP14_I]], align 8, !noalias [[META26]]
-// CHECK-NEXT:    br label [[ARRAYINIT_BODY_I_I_I:%.*]]
-// CHECK:       arrayinit.body.i.i.i:
-// CHECK-NEXT:    [[ARRAYINIT_CUR_IDX_I_I_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[ARRAYINIT_CUR_ADD_I_I_I:%.*]], [[ARRAYINIT_BODY_I_I_I]] ]
-// CHECK-NEXT:    [[ARRAYINIT_CUR_PTR_I_I_I:%.*]] = getelementptr inbounds i8, ptr [[REF_TMP]], i64 [[ARRAYINIT_CUR_IDX_I_I_I]]
-// CHECK-NEXT:    store i16 0, ptr [[ARRAYINIT_CUR_PTR_I_I_I]], align 2, !alias.scope [[META32:![0-9]+]]
-// CHECK-NEXT:    [[ARRAYINIT_CUR_ADD_I_I_I]] = add nuw nsw i64 [[ARRAYINIT_CUR_IDX_I_I_I]], 2
-// CHECK-NEXT:    [[ARRAYINIT_DONE_I_I_I:%.*]] = icmp eq i64 [[ARRAYINIT_CUR_ADD_I_I_I]], 8
-// CHECK-NEXT:    br i1 [[ARRAYINIT_DONE_I_I_I]], label [[FOR_COND_PREHEADER_I_I:%.*]], label [[ARRAYINIT_BODY_I_I_I]]
-// CHECK:       for.cond.preheader.i.i:
 // CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
 // CHECK:       for.cond.i.i:
-// CHECK-NEXT:    [[S_0_I_I:%.*]] = phi i32 [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ], [ 0, [[FOR_COND_PREHEADER_I_I]] ]
+// CHECK-NEXT:    [[S_0_I_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
 // CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp samesign ult i32 [[S_0_I_I]], 4
 // CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V117SELECT_FROM_GROUPINS0_9SUB_GROUPENS0_6MARRAYINS0_3EXT6ONEAPI8BFLOAT16ELM4EEEEENST9ENABLE_IFIXAAOOSR3STDE9IS_SAME_VINST5DECAYIT_E4TYPEES2_ESR4SYCL3EXT6ONEAPI12EXPERIMENTALE27IS_USER_CONSTRUCTED_GROUP_VISC_EOOSR3STDE23IS_TRIVIALLY_COPYABLE_VIT0_ESR6DETAIL6IS_VECISD_EE5VALUEESD_E4TYPEESA_SD_NSA_7ID_TYPEE_EXIT:%.*]]
 // CHECK:       for.body.i.i:
 // CHECK-NEXT:    [[CONV_I_I:%.*]] = zext nneg i32 [[S_0_I_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds %"class.sycl::_V1::ext::oneapi::bfloat16", ptr [[AGG_TMP14_I]], i64 [[CONV_I_I]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load i16, ptr [[ARRAYIDX_I_I_I]], align 2, !tbaa [[TBAA17]], !noalias [[META32]]
+// CHECK-NEXT:    [[TMP1:%.*]] = load i16, ptr [[ARRAYIDX_I_I_I]], align 2, !tbaa [[TBAA17]], !noalias [[META32:![0-9]+]]
 // CHECK-NEXT:    [[CALL3_I_I_I_I:%.*]] = tail call spir_func noundef zeroext i16 @_Z28__spirv_SubgroupShuffleINTELtj(i16 noundef zeroext [[TMP1]], i32 noundef 1) #[[ATTR6]], !noalias [[META33:![0-9]+]]
 // CHECK-NEXT:    [[ARRAYIDX_I13_I_I:%.*]] = getelementptr inbounds %"class.sycl::_V1::ext::oneapi::bfloat16", ptr [[REF_TMP]], i64 [[CONV_I_I]]
 // CHECK-NEXT:    store i16 [[CALL3_I_I_I_I]], ptr [[ARRAYIDX_I13_I_I]], align 2, !tbaa [[TBAA17]], !alias.scope [[META32]]
@@ -102,24 +93,15 @@ SYCL_EXTERNAL void test_shuffle2(sycl::sub_group &sg, marray<bfloat16, 4> *buf,
 // CHECK-NEXT:    call void @llvm.memcpy.p0.p4.i64(ptr noundef nonnull align 8 dereferenceable(10) [[AGG_TMP14_I]], ptr addrspace(4) noundef align 2 dereferenceable(10) [[ARRAYIDX]], i64 10, i1 false)
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META37]])
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META40:![0-9]+]])
-// CHECK-NEXT:    br label [[ARRAYINIT_BODY_I_I_I:%.*]]
-// CHECK:       arrayinit.body.i.i.i:
-// CHECK-NEXT:    [[ARRAYINIT_CUR_IDX_I_I_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[ARRAYINIT_CUR_ADD_I_I_I:%.*]], [[ARRAYINIT_BODY_I_I_I]] ]
-// CHECK-NEXT:    [[ARRAYINIT_CUR_PTR_I_I_I:%.*]] = getelementptr inbounds i8, ptr [[REF_TMP]], i64 [[ARRAYINIT_CUR_IDX_I_I_I]]
-// CHECK-NEXT:    store i16 0, ptr [[ARRAYINIT_CUR_PTR_I_I_I]], align 2, !alias.scope [[META43:![0-9]+]]
-// CHECK-NEXT:    [[ARRAYINIT_CUR_ADD_I_I_I]] = add nuw nsw i64 [[ARRAYINIT_CUR_IDX_I_I_I]], 2
-// CHECK-NEXT:    [[ARRAYINIT_DONE_I_I_I:%.*]] = icmp eq i64 [[ARRAYINIT_CUR_ADD_I_I_I]], 10
-// CHECK-NEXT:    br i1 [[ARRAYINIT_DONE_I_I_I]], label [[FOR_COND_PREHEADER_I_I:%.*]], label [[ARRAYINIT_BODY_I_I_I]]
-// CHECK:       for.cond.preheader.i.i:
 // CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
 // CHECK:       for.cond.i.i:
-// CHECK-NEXT:    [[S_0_I_I:%.*]] = phi i32 [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ], [ 0, [[FOR_COND_PREHEADER_I_I]] ]
+// CHECK-NEXT:    [[S_0_I_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
 // CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp samesign ult i32 [[S_0_I_I]], 5
 // CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V117SELECT_FROM_GROUPINS0_9SUB_GROUPENS0_6MARRAYINS0_3EXT6ONEAPI8BFLOAT16ELM5EEEEENST9ENABLE_IFIXAAOOSR3STDE9IS_SAME_VINST5DECAYIT_E4TYPEES2_ESR4SYCL3EXT6ONEAPI12EXPERIMENTALE27IS_USER_CONSTRUCTED_GROUP_VISC_EOOSR3STDE23IS_TRIVIALLY_COPYABLE_VIT0_ESR6DETAIL6IS_VECISD_EE5VALUEESD_E4TYPEESA_SD_NSA_7ID_TYPEE_EXIT:%.*]]
 // CHECK:       for.body.i.i:
 // CHECK-NEXT:    [[CONV_I_I:%.*]] = zext nneg i32 [[S_0_I_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds %"class.sycl::_V1::ext::oneapi::bfloat16", ptr [[AGG_TMP14_I]], i64 [[CONV_I_I]]
-// CHECK-NEXT:    [[TMP0:%.*]] = load i16, ptr [[ARRAYIDX_I_I_I]], align 2, !tbaa [[TBAA17]], !noalias [[META43]]
+// CHECK-NEXT:    [[TMP0:%.*]] = load i16, ptr [[ARRAYIDX_I_I_I]], align 2, !tbaa [[TBAA17]], !noalias [[META43:![0-9]+]]
 // CHECK-NEXT:    [[CALL3_I_I_I_I:%.*]] = tail call spir_func noundef zeroext i16 @_Z28__spirv_SubgroupShuffleINTELtj(i16 noundef zeroext [[TMP0]], i32 noundef 1) #[[ATTR6]], !noalias [[META44:![0-9]+]]
 // CHECK-NEXT:    [[ARRAYIDX_I13_I_I:%.*]] = getelementptr inbounds %"class.sycl::_V1::ext::oneapi::bfloat16", ptr [[REF_TMP]], i64 [[CONV_I_I]]
 // CHECK-NEXT:    store i16 [[CALL3_I_I_I_I]], ptr [[ARRAYIDX_I13_I_I]], align 2, !tbaa [[TBAA17]], !alias.scope [[META43]]

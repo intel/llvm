@@ -890,9 +890,6 @@ The SPIR-V specific C++ enumerators and classes are declared in the file:
 The SPIR-V specific C++ function declarations are in the file:
 `sycl/include/CL/__spirv/spirv_ops.hpp`.
 
-The SPIR-V specific functions are implemented in for the SYCL host device here:
-`sycl/source/spirv_ops.cpp`.
-
 ### Address spaces handling
 
 SYCL specification uses C++ classes to represent pointers to disjoint memory
@@ -986,8 +983,6 @@ space attributes in SYCL mode:
 | Address space attribute | SYCL address_space enumeration |
 |-------------------------|--------------------------------|
 | `__attribute__((opencl_global))` | global_space, constant_space |
-| `__attribute__((opencl_global_host))` | ext_intel_global_host_space |
-| `__attribute__((opencl_global_device))` | ext_intel_global_device_space |
 | `__attribute__((opencl_local))` | local_space |
 | `__attribute__((opencl_private))` | private_space |
 | `__attribute__((opencl_constant))` | N/A

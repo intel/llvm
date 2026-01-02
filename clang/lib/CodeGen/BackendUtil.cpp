@@ -11,6 +11,7 @@
 #include "LinkInModulesPass.h"
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/DiagnosticFrontend.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/TargetOptions.h"
 #include "clang/Basic/Targets/SPIR.h"
@@ -523,6 +524,36 @@ static bool initTargetOptions(const CompilerInstance &CI,
   Options.JMCInstrument = CodeGenOpts.JMCInstrument;
   Options.XCOFFReadOnlyPointers = CodeGenOpts.XCOFFReadOnlyPointers;
 
+  switch (CodeGenOpts.getVecLib()) {
+  case llvm::driver::VectorLibrary::NoLibrary:
+    Options.VecLib = llvm::VectorLibrary::NoLibrary;
+    break;
+  case llvm::driver::VectorLibrary::Accelerate:
+    Options.VecLib = llvm::VectorLibrary::Accelerate;
+    break;
+  case llvm::driver::VectorLibrary::Darwin_libsystem_m:
+    Options.VecLib = llvm::VectorLibrary::DarwinLibSystemM;
+    break;
+  case llvm::driver::VectorLibrary::LIBMVEC:
+    Options.VecLib = llvm::VectorLibrary::LIBMVEC;
+    break;
+  case llvm::driver::VectorLibrary::MASSV:
+    Options.VecLib = llvm::VectorLibrary::MASSV;
+    break;
+  case llvm::driver::VectorLibrary::SVML:
+    Options.VecLib = llvm::VectorLibrary::SVML;
+    break;
+  case llvm::driver::VectorLibrary::SLEEF:
+    Options.VecLib = llvm::VectorLibrary::SLEEFGNUABI;
+    break;
+  case llvm::driver::VectorLibrary::ArmPL:
+    Options.VecLib = llvm::VectorLibrary::ArmPL;
+    break;
+  case llvm::driver::VectorLibrary::AMDLIBM:
+    Options.VecLib = llvm::VectorLibrary::AMDLIBM;
+    break;
+  }
+
   switch (CodeGenOpts.getSwiftAsyncFramePointer()) {
   case CodeGenOptions::SwiftAsyncFramePointerKind::Auto:
     Options.SwiftAsyncFramePointer =
@@ -626,6 +657,7 @@ static void setCommandLineOpts(const CodeGenOptions &CodeGenOpts,
     BackendArgs.push_back("-limit-float-precision");
     BackendArgs.push_back(CodeGenOpts.LimitFloatPrecision.c_str());
   }
+
   // Check for the default "clang" invocation that won't set any cl::opt values.
   // Skip trying to parse the command line invocation to avoid the issues
   // described below.
@@ -1093,7 +1125,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     // configure the pipeline.
     OptimizationLevel Level = mapToLevel(CodeGenOpts);
 
-    if (LangOpts.SYCLIsDevice)
+    if (LangOpts.SYCLIsDevice) {
       PB.registerPipelineStartEPCallback([&](ModulePassManager &MPM,
                                              OptimizationLevel Level) {
         MPM.addPass(SYCLVirtualFunctionsAnalysisPass());
@@ -1107,17 +1139,23 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
             /*FP64ConvEmu=*/CodeGenOpts.FP64ConvEmu,
             /*ExcludeAspects=*/{"fp64"}));
         MPM.addPass(SYCLPropagateJointMatrixUsagePass());
-        // Lowers static/dynamic local memory builtin calls.
-        MPM.addPass(SYCLLowerWGLocalMemoryPass());
         // Compile-time properties pass must create standard metadata as early
         // as possible to make them available for other passes.
         MPM.addPass(CompileTimePropertiesPass());
       });
-    else if (LangOpts.SYCLIsHost && !LangOpts.SYCLESIMDBuildHostCode)
+      PB.registerOptimizerEarlyEPCallback(
+          [](ModulePassManager &MPM, OptimizationLevel, ThinOrFullLTOPhase) {
+            // Allocate static local memory in SYCL kernel scope for each
+            // allocation call. This pass must run after AlwaysInline pass due
+            // to current implementation restriction.
+            MPM.addPass(SYCLLowerWGLocalMemoryPass());
+          });
+    } else if (LangOpts.SYCLIsHost && !LangOpts.SYCLESIMDBuildHostCode) {
       PB.registerPipelineStartEPCallback(
           [&](ModulePassManager &MPM, OptimizationLevel Level) {
             MPM.addPass(ESIMDRemoveHostCodePass());
           });
+    }
 
     // Add the InferAddressSpaces and SYCLOptimizeBarriers passes for all
     // the SPIR[V] targets
@@ -1213,6 +1251,9 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       PB.registerPipelineStartEPCallback(
           [Options](ModulePassManager &MPM, OptimizationLevel Level) {
             MPM.addPass(InstrProfilingLoweringPass(*Options, false));
+            // The profiling pass adds SYCL device globals so we need to run
+            // the compile-time properties pass to update the metadata.
+            MPM.addPass(CompileTimePropertiesPass());
           });
 
     // TODO: Consider passing the MemoryProfileOutput to the pass builder via

@@ -30,6 +30,20 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
+platform_impl::platform_impl(ur_platform_handle_t APlatform,
+                             adapter_impl &Adapter)
+    : MPlatform(APlatform), MAdapter(&Adapter) {
+
+  // Find out backend of the platform
+  ur_backend_t UrBackend = UR_BACKEND_UNKNOWN;
+  Adapter.call_nocheck<UrApiKind::urPlatformGetInfo>(
+      APlatform, UR_PLATFORM_INFO_BACKEND, sizeof(ur_backend_t), &UrBackend,
+      nullptr);
+  MBackend = convertUrBackend(UrBackend);
+}
+
+platform_impl::~platform_impl() = default;
+
 platform_impl &
 platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
                                      adapter_impl &Adapter) {
@@ -267,7 +281,7 @@ device_impl &platform_impl::getOrMakeDeviceImpl(ur_device_handle_t UrDevice,
     return *Result;
 
   // Otherwise make the impl
-  MDevices.emplace_back(std::make_shared<device_impl>(
+  MDevices.emplace_back(std::make_unique<device_impl>(
       UrDevice, *this, device_impl::private_tag{}, idx));
 
   return *MDevices.back();
@@ -418,6 +432,9 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   if (DeviceType == info::device_type::host)
     return std::vector<device>{};
 
+  if (DeviceType == info::device_type::accelerator)
+    return std::vector<device>{};
+
   // For custom devices, UR has additional type enums.
   if (DeviceType == info::device_type::custom) {
     getDevicesImplHelper(UR_DEVICE_TYPE_CUSTOM, Res);
@@ -443,8 +460,6 @@ platform_impl::get_devices(info::device_type DeviceType) const {
       return UR_DEVICE_TYPE_GPU;
     case info::device_type::cpu:
       return UR_DEVICE_TYPE_CPU;
-    case info::device_type::accelerator:
-      return UR_DEVICE_TYPE_FPGA;
     case info::device_type::automatic:
       return UR_DEVICE_TYPE_DEFAULT;
     default:
@@ -572,7 +587,7 @@ bool platform_impl::has(aspect Aspect) const {
 }
 
 device_impl *platform_impl::getDeviceImplHelper(ur_device_handle_t UrDevice) {
-  for (const std::shared_ptr<device_impl> &Device : MDevices) {
+  for (const std::unique_ptr<device_impl> &Device : MDevices) {
     if (Device->getHandleRef() == UrDevice)
       return Device.get();
   }

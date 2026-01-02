@@ -1,11 +1,11 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// XFAIL: target-nvidia
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20908
+
 // This test verifies whether struct that contains either sycl::local_accesor or
 // sycl::accessor can be used with free function kernels extension.
-
-// XFAIL: *
-// XFAIL-TRACKER: CMPLRLLVM-67737
 
 #include <sycl/atomic_ref.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
@@ -14,13 +14,8 @@
 #include "helpers.hpp"
 
 namespace ns {
-// TODO: Need to remove explicit specified default template arguments for the
-// accessor when the relevant CMPLRLLVM-68249 issue is fixed.
 template <size_t Dims> struct StructWithAccessor {
-  sycl::accessor<int, Dims, sycl::access::mode::read_write,
-                 sycl::access::target::device,
-                 sycl::access::placeholder::false_t>
-      MAccessor;
+  sycl::accessor<int, Dims> MAccessor;
   int MValue;
 };
 
@@ -43,21 +38,10 @@ void nsNdRangeFreeFuncWithNestedStruct(NestedStructWithAccessor<Dims> Type) {
 }
 } // namespace ns
 
-// TODO: Need to remove explicit specified default template arguments for the
-// accessor when the relevant CMPLRLLVM-68249 issue is fixed.
 template <size_t Dims> struct StructWithMultipleAccessors {
-  sycl::accessor<int, Dims, sycl::access::mode::read,
-                 sycl::access::target::device,
-                 sycl::access::placeholder::false_t>
-      MInputAAcc;
-  sycl::accessor<int, Dims, sycl::access::mode::read,
-                 sycl::access::target::device,
-                 sycl::access::placeholder::false_t>
-      MInputBAcc;
-  sycl::accessor<int, Dims, sycl::access::mode::write,
-                 sycl::access::target::device,
-                 sycl::access::placeholder::false_t>
-      MResultAcc;
+  sycl::accessor<int, Dims> MInputAAcc;
+  sycl::accessor<int, Dims> MInputBAcc;
+  sycl::accessor<int, Dims> MResultAcc;
 };
 
 template <int Dims>
@@ -140,12 +124,9 @@ int runNdRangeTestMultipleParameters(sycl::queue &Queue, sycl::context &Context,
                                          NdRange.get_global_range());
     Queue.submit([&](sycl::handler &Handler) {
       Handler.set_args(StructWithMultipleAccessors<Dims>{
-          sycl::accessor<int, Dims, sycl::access::mode::read,
-                         sycl::access::target::device>{InputABuffer, Handler},
-          sycl::accessor<int, Dims, sycl::access::mode::read,
-                         sycl::access::target::device>{InputBBuffer, Handler},
-          sycl::accessor<int, Dims, sycl::access::mode::write>{ResultBuffer,
-                                                               Handler}});
+          sycl::accessor<int, Dims>{InputABuffer, Handler},
+          sycl::accessor<int, Dims>{InputBBuffer, Handler},
+          sycl::accessor<int, Dims>{ResultBuffer, Handler}});
       Handler.parallel_for(NdRange, UsedKernel);
     });
   }
@@ -160,16 +141,8 @@ constexpr size_t NUM_BINS = 4;
 constexpr size_t INPUT_SIZE = 1024;
 
 struct StructWithLocalAccessor {
-  // TODO: Need to remove explicit specified default template arguments for the
-  // accessor when the relevant CMPLRLLVM-68249 issue is fixed.
-  sycl::accessor<int, 1, sycl::access::mode::read_write,
-                 sycl::access::target::device,
-                 sycl::access::placeholder::false_t>
-      MInputAccessor;
-  sycl::accessor<int, 1, sycl::access::mode::read_write,
-                 sycl::access::target::device,
-                 sycl::access::placeholder::false_t>
-      MResultAccessor;
+  sycl::accessor<int, 1> MInputAccessor;
+  sycl::accessor<int, 1> MResultAccessor;
   sycl::local_accessor<int, 1> MLocalAccessor;
 };
 

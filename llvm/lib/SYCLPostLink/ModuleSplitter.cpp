@@ -27,7 +27,7 @@
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
-#include "llvm/SYCLLowerIR/SYCLDeviceLibReqMask.h"
+#include "llvm/SYCLLowerIR/SYCLDeviceLibBF16.h"
 #include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/SYCLLowerIR/SanitizerPostOptimizer.h"
@@ -1002,7 +1002,6 @@ std::string computeFuncCategoryForSplittingPerSource(const Function &F) {
   // Optional features
   // NOTE: Add more categories at the end of the list to avoid changing orders
   // of output files in existing tests.
-  computeFuncCategoryFromAttribute(F, "sycl-register-alloc-mode", Result);
   computeFuncCategoryFromAttribute(F, "sycl-grf-size", Result);
   computeFuncCategoryFromSYCLUsedAspects(F, Result);
   computeFuncCategoryFromIntegersListMetadata(F, "reqd_work_group_size",

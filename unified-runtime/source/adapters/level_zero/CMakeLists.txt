@@ -52,6 +52,7 @@ if(UR_BUILD_ADAPTER_L0)
         ${CMAKE_CURRENT_SOURCE_DIR}/sampler.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/image.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/image_common.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/graph.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/kernel_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/memory_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/mutable_helpers.cpp
@@ -167,6 +168,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_provider_normal.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_provider.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/graph.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/kernel.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/memory.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/lockable.hpp

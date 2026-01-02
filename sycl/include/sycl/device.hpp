@@ -57,15 +57,16 @@ enum class peer_access {
   access_supported = 0x0,
   atomics_supported = 0x1,
 };
-
+template <typename SYCLObjT> class weak_object;
 } // namespace ext::oneapi
 
 /// The SYCL device class encapsulates a single SYCL device on which kernels
 /// may be executed.
 ///
 /// \ingroup sycl_api
-class __SYCL_STANDALONE_DEBUG __SYCL_EXPORT device
-    : public detail::OwnerLessBase<device> {
+class __SYCL_STANDALONE_DEBUG __SYCL_EXPORT device {
+  friend sycl::detail::ImplUtils;
+
 public:
   /// Constructs a SYCL device instance using the default device.
   device();
@@ -91,6 +92,12 @@ public:
   /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
   /// takes a device and returns an int
   template <typename DeviceSelector,
+            // `device_impl` (used as a parameter in private ctor) is incomplete
+            // so would result in a error trying to instantiate
+            // `EnableIfSYCL2020DeviceSelectorInvocable` below. Filter it out
+            // before trying to do that.
+            typename = std::enable_if_t<
+                !std::is_same_v<DeviceSelector, detail::device_impl>>,
             typename =
                 detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>>
   explicit device(const DeviceSelector &deviceSelector)
@@ -367,27 +374,24 @@ public:
   /// calling platform::get_devices() on the platform that contains this device.
   size_t ext_oneapi_index_within_platform() const;
 
+  // Definitions are in `<sycl/ext/oneapi/weak_object.hpp>` to avoid circular
+  // dependencies:
+  inline bool ext_oneapi_owner_before(const device &Other) const noexcept;
+  inline bool ext_oneapi_owner_before(
+      const ext::oneapi::weak_object<device> &Other) const noexcept;
+
 // TODO: Remove this diagnostics when __SYCL_WARN_IMAGE_ASPECT is removed.
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #endif // defined(__clang__)
 
 private:
-  std::shared_ptr<detail::device_impl> impl;
-  device(std::shared_ptr<detail::device_impl> Impl) : impl(std::move(Impl)) {}
+  // `device_impl`s are owned by the parent platform, user-visible
+  // `sycl::device` is non-owning and thus very cheap.
+  detail::device_impl *impl = nullptr;
+  device(detail::device_impl &impl) : impl(&impl) {}
 
   ur_native_handle_t getNative() const;
-
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)

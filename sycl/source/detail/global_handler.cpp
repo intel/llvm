@@ -218,16 +218,6 @@ ThreadPool &GlobalHandler::getHostTaskThreadPool() {
   return TP;
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-KernelNameBasedCacheT *GlobalHandler::createKernelNameBasedCache() {
-  static std::deque<DeviceKernelInfo> &DeviceKernelInfoStorage =
-      getOrCreate(MDeviceKernelInfoStorage);
-  LockGuard LG{MDeviceKernelInfoStorage.Lock};
-  return reinterpret_cast<KernelNameBasedCacheT *>(
-      &DeviceKernelInfoStorage.emplace_back());
-}
-#endif
-
 void GlobalHandler::releaseDefaultContexts() {
   // Release shared-pointers to SYCL objects.
   // Note that on Windows the destruction of the default context
@@ -340,6 +330,22 @@ void shutdown_early(bool CanJoinThreads = true) {
     GlobalHandler::RTGlobalObjHandler->MHostTaskThreadPool.Inst.reset(nullptr);
   }
 
+  // Reset in-memory cache before releasing default contexts.
+  {
+    // Keeping the default context for platforms in the global cache to avoid
+    // shared_ptr based circular dependency between platform and context classes
+    std::lock_guard<std::mutex> Lock{
+        GlobalHandler::RTGlobalObjHandler
+            ->getPlatformToDefaultContextCacheMutex()};
+
+    auto &PlatformToDefaultContextCache =
+        GlobalHandler::RTGlobalObjHandler->getPlatformToDefaultContextCache();
+
+    for (auto &Pair : PlatformToDefaultContextCache) {
+      Pair.second->getKernelProgramCache().reset();
+    }
+  }
+
   // This releases OUR reference to the default context, but
   // other may yet have refs
   GlobalHandler::RTGlobalObjHandler->releaseDefaultContexts();
@@ -360,13 +366,6 @@ void shutdown_late() {
   GlobalHandler::RTGlobalObjHandler->MPlatformCache.Inst.reset(nullptr);
   GlobalHandler::RTGlobalObjHandler->MScheduler.Inst.reset(nullptr);
   GlobalHandler::RTGlobalObjHandler->MProgramManager.Inst.reset(nullptr);
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Kernel cache, which is part of device kernel info,
-  // stores handles to the adapter, so clear it before releasing adapters.
-  GlobalHandler::RTGlobalObjHandler->MDeviceKernelInfoStorage.Inst.reset(
-      nullptr);
-#endif
 
   // Clear the adapters and reset the instance if it was there.
   GlobalHandler::RTGlobalObjHandler->unloadAdapters();
