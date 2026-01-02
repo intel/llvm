@@ -9,6 +9,7 @@ import sys
 
 log = logging.getLogger("ur_benchmarks")
 
+
 def initialize_logger(verbose: bool = False, log_level: str = "info") -> None:
     """Configure the logger with the appropriate log level.
 

@@ -75,9 +75,6 @@ on:
       e2e_binaries_preview_artifact:
         type: string
         required: false
-      e2e_binaries_new_offload_model_artifact:
-        type: string
-        required: false
 
     outputs:
       build_conclusion:
@@ -172,7 +169,7 @@ jobs:
           echo "Unsupported extension"
           exit 1
         fi
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
       with:
         sparse-checkout: |
           devops/actions
@@ -279,7 +276,7 @@ jobs:
       run: tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/toolchain .
     - name: Upload toolchain release
       if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: ${{ inputs.release_toolchain_artifact }}
         path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
@@ -301,7 +298,7 @@ jobs:
       run: tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/toolchain .
     - name: Upload toolchain
       if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: ${{ inputs.toolchain_artifact }}
         path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
@@ -337,21 +334,6 @@ jobs:
         binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
         sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
         extra_lit_opts: --param sycl_build_targets="spir;nvidia;amd"
-
-    - name: Build E2E tests with NewOffloadModel
-      if: |
-        inputs.e2e_binaries_new_offload_model_artifact &&
-        !cancelled()
-        && steps.build.conclusion == 'success' &&
-        contains(github.event.pull_request.labels.*.name, 'new-offload-model')
-      uses: ./devops/actions/run-tests/e2e
-      with:
-        ref: ${{ inputs.ref || github.sha }}
-        testing_mode: build-only
-        target_devices: all
-        binaries_artifact: ${{ inputs.e2e_binaries_new_offload_model_artifact }}
-        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
-        extra_lit_opts: --param sycl_build_targets="spir;nvidia;amd" --param enable_new_offload_model=True
 
     - name: Build E2E tests with SPIR-V Backend
       if: ${{ inputs.e2e_binaries_spirv_backend_artifact && !cancelled() && steps.build.conclusion == 'success' }}
