@@ -46,7 +46,9 @@ device_impl::~device_impl() {
   }
 }
 
-size_t device_impl::getIndexWithinPlatform() { return IndexWithinPlatform; }
+size_t device_impl::getIndexWithinPlatform() const {
+  return IndexWithinPlatform;
+}
 
 bool device_impl::is_affinity_supported(
     info::partition_affinity_domain AffinityDomain) const {
