@@ -9,10 +9,12 @@
 // line are used to select images from the fat binary built for multiple
 // targets, and that compilation occurs for those targets.
 
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20988
+//
 // UNSUPPORTED-INTENDED:  device names are expected to be specified when
 // compiling AOT fat binaries. This test should be removed, when old offload
 // model support is removed.
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20988
 //
 // Explanation: Old offloading model was accepting compilation of a fat binary
 // for AOT target without specifying specific device. In that case specific
