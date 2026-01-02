@@ -13970,8 +13970,15 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit) {
       return;
     }
 
-    if (DeduceVariableDeclarationType(VDecl, DirectInit, Init))
+    if (DeduceVariableDeclarationType(VDecl, DirectInit, Init)) {
+      assert(VDecl->isInvalidDecl() &&
+             "decl should be invalidated when deduce fails");
+      if (auto *RecoveryExpr =
+              CreateRecoveryExpr(Init->getBeginLoc(), Init->getEndLoc(), {Init})
+                  .get())
+        VDecl->setInit(RecoveryExpr);
       return;
+    }
   }
 
   this->CheckAttributesOnDeducedType(RealDecl);
@@ -20323,7 +20330,8 @@ void Sema::ActOnFields(Scope *S, SourceLocation RecLoc, Decl *EnclosingDecl,
       CDecl->setIvarRBraceLoc(RBrac);
     }
   }
-  ProcessAPINotes(Record);
+  if (Record && !isa<ClassTemplateSpecializationDecl>(Record))
+    ProcessAPINotes(Record);
 }
 
 // Given an integral type, return the next larger integral type

@@ -6807,9 +6807,8 @@ public:
   SpirvOperand(SpirvOperandKind Kind, QualType ResultType, llvm::APInt Value)
       : Kind(Kind), ResultType(ResultType), Value(std::move(Value)) {}
 
-  SpirvOperand(const SpirvOperand &Other) { *this = Other; }
-  ~SpirvOperand() {}
-
+  SpirvOperand(const SpirvOperand &Other) = default;
+  ~SpirvOperand() = default;
   SpirvOperand &operator=(const SpirvOperand &Other) = default;
 
   bool operator==(const SpirvOperand &Other) const {
