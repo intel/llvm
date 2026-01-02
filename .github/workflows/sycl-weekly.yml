@@ -100,7 +100,6 @@ jobs:
         env | sort > env_after
         comm -13 env_before env_after >> $GITHUB_ENV
         rm env_before env_after
-    - run: sycl-ls
     - name: Set up yarpgen
       run: |
         git clone https://github.com/intel/yarpgen.git
