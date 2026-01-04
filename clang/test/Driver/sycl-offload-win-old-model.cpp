@@ -6,8 +6,8 @@
 
 /// Test behaviors of using a static library with single object.
 // Build the offload library that is used for the tests.
-// RUN: echo "void foo() {}" > %t.c
-// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -c -Fo%t-orig.obj %t.c
+// RUN: echo "void foo() {}" > %t.cpp
+// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -c -Fo%t-orig.obj %t.cpp
 // RUN: llvm-ar cr %t-orig.lib %t-orig.obj
 // RUN: %clang --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib %t-orig.lib %t-orig.obj -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB
@@ -85,7 +85,7 @@
 // RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib %t-orig.lib -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC
 // FOFFLOAD_STATIC_LIB_SRC: 0: input, "[[INPUTLIB:.+\.lib]]", object, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 1: input, "[[INPUTC:.+\.c]]", c++, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 1: input, "[[INPUTC:.+\.cpp]]", c++, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 3: input, "[[INPUTC]]", c++, (device-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 4: preprocessor, {3}, c++-cpp-output, (device-sycl)
