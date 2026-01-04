@@ -10535,7 +10535,7 @@ static void getSPIRVBackendOpts(const llvm::opt::ArgList &TCArgs,
                               ",+SPV_EXT_shader_atomic_float_add"
                               ",+SPV_EXT_shader_atomic_float_min_max";
   std::string IntelExtArg = ",+SPV_INTEL_2d_block_io"
-                            ",+SPV_INTEL_arbitrary_precision_integers"
+                            ",+SPV_ALTERA_arbitrary_precision_integers"
                             ",+SPV_INTEL_bfloat16_conversion"
                             ",+SPV_INTEL_bindless_images"
                             ",+SPV_INTEL_cache_controls"
