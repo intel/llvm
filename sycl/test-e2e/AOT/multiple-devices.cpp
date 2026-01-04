@@ -12,10 +12,6 @@
 // UNSUPPORTED: new-offload-model
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20988
 //
-// UNSUPPORTED-INTENDED:  device names are expected to be specified when
-// compiling AOT fat binaries. This test should be removed, when old offload
-// model support is removed.
-//
 // Explanation: Old offloading model was accepting compilation of a fat binary
 // for AOT target without specifying specific device. In that case specific
 // device to AOT-compile for was specified at link command line and compilation
