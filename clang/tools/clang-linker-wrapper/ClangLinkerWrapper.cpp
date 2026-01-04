@@ -953,7 +953,7 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
 /// Adds all AOT backend options required for SYCL AOT compilation step to
 /// \p CmdArgs.
 /// \p Args is passed to provide MakeArgString function for creating persistent
-/// string storage.
+/// argument string storage.
 /// \p IsCPU is a bool used to distinguish whether the target is an Intel GPU or
 /// Intel CPU.
 /// \p BackendOptions is a string containing backend compilation options. For
@@ -2174,31 +2174,36 @@ extractSYCLCompileLinkOptions(ArrayRef<OffloadFile> OffloadFiles) {
 
 // Append SYCL device compiler and linker options specified at link time,
 // filtering by target triple and offload kind.
+// TODO: Consider how to refactor this function to merge it with getLinkerArgs() 
+// and determine if it's possible to use OPT_compiler_arg_EQ and OPT_linker_arg_EQ 
+// to handle device compiler/linker options
 static void appendSYCLDeviceOptionsAtLinkTime(const DerivedArgList &LinkerArgs,
                                               std::string &CompileOptions,
                                               std::string &LinkOptions) {
   const StringRef TripleStr = LinkerArgs.getLastArgValue(OPT_triple_EQ);
   auto processDeviceArgs = [&](unsigned OptID, std::string &Options) {
     for (StringRef Arg : LinkerArgs.getAllArgValues(OptID)) {
-      StringRef Value, TargetTriple, Kind;
-      if (Arg.contains('=')) {
-        StringRef Specifier;
-        std::tie(Specifier, Value) = Arg.split('=');
-        if (Specifier.contains(':')) {
-          std::tie(Kind, TargetTriple) = Specifier.split(':');
-        } else {
-          TargetTriple = Specifier;
-        }
-      } else {
-        Value = Arg;
+      size_t ColonPos = Arg.find(':');
+      if (ColonPos != StringRef::npos) {
+        StringRef Kind = Arg.substr(0, ColonPos);
+        if (getOffloadKind(Kind) != OFK_SYCL)
+          continue;
+        Arg = Arg.substr(ColonPos + 1);
       }
-      if (Value.empty() ||
-          (!TargetTriple.empty() && TargetTriple != TripleStr) ||
-          (!Kind.empty() && getOffloadKind(Kind) != OFK_SYCL))
+      size_t EqPos = Arg.find('=');
+      if (EqPos != StringRef::npos) {
+        StringRef TargetTriple = Arg.substr(0, EqPos);
+        if (!TargetTriple.empty() && TargetTriple != TripleStr)
+          continue;
+        Arg = Arg.substr(EqPos + 1);
+      }
+      if (Arg.empty())
         continue;
-      Options += Twine(" ", Value).str();
+      Options += " ";
+      Options += Arg;
     }
   };
+
   processDeviceArgs(OPT_device_compiler_args_EQ, CompileOptions);
   processDeviceArgs(OPT_device_linker_args_EQ, LinkOptions);
 }

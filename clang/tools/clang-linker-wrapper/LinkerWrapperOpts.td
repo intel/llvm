@@ -28,10 +28,10 @@ def builtin_bitcode_EQ : Joined<["--"], "builtin-bitcode=">,
   HelpText<"Perform a special internalizing link on the bitcode file. "
            "This is necessary for some vendor libraries to be linked correctly">;
 def device_linker_args_EQ : Joined<["--"], "device-linker=">,
-  Flags<[WrapperOnlyOption]>, MetaVarName<"<value> or <triple>=<value> or <kind>:<triple>=<value>">,
+  Flags<[WrapperOnlyOption]>, MetaVarName<"[<kind>:][<triple>=]<value>">,
   HelpText<"Arguments to pass to the device linker invocation">;
 def device_compiler_args_EQ : Joined<["--"], "device-compiler=">,
-  Flags<[WrapperOnlyOption]>, MetaVarName<"<value> or <triple>=<value> or <kind>:<triple>=<value>">,
+  Flags<[WrapperOnlyOption]>, MetaVarName<"[<kind>:][<triple>=]<value>">,
   HelpText<"Arguments to pass to the device compiler invocation">;
 def clang_backend : Flag<["--"], "clang-backend">,
   Flags<[WrapperOnlyOption]>,
