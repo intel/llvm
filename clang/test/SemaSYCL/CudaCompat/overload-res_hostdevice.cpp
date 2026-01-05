@@ -33,8 +33,7 @@ __attribute__((host)) __attribute__((device)) void caller_hostdevice() {
     callee_global(); // host-error {{call to global function 'callee_global' not configured}}
     // sycl-dev-error@-1 {{no matching function for call to 'callee_global'}}
     // sycl-dev-note@#callee_global {{candidate function not viable: call to __global__ function from __host__ __device__ function}}
-    // cuda-dev-error@-3 {{reference to __global__ function 'callee_global' in __host__ __device__ function}}
-    // cuda-dev-note@#callee_global {{'callee_global' declared here}}
+    // cuda-dev-error@-3 {{call to global function 'callee_global' not configured}}
 }
 
 __attribute__((host)) __attribute__((device)) void caller_hostdevice_overload_test() {

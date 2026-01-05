@@ -167,6 +167,7 @@
 // CHECK-NEXT: ext/oneapi/kernel_properties/properties.hpp
 // CHECK-NEXT: ext/oneapi/work_group_scratch_memory.hpp
 // CHECK-NEXT: detail/sycl_local_mem_builtins.hpp
+// CHECK-NEXT: detail/nd_range_view.hpp
 // CHECK-NEXT: detail/range_rounding.hpp
 // CHECK-NEXT: detail/ur.hpp
 // CHECK-NEXT: ur_api_funcs.def
@@ -180,7 +181,6 @@
 // CHECK-NEXT: kernel.hpp
 // CHECK-NEXT: sampler.hpp
 // CHECK-NEXT: queue.hpp
-// CHECK-NEXT: detail/nd_range_view.hpp
 // CHECK-NEXT: detail/optional.hpp
 // CHECK-NEXT: ext/oneapi/experimental/event_mode_property.hpp
 // CHECK-NEXT: sycl_span.hpp

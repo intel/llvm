@@ -203,9 +203,8 @@ ur_result_t ShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
       LastAllocatedSize = 0;
     }
 
-    UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-        Context, Device, nullptr, nullptr, RequiredShadowSize,
-        (void **)&LocalShadowOffset));
+    UR_CALL(SafeAllocate(Context, Device, RequiredShadowSize, nullptr, nullptr,
+                         AllocType::DEVICE_USM, (void **)&LocalShadowOffset));
 
     // Initialize shadow memory
     ur_result_t URes =

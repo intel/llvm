@@ -30,10 +30,19 @@ public:
   nd_range_view &operator=(nd_range_view &&Desc) = default;
 
   template <int Dims_>
+  nd_range_view(sycl::range<Dims_> &N)
+      : MGlobalSize(&(N[0])), MDims(size_t(Dims_)) {}
+
+  template <int Dims_>
   nd_range_view(sycl::nd_range<Dims_> &ExecutionRange)
       : MGlobalSize(&(ExecutionRange.globalSize[0])),
         MLocalSize(&(ExecutionRange.localSize[0])),
         MOffset(&(ExecutionRange.offset[0])), MDims{size_t(Dims_)} {}
+
+  nd_range_view(const size_t *MGlobalSize_, const size_t *MLocalSize_,
+                const size_t *MOffset_, size_t MDims_)
+      : MGlobalSize(MGlobalSize_), MLocalSize(MLocalSize_), MOffset(MOffset_),
+        MDims(MDims_) {}
 
   const size_t *MGlobalSize = nullptr;
   const size_t *MLocalSize = nullptr;

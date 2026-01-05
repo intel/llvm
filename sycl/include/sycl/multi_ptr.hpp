@@ -71,7 +71,7 @@ struct LegacyReferenceTypes<ElementType,
 /// qualified pointers to allow interoperability between plain C++ and OpenCL C.
 ///
 /// \ingroup sycl_api
-// TODO: Default value for DecorateAddress is for backwards compatiblity. It
+// TODO: Default value for DecorateAddress is for backwards compatibility. It
 //       should be removed.
 template <typename ElementType, access::address_space Space,
           access::decorated DecorateAddress = access::decorated::legacy>

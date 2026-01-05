@@ -40,22 +40,13 @@ __global__ void kernel_0() { host_fn(); }
 void func_0(void) { kernel_0<<<1, 1>>>(); }
 
 // (C)
-// expected-note@#KERNEL {{candidate function not viable: call to __global__ function from __global__ function}}
 __global__ void kernel_1() { kernel(); }
-// expected-error@-1 {{no matching function for call to 'kernel'}}
+// expected-error@-1 {{call to global function 'kernel' not configured}}
 void func_2(void) { kernel_1<<<1, 1>>>(); }
 
 // (D)
 __device__ void device_func() { kernel<<<1, 1>>>();}
-// expected-error@-1 {{reference to __global__ function 'kernel' in __device__ function}}
 void func_3(void) { device_func(); }
-
-#if defined(__sycl_cuda_host) || defined(__sycl_device)
-// expected-error@* {{reference to __host__ function 'cudaConfigureCall' in __device__ function}}
-#endif
-#ifdef __sycl_cuda_host
-// expected-note@*:* {{'cudaConfigureCall' declared here}}
-#endif
 
 // (E)
 #if defined(__sycl_device)

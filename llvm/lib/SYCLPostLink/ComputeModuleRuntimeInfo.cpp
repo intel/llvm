@@ -299,23 +299,6 @@ PropSetRegTy computeModuleProperties(const Module &M,
   if (SplitType == module_split::SyclEsimdSplitStatus::ESIMD_ONLY)
     PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "isEsimdImage", true);
   {
-    StringRef RegAllocModeAttr = "sycl-register-alloc-mode";
-    uint32_t RegAllocModeVal;
-
-    bool HasRegAllocMode = llvm::any_of(EntryPoints, [&](const Function *F) {
-      if (!F->hasFnAttribute(RegAllocModeAttr))
-        return false;
-      const auto &Attr = F->getFnAttribute(RegAllocModeAttr);
-      RegAllocModeVal = getAttributeAsInteger<uint32_t>(Attr);
-      return true;
-    });
-    if (HasRegAllocMode) {
-      PropSet.add(PropSetRegTy::SYCL_MISC_PROP, RegAllocModeAttr,
-                  RegAllocModeVal);
-    }
-  }
-
-  {
     StringRef GRFSizeAttr = "sycl-grf-size";
     uint32_t GRFSizeVal;
 

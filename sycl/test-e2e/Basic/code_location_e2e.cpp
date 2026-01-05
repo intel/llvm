@@ -1,8 +1,5 @@
-// UNSUPPORTED: target-nvidia,cuda
+// UNSUPPORTED: cuda
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19214
-// UNSUPPORTED: target-nvidia,cuda
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20109
-
 // RUN: %{build} -DNDEBUG -o %t1.out
 // RUN: %{run} %t1.out | FileCheck %s
 

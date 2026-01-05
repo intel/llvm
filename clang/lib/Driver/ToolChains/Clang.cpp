@@ -32,6 +32,7 @@
 #include "clang/Driver/SanitizerArgs.h"
 #include "clang/Driver/Types.h"
 #include "clang/Driver/XRayArgs.h"
+#include "clang/Options/OptionUtils.h"
 #include "clang/Options/Options.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallSet.h"
@@ -3880,6 +3881,7 @@ static void RenderHLSLOptions(const ArgList &Args, ArgStringList &CmdArgs,
       options::OPT_disable_llvm_passes,
       options::OPT_fnative_half_type,
       options::OPT_fnative_int16_type,
+      options::OPT_fmatrix_memory_layout_EQ,
       options::OPT_hlsl_entrypoint,
       options::OPT_fdx_rootsignature_define,
       options::OPT_fdx_rootsignature_version,
@@ -4613,6 +4615,10 @@ renderDebugOptions(const ToolChain &TC, const Driver &D, const llvm::Triple &T,
                         (DebuggerTuning != llvm::DebuggerKind::SCE &&
                          DebuggerTuning != llvm::DebuggerKind::DBX)))
     CmdArgs.push_back("-gno-column-info");
+
+  if (!Args.hasFlag(options::OPT_gcall_site_info,
+                    options::OPT_gno_call_site_info, true))
+    CmdArgs.push_back("-gno-call-site-info");
 
   // FIXME: Move backend command line options to the module.
   if (Args.hasFlag(options::OPT_gmodules, options::OPT_gno_modules, false)) {
@@ -5803,6 +5809,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     Args.ClaimAllArgs(options::OPT_femit_dwarf_unwind_EQ);
   }
 
+  bool IsAMDSPIRVForHIPDevice =
+      IsHIPDevice && getToolChain().getTriple().isSPIRV() &&
+      getToolChain().getTriple().getVendor() == llvm::Triple::AMD;
+
   if (isa<AnalyzeJobAction>(JA)) {
     assert(JA.getType() == types::TY_Plist && "Invalid output type.");
     CmdArgs.push_back("-analyze");
@@ -5910,6 +5920,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       rewriteKind = RK_Fragile;
     } else if (JA.getType() == types::TY_CIR) {
       CmdArgs.push_back("-emit-cir");
+    } else if (JA.getType() == types::TY_Image && IsAMDSPIRVForHIPDevice) {
+      CmdArgs.push_back("-emit-obj");
     } else {
       assert(JA.getType() == types::TY_PP_Asm && "Unexpected output type!");
     }
@@ -6471,6 +6483,18 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-fenable-matrix");
     CmdArgs.push_back("-mllvm");
     CmdArgs.push_back("-enable-matrix");
+    // Only handle default layout if matrix is enabled
+    if (const Arg *A = Args.getLastArg(options::OPT_fmatrix_memory_layout_EQ)) {
+      StringRef Val = A->getValue();
+      if (Val == "row-major" || Val == "column-major") {
+        CmdArgs.push_back(Args.MakeArgString("-fmatrix-memory-layout=" + Val));
+        CmdArgs.push_back("-mllvm");
+        CmdArgs.push_back(Args.MakeArgString("-matrix-default-layout=" + Val));
+
+      } else {
+        D.Diag(diag::err_drv_invalid_value) << A->getAsString(Args) << Val;
+      }
+    }
   }
 
   CodeGenOptions::FramePointerKind FPKeepKind =
@@ -7845,6 +7869,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       types::isCXX(InputType))
     CmdArgs.push_back("-fcoro-aligned-allocation");
 
+  if (Args.hasFlag(options::OPT_fdefer_ts, options::OPT_fno_defer_ts,
+                   /*Default=*/false))
+    CmdArgs.push_back("-fdefer-ts");
+
   Args.AddLastArg(CmdArgs, options::OPT_fdouble_square_bracket_attributes,
                   options::OPT_fno_double_square_bracket_attributes);
 
@@ -8621,6 +8649,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       TargetInfo += C.getDriver().getSYCLDeviceTriple().normalize();
     CmdArgs.push_back(Args.MakeArgString(TargetInfo.str()));
   }
+  if (Args.hasFlag(options::OPT_fdevirtualize_speculatively,
+                   options::OPT_fno_devirtualize_speculatively,
+                   /*Default value*/ false))
+    CmdArgs.push_back("-fdevirtualize-speculatively");
 
   bool VirtualFunctionElimination =
       Args.hasFlag(options::OPT_fvirtual_function_elimination,
@@ -10503,7 +10535,7 @@ static void getSPIRVBackendOpts(const llvm::opt::ArgList &TCArgs,
                               ",+SPV_EXT_shader_atomic_float_add"
                               ",+SPV_EXT_shader_atomic_float_min_max";
   std::string IntelExtArg = ",+SPV_INTEL_2d_block_io"
-                            ",+SPV_INTEL_arbitrary_precision_integers"
+                            ",+SPV_ALTERA_arbitrary_precision_integers"
                             ",+SPV_INTEL_bfloat16_conversion"
                             ",+SPV_INTEL_bindless_images"
                             ",+SPV_INTEL_cache_controls"
@@ -11200,7 +11232,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       OPT_fno_lto,
       OPT_flto,
       OPT_flto_partitions_EQ,
-      OPT_flto_EQ};
+      OPT_flto_EQ,
+      OPT_use_spirv_backend};
+
   const llvm::DenseSet<unsigned> LinkerOptions{OPT_mllvm, OPT_Zlinker_input};
   auto ShouldForwardForToolChain = [&](Arg *A, const ToolChain &TC) {
     // Don't forward -mllvm to toolchains that don't support LLVM.

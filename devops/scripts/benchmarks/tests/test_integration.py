@@ -3,6 +3,7 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import argparse
 import json
 import os
 import shutil
@@ -15,6 +16,7 @@ from collections import namedtuple
 sys.path.append(f"{os.path.dirname(__file__)}/../")
 from utils.workdir_version import INTERNAL_WORKDIR_VERSION
 
+VERBOSE_LOGS = False
 
 DataJson = namedtuple("DataJson", ["runs", "metadata", "tags", "names"])
 DataJsonRun = namedtuple("DataJsonRun", ["name", "results"])
@@ -65,7 +67,7 @@ class App:
 
         # TODO: not yet tested: "--detect-version", "sycl,compute_runtime"
 
-        procesResult = subprocess.run(
+        proc = subprocess.run(
             [
                 "./devops/scripts/benchmarks/main.py",
                 self.WORKDIR_DIR,
@@ -86,13 +88,20 @@ class App:
                 "--stddev-threshold",
                 "999999999.9",
                 "--exit-on-failure",
+                "--verbose" if VERBOSE_LOGS else "--log-level=info",
                 *args,
             ],
             capture_output=True,
         )
-        print("MAIN_PY_STDOUT:\n" + procesResult.stdout.decode())
-        print("MAIN_PY_STDERR:\n" + procesResult.stderr.decode())
-        return procesResult.returncode
+        print(
+            "MAIN_PY_STDOUT:",
+            "\n" + proc.stdout.decode() if proc.stdout else " <empty>",
+        )
+        print(
+            "MAIN_PY_STDERR:",
+            "\n" + proc.stderr.decode() if proc.stderr else " <empty>",
+        )
+        return proc.returncode
 
     def get_output(self):
         with open(os.path.join(self.OUTPUT_DIR, "data.json")) as f:
@@ -134,9 +143,6 @@ class App:
                 tags=out["benchmarkTags"],
                 names=out["defaultCompareNames"],
             )
-
-
-# add "--verbose" for debug logs
 
 
 class TestE2E(unittest.TestCase):
@@ -190,24 +196,95 @@ class TestE2E(unittest.TestCase):
 
     def test_torch_l0(self):
         self._checkCase(
-            "torch_benchmark_l0 kernelsPerQueue 20, workgroupCount 4096, workgroupSize 512",
+            "torch_benchmark_l0 KernelSubmitSingleQueue KernelBatchSize 512, KernelDataType Int32, KernelName Add, KernelParamsNum 5, KernelSubmitPattern Single, KernelWGCount 4096, KernelWGSize 512",
+            "KernelSubmitSingleQueue Int32Large",
+            {"pytorch", "L0"},
+        )
+        self._checkCase(
+            "torch_benchmark_l0 KernelSubmitMultiQueue kernelsPerQueue 20, workgroupCount 4096, workgroupSize 512",
             "KernelSubmitMultiQueue large",
+            {"pytorch", "L0"},
+        )
+        self._checkCase(
+            "torch_benchmark_l0 KernelSubmitSlmSize batchSize 512, slmNum 1, warmupIterations 1",
+            "KernelSubmitSlmSize small",
+            {"pytorch", "L0"},
+        )
+        self._checkCase(
+            "torch_benchmark_l0 KernelSubmitLinearKernelSize kernelBatchSize 512, kernelSize 32",
+            "KernelSubmitLinearKernelSize array32",
+            {"pytorch", "L0"},
+        )
+        self._checkCase(
+            "torch_benchmark_l0 KernelSubmitMemoryReuse dataType Int32, kernelBatchSize 4096",
+            "KernelSubmitMemoryReuse Int32Large",
             {"pytorch", "L0"},
         )
 
     def test_torch_sycl(self):
         self._checkCase(
-            "torch_benchmark_sycl kernelsPerQueue 10, workgroupCount 512, workgroupSize 256",
+            "torch_benchmark_sycl KernelSubmitSingleQueue KernelBatchSize 512, KernelDataType Mixed, KernelName Add, KernelParamsNum 5, KernelSubmitPattern Single, KernelWGCount 512, KernelWGSize 256",
+            "KernelSubmitSingleQueue MixedMedium",
+            {"pytorch", "SYCL"},
+        )
+        self._checkCase(
+            "torch_benchmark_sycl KernelSubmitMultiQueue kernelsPerQueue 10, workgroupCount 512, workgroupSize 256",
             "KernelSubmitMultiQueue medium",
+            {"pytorch", "SYCL"},
+        )
+        self._checkCase(
+            "torch_benchmark_sycl KernelSubmitSlmSize batchSize 512, slmNum 16384, warmupIterations 1",
+            "KernelSubmitSlmSize large",
+            {"pytorch", "SYCL"},
+        )
+        self._checkCase(
+            "torch_benchmark_sycl KernelSubmitLinearKernelSize kernelBatchSize 512, kernelSize 5120",
+            "KernelSubmitLinearKernelSize array5120",
+            {"pytorch", "SYCL"},
+        )
+        self._checkCase(
+            "torch_benchmark_sycl KernelSubmitMemoryReuse dataType Float, kernelBatchSize 4096",
+            "KernelSubmitMemoryReuse FloatLarge",
             {"pytorch", "SYCL"},
         )
 
     def test_torch_syclpreview(self):
         self._checkCase(
-            "torch_benchmark_syclpreview kernelsPerQueue 4, workgroupCount 256, workgroupSize 124",
+            "torch_benchmark_syclpreview KernelSubmitSingleQueue KernelBatchSize 512, KernelDataType Mixed, KernelName Add, KernelParamsNum 5, KernelSubmitPattern Single, KernelWGCount 256, KernelWGSize 128",
+            "KernelSubmitSingleQueue MixedSmall",
+            {"pytorch", "SYCL"},
+        )
+        self._checkCase(
+            "torch_benchmark_syclpreview KernelSubmitMultiQueue kernelsPerQueue 4, workgroupCount 256, workgroupSize 128",
             "KernelSubmitMultiQueue small",
             {"pytorch", "SYCL"},
         )
+        self._checkCase(
+            "torch_benchmark_syclpreview KernelSubmitSlmSize batchSize 512, slmNum 1024, warmupIterations 1",
+            "KernelSubmitSlmSize medium",
+            {"pytorch", "SYCL"},
+        )
+        self._checkCase(
+            "torch_benchmark_syclpreview KernelSubmitLinearKernelSize kernelBatchSize 512, kernelSize 512",
+            "KernelSubmitLinearKernelSize array512",
+            {"pytorch", "SYCL"},
+        )
+        self._checkCase(
+            "torch_benchmark_syclpreview KernelSubmitMemoryReuse dataType Float, kernelBatchSize 512",
+            "KernelSubmitMemoryReuse FloatMedium",
+            {"pytorch", "SYCL"},
+        )
+
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="SYCL's benchmark test framework")
+    parser.add_argument(
+        "--verbose",
+        help="Set benchmark framework's logging level to DEBUG.",
+        action="store_true",
+    )
+
+    args = parser.parse_args()
+    VERBOSE_LOGS = args.verbose
+
     unittest.main()

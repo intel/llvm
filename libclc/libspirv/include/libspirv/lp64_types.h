@@ -22,6 +22,15 @@ typedef char __clc_vec4_char_t __attribute__((ext_vector_type(4)));
 typedef char __clc_vec8_char_t __attribute__((ext_vector_type(8)));
 typedef char __clc_vec16_char_t __attribute__((ext_vector_type(16)));
 
+// Typedef some signed char types that SPIR-V requires as the destination of
+// certain conversion builtins.
+typedef signed char __clc_schar_t;
+typedef signed char __clc_vec2_schar_t __attribute__((ext_vector_type(2)));
+typedef signed char __clc_vec3_schar_t __attribute__((ext_vector_type(3)));
+typedef signed char __clc_vec4_schar_t __attribute__((ext_vector_type(4)));
+typedef signed char __clc_vec8_schar_t __attribute__((ext_vector_type(8)));
+typedef signed char __clc_vec16_schar_t __attribute__((ext_vector_type(16)));
+
 typedef char __clc_int8_t;
 typedef char __clc_vec2_int8_t __attribute__((ext_vector_type(2)));
 typedef char __clc_vec3_int8_t __attribute__((ext_vector_type(3)));

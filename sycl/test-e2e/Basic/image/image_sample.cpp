@@ -7,8 +7,6 @@
 
 #include <iostream>
 
-#define DEBUG_OUTPUT
-
 class test_1d_class;
 class test_2d_class;
 class test_3d_class;

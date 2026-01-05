@@ -169,7 +169,7 @@ jobs:
           echo "Unsupported extension"
           exit 1
         fi
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
       with:
         sparse-checkout: |
           devops/actions
@@ -260,10 +260,6 @@ jobs:
       if: ${{ !cancelled() && contains(inputs.changes, 'libclc') }}
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-libclc
-    - name: check-libdevice
-      if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
-      run: |
-        cmake --build $GITHUB_WORKSPACE/build --target check-libdevice
     - name: Check E2E test requirements
       if: ${{ !cancelled() && !contains(inputs.changes, 'sycl') }}
       run: |
@@ -280,7 +276,7 @@ jobs:
       run: tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/toolchain .
     - name: Upload toolchain release
       if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: ${{ inputs.release_toolchain_artifact }}
         path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
@@ -302,7 +298,7 @@ jobs:
       run: tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/toolchain .
     - name: Upload toolchain
       if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: ${{ inputs.toolchain_artifact }}
         path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}

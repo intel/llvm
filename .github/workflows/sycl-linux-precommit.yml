@@ -77,14 +77,14 @@ jobs:
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       options: -u 1001:1001
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           sparse-checkout: |
             devops/
 
       # download build artefact
       - name: Download toolchain
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: sycl_linux_default
       - name: Extract SYCL toolchain
@@ -127,7 +127,7 @@ jobs:
       FILTER_6_2: ${{ steps.result.outputs.FILTER_6_2 }}
       FILTER_6_3: ${{ steps.result.outputs.FILTER_6_3 }}
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
       with:
         sparse-checkout: |
           devops/

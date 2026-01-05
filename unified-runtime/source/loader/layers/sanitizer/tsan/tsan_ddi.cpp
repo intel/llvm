@@ -197,9 +197,11 @@ ur_result_t urProgramLink(
   auto UrRes = getContext()->urDdiTable.Program.pfnLink(
       hContext, count, phPrograms, pOptions, phProgram);
   if (UrRes != UR_RESULT_SUCCESS) {
-    auto Devices = GetDevices(hContext);
-    PrintUrBuildLogIfError(UrRes, *phProgram, Devices.data(), Devices.size());
-    UR_CALL(getTsanInterceptor()->insertProgram(*phProgram));
+    if (*phProgram) {
+      auto Devices = GetDevices(hContext);
+      PrintUrBuildLogIfError(UrRes, *phProgram, Devices.data(), Devices.size());
+      UR_CALL(getTsanInterceptor()->insertProgram(*phProgram));
+    }
     return UrRes;
   }
   UR_CALL(getTsanInterceptor()->insertProgram(*phProgram));
@@ -364,8 +366,10 @@ ur_result_t urProgramLinkExp(
       hContext, numDevices, phDevices, flags, count, phPrograms, pOptions,
       phProgram);
   if (UrRes != UR_RESULT_SUCCESS) {
-    PrintUrBuildLogIfError(UrRes, *phProgram, phDevices, numDevices);
-    UR_CALL(getTsanInterceptor()->insertProgram(*phProgram));
+    if (*phProgram) {
+      PrintUrBuildLogIfError(UrRes, *phProgram, phDevices, numDevices);
+      UR_CALL(getTsanInterceptor()->insertProgram(*phProgram));
+    }
     return UrRes;
   }
 
