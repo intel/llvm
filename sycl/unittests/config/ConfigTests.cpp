@@ -28,8 +28,8 @@ TEST(ConfigTests, CheckConfigProcessing) {
     File.close();
   }
   try {
-    sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
-    throw std::logic_error("sycl::exception didn't throw");
+    sycl::detail::readConfig(true);
+    throw std::logic_error("sycl::exception didn't throw 1");
   } catch (sycl::exception &e) {
     EXPECT_EQ(
         std::string(
@@ -46,8 +46,8 @@ TEST(ConfigTests, CheckConfigProcessing) {
     File.close();
   }
   try {
-    sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
-    throw std::logic_error("sycl::exception didn't throw");
+    sycl::detail::readConfig(true);
+    throw std::logic_error("sycl::exception didn't throw 2");
   } catch (sycl::exception &e) {
     EXPECT_EQ(
         std::string(
@@ -64,8 +64,8 @@ TEST(ConfigTests, CheckConfigProcessing) {
     File.close();
   }
   try {
-    sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
-    throw std::logic_error("sycl::exception didn't throw");
+    sycl::detail::readConfig(true);
+    throw std::logic_error("sycl::exception didn't throw 3");
   } catch (sycl::exception &e) {
     EXPECT_EQ(
         std::string(
@@ -82,8 +82,8 @@ TEST(ConfigTests, CheckConfigProcessing) {
     File.close();
   }
   try {
-    sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
-    throw std::logic_error("sycl::exception didn't throw");
+    sycl::detail::readConfig(true);
+    throw std::logic_error("sycl::exception didn't throw 4");
   } catch (sycl::exception &e) {
     EXPECT_EQ(
         std::string(
@@ -103,8 +103,8 @@ TEST(ConfigTests, CheckConfigProcessing) {
     File.close();
   }
   try {
-    sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
-    throw std::logic_error("sycl::exception didn't throw");
+    sycl::detail::readConfig(true);
+    throw std::logic_error("sycl::exception didn't throw 5");
   } catch (sycl::exception &e) {
     EXPECT_TRUE(std::regex_match(
         e.what(),
@@ -121,8 +121,8 @@ TEST(ConfigTests, CheckConfigProcessing) {
     File.close();
   }
   try {
-    sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
-    throw std::logic_error("sycl::exception didn't throw");
+    sycl::detail::readConfig(true);
+    throw std::logic_error("sycl::exception didn't throw 6");
   } catch (sycl::exception &e) {
     EXPECT_TRUE(std::regex_match(
         e.what(), std::regex("Variable name is more than ([\\d]+) or less "
@@ -142,8 +142,8 @@ TEST(ConfigTests, CheckConfigProcessing) {
     File.close();
   }
   try {
-    sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
-    throw std::logic_error("sycl::exception didn't throw");
+    sycl::detail::readConfig(true);
+    throw std::logic_error("sycl::exception didn't throw 7");
   } catch (sycl::exception &e) {
     EXPECT_TRUE(std::regex_match(
         e.what(), std::regex("The value contains more than ([\\d]+) characters "
@@ -159,8 +159,8 @@ TEST(ConfigTests, CheckConfigProcessing) {
     File.close();
   }
   try {
-    sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
-    throw std::logic_error("sycl::exception didn't throw");
+    sycl::detail::readConfig(true);
+    throw std::logic_error("sycl::exception didn't throw 8");
   } catch (sycl::exception &e) {
     EXPECT_TRUE(std::regex_match(
         e.what(), std::regex("The value contains more than ([\\d]+) characters "
@@ -176,8 +176,8 @@ TEST(ConfigTests, CheckConfigProcessing) {
     File.close();
   }
   try {
-    sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
-    throw std::logic_error("sycl::exception didn't throw");
+    sycl::detail::readConfig(true);
+    throw std::logic_error("sycl::exception didn't throw 9");
   } catch (sycl::exception &e) {
     EXPECT_TRUE(std::regex_match(
         e.what(), std::regex("The value contains more than ([\\d]+) characters "

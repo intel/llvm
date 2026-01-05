@@ -9,7 +9,6 @@
 #include <cassert>
 #include <iostream>
 #include <sycl/detail/core.hpp>
-#include <sycl/ext/intel/usm_pointers.hpp>
 #include <type_traits>
 
 using namespace sycl;
@@ -134,16 +133,6 @@ template <typename T, access::decorated IsDecorated> void testMultPtr() {
             std::is_same_v<private_ptr<T, IsDecorated>, decltype(priv_ptr)>,
             "Incorrect type for priv_ptr.");
 
-        // Construct extension pointer from accessors.
-        auto dev_ptr =
-            multi_ptr<const T,
-                      access::address_space::ext_intel_global_device_space,
-                      IsDecorated>(accessorData_1);
-        static_assert(
-            std::is_same_v<ext::intel::device_ptr<const T, IsDecorated>,
-                           decltype(dev_ptr)>,
-            "Incorrect type for dev_ptr.");
-
         // General conversions in multi_ptr class
         T *RawPtr = nullptr;
         global_ptr<T, IsDecorated> ptr_6 =
@@ -155,18 +144,6 @@ template <typename T, access::decorated IsDecorated> void testMultPtr() {
         global_ptr<void, IsDecorated> ptr_8 =
             address_space_cast<access::address_space::global_space,
                                IsDecorated>((void *)RawPtr);
-
-        // Explicit conversions for device_ptr/host_ptr to global_ptr
-        ext::intel::device_ptr<void, IsDecorated> ptr_9 = address_space_cast<
-            access::address_space::ext_intel_global_device_space, IsDecorated>(
-            (void *)RawPtr);
-        global_ptr<void, IsDecorated> ptr_10 =
-            global_ptr<void, IsDecorated>(ptr_9);
-        ext::intel::host_ptr<void, IsDecorated> ptr_11 = address_space_cast<
-            access::address_space::ext_intel_global_host_space, IsDecorated>(
-            (void *)RawPtr);
-        global_ptr<void, IsDecorated> ptr_12 =
-            global_ptr<void, IsDecorated>(ptr_11);
 
         innerFunc<T, IsDecorated>(wiID.get_local_id().get(0), ptr_1, ptr_2,
                                   ptr_3, ptr_4, ptr_5, local_ptr, priv_ptr);
@@ -213,20 +190,15 @@ void testMultPtrArrowOperator() {
             auto ptr_2 = multi_ptr<point<T>, access::address_space::local_space,
                                    IsDecorated>(accessorData_2);
             auto ptr_3 =
-                multi_ptr<const point<T>,
-                          access::address_space::ext_intel_global_device_space,
-                          IsDecorated>(accessorData_3);
-            auto ptr_4 =
                 address_space_cast<access::address_space::private_space,
                                    IsDecorated>(&private_val);
             static_assert(std::is_same_v<private_ptr<point<T>, IsDecorated>,
-                                         decltype(ptr_4)>,
-                          "Incorrect type for ptr_4.");
+                                         decltype(ptr_3)>,
+                          "Incorrect type for ptr_3.");
 
             auto x1 = ptr_1->x;
             auto x2 = ptr_2->x;
             auto x3 = ptr_3->x;
-            auto x4 = ptr_4->x;
 
             static_assert(std::is_same<decltype(x1), T>::value,
                           "Expected decltype(ptr_1->x) == T");
@@ -234,8 +206,6 @@ void testMultPtrArrowOperator() {
                           "Expected decltype(ptr_2->x) == T");
             static_assert(std::is_same<decltype(x3), T>::value,
                           "Expected decltype(ptr_3->x) == T");
-            static_assert(std::is_same<decltype(x4), T>::value,
-                          "Expected decltype(ptr_4->x) == T");
           });
     });
   }

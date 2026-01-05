@@ -53,7 +53,7 @@ public:
 // using thier own sink class that inherit from logger::Sink.
 #if defined(_WIN32)
     if (isTearDowned) {
-      std::cerr << message << "\n";
+      std::cerr << message;
     } else {
       print(level, message);
     }
@@ -193,7 +193,11 @@ public:
     this->flush_level = flush_lvl;
   }
 
-  ~StderrSink() = default;
+  ~StderrSink() {
+#if defined(_WIN32)
+    logger::isTearDowned = true;
+#endif
+  }
 };
 
 class FileSink : public Sink {

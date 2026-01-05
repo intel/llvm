@@ -86,7 +86,7 @@ TEST_P(QueueBufferTestWithParam, QueueBufferTest) {
         urKernelSetArgMemObj(kernel, Buffer1Index, nullptr, Buffer1));
 
     ASSERT_SUCCESS(urEnqueueKernelLaunch(Queue, kernel, NDimensions,
-                                         &GlobalOffset, &ArraySize, nullptr, 0,
+                                         &GlobalOffset, &ArraySize, nullptr,
                                          nullptr, 0, nullptr, &Event));
     ASSERT_NO_FATAL_FAILURE(submitBarrierIfNeeded(Event));
 
@@ -99,7 +99,7 @@ TEST_P(QueueBufferTestWithParam, QueueBufferTest) {
         urKernelSetArgMemObj(kernel, Buffer2Index, nullptr, Buffer1));
 
     ASSERT_SUCCESS(urEnqueueKernelLaunch(Queue, kernel, NDimensions,
-                                         &GlobalOffset, &ArraySize, nullptr, 0,
+                                         &GlobalOffset, &ArraySize, nullptr,
                                          nullptr, 0, nullptr, &Event));
     ASSERT_NO_FATAL_FAILURE(submitBarrierIfNeeded(Event));
 

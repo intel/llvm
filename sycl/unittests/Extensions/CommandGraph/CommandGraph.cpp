@@ -15,6 +15,12 @@ class Kernel3;
 MOCK_INTEGRATION_HEADER(Kernel1)
 MOCK_INTEGRATION_HEADER(Kernel2)
 MOCK_INTEGRATION_HEADER(Kernel3)
+static sycl::unittest::MockDeviceImage CommandGraphImgs[3] = {
+    sycl::unittest::generateDefaultImage({"Kernel1"}),
+    sycl::unittest::generateDefaultImage({"Kernel2"}),
+    sycl::unittest::generateDefaultImage({"Kernel3"})};
+static sycl::unittest::MockDeviceImageArray<3> CommandGraphImgArray{
+    CommandGraphImgs};
 
 using namespace sycl;
 using namespace sycl::ext::oneapi;
@@ -626,8 +632,6 @@ TEST_F(CommandGraphTest, AccessorModeEdges) {
 
 // Tests the transitive queue recording behaviour with queue shortcuts.
 TEST_F(CommandGraphTest, TransitiveRecordingShortcuts) {
-// Graphs not supported yet for the no-handler submit path
-#ifndef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
   device Dev;
   context Ctx{{Dev}};
   queue Q1{Ctx, Dev};
@@ -671,7 +675,6 @@ TEST_F(CommandGraphTest, TransitiveRecordingShortcuts) {
             ext::oneapi::experimental::queue_state::executing);
   ASSERT_EQ(Q3.ext_oneapi_get_state(),
             ext::oneapi::experimental::queue_state::executing);
-#endif
 }
 
 // Tests that dynamic_work_group_memory.get() will throw on the host side.
@@ -685,7 +688,7 @@ TEST_F(CommandGraphTest, DynamicWorkGroupMemoryGet) {
                                                  Queue.get_device()};
 
   ext::oneapi::experimental::dynamic_work_group_memory<int[]> DynLocalMem{
-      Graph, LocalSize};
+      LocalSize};
   ASSERT_ANY_THROW(DynLocalMem.get());
 }
 
@@ -700,6 +703,6 @@ TEST_F(CommandGraphTest, DynamicLocalAccessorGet) {
                                                  Queue.get_device()};
 
   ext::oneapi::experimental::dynamic_local_accessor<int, 1> DynLocalMem{
-      Graph, LocalSize};
+      LocalSize};
   ASSERT_ANY_THROW(DynLocalMem.get());
 }

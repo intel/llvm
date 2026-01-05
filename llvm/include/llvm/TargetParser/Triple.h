@@ -117,6 +117,7 @@ public:
   enum SubArchType {
     NoSubArch,
 
+    ARMSubArch_v9_7a,
     ARMSubArch_v9_6a,
     ARMSubArch_v9_5a,
     ARMSubArch_v9_4a,
@@ -189,7 +190,8 @@ public:
     DXILSubArch_v1_6,
     DXILSubArch_v1_7,
     DXILSubArch_v1_8,
-    LatestDXILSubArch = DXILSubArch_v1_8,
+    DXILSubArch_v1_9,
+    LatestDXILSubArch = DXILSubArch_v1_9,
   };
   enum VendorType {
     UnknownVendor,
@@ -254,7 +256,8 @@ public:
     LiteOS,
     Serenity,
     Vulkan, // Vulkan SPIR-V
-    LastOSType = Vulkan
+    CheriotRTOS,
+    LastOSType = CheriotRTOS
   };
   enum EnvironmentType {
     UnknownEnvironment,
@@ -284,6 +287,7 @@ public:
     MuslF32,
     MuslSF,
     MuslX32,
+    MuslWALI,
     LLVM,
 
     MSVC,
@@ -312,6 +316,7 @@ public:
     Callable,
     Mesh,
     Amplification,
+    RootSignature,
     OpenCL,
     OpenHOS,
     Mlibc,
@@ -558,14 +563,28 @@ public:
     return getOSVersion() < VersionTuple(Major, Minor, Micro);
   }
 
+  bool isOSVersionGE(unsigned Major, unsigned Minor = 0,
+                     unsigned Micro = 0) const {
+    return !isOSVersionLT(Major, Minor, Micro);
+  }
+
   bool isOSVersionLT(const Triple &Other) const {
     return getOSVersion() < Other.getOSVersion();
+  }
+
+  bool isOSVersionGE(const Triple &Other) const {
+    return getOSVersion() >= Other.getOSVersion();
   }
 
   /// Comparison function for checking OS X version compatibility, which handles
   /// supporting skewed version numbering schemes used by the "darwin" triples.
   LLVM_ABI bool isMacOSXVersionLT(unsigned Major, unsigned Minor = 0,
                                   unsigned Micro = 0) const;
+
+  bool isMacOSXVersionGE(unsigned Major, unsigned Minor = 0,
+                         unsigned Micro = 0) const {
+    return !isMacOSXVersionLT(Major, Minor, Micro);
+  }
 
   /// Is this a Mac OS X triple. For legacy reasons, we support both "darwin"
   /// and "osx" as OS X triples.
@@ -804,6 +823,12 @@ public:
     return getObjectFormat() == Triple::DXContainer;
   }
 
+  /// Tests whether the target uses WALI Wasm
+  bool isWALI() const {
+    return getArch() == Triple::wasm32 && isOSLinux() &&
+           getEnvironment() == Triple::MuslWALI;
+  }
+
   /// Tests whether the target is the PS4 platform.
   bool isPS4() const {
     return getArch() == Triple::x86_64 &&
@@ -846,6 +871,7 @@ public:
            getEnvironment() == Triple::MuslF32 ||
            getEnvironment() == Triple::MuslSF ||
            getEnvironment() == Triple::MuslX32 ||
+           getEnvironment() == Triple::MuslWALI ||
            getEnvironment() == Triple::OpenHOS || isOSLiteOS();
   }
 
@@ -879,7 +905,7 @@ public:
            Env == Triple::Intersection || Env == Triple::AnyHit ||
            Env == Triple::ClosestHit || Env == Triple::Miss ||
            Env == Triple::Callable || Env == Triple::Mesh ||
-           Env == Triple::Amplification;
+           Env == Triple::Amplification || Env == Triple::RootSignature;
   }
 
   /// Tests whether the target is SPIR (32- or 64-bit).
@@ -940,7 +966,8 @@ public:
             getEnvironment() == Triple::GNUEABIHF ||
             getEnvironment() == Triple::GNUEABIHFT64 ||
             getEnvironment() == Triple::OpenHOS ||
-            getEnvironment() == Triple::MuslEABIHF || isAndroid()) &&
+            getEnvironment() == Triple::MuslEABIHF || isOSFuchsia() ||
+            isAndroid()) &&
            isOSBinFormatELF() && !isOSNetBSD();
   }
 
@@ -1115,6 +1142,12 @@ public:
   bool isX86() const {
     return getArch() == Triple::x86 || getArch() == Triple::x86_64;
   }
+
+  /// Tests whether the target is x86 (32-bit).
+  bool isX86_32() const { return getArch() == Triple::x86; }
+
+  /// Tests whether the target is x86 (64-bit).
+  bool isX86_64() const { return getArch() == Triple::x86_64; }
 
   /// Tests whether the target is VE
   bool isVE() const {
@@ -1344,6 +1377,10 @@ public:
                                            const VersionTuple &Version);
 
   LLVM_ABI ExceptionHandling getDefaultExceptionHandling() const;
+
+  /// Compute the LLVM IR data layout string based on the triple. Some targets
+  /// customize the layout based on the ABIName string.
+  LLVM_ABI std::string computeDataLayout(StringRef ABIName = "") const;
 };
 
 } // End llvm namespace

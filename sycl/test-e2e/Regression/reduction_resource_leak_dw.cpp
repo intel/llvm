@@ -1,6 +1,9 @@
-// REQUIRES: level_zero, level_zero_dev_kit
+// REQUIRES: level_zero
 //
-// RUN: %{build} %level_zero_options -o %t.out
+// UNSUPPORTED: windows && level_zero_v2_adapter
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20852
+//
+// RUN: %{build} -o %t.out
 // RUN: %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s
 //
 // CHECK-NOT: LEAK

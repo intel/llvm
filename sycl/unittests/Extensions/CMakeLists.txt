@@ -3,7 +3,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_sycl_unittest(ExtensionsTests OBJECT
   CurrentDevice.cpp
   DefaultContext.cpp
-  FPGADeviceSelectors.cpp
+  DeviceIsIntegratedGPU.cpp
   DeviceArchitecture.cpp
   USMMemcpy2D.cpp
   DeviceGlobal.cpp
@@ -34,3 +34,4 @@ add_subdirectory(VirtualMemory)
 add_subdirectory(NumComputeUnits)
 add_subdirectory(FreeFunctionCommands)
 add_subdirectory(KernelQueries)
+add_subdirectory(InterProcessCommunication)

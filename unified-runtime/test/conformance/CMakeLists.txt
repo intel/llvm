@@ -70,6 +70,7 @@ add_subdirectory(queue)
 add_subdirectory(sampler)
 add_subdirectory(virtual_memory)
 add_subdirectory(exp_usm_context_memcpy)
+add_subdirectory(exp_graph)
 
 set(TEST_SUBDIRECTORIES_DPCXX
     "device_code"
@@ -79,6 +80,7 @@ set(TEST_SUBDIRECTORIES_DPCXX
     "integration"
     "exp_command_buffer"
     "exp_enqueue_native"
+    "exp_enqueue_kernel_launch_with_args"
     "exp_usm_p2p"
     "memory-migrate"
     "usm"

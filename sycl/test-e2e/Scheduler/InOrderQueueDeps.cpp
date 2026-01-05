@@ -36,15 +36,15 @@ int main() {
 
   // Sequential submissions to the same in-order queue should not result in any
   // event dependencies.
-  // CHECK: <--- urEnqueueKernelLaunch
+  // CHECK: <--- urEnqueueKernelLaunchWithArgsExp
   // CHECK-SAME: .numEventsInWaitList = 0
   submitKernel(InOrderQueueA, Buf);
-  // CHECK: <--- urEnqueueKernelLaunch
+  // CHECK: <--- urEnqueueKernelLaunchWithArgsExp
   // CHECK-SAME: .numEventsInWaitList = 0
   submitKernel(InOrderQueueA, Buf);
   // Submisssion to a different in-order queue should explicitly depend on the
   // previous command group.
-  // CHECK: <--- urEnqueueKernelLaunch
+  // CHECK: <--- urEnqueueKernelLaunchWithArgsExp
   // CHECK-SAME: .numEventsInWaitList = 1
   submitKernel(InOrderQueueB, Buf);
 

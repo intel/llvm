@@ -224,7 +224,7 @@ public:
                              std::to_string(ThreadCount)};
     DeviceCodeID = ProgramID;
     std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
-        *getSyclObjImpl(Dev), {&Img},
+        *detail::getSyclObjImpl(Dev), {&Img},
         {'S', 'p', 'e', 'c', 'C', 'o', 'n', 's', 't', ProgramID}, BuildOptions);
     ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 
@@ -263,28 +263,18 @@ protected:
   _sycl_offload_entry_struct EntryStruct = {
       /*addr*/ nullptr, const_cast<char *>(EntryName), strlen(EntryName),
       /*flags*/ 0, /*reserved*/ 0};
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  sycl_device_binary_struct BinStruct { /*Version*/
-    1,
-#else
   sycl_device_binary_struct BinStruct{/*Version*/ 3,
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-        /*Kind*/ 4,
-        /*Format*/ GetParam(),
-        /*DeviceTargetSpec*/ nullptr,
-        /*CompileOptions*/ nullptr,
-        /*LinkOptions*/ nullptr,
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-        /*ManifestStart*/ nullptr,
-        /*ManifestEnd*/ nullptr,
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-        /*BinaryStart*/ nullptr,
-        /*BinaryEnd*/ nullptr,
-        /*EntriesBegin*/ &EntryStruct,
-        /*EntriesEnd*/ &EntryStruct + 1,
-        /*PropertySetsBegin*/ nullptr,
-        /*PropertySetsEnd*/ nullptr
-  };
+                                      /*Kind*/ 4,
+                                      /*Format*/ GetParam(),
+                                      /*DeviceTargetSpec*/ nullptr,
+                                      /*CompileOptions*/ nullptr,
+                                      /*LinkOptions*/ nullptr,
+                                      /*BinaryStart*/ nullptr,
+                                      /*BinaryEnd*/ nullptr,
+                                      /*EntriesBegin*/ &EntryStruct,
+                                      /*EntriesEnd*/ &EntryStruct + 1,
+                                      /*PropertySetsBegin*/ nullptr,
+                                      /*PropertySetsEnd*/ nullptr};
   sycl_device_binary Bin = &BinStruct;
   detail::RTDeviceBinaryImage Img{Bin};
   ur_program_handle_t NativeProg;
@@ -296,7 +286,7 @@ TEST_P(PersistentDeviceCodeCache, KeysWithNullTermSymbol) {
   std::string Key{'1', '\0', '3', '4', '\0'};
   std::vector<unsigned char> SpecConst(Key.begin(), Key.end());
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
-      *getSyclObjImpl(Dev), {&Img}, SpecConst, Key);
+      *detail::getSyclObjImpl(Dev), {&Img}, SpecConst, Key);
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 
   detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, SpecConst,
@@ -321,28 +311,18 @@ TEST_P(PersistentDeviceCodeCache, MultipleImages) {
   _sycl_offload_entry_struct ExtraEntryStruct = {
       /*addr*/ nullptr, const_cast<char *>(ExtraEntryName),
       strlen(ExtraEntryName), /*flags*/ 0, /*reserved*/ 0};
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  sycl_device_binary_struct ExtraBinStruct { /*Version*/
-    1,
-#else
   sycl_device_binary_struct ExtraBinStruct{/*Version*/ 3,
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-        /*Kind*/ 4,
-        /*Format*/ GetParam(),
-        /*DeviceTargetSpec*/ nullptr,
-        /*CompileOptions*/ nullptr,
-        /*LinkOptions*/ nullptr,
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-        /*ManifestStart*/ nullptr,
-        /*ManifestEnd*/ nullptr,
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-        /*BinaryStart*/ nullptr,
-        /*BinaryEnd*/ nullptr,
-        /*EntriesBegin*/ &ExtraEntryStruct,
-        /*EntriesEnd*/ &ExtraEntryStruct + 1,
-        /*PropertySetsBegin*/ nullptr,
-        /*PropertySetsEnd*/ nullptr
-  };
+                                           /*Kind*/ 4,
+                                           /*Format*/ GetParam(),
+                                           /*DeviceTargetSpec*/ nullptr,
+                                           /*CompileOptions*/ nullptr,
+                                           /*LinkOptions*/ nullptr,
+                                           /*BinaryStart*/ nullptr,
+                                           /*BinaryEnd*/ nullptr,
+                                           /*EntriesBegin*/ &ExtraEntryStruct,
+                                           /*EntriesEnd*/ &ExtraEntryStruct + 1,
+                                           /*PropertySetsBegin*/ nullptr,
+                                           /*PropertySetsEnd*/ nullptr};
   sycl_device_binary ExtraBin = &ExtraBinStruct;
   detail::RTDeviceBinaryImage ExtraImg{ExtraBin};
   std::string BuildOptions{"--multiple-images"};
@@ -356,7 +336,7 @@ TEST_P(PersistentDeviceCodeCache, MultipleImages) {
                                  B->getRawData().EntriesBegin->GetName()) < 0;
             });
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
-      *getSyclObjImpl(Dev), Imgs, {}, BuildOptions);
+      *detail::getSyclObjImpl(Dev), Imgs, {}, BuildOptions);
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 
   detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, Imgs, {},
@@ -409,7 +389,7 @@ TEST_P(PersistentDeviceCodeCache, ConcurentReadWriteCacheBigItem) {
 TEST_P(PersistentDeviceCodeCache, CorruptedCacheFiles) {
   std::string BuildOptions{"--corrupted-file"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
-      *getSyclObjImpl(Dev), {&Img}, {}, BuildOptions);
+      *detail::getSyclObjImpl(Dev), {&Img}, {}, BuildOptions);
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 
   // Only source file is present
@@ -494,7 +474,7 @@ TEST_P(PersistentDeviceCodeCache, CorruptedCacheFiles) {
 TEST_P(PersistentDeviceCodeCache, LockFile) {
   std::string BuildOptions{"--obsolete-lock"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
-      *getSyclObjImpl(Dev), {&Img}, {}, BuildOptions);
+      *detail::getSyclObjImpl(Dev), {&Img}, {}, BuildOptions);
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 
   // Create 1st cahe item
@@ -544,7 +524,7 @@ TEST_P(PersistentDeviceCodeCache, LockFile) {
 TEST_P(PersistentDeviceCodeCache, AccessDeniedForCacheDir) {
   std::string BuildOptions{"--build-options"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
-      *getSyclObjImpl(Dev), {&Img}, {}, BuildOptions);
+      *detail::getSyclObjImpl(Dev), {&Img}, {}, BuildOptions);
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
   detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},
                                                    BuildOptions, NativeProg);
@@ -600,7 +580,7 @@ TEST_P(PersistentDeviceCodeCache, BasicEviction) {
                                                    BuildOptions, NativeProg);
 
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
-      *getSyclObjImpl(Dev), {&Img}, {}, BuildOptions);
+      *detail::getSyclObjImpl(Dev), {&Img}, {}, BuildOptions);
   size_t SizeOfOneEntry = (size_t)(detail::getDirectorySize(ItemDir));
 
   detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},

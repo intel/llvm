@@ -21,7 +21,7 @@ jobs:
     if: (github.repository == 'llvm/llvm-project' || github.repository == 'intel/llvm') && !contains(github.event.pull_request.labels.*.name, 'disable-lint')
     steps:
       - name: Fetch LLVM sources
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 2
 
@@ -37,7 +37,7 @@ jobs:
       # We need to pull the script from the main branch, so that we ensure
       # we get the latest version of this script.
       - name: Fetch code formatting utils
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           repository: ${{ github.repository }}
           ref: ${{ github.base_ref }}
@@ -55,12 +55,12 @@ jobs:
           echo "$CHANGED_FILES"
 
       - name: Install clang-format
-        uses: aminya/setup-cpp@a276e6e3d1db9160db5edc458e99a30d3b109949 # v1.7.1
+        uses: aminya/setup-cpp@9bc9b8cd8a8d678f920e4e1e73f29da8010ced51 # v1.7.2
         with:
           clangformat: 20.1.8
 
       - name: Setup Python env
-        uses: actions/setup-python@v5.6.0
+        uses: actions/setup-python@v6.1.0
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -72,8 +72,6 @@ jobs:
       - name: Run code formatter
         env:
           GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
-          START_REV: ${{ github.event.pull_request.base.sha }}
-          END_REV: ${{ github.event.pull_request.head.sha }}
           CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
         # Create an empty comments file so the pr-write job doesn't fail.
         run: |
@@ -86,7 +84,7 @@ jobs:
             --end-rev HEAD \
             --changed-files "$CHANGED_FILES"
 
-      - uses: actions/upload-artifact@26f96dfa697d77e81fd5907df203aa23a56210a8 #v4.3.0
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f #v6.0.0
         if: always()
         with:
           name: workflow-args

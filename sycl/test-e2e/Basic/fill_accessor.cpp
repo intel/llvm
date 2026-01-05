@@ -4,9 +4,6 @@
 // XFAIL: run-mode && linux && arch-intel_gpu_pvc && level_zero_v2_adapter
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/19585
 
-// XFAIL: run-mode && linux && arch-intel_gpu_bmg_g21 && level_zero_v2_adapter
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19586
-
 #include <sycl/detail/core.hpp>
 
 #include <algorithm>

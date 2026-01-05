@@ -29,6 +29,10 @@ on:
         required: true
         type: string
         default: ""
+      install_igc_driver:
+        required: false
+        type: string
+        default: ""
   workflow_dispatch:
     inputs:
       adapter_name:
@@ -55,6 +59,10 @@ on:
         default: ""
       image_options:
         required: true
+        type: string
+        default: ""
+      install_igc_driver:
+        required: false
         type: string
         default: ""
 
@@ -98,12 +106,12 @@ jobs:
     # - downloading DPC++ should be integrated somehow; most likely use nightly release.
     #
     - name: Checkout LLVM
-      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
     # for some reason it's required to re-configure python for venv to work properly.
     - name: Set up Python 3.12
       if: ${{ inputs.docker_image == 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps' }}
-      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+      uses: actions/setup-python@4f41a90a1f38628c7ccc608d05fbafe701bc20ae # v6.0.0
       with:
         python-version: '3.12'
 
@@ -118,7 +126,7 @@ jobs:
 
     - name: Download DPC++
       run: |
-        wget -O dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2024-12-12/sycl_linux.tar.gz
+        wget -O dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2025-11-28/sycl_linux.tar.gz
         mkdir -p dpcpp_compiler
         tar -xvf dpcpp_compiler.tar.gz -C dpcpp_compiler
 
@@ -130,6 +138,13 @@ jobs:
         echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
         sudo apt-get update
         sudo apt-get install -y intel-oneapi-runtime-opencl
+
+    - name: Install Intel GPU driver
+      if: ${{ inputs.install_igc_driver && (inputs.adapter_name == 'OPENCL' || contains(inputs.adapter_name,'L0')) }}
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        sudo -E bash devops/scripts/install_drivers.sh devops/dependencies.json  --igfx
 
     - name: Configure Unified Runtime project
       # ">" is used to avoid adding "\" at the end of each line; this command is quite long

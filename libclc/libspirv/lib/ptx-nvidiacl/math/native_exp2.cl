@@ -40,7 +40,7 @@ _CLC_DEF _CLC_OVERLOAD half2 __clc_native_exp2(half2 x) {
                        __spirv_ocl_native_exp2((float)x.y));
 }
 
-#undef FUNCTION
+#undef __CLC_FUNCTION
 #define __CLC_FUNCTION __clc_native_exp2
 
 #undef __CLC_MIN_VECSIZE

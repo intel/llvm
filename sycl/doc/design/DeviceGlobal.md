@@ -396,15 +396,6 @@ IR for this decoration.  The first SPIR-V operand is set according to the
 have that property).  The second SPIR-V operation is set to the value of the
 device global's `sycl-unique-id`.
 
-The `sycl-post-link` tool also generates idiomatic LLVM IR for the
-**InitModeINTEL** decoration (if the device global has the `init_mode`
-property) and for the **ImplementInCSRINTEL** decoration (if the device global
-has the `implement_in_csr` property).  See the
-[SPV\_INTEL\_global\_variable\_decorations][6] SPIR-V extension for details
-about all of these decorations.
-
-[6]: <spirv-extensions/SPV_INTEL_global_variable_decorations.asciidoc>
-
 The `sycl-post-link` tool also create a "SYCL/device globals" property set for
 each device code module that contains at least one device global variable.
 

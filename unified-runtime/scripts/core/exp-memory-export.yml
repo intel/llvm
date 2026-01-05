@@ -56,12 +56,9 @@ params:
       name: ppMem
       desc: "[out][alloc] Pointer to allocated exportable memory."
 returns:
-    - $X_RESULT_ERROR_INVALID_CONTEXT
-    - $X_RESULT_ERROR_INVALID_DEVICE
-    - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
-      - "`(hDevice == nullptr) || (hContext == nullptr)`"
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE
     - $X_RESULT_ERROR_INVALID_NULL_POINTER:
-      - "`ppMem == nullptr`"
+      - "`NULL == ppMem`"
     - $X_RESULT_ERROR_UNSUPPORTED_ALIGNMENT:
       - "`alignment != 0 && ((alignment & (alignment-1)) != 0)`"
     - $X_RESULT_ERROR_INVALID_VALUE:
@@ -70,6 +67,8 @@ returns:
       - "`size == 0`"
     - $X_RESULT_ERROR_UNSUPPORTED_SIZE:
       - "`size` is greater than $X_DEVICE_INFO_MAX_MEM_ALLOC_SIZE."
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_DEVICE
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:DEVICE_INFO_MEMORY_EXPORT_LINEAR_MEMORY_EXPORT_SUPPORT_EXP
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
@@ -91,12 +90,11 @@ params:
       desc: |-
             [in][release] Pointer to exportable memory to be deallocated.
 returns:
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+      - "`NULL == pMem`"
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_DEVICE
-    - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
-      - "`(hDevice == nullptr) || (hContext == nullptr)`"
-    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
-      - "`pMem == nullptr`"
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_DEVICE_LOST
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
@@ -133,12 +131,11 @@ params:
       name: pMemHandleRet
       desc: "[out] Returned exportable handle to memory allocated in `pMem`"
 returns:
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+      - "`NULL == pMemHandleRet || NULL == pMem`"
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_DEVICE
-    - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
-      - "`(hDevice == nullptr) || (hContext == nullptr)`"
-    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
-      - "`pMemHandleRet == nullptr || pMem == nullptr`"
     - $X_RESULT_ERROR_INVALID_ENUMERATION
     - $X_RESULT_ERROR_DEVICE_LOST
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY

@@ -256,7 +256,7 @@ ur_result_t MsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
                KernelName, true, CheckLocals, CheckPrivates, TrackOrigins);
 
       PI->KernelMetadataMap[KernelName] =
-          ProgramInfo::KernelMetada{CheckLocals, CheckPrivates, TrackOrigins};
+          ProgramInfo::KernelMetadata{CheckLocals, CheckPrivates, TrackOrigins};
     }
     UR_LOG_L(getContext()->logger, INFO, "Number of sanitized kernel: {}",
              PI->KernelMetadataMap.size());
@@ -498,10 +498,10 @@ ur_result_t MsanInterceptor::prepareLaunch(
 
   // Clean shadow
   // Its content is always zero, and is used for unsupport memory types
-  UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-      ContextInfo->Handle, DeviceInfo->Handle, nullptr, nullptr,
-      ContextInfo->CleanShadowSize,
-      (void **)&LaunchInfo.Data.Host.CleanShadow));
+  UR_CALL(SafeAllocate(ContextInfo->Handle, DeviceInfo->Handle,
+                       ContextInfo->CleanShadowSize, nullptr, nullptr,
+                       AllocType::DEVICE_USM,
+                       (void **)&LaunchInfo.Data.Host.CleanShadow));
   UR_CALL(EnqueueUSMSet(Queue, (void *)LaunchInfo.Data.Host.CleanShadow,
                         (char)0, ContextInfo->CleanShadowSize, 0, nullptr,
                         nullptr));
@@ -509,7 +509,7 @@ ur_result_t MsanInterceptor::prepareLaunch(
   if (LaunchInfo.LocalWorkSize.empty()) {
     LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
     auto URes = getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize(
-        Kernel, Queue, LaunchInfo.WorkDim, LaunchInfo.GlobalWorkOffset,
+        Kernel, Queue, LaunchInfo.WorkDim, LaunchInfo.GlobalWorkOffset.data(),
         LaunchInfo.GlobalWorkSize, LaunchInfo.LocalWorkSize.data());
     if (URes != UR_RESULT_SUCCESS) {
       if (URes != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
@@ -639,7 +639,7 @@ bool ProgramInfo::isKernelInstrumented(ur_kernel_handle_t Kernel) const {
   return KernelMetadataMap.find(Name) != KernelMetadataMap.end();
 }
 
-const ProgramInfo::KernelMetada &
+const ProgramInfo::KernelMetadata &
 ProgramInfo::getKernelMetadata(ur_kernel_handle_t Kernel) const {
   const auto Name = GetKernelName(Kernel);
   assert(KernelMetadataMap.find(Name) != KernelMetadataMap.end());

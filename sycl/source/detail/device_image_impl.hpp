@@ -296,7 +296,7 @@ public:
       KernelNameSetT &&KernelNames,
       KernelNameToArgMaskMap &&EliminatedKernelArgMasks,
       std::unique_ptr<DynRTDeviceBinaryImage> &&MergedImageStorage, private_tag)
-      : MBinImage(BinImage), MContext(std::move(Context)),
+      : MBinImage(BinImage), MContext(Context),
         MDevices(Devices.to<std::vector<device_impl *>>()), MState(State),
         MProgram(std::move(Program)), MKernelIDs(std::move(KernelIDs)),
         MKernelNames{std::move(KernelNames)},
@@ -315,7 +315,7 @@ public:
       MangledKernelNameMapT &&MangledKernelNames, std::string &&Prefix,
       std::shared_ptr<ManagedDeviceGlobalsRegistry> &&DeviceGlobalRegistry,
       private_tag)
-      : MBinImage(BinImage), MContext(std::move(Context)),
+      : MBinImage(BinImage), MContext(Context),
         MDevices(Devices.to<std::vector<device_impl *>>()), MState(State),
         MKernelIDs(std::move(KernelIDs)), MKernelNames{std::move(KernelNames)},
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
@@ -326,7 +326,7 @@ public:
     updateSpecConstSymMap();
   }
 
-  device_image_impl(const std::string &Src, context Context,
+  device_image_impl(const std::string &Src, const context &Context,
                     devices_range Devices, syclex::source_language Lang,
                     include_pairs_t &&IncludePairsVec, private_tag)
       : MBinImage(Src), MContext(std::move(Context)),
@@ -342,7 +342,7 @@ public:
   device_image_impl(const std::vector<std::byte> &Bytes, const context &Context,
                     devices_range Devices, syclex::source_language Lang,
                     private_tag)
-      : MBinImage(Bytes), MContext(std::move(Context)),
+      : MBinImage(Bytes), MContext(Context),
         MDevices(Devices.to<std::vector<device_impl *>>()),
         MState(bundle_state::ext_oneapi_source),
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
@@ -356,9 +356,9 @@ public:
                     syclex::source_language Lang, KernelNameSetT &&KernelNames,
                     private_tag)
       : MBinImage(static_cast<const RTDeviceBinaryImage *>(nullptr)),
-        MContext(std::move(Context)),
-        MDevices(Devices.to<std::vector<device_impl *>>()), MState(State),
-        MProgram(std::move(Program)), MKernelNames{std::move(KernelNames)},
+        MContext(Context), MDevices(Devices.to<std::vector<device_impl *>>()),
+        MState(State), MProgram(std::move(Program)),
+        MKernelNames{std::move(KernelNames)},
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
         MOrigins(ImageOriginKernelCompiler),
         MRTCBinInfo(KernelCompilerBinaryInfo{Lang}) {}
@@ -761,7 +761,8 @@ public:
 
     std::string XsFlags = extractXsFlags(BuildOptions, MRTCBinInfo->MLanguage);
     auto Res = Adapter.call_nocheck<UrApiKind::urProgramBuildExp>(
-        UrProgram, DeviceVec.size(), DeviceVec.data(), XsFlags.c_str());
+        UrProgram, DeviceVec.size(), DeviceVec.data(), ur_exp_program_flags_t{},
+        XsFlags.c_str());
     if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
       Res = Adapter.call_nocheck<UrApiKind::urProgramBuild>(
           ContextImpl.getHandleRef(), UrProgram, XsFlags.c_str());
@@ -1360,6 +1361,21 @@ private:
 
 public:
   using Base::Base;
+  template <typename Container>
+  decltype(std::declval<Base>().to<Container>()) to() const {
+    return this->Base::to<Container>();
+  }
+
+  template <typename Container>
+  std::enable_if_t<std::is_same_v<Container, std::vector<ur_program_handle_t>>,
+                   Container>
+  to() const {
+    std::vector<ur_program_handle_t> ProgramHandles;
+    ProgramHandles.reserve(size());
+    std::transform(begin(), end(), std::back_inserter(ProgramHandles),
+                   [](device_image_impl &Img) { return Img.get_ur_program(); });
+    return ProgramHandles;
+  }
 };
 
 } // namespace detail

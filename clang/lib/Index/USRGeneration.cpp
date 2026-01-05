@@ -916,11 +916,10 @@ void USRGenerator::VisitType(QualType T) {
     }
     if (const TagType *TT = T->getAs<TagType>()) {
       if (const auto *ICNT = dyn_cast<InjectedClassNameType>(TT)) {
-        T = ICNT->getOriginalDecl()->getCanonicalTemplateSpecializationType(
-            Ctx);
+        T = ICNT->getDecl()->getCanonicalTemplateSpecializationType(Ctx);
       } else {
         Out << '$';
-        VisitTagDecl(TT->getOriginalDecl());
+        VisitTagDecl(TT->getDecl());
         return;
       }
     }
@@ -936,7 +935,8 @@ void USRGenerator::VisitType(QualType T) {
         VisitObjCProtocolDecl(Prot);
       return;
     }
-    if (const TemplateTypeParmType *TTP = T->getAs<TemplateTypeParmType>()) {
+    if (const TemplateTypeParmType *TTP =
+            T->getAsCanonical<TemplateTypeParmType>()) {
       Out << 't' << TTP->getDepth() << '.' << TTP->getIndex();
       return;
     }

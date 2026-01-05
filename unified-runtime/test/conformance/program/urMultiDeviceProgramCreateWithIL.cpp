@@ -32,8 +32,8 @@ TEST_P(urMultiDeviceProgramTest, urMultiDeviceProgramGetInfo) {
   auto subset = std::vector<ur_device_handle_t>(
       associated_devices.begin(),
       associated_devices.begin() + associated_devices.size() / 2);
-  ASSERT_SUCCESS(
-      urProgramBuildExp(program, subset.size(), subset.data(), nullptr));
+  ASSERT_SUCCESS(urProgramBuildExp(program, subset.size(), subset.data(),
+                                   ur_exp_program_flags_t{}, nullptr));
 
   std::vector<size_t> binary_sizes(associated_devices.size());
   ASSERT_SUCCESS(urProgramGetInfo(program, UR_PROGRAM_INFO_BINARY_SIZES,
@@ -84,8 +84,8 @@ TEST_P(urMultiDeviceProgramTest, urMultiDeviceProgramGetInfoBinaries) {
   }
 
   // Build program for the second device only.
-  ASSERT_SUCCESS(
-      urProgramBuildExp(program, 1, associated_devices.data() + 1, nullptr));
+  ASSERT_SUCCESS(urProgramBuildExp(program, 1, associated_devices.data() + 1,
+                                   ur_exp_program_flags_t{}, nullptr));
   std::vector<size_t> binary_sizes(associated_devices.size());
   ASSERT_SUCCESS(urProgramGetInfo(program, UR_PROGRAM_INFO_BINARY_SIZES,
                                   binary_sizes.size() * sizeof(size_t),
@@ -108,6 +108,7 @@ TEST_P(urMultiDeviceProgramTest, urMultiDeviceProgramGetInfoBinaries) {
       pointers.data() + 1, nullptr, &program_from_binary));
   ASSERT_NE(program_from_binary, nullptr);
   ASSERT_SUCCESS(urProgramBuildExp(program_from_binary, 1,
-                                   associated_devices.data() + 1, nullptr));
+                                   associated_devices.data() + 1,
+                                   ur_exp_program_flags_t{}, nullptr));
   ASSERT_SUCCESS(urProgramRelease(program_from_binary));
 }

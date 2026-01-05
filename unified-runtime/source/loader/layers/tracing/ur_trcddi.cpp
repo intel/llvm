@@ -4680,11 +4680,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     /// execute the kernel function.
     /// If nullptr, the runtime implementation will choose the work-group size.
     const size_t *pLocalWorkSize,
-    /// [in] size of the launch prop list
-    uint32_t numPropsInLaunchPropList,
-    /// [in][optional][range(0, numPropsInLaunchPropList)] pointer to a list
-    /// of launch properties
-    const ur_kernel_launch_property_t *launchPropList,
+    /// [in][optional] pointer to a single linked list of launch properties
+    const ur_kernel_launch_ext_properties_t *launchPropList,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -4702,27 +4699,20 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
   if (nullptr == pfnKernelLaunch)
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
-  ur_enqueue_kernel_launch_params_t params = {&hQueue,
-                                              &hKernel,
-                                              &workDim,
-                                              &pGlobalWorkOffset,
-                                              &pGlobalWorkSize,
-                                              &pLocalWorkSize,
-                                              &numPropsInLaunchPropList,
-                                              &launchPropList,
-                                              &numEventsInWaitList,
-                                              &phEventWaitList,
-                                              &phEvent};
+  ur_enqueue_kernel_launch_params_t params = {
+      &hQueue,          &hKernel,        &workDim,        &pGlobalWorkOffset,
+      &pGlobalWorkSize, &pLocalWorkSize, &launchPropList, &numEventsInWaitList,
+      &phEventWaitList, &phEvent};
   uint64_t instance = getContext()->notify_begin(
       UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH, "urEnqueueKernelLaunch", &params);
 
   auto &logger = getContext()->logger;
   UR_LOG_L(logger, INFO, "   ---> urEnqueueKernelLaunch\n");
 
-  ur_result_t result = pfnKernelLaunch(
-      hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      pLocalWorkSize, numPropsInLaunchPropList, launchPropList,
-      numEventsInWaitList, phEventWaitList, phEvent);
+  ur_result_t result =
+      pfnKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
+                      pGlobalWorkSize, pLocalWorkSize, launchPropList,
+                      numEventsInWaitList, phEventWaitList, phEvent);
 
   getContext()->notify_end(UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH,
                            "urEnqueueKernelLaunch", &params, &result, instance);
@@ -8171,7 +8161,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     ur_kernel_handle_t hKernel,
     /// [in] Dimension of the kernel execution.
     uint32_t workDim,
-    /// [in] Offset to use when executing kernel.
+    /// [in][optional] Offset to use when executing kernel.
     const size_t *pGlobalWorkOffset,
     /// [in] Global work size to use when executing kernel.
     const size_t *pGlobalWorkSize,
@@ -9518,6 +9508,79 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urDeviceWaitExp
+__urdlllocal ur_result_t UR_APICALL urDeviceWaitExp(
+    /// [in] handle of the device instance.
+    ur_device_handle_t hDevice) {
+  auto pfnWaitExp = getContext()->urDdiTable.DeviceExp.pfnWaitExp;
+
+  if (nullptr == pfnWaitExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_device_wait_exp_params_t params = {&hDevice};
+  uint64_t instance = getContext()->notify_begin(UR_FUNCTION_DEVICE_WAIT_EXP,
+                                                 "urDeviceWaitExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urDeviceWaitExp\n");
+
+  ur_result_t result = pfnWaitExp(hDevice);
+
+  getContext()->notify_end(UR_FUNCTION_DEVICE_WAIT_EXP, "urDeviceWaitExp",
+                           &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_DEVICE_WAIT_EXP,
+                                    &params);
+    UR_LOG_L(logger, INFO, "   <--- urDeviceWaitExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramDynamicLinkExp
+__urdlllocal ur_result_t UR_APICALL urProgramDynamicLinkExp(
+    /// [in] handle of the context instance.
+    ur_context_handle_t hContext,
+    /// [in] number of program handles in `phPrograms`.
+    uint32_t count,
+    /// [in][range(0, count)] pointer to array of program handles.
+    const ur_program_handle_t *phPrograms) {
+  auto pfnDynamicLinkExp =
+      getContext()->urDdiTable.ProgramExp.pfnDynamicLinkExp;
+
+  if (nullptr == pfnDynamicLinkExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_program_dynamic_link_exp_params_t params = {&hContext, &count,
+                                                 &phPrograms};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_PROGRAM_DYNAMIC_LINK_EXP, "urProgramDynamicLinkExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urProgramDynamicLinkExp\n");
+
+  ur_result_t result = pfnDynamicLinkExp(hContext, count, phPrograms);
+
+  getContext()->notify_end(UR_FUNCTION_PROGRAM_DYNAMIC_LINK_EXP,
+                           "urProgramDynamicLinkExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_PROGRAM_DYNAMIC_LINK_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urProgramDynamicLinkExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueTimestampRecordingExp
 __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     /// [in] handle of the queue object
@@ -9572,6 +9635,164 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
         args_str, UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP, &params);
     UR_LOG_L(logger, INFO,
              "   <--- urEnqueueTimestampRecordingExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCGetMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] pointer to device USM memory
+    void *pMem,
+    /// [out][optional] a pointer to the IPC memory handle data
+    void **ppIPCMemHandleData,
+    /// [out][optional] size of the resulting IPC memory handle data
+    size_t *pIPCMemHandleDataSizeRet) {
+  auto pfnGetMemHandleExp = getContext()->urDdiTable.IPCExp.pfnGetMemHandleExp;
+
+  if (nullptr == pfnGetMemHandleExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_ipc_get_mem_handle_exp_params_t params = {
+      &hContext, &pMem, &ppIPCMemHandleData, &pIPCMemHandleDataSizeRet};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP, "urIPCGetMemHandleExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urIPCGetMemHandleExp\n");
+
+  ur_result_t result = pfnGetMemHandleExp(hContext, pMem, ppIPCMemHandleData,
+                                          pIPCMemHandleDataSizeRet);
+
+  getContext()->notify_end(UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP,
+                           "urIPCGetMemHandleExp", &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urIPCGetMemHandleExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCPutMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCPutMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] a pointer to the IPC memory handle data
+    void *pIPCMemHandleData) {
+  auto pfnPutMemHandleExp = getContext()->urDdiTable.IPCExp.pfnPutMemHandleExp;
+
+  if (nullptr == pfnPutMemHandleExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_ipc_put_mem_handle_exp_params_t params = {&hContext, &pIPCMemHandleData};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_IPC_PUT_MEM_HANDLE_EXP, "urIPCPutMemHandleExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urIPCPutMemHandleExp\n");
+
+  ur_result_t result = pfnPutMemHandleExp(hContext, pIPCMemHandleData);
+
+  getContext()->notify_end(UR_FUNCTION_IPC_PUT_MEM_HANDLE_EXP,
+                           "urIPCPutMemHandleExp", &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_IPC_PUT_MEM_HANDLE_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urIPCPutMemHandleExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCOpenMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCOpenMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object the corresponding USM device memory
+    /// was allocated on
+    ur_device_handle_t hDevice,
+    /// [in] the IPC memory handle data
+    void *pIPCMemHandleData,
+    /// [in] size of the IPC memory handle data
+    size_t ipcMemHandleDataSize,
+    /// [out] pointer to a pointer to device USM memory
+    void **ppMem) {
+  auto pfnOpenMemHandleExp =
+      getContext()->urDdiTable.IPCExp.pfnOpenMemHandleExp;
+
+  if (nullptr == pfnOpenMemHandleExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_ipc_open_mem_handle_exp_params_t params = {
+      &hContext, &hDevice, &pIPCMemHandleData, &ipcMemHandleDataSize, &ppMem};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_IPC_OPEN_MEM_HANDLE_EXP, "urIPCOpenMemHandleExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urIPCOpenMemHandleExp\n");
+
+  ur_result_t result = pfnOpenMemHandleExp(hContext, hDevice, pIPCMemHandleData,
+                                           ipcMemHandleDataSize, ppMem);
+
+  getContext()->notify_end(UR_FUNCTION_IPC_OPEN_MEM_HANDLE_EXP,
+                           "urIPCOpenMemHandleExp", &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_IPC_OPEN_MEM_HANDLE_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urIPCOpenMemHandleExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCCloseMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCCloseMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] pointer to device USM memory opened through urIPCOpenMemHandleExp
+    void *pMem) {
+  auto pfnCloseMemHandleExp =
+      getContext()->urDdiTable.IPCExp.pfnCloseMemHandleExp;
+
+  if (nullptr == pfnCloseMemHandleExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_ipc_close_mem_handle_exp_params_t params = {&hContext, &pMem};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_IPC_CLOSE_MEM_HANDLE_EXP, "urIPCCloseMemHandleExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urIPCCloseMemHandleExp\n");
+
+  ur_result_t result = pfnCloseMemHandleExp(hContext, pMem);
+
+  getContext()->notify_end(UR_FUNCTION_IPC_CLOSE_MEM_HANDLE_EXP,
+                           "urIPCCloseMemHandleExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_IPC_CLOSE_MEM_HANDLE_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urIPCCloseMemHandleExp({}) -> {};\n",
              args_str.str(), result);
   }
 
@@ -9729,6 +9950,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) {
   auto pfnBuildExp = getContext()->urDdiTable.ProgramExp.pfnBuildExp;
@@ -9737,14 +9960,15 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
   ur_program_build_exp_params_t params = {&hProgram, &numDevices, &phDevices,
-                                          &pOptions};
+                                          &flags, &pOptions};
   uint64_t instance = getContext()->notify_begin(UR_FUNCTION_PROGRAM_BUILD_EXP,
                                                  "urProgramBuildExp", &params);
 
   auto &logger = getContext()->logger;
   UR_LOG_L(logger, INFO, "   ---> urProgramBuildExp\n");
 
-  ur_result_t result = pfnBuildExp(hProgram, numDevices, phDevices, pOptions);
+  ur_result_t result =
+      pfnBuildExp(hProgram, numDevices, phDevices, flags, pOptions);
 
   getContext()->notify_end(UR_FUNCTION_PROGRAM_BUILD_EXP, "urProgramBuildExp",
                            &params, &result, instance);
@@ -9769,6 +9993,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) {
   auto pfnCompileExp = getContext()->urDdiTable.ProgramExp.pfnCompileExp;
@@ -9777,14 +10003,15 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
   ur_program_compile_exp_params_t params = {&hProgram, &numDevices, &phDevices,
-                                            &pOptions};
+                                            &flags, &pOptions};
   uint64_t instance = getContext()->notify_begin(
       UR_FUNCTION_PROGRAM_COMPILE_EXP, "urProgramCompileExp", &params);
 
   auto &logger = getContext()->logger;
   UR_LOG_L(logger, INFO, "   ---> urProgramCompileExp\n");
 
-  ur_result_t result = pfnCompileExp(hProgram, numDevices, phDevices, pOptions);
+  ur_result_t result =
+      pfnCompileExp(hProgram, numDevices, phDevices, flags, pOptions);
 
   getContext()->notify_end(UR_FUNCTION_PROGRAM_COMPILE_EXP,
                            "urProgramCompileExp", &params, &result, instance);
@@ -9809,6 +10036,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
     /// [in] number of program handles in `phPrograms`.
     uint32_t count,
     /// [in][range(0, count)] pointer to array of program handles.
@@ -9826,15 +10055,15 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
   ur_program_link_exp_params_t params = {&hContext, &numDevices, &phDevices,
-                                         &count,    &phPrograms, &pOptions,
-                                         &phProgram};
+                                         &flags,    &count,      &phPrograms,
+                                         &pOptions, &phProgram};
   uint64_t instance = getContext()->notify_begin(UR_FUNCTION_PROGRAM_LINK_EXP,
                                                  "urProgramLinkExp", &params);
 
   auto &logger = getContext()->logger;
   UR_LOG_L(logger, INFO, "   ---> urProgramLinkExp\n");
 
-  ur_result_t result = pfnLinkExp(hContext, numDevices, phDevices, count,
+  ur_result_t result = pfnLinkExp(hContext, numDevices, phDevices, flags, count,
                                   phPrograms, pOptions, phProgram);
 
   getContext()->notify_end(UR_FUNCTION_PROGRAM_LINK_EXP, "urProgramLinkExp",
@@ -10098,6 +10327,88 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueKernelLaunchWithArgsExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] number of dimensions, from 1 to 3, to specify the global and
+    /// work-group work-items
+    uint32_t workDim,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the offset used to calculate the global ID of a work-item
+    const size_t *pGlobalWorkOffset,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// number of global work-items in workDim that will execute the kernel
+    /// function
+    const size_t *pGlobalWorkSize,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the number of local work-items forming a work-group that will
+    /// execute the kernel function.
+    /// If nullptr, the runtime implementation will choose the work-group size.
+    const size_t *pLocalWorkSize,
+    /// [in] Number of entries in pArgs
+    uint32_t numArgs,
+    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
+    /// properties.
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    /// [in][optional] pointer to a single linked list of launch properties
+    const ur_kernel_launch_ext_properties_t *launchPropList,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+    /// event.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular kernel execution instance. If phEventWaitList and phEvent
+    /// are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
+    ur_event_handle_t *phEvent) {
+  auto pfnKernelLaunchWithArgsExp =
+      getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchWithArgsExp;
+
+  if (nullptr == pfnKernelLaunchWithArgsExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_enqueue_kernel_launch_with_args_exp_params_t params = {
+      &hQueue,          &hKernel,
+      &workDim,         &pGlobalWorkOffset,
+      &pGlobalWorkSize, &pLocalWorkSize,
+      &numArgs,         &pArgs,
+      &launchPropList,  &numEventsInWaitList,
+      &phEventWaitList, &phEvent};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP,
+      "urEnqueueKernelLaunchWithArgsExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urEnqueueKernelLaunchWithArgsExp\n");
+
+  ur_result_t result = pfnKernelLaunchWithArgsExp(
+      hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+      pLocalWorkSize, numArgs, pArgs, launchPropList, numEventsInWaitList,
+      phEventWaitList, phEvent);
+
+  getContext()->notify_end(UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP,
+                           "urEnqueueKernelLaunchWithArgsExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP, &params);
+    UR_LOG_L(logger, INFO,
+             "   <--- urEnqueueKernelLaunchWithArgsExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueEventsWaitWithBarrierExt
 __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrierExt(
     /// [in] handle of the queue object
@@ -10217,6 +10528,424 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP, &params);
     UR_LOG_L(logger, INFO, "   <--- urEnqueueNativeCommandExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphCreateExp
+__urdlllocal ur_result_t UR_APICALL urGraphCreateExp(
+    /// [in] Handle of the context object.
+    ur_context_handle_t hContext,
+    /// [out][alloc] Pointer to the handle of the created graph object.
+    ur_exp_graph_handle_t *phGraph) {
+  auto pfnCreateExp = getContext()->urDdiTable.GraphExp.pfnCreateExp;
+
+  if (nullptr == pfnCreateExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_graph_create_exp_params_t params = {&hContext, &phGraph};
+  uint64_t instance = getContext()->notify_begin(UR_FUNCTION_GRAPH_CREATE_EXP,
+                                                 "urGraphCreateExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urGraphCreateExp\n");
+
+  ur_result_t result = pfnCreateExp(hContext, phGraph);
+
+  getContext()->notify_end(UR_FUNCTION_GRAPH_CREATE_EXP, "urGraphCreateExp",
+                           &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_GRAPH_CREATE_EXP,
+                                    &params);
+    UR_LOG_L(logger, INFO, "   <--- urGraphCreateExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urQueueBeginGraphCaptureExp
+__urdlllocal ur_result_t UR_APICALL urQueueBeginGraphCaptureExp(
+    /// [in] Handle of the queue on which to begin graph capture.
+    ur_queue_handle_t hQueue) {
+  auto pfnBeginGraphCaptureExp =
+      getContext()->urDdiTable.QueueExp.pfnBeginGraphCaptureExp;
+
+  if (nullptr == pfnBeginGraphCaptureExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_queue_begin_graph_capture_exp_params_t params = {&hQueue};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_QUEUE_BEGIN_GRAPH_CAPTURE_EXP,
+                                 "urQueueBeginGraphCaptureExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urQueueBeginGraphCaptureExp\n");
+
+  ur_result_t result = pfnBeginGraphCaptureExp(hQueue);
+
+  getContext()->notify_end(UR_FUNCTION_QUEUE_BEGIN_GRAPH_CAPTURE_EXP,
+                           "urQueueBeginGraphCaptureExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_QUEUE_BEGIN_GRAPH_CAPTURE_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urQueueBeginGraphCaptureExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urQueueBeginCaptureIntoGraphExp
+__urdlllocal ur_result_t UR_APICALL urQueueBeginCaptureIntoGraphExp(
+    /// [in] Handle of the queue on which to begin graph capture.
+    ur_queue_handle_t hQueue,
+    /// [in] Handle of the graph object to capture into.
+    ur_exp_graph_handle_t hGraph) {
+  auto pfnBeginCaptureIntoGraphExp =
+      getContext()->urDdiTable.QueueExp.pfnBeginCaptureIntoGraphExp;
+
+  if (nullptr == pfnBeginCaptureIntoGraphExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_queue_begin_capture_into_graph_exp_params_t params = {&hQueue, &hGraph};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_QUEUE_BEGIN_CAPTURE_INTO_GRAPH_EXP,
+                                 "urQueueBeginCaptureIntoGraphExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urQueueBeginCaptureIntoGraphExp\n");
+
+  ur_result_t result = pfnBeginCaptureIntoGraphExp(hQueue, hGraph);
+
+  getContext()->notify_end(UR_FUNCTION_QUEUE_BEGIN_CAPTURE_INTO_GRAPH_EXP,
+                           "urQueueBeginCaptureIntoGraphExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_QUEUE_BEGIN_CAPTURE_INTO_GRAPH_EXP, &params);
+    UR_LOG_L(logger, INFO,
+             "   <--- urQueueBeginCaptureIntoGraphExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urQueueEndGraphCaptureExp
+__urdlllocal ur_result_t UR_APICALL urQueueEndGraphCaptureExp(
+    /// [in] Handle of the queue on which to end graph capture.
+    ur_queue_handle_t hQueue,
+    /// [out] Pointer to the handle of the recorded graph object. If
+    /// ::urQueueBeginCaptureIntoGraphExp was used to begin the capture, then
+    /// phGraph will contain the same graph that was passed to it.
+    ur_exp_graph_handle_t *phGraph) {
+  auto pfnEndGraphCaptureExp =
+      getContext()->urDdiTable.QueueExp.pfnEndGraphCaptureExp;
+
+  if (nullptr == pfnEndGraphCaptureExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_queue_end_graph_capture_exp_params_t params = {&hQueue, &phGraph};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_QUEUE_END_GRAPH_CAPTURE_EXP,
+                                 "urQueueEndGraphCaptureExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urQueueEndGraphCaptureExp\n");
+
+  ur_result_t result = pfnEndGraphCaptureExp(hQueue, phGraph);
+
+  getContext()->notify_end(UR_FUNCTION_QUEUE_END_GRAPH_CAPTURE_EXP,
+                           "urQueueEndGraphCaptureExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_QUEUE_END_GRAPH_CAPTURE_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urQueueEndGraphCaptureExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphInstantiateGraphExp
+__urdlllocal ur_result_t UR_APICALL urGraphInstantiateGraphExp(
+    /// [in] Handle of the recorded graph to instantiate.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] Pointer to the handle of the instantiated executable graph.
+    ur_exp_executable_graph_handle_t *phExecGraph) {
+  auto pfnInstantiateGraphExp =
+      getContext()->urDdiTable.GraphExp.pfnInstantiateGraphExp;
+
+  if (nullptr == pfnInstantiateGraphExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_graph_instantiate_graph_exp_params_t params = {&hGraph, &phExecGraph};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_GRAPH_INSTANTIATE_GRAPH_EXP,
+                                 "urGraphInstantiateGraphExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urGraphInstantiateGraphExp\n");
+
+  ur_result_t result = pfnInstantiateGraphExp(hGraph, phExecGraph);
+
+  getContext()->notify_end(UR_FUNCTION_GRAPH_INSTANTIATE_GRAPH_EXP,
+                           "urGraphInstantiateGraphExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_GRAPH_INSTANTIATE_GRAPH_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urGraphInstantiateGraphExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueGraphExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueGraphExp(
+    /// [in] Handle of the queue to which the graph will be enqueued.
+    ur_queue_handle_t hQueue,
+    /// [in] Handle of the executable graph to be enqueued.
+    ur_exp_executable_graph_handle_t hGraph,
+    /// [in][optional] Number of events to wait on before executing.
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] Pointer to a list of
+    /// events that must be complete before this command can be executed.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] Event object that identifies this particular
+    /// command instance.
+    /// If phEventWaitList and phEvent are not nullptr, phEvent must not refer
+    /// to an element of the phEventWaitList array.
+    ur_event_handle_t *phEvent) {
+  auto pfnGraphExp = getContext()->urDdiTable.EnqueueExp.pfnGraphExp;
+
+  if (nullptr == pfnGraphExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_enqueue_graph_exp_params_t params = {
+      &hQueue, &hGraph, &numEventsInWaitList, &phEventWaitList, &phEvent};
+  uint64_t instance = getContext()->notify_begin(UR_FUNCTION_ENQUEUE_GRAPH_EXP,
+                                                 "urEnqueueGraphExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urEnqueueGraphExp\n");
+
+  ur_result_t result = pfnGraphExp(hQueue, hGraph, numEventsInWaitList,
+                                   phEventWaitList, phEvent);
+
+  getContext()->notify_end(UR_FUNCTION_ENQUEUE_GRAPH_EXP, "urEnqueueGraphExp",
+                           &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_ENQUEUE_GRAPH_EXP,
+                                    &params);
+    UR_LOG_L(logger, INFO, "   <--- urEnqueueGraphExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphDestroyExp
+__urdlllocal ur_result_t UR_APICALL urGraphDestroyExp(
+    /// [in] Handle of the graph object to destroy.
+    ur_exp_graph_handle_t hGraph) {
+  auto pfnDestroyExp = getContext()->urDdiTable.GraphExp.pfnDestroyExp;
+
+  if (nullptr == pfnDestroyExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_graph_destroy_exp_params_t params = {&hGraph};
+  uint64_t instance = getContext()->notify_begin(UR_FUNCTION_GRAPH_DESTROY_EXP,
+                                                 "urGraphDestroyExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urGraphDestroyExp\n");
+
+  ur_result_t result = pfnDestroyExp(hGraph);
+
+  getContext()->notify_end(UR_FUNCTION_GRAPH_DESTROY_EXP, "urGraphDestroyExp",
+                           &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_GRAPH_DESTROY_EXP,
+                                    &params);
+    UR_LOG_L(logger, INFO, "   <--- urGraphDestroyExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphExecutableGraphDestroyExp
+__urdlllocal ur_result_t UR_APICALL urGraphExecutableGraphDestroyExp(
+    /// [in] Handle of the executable graph object to destroy.
+    ur_exp_executable_graph_handle_t hExecutableGraph) {
+  auto pfnExecutableGraphDestroyExp =
+      getContext()->urDdiTable.GraphExp.pfnExecutableGraphDestroyExp;
+
+  if (nullptr == pfnExecutableGraphDestroyExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_graph_executable_graph_destroy_exp_params_t params = {&hExecutableGraph};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_DESTROY_EXP,
+                                 "urGraphExecutableGraphDestroyExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urGraphExecutableGraphDestroyExp\n");
+
+  ur_result_t result = pfnExecutableGraphDestroyExp(hExecutableGraph);
+
+  getContext()->notify_end(UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_DESTROY_EXP,
+                           "urGraphExecutableGraphDestroyExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_DESTROY_EXP, &params);
+    UR_LOG_L(logger, INFO,
+             "   <--- urGraphExecutableGraphDestroyExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urQueueIsGraphCaptureEnabledExp
+__urdlllocal ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
+    /// [in] Native queue to query.
+    ur_queue_handle_t hQueue,
+    /// [out] Pointer to a boolean where the result will be stored.
+    bool *pResult) {
+  auto pfnIsGraphCaptureEnabledExp =
+      getContext()->urDdiTable.QueueExp.pfnIsGraphCaptureEnabledExp;
+
+  if (nullptr == pfnIsGraphCaptureEnabledExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_queue_is_graph_capture_enabled_exp_params_t params = {&hQueue, &pResult};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_QUEUE_IS_GRAPH_CAPTURE_ENABLED_EXP,
+                                 "urQueueIsGraphCaptureEnabledExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urQueueIsGraphCaptureEnabledExp\n");
+
+  ur_result_t result = pfnIsGraphCaptureEnabledExp(hQueue, pResult);
+
+  getContext()->notify_end(UR_FUNCTION_QUEUE_IS_GRAPH_CAPTURE_ENABLED_EXP,
+                           "urQueueIsGraphCaptureEnabledExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_QUEUE_IS_GRAPH_CAPTURE_ENABLED_EXP, &params);
+    UR_LOG_L(logger, INFO,
+             "   <--- urQueueIsGraphCaptureEnabledExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphIsEmptyExp
+__urdlllocal ur_result_t UR_APICALL urGraphIsEmptyExp(
+    /// [in] Handle of the graph to query.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] Pointer to a boolean where the result will be stored.
+    bool *pResult) {
+  auto pfnIsEmptyExp = getContext()->urDdiTable.GraphExp.pfnIsEmptyExp;
+
+  if (nullptr == pfnIsEmptyExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_graph_is_empty_exp_params_t params = {&hGraph, &pResult};
+  uint64_t instance = getContext()->notify_begin(UR_FUNCTION_GRAPH_IS_EMPTY_EXP,
+                                                 "urGraphIsEmptyExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urGraphIsEmptyExp\n");
+
+  ur_result_t result = pfnIsEmptyExp(hGraph, pResult);
+
+  getContext()->notify_end(UR_FUNCTION_GRAPH_IS_EMPTY_EXP, "urGraphIsEmptyExp",
+                           &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_GRAPH_IS_EMPTY_EXP,
+                                    &params);
+    UR_LOG_L(logger, INFO, "   <--- urGraphIsEmptyExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphDumpContentsExp
+__urdlllocal ur_result_t UR_APICALL urGraphDumpContentsExp(
+    /// [in] Handle of the graph to dump.
+    ur_exp_graph_handle_t hGraph,
+    /// [in] Path to the file to write the dumped graph contents.
+    const char *filePath) {
+  auto pfnDumpContentsExp =
+      getContext()->urDdiTable.GraphExp.pfnDumpContentsExp;
+
+  if (nullptr == pfnDumpContentsExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_graph_dump_contents_exp_params_t params = {&hGraph, &filePath};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_GRAPH_DUMP_CONTENTS_EXP, "urGraphDumpContentsExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urGraphDumpContentsExp\n");
+
+  ur_result_t result = pfnDumpContentsExp(hGraph, filePath);
+
+  getContext()->notify_end(UR_FUNCTION_GRAPH_DUMP_CONTENTS_EXP,
+                           "urGraphDumpContentsExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_GRAPH_DUMP_CONTENTS_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urGraphDumpContentsExp({}) -> {};\n",
              args_str.str(), result);
   }
 
@@ -10707,6 +11436,10 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
 
   ur_result_t result = UR_RESULT_SUCCESS;
 
+  dditable.pfnKernelLaunchWithArgsExp = pDdiTable->pfnKernelLaunchWithArgsExp;
+  pDdiTable->pfnKernelLaunchWithArgsExp =
+      ur_tracing_layer::urEnqueueKernelLaunchWithArgsExp;
+
   dditable.pfnUSMDeviceAllocExp = pDdiTable->pfnUSMDeviceAllocExp;
   pDdiTable->pfnUSMDeviceAllocExp =
       ur_tracing_layer::urEnqueueUSMDeviceAllocExp;
@@ -10730,6 +11463,9 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
 
   dditable.pfnNativeCommandExp = pDdiTable->pfnNativeCommandExp;
   pDdiTable->pfnNativeCommandExp = ur_tracing_layer::urEnqueueNativeCommandExp;
+
+  dditable.pfnGraphExp = pDdiTable->pfnGraphExp;
+  pDdiTable->pfnGraphExp = ur_tracing_layer::urEnqueueGraphExp;
 
   return result;
 }
@@ -10783,6 +11519,95 @@ __urdlllocal ur_result_t UR_APICALL urGetEventProcAddrTable(
 
   dditable.pfnSetCallback = pDdiTable->pfnSetCallback;
   pDdiTable->pfnSetCallback = ur_tracing_layer::urEventSetCallback;
+
+  return result;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's GraphExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+__urdlllocal ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_graph_exp_dditable_t *pDdiTable) {
+  auto &dditable = ur_tracing_layer::getContext()->urDdiTable.GraphExp;
+
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
+          UR_MAJOR_VERSION(version) ||
+      UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
+          UR_MINOR_VERSION(version))
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  dditable.pfnCreateExp = pDdiTable->pfnCreateExp;
+  pDdiTable->pfnCreateExp = ur_tracing_layer::urGraphCreateExp;
+
+  dditable.pfnInstantiateGraphExp = pDdiTable->pfnInstantiateGraphExp;
+  pDdiTable->pfnInstantiateGraphExp =
+      ur_tracing_layer::urGraphInstantiateGraphExp;
+
+  dditable.pfnDestroyExp = pDdiTable->pfnDestroyExp;
+  pDdiTable->pfnDestroyExp = ur_tracing_layer::urGraphDestroyExp;
+
+  dditable.pfnExecutableGraphDestroyExp =
+      pDdiTable->pfnExecutableGraphDestroyExp;
+  pDdiTable->pfnExecutableGraphDestroyExp =
+      ur_tracing_layer::urGraphExecutableGraphDestroyExp;
+
+  dditable.pfnIsEmptyExp = pDdiTable->pfnIsEmptyExp;
+  pDdiTable->pfnIsEmptyExp = ur_tracing_layer::urGraphIsEmptyExp;
+
+  dditable.pfnDumpContentsExp = pDdiTable->pfnDumpContentsExp;
+  pDdiTable->pfnDumpContentsExp = ur_tracing_layer::urGraphDumpContentsExp;
+
+  return result;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's IPCExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+__urdlllocal ur_result_t UR_APICALL urGetIPCExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_ipc_exp_dditable_t *pDdiTable) {
+  auto &dditable = ur_tracing_layer::getContext()->urDdiTable.IPCExp;
+
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
+          UR_MAJOR_VERSION(version) ||
+      UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
+          UR_MINOR_VERSION(version))
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  dditable.pfnGetMemHandleExp = pDdiTable->pfnGetMemHandleExp;
+  pDdiTable->pfnGetMemHandleExp = ur_tracing_layer::urIPCGetMemHandleExp;
+
+  dditable.pfnPutMemHandleExp = pDdiTable->pfnPutMemHandleExp;
+  pDdiTable->pfnPutMemHandleExp = ur_tracing_layer::urIPCPutMemHandleExp;
+
+  dditable.pfnOpenMemHandleExp = pDdiTable->pfnOpenMemHandleExp;
+  pDdiTable->pfnOpenMemHandleExp = ur_tracing_layer::urIPCOpenMemHandleExp;
+
+  dditable.pfnCloseMemHandleExp = pDdiTable->pfnCloseMemHandleExp;
+  pDdiTable->pfnCloseMemHandleExp = ur_tracing_layer::urIPCCloseMemHandleExp;
 
   return result;
 }
@@ -11162,6 +11987,9 @@ __urdlllocal ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
 
   ur_result_t result = UR_RESULT_SUCCESS;
 
+  dditable.pfnDynamicLinkExp = pDdiTable->pfnDynamicLinkExp;
+  pDdiTable->pfnDynamicLinkExp = ur_tracing_layer::urProgramDynamicLinkExp;
+
   dditable.pfnBuildExp = pDdiTable->pfnBuildExp;
   pDdiTable->pfnBuildExp = ur_tracing_layer::urProgramBuildExp;
 
@@ -11223,6 +12051,50 @@ __urdlllocal ur_result_t UR_APICALL urGetQueueProcAddrTable(
 
   dditable.pfnFlush = pDdiTable->pfnFlush;
   pDdiTable->pfnFlush = ur_tracing_layer::urQueueFlush;
+
+  return result;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's QueueExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+__urdlllocal ur_result_t UR_APICALL urGetQueueExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_queue_exp_dditable_t *pDdiTable) {
+  auto &dditable = ur_tracing_layer::getContext()->urDdiTable.QueueExp;
+
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
+          UR_MAJOR_VERSION(version) ||
+      UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
+          UR_MINOR_VERSION(version))
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  dditable.pfnBeginGraphCaptureExp = pDdiTable->pfnBeginGraphCaptureExp;
+  pDdiTable->pfnBeginGraphCaptureExp =
+      ur_tracing_layer::urQueueBeginGraphCaptureExp;
+
+  dditable.pfnBeginCaptureIntoGraphExp = pDdiTable->pfnBeginCaptureIntoGraphExp;
+  pDdiTable->pfnBeginCaptureIntoGraphExp =
+      ur_tracing_layer::urQueueBeginCaptureIntoGraphExp;
+
+  dditable.pfnEndGraphCaptureExp = pDdiTable->pfnEndGraphCaptureExp;
+  pDdiTable->pfnEndGraphCaptureExp =
+      ur_tracing_layer::urQueueEndGraphCaptureExp;
+
+  dditable.pfnIsGraphCaptureEnabledExp = pDdiTable->pfnIsGraphCaptureEnabledExp;
+  pDdiTable->pfnIsGraphCaptureEnabledExp =
+      ur_tracing_layer::urQueueIsGraphCaptureEnabledExp;
 
   return result;
 }
@@ -11543,6 +12415,37 @@ __urdlllocal ur_result_t UR_APICALL urGetDeviceProcAddrTable(
 
   return result;
 }
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's DeviceExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+__urdlllocal ur_result_t UR_APICALL urGetDeviceExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_device_exp_dditable_t *pDdiTable) {
+  auto &dditable = ur_tracing_layer::getContext()->urDdiTable.DeviceExp;
+
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
+          UR_MAJOR_VERSION(version) ||
+      UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
+          UR_MINOR_VERSION(version))
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  dditable.pfnWaitExp = pDdiTable->pfnWaitExp;
+  pDdiTable->pfnWaitExp = ur_tracing_layer::urDeviceWaitExp;
+
+  return result;
+}
 
 ur_result_t context_t::init(ur_dditable_t *dditable,
                             const std::set<std::string> &enabledLayerNames,
@@ -11595,6 +12498,16 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
   }
 
   if (UR_RESULT_SUCCESS == result) {
+    result = ur_tracing_layer::urGetGraphExpProcAddrTable(
+        UR_API_VERSION_CURRENT, &dditable->GraphExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = ur_tracing_layer::urGetIPCExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                        &dditable->IPCExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
     result = ur_tracing_layer::urGetKernelProcAddrTable(UR_API_VERSION_CURRENT,
                                                         &dditable->Kernel);
   }
@@ -11635,6 +12548,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
   }
 
   if (UR_RESULT_SUCCESS == result) {
+    result = ur_tracing_layer::urGetQueueExpProcAddrTable(
+        UR_API_VERSION_CURRENT, &dditable->QueueExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
     result = ur_tracing_layer::urGetSamplerProcAddrTable(UR_API_VERSION_CURRENT,
                                                          &dditable->Sampler);
   }
@@ -11662,6 +12580,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
   if (UR_RESULT_SUCCESS == result) {
     result = ur_tracing_layer::urGetDeviceProcAddrTable(UR_API_VERSION_CURRENT,
                                                         &dditable->Device);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = ur_tracing_layer::urGetDeviceExpProcAddrTable(
+        UR_API_VERSION_CURRENT, &dditable->DeviceExp);
   }
 
   return result;

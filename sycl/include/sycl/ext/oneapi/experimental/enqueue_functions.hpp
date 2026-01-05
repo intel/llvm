@@ -13,6 +13,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/event.hpp>
 #include <sycl/ext/oneapi/experimental/enqueue_types.hpp>
+#include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/handler.hpp>
@@ -152,9 +153,18 @@ template <typename KernelName = sycl::detail::auto_name, typename KernelType>
 void single_task(queue Q, const KernelType &KernelObj,
                  const sycl::detail::code_location &CodeLoc =
                      sycl::detail::code_location::current()) {
-  submit(
-      std::move(Q),
-      [&](handler &CGH) { single_task<KernelName>(CGH, KernelObj); }, CodeLoc);
+  // TODO The handler-less path does not support kernel functions with the
+  // kernel_handler type argument yet.
+  if constexpr (!(detail::KernelLambdaHasKernelHandlerArgT<KernelType,
+                                                           void>::value)) {
+    detail::submit_kernel_direct_single_task<KernelName>(
+        std::move(Q), KernelObj, {}, empty_properties_t{}, CodeLoc);
+  } else {
+    submit(
+        std::move(Q),
+        [&](handler &CGH) { single_task<KernelName>(CGH, KernelObj); },
+        CodeLoc);
+  }
 }
 
 template <typename... ArgsT>
@@ -170,6 +180,21 @@ void single_task(queue Q, const kernel &KernelObj, ArgsT &&...Args) {
   });
 }
 
+// Free function kernel single_task enqueue functions
+template <auto *Func, typename... ArgsT>
+void single_task(queue Q, [[maybe_unused]] kernel_function_s<Func> KernelFunc,
+                 ArgsT &&...Args) {
+  detail::submit_kernel_direct_single_task(std::move(Q),
+                                           [Args...]() { Func(Args...); });
+}
+
+template <auto *Func, typename... ArgsT>
+void single_task(handler &CGH,
+                 [[maybe_unused]] kernel_function_s<Func> KernelFunc,
+                 ArgsT &&...Args) {
+  CGH.single_task([Args...]() { Func(Args...); });
+}
+
 // TODO: Make overloads for scalar arguments for range.
 template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename KernelType, typename... ReductionsT>
@@ -183,10 +208,26 @@ template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename KernelType, typename... ReductionsT>
 void parallel_for(queue Q, range<Dimensions> Range, const KernelType &KernelObj,
                   ReductionsT &&...Reductions) {
-  submit(std::move(Q), [&](handler &CGH) {
-    parallel_for<KernelName>(CGH, Range, KernelObj,
-                             std::forward<ReductionsT>(Reductions)...);
-  });
+  using LambdaArgType =
+      sycl::detail::lambda_arg_type<KernelType, item<Dimensions>>;
+  using TransformedArgType = std::conditional_t<
+      std::is_integral<LambdaArgType>::value && Dimensions == 1,
+      item<Dimensions>,
+      typename detail::TransformUserItemType<Dimensions, LambdaArgType>::type>;
+
+  // TODO The handler-less path does not support reductions, and
+  // kernel functions with the kernel_handler type argument yet.
+  if constexpr (sizeof...(ReductionsT) == 0 &&
+                !(detail::KernelLambdaHasKernelHandlerArgT<
+                    KernelType, TransformedArgType>::value)) {
+    detail::submit_kernel_direct_parallel_for<KernelName>(std::move(Q), Range,
+                                                          KernelObj);
+  } else {
+    submit(std::move(Q), [&](handler &CGH) {
+      parallel_for<KernelName>(CGH, Range, KernelObj,
+                               std::forward<ReductionsT>(Reductions)...);
+    });
+  }
 }
 
 template <typename KernelName = sycl::detail::auto_name, int Dimensions,
@@ -206,10 +247,31 @@ template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename Properties, typename KernelType, typename... ReductionsT>
 void parallel_for(queue Q, launch_config<range<Dimensions>, Properties> Config,
                   const KernelType &KernelObj, ReductionsT &&...Reductions) {
-  submit(std::move(Q), [&](handler &CGH) {
-    parallel_for<KernelName>(CGH, Config, KernelObj,
-                             std::forward<ReductionsT>(Reductions)...);
-  });
+  using LambdaArgType =
+      sycl::detail::lambda_arg_type<KernelType, item<Dimensions>>;
+  using TransformedArgType = std::conditional_t<
+      std::is_integral<LambdaArgType>::value && Dimensions == 1,
+      item<Dimensions>,
+      typename detail::TransformUserItemType<Dimensions, LambdaArgType>::type>;
+
+  // TODO The handler-less path does not support reductions, and
+  // kernel functions with the kernel_handler type argument yet.
+  if constexpr (sizeof...(ReductionsT) == 0 &&
+                !(detail::KernelLambdaHasKernelHandlerArgT<
+                    KernelType, TransformedArgType>::value)) {
+    ext::oneapi::experimental::detail::LaunchConfigAccess<range<Dimensions>,
+                                                          Properties>
+        LaunchConfigAccess(Config);
+
+    detail::submit_kernel_direct_parallel_for<KernelName>(
+        std::move(Q), LaunchConfigAccess.getRange(), KernelObj, {},
+        LaunchConfigAccess.getProperties());
+  } else {
+    submit(std::move(Q), [&](handler &CGH) {
+      parallel_for<KernelName>(CGH, Config, KernelObj,
+                               std::forward<ReductionsT>(Reductions)...);
+    });
+  }
 }
 
 template <int Dimensions, typename... ArgsT>
@@ -259,14 +321,14 @@ template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename KernelType, typename... ReductionsT>
 void nd_launch(queue Q, nd_range<Dimensions> Range, const KernelType &KernelObj,
                ReductionsT &&...Reductions) {
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-  // TODO The handler-less path does not support reductions yet.
-  if constexpr (sizeof...(ReductionsT) == 0) {
-    detail::submit_kernel_direct<KernelName>(std::move(Q), empty_properties_t{},
-                                             Range, KernelObj);
-  } else
-#endif
-  {
+  // TODO The handler-less path does not support reductions, and
+  // kernel functions with the kernel_handler type argument yet.
+  if constexpr (sizeof...(ReductionsT) == 0 &&
+                !(detail::KernelLambdaHasKernelHandlerArgT<
+                    KernelType, sycl::nd_item<Dimensions>>::value)) {
+    detail::submit_kernel_direct_parallel_for<KernelName>(std::move(Q), Range,
+                                                          KernelObj);
+  } else {
     submit(std::move(Q), [&](handler &CGH) {
       nd_launch<KernelName>(CGH, Range, KernelObj,
                             std::forward<ReductionsT>(Reductions)...);
@@ -292,18 +354,20 @@ template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename Properties, typename KernelType, typename... ReductionsT>
 void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
                const KernelType &KernelObj, ReductionsT &&...Reductions) {
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-  // TODO The handler-less path does not support reductions yet.
-  if constexpr (sizeof...(ReductionsT) == 0) {
+  // TODO The handler-less path does not support reductions, and
+  // kernel functions with the kernel_handler type argument yet.
+  if constexpr (sizeof...(ReductionsT) == 0 &&
+                !(detail::KernelLambdaHasKernelHandlerArgT<
+                    KernelType, sycl::nd_item<Dimensions>>::value)) {
+
     ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
                                                           Properties>
-        ConfigAccess(Config);
-    detail::submit_kernel_direct<KernelName>(
-        std::move(Q), ConfigAccess.getProperties(), ConfigAccess.getRange(),
-        KernelObj);
-  } else
-#endif
-  {
+        LaunchConfigAccess(Config);
+
+    detail::submit_kernel_direct_parallel_for<KernelName>(
+        std::move(Q), LaunchConfigAccess.getRange(), KernelObj, {},
+        LaunchConfigAccess.getProperties());
+  } else {
     submit(std::move(Q), [&](handler &CGH) {
       nd_launch<KernelName>(CGH, Config, KernelObj,
                             std::forward<ReductionsT>(Reductions)...);
@@ -344,6 +408,48 @@ void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
   submit(std::move(Q), [&](handler &CGH) {
     nd_launch(CGH, Config, KernelObj, std::forward<ArgsT>(Args)...);
   });
+}
+
+// Free function kernel nd_launch enqueue functions
+template <auto *Func, int Dimensions, typename... ArgsT>
+void nd_launch(queue Q, nd_range<Dimensions> Range,
+               [[maybe_unused]] kernel_function_s<Func> KernelFunc,
+               ArgsT &&...Args) {
+  detail::submit_kernel_direct_parallel_for(
+      std::move(Q), Range, [Args...](sycl::nd_item<>) { Func(Args...); });
+}
+
+template <auto *Func, int Dimensions, typename... ArgsT>
+void nd_launch(handler &CGH, nd_range<Dimensions> Range,
+               [[maybe_unused]] kernel_function_s<Func> KernelFunc,
+               ArgsT &&...Args) {
+  CGH.parallel_for(Range, [Args...](sycl::nd_item<>) { Func(Args...); });
+}
+
+template <auto *Func, int Dimensions, typename Properties, typename... ArgsT>
+void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
+               [[maybe_unused]] kernel_function_s<Func> KernelFunc,
+               ArgsT &&...Args) {
+
+  ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
+                                                        Properties>
+      ConfigAccess(Config);
+  detail::submit_kernel_direct_parallel_for(
+      std::move(Q), ConfigAccess.getRange(),
+      [Args...](sycl::nd_item<>) { Func(Args...); }, {},
+      ConfigAccess.getProperties());
+}
+
+template <auto *Func, int Dimensions, typename Properties, typename... ArgsT>
+void nd_launch(handler &CGH,
+               launch_config<nd_range<Dimensions>, Properties> Config,
+               [[maybe_unused]] kernel_function_s<Func> KernelFunc,
+               ArgsT &&...Args) {
+  ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
+                                                        Properties>
+      ConfigAccess(Config);
+  CGH.parallel_for(ConfigAccess.getRange(), ConfigAccess.getProperties(),
+                   [Args...](sycl::nd_item<>) { Func(Args...); });
 }
 
 inline void memcpy(handler &CGH, void *Dest, const void *Src, size_t NumBytes) {
@@ -439,7 +545,8 @@ inline void execute_graph(handler &CGH,
 inline void execute_graph(queue Q, command_graph<graph_state::executable> &G,
                           const sycl::detail::code_location &CodeLoc =
                               sycl::detail::code_location::current()) {
-  submit(std::move(Q), [&](handler &CGH) { execute_graph(CGH, G); }, CodeLoc);
+  submit_graph_direct_without_event_impl(std::move(Q), G, /*DepEvents*/ {},
+                                         CodeLoc);
 }
 
 } // namespace ext::oneapi::experimental

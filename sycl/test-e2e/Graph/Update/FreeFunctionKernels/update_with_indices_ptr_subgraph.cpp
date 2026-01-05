@@ -26,7 +26,7 @@ int main() {
   Queue.memset(PtrA, 0, Size * sizeof(int)).wait();
   Queue.memset(PtrB, 0, Size * sizeof(int)).wait();
 
-  exp_ext::dynamic_parameter InputParam(SubGraph, PtrA);
+  exp_ext::dynamic_parameter InputParam(PtrA);
 
   kernel_bundle Bundle = get_kernel_bundle<bundle_state::executable>(Ctxt);
   kernel_id SubKernel_id = exp_ext::get_kernel_id<ff_1>();

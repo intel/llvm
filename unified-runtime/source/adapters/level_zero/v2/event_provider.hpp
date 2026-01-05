@@ -28,6 +28,11 @@ enum event_flag_t {
 };
 static constexpr size_t EVENT_FLAGS_USED_BITS = 2;
 
+enum queue_type {
+  QUEUE_REGULAR,
+  QUEUE_IMMEDIATE,
+};
+
 class event_provider;
 
 namespace raii {

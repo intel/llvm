@@ -46,7 +46,8 @@ struct ValidateUSMResult {
   }
 };
 
-ValidateUSMResult ValidateUSMPointer(ur_context_handle_t Context,
+ValidateUSMResult ValidateUSMPointer(ur_kernel_handle_t Kernel,
+                                     ur_context_handle_t Context,
                                      ur_device_handle_t Device, uptr Ptr);
 
 } // namespace asan

@@ -88,9 +88,10 @@ public:
     StaticLibJobClass,
     BinaryAnalyzeJobClass,
     BinaryTranslatorJobClass,
+    ObjcopyJobClass,
 
     JobClassFirst = PreprocessJobClass,
-    JobClassLast = BinaryTranslatorJobClass
+    JobClassLast = ObjcopyJobClass
   };
 
   // The offloading kind determines if this action is binded to a particular
@@ -1010,6 +1011,17 @@ public:
 
   static bool classof(const Action *A) {
     return A->getKind() == BinaryTranslatorJobClass;
+  }
+};
+
+class ObjcopyJobAction : public JobAction {
+  void anchor() override;
+
+public:
+  ObjcopyJobAction(Action *Input, types::ID Type);
+
+  static bool classof(const Action *A) {
+    return A->getKind() == ObjcopyJobClass;
   }
 };
 

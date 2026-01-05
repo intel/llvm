@@ -127,7 +127,7 @@ void CommonCheck() {
   // Create IR modules.
   SYCLBIN::SYCLBINDesc Desc{State, MDs};
   size_t SYCLBINByteSize = 0;
-  if (Error E = Desc.getSYCLBINByteSite().moveInto(SYCLBINByteSize))
+  if (Error E = Desc.getSYCLBINByteSize().moveInto(SYCLBINByteSize))
     FAIL() << "Failed to get SYCLBIN byte size.";
 
   // Serialize the SYCLBIN.

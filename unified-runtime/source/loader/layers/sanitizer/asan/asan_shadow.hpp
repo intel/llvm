@@ -64,8 +64,10 @@ struct ShadowMemory {
   ur_device_handle_t Device{};
 
   uptr ShadowBegin = 0;
-
   uptr ShadowEnd = 0;
+
+  uptr ShadowLowerBound = 0xffff'ffff'ffff'ffff;
+  uptr ShadowUpperBound = 0;
 };
 
 struct ShadowMemoryCPU final : public ShadowMemory {

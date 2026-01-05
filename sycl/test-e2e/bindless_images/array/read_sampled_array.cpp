@@ -4,6 +4,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: linux && arch-intel_gpu_bmg_g21 && level_zero_v2_adapter
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20223
+
 // Print test names and pass status.
 // #define VERBOSE_LV1
 
@@ -63,7 +66,7 @@ runNDimTestHost(sycl::range<NDims> globalSize, float offset,
           coords[1] = j;
         }
 
-        // Sampling is done only within array layers, not accross layers.
+        // Sampling is done only within array layers, not across layers.
         // To mimic this on host, extract the layer and sample that.
         std::vector<sycl::vec<DType, NChannels>> layer(
             inputImage.begin() + arr_idx * globalSizeTwoComp.size(),

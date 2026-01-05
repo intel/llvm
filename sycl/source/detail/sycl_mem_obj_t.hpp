@@ -56,8 +56,8 @@ public:
   SYCLMemObjT(const size_t SizeInBytes, const property_list &Props,
               std::unique_ptr<SYCLMemObjAllocator> Allocator)
       : MAllocator(std::move(Allocator)), MProps(Props), MInteropEvent(nullptr),
-        MInteropContext(nullptr), MInteropMemObject(nullptr),
-        MOpenCLInterop(false), MHostPtrReadOnly(false), MNeedWriteBack(true),
+        MInteropContext(nullptr), MOpenCLInterop(false),
+        MHostPtrReadOnly(false), MNeedWriteBack(true),
         MSizeInBytes(SizeInBytes), MUserPtr(nullptr), MShadowCopy(nullptr),
         MUploadDataFunctor(nullptr), MSharedPtrStorage(nullptr),
         MHostPtrProvided(false) {}
@@ -105,14 +105,6 @@ public:
 
   template <typename propertyT> propertyT get_property() const {
     return MProps.get_property<propertyT>();
-  }
-
-  void addOrReplaceAccessorProperties(const property_list &PropertyList) {
-    MProps.add_or_replace_accessor_properties(PropertyList);
-  }
-
-  void deleteAccessorProperty(const PropWithDataKind &Kind) {
-    MProps.delete_accessor_property(Kind);
   }
 
   const std::unique_ptr<SYCLMemObjAllocator> &get_allocator_internal() const {
@@ -342,7 +334,7 @@ protected:
   std::shared_ptr<context_impl> MInteropContext;
   // Native backend memory object handle passed by user to interoperability
   // constructor.
-  ur_mem_handle_t MInteropMemObject;
+  ur_mem_handle_t MInteropMemObject = nullptr;
   // Indicates whether memory object is created using interoperability
   // constructor or not.
   bool MOpenCLInterop;

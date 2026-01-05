@@ -1,6 +1,6 @@
 # Internal function to create SYCL unit tests with code reuse
-# add_sycl_unittest_internal(test_dirname SHARED|OBJECT is_preview is_no_cgh file1.cpp, file2.cpp ...)
-function(add_sycl_unittest_internal test_dirname link_variant is_preview is_no_cgh)
+# add_sycl_unittest_internal(test_dirname SHARED|OBJECT is_preview file1.cpp, file2.cpp ...)
+function(add_sycl_unittest_internal test_dirname link_variant is_preview)
   # Enable exception handling for these unit tests
   set(LLVM_REQUIRES_EH ON)
   set(LLVM_REQUIRES_RTTI ON)
@@ -37,10 +37,6 @@ function(add_sycl_unittest_internal test_dirname link_variant is_preview is_no_c
       set(CMAKE_CURRENT_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/Preview")
   endif()
 
-  if (${is_no_cgh})
-    set(CMAKE_CURRENT_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/NoCGH")
-  endif()
-
   if ("${link_variant}" MATCHES "SHARED")
     set(SYCL_LINK_LIBS ${sycl_so_target})
     add_unittest(SYCLUnitTests ${test_dirname} ${ARGN})
@@ -67,18 +63,6 @@ function(add_sycl_unittest_internal test_dirname link_variant is_preview is_no_c
     target_compile_definitions(${test_dirname}
         PRIVATE __INTEL_PREVIEW_BREAKING_CHANGES)
     set(sycl_cache_suffix "_preview")
-  endif()
-
-  if (${is_no_cgh})
-    set(sycl_cache_suffix "_no_cgh")
-  endif()
-
-  if (${is_no_cgh})
-    target_compile_definitions(
-      ${test_dirname}
-      PRIVATE
-        __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-    )
   endif()
 
   if (SYCL_ENABLE_XPTI_TRACING)
@@ -173,9 +157,11 @@ endfunction()
 #
 # Will compile the list of files together to create two builds, with and without
 # the SYCL preview features enabled.
-# Produces two binaries, named `basename(test_name_prefix_non_preview)` and `basename(test_name_prefix_preview)`
+# Produces two binaries, named `basename(test_name_prefix_Non_Preview_Tests)` and `basename(test_name_prefix_Preview_Tests)`
+# Note: in case of changing test names below, please also adjust the test suffix
+# in sycl/test/Unit/lit.cfg.py in the line which looks like this:
+#   `config.test_format = lit.formats.GoogleTest(config.llvm_build_mode, <...>)`
 macro(add_sycl_unittest test_name_prefix link_variant)
-  add_sycl_unittest_internal(${test_name_prefix}_non_preview ${link_variant} FALSE FALSE ${ARGN})
-  add_sycl_unittest_internal(${test_name_prefix}_no_cgh ${link_variant} FALSE TRUE ${ARGN})
-  add_sycl_unittest_internal(${test_name_prefix}_preview ${link_variant} TRUE FALSE ${ARGN})
+  add_sycl_unittest_internal(${test_name_prefix}_Non_Preview_Tests ${link_variant} FALSE ${ARGN})
+  add_sycl_unittest_internal(${test_name_prefix}_Preview_Tests ${link_variant} TRUE ${ARGN})
 endmacro()

@@ -1,11 +1,24 @@
+//===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+///
+/// \file
+/// This file contains the implementation of the sycl_khr_free_function_commands
+/// extension.
+///
+//===----------------------------------------------------------------------===//
 #pragma once
+
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 
 namespace sycl {
 inline namespace _V1 {
-
-#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 namespace khr {
 
 template <typename CommandGroupFunc>
@@ -41,19 +54,53 @@ template <typename KernelType>
 void launch(const queue &q, range<1> r, const KernelType &k,
             const sycl::detail::code_location &codeLoc =
                 sycl::detail::code_location::current()) {
-  submit(q, [&](handler &h) { launch<KernelType>(h, r, k); }, codeLoc);
+  using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<1>>;
+  using TransformedArgType = std::conditional_t<
+      std::is_integral<LambdaArgType>::value, item<1>,
+      typename detail::TransformUserItemType<1, LambdaArgType>::type>;
+
+  // TODO The handler-less path does not support kernel functions with the
+  // kernel_handler type argument yet.
+  if constexpr (!(detail::KernelLambdaHasKernelHandlerArgT<
+                    KernelType, TransformedArgType>::value)) {
+    detail::submit_kernel_direct_parallel_for(q, r, k);
+  } else {
+    submit(q, [&](handler &h) { launch<KernelType>(h, r, k); }, codeLoc);
+  }
 }
 template <typename KernelType>
 void launch(const queue &q, range<2> r, const KernelType &k,
             const sycl::detail::code_location &codeLoc =
                 sycl::detail::code_location::current()) {
-  submit(q, [&](handler &h) { launch<KernelType>(h, r, k); }, codeLoc);
+  using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<2>>;
+  using TransformedArgType =
+      typename detail::TransformUserItemType<2, LambdaArgType>::type;
+
+  // TODO The handler-less path does not support kernel functions with the
+  // kernel_handler type argument yet.
+  if constexpr (!(detail::KernelLambdaHasKernelHandlerArgT<
+                    KernelType, TransformedArgType>::value)) {
+    detail::submit_kernel_direct_parallel_for(q, r, k);
+  } else {
+    submit(q, [&](handler &h) { launch<KernelType>(h, r, k); }, codeLoc);
+  }
 }
 template <typename KernelType>
 void launch(const queue &q, range<3> r, const KernelType &k,
             const sycl::detail::code_location &codeLoc =
                 sycl::detail::code_location::current()) {
-  submit(q, [&](handler &h) { launch<KernelType>(h, r, k); }, codeLoc);
+  using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<3>>;
+  using TransformedArgType =
+      typename detail::TransformUserItemType<3, LambdaArgType>::type;
+
+  // TODO The handler-less path does not support kernel functions with the
+  // kernel_handler type argument yet.
+  if constexpr (!(detail::KernelLambdaHasKernelHandlerArgT<
+                    KernelType, TransformedArgType>::value)) {
+    detail::submit_kernel_direct_parallel_for(q, r, k);
+  } else {
+    submit(q, [&](handler &h) { launch<KernelType>(h, r, k); }, codeLoc);
+  }
 }
 
 template <typename... ArgsT>
@@ -149,49 +196,59 @@ void launch_grouped(handler &h, range<3> r, range<3> size,
 }
 
 template <typename KernelType>
-void launch_grouped(const queue &q, range<1> r, range<1> size,
-                    const KernelType &k,
+constexpr bool enable_kernel_function_overload =
+    !std::is_same_v<typename std::decay_t<KernelType>, sycl::kernel>;
+
+template <typename KernelType, typename = typename std::enable_if_t<
+                                   enable_kernel_function_overload<KernelType>>>
+void launch_grouped(const queue &q, range<1> r, range<1> size, KernelType &&k,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-  detail::submit_kernel_direct(q,
-                               ext::oneapi::experimental::empty_properties_t{},
-                               nd_range<1>(r, size), k);
-#else
-  submit(
-      q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
-      codeLoc);
-#endif
+  // TODO The handler-less path does not support kernel functions with the
+  // kernel_handler type argument yet.
+  if constexpr (!(detail::KernelLambdaHasKernelHandlerArgT<
+                    KernelType, sycl::nd_item<1>>::value)) {
+    detail::submit_kernel_direct_parallel_for(q, nd_range<1>(r, size),
+                                              std::forward<KernelType>(k));
+  } else {
+    submit(
+        q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
+        codeLoc);
+  }
 }
-template <typename KernelType>
-void launch_grouped(const queue &q, range<2> r, range<2> size,
-                    const KernelType &k,
+template <typename KernelType, typename = typename std::enable_if_t<
+                                   enable_kernel_function_overload<KernelType>>>
+void launch_grouped(const queue &q, range<2> r, range<2> size, KernelType &&k,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-  detail::submit_kernel_direct(q,
-                               ext::oneapi::experimental::empty_properties_t{},
-                               nd_range<2>(r, size), k);
-#else
-  submit(
-      q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
-      codeLoc);
-#endif
+  // TODO The handler-less path does not support kernel functions with the
+  // kernel_handler type argument yet.
+  if constexpr (!(detail::KernelLambdaHasKernelHandlerArgT<
+                    KernelType, sycl::nd_item<2>>::value)) {
+    detail::submit_kernel_direct_parallel_for(q, nd_range<2>(r, size),
+                                              std::forward<KernelType>(k));
+  } else {
+    submit(
+        q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
+        codeLoc);
+  }
 }
-template <typename KernelType>
-void launch_grouped(const queue &q, range<3> r, range<3> size,
-                    const KernelType &k,
+template <typename KernelType, typename = typename std::enable_if_t<
+                                   enable_kernel_function_overload<KernelType>>>
+void launch_grouped(const queue &q, range<3> r, range<3> size, KernelType &&k,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-  detail::submit_kernel_direct(q,
-                               ext::oneapi::experimental::empty_properties_t{},
-                               nd_range<3>(r, size), k);
-#else
-  submit(
-      q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
-      codeLoc);
-#endif
+  // TODO The handler-less path does not support kernel functions with the
+  // kernel_handler type argument yet.
+  if constexpr (!(detail::KernelLambdaHasKernelHandlerArgT<
+                    KernelType, sycl::nd_item<3>>::value)) {
+    detail::submit_kernel_direct_parallel_for(q, nd_range<3>(r, size),
+                                              std::forward<KernelType>(k));
+  } else {
+    submit(
+        q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
+        codeLoc);
+  }
 }
 
 template <typename... Args>
@@ -297,11 +354,21 @@ void launch_task(handler &h, const KernelType &k) {
   h.single_task(k);
 }
 
-template <typename KernelType>
-void launch_task(const sycl::queue &q, const KernelType &k,
+template <typename KernelType, typename = typename std::enable_if_t<
+                                   enable_kernel_function_overload<KernelType>>>
+void launch_task(const sycl::queue &q, KernelType &&k,
                  const sycl::detail::code_location &codeLoc =
                      sycl::detail::code_location::current()) {
-  submit(q, [&](handler &h) { launch_task<KernelType>(h, k); }, codeLoc);
+  // TODO The handler-less path does not support  kernel functions with the
+  // kernel_handler type argument yet.
+  if constexpr (!(detail::KernelLambdaHasKernelHandlerArgT<KernelType,
+                                                           void>::value)) {
+    detail::submit_kernel_direct_single_task(
+        q, std::forward<KernelType>(k), {},
+        ext::oneapi::experimental::empty_properties_t{}, codeLoc);
+  } else {
+    submit(q, [&](handler &h) { launch_task<KernelType>(h, k); }, codeLoc);
+  }
 }
 
 template <typename... Args>
@@ -538,6 +605,6 @@ inline void event_barrier(const queue &q, const std::vector<event> &events,
 }
 
 } // namespace khr
-#endif
 } // namespace _V1
 } // namespace sycl
+#endif
