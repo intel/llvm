@@ -4,9 +4,6 @@
 // RUN: %{build} %device_asan_flags -Xarch_device -mllvm=-asan-spir-shadow-bounds=1 -O2 -g -o %t3.out
 // RUN: %{run} not %t3.out 2>&1 | FileCheck %s
 
-// UNSUPPORTED: arch-intel_gpu_pvc
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20361
-
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 

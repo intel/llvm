@@ -70,4 +70,9 @@ DEVICE_EXTERN_C_INLINE
 _iml_bf16_internal __devicelib_imf_truncbf16(_iml_bf16_internal a) {
   return __trunc(_iml_bf16(a)).get_internal();
 }
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_fsigmbf16(_iml_bf16_internal x) {
+  return __fsigm(x);
+}
 #endif

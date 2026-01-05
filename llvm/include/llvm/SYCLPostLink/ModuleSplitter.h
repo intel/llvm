@@ -320,6 +320,8 @@ struct SplitModule {
   std::string ModuleFilePath;
   util::PropertySetRegistry Properties;
   std::string Symbols;
+  std::string CompileOptions;
+  std::string LinkOptions;
 
   SplitModule() = default;
   SplitModule(const SplitModule &) = default;
@@ -328,9 +330,11 @@ struct SplitModule {
   SplitModule &operator=(SplitModule &&) = default;
 
   SplitModule(std::string_view File, util::PropertySetRegistry Properties,
-              std::string Symbols)
+              std::string Symbols = "", std::string CompileOptions = "",
+              std::string LinkOptions = "")
       : ModuleFilePath(File), Properties(std::move(Properties)),
-        Symbols(std::move(Symbols)) {}
+        Symbols(std::move(Symbols)), CompileOptions(std::move(CompileOptions)),
+        LinkOptions(std::move(LinkOptions)) {}
 };
 
 struct ModuleSplitterSettings {

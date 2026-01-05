@@ -12,6 +12,7 @@
 
 #include <detail/buffer_impl.hpp>
 #include <detail/config.hpp>
+#include <detail/event_deps.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/graph/dynamic_impl.hpp>
 #include <detail/graph/graph_impl.hpp>
@@ -30,6 +31,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/nd_range_view.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/event.hpp>
 #include <sycl/handler.hpp>
@@ -53,13 +55,6 @@ namespace detail {
 __SYCL_EXPORT void
 markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl) {
   BufImpl->markAsInternal();
-}
-
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-// TODO: Check if two ABI exports below are still necessary.
-#endif
-device_impl &getDeviceImplFromHandler(handler &CGH) {
-  return getSyclObjImpl(CGH)->get_device();
 }
 
 device getDeviceFromHandler(handler &CGH) {
@@ -367,38 +362,10 @@ fill_copy_args(detail::handler_impl *impl,
 
 } // namespace detail
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 handler::handler(detail::handler_impl &HandlerImpl) : impl(&HandlerImpl) {}
 handler::handler(std::unique_ptr<detail::handler_impl> &&HandlerImpl)
     : implOwner(std::move(HandlerImpl)), impl(implOwner.get()) {}
-#else
-handler::handler(std::unique_ptr<detail::handler_impl> &&HandlerImpl)
-    : impl(std::move(HandlerImpl)) {}
 
-handler::handler(std::shared_ptr<detail::queue_impl> Queue,
-                 bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(*Queue, CallerNeedsEvent)),
-      MQueueDoNotUse(std::move(Queue)) {}
-
-handler::handler(
-    std::shared_ptr<detail::queue_impl> Queue,
-    [[maybe_unused]] std::shared_ptr<detail::queue_impl> PrimaryQueue,
-    [[maybe_unused]] std::shared_ptr<detail::queue_impl> SecondaryQueue,
-    bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(*Queue, CallerNeedsEvent)),
-      MQueueDoNotUse(Queue) {}
-
-handler::handler(std::shared_ptr<detail::queue_impl> Queue,
-                 [[maybe_unused]] detail::queue_impl *SecondaryQueue,
-                 bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(*Queue, CallerNeedsEvent)),
-      MQueueDoNotUse(std::move(Queue)) {}
-
-handler::handler(
-    std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
-    : impl(std::make_shared<detail::handler_impl>(*Graph)) {}
-
-#endif
 handler::~handler() = default;
 
 // Sets the submission state to indicate that an explicit kernel bundle has been
@@ -419,31 +386,12 @@ bool handler::isStateExplicitKernelBundle() const {
   return impl->isStateExplicitKernelBundle();
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-// Returns a shared_ptr to the kernel_bundle.
-// If there is no kernel_bundle created:
-// returns newly created kernel_bundle if Insert is true
-// returns shared_ptr(nullptr) if Insert is false
-std::shared_ptr<detail::kernel_bundle_impl>
-handler::getOrInsertHandlerKernelBundle(bool Insert) const {
-  if (impl->MKernelBundle || !Insert)
-    return impl->MKernelBundle;
-
-  context Ctx = detail::createSyclObjFromImpl<context>(impl->get_context());
-  impl->MKernelBundle =
-      detail::getSyclObjImpl(get_kernel_bundle<bundle_state::input>(
-          Ctx, {detail::createSyclObjFromImpl<device>(impl->get_device())},
-          {}));
-  return impl->MKernelBundle;
-}
-#endif
-
 // Returns a ptr to the kernel_bundle.
 // If there is no kernel_bundle created:
 // returns newly created kernel_bundle if Insert is true
 // returns nullptr if Insert is false
 detail::kernel_bundle_impl *
-handler::getOrInsertHandlerKernelBundlePtr(bool Insert) const {
+handler::getOrInsertHandlerKernelBundle(bool Insert) const {
   if (impl->MKernelBundle || !Insert)
     return impl->MKernelBundle.get();
 
@@ -461,13 +409,6 @@ void handler::setHandlerKernelBundle(SharedPtrT &&NewKernelBundleImpPtr) {
   impl->MKernelBundle = std::forward<SharedPtrT>(NewKernelBundleImpPtr);
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-void handler::setHandlerKernelBundle(
-    const std::shared_ptr<detail::kernel_bundle_impl> &NewKernelBundleImpPtr) {
-  impl->MKernelBundle = NewKernelBundleImpPtr;
-}
-#endif
-
 void handler::setHandlerKernelBundle(kernel Kernel) {
   // Kernel may not have an associated kernel bundle if it is created from a
   // program. As such, apply getSyclObjImpl directly on the kernel, i.e. not
@@ -477,33 +418,7 @@ void handler::setHandlerKernelBundle(kernel Kernel) {
   setHandlerKernelBundle(std::move(KernelBundleImpl));
 }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 detail::EventImplPtr handler::finalize() {
-#else
-event handler::finalize() {
-#endif
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Old reduction implementation, prior to
-  //   https://github.com/intel/llvm/pull/18794
-  //   https://github.com/intel/llvm/pull/18898
-  //   https://github.com/intel/llvm/pull/19203
-  // relied on explicit calls to handler::finalize and those calls were inlined
-  // into the user applications. As such, we have to preserve the following
-  // behavior for ABI-compatibility purposes:
-  if (MIsFinalizedDoNotUse)
-    return MLastEventDoNotUse;
-
-  MIsFinalizedDoNotUse = true;
-  // Use macros to trick clang-format:
-#define WRAP_BODY_BEGIN MLastEventDoNotUse = [this]() {
-#define WRAP_BODY_END                                                          \
-  }                                                                            \
-  ();                                                                          \
-  return MLastEventDoNotUse;
-
-  WRAP_BODY_BEGIN
-#endif
-
   const auto &type = getType();
   detail::queue_impl *Queue = impl->get_queue_or_null();
   ext::oneapi::experimental::detail::graph_impl *Graph =
@@ -511,7 +426,7 @@ event handler::finalize() {
 
   // TODO checking the size of the events vector and avoiding the call is more
   // efficient here at this point
-  const bool KernelFastPath =
+  const bool KernelSchedulerBypass =
       (Queue && !Graph && !impl->MSubgraphNode && !Queue->hasCommandGraph() &&
        !impl->CGData.MRequirements.size() && !MStreamStorage.size() &&
        (impl->CGData.MEvents.size() == 0 ||
@@ -521,7 +436,7 @@ event handler::finalize() {
   // Extract arguments from the kernel lambda, if required.
   // Skipping this is currently limited to simple kernels on the fast path.
   if (type == detail::CGType::Kernel && impl->MKernelData.getKernelFuncPtr() &&
-      (!KernelFastPath || impl->MKernelData.hasSpecialCaptures())) {
+      (!KernelSchedulerBypass || impl->MKernelData.hasSpecialCaptures())) {
     impl->MKernelData.extractArgsAndReqsFromLambda();
   }
 
@@ -567,14 +482,14 @@ event handler::finalize() {
       // Fetch the device kernel info pointer if it hasn't been set (e.g.
       // in kernel bundle or free function cases).
       impl->MKernelData.setDeviceKernelInfoPtr(
-          &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
-              toKernelNameStrT(MKernelName)));
+          &detail::ProgramManager::getInstance().getDeviceKernelInfo(
+              std::string_view(MKernelName)));
     }
     assert(impl->MKernelData.getKernelName() == MKernelName);
 
     // If there were uses of set_specialization_constant build the kernel_bundle
     detail::kernel_bundle_impl *KernelBundleImpPtr =
-        getOrInsertHandlerKernelBundlePtr(/*Insert=*/false);
+        getOrInsertHandlerKernelBundle(/*Insert=*/false);
     if (KernelBundleImpPtr) {
       // Make sure implicit non-interop kernel bundles have the kernel
       if (!impl->isStateExplicitKernelBundle() &&
@@ -584,8 +499,7 @@ event handler::finalize() {
           !KernelBundleImpPtr->tryGetKernel(impl->getKernelName())) {
         detail::device_impl &Dev = impl->get_device();
         kernel_id KernelID =
-            detail::ProgramManager::getInstance().getSYCLKernelID(
-                impl->getKernelName());
+            impl->MKernelData.getDeviceKernelInfoPtr()->getKernelID();
         bool KernelInserted = KernelBundleImpPtr->add_kernel(
             KernelID, detail::createSyclObjFromImpl<device>(Dev));
         // If kernel was not inserted and the bundle is in input mode we try
@@ -633,7 +547,7 @@ event handler::finalize() {
       }
     }
 
-    if (KernelFastPath) {
+    if (KernelSchedulerBypass) {
       // if user does not add a new dependency to the dependency graph, i.e.
       // the graph is not changed, then this faster path is used to submit
       // kernel bypassing scheduler and avoiding CommandGroup, Command objects
@@ -643,24 +557,13 @@ event handler::finalize() {
           impl->get_queue().submit_kernel_scheduler_bypass(
               impl->MKernelData, impl->CGData.MEvents, impl->MEventNeeded,
               MKernel.get(), KernelBundleImpPtr, MCodeLoc, impl->MIsTopCodeLoc);
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
       return ResultEvent;
-#else
-      return detail::createSyclObjFromImpl<event>(
-          ResultEvent ? ResultEvent
-                      : detail::event_impl::create_discarded_event());
-#endif
     }
   }
 
   std::unique_ptr<detail::CG> CommandGroup;
   switch (type) {
   case detail::CGType::Kernel: {
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    // Copy kernel name here instead of move so that it's available after
-    // running of this method by reductions implementation. This allows for
-    // assert feature to check if kernel uses assertions
-#endif
     CommandGroup.reset(new detail::CGExecKernel(
         impl->MKernelData.getNDRDesc(), std::move(MHostKernel),
         std::move(MKernel), std::move(impl->MKernelBundle),
@@ -767,13 +670,6 @@ event handler::finalize() {
         std::move(impl->CGData), MCodeLoc));
     break;
   }
-  case detail::CGType::ReadWriteHostPipe: {
-    CommandGroup.reset(new detail::CGReadWriteHostPipe(
-        impl->HostPipeName, impl->HostPipeBlocking, impl->HostPipePtr,
-        impl->HostPipeTypeSize, impl->HostPipeRead, std::move(impl->CGData),
-        MCodeLoc));
-    break;
-  }
   case detail::CGType::ExecCommandBuffer: {
     detail::queue_impl *Queue = impl->get_queue_or_null();
     std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> ParentGraph =
@@ -799,16 +695,10 @@ event handler::finalize() {
       bool DiscardEvent = !impl->MEventNeeded &&
                           Queue.supportsDiscardingPiEvents() &&
                           !impl->MExecGraph->containsHostTask();
-      detail::EventImplPtr GraphCompletionEvent = impl->MExecGraph->enqueue(
+      auto [GraphCompletionEvent, Unused] = impl->MExecGraph->enqueue(
           Queue, std::move(impl->CGData), !DiscardEvent);
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+      (void)Unused;
       return GraphCompletionEvent;
-#else
-      return sycl::detail::createSyclObjFromImpl<sycl::event>(
-          GraphCompletionEvent
-              ? GraphCompletionEvent
-              : sycl::detail::event_impl::create_discarded_event());
-#endif
     }
   } break;
   case detail::CGType::CopyImage:
@@ -856,11 +746,7 @@ event handler::finalize() {
   if (impl->get_graph_or_null()) {
     impl->MGraphNodeCG = std::move(CommandGroup);
     auto EventImpl = detail::event_impl::create_completed_host_event();
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     return EventImpl;
-#else
-    return detail::createSyclObjFromImpl<event>(EventImpl);
-#endif
   }
 
   // Because graph case is handled right above.
@@ -869,35 +755,27 @@ event handler::finalize() {
   // If the queue has an associated graph then we need to take the CG and pass
   // it to the graph to create a node, rather than submit it to the scheduler.
   if (auto GraphImpl = Queue->getCommandGraph(); GraphImpl) {
-    auto EventImpl = Queue->submit_command_to_graph(
-        *GraphImpl, std::move(CommandGroup), type, impl->MUserFacingNodeType);
-
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-    return EventImpl;
-#else
-    return detail::createSyclObjFromImpl<event>(EventImpl);
-#endif
+    return Queue->submit_command_to_graph(*GraphImpl, std::move(CommandGroup),
+                                          type, impl->MUserFacingNodeType);
   }
 
-  bool DiscardEvent = !impl->MEventNeeded && Queue &&
-                      Queue->supportsDiscardingPiEvents() &&
-                      CommandGroup->getRequirements().size() == 0;
+  // For kernel submission, regardless of whether an event has been requested,
+  // the scheduler needs to generate an event so the commands are properly
+  // ordered (for in-order queue) and synchronized with a barrier (for
+  // out-of-order queue). The event can only be skipped for the scheduler bypass
+  // path.
+  //
+  // For commands other than kernel submission, if an event has not been
+  // requested, the queue supports events discarding, and the scheduler
+  // could have been bypassed (not supported yet), the event can be skipped.
+  bool DiscardEvent =
+      (type != detail::CGType::Kernel && KernelSchedulerBypass &&
+       !impl->MEventNeeded && Queue->supportsDiscardingPiEvents());
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
       std::move(CommandGroup), *Queue, !DiscardEvent);
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   return DiscardEvent ? nullptr : Event;
-#else
-  return detail::createSyclObjFromImpl<event>(Event);
-#endif
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  WRAP_BODY_END
-
-#undef WRAP_BODY_BEGIN
-#undef WRAP_BODY_END
-#endif
 }
 
 void handler::addReduction(const std::shared_ptr<const void> &ReduObj) {
@@ -947,15 +825,6 @@ void handler::associateWithHandler(
                              static_cast<int>(AccTarget));
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
-                         const int Size, const size_t Index, size_t &IndexShift,
-                         bool IsKernelCreatedFromSource, bool IsESIMD) {
-  impl->MKernelData.processArg(Ptr, Kind, Size, Index, IndexShift,
-                               IsKernelCreatedFromSource, IsESIMD);
-}
-#endif
-
 void handler::setArgHelper(int ArgIndex, detail::work_group_memory_impl &Arg) {
   impl->MWorkGroupMemoryObjects.push_back(
       std::make_shared<detail::work_group_memory_impl>(Arg));
@@ -971,87 +840,13 @@ void handler::setArgHelper(int ArgIndex, stream &&Str) {
 
 void handler::extractArgsAndReqs() {
   assert(MKernel && "MKernel is not initialized");
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  if (impl->MKernelData.getDeviceKernelInfoPtr() == nullptr) {
-    impl->MKernelData.setDeviceKernelInfoPtr(
-        &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
-            detail::toKernelNameStrT(MKernel->getName())));
-  }
-#endif
   assert(impl->MKernelData.getDeviceKernelInfoPtr() != nullptr);
   impl->MKernelData.extractArgsAndReqs(MKernel->isCreatedFromSource());
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-// TODO: Those functions are not used anymore, remove it in the next
-// ABI-breaking window.
-void handler::extractArgsAndReqsFromLambda(
-    char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
-    size_t NumKernelParams, bool IsESIMD) {
-
-  std::vector<detail::kernel_param_desc_t> ParamDescs;
-  ParamDescs.reserve(NumKernelParams);
-  for (size_t i = 0; i < NumKernelParams; i++) {
-    ParamDescs.push_back(ParamDescGetter(i));
-  }
-
-  extractArgsAndReqsFromLambda(LambdaPtr, ParamDescs, IsESIMD);
-}
-
-void handler::extractArgsAndReqsFromLambda(
-    char *LambdaPtr, const std::vector<detail::kernel_param_desc_t> &ParamDescs,
-    bool IsESIMD) {
-  const bool IsKernelCreatedFromSource = false;
-  size_t IndexShift = 0;
-
-  for (size_t I = 0; I < ParamDescs.size(); ++I) {
-    void *Ptr = LambdaPtr + ParamDescs[I].offset;
-    const detail::kernel_param_kind_t &Kind = ParamDescs[I].kind;
-    const int &Size = ParamDescs[I].info;
-    if (Kind == detail::kernel_param_kind_t::kind_accessor) {
-      // For args kind of accessor Size is information about accessor.
-      // The first 11 bits of Size encodes the accessor target.
-      const access::target AccTarget =
-          static_cast<access::target>(Size & AccessTargetMask);
-      if ((AccTarget == access::target::device ||
-           AccTarget == access::target::constant_buffer) ||
-          (AccTarget == access::target::image ||
-           AccTarget == access::target::image_array)) {
-        detail::AccessorBaseHost *AccBase =
-            static_cast<detail::AccessorBaseHost *>(Ptr);
-        Ptr = detail::getSyclObjImpl(*AccBase).get();
-      } else if (AccTarget == access::target::local) {
-        detail::LocalAccessorBaseHost *LocalAccBase =
-            static_cast<detail::LocalAccessorBaseHost *>(Ptr);
-        Ptr = detail::getSyclObjImpl(*LocalAccBase).get();
-      }
-    }
-    impl->MKernelData.processArg(Ptr, Kind, Size, I, IndexShift,
-                                 IsKernelCreatedFromSource, IsESIMD);
-  }
-}
-
-void handler::extractArgsAndReqsFromLambda(
-    char *LambdaPtr, size_t KernelArgsNum,
-    const detail::kernel_param_desc_t *KernelArgs, bool IsESIMD) {
-  std::vector<detail::kernel_param_desc_t> ParamDescs(
-      KernelArgs, KernelArgs + KernelArgsNum);
-  extractArgsAndReqsFromLambda(LambdaPtr, ParamDescs, IsESIMD);
-}
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-// Calling methods of kernel_impl requires knowledge of class layout.
-// As this is impossible in header, there's a function that calls necessary
-// method inside the library and returns the result.
-detail::ABINeutralKernelNameStrT handler::getKernelName() {
-  return MKernel->getName();
-}
-#endif
-
 void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
   detail::kernel_bundle_impl *UsedKernelBundleImplPtr =
-      getOrInsertHandlerKernelBundlePtr(/*Insert=*/false);
+      getOrInsertHandlerKernelBundle(/*Insert=*/false);
   if (!UsedKernelBundleImplPtr)
     return;
 
@@ -1083,19 +878,6 @@ void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
 }
 
 using namespace sycl::detail;
-bool handler::DisableRangeRounding() {
-  return SYCLConfig<SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING>::get();
-}
-
-bool handler::RangeRoundingTrace() {
-  return SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE>::get();
-}
-
-void handler::GetRangeRoundingSettings(size_t &MinFactor, size_t &GoodFactor,
-                                       size_t &MinRange) {
-  SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS>::GetSettings(
-      MinFactor, GoodFactor, MinRange);
-}
 
 void handler::memcpy(void *Dest, const void *Src, size_t Count) {
   throwIfActionIsCreated();
@@ -1671,69 +1453,10 @@ void handler::depends_on(const std::vector<event> &Events) {
 }
 
 void handler::depends_on(const detail::EventImplPtr &EventImpl) {
-  if (!EventImpl)
-    return;
-  if (EventImpl->isDiscarded()) {
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Queue operation cannot depend on discarded event.");
-  }
-
-  // Async alloc calls adapter immediately. Any explicit/implicit dependencies
-  // are handled at that point, including in order queue deps. Further calls to
-  // depends_on after an async alloc are explicitly disallowed.
-  if (getType() == CGType::AsyncAlloc) {
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Cannot submit a dependency after an asynchronous "
-                          "allocation has already been executed!");
-  }
-
-  auto EventGraph = EventImpl->getCommandGraph();
-  queue_impl *Queue = impl->get_queue_or_null();
-  if (Queue && EventGraph) {
-    auto QueueGraph = Queue->getCommandGraph();
-
-    if (&EventGraph->getContextImpl() != &impl->get_context()) {
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "Cannot submit to a queue with a dependency from a graph that is "
-          "associated with a different context.");
-    }
-
-    if (&EventGraph->getDeviceImpl() != &impl->get_device()) {
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "Cannot submit to a queue with a dependency from a graph that is "
-          "associated with a different device.");
-    }
-
-    if (QueueGraph && QueueGraph != EventGraph) {
-      throw sycl::exception(sycl::make_error_code(errc::invalid),
-                            "Cannot submit to a recording queue with a "
-                            "dependency from a different graph.");
-    }
-
-    // If the event dependency has a graph, that means that the queue that
-    // created it was in recording mode. If the current queue is not recording,
-    // we need to set it to recording (implements the transitive queue recording
-    // feature).
-    if (!QueueGraph) {
-      EventGraph->beginRecording(*Queue);
-    }
-  }
-
-  if (auto Graph = getCommandGraph(); Graph) {
-    if (EventGraph == nullptr) {
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "Graph nodes cannot depend on events from outside the graph.");
-    }
-    if (EventGraph != Graph) {
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "Graph nodes cannot depend on events from another graph.");
-    }
-  }
-  impl->CGData.MEvents.push_back(EventImpl);
+  registerEventDependency(EventImpl, impl->CGData.MEvents,
+                          impl->get_queue_or_null(), impl->get_context(),
+                          impl->get_device(), getCommandGraph().get(),
+                          getType());
 }
 
 void handler::depends_on(const std::vector<detail::EventImplPtr> &Events) {
@@ -1750,52 +1473,6 @@ static bool checkContextSupports(detail::context_impl &ContextImpl,
                                             InfoQuery, sizeof(ur_bool_t),
                                             &SupportsOp, nullptr);
   return SupportsOp;
-}
-
-void handler::verifyDeviceHasProgressGuarantee(
-    sycl::ext::oneapi::experimental::forward_progress_guarantee guarantee,
-    sycl::ext::oneapi::experimental::execution_scope threadScope,
-    sycl::ext::oneapi::experimental::execution_scope coordinationScope) {
-  using execution_scope = sycl::ext::oneapi::experimental::execution_scope;
-  using forward_progress =
-      sycl::ext::oneapi::experimental::forward_progress_guarantee;
-  const bool supported = impl->get_device().supportsForwardProgress(
-      guarantee, threadScope, coordinationScope);
-  if (threadScope == execution_scope::work_group) {
-    if (!supported) {
-      throw sycl::exception(
-          sycl::errc::feature_not_supported,
-          "Required progress guarantee for work groups is not "
-          "supported by this device.");
-    }
-    // If we are here, the device supports the guarantee required but there is a
-    // caveat in that if the guarantee required is a concurrent guarantee, then
-    // we most likely also need to enable cooperative launch of the kernel. That
-    // is, although the device supports the required guarantee, some setup work
-    // is needed to truly make the device provide that guarantee at runtime.
-    // Otherwise, we will get the default guarantee which is weaker than
-    // concurrent. Same reasoning applies for sub_group but not for work_item.
-    // TODO: Further design work is probably needed to reflect this behavior in
-    // Unified Runtime.
-    if (guarantee == forward_progress::concurrent)
-      setKernelIsCooperative(true);
-  } else if (threadScope == execution_scope::sub_group) {
-    if (!supported) {
-      throw sycl::exception(sycl::errc::feature_not_supported,
-                            "Required progress guarantee for sub groups is not "
-                            "supported by this device.");
-    }
-    // Same reasoning as above.
-    if (guarantee == forward_progress::concurrent)
-      setKernelIsCooperative(true);
-  } else { // threadScope is execution_scope::work_item otherwise undefined
-           // behavior
-    if (!supported) {
-      throw sycl::exception(sycl::errc::feature_not_supported,
-                            "Required progress guarantee for work items is not "
-                            "supported by this device.");
-    }
-  }
 }
 
 bool handler::supportsUSMMemcpy2D() {
@@ -1829,26 +1506,6 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
 // TODO: do we need this still?
 backend handler::getDeviceBackend() const {
   return impl->get_device().getBackend();
-}
-
-void handler::ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
-                                       size_t Size, bool Block) {
-  impl->HostPipeName = std::string_view(Name);
-  impl->HostPipePtr = Ptr;
-  impl->HostPipeTypeSize = Size;
-  impl->HostPipeBlocking = Block;
-  impl->HostPipeRead = 1;
-  setType(detail::CGType::ReadWriteHostPipe);
-}
-
-void handler::ext_intel_write_host_pipe(detail::string_view Name, void *Ptr,
-                                        size_t Size, bool Block) {
-  impl->HostPipeName = std::string_view(Name);
-  impl->HostPipePtr = Ptr;
-  impl->HostPipeTypeSize = Size;
-  impl->HostPipeBlocking = Block;
-  impl->HostPipeRead = 0;
-  setType(detail::CGType::ReadWriteHostPipe);
 }
 
 void handler::memcpyToDeviceGlobal(const void *DeviceGlobalPtr, const void *Src,
@@ -1910,84 +1567,18 @@ void handler::memcpyFromHostOnlyDeviceGlobal(void *Dest,
   });
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-const std::shared_ptr<detail::context_impl> &
-handler::getContextImplPtr() const {
-  if (auto *Graph = impl->get_graph_or_null()) {
-    return Graph->getContextImplPtr();
-  }
-  return impl->get_queue().getContextImplPtr();
+void handler::setKernelLaunchProperties(
+    const detail::KernelPropertyHolderStructTy &Kprop) {
+  impl->MKernelData.validateAndSetKernelLaunchProperties(
+      Kprop, getCommandGraph() != nullptr /*hasGraph?*/,
+      impl->get_device() /*device_impl*/);
 }
-#endif
 
 detail::context_impl &handler::getContextImpl() const {
   if (auto *Graph = impl->get_graph_or_null()) {
     return Graph->getContextImpl();
   }
   return impl->get_queue().getContextImpl();
-}
-
-void handler::setKernelCacheConfig(handler::StableKernelCacheConfig Config) {
-  switch (Config) {
-  case handler::StableKernelCacheConfig::Default:
-    impl->MKernelData.setKernelCacheConfig(UR_KERNEL_CACHE_CONFIG_DEFAULT);
-    break;
-  case handler::StableKernelCacheConfig::LargeSLM:
-    impl->MKernelData.setKernelCacheConfig(UR_KERNEL_CACHE_CONFIG_LARGE_SLM);
-    break;
-  case handler::StableKernelCacheConfig::LargeData:
-    impl->MKernelData.setKernelCacheConfig(UR_KERNEL_CACHE_CONFIG_LARGE_DATA);
-    break;
-  }
-}
-
-void handler::setKernelIsCooperative(bool KernelIsCooperative) {
-  impl->MKernelData.setCooperative(KernelIsCooperative);
-}
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims) {
-  throwIfGraphAssociated<
-      syclex::detail::UnsupportedGraphFeatures::
-          sycl_ext_oneapi_experimental_cuda_cluster_launch>();
-
-  if (Dims == 1) {
-    sycl::range<1> ClusterSizeTrimmed = {ClusterSize[0]};
-    impl->MKernelData.setClusterDimensions(ClusterSizeTrimmed);
-  } else if (Dims == 2) {
-    sycl::range<2> ClusterSizeTrimmed = {ClusterSize[0], ClusterSize[1]};
-    impl->MKernelData.setClusterDimensions(ClusterSizeTrimmed);
-  } else if (Dims == 3) {
-    impl->MKernelData.setClusterDimensions(ClusterSize);
-  }
-}
-#endif
-
-void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize) {
-  throwIfGraphAssociated<
-      syclex::detail::UnsupportedGraphFeatures::
-          sycl_ext_oneapi_experimental_cuda_cluster_launch>();
-  impl->MKernelData.setClusterDimensions(ClusterSize);
-}
-
-void handler::setKernelClusterLaunch(sycl::range<2> ClusterSize) {
-  throwIfGraphAssociated<
-      syclex::detail::UnsupportedGraphFeatures::
-          sycl_ext_oneapi_experimental_cuda_cluster_launch>();
-  impl->MKernelData.setClusterDimensions(ClusterSize);
-}
-
-void handler::setKernelClusterLaunch(sycl::range<1> ClusterSize) {
-  throwIfGraphAssociated<
-      syclex::detail::UnsupportedGraphFeatures::
-          sycl_ext_oneapi_experimental_cuda_cluster_launch>();
-  impl->MKernelData.setClusterDimensions(ClusterSize);
-}
-
-void handler::setKernelWorkGroupMem(size_t Size) {
-  throwIfGraphAssociated<syclex::detail::UnsupportedGraphFeatures::
-                             sycl_ext_oneapi_work_group_scratch_memory>();
-  impl->MKernelData.setKernelWorkGroupMemorySize(Size);
 }
 
 void handler::ext_oneapi_graph(
@@ -2013,36 +1604,11 @@ void handler::setUserFacingNodeType(ext::oneapi::experimental::node_type Type) {
 
 kernel_bundle<bundle_state::input> handler::getKernelBundle() const {
   detail::kernel_bundle_impl *KernelBundleImplPtr =
-      getOrInsertHandlerKernelBundlePtr(/*Insert=*/true);
+      getOrInsertHandlerKernelBundle(/*Insert=*/true);
 
   return detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
       *KernelBundleImplPtr);
 }
-
-std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
-  device_impl &DeviceImpl = impl->get_device();
-  std::array<size_t, 3> UrResult = {};
-  auto Ret = DeviceImpl.getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
-      DeviceImpl.getHandleRef(),
-      UrInfoCode<
-          ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
-      sizeof(UrResult), &UrResult, nullptr);
-  if (Ret == UR_RESULT_SUCCESS) {
-    return UrResult;
-  }
-  return {};
-}
-
-std::tuple<std::array<size_t, 3>, bool> handler::getMaxWorkGroups_v2() {
-  auto ImmRess = getMaxWorkGroups();
-  if (ImmRess)
-    return {*ImmRess, true};
-  return {std::array<size_t, 3>{0, 0, 0}, false};
-}
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-void handler::setNDRangeUsed(bool Value) { (void)Value; }
-#endif
 
 void handler::registerDynamicParameter(
     ext::oneapi::experimental::detail::dynamic_parameter_impl *DynamicParamImpl,
@@ -2063,19 +1629,11 @@ void handler::registerDynamicParameter(
   impl->MKernelData.addDynamicParameter(DynamicParamImpl, ArgIndex);
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-// TODO: Remove in the next ABI-breaking window.
-void handler::registerDynamicParameter(
-    ext::oneapi::experimental::detail::dynamic_parameter_base &DynamicParamBase,
-    int ArgIndex) {
-  ext::oneapi::experimental::detail::dynamic_parameter_impl *DynParamImpl =
-      detail::getSyclObjImpl(DynamicParamBase).get();
-
-  registerDynamicParameter(DynParamImpl, ArgIndex);
-}
-#endif
-
 bool handler::eventNeeded() const { return impl->MEventNeeded; }
+
+device handler::get_device() const {
+  return detail::createSyclObjFromImpl<device>(impl->get_device());
+}
 
 void *handler::storeRawArg(const void *Ptr, size_t Size) {
   impl->CGData.MArgsStorage.emplace_back(Size);
@@ -2084,28 +1642,19 @@ void *handler::storeRawArg(const void *Ptr, size_t Size) {
   return Storage;
 }
 
-void handler::SetHostTask(std::function<void()> &&Func) {
-  setNDRangeDescriptor(range<1>(1));
+void handler::SetHostTask(std::function<void()> Func) {
+  range<1> r(1);
+  setNDRangeDescriptor(detail::nd_range_view(r));
   impl->MHostTask.reset(new detail::HostTask(std::move(Func)));
   setType(detail::CGType::CodeplayHostTask);
 }
 
-void handler::SetHostTask(std::function<void(interop_handle)> &&Func) {
-  setNDRangeDescriptor(range<1>(1));
+void handler::SetHostTask(std::function<void(interop_handle)> Func) {
+  range<1> r(1);
+  setNDRangeDescriptor(detail::nd_range_view(r));
   impl->MHostTask.reset(new detail::HostTask(std::move(Func)));
   setType(detail::CGType::CodeplayHostTask);
 }
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-// TODO: This function is not used anymore, remove it in the next
-// ABI-breaking window.
-void handler::addAccessorReq(detail::AccessorImplPtr Accessor) {
-  // Add accessor to the list of requirements.
-  impl->CGData.MRequirements.push_back(Accessor.get());
-  // Store copy of the accessor.
-  impl->CGData.MAccStorage.push_back(std::move(Accessor));
-}
-#endif
 
 void handler::addLifetimeSharedPtrStorage(std::shared_ptr<const void> SPtr) {
   impl->CGData.MSharedPtrStorage.push_back(std::move(SPtr));
@@ -2113,12 +1662,9 @@ void handler::addLifetimeSharedPtrStorage(std::shared_ptr<const void> SPtr) {
 
 void handler::addArg(detail::kernel_param_kind_t ArgKind, void *Req,
                      int AccessTarget, int ArgIndex) {
-  impl->MKernelData.addArg(ArgKind, Req, AccessTarget, ArgIndex);
+  impl->MKernelData.addArg(ArgKind, Req, AccessTarget,
+                           ArgIndex + impl->MKernelData.getArgShift());
 }
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-void handler::clearArgs() { impl->MKernelData.clearArgs(); }
-#endif
 
 void handler::setArgsToAssociatedAccessors() {
   impl->MKernelData.setArgs(impl->MAssociatedAccesors);
@@ -2148,127 +1694,19 @@ void handler::setDeviceKernelInfo(kernel &&Kernel) {
   // `lambdaAndKernelHaveEqualName` calls can handle that.
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-void handler::setNDRangeDescriptorPadded(sycl::range<3> N,
-                                         bool SetNumWorkGroups, int Dims) {
-  if (Dims == 1) {
-    sycl::range<1> Range = {N[0]};
-    impl->MKernelData.setNDRDesc(NDRDescT{Range, SetNumWorkGroups});
-  } else if (Dims == 2) {
-    sycl::range<2> Range = {N[0], N[1]};
-    impl->MKernelData.setNDRDesc(NDRDescT{Range, SetNumWorkGroups});
-  } else if (Dims == 3) {
-    impl->MKernelData.setNDRDesc(NDRDescT{N, SetNumWorkGroups});
-  }
+void handler::setNDRangeDescriptor(sycl::detail::nd_range_view rv,
+                                   bool SetNumWorkGroups) {
+  impl->MKernelData.setNDRDesc(NDRDescT{rv, SetNumWorkGroups});
 }
-
-void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
-                                         sycl::id<3> Offset, int Dims) {
-  if (Dims == 1) {
-    sycl::range<1> NumWorkItemsTrimmed = {NumWorkItems[0]};
-    sycl::id<1> OffsetTrimmed = {Offset[0]};
-    impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItemsTrimmed, OffsetTrimmed});
-  } else if (Dims == 2) {
-    sycl::range<2> NumWorkItemsTrimmed = {NumWorkItems[0], NumWorkItems[1]};
-    sycl::id<2> OffsetTrimmed = {Offset[0], Offset[1]};
-    impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItemsTrimmed, OffsetTrimmed});
-  } else if (Dims == 3) {
-    impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, Offset});
-  }
-}
-
-void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
-                                         sycl::range<3> LocalSize,
-                                         sycl::id<3> Offset, int Dims) {
-  if (Dims == 1) {
-    sycl::range<1> NumWorkItemsTrimmed = {NumWorkItems[0]};
-    sycl::range<1> LocalSizeTrimmed = {LocalSize[0]};
-    sycl::id<1> OffsetTrimmed = {Offset[0]};
-    impl->MKernelData.setNDRDesc(
-        NDRDescT{NumWorkItemsTrimmed, LocalSizeTrimmed, OffsetTrimmed});
-  } else if (Dims == 2) {
-    sycl::range<2> NumWorkItemsTrimmed = {NumWorkItems[0], NumWorkItems[1]};
-    sycl::range<2> LocalSizeTrimmed = {LocalSize[0], LocalSize[1]};
-    sycl::id<2> OffsetTrimmed = {Offset[0], Offset[1]};
-    impl->MKernelData.setNDRDesc(
-        NDRDescT{NumWorkItemsTrimmed, LocalSizeTrimmed, OffsetTrimmed});
-  } else if (Dims == 3) {
-    impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, LocalSize, Offset});
-  }
-}
-#endif
-
-void handler::setNDRangeDescriptor(sycl::range<3> N, bool SetNumWorkGroups) {
-  impl->MKernelData.setNDRDesc(NDRDescT{N, SetNumWorkGroups});
-}
-void handler::setNDRangeDescriptor(sycl::range<3> NumWorkItems,
-                                   sycl::id<3> Offset) {
-  impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, Offset});
-}
-void handler::setNDRangeDescriptor(sycl::range<3> NumWorkItems,
-                                   sycl::range<3> LocalSize,
-                                   sycl::id<3> Offset) {
-  impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, LocalSize, Offset});
-}
-
-void handler::setNDRangeDescriptor(sycl::range<2> N, bool SetNumWorkGroups) {
-  impl->MKernelData.setNDRDesc(NDRDescT{N, SetNumWorkGroups});
-}
-void handler::setNDRangeDescriptor(sycl::range<2> NumWorkItems,
-                                   sycl::id<2> Offset) {
-  impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, Offset});
-}
-void handler::setNDRangeDescriptor(sycl::range<2> NumWorkItems,
-                                   sycl::range<2> LocalSize,
-                                   sycl::id<2> Offset) {
-  impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, LocalSize, Offset});
-}
-
-void handler::setNDRangeDescriptor(sycl::range<1> N, bool SetNumWorkGroups) {
-  impl->MKernelData.setNDRDesc(NDRDescT{N, SetNumWorkGroups});
-}
-void handler::setNDRangeDescriptor(sycl::range<1> NumWorkItems,
-                                   sycl::id<1> Offset) {
-  impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, Offset});
-}
-void handler::setNDRangeDescriptor(sycl::range<1> NumWorkItems,
-                                   sycl::range<1> LocalSize,
-                                   sycl::id<1> Offset) {
-  impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, LocalSize, Offset});
-}
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-void handler::setKernelNameBasedCachePtr(
-    sycl::detail::KernelNameBasedCacheT *KernelNameBasedCachePtr) {
-  assert(!impl->MKernelData.getDeviceKernelInfoPtr() && "Already set!");
-  (void)KernelNameBasedCachePtr;
-  CompileTimeKernelInfoTy HandlerInfo;
-  HandlerInfo.Name = MKernelName;
-  HandlerInfo.NumParams = impl->MKernelNumArgs;
-  HandlerInfo.ParamDescGetter = impl->MKernelParamDescGetter;
-  HandlerInfo.IsESIMD = impl->MKernelIsESIMD;
-  HandlerInfo.HasSpecialCaptures = impl->MKernelHasSpecialCaptures;
-  impl->MKernelData.setDeviceKernelInfoPtr(
-      &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
-          HandlerInfo));
-}
-
-void handler::setKernelInfo(
-    void *KernelFuncPtr, int KernelNumArgs,
-    detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
-    bool KernelIsESIMD, bool KernelHasSpecialCaptures) {
-  impl->MKernelData.setKernelFunc(KernelFuncPtr);
-  impl->MKernelNumArgs = KernelNumArgs;
-  impl->MKernelParamDescGetter = KernelParamDescGetter;
-  impl->MKernelIsESIMD = KernelIsESIMD;
-  impl->MKernelHasSpecialCaptures = KernelHasSpecialCaptures;
-}
-#endif
 
 void handler::setDeviceKernelInfoPtr(
     sycl::detail::DeviceKernelInfo *DeviceKernelInfoPtr) {
   assert(!impl->MKernelData.getDeviceKernelInfoPtr() && "Already set!");
   impl->MKernelData.setDeviceKernelInfoPtr(DeviceKernelInfoPtr);
+}
+
+void handler::incrementArgShift(int Shift) {
+  impl->MKernelData.incrementArgShift(Shift);
 }
 
 void handler::setKernelFunc(void *KernelFuncPtr) {
@@ -2285,12 +1723,7 @@ void handler::saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc) {
   MCodeLoc = CodeLoc;
   impl->MIsTopCodeLoc = IsTopCodeLoc;
 }
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-void handler::saveCodeLoc(detail::code_location CodeLoc) {
-  MCodeLoc = CodeLoc;
-  impl->MIsTopCodeLoc = true;
-}
-#endif
+
 void handler::copyCodeLoc(const handler &other) {
   MCodeLoc = other.MCodeLoc;
   impl->MIsTopCodeLoc = other.impl->MIsTopCodeLoc;
@@ -2304,17 +1737,13 @@ __SYCL_EXPORT void HandlerAccess::preProcess(handler &CGH,
                                              type_erased_cgfo_ty F) {
   queue_impl &Q = CGH.impl->get_queue();
   bool EventNeeded = !Q.isInOrder();
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   handler_impl HandlerImpl{Q, EventNeeded};
   handler AuxHandler{HandlerImpl};
-#else
-  handler AuxHandler{Q.shared_from_this(), EventNeeded};
-#endif
   AuxHandler.copyCodeLoc(CGH);
   F(AuxHandler);
   auto E = AuxHandler.finalize();
   if (EventNeeded)
-    CGH.depends_on(E);
+    CGH.depends_on(std::move(E));
 }
 __SYCL_EXPORT void HandlerAccess::postProcess(handler &CGH,
                                               type_erased_cgfo_ty F) {
@@ -2331,7 +1760,7 @@ __SYCL_EXPORT void HandlerAccess::postProcess(handler &CGH,
   PostProcessHandler.impl->MAuxiliaryResources = CGH.impl->MAuxiliaryResources;
   auto E = CGH.finalize();
   if (!InOrder)
-    PostProcessHandler.depends_on(E);
+    PostProcessHandler.depends_on(std::move(E));
   F(PostProcessHandler);
   swap(CGH, PostProcessHandler);
 }

@@ -24,13 +24,7 @@ backend interop_handle::get_backend() const noexcept {
 }
 
 bool interop_handle::ext_codeplay_has_graph() const noexcept {
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  // CMPLRLLVM-66082 - MGraph should become a member of this class on the
-  // next ABI breaking window.
   return MGraph != nullptr;
-#else
-  return MQueue->getInteropGraph() != nullptr;
-#endif
 }
 
 ur_native_handle_t
@@ -44,35 +38,28 @@ interop_handle::getNativeMem(detail::Requirement *Req) const {
   }
 
   detail::adapter_impl &Adapter = MQueue->getAdapter();
+  detail::device_impl &Device = MQueue->getDeviceImpl();
   ur_native_handle_t Handle;
   Adapter.call<detail::UrApiKind::urMemGetNativeHandle>(
-      Iter->second, MDevice->getHandleRef(), &Handle);
+      Iter->second, Device.getHandleRef(), &Handle);
   return Handle;
 }
 
 ur_native_handle_t interop_handle::getNativeDevice() const {
-  return MDevice->getNative();
+  return MQueue->getDeviceImpl().getNative();
 }
 
 ur_native_handle_t interop_handle::getNativeContext() const {
-  return MContext->getNative();
+  return MQueue->getContextImpl().getNative();
 }
 
 ur_native_handle_t
 interop_handle::getNativeQueue(int32_t &NativeHandleDesc) const {
-  if (MQueue != nullptr)
-    return MQueue->getNative(NativeHandleDesc);
-  return 0;
+  return MQueue->getNative(NativeHandleDesc);
 }
 
 ur_native_handle_t interop_handle::getNativeGraph() const {
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  // CMPLRLLVM-66082 - MGraph should become a member of this class on the
-  // next ABI breaking window.
   auto Graph = MGraph;
-#else
-  auto Graph = MQueue->getInteropGraph();
-#endif
 
   if (!Graph) {
     throw exception(

@@ -56,6 +56,11 @@ foreach(name IN LISTS NAMES)
   append_info(${name} "${revision}" "${repository}")
 endforeach()
 
+if(SYCL_BUILD_INFO)
+  file(APPEND "${HEADER_FILE}.tmp"
+      "#define SYCL_BUILD_INFO \"${SYCL_BUILD_INFO}\"\n")
+endif()
+
 # Copy the file only if it has changed.
 execute_process(COMMAND ${CMAKE_COMMAND} -E copy_if_different
   "${HEADER_FILE}.tmp" "${HEADER_FILE}")

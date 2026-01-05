@@ -253,10 +253,12 @@ endfunction()
 # Install libclc artifacts.
 #
 # Arguments:
+#  * COMPONENT <string>
+#      Installation component name.
 #  * FILES <string> ...
 #      List of libclc artifact files to be installed.
 function(libclc_install)
-  cmake_parse_arguments(ARG "" "" "FILES" ${ARGN})
+  cmake_parse_arguments(ARG "" "COMPONENT" "FILES" ${ARGN})
 
   if( NOT ARG_FILES )
     message( FATAL_ERROR "Must provide FILES" )
@@ -273,7 +275,8 @@ function(libclc_install)
 
   install(
     FILES ${files}
-    DESTINATION "${CMAKE_INSTALL_DATADIR}/clc"
+    DESTINATION ${LIBCLC_INSTALL_DIR}
+    COMPONENT ${ARG_COMPONENT}
   )
 endfunction()
 
@@ -367,7 +370,7 @@ function(add_libclc_builtin_set)
       TRIPLE ${ARG_TRIPLE}
       INPUT ${input_file}
       OUTPUT ${output_file}
-      EXTRA_OPTS -fno-builtin -nostdlib "${ARG_COMPILE_FLAGS}"
+      EXTRA_OPTS -nostdlib "${ARG_COMPILE_FLAGS}"
         "${file_specific_compile_options}"
         -I${CMAKE_CURRENT_SOURCE_DIR}/${file_dir}
       DEPENDENCIES ${input_file_dep}
@@ -406,7 +409,7 @@ function(add_libclc_builtin_set)
   list( PREPEND bytecode_files ${bytecode_ir_files} )
 
   if( NOT bytecode_files )
-    message(FATAL_ERROR "Cannot create an empty builtins library")
+    message(FATAL_ERROR "Cannot create an empty builtins library for ${ARG_ARCH_SUFFIX}")
   endif()
 
   set( builtins_link_lib_tgt builtins.link.${ARG_ARCH_SUFFIX} )
@@ -447,10 +450,6 @@ function(add_libclc_builtin_set)
   endif()
 
   set( builtins_link_lib $<TARGET_PROPERTY:${builtins_link_lib_tgt},TARGET_FILE> )
-
-  add_custom_command( OUTPUT ${LIBCLC_OUTPUT_LIBRARY_DIR}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_OUTPUT_LIBRARY_DIR}
-    DEPENDS ${builtins_link_lib} prepare_builtins )
 
   # For SPIR-V targets we diverage at this point and generate SPIR-V using the
   # llvm-spirv tool.
@@ -513,7 +512,7 @@ function(add_libclc_builtin_set)
   # targets dependent on libclc.
   add_dependencies( ${ARG_PARENT_TARGET} prepare-${ARG_TRIPLE} )
 
-  libclc_install(FILES ${libclc_builtins_lib})
+  libclc_install( COMPONENT ${ARG_PARENT_TARGET} FILES ${libclc_builtins_lib} )
 
   # SPIR-V targets can exit early here
   if( ARG_ARCH STREQUAL spirv OR ARG_ARCH STREQUAL spirv64 )
@@ -524,7 +523,6 @@ function(add_libclc_builtin_set)
   if( ARG_REMANGLE )
     set( dummy_in ${LIBCLC_OUTPUT_LIBRARY_DIR}/libclc_dummy_in.cc )
     add_custom_command( OUTPUT ${dummy_in}
-      COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_OUTPUT_LIBRARY_DIR}
       COMMAND ${CMAKE_COMMAND} -E touch ${dummy_in}
     )
     set(long_widths l32 l64)
@@ -540,10 +538,9 @@ function(add_libclc_builtin_set)
     foreach(long_width ${long_widths})
       foreach(signedness ${char_signedness})
         # Remangle
-        set( builtins_remangle_path
-            "${LIBCLC_OUTPUT_LIBRARY_DIR}/remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}" )
+        set( remangled_filename remangled-${long_width}-${signedness}_char.${obj_suffix_mangled} )
+        set( builtins_remangle_path "${LIBCLC_OUTPUT_LIBRARY_DIR}/${remangled_filename}" )
         add_custom_command( OUTPUT "${builtins_remangle_path}"
-          COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_OUTPUT_LIBRARY_DIR}
           COMMAND ${libclc-remangler_exe}
           -o "${builtins_remangle_path}"
           --triple=${ARG_TRIPLE}
@@ -552,19 +549,17 @@ function(add_libclc_builtin_set)
           --input-ir=${libclc_builtins_lib}
           ${dummy_in}
           DEPENDS prepare-${obj_suffix} ${libclc_builtins_lib} ${libclc-remangler_target} ${dummy_in})
-        add_custom_target( "remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}" ALL
-          DEPENDS "${builtins_remangle_path}" "${dummy_in}")
-        set_target_properties("remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}"
-          PROPERTIES TARGET_FILE "${builtins_remangle_path}")
+        add_custom_target( ${remangled_filename} ALL
+          DEPENDS "${builtins_remangle_path}" "${dummy_in}" )
+        set_target_properties( ${remangled_filename}
+          PROPERTIES TARGET_FILE "${builtins_remangle_path}" )
 
         # Add dependency to top-level pseudo target to ease making other
         # targets dependent on libclc.
-        add_dependencies(${ARG_PARENT_TARGET} "remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}")
+        add_dependencies( ${ARG_PARENT_TARGET} ${remangled_filename} )
 
         # Keep remangled variants
-        install(
-          FILES ${builtins_remangle_path}
-          DESTINATION ${CMAKE_INSTALL_DATADIR}/clc )
+        libclc_install( COMPONENT ${ARG_PARENT_TARGET} FILES ${builtins_remangle_path} )
       endforeach()
     endforeach()
 
@@ -588,14 +583,14 @@ function(add_libclc_builtin_set)
     endforeach()
   endif()
 
-  # Add a test for whether or not the libraries contain unresolved calls which
-  # would usually indicate a build problem. Note that we don't perform this
-  # test for all libclc targets:
+  # Add a test for whether or not the libraries contain unresolved functions
+  # which would usually indicate a build problem. Note that we don't perform
+  # this test for all libclc targets:
   # * nvptx-- targets don't include workitem builtins
   # * clspv targets don't include all OpenCL builtins
   if( NOT ARG_ARCH MATCHES "^(nvptx|clspv)(64)?$" )
-    add_test( NAME external-calls-${obj_suffix}
-      COMMAND ./check_external_calls.sh ${libclc_builtins_lib} ${LLVM_TOOLS_BINARY_DIR}
+    add_test( NAME external-funcs-${obj_suffix}
+      COMMAND ./check_external_funcs.sh ${libclc_builtins_lib} ${LLVM_TOOLS_BINARY_DIR}
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} )
   endif()
 
@@ -623,7 +618,9 @@ function(add_libclc_builtin_set)
     set_target_properties( alias-${alias_suffix}
       PROPERTIES FOLDER "libclc/Device IR/Aliases"
     )
-    libclc_install(FILES ${LIBCLC_OUTPUT_LIBRARY_DIR}/${alias_suffix})
+    libclc_install( COMPONENT ${ARG_PARENT_TARGET}
+      FILES ${LIBCLC_OUTPUT_LIBRARY_DIR}/${alias_suffix}
+    )
   endforeach( a )
 endfunction(add_libclc_builtin_set)
 

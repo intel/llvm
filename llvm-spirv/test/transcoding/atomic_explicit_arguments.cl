@@ -18,6 +18,8 @@ int load (volatile atomic_int* obj, memory_order order, memory_scope scope) {
 // CHECK-SPIRV: Name [[TRANS_MEM_ORDER:[0-9]+]] "__translate_ocl_memory_order"
 
 // CHECK-SPIRV: TypeInt [[int:[0-9]+]] 32 0
+// Memory semantics for generic AS: 768 = CrossWorkgroupMemory | WorkgroupMemory
+// CHECK-SPIRV-DAG: Constant [[int]] [[GENERIC_STORAGE_MASK:[0-9]+]] 768
 // CHECK-SPIRV-DAG: Constant [[int]] [[ZERO:[0-9]+]] 0
 // CHECK-SPIRV-DAG: Constant [[int]] [[ONE:[0-9]+]] 1
 // CHECK-SPIRV-DAG: Constant [[int]] [[TWO:[0-9]+]] 2
@@ -31,8 +33,11 @@ int load (volatile atomic_int* obj, memory_order order, memory_scope scope) {
 // CHECK-SPIRV: FunctionParameter {{[0-9]+}} [[OCL_ORDER:[0-9]+]]
 // CHECK-SPIRV: FunctionParameter {{[0-9]+}} [[OCL_SCOPE:[0-9]+]]
 
+//
 // CHECK-SPIRV: FunctionCall [[int]] [[SPIRV_SCOPE:[0-9]+]] [[TRANS_MEM_SCOPE]] [[OCL_SCOPE]]
-// CHECK-SPIRV: FunctionCall [[int]] [[SPIRV_ORDER:[0-9]+]] [[TRANS_MEM_ORDER]] [[OCL_ORDER]]
+// CHECK-SPIRV: FunctionCall [[int]] [[SPIRV_ORDER_BASE:[0-9]+]] [[TRANS_MEM_ORDER]] [[OCL_ORDER]]
+// The translated memory order is combined with storage class semantics for generic AS
+// CHECK-SPIRV: BitwiseOr [[int]] [[SPIRV_ORDER:[0-9]+]] [[SPIRV_ORDER_BASE]] [[GENERIC_STORAGE_MASK]]
 // CHECK-SPIRV: AtomicLoad [[int]] {{[0-9]+}} [[OBJECT]] [[SPIRV_SCOPE]] [[SPIRV_ORDER]]
 
 // CHECK-SPIRV: Function [[int]] [[TRANS_MEM_SCOPE]]
@@ -86,5 +91,6 @@ int load (volatile atomic_int* obj, memory_order order, memory_scope scope) {
 
 // CHECK-LLVM: define spir_func i32 @load(ptr addrspace(4) %[[obj:[0-9a-zA-Z._]+]], i32 %[[order:[0-9a-zA-Z._]+]], i32 %[[scope:[0-9a-zA-Z._]+]]) #0 {
 // CHECK-LLVM: entry:
-// CHECK-LLVM:  call spir_func i32 @_Z20atomic_load_explicitPU3AS4VU7_Atomici12memory_order12memory_scope(ptr addrspace(4) %[[obj]], i32 %[[order]], i32 %[[scope]])
+// CHECK-LLVM:  %[[#]] = or i32 %{{[0-9a-zA-Z._]+}}, 768
+// CHECK-LLVM:  call spir_func i32 @_Z20atomic_load_explicitPU3AS4VU7_Atomici12memory_order12memory_scope(ptr addrspace(4) %[[obj]], i32 %{{[0-9a-zA-Z._]+}}, i32 %[[scope]])
 // CHECK-LLVM: }

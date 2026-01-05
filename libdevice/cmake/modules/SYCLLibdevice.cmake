@@ -4,19 +4,14 @@ set(obj-new-offload_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 if (MSVC)
   set(obj-suffix obj)
   set(obj-new-offload-suffix new.obj)
-  set(spv_binary_dir "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
-  set(install_dest_spv bin)
   set(devicelib_host_static_obj sycl-devicelib-host.lib)
   set(devicelib_host_static_obj-new-offload sycl-devicelib-host.new.lib)
 else()
   set(obj-suffix o)
   set(obj-new-offload-suffix new.o)
-  set(spv_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
-  set(install_dest_spv lib${LLVM_LIBDIR_SUFFIX})
   set(devicelib_host_static_obj libsycl-devicelib-host.a)
   set(devicelib_host_static_obj-new-offload libsycl-devicelib-host.new.a)
 endif()
-set(spv-suffix spv)
 set(bc-suffix bc)
 set(bc_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 set(install_dest_obj lib${LLVM_LIBDIR_SUFFIX})
@@ -80,8 +75,7 @@ endif()
 
 add_custom_target(libsycldevice)
 
-set(filetypes obj obj-new-offload spv bc)
-set(filetypes_no_spv obj obj-new-offload bc)
+set(filetypes obj obj-new-offload bc)
 
 foreach(filetype IN LISTS filetypes)
   add_custom_target(libsycldevice-${filetype})
@@ -93,10 +87,11 @@ endforeach()
 # library.
 # Additional compilation options are needed for compiling each device library.
 set(full_build_archs)
+set(imf_build_archs)
 if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
   list(APPEND full_build_archs nvptx64-nvidia-cuda)
   set(compile_opts_nvptx64-nvidia-cuda "-fsycl-targets=nvptx64-nvidia-cuda"
-  "-Xsycl-target-backend" "--cuda-gpu-arch=sm_50" "-nocudalib" "-fno-sycl-libspirv" "-Wno-unsafe-libspirv-not-linked")
+  "-Xsycl-target-backend" "--cuda-gpu-arch=sm_75" "-nocudalib" "-fno-sycl-libspirv" "-Wno-unsafe-libspirv-not-linked")
   set(opt_flags_nvptx64-nvidia-cuda "-O3" "--nvvm-reflect-enable=false")
 endif()
 if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
@@ -107,11 +102,10 @@ if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
 endif()
 
 
-set(spv_device_compile_opts -fsycl-device-only -fsycl-device-obj=spirv)
 set(bc_device_compile_opts -fsycl-device-only -fsycl-device-obj=llvmir)
 set(obj-new-offload_device_compile_opts -fsycl -c --offload-new-driver
   -foffload-lto=thin ${sycl_targets_opt})
-set(obj_device_compile_opts -fsycl -c ${sycl_targets_opt})
+set(obj_device_compile_opts -fsycl -c ${sycl_targets_opt} --no-offload-new-driver)
 
 # Compiles and installs a single device library.
 #
@@ -340,7 +334,7 @@ endfunction()
 # For cross builds, we also need native versions of the tools.
 set(sycl-compiler_deps
   sycl-compiler ${clang_target} ${append-file_target}
-  ${clang-offload-bundler_target} ${clang-offload-packager_target}
+  ${clang-offload-bundler_target} ${llvm-offload-binary_target}
   ${file-table-tform_target} ${llvm-foreach_target} ${llvm-spirv_target}
   ${sycl-post-link_target})
 set(crt_obj_deps wrapper.h device.h spirv_vars.h ${sycl-compiler_deps})
@@ -364,17 +358,17 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
                             -I${UR_SANITIZER_INCLUDE_DIR}
                             -I${CMAKE_CURRENT_SOURCE_DIR})
 
-  set(sanitizer_pvc_compile_opts_obj -fsycl -c
+  set(sanitizer_pvc_compile_opts_obj -fsycl -c --no-offload-new-driver
                                 ${sanitizer_generic_compile_opts}
                                 ${sycl_pvc_target_opt}
                                 -D__LIBDEVICE_PVC__)
 
-  set(sanitizer_cpu_compile_opts_obj -fsycl -c
+  set(sanitizer_cpu_compile_opts_obj -fsycl -c --no-offload-new-driver
                                 ${sanitizer_generic_compile_opts}
                                 ${sycl_cpu_target_opt}
                                 -D__LIBDEVICE_CPU__)
 
-  set(sanitizer_dg2_compile_opts_obj -fsycl -c
+  set(sanitizer_dg2_compile_opts_obj -fsycl -c --no-offload-new-driver
                                 ${sanitizer_generic_compile_opts}
                                 ${sycl_dg2_target_opt}
                                 -D__LIBDEVICE_DG2__)
@@ -494,7 +488,6 @@ add_devicelibs(libsycl-cmath-fp64
   SRC cmath_wrapper_fp64.cpp
   BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${cmath_obj_deps} )
-set(imf_build_archs)
 add_devicelibs(libsycl-imf
   SRC imf_wrapper.cpp
   DEPENDENCIES ${imf_obj_deps}
@@ -524,7 +517,6 @@ else()
       SRC sanitizer/asan_rtl.cpp
       DEPENDENCIES ${asan_obj_deps}
       BUILD_ARCHS ${sanitizer_build_archs}
-      FILETYPES "${filetypes_no_spv}"
       EXTRA_OPTS -fno-sycl-instrument-device-code
                  -I${UR_SANITIZER_INCLUDE_DIR}
                  -I${CMAKE_CURRENT_SOURCE_DIR})
@@ -532,7 +524,7 @@ else()
     # asan aot
     set(asan_devicetypes pvc cpu dg2)
 
-    foreach(asan_ft IN LISTS filetypes_no_spv)
+    foreach(asan_ft IN LISTS filetypes)
       foreach(asan_device IN LISTS asan_devicetypes)
         compile_lib_ext(libsycl-asan-${asan_device}
                         SRC sanitizer/asan_rtl.cpp
@@ -547,7 +539,6 @@ else()
       SRC sanitizer/msan_rtl.cpp
       DEPENDENCIES ${msan_obj_deps}
       BUILD_ARCHS ${sanitizer_build_archs}
-      FILETYPES "${filetypes_no_spv}"
       EXTRA_OPTS -fno-sycl-instrument-device-code
                  -I${UR_SANITIZER_INCLUDE_DIR}
                  -I${CMAKE_CURRENT_SOURCE_DIR})
@@ -555,7 +546,7 @@ else()
     # msan aot
     set(msan_devicetypes pvc cpu)
 
-    foreach(msan_ft IN LISTS filetypes_no_spv)
+    foreach(msan_ft IN LISTS filetypes)
       foreach(msan_device IN LISTS msan_devicetypes)
         compile_lib_ext(libsycl-msan-${msan_device}
                         SRC sanitizer/msan_rtl.cpp
@@ -570,14 +561,13 @@ else()
       SRC sanitizer/tsan_rtl.cpp
       DEPENDENCIES ${tsan_obj_deps}
       BUILD_ARCHS ${sanitizer_build_archs}
-      FILETYPES "${filetypes_no_spv}"
       EXTRA_OPTS -fno-sycl-instrument-device-code
                  -I${UR_SANITIZER_INCLUDE_DIR}
                  -I${CMAKE_CURRENT_SOURCE_DIR})
 
     set(tsan_devicetypes pvc cpu)
 
-    foreach(tsan_ft IN LISTS filetypes_no_spv)
+    foreach(tsan_ft IN LISTS filetypes)
       foreach(tsan_device IN LISTS tsan_devicetypes)
         compile_lib_ext(libsycl-tsan-${tsan_device}
                         SRC sanitizer/tsan_rtl.cpp
@@ -590,11 +580,6 @@ else()
   endif()
 endif()
 
-add_devicelibs(libsycl-fallback-cassert
-  SRC fallback-cassert.cpp
-  BUILD_ARCHS ${full_build_archs}
-  DEPENDENCIES ${crt_obj_deps}
-  EXTRA_OPTS -fno-sycl-instrument-device-code)
 add_devicelibs(libsycl-fallback-cstring
   SRC fallback-cstring.cpp
   BUILD_ARCHS ${full_build_archs}
@@ -706,7 +691,7 @@ endif()
 
 set(obj-new-offload_host_compile_opts ${imf_host_cxx_flags} --offload-new-driver
   -foffload-lto=thin)
-set(obj_host_compile_opts ${imf_host_cxx_flags})
+set(obj_host_compile_opts ${imf_host_cxx_flags} --no-offload-new-driver)
 
 foreach(datatype IN ITEMS fp32 fp64 bf16)
   string(TOUPPER ${datatype} upper_datatype)

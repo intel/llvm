@@ -18,18 +18,3 @@
 // entry points for them even if newer version of the headers stops using those
 // old entry points. Others were exported unnecessarily but only actually used
 // inside DSO, yet we have to keep the entry points as well.
-
-// https://github.com/intel/llvm/pull/16178
-// CHECK:_ZN4sycl3_V13ext5intel12experimental9pipe_base13get_pipe_nameB5cxx11EPKv
-//
-// https://github.com/intel/llvm/pull/16177
-// CHECK:_ZN4sycl3_V16detail6OSUtil10getDirNameB5cxx11EPKc
-// CHECK:_ZN4sycl3_V16detail6OSUtil16getCurrentDSODirB5cxx11Ev
-//
-// https://github.com/intel/llvm/pull/16176
-// CHECK:_ZN4sycl3_V16opencl13has_extensionERKNS0_6deviceERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE
-// CHECK:_ZN4sycl3_V16opencl13has_extensionERKNS0_8platformERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE
-//
-// https://github.com/intel/llvm/pull/15694 and
-// https://github.com/intel/llvm/pull/16194
-// CHECK:_ZNK4sycl3_V13ext6oneapi12experimental6detail24modifiable_command_graph11print_graphENSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEb

@@ -1,0 +1,38 @@
+#
+# Copyright (C) 2023 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime Experimental APIs for device-wide synchronization"
+ordinal: "99"
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+typed_etors: true
+desc: "Extension enums for $x_device_info_t to support device-wide synchronization."
+name: $x_device_info_t
+etors:
+    - name: DEVICE_WAIT_SUPPORT_EXP
+      value: "0x6002"
+      desc: "[$x_bool_t] Returns true if the device supports the device-wide synchronization experimental feature."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Synchronizes with all queues on the device."
+class: $xDevice
+name: WaitExp
+decl: static
+ordinal: "1"
+params:
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device instance."
+returns:
+    - $X_RESULT_ERROR_INVALID_DEVICE
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
+      - "`hDevice == nullptr`"

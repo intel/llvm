@@ -154,7 +154,7 @@ UR_APIEXPORT ur_result_t urEnqueueEventsWaitWithBarrierExt(
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t, const ur_kernel_launch_property_t *,
+    const size_t *pLocalWorkSize, const ur_kernel_launch_ext_properties_t *,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
@@ -483,4 +483,39 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   OL_RETURN_ON_ERR(makeEvent(UR_COMMAND_USM_PREFETCH, Queue, hQueue, phEvent));
 
   return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
+    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    const size_t *pLocalWorkSize, uint32_t numArgs,
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    const ur_kernel_launch_ext_properties_t *launchPropList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  for (uint32_t i = 0; i < numArgs; i++) {
+    switch (pArgs[i].type) {
+    case UR_EXP_KERNEL_ARG_TYPE_POINTER:
+      hKernel->Args.addArg(pArgs[i].index, sizeof(pArgs[i].value.pointer),
+                           &pArgs[i].value.pointer);
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_VALUE:
+      hKernel->Args.addArg(pArgs[i].index, pArgs[i].size, pArgs[i].value.value);
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ:
+      hKernel->Args.addMemObjArg(pArgs[i].index,
+                                 pArgs[i].value.memObjTuple.hMem,
+                                 pArgs[i].value.memObjTuple.flags);
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
+    case UR_EXP_KERNEL_ARG_TYPE_SAMPLER:
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    default:
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+    }
+  }
+
+  return urEnqueueKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
+                               pGlobalWorkSize, pLocalWorkSize, launchPropList,
+                               numEventsInWaitList, phEventWaitList, phEvent);
 }

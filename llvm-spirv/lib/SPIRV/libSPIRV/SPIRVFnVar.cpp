@@ -169,7 +169,7 @@ bool specializeFnVariants(SPIRVModule *BM, std::string &ErrMsg) {
   for (const auto &CondCap : BM->getConditionalCapabilities()) {
     const SPIRVId Condition = CondCap.first.first;
     const Capability Cap = CondCap.first.second;
-    const SPIRVConditionalCapabilityINTEL *Entry = CondCap.second;
+    const SPIRVConditionalCapabilityINTEL *Entry = CondCap.second.get();
     bool ShouldKeep = false;
     if (!evaluateConstant(BM, Entry->getCondition(), ShouldKeep, ErrMsg)) {
       return false;

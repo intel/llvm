@@ -9,7 +9,6 @@
 #pragma once
 
 #include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
-#include <sycl/ext/intel/experimental/fpga_utils.hpp>
 #include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>

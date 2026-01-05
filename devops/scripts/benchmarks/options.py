@@ -54,7 +54,6 @@ class Options:
     ur: str = None
     ur_adapter: str = None
     umf: str = None
-    rebuild: bool = True
     redownload: bool = False
     benchmark_cwd: str = "INVALID"
     timeout: float = 600
@@ -98,8 +97,10 @@ class Options:
     # CI scripts vs SYCl build source.
     github_repo_override: str = None
     git_commit_override: str = None
-    # Filename used to store Github summary files:
-    github_summary_filename: str = "github_summary.md"
+    # Flag and filenames used to store Github summary files:
+    produce_github_summary: bool = False
+    github_summary_execution_filename: str = "github_summary_exe.md"
+    github_summary_regression_filename: str = "github_summary_reg.md"
     # Archiving settings
     # Archived runs are stored separately from the main dataset but are still accessible
     # via the HTML UI when "Include archived runs" is enabled.

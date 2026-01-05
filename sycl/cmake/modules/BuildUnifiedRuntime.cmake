@@ -27,6 +27,10 @@ set(UR_ENABLE_TRACING ON CACHE BOOL "")
 set(UR_EXTERNAL_DEPENDENCIES "sycl-headers" CACHE STRING
   "List of external CMake targets for executables/libraries to depend on" FORCE)
 
+# Force fetch Level Zero loader and headers from github.com
+option(SYCL_UR_FORCE_FETCH_LEVEL_ZERO "Force fetching Level Zero even if preinstalled loader is found" OFF)
+set(UR_FORCE_FETCH_LEVEL_ZERO "${SYCL_UR_FORCE_FETCH_LEVEL_ZERO}" CACHE BOOL "" FORCE)
+
 if("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
   set(UR_BUILD_ADAPTER_L0 ON)
 endif()

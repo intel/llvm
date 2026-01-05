@@ -110,10 +110,6 @@ sycl_device_binary_struct DeviceBinaryContainer::getPIDeviceBinary(
   DeviceBinary.Format = Format;
   DeviceBinary.CompileOptions = CompileOptions ? CompileOptions.get() : "";
   DeviceBinary.LinkOptions = "";
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  DeviceBinary.ManifestStart = nullptr;
-  DeviceBinary.ManifestEnd = nullptr;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   // It is safe to use these pointers here, as their lifetime is managed by
   // the JITContext.
   DeviceBinary.BinaryStart = BinaryStart;

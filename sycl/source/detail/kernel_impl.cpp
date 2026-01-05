@@ -31,8 +31,8 @@ kernel_impl::kernel_impl(Managed<ur_kernel_handle_t> &&Kernel,
       MCreatedFromSource(true),
       MKernelBundleImpl(KernelBundleImpl ? KernelBundleImpl->shared_from_this()
                                          : nullptr),
-      MIsInterop(true), MKernelArgMaskPtr{ArgMask},
-      MInteropDeviceKernelInfo(createCompileTimeKernelInfo(getName())) {
+      MIsInterop(true), MKernelArgMaskPtr{ArgMask}, MOwnsDeviceKernelInfo(true),
+      MDeviceKernelInfo(createCompileTimeKernelInfo(getName())) {
   ur_context_handle_t UrContext = nullptr;
   // Using the adapter from the passed ContextImpl
   getAdapter().call<UrApiKind::urKernelGetInfo>(
@@ -59,9 +59,11 @@ kernel_impl::kernel_impl(Managed<ur_kernel_handle_t> &&Kernel,
       MKernelBundleImpl(KernelBundleImpl.shared_from_this()),
       MIsInterop(MDeviceImageImpl->getOriginMask() & ImageOriginInterop),
       MKernelArgMaskPtr{ArgMask}, MCacheMutex{CacheMutex},
-      MInteropDeviceKernelInfo(MIsInterop
-                                   ? createCompileTimeKernelInfo(getName())
-                                   : createCompileTimeKernelInfo()) {
+      MOwnsDeviceKernelInfo(checkOwnsDeviceKernelInfo()),
+      MDeviceKernelInfo(MOwnsDeviceKernelInfo
+                            ? createCompileTimeKernelInfo(getName())
+                            : createCompileTimeKernelInfo()) {
+
   // Enable USM indirect access for interop and non-sycl-jit source kernels.
   // sycl-jit kernels will enable this if needed through the regular kernel
   // path.
@@ -121,6 +123,16 @@ std::string_view kernel_impl::getName() const {
   return MName;
 }
 
+bool kernel_impl::checkOwnsDeviceKernelInfo() {
+  // If the image originates from something other than standard offline
+  // compilation, this kernel needs to own its info structure.
+  // We could also have a mixed origin image, in which case the device kernel
+  // info might reside in program manager.
+  return MDeviceImageImpl->getOriginMask() != ImageOriginSYCLOffline &&
+         (!(MDeviceImageImpl->getOriginMask() & ImageOriginSYCLOffline) ||
+          !ProgramManager::getInstance().tryGetDeviceKernelInfo(getName()));
+}
+
 bool kernel_impl::isBuiltInKernel(device_impl &Device) const {
   auto BuiltInKernels = Device.get_info<info::device::built_in_kernel_ids>();
   if (BuiltInKernels.empty())
@@ -163,57 +175,8 @@ void kernel_impl::enableUSMIndirectAccess() const {
       nullptr, &EnableAccess);
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::platform::version::return_type
-kernel_impl::get_backend_info<info::platform::version>() const {
-  if (MContext->getBackend() != backend::opencl) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::platform::version info descriptor can "
-                          "only be queried with an OpenCL backend");
-  }
-  devices_range Devices = MKernelBundleImpl->get_devices();
-  return Devices.front().get_platform().get_info<info::platform::version>();
-}
-#endif
-
 device select_device(DSelectorInvocableType DeviceSelectorInvocable,
                      std::vector<device> &Devices);
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::device::version::return_type
-kernel_impl::get_backend_info<info::device::version>() const {
-  if (MContext->getBackend() != backend::opencl) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::device::version info descriptor can only "
-                          "be queried with an OpenCL backend");
-  }
-  auto Devices = MKernelBundleImpl->get_devices().to<std::vector<device>>();
-  if (Devices.empty()) {
-    return "No available device";
-  }
-  // Use default selector to pick a device.
-  return select_device(default_selector_v, Devices)
-      .get_info<info::device::version>();
-}
-#endif
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::device::backend_version::return_type
-kernel_impl::get_backend_info<info::device::backend_version>() const {
-  if (MContext->getBackend() != backend::ext_oneapi_level_zero) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::device::backend_version info descriptor "
-                          "can only be queried with a Level Zero backend");
-  }
-  return "";
-  // Currently The Level Zero backend does not define the value of this
-  // information descriptor and implementations are encouraged to return the
-  // empty string as per specification.
-}
-#endif
 
 } // namespace detail
 } // namespace _V1

@@ -1,8 +1,7 @@
 ; Ensure that a "common global" is not converted to a locally allocated
 ; variable when translated to SPIR-V and back to LLVM.
 
-; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: llvm-spirv %s -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 

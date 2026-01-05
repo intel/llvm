@@ -87,7 +87,7 @@ llvm::Expected<JITBinary *> Translator::translateToPTX(llvm::Module &Mod,
 
   std::string ErrorMessage;
   const auto *Target =
-      llvm::TargetRegistry::lookupTarget(TargetTriple, ErrorMessage);
+      llvm::TargetRegistry::lookupTarget(Triple(TargetTriple), ErrorMessage);
 
   if (!Target) {
     return createStringError(
@@ -146,7 +146,7 @@ Translator::translateToAMDGCN(llvm::Module &Mod, JITContext &JITCtx,
 
   std::string ErrorMessage;
   const auto *Target =
-      llvm::TargetRegistry::lookupTarget(TargetTriple, ErrorMessage);
+      llvm::TargetRegistry::lookupTarget(Triple(TargetTriple), ErrorMessage);
 
   if (!Target)
     return createStringError(
@@ -197,13 +197,14 @@ std::pair<std::string, std::string> Translator::getTargetCPUAndFeatureAttrs(
   if (CPU.empty()) {
     // Set to the lowest tested target according to the GetStartedGuide, section
     // "Build DPC++ toolchain with support for HIP AMD"
-    CPU = Format == BinaryFormat::AMDGCN ? "gfx90a" : "sm_50";
+    CPU = Format == BinaryFormat::AMDGCN ? "gfx90a" : "sm_75";
     if (KernelFunc && KernelFunc->hasFnAttribute(TARGET_CPU_ATTRIBUTE)) {
       CPU = KernelFunc->getFnAttribute(TARGET_CPU_ATTRIBUTE).getValueAsString();
     }
   }
   if (Features.empty()) {
-    Features = Format == BinaryFormat::PTX ? "+sm_50,+ptx76" : "";
+    // Turing architecture + PTX 6.3
+    Features = Format == BinaryFormat::PTX ? "+sm_75,+ptx63" : "";
     if (KernelFunc && KernelFunc->hasFnAttribute(TARGET_FEATURE_ATTRIBUTE)) {
       Features = KernelFunc->getFnAttribute(TARGET_FEATURE_ATTRIBUTE)
                      .getValueAsString();

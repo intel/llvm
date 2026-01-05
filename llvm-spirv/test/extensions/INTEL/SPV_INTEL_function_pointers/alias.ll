@@ -10,7 +10,7 @@ target triple = "spir64-unknown-unknown"
 ; when used since they can't be translated directly.
 
 ; CHECK-SPIRV-DAG: Name [[#FOO:]] "foo"
-; CHECK-SPIRV-DAG: Name [[#BAR:]] "bar"
+; CHECK-SPIRV-DAG: EntryPoint [[#]] [[#BAR:]] "bar"
 ; CHECK-SPIRV-DAG: Name [[#Y:]] "y"
 ; CHECK-SPIRV-DAG: Name [[#FOOPTR:]] "foo.alias"
 ; CHECK-SPIRV-DAG: Decorate [[#FOO]] LinkageAttributes "foo" Export

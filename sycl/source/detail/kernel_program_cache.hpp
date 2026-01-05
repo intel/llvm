@@ -15,7 +15,6 @@
 #include <detail/platform_impl.hpp>
 #include <detail/unordered_multimap.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/detail/locked.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/spinlock.hpp>
@@ -91,15 +90,10 @@ public:
     /// A mutex to be employed along with MBuildCV.
     std::mutex MBuildResultMutex;
 
-    BuildState
-    waitUntilTransition(BuildState From = BuildState::BS_InProgress) {
-      BuildState To;
+    BuildState waitUntilTransition() {
       std::unique_lock<std::mutex> Lock(MBuildResultMutex);
-      MBuildCV.wait(Lock, [&] {
-        To = State;
-        return State != From;
-      });
-      return To;
+      MBuildCV.wait(Lock, [&] { return State != BuildState::BS_InProgress; });
+      return State.load();
     }
 
     void updateAndNotify(BuildState DesiredState) {
@@ -215,7 +209,7 @@ public:
 
   using KernelCacheT = emhash8::HashMap<
       ur_program_handle_t,
-      emhash8::HashMap<KernelNameStrT, std::shared_ptr<KernelBuildResult>>>;
+      emhash8::HashMap<std::string_view, std::shared_ptr<KernelBuildResult>>>;
 
   class FastKernelSubcacheWrapper {
   public:
@@ -260,7 +254,7 @@ public:
   };
 
   using FastKernelCacheT =
-      emhash8::HashMap<KernelNameStrT, FastKernelSubcacheWrapper>;
+      emhash8::HashMap<std::string_view, FastKernelSubcacheWrapper>;
 
   // DS to hold data and functions related to Program cache eviction.
   struct EvictionList {
@@ -328,7 +322,8 @@ public:
 
   // Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is
   // set.
-  static inline void traceProgram(const std::string &Msg,
+  template <typename MsgType>
+  static inline void traceProgram(const MsgType &Msg,
                                   const ProgramCacheKeyT &CacheKey) {
     if (!SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache())
       return;
@@ -360,20 +355,16 @@ public:
               << "][Program Cache]" << Identifier << Msg << std::endl;
   }
 
+  static void traceKernelImpl(const char *Msg, std::string_view KernelName,
+                              bool IsFastKernelCache);
+
   // Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is
   // set.
-  static inline void traceKernel(std::string_view Msg,
-                                 std::string_view KernelName,
-                                 bool IsFastKernelCache = false) {
-    if (!SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache())
-      return;
-
-    std::string Identifier =
-        "[IsFastCache: " + std::to_string(IsFastKernelCache) +
-        "][Key:{Name = " + KernelName.data() + "}]: ";
-
-    std::cerr << "[In-Memory Cache][Thread Id:" << std::this_thread::get_id()
-              << "][Kernel Cache]" << Identifier << Msg << std::endl;
+  static void traceKernel(const char *Msg, std::string_view KernelName,
+                          bool isFastKernelCache = false) {
+    if (__builtin_expect(SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache(),
+                         false))
+      traceKernelImpl(Msg, KernelName, isFastKernelCache);
   }
 
   Locked<ProgramCache> acquireCachedPrograms() {
@@ -428,7 +419,7 @@ public:
   }
 
   std::pair<std::shared_ptr<KernelBuildResult>, bool>
-  getOrInsertKernel(ur_program_handle_t Program, KernelNameStrRefT KernelName) {
+  getOrInsertKernel(ur_program_handle_t Program, std::string_view KernelName) {
     auto LockedCache = acquireKernelsPerProgramCache();
     auto &Cache = LockedCache.get()[Program];
     auto [It, DidInsert] = Cache.try_emplace(KernelName, nullptr);
@@ -441,7 +432,7 @@ public:
   }
 
   FastKernelCacheValPtr
-  tryToGetKernelFast(KernelNameStrRefT KernelName, ur_device_handle_t Device,
+  tryToGetKernelFast(std::string_view KernelName, ur_device_handle_t Device,
                      FastKernelSubcacheT &KernelSubcache) {
     const FastKernelSubcacheEntriesT &SubcacheEntries = KernelSubcache.Entries;
     FastKernelSubcacheReadLockT SubcacheLock{KernelSubcache.Mutex};
@@ -460,7 +451,7 @@ public:
     return FastKernelCacheValPtr();
   }
 
-  void saveKernel(KernelNameStrRefT KernelName, ur_device_handle_t Device,
+  void saveKernel(std::string_view KernelName, ur_device_handle_t Device,
                   const FastKernelCacheValPtr &CacheVal,
                   FastKernelSubcacheT &KernelSubcache) {
     if (SYCLConfig<SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD>::
@@ -511,7 +502,8 @@ public:
         auto LockedCacheKP = acquireKernelsPerProgramCache();
         // List kernels that are to be removed from the cache, if tracing is
         // enabled.
-        if (SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache()) {
+        if (__builtin_expect(SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache(),
+                             false)) {
           for (const auto &Kernel : LockedCacheKP.get()[NativePrg])
             traceKernel("Kernel evicted.", Kernel.first);
         }
@@ -581,9 +573,8 @@ public:
 
       traceProgram("Program evicted.", CacheKey);
     } else
-      // This should never happen.
-      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                            "Program not found in the cache.");
+      // This can happen if we try to remove cache entries after early shutdown.
+      return 0;
 
     return MCachedPrograms.ProgramCacheSizeInBytes;
   }
@@ -692,9 +683,9 @@ public:
     std::lock_guard<std::mutex> L1(MProgramCacheMutex);
     std::lock_guard<std::mutex> L2(MKernelsPerProgramCacheMutex);
     FastKernelCacheWriteLockT L3(MFastKernelCacheMutex);
-    MCachedPrograms = ProgramCache{};
-    MKernelsPerProgramCache = KernelCacheT{};
-    MFastKernelCache = FastKernelCacheT{};
+    MCachedPrograms.Cache.clear();
+    MKernelsPerProgramCache.clear();
+    MFastKernelCache.clear();
     MProgramToFastKernelCacheKeyMap.clear();
     // Clear the eviction lists and its mutexes.
     MEvictionList.clear();
@@ -732,29 +723,31 @@ public:
   auto /* std::shared_ptr<BuildResult> */
   getOrBuild(GetCachedBuildFT &&GetCachedBuild, BuildFT &&Build,
              EvictFT &&EvictFunc = nullptr) {
-    using BuildState = KernelProgramCache::BuildState;
     constexpr size_t MaxAttempts = 2;
     for (size_t AttemptCounter = 0;; ++AttemptCounter) {
       auto /* std::pair<std::shared_ptr<BuildResult>, bool> */ Res =
           GetCachedBuild();
       auto &BuildResult = Res.first;
       assert(BuildResult != nullptr);
-      BuildState Expected = BuildState::BS_Initial;
-      BuildState Desired = BuildState::BS_InProgress;
-      if (!BuildResult->State.compare_exchange_strong(Expected, Desired)) {
+      BuildState CurrentState = BuildState::BS_Initial; // initial is expected
+      if (!BuildResult->State.compare_exchange_strong(
+              CurrentState, BuildState::BS_InProgress)) {
         // no insertion took place, thus some other thread has already inserted
         // smth in the cache
-        BuildState NewState = BuildResult->waitUntilTransition();
+
+        if (CurrentState == BuildState::BS_InProgress) {
+          CurrentState = BuildResult->waitUntilTransition();
+        }
 
         // Build succeeded.
-        if (NewState == BuildState::BS_Done) {
+        if (CurrentState == BuildState::BS_Done) {
           if constexpr (!std::is_same_v<EvictFT, void *>)
             EvictFunc(BuildResult->Val, /*IsBuilt=*/false);
           return BuildResult;
         }
 
         // Build failed, or this is the last attempt.
-        if (NewState == BuildState::BS_Failed ||
+        if (CurrentState == BuildState::BS_Failed ||
             AttemptCounter + 1 == MaxAttempts) {
           if (BuildResult->Error.isFilledIn())
             throw detail::set_ur_error(
@@ -840,8 +833,9 @@ private:
 
   // Map between fast kernel cache keys and program handle.
   // MFastKernelCacheMutex will be used for synchronization.
-  std::unordered_map<ur_program_handle_t,
-                     std::vector<std::pair<KernelNameStrT, ur_device_handle_t>>>
+  std::unordered_map<
+      ur_program_handle_t,
+      std::vector<std::pair<std::string_view, ur_device_handle_t>>>
       MProgramToFastKernelCacheKeyMap;
 
   EvictionList MEvictionList;

@@ -174,7 +174,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramBuildExp(ur_program_handle_t hProgram, uint32_t, ur_device_handle_t *,
-                  const char *pOptions) {
+                  ur_exp_program_flags_t, const char *pOptions) {
   // Do nothing, program is built upon creation
   if (pOptions && *pOptions) {
     hProgram->Error = "Liboffload doesn't support link options";

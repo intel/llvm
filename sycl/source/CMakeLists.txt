@@ -4,6 +4,7 @@
 #cmake_policy(SET CMP0057 NEW)
 #include(AddLLVM)
 include(CheckLinkerFlag)
+include(CheckIPOSupported)
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/version.rc.in
   ${CMAKE_CURRENT_BINARY_DIR}/version.rc
@@ -16,12 +17,23 @@ if (SYCL_ENABLE_XPTI_TRACING)
   include_directories(${LLVM_EXTERNAL_XPTI_SOURCE_DIR}/include)
 endif()
 
+if(SYCL_ENABLE_IPO)
+  check_ipo_supported(RESULT SYCL_USE_IPO)
+  if (NOT SYCL_USE_IPO)
+    message(WARNING "Interprocedural optimization is not supported by the compiler, disabling")
+  endif()
+endif()
+
 function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   # Add an optional argument so we can get the library name to
   # link with for Windows Debug version
   cmake_parse_arguments(ARG "" "XPTI_LIB;IMPLIB_NAME" "COMPILE_OPTIONS;SOURCES" ${ARGN})
 
   add_library(${LIB_OBJ_NAME} OBJECT ${ARG_SOURCES})
+
+  if(SYCL_USE_IPO)
+    set_property(TARGET ${LIB_OBJ_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+  endif()
 
   # Common compilation step setup
 
@@ -78,6 +90,10 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   add_library(${LIB_NAME} SHARED
               $<TARGET_OBJECTS:${LIB_OBJ_NAME}>
               ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
+
+  if(SYCL_USE_IPO)
+    set_property(TARGET ${LIB_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+  endif()
 
   find_package(Threads REQUIRED)
 
@@ -250,6 +266,7 @@ set(SYCL_COMMON_SOURCES
     "builtins/native_math_functions.cpp"
     "builtins/relational_functions.cpp"
     "detail/accessor_impl.cpp"
+    "detail/adapter_impl.cpp"
     "detail/allowlist.cpp"
     "detail/bindless_images.cpp"
     "detail/buffer_impl.cpp"
@@ -259,7 +276,6 @@ set(SYCL_COMMON_SOURCES
     "detail/context_impl.cpp"
     "detail/device_binary_image.cpp"
     "detail/device_filter.cpp"
-    "detail/host_pipe_map.cpp"
     "detail/device_global_map.cpp"
     "detail/kernel_data.cpp"
     "detail/kernel_global_info.cpp"
@@ -269,7 +285,6 @@ set(SYCL_COMMON_SOURCES
     "detail/error_handling/error_handling.cpp"
     "detail/event_impl.cpp"
     "detail/filter_selector_impl.cpp"
-    "detail/fusion/fusion_wrapper.cpp"
     "detail/global_handler.cpp"
     "detail/graph/graph_impl.cpp"
     "detail/graph/dynamic_impl.cpp"
@@ -288,13 +303,13 @@ set(SYCL_COMMON_SOURCES
     "detail/kernel_program_cache.cpp"
     "detail/memory_export.cpp"
     "detail/memory_manager.cpp"
-    "detail/pipes.cpp"
     "detail/platform_impl.cpp"
     "detail/program_manager/program_manager.cpp"
     "detail/queue_impl.cpp"
     "detail/os_util.cpp"
     "detail/persistent_device_code_cache.cpp"
     "detail/preview_marker.cpp"
+    "detail/range_rounding.cpp"
     "detail/reduction.cpp"
     "detail/sampler_impl.cpp"
     "detail/stream_impl.cpp"
@@ -322,6 +337,7 @@ set(SYCL_COMMON_SOURCES
     "handler.cpp"
     "image.cpp"
     "interop_handle.cpp"
+    "ipc_memory.cpp"
     "kernel.cpp"
     "kernel_bundle.cpp"
     "physical_mem.cpp"
@@ -339,7 +355,6 @@ set(SYCL_COMMON_SOURCES
 )
 
 set(SYCL_NON_PREVIEW_SOURCES "${SYCL_COMMON_SOURCES}"
-  "spirv_ops.cpp"
 )
 
 

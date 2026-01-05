@@ -49,11 +49,10 @@ def run(
             command = command.split()
 
         env = os.environ.copy()
-
         for ldlib in ld_library:
             if os.path.isdir(ldlib):
-                env["LD_LIBRARY_PATH"] = (
-                    ldlib + os.pathsep + env.get("LD_LIBRARY_PATH", "")
+                env_vars["LD_LIBRARY_PATH"] = os.pathsep.join(
+                    filter(None, [ldlib, env_vars.get("LD_LIBRARY_PATH", "")])
                 )
             else:
                 log.warning(f"LD_LIBRARY_PATH component does not exist: {ldlib}")
@@ -61,18 +60,25 @@ def run(
         # order is important, we want provided sycl rt libraries to be first
         if add_sycl:
             sycl_bin_path = os.path.join(options.sycl, "bin")
-            env["PATH"] = sycl_bin_path + os.pathsep + env.get("PATH", "")
-            sycl_lib_path = os.path.join(options.sycl, "lib")
-            env["LD_LIBRARY_PATH"] = (
-                sycl_lib_path + os.pathsep + env.get("LD_LIBRARY_PATH", "")
+            env_vars["PATH"] = os.pathsep.join(
+                filter(None, [sycl_bin_path, env_vars.get("PATH", "")])
             )
-
-        env.update(env_vars)
+            sycl_lib_path = os.path.join(options.sycl, "lib")
+            env_vars["LD_LIBRARY_PATH"] = os.pathsep.join(
+                filter(None, [sycl_lib_path, env_vars.get("LD_LIBRARY_PATH", "")])
+            )
 
         command_str = " ".join(command)
         env_str = " ".join(f"{key}={value}" for key, value in env_vars.items())
         full_command_str = f"{env_str} {command_str}".strip()
         log.debug(f"Running: {full_command_str}")
+
+        for key, value in env_vars.items():
+            # Only PATH and LD_LIBRARY_PATH should be prepended to existing values
+            if key in ("PATH", "LD_LIBRARY_PATH") and (old := env.get(key)):
+                env[key] = os.pathsep.join([value, old])
+            else:
+                env[key] = value
 
         # Normalize input to bytes if it's a str
         if isinstance(input, str):
@@ -194,6 +200,37 @@ def get_device_architecture(additional_env_vars):
         )
 
     return architectures.pop()
+
+
+def warn_if_level_zero_is_not_found(additional_env_vars) -> bool:
+    warning_found = False
+    sycl_ls_found_l0 = False
+
+    sycl_ls_output = run(
+        ["sycl-ls"], add_sycl=True, env_vars=additional_env_vars
+    ).stdout.decode()
+
+    for line in sycl_ls_output.splitlines():
+        if "level_zero" in line:
+            sycl_ls_found_l0 = True
+
+    if not "level_zero" in options.ur_adapter:
+        log.warning(
+            f"  None of Level Zero adapters were set in main.py '--adapter' param."
+        )
+        warning_found = True
+    if not sycl_ls_found_l0:
+        log.warning(f"  sycl-ls did not list any Level Zero devices.")
+        warning_found = True
+
+    if warning_found:
+        log.warning(
+            "  Please double check if proper setup is used for benchmarking!!! "
+            + "Perhaps check 'ONEAPI_DEVICE_SELECTOR' env var?"
+        )
+        return True
+
+    return False
 
 
 def prune_old_files(directory: str, keep_count: int = 10):

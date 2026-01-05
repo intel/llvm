@@ -115,7 +115,7 @@ std::pair<const char *, size_t> getImageInOffloadBinary(const char *Data,
       reinterpret_cast<const OffloadBinaryEntryType *>(Data +
                                                        Header->EntryOffset);
 
-  if (Entry->ImageKind != /*IMG_SYCLBIN*/ 6)
+  if (Entry->ImageKind != /*IMG_SYCLBIN*/ 7)
     throw sycl::exception(make_error_code(errc::invalid),
                           "Unexpected image type.");
 
@@ -143,8 +143,6 @@ const char *getDeviceTargetSpecFromTriple(std::string_view Triple) {
     return __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64;
   if (Target == __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN)
     return __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN;
-  if (Target == __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA)
-    return __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA;
   if (Target == __SYCL_DEVICE_BINARY_TARGET_NVPTX64)
     return __SYCL_DEVICE_BINARY_TARGET_NVPTX64;
   if (Target == __SYCL_DEVICE_BINARY_TARGET_AMDGCN)
@@ -310,10 +308,6 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
           __SYCL_DEVICE_BINARY_TARGET_SPIRV64; // TODO: Determine.
       DeviceBinary.CompileOptions = nullptr;
       DeviceBinary.LinkOptions = nullptr;
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-      DeviceBinary.ManifestStart = nullptr;
-      DeviceBinary.ManifestEnd = nullptr;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
       DeviceBinary.BinaryStart =
           reinterpret_cast<const unsigned char *>(IRM.RawIRBytes.data());
       DeviceBinary.BinaryEnd = reinterpret_cast<const unsigned char *>(
@@ -347,10 +341,6 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
           getDeviceTargetSpecFromTriple(TargetTriple);
       DeviceBinary.CompileOptions = nullptr;
       DeviceBinary.LinkOptions = nullptr;
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-      DeviceBinary.ManifestStart = nullptr;
-      DeviceBinary.ManifestEnd = nullptr;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
       DeviceBinary.BinaryStart = reinterpret_cast<const unsigned char *>(
           NDCI.RawDeviceCodeImageBytes.data());
       DeviceBinary.BinaryEnd = reinterpret_cast<const unsigned char *>(
@@ -451,6 +441,25 @@ SYCLBINBinaries::getBestCompatibleImages(devices_range Devs,
     Images.insert(BestImagesForDev.cbegin(), BestImagesForDev.cend());
   }
   return {Images.cbegin(), Images.cend()};
+}
+
+std::vector<const RTDeviceBinaryImage *>
+SYCLBINBinaries::getNativeBinaryImages(device_impl &Dev) {
+  std::vector<const RTDeviceBinaryImage *> Images;
+  for (size_t I = 0; I < getNumAbstractModules(); ++I) {
+    const AbstractModuleDesc &AMDesc = AbstractModuleDescriptors[I];
+    // If the target state is executable, try with native images first.
+
+    const RTDeviceBinaryImage *CompatImagePtr = std::find_if(
+        AMDesc.NativeBinaries, AMDesc.NativeBinaries + AMDesc.NumNativeBinaries,
+        [&](const RTDeviceBinaryImage &Img) {
+          return doesDevSupportDeviceRequirements(Dev, Img) &&
+                 doesImageTargetMatchDevice(Img, Dev);
+        });
+    if (CompatImagePtr != AMDesc.NativeBinaries + AMDesc.NumNativeBinaries)
+      Images.push_back(CompatImagePtr);
+  }
+  return Images;
 }
 
 } // namespace detail

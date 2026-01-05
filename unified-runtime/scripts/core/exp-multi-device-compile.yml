@@ -22,6 +22,15 @@ etors:
       value: "0x6000"
       desc: "[$x_bool_t] Returns true if the device supports the multi device compile experimental feature."
 --- #--------------------------------------------------------------------------
+type: enum
+desc: "Program operation behavior control flags"
+class: $xProgram
+name: $x_exp_program_flags_t
+etors:
+    - name: ALLOW_UNRESOLVED_SYMBOLS
+      desc: "Allow unresolved symbols in the program resulting from the corresponding operation"
+      value: "$X_BIT(0)"
+--- #--------------------------------------------------------------------------
 type: function
 desc: "Produces an executable program from one program, negates need for the linking step."
 class: $xProgram
@@ -43,6 +52,9 @@ params:
     - type: $x_device_handle_t*
       name: phDevices
       desc: "[in][range(0, numDevices)] pointer to array of device handles"
+    - type: $x_exp_program_flags_t
+      name: flags
+      desc: "[in] program information flags"
     - type: const char*
       name: pOptions
       desc: "[in][optional] pointer to build options null-terminated string."
@@ -74,6 +86,9 @@ params:
     - type: $x_device_handle_t*
       name: phDevices
       desc: "[in][range(0, numDevices)] pointer to array of device handles"
+    - type: $x_exp_program_flags_t
+      name: flags
+      desc: "[in] program information flags"
     - type: const char*
       name: pOptions
       desc: "[in][optional] pointer to build options null-terminated string."
@@ -106,6 +121,9 @@ params:
     - type: $x_device_handle_t*
       name: phDevices
       desc: "[in][range(0, numDevices)] pointer to array of device handles"
+    - type: $x_exp_program_flags_t
+      name: flags
+      desc: "[in] program information flags"
     - type: uint32_t
       name: count
       desc: "[in] number of program handles in `phPrograms`."
