@@ -4606,5 +4606,20 @@ _SPIRV_OP(StochasticRoundFToF, true, 5, true)
 _SPIRV_OP(ClampStochasticRoundFToF, true, 5, true)
 _SPIRV_OP(ClampStochasticRoundFToS, true, 5, true)
 #undef _SPIRV_OP
+
+class SPIRVFmaKHRInstBase : public SPIRVInstTemplateBase {
+public:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityFMAKHR);
+  }
+
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_KHR_fma;
+  }
+};
+
+typedef SPIRVInstTemplate<SPIRVFmaKHRInstBase, OpFmaKHR, true, 6, false>
+    SPIRVFmaKHR;
+
 } // namespace SPIRV
 #endif // SPIRV_LIBSPIRV_SPIRVINSTRUCTION_H
