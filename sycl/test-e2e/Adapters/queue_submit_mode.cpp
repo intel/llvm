@@ -1,5 +1,5 @@
 // REQUIRES: gpu, level_zero
-// UNSUPPORTED: level_zero_v2_adapter
+// UNSUPPORTED: l_z_v2_a_r
 // UNSUPPORTED-INTENDED: v2 adapter does support regular cmd lists
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env %{l0_leak_check} SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out 0 2>&1 | FileCheck %s --check-prefixes=CHECK-STD

@@ -1,5 +1,5 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
-// XFAIL: run-mode && linux && arch-intel_gpu_pvc && level_zero_v2_adapter
+// XFAIL: run-mode && linux && arch-intel_gpu_pvc && l_z_v2_a_r
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/19585
 
 // RUN: %{build} %device_msan_flags -Xarch_device -fsanitize-memory-track-origins=1 -O0 -g -o %t0.out

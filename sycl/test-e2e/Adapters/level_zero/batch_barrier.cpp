@@ -1,5 +1,5 @@
 // REQUIRES: gpu, level_zero, level_zero_dev_kit
-// UNSUPPORTED: level_zero_v2_adapter
+// UNSUPPORTED: l_z_v2_a_r
 // UNSUPPORTED-INTENDED: v2 adapter does not support regular cmd lists
 
 // RUN: %{build} %level_zero_options -o %t.out

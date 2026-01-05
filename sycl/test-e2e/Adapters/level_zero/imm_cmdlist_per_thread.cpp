@@ -1,7 +1,7 @@
 // REQUIRES: gpu, level_zero
 
 // Flaky failure on windows
-// UNSUPPORTED: windows, level_zero_v2_adapter
+// UNSUPPORTED: windows, l_z_v2_a_r
 
 // RUN: %{build} %level_zero_options %threads_lib -o %t.out
 // RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=CHECK-ONE-CMDLIST %s

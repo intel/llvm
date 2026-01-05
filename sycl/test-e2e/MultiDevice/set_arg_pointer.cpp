@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: level_zero_v2_adapter
+// UNSUPPORTED: l_z_v2_a_r
 // UNSUPPORTED-TRACKER: CMPLRLLVM-67039
 
 // Test that usm device pointer can be used in a kernel compiled for a context

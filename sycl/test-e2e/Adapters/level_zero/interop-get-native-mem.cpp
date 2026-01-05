@@ -8,7 +8,7 @@
 // RUN: %{run} %t.out
 
 // L0v2 adapter does not support integrated buffers yet
-// UNSUPPORTED: level_zero_v2_adapter
+// UNSUPPORTED: l_z_v2_a_r
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20280
 
 // Test get_native_mem for the Level Zero backend.

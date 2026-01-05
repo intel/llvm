@@ -1,6 +1,6 @@
 // REQUIRES: level_zero, level_zero_dev_kit
 //
-// UNSUPPORTED: windows && level_zero_v2_adapter
+// UNSUPPORTED: windows && l_z_v2_a_r
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20852
 //
 // RUN: %{build} %level_zero_options -o %t.out

@@ -4,7 +4,7 @@
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
 // RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
-// UNSUPPORTED: level_zero_v2_adapter
+// UNSUPPORTED: l_z_v2_a_r
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17760
 
 // This test checks the profiling of an event returned

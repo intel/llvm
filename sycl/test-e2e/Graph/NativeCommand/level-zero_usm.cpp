@@ -2,7 +2,7 @@
 // RUN: %{run} %t.out
 // REQUIRES: level_zero, level_zero_dev_kit
 
-// UNSUPPORTED: level_zero_v2_adapter
+// UNSUPPORTED: l_z_v2_a_r
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17847
 
 #include <level_zero/ze_api.h>

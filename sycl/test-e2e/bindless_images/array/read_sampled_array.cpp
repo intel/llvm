@@ -4,7 +4,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: linux && arch-intel_gpu_bmg_g21 && level_zero_v2_adapter
+// UNSUPPORTED: linux && arch-intel_gpu_bmg_g21 && l_z_v2_a_r
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20223
 
 // Print test names and pass status.
