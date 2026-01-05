@@ -18,7 +18,7 @@ template <syclex::clock_scope scope> void test(sycl::queue &q) {
   q.parallel_for(2, [=](sycl::id<1> idx) {
      if (idx == 0) {
        data[0] = syclex::clock<scope>();
-       int sum = 0;
+       volatile int sum = 0;
        for (int i = 0; i < 1'000'000; ++i)
          sum += i;
        data[1] = syclex::clock<scope>();
