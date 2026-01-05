@@ -2715,7 +2715,10 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
           constToIntPtr(VectTy->getElementType(), C));
     }
     assert(IntPtrTy == MS.IntptrTy);
-    return ConstantInt::get(MS.IntptrTy, C);
+    // TODO: Avoid implicit trunc?
+    // See https://github.com/llvm/llvm-project/issues/112510.
+    return ConstantInt::get(MS.IntptrTy, C, /*IsSigned=*/false,
+                            /*ImplicitTrunc=*/true);
   }
 
   /// Returns the integer shadow offset that corresponds to a given
