@@ -1,5 +1,4 @@
-//==-- properties.hpp - SYCL properties associated with
-// annotated_arg/ptr --==//
+//==-- properties.hpp - SYCL properties associated with annotated_ptr --==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -20,11 +19,10 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 
-template <typename T, typename PropertyListT> class annotated_arg;
 template <typename T, typename PropertyListT> class annotated_ptr;
 
 //===----------------------------------------------------------------------===//
-//   Utility type trait for annotated_arg/annotated_ptr deduction guide
+//   Utility type trait for annotated_ptr deduction guide
 //===----------------------------------------------------------------------===//
 template <typename T, typename PropertyValueT>
 struct is_valid_property : std::false_type {};
@@ -64,7 +62,7 @@ struct propagateToPtrAnnotation<property_value<PropKeyT, PropValuesTs...>>
     : propagateToPtrAnnotation<PropKeyT> {};
 
 //===----------------------------------------------------------------------===//
-//        Common properties of annotated_arg/annotated_ptr
+//        Properties of annotated_ptr
 //===----------------------------------------------------------------------===//
 struct unaliased_key
     : detail::compile_time_property_key<detail::PropKind::Unaliased> {
@@ -95,14 +93,6 @@ struct is_property_key_of<unaliased_key, annotated_ptr<T, PropertyListT>>
 
 template <typename T, typename PropertyListT>
 struct is_property_key_of<alignment_key, annotated_ptr<T, PropertyListT>>
-    : std::true_type {};
-
-template <typename T, typename PropertyListT>
-struct is_property_key_of<alignment_key, annotated_arg<T, PropertyListT>>
-    : std::true_type {};
-
-template <typename T, typename PropertyListT>
-struct is_property_key_of<unaliased_key, annotated_arg<T, PropertyListT>>
     : std::true_type {};
 
 template <> struct propagateToPtrAnnotation<alignment_key> : std::true_type {};

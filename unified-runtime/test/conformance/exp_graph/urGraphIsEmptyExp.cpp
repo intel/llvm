@@ -10,20 +10,20 @@ using urGraphNonEmptyExpTest = uur::urGraphPopulatedExpTest;
 
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urGraphNonEmptyExpTest);
 
-TEST_P(urGraphNonEmptyExpTest, SuccessFalse) {
+TEST_P(urGraphNonEmptyExpTest, Success) {
   bool isEmpty = false;
   ASSERT_SUCCESS(urGraphIsEmptyExp(graph, &isEmpty));
-  ASSERT_TRUE(isEmpty);
+  ASSERT_FALSE(isEmpty);
 }
 
 using urGraphEmptyExpTest = uur::urGraphExpTest;
 
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urGraphEmptyExpTest);
 
-TEST_P(urGraphEmptyExpTest, SuccessTrue) {
+TEST_P(urGraphEmptyExpTest, Success) {
   bool isEmpty = false;
   ASSERT_SUCCESS(urGraphIsEmptyExp(graph, &isEmpty));
-  ASSERT_FALSE(isEmpty);
+  ASSERT_TRUE(isEmpty);
 }
 
 TEST_P(urGraphEmptyExpTest, InvalidNullHandleQueue) {

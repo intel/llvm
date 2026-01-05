@@ -39,15 +39,8 @@ int main() {
     } catch (...) {
     }
   }
-  { device d(cpu_selector_v); }
   {
-    try {
-      device d(accelerator_selector_v);
-      std::cerr << "ACC device is found in error: " << d.is_accelerator()
-                << std::endl;
-      return -1;
-    } catch (...) {
-    }
+    device d(cpu_selector_v);
   }
 
   return 0;

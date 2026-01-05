@@ -98,22 +98,8 @@ ur_result_t AsanInterceptor::allocateMemory(ur_context_handle_t Context,
     Pool = ContextInfo->getUSMPool();
   }
 
-  if (Type == AllocType::DEVICE_USM) {
-    UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-        Context, Device, Properties, Pool, NeededSize, &Allocated));
-  } else if (Type == AllocType::HOST_USM) {
-    UR_CALL(getContext()->urDdiTable.USM.pfnHostAlloc(Context, Properties, Pool,
-                                                      NeededSize, &Allocated));
-  } else if (Type == AllocType::SHARED_USM) {
-    UR_CALL(getContext()->urDdiTable.USM.pfnSharedAlloc(
-        Context, Device, Properties, Pool, NeededSize, &Allocated));
-  } else if (Type == AllocType::MEM_BUFFER) {
-    UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-        Context, Device, Properties, Pool, NeededSize, &Allocated));
-  } else {
-    UR_LOG_L(getContext()->logger, ERR, "Unsupport memory type");
-    return UR_RESULT_ERROR_INVALID_ARGUMENT;
-  }
+  UR_CALL(SafeAllocate(Context, Device, NeededSize, Properties, Pool, Type,
+                       &Allocated));
 
   // Udpate statistics
   ContextInfo->Stats.UpdateUSMMalloced(NeededSize, NeededSize - Size);

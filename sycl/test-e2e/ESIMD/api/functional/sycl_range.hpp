@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 ///
 /// \file
-/// Provides all neccessary helpers and wrappers to use with tests with
+/// Provides all necessary helpers and wrappers to use with tests with
 /// sycl::range
 ///
 //===----------------------------------------------------------------------===//

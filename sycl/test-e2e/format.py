@@ -76,6 +76,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         assert parsed["DEFINE:"] == script
         assert parsed["REDEFINE:"] == script
 
+        test.xfails += test.config.xfail_features
         test.xfails += parsed["XFAIL:"] or []
         test.requires += test.config.required_features
         test.requires += parsed["REQUIRES:"] or []

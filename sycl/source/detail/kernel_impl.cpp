@@ -31,8 +31,8 @@ kernel_impl::kernel_impl(Managed<ur_kernel_handle_t> &&Kernel,
       MCreatedFromSource(true),
       MKernelBundleImpl(KernelBundleImpl ? KernelBundleImpl->shared_from_this()
                                          : nullptr),
-      MIsInterop(true), MKernelArgMaskPtr{ArgMask},
-      MInteropDeviceKernelInfo(createCompileTimeKernelInfo(getName())) {
+      MIsInterop(true), MKernelArgMaskPtr{ArgMask}, MOwnsDeviceKernelInfo(true),
+      MDeviceKernelInfo(createCompileTimeKernelInfo(getName())) {
   ur_context_handle_t UrContext = nullptr;
   // Using the adapter from the passed ContextImpl
   getAdapter().call<UrApiKind::urKernelGetInfo>(
@@ -59,9 +59,11 @@ kernel_impl::kernel_impl(Managed<ur_kernel_handle_t> &&Kernel,
       MKernelBundleImpl(KernelBundleImpl.shared_from_this()),
       MIsInterop(MDeviceImageImpl->getOriginMask() & ImageOriginInterop),
       MKernelArgMaskPtr{ArgMask}, MCacheMutex{CacheMutex},
-      MInteropDeviceKernelInfo(MIsInterop
-                                   ? createCompileTimeKernelInfo(getName())
-                                   : createCompileTimeKernelInfo()) {
+      MOwnsDeviceKernelInfo(checkOwnsDeviceKernelInfo()),
+      MDeviceKernelInfo(MOwnsDeviceKernelInfo
+                            ? createCompileTimeKernelInfo(getName())
+                            : createCompileTimeKernelInfo()) {
+
   // Enable USM indirect access for interop and non-sycl-jit source kernels.
   // sycl-jit kernels will enable this if needed through the regular kernel
   // path.
@@ -119,6 +121,16 @@ std::string_view kernel_impl::getName() const {
   if (MName.empty())
     MName = get_info<info::kernel::function_name>();
   return MName;
+}
+
+bool kernel_impl::checkOwnsDeviceKernelInfo() {
+  // If the image originates from something other than standard offline
+  // compilation, this kernel needs to own its info structure.
+  // We could also have a mixed origin image, in which case the device kernel
+  // info might reside in program manager.
+  return MDeviceImageImpl->getOriginMask() != ImageOriginSYCLOffline &&
+         (!(MDeviceImageImpl->getOriginMask() & ImageOriginSYCLOffline) ||
+          !ProgramManager::getInstance().tryGetDeviceKernelInfo(getName()));
 }
 
 bool kernel_impl::isBuiltInKernel(device_impl &Device) const {

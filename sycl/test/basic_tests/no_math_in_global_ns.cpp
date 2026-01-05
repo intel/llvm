@@ -1,5 +1,4 @@
 // RUN: %clangxx -fsycl  -fsyntax-only -Xclang -verify %s -Xclang -verify-ignore-unexpected=warning,note
-// RUN: %clangxx -fsycl  -fsyntax-only -Xclang -verify %s -Xclang -verify-ignore-unexpected=warning,note -fpreview-breaking-changes
 // expected-no-diagnostics
 
 // MSVC has the following includes:
@@ -19,9 +18,6 @@
 #include <sycl/sycl.hpp>
 
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/ext/intel/experimental/pipes.hpp>
-#include <sycl/ext/intel/fpga_device_selector.hpp>
-#include <sycl/ext/intel/fpga_extensions.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
 
 using namespace sycl;

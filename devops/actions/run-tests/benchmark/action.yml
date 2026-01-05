@@ -114,7 +114,7 @@ runs:
       echo "SAVE_TIMESTAMP=$SAVE_TIMESTAMP" >> $GITHUB_ENV
 
       # By default, the benchmark scripts forceload level_zero
-      FORCELOAD_ADAPTER="${ONEAPI_DEVICE_SELECTOR%%:*}"
+      FORCELOAD_ADAPTER="${TARGET_DEVICE%%:*}"
       echo "Adapter: $FORCELOAD_ADAPTER"
       echo "FORCELOAD_ADAPTER=$FORCELOAD_ADAPTER" >> $GITHUB_ENV
 
@@ -374,8 +374,8 @@ runs:
           cached_result="$(mktemp -d)/$(basename $results_file)"
           mv "$results_file" "$cached_result"
 
+          git fetch origin "${BENCHMARK_RESULTS_BRANCH}"
           git reset --hard "origin/${BENCHMARK_RESULTS_BRANCH}"
-          git pull
 
           mv "$cached_result" "$results_file"
         fi
@@ -384,6 +384,7 @@ runs:
         cd ../
         ./devops/scripts/benchmarks/main.py \
           "${BENCH_WORKDIR}" \
+          --sycl "$(realpath $CMPLR_ROOT)" \
           --output-html remote \
           --results-dir "${BENCHMARK_RESULTS_REPO_PATH}/" \
           --output-dir "${BENCHMARK_RESULTS_REPO_PATH}/" \

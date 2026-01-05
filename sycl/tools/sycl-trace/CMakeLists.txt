@@ -32,6 +32,9 @@ if ("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
     cuda_trace_collector
   )
   add_dependencies(sycl-trace cuda_trace_collector)
+  target_include_directories(cuda_trace_collector PRIVATE
+    "${sycl_inc_dir}"
+  )
 endif()
 
 add_library(sycl_ur_trace_collector SHARED
