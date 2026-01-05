@@ -1308,7 +1308,7 @@ ur_result_t urDeviceGetInfo(
   }
   case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP:
 #ifdef _WIN32
-    // TODO: Remove when IPC memory works in UMF on Windows. 
+    // TODO: Remove when IPC memory works in UMF on Windows.
     return ReturnValue(false);
 #else
     return ReturnValue(true);
