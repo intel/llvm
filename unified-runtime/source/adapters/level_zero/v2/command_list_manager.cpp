@@ -16,6 +16,7 @@
 #include "command_buffer.hpp"
 #include "common.hpp"
 #include "context.hpp"
+#include "graph.hpp"
 #include "kernel.hpp"
 #include "memory.hpp"
 
@@ -1299,6 +1300,81 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExp(
         hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
         numArgs, pArgs, launchPropList, waitListView, phEvent);
   }
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t ur_command_list_manager::beginGraphCapture() {
+  if (!checkGraphExtensionSupport(hContext.get())) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  ZE2UR_CALL(hContext.get()
+                 ->getPlatform()
+                 ->ZeGraphExt.zeCommandListBeginGraphCaptureExp,
+             (getZeCommandList(), nullptr));
+  graphCapture.enableCapture();
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t
+ur_command_list_manager::beginCaptureIntoGraph(ur_exp_graph_handle_t hGraph) {
+  if (!checkGraphExtensionSupport(hContext.get())) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  ZE2UR_CALL(hContext.get()
+                 ->getPlatform()
+                 ->ZeGraphExt.zeCommandListBeginCaptureIntoGraphExp,
+             (getZeCommandList(), hGraph->getZeHandle(), nullptr));
+  graphCapture.enableCapture(hGraph);
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t
+ur_command_list_manager::endGraphCapture(ur_exp_graph_handle_t *phGraph) {
+  if (!checkGraphExtensionSupport(hContext.get())) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  ze_graph_handle_t zeGraph = nullptr;
+  ZE2UR_CALL(
+      hContext.get()->getPlatform()->ZeGraphExt.zeCommandListEndGraphCaptureExp,
+      (getZeCommandList(), &zeGraph, nullptr));
+  auto graph = graphCapture.getGraph();
+  graphCapture.disableCapture();
+
+  *phGraph =
+      graph ? graph : new ur_exp_graph_handle_t_(hContext.get(), zeGraph);
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t
+ur_command_list_manager::appendGraph(ur_exp_executable_graph_handle_t hGraph,
+                                     wait_list_view &waitListView,
+                                     ur_event_handle_t hEvent) {
+  if (!checkGraphExtensionSupport(hContext.get())) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  auto zeSignalEvent = getSignalEvent(hEvent, UR_COMMAND_ENQUEUE_GRAPH_EXP);
+  ZE2UR_CALL(
+      hContext.get()->getPlatform()->ZeGraphExt.zeCommandListAppendGraphExp,
+      (getZeCommandList(), hGraph->getZeHandle(), nullptr, zeSignalEvent,
+       waitListView.num, waitListView.handles));
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t ur_command_list_manager::isGraphCaptureActive(bool *pResult) {
+  if (!checkGraphExtensionSupport(hContext.get())) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  *pResult = graphCapture.isActive();
 
   return UR_RESULT_SUCCESS;
 }

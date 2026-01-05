@@ -348,13 +348,6 @@ int testInner(queue &Q, OptionalIdentity<T, HasIdentity> Identity, T Init,
     return 0;
   }
 
-  // TODO: Perhaps, this is a _temporary_ fix for CI. The test may run
-  // for too long when the range is big. That is especially bad on ACC.
-  if (GlobalRange.size() > 65536 && Q.get_device().is_accelerator()) {
-    std::cout << " SKIPPED due to risk of timeout in CI" << std::endl;
-    return 0;
-  }
-
   buffer<T, Dims> InBuf(GlobalRange);
   buffer<T, 1> OutBuf(1);
 
@@ -372,7 +365,7 @@ int testInner(queue &Q, OptionalIdentity<T, HasIdentity> Identity, T Init,
 
   // Compute.
   Q.submit([&](handler &CGH) {
-    // Helper for creating the reductions depending on the existance of an
+    // Helper for creating the reductions depending on the existence of an
     // identity.
     auto CreateReduction = [&]() {
       if constexpr (HasIdentity) {
@@ -483,7 +476,7 @@ int testUSMInner(queue &Q, OptionalIdentity<T, HasIdentity> Identity, T Init,
 
   // Compute.
   Q.submit([&](handler &CGH) {
-     // Helper for creating the reductions depending on the existance of an
+     // Helper for creating the reductions depending on the existence of an
      // identity.
      auto CreateReduction = [&]() {
        if constexpr (HasIdentity) {

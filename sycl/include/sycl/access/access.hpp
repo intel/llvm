@@ -54,9 +54,7 @@ enum class address_space : int {
                                        "space is deprecated since SYCL 2020") =
       2,
   local_space = 3,
-  ext_intel_global_device_space = 4,
-  ext_intel_global_host_space = 5,
-  generic_space = 6, // TODO generic_space address space is not supported yet
+  generic_space = 4, // TODO generic_space address space is not supported yet
 };
 
 enum class decorated : int { no = 0, yes = 1, legacy = 2 };
@@ -112,20 +110,11 @@ template <> struct NegateDecorated<access::decorated::no> {
 
 #ifdef __SYCL_DEVICE_ONLY__
 #define __OPENCL_GLOBAL_AS__ __attribute__((opencl_global))
-#ifdef __ENABLE_USM_ADDR_SPACE__
-#define __OPENCL_GLOBAL_DEVICE_AS__ __attribute__((opencl_global_device))
-#define __OPENCL_GLOBAL_HOST_AS__ __attribute__((opencl_global_host))
-#else
-#define __OPENCL_GLOBAL_DEVICE_AS__ __attribute__((opencl_global))
-#define __OPENCL_GLOBAL_HOST_AS__ __attribute__((opencl_global))
-#endif // __ENABLE_USM_ADDR_SPACE__
 #define __OPENCL_LOCAL_AS__ __attribute__((opencl_local))
 #define __OPENCL_CONSTANT_AS__ __attribute__((opencl_constant))
 #define __OPENCL_PRIVATE_AS__ __attribute__((opencl_private))
 #else
 #define __OPENCL_GLOBAL_AS__
-#define __OPENCL_GLOBAL_DEVICE_AS__
-#define __OPENCL_GLOBAL_HOST_AS__
 #define __OPENCL_LOCAL_AS__
 #define __OPENCL_CONSTANT_AS__
 #define __OPENCL_PRIVATE_AS__
@@ -135,13 +124,6 @@ template <access::target accessTarget> struct TargetToAS {
   constexpr static access::address_space AS =
       access::address_space::global_space;
 };
-
-#ifdef __ENABLE_USM_ADDR_SPACE__
-template <> struct TargetToAS<access::target::device> {
-  constexpr static access::address_space AS =
-      access::address_space::ext_intel_global_device_space;
-};
-#endif // __ENABLE_USM_ADDR_SPACE__
 
 template <> struct TargetToAS<access::target::local> {
   constexpr static access::address_space AS =
@@ -172,18 +154,6 @@ struct DecoratedType<ElementType, access::address_space::global_space> {
 };
 
 template <typename ElementType>
-struct DecoratedType<ElementType,
-                     access::address_space::ext_intel_global_device_space> {
-  using type = __OPENCL_GLOBAL_DEVICE_AS__ ElementType;
-};
-
-template <typename ElementType>
-struct DecoratedType<ElementType,
-                     access::address_space::ext_intel_global_host_space> {
-  using type = __OPENCL_GLOBAL_HOST_AS__ ElementType;
-};
-
-template <typename ElementType>
 struct DecoratedType<ElementType, access::address_space::constant_space> {
   // Current implementation of address spaces handling leads to possibility
   // of emitting incorrect (in terms of OpenCL) address space casts from
@@ -210,18 +180,6 @@ template <class T> struct deduce_AS_impl {
   static constexpr access::address_space value =
       access::address_space::generic_space;
 };
-
-#ifdef __ENABLE_USM_ADDR_SPACE__
-template <class T> struct deduce_AS_impl<__OPENCL_GLOBAL_DEVICE_AS__ T> {
-  static constexpr access::address_space value =
-      access::address_space::ext_intel_global_device_space;
-};
-
-template <class T> struct deduce_AS_impl<__OPENCL_GLOBAL_HOST_AS__ T> {
-  static constexpr access::address_space value =
-      access::address_space::ext_intel_global_host_space;
-};
-#endif // __ENABLE_USM_ADDR_SPACE__
 
 template <class T> struct deduce_AS_impl<__OPENCL_GLOBAL_AS__ T> {
   static constexpr access::address_space value =
@@ -258,19 +216,6 @@ template <typename T> struct remove_decoration_impl {
 template <typename T> struct remove_decoration_impl<__OPENCL_GLOBAL_AS__ T> {
   using type = T;
 };
-
-#ifdef __ENABLE_USM_ADDR_SPACE__
-template <typename T>
-struct remove_decoration_impl<__OPENCL_GLOBAL_DEVICE_AS__ T> {
-  using type = T;
-};
-
-template <typename T>
-struct remove_decoration_impl<__OPENCL_GLOBAL_HOST_AS__ T> {
-  using type = T;
-};
-
-#endif // __ENABLE_USM_ADDR_SPACE__
 
 template <typename T> struct remove_decoration_impl<__OPENCL_PRIVATE_AS__ T> {
   using type = T;
@@ -319,8 +264,6 @@ template <typename T>
 using remove_decoration_t = typename remove_decoration<T>::type;
 
 #undef __OPENCL_GLOBAL_AS__
-#undef __OPENCL_GLOBAL_DEVICE_AS__
-#undef __OPENCL_GLOBAL_HOST_AS__
 #undef __OPENCL_LOCAL_AS__
 #undef __OPENCL_CONSTANT_AS__
 #undef __OPENCL_PRIVATE_AS__

@@ -44,8 +44,9 @@ sycl::item<2, false> item_wo_offset =
 // CHECK:         0 |     size_t[1] common_array
 
 // CHECK:         0 | class sycl::device
-// CHECK:         0 |   class std::shared_ptr<class sycl::detail::device_impl> impl
-// CHECK:         0 |       element_type * _M_ptr
+// CHECK:         0 |   detail::device_impl * impl
+// CHECK:           | [sizeof=8, dsize=8, align=8,
+// CHECK:           |  nvsize=8, nvalign=8]
 
 // CHECK:         0 | class sycl::queue
 // CHECK:         0 |   class std::shared_ptr<class sycl::detail::queue_impl> impl
@@ -69,7 +70,7 @@ sycl::item<2, false> item_wo_offset =
 // CHECK:        32 |   backend MBackend
 
 // CHECK:         0 | class sycl::detail::device_impl
-// CHECK:        24 |   platform_impl & MPlatform
+// CHECK:         8 |   platform_impl & MPlatform
 
 // DEVICE:        0 | class sycl::detail::AccessorImplDevice<1>
 // DEVICE:        0 |   class sycl::id<> Offset
