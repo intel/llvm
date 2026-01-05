@@ -103,6 +103,9 @@ public:
   /// Tuning option to enable a subset of optimizations in O0 optimization
   /// mode for non-user SYCL code.
   bool OptimizeSYCLFramework = false;
+  // Tuning option to enable/disable speculative devirtualization.
+  // Its default value is false.
+  bool DevirtualizeSpeculatively;
 };
 
 /// This class provides access to building LLVM's passes.

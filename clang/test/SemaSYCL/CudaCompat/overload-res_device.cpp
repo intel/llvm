@@ -50,12 +50,7 @@ DEVICE_ATTR void caller_device() {
     #endif
     callee_hostdevice();
     callee_hostdevice_implicit();
-    callee_global(); // expected-error {{no matching function for call to 'callee_global'}}
-    #ifdef DEVICE
-    // expected-note@#callee_global {{candidate function not viable: call to __global__ function from __device__ function}}
-    #else
-    // expected-note@#callee_global {{candidate function not viable: call to __global__ function from __global__ function}}
-    #endif
+    callee_global(); // expected-error {{call to global function 'callee_global' not configured}}
 }
 
 DEVICE_ATTR void caller_device_overload_test() {

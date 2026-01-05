@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -fsyntax-only
-// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fpreview-breaking-changes -fsycl-targets=%sycl_triple %s -fsyntax-only %}
+// RUN: %clangxx -D__SYCL_USE_LIBSYCL8_VEC_IMPL=1 -fsycl -fsycl-targets=%sycl_triple %s -fsyntax-only
 
 //==--------------- types.cpp - SYCL types test ----------------------------==//
 //

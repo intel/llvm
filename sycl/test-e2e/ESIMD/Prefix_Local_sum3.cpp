@@ -343,7 +343,7 @@ int main(int argc, char *argv[]) {
   unsigned int *pDeviceOutputs =
       malloc_shared<unsigned int>(size * TUPLE_SZ, q);
 
-  // allocate & intialize expected result
+  // allocate & initialize expected result
   unsigned int *pExpectOutputs = static_cast<unsigned int *>(
       malloc(size * TUPLE_SZ * sizeof(unsigned int)));
   memcpy(pExpectOutputs, pInputs, size * TUPLE_SZ * sizeof(unsigned));
