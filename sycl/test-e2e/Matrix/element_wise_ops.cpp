@@ -9,7 +9,7 @@
 
 // REQUIRES: aspect-ext_intel_matrix
 
-// This test fails on LNL Windows machines with older level_zero:gpu driver versions.
+// This test fails on LNL Windows machines with new driver versions.
 // XFAIL: windows && intel_gpu_lnl_m
 // XFAIL-TRACKER: CMPLRLLVM-72503
 
