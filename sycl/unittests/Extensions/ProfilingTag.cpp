@@ -67,7 +67,7 @@ TEST_F(ProfilingTagTest, ProfilingTagSupportedDefaultQueue) {
   mock::getCallbacks().set_after_callback("urEventGetProfilingInfo",
                                           &after_urEventGetProfilingInfo);
   mock::getCallbacks().set_after_callback(
-      "urEnqueueEventsWaitWithBarrier",
+      "urEnqueueEventsWaitWithBarrierExt",
       &after_urEnqueueEventsWaitWithBarrierExt);
 
   sycl::context Ctx{sycl::platform()};
@@ -78,9 +78,7 @@ TEST_F(ProfilingTagTest, ProfilingTagSupportedDefaultQueue) {
 
   sycl::event E = sycl::ext::oneapi::experimental::submit_profiling_tag(Queue);
   ASSERT_EQ(size_t{1}, counter_urEnqueueTimestampRecordingExp);
-  // TODO: We expect two barriers for now, while marker events leak. Adjust when
-  //       addressed.
-  ASSERT_EQ(size_t{2}, counter_urEnqueueEventsWaitWithBarrierExt);
+  ASSERT_EQ(size_t{0}, counter_urEnqueueEventsWaitWithBarrierExt);
 
   E.get_profiling_info<sycl::info::event_profiling::command_start>();
   ASSERT_TRUE(LatestProfilingQuery.has_value());
@@ -99,7 +97,7 @@ TEST_F(ProfilingTagTest, ProfilingTagSupportedInOrderQueue) {
   mock::getCallbacks().set_after_callback("urEventGetProfilingInfo",
                                           &after_urEventGetProfilingInfo);
   mock::getCallbacks().set_after_callback(
-      "urEnqueueEventsWaitWithBarrier",
+      "urEnqueueEventsWaitWithBarrierExt",
       &after_urEnqueueEventsWaitWithBarrierExt);
 
   sycl::context Ctx{sycl::platform()};
@@ -130,7 +128,8 @@ TEST_F(ProfilingTagTest, ProfilingTagSupportedProfilingQueue) {
   mock::getCallbacks().set_after_callback("urEventGetProfilingInfo",
                                           &after_urEventGetProfilingInfo);
   mock::getCallbacks().set_after_callback(
-      "urEnqueueEventsWaitWithBarrier", &after_urEnqueueEventsWaitWithBarrier);
+      "urEnqueueEventsWaitWithBarrierExt",
+      &after_urEnqueueEventsWaitWithBarrierExt);
 
   sycl::context Ctx{sycl::platform()};
   sycl::queue Queue{Ctx,
@@ -144,7 +143,7 @@ TEST_F(ProfilingTagTest, ProfilingTagSupportedProfilingQueue) {
   // submitting a profiling tag on an out-of-order queue with profiling enabled.
   sycl::event E = sycl::ext::oneapi::experimental::submit_profiling_tag(Queue);
   ASSERT_EQ(size_t{0}, counter_urEnqueueTimestampRecordingExp);
-  ASSERT_EQ(size_t{1}, counter_urEnqueueEventsWaitWithBarrier);
+  ASSERT_EQ(size_t{1}, counter_urEnqueueEventsWaitWithBarrierExt);
 
   E.get_profiling_info<sycl::info::event_profiling::command_start>();
   ASSERT_TRUE(LatestProfilingQuery.has_value());
@@ -163,7 +162,7 @@ TEST_F(ProfilingTagTest, ProfilingTagSupportedProfilingInOrderQueue) {
   mock::getCallbacks().set_after_callback("urEventGetProfilingInfo",
                                           &after_urEventGetProfilingInfo);
   mock::getCallbacks().set_after_callback(
-      "urEnqueueEventsWaitWithBarrier",
+      "urEnqueueEventsWaitWithBarrierExt",
       &after_urEnqueueEventsWaitWithBarrierExt);
 
   sycl::context Ctx{sycl::platform()};
