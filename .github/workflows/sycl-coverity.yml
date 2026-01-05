@@ -28,7 +28,7 @@ jobs:
       options: -u 1001:1001
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
       with:
         sparse-checkout: |
           devops/actions
