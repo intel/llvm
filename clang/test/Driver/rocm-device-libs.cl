@@ -6,7 +6,7 @@
 // RUN:   -x cl -mcpu=gfx900 \
 // RUN:   --rocm-path=%S/Inputs/rocm \
 // RUN:   %s \
-// RUN: 2>&1 | FileCheck  --check-prefixes=COMMON,COMMON-DEFAULT,GFX900-DEFAULT,GFX900,WAVE64 %s
+// RUN: 2>&1 | FileCheck  --check-prefixes=COMMON,COMMON-DEFAULT,GFX900,WAVE64 %s
 
 
 // RUN: %clang -### -target amdgcn-amd-amdhsa \
@@ -21,7 +21,7 @@
 // RUN:   -x cl -mcpu=gfx803 \
 // RUN:   --rocm-path=%S/Inputs/rocm \
 // RUN:   %s \
-// RUN: 2>&1 | FileCheck  --check-prefixes=COMMON,COMMON-DEFAULT,GFX803-DEFAULT,GFX803,WAVE64 %s
+// RUN: 2>&1 | FileCheck  --check-prefixes=COMMON,COMMON-DEFAULT,GFX803,WAVE64 %s
 
 
 
@@ -30,7 +30,7 @@
 // RUN:   -x cl -mcpu=fiji \
 // RUN:   --rocm-path=%S/Inputs/rocm \
 // RUN:   %s \
-// RUN: 2>&1 | FileCheck  --check-prefixes=COMMON,COMMON-DEFAULT,GFX803-DEFAULT,GFX803,WAVE64 %s
+// RUN: 2>&1 | FileCheck  --check-prefixes=COMMON,COMMON-DEFAULT,GFX803,WAVE64 %s
 
 
 
@@ -39,7 +39,7 @@
 // RUN:   -cl-denorms-are-zero \
 // RUN:   --rocm-path=%S/Inputs/rocm \
 // RUN:   %s \
-// RUN: 2>&1 | FileCheck  --check-prefixes=COMMON,COMMON-DAZ,GFX900,WAVE64 %s
+// RUN: 2>&1 | FileCheck  --check-prefixes=COMMON,GFX900,WAVE64 %s
 
 
 // RUN: %clang -### -target amdgcn-amd-amdhsa \
@@ -47,7 +47,7 @@
 // RUN:   -cl-denorms-are-zero \
 // RUN:   --rocm-path=%S/Inputs/rocm \
 // RUN:   %s \
-// RUN: 2>&1 | FileCheck  --check-prefixes=COMMON,COMMON-DAZ,GFX803,WAVE64 %s
+// RUN: 2>&1 | FileCheck  --check-prefixes=COMMON,GFX803,WAVE64 %s
 
 
 
@@ -130,13 +130,13 @@
 // RUN:   -x cl -mcpu=gfx900 \
 // RUN:   --hip-device-lib-path=%S/Inputs/rocm/amdgcn/bitcode \
 // RUN:   %S/opencl.cl \
-// RUN: 2>&1 | FileCheck  --check-prefixes=COMMON,COMMON-DEFAULT,GFX900-DEFAULT,GFX900,WAVE64 %s
+// RUN: 2>&1 | FileCheck  --check-prefixes=COMMON,COMMON-DEFAULT,GFX900,WAVE64 %s
 
 // Test environment variable HIP_DEVICE_LIB_PATH
 // RUN: env HIP_DEVICE_LIB_PATH=%S/Inputs/rocm/amdgcn/bitcode %clang -### -target amdgcn-amd-amdhsa \
 // RUN:   -x cl -mcpu=gfx900 \
 // RUN:   %S/opencl.cl \
-// RUN: 2>&1 | FileCheck  --check-prefixes=COMMON,COMMON-DEFAULT,GFX900-DEFAULT,GFX900,WAVE64 %s
+// RUN: 2>&1 | FileCheck  --check-prefixes=COMMON,COMMON-DEFAULT,GFX900,WAVE64 %s
 
 // RUN: %clang -### -target amdgcn-amd-amdhsa \
 // RUN:   -x cl -mcpu=gfx908:xnack+ -fsanitize=address \
@@ -167,11 +167,6 @@
 // ASAN-SAME: "-mlink-builtin-bitcode" "{{.*}}/amdgcn/bitcode/asanrtl.bc"
 // COMMON-SAME: "-mlink-builtin-bitcode" "{{.*}}/amdgcn/bitcode/ocml.bc"
 // COMMON-SAME: "-mlink-builtin-bitcode" "{{.*}}/amdgcn/bitcode/ockl.bc"
-
-// GFX900-DEFAULT-SAME: "-mlink-builtin-bitcode" "{{.*}}/amdgcn/bitcode/oclc_daz_opt_off.bc"
-// GFX803-DEFAULT-SAME: "-mlink-builtin-bitcode" "{{.*}}/amdgcn/bitcode/oclc_daz_opt_on.bc"
-// GFX700-DEFAULT-SAME: "-mlink-builtin-bitcode" "{{.*}}/amdgcn/bitcode/oclc_daz_opt_on.bc"
-// COMMON-DAZ-SAME: "-mlink-builtin-bitcode" "{{.*}}/amdgcn/bitcode/oclc_daz_opt_on.bc"
 
 
 // COMMON-DEFAULT-SAME: "-mlink-builtin-bitcode" "{{.*}}/amdgcn/bitcode/oclc_unsafe_math_off.bc"
