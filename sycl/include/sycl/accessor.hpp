@@ -1701,13 +1701,8 @@ public:
 
   template <int Dims = Dimensions>
   operator typename std::enable_if_t<
-      Dims == 0 && AccessMode == access::mode::atomic,
-#ifdef __ENABLE_USM_ADDR_SPACE__
-      atomic<DataT, access::address_space::global_space>
-#else
-      atomic<DataT, AS>
-#endif
-      >() const {
+      Dims == 0 && AccessMode == access::mode::atomic, atomic<DataT, AS>>()
+      const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
     return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::yes>(
         getQualifiedPtr() + LinearIndex));

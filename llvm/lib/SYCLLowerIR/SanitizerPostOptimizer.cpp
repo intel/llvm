@@ -84,7 +84,6 @@ static bool FixSanitizerKernelMetadata(Module &M) {
     KernelMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
     KernelMetadata->setDSOLocal(true);
     KernelMetadata->copyAttributesFrom(KernelMetadataOld);
-    KernelMetadata->copyMetadata(KernelMetadataOld, 0);
 
     KernelMetadataOld->eraseFromParent();
   }

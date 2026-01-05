@@ -136,7 +136,7 @@ other host fields replaced with device-specific fields and
 the host data pointer field must be translated to an OpenCL
 or L0 memory object before it can be passed as a kernel parameter.
 To enable all of this, the parameters of the `sycl::accessor`
-and `sycl::sampler` init functions are transfered from 
+and `sycl::sampler` init functions are transferred from
 host to device separately. The values received on the device
 are passed to the `init` functions executed on the device,
 which results in the reassembly of the SYCL object in a form usable on the device.
