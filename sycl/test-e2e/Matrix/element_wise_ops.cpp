@@ -11,7 +11,7 @@
 
 // This test fails on LNL Windows machines with new driver versions.
 // XFAIL: windows && intel_gpu_lnl_m
-// XFAIL-TRACKER: CMPLRLLVM-72503
+// XFAIL-TRACKER: CMPLRLLVM-72111
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
