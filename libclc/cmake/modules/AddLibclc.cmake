@@ -433,6 +433,9 @@ function(add_libclc_builtin_set)
     set( obj_suffix ${ARG_ARCH_SUFFIX}.bc )
     set( libclc_builtins_lib ${LIBCLC_OUTPUT_LIBRARY_DIR}/${obj_suffix} )
 
+    set( obj_suffix ${ARG_ARCH_SUFFIX}.bc )
+    set( libclc_builtins_lib ${LIBCLC_OUTPUT_LIBRARY_DIR}/${obj_suffix} )
+
     add_custom_command( OUTPUT ${libclc_builtins_lib}
       COMMAND ${opt_exe} ${ARG_OPT_FLAGS} -o ${libclc_builtins_lib}
         ${builtins_link_lib}
