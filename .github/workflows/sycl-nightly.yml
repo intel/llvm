@@ -16,7 +16,7 @@ jobs:
     if: github.repository == 'intel/llvm' && false
     container: ghcr.io/intel/llvm/ubuntu2404_build
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
       with:
         sparse-checkout: |
           sycl/test/abi
@@ -92,7 +92,6 @@ jobs:
       toolchain_artifact_filename: sycl_linux_libcxx.tar.zst
 
   ubuntu2204_test:
-    name: ubuntu2204_test
     needs: [ubuntu2204_build]
     permissions:
       contents: write
@@ -101,7 +100,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        enable_new_offload_model: ['False', 'True']
         include:
           - name: AMD/HIP
             runner: '["Linux", "amdgpu"]'
@@ -113,7 +111,6 @@ jobs:
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: hip:gpu
             extra_lit_opts: --param test-preview-mode=True
-            enable_new_offload_model: 'False'
 
           - name: NVIDIA/CUDA
             runner: '["Linux", "cuda"]'
@@ -125,7 +122,6 @@ jobs:
             image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
             target_devices: cuda:gpu
             extra_lit_opts: --param test-preview-mode=True
-            enable_new_offload_model: 'False'
 
           - name: Intel L0 Gen12 GPU
             runner: '["Linux", "gen12"]'
@@ -143,7 +139,6 @@ jobs:
             runner: '["Linux", "bmg"]'
             target_devices: level_zero:gpu
             extra_lit_opts: --param test-preview-mode=True
-            enable_new_offload_model: 'False'
 
           - name: Intel L0 Arc A-Series GPU
             runner: '["Linux", "arc"]'
@@ -172,16 +167,15 @@ jobs:
             runner: '["Linux", "pvc"]'
             target_devices: level_zero:gpu
             extra_lit_opts: --param test-preview-mode=True
-            enable_new_offload_model: 'False'
 
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
-      name: ${{ matrix.name }} with ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
+      name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
       image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
       target_devices: ${{ matrix.target_devices }}
       tests_selector: e2e
-      extra_lit_opts: "--param 'cxx_flags=-D_GLIBCXX_USE_CXX11_ABI=0' ${{ matrix.extra_lit_opts }} --param enable_new_offload_model=${{ matrix.enable_new_offload_model }}"
+      extra_lit_opts: "--param 'cxx_flags=-D_GLIBCXX_USE_CXX11_ABI=0' ${{ matrix.extra_lit_opts }}"
       repo_ref: ${{ github.sha }}
       toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
@@ -220,7 +214,6 @@ jobs:
 
   e2e-win:
     needs: build-win
-    name: E2E win with ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
     # Continue if build was successful.
     if: |
       !cancelled()
@@ -228,7 +221,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        enable_new_offload_model: ['False', 'True']
         include:
           - name: Intel Gen12 GPU
             runner: '["Windows", "gen12"]'
@@ -245,7 +237,6 @@ jobs:
       runner: ${{ matrix.runner }}
       target_devices: level_zero:gpu
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
-      extra_lit_opts: --param enable_new_offload_model=${{ matrix.enable_new_offload_model }}
 
   cuda-aws-start:
     needs: [ubuntu2204_build]
@@ -382,14 +373,14 @@ jobs:
       contents: write
       id-token: write
     steps:
-    - uses: actions/download-artifact@v6
+    - uses: actions/download-artifact@v7
       with:
         name: sycl_linux_default
-    - uses: actions/download-artifact@v6
+    - uses: actions/download-artifact@v7
       with:
         name: sycl_windows_default
     - name: Sign with sigstore/cosign
-      uses: sigstore/gh-action-sigstore-python@f832326173235dcb00dd5d92cd3f353de3188e6c # v3.1.0
+      uses: sigstore/gh-action-sigstore-python@a5caf349bc536fbef3668a10ed7f5cd309a4b53d # v3.2.0
       with:
         inputs: sycl_linux.tar.gz sycl_windows.tar.gz
     - name: Compute tag
@@ -402,7 +393,7 @@ jobs:
           echo "TAG=${{ needs.get_date.outputs.date }}-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
         fi
     - name: Upload binaries
-      uses: softprops/action-gh-release@6da8fa9354ddfdc4aeace5fc48d7f679b5214090 # v2.4.1
+      uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
       with:
         files: |
           sycl_linux.tar.gz
@@ -422,8 +413,8 @@ jobs:
       packages: write
     needs: ubuntu2204_build
     steps:
-    - uses: actions/checkout@v5
-    - uses: actions/download-artifact@v6
+    - uses: actions/checkout@v6
+    - uses: actions/download-artifact@v7
       with:
         name: sycl_linux_default
         path: devops/

@@ -205,19 +205,13 @@ private:
   friend class detail::DispatchHostTask;
   using ReqToMem = std::pair<detail::AccessorImplHost *, ur_mem_handle_t>;
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Clean this up (no shared pointers). Not doing it right now because I expect
-  // there will be several iterations of simplifications possible and it would
-  // be hard to track which of them made their way into a minor public release
-  // and which didn't. Let's just clean it up once during ABI breaking window.
-#endif
   interop_handle(std::vector<ReqToMem> MemObjs,
                  const std::shared_ptr<detail::queue_impl> &Queue,
-                 detail::device_impl &Device,
-                 const std::shared_ptr<detail::context_impl> &Context,
                  ur_exp_command_buffer_handle_t Graph = nullptr)
-      : MQueue(Queue), MDevice(Device), MContext(Context), MGraph(Graph),
-        MMemObjs(std::move(MemObjs)) {}
+      : MQueue(Queue), MGraph(Graph), MMemObjs(std::move(MemObjs)) {
+    assert(MQueue != nullptr &&
+           "interop_handle must be associated with a valid queue");
+  }
 
   template <backend Backend, typename DataT, int Dims>
   backend_return_t<Backend, buffer<DataT, Dims>>
@@ -243,8 +237,6 @@ private:
   __SYCL_EXPORT ur_native_handle_t getNativeGraph() const;
 
   std::shared_ptr<detail::queue_impl> MQueue;
-  detail::device_impl &MDevice;
-  std::shared_ptr<detail::context_impl> MContext;
   ur_exp_command_buffer_handle_t MGraph;
 
   std::vector<ReqToMem> MMemObjs;
