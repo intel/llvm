@@ -8,7 +8,7 @@
 // SG size = 32 is not currently supported for SYCL Joint Matrix by IGC on DG2
 // UNSUPPORTED: gpu-intel-dg2
 
-// XFAIL: windows && (arch-intel_gpu_ptl_u || arch-intel_gpu_ptl_h || intel_gpu_lnl_m)
+// XFAIL: windows && arch-intel_gpu_wcl
 // XFAIL-TRACKER: CMPLRLLVM-72111
 
 // REQUIRES: target-spir
