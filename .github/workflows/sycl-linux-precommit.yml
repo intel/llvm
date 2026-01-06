@@ -215,7 +215,7 @@ jobs:
         ${{ !contains(matrix.target_devices, 'cuda') &&
         !contains(matrix.target_devices, 'hip') &&
         contains(needs.detect_changes.outputs.filters, 'drivers') }}
-      skip_run: ${{ matrix.skip_run }}
+      skip_run: ${{ matrix.skip_run || 'false' }}
       env: ${{ matrix.env || (contains(needs.detect_changes.outputs.filters, 'esimd') && '{}' || '{"LIT_FILTER_OUT":"ESIMD/"}') }}
 
   test-perf:
