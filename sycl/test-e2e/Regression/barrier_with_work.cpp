@@ -6,7 +6,7 @@
 // UNSUPPORTED: target-native_cpu
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
 //
-// UNSUPPORTED: linux && (gpu-intel-dg2 || arch-intel_gpu_bmg_g21 || arch-intel_gpu_pvc) && !igc-dev
+// UNSUPPORTED: linux && (gpu-intel-dg2 || arch-intel_gpu_bmg_g21 || arch-intel_gpu_pvc)
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20600
 //
 // XFAIL: windows && arch-intel_gpu_bmg_g21
