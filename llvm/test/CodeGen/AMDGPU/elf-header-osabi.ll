@@ -1,13 +1,13 @@
 ; RUN: llc -filetype=obj -mtriple=amdgcn -mcpu=gfx801 < %s | llvm-readobj --file-headers - | FileCheck --check-prefixes=NONE %s
 ; RUN: llc -filetype=obj -mtriple=amdgcn-amd- -mcpu=gfx801 < %s | llvm-readobj --file-headers - | FileCheck --check-prefixes=NONE %s
 ; RUN: llc -filetype=obj -mtriple=amdgcn-amd-unknown -mcpu=gfx801 < %s | llvm-readobj --file-headers - | FileCheck --check-prefixes=NONE %s
-; RUN: llc -filetype=obj -mtriple=amdgcn--amdhsa -mcpu=gfx801 --amdhsa-code-object-version=4 < %s | llvm-readobj --file-headers - | FileCheck --check-prefixes=HSA,HSA4 %s
+; RUN: llc -filetype=obj -mtriple=amdgcn-amd-amdhsa -mcpu=gfx801 --amdhsa-code-object-version=4 < %s | llvm-readobj --file-headers - | FileCheck --check-prefixes=HSA,HSA4 %s
 ; RUN: llc -filetype=obj -mtriple=amdgcn-amd-amdhsa -mcpu=gfx801 --amdhsa-code-object-version=4 < %s | llvm-readobj --file-headers - | FileCheck --check-prefixes=HSA,HSA4 %s
 ; RUN: llc -filetype=obj -mtriple=amdgcn-unknown-amdhsa -mcpu=gfx801 --amdhsa-code-object-version=4 < %s | llvm-readobj --file-headers - | FileCheck --check-prefixes=HSA,HSA4 %s
-; RUN: llc -filetype=obj -mtriple=amdgcn--amdhsa -mcpu=gfx801 --amdhsa-code-object-version=5 < %s | llvm-readobj --file-headers - | FileCheck --check-prefixes=HSA,HSA5 %s
+; RUN: llc -filetype=obj -mtriple=amdgcn-amd-amdhsa -mcpu=gfx801 --amdhsa-code-object-version=5 < %s | llvm-readobj --file-headers - | FileCheck --check-prefixes=HSA,HSA5 %s
 ; RUN: llc -filetype=obj -mtriple=amdgcn-amd-amdhsa -mcpu=gfx801 --amdhsa-code-object-version=5 < %s | llvm-readobj --file-headers - | FileCheck --check-prefixes=HSA,HSA5 %s
 ; RUN: llc -filetype=obj -mtriple=amdgcn-unknown-amdhsa -mcpu=gfx801 --amdhsa-code-object-version=5 < %s | llvm-readobj --file-headers - | FileCheck --check-prefixes=HSA,HSA5 %s
-; RUN: llc -filetype=obj -mtriple=amdgcn--amdhsa -mcpu=gfx801 --amdhsa-code-object-version=6 < %s | llvm-readobj --file-headers - | FileCheck --check-prefixes=HSA,HSA6 %s
+; RUN: llc -filetype=obj -mtriple=amdgcn-amd-amdhsa -mcpu=gfx801 --amdhsa-code-object-version=6 < %s | llvm-readobj --file-headers - | FileCheck --check-prefixes=HSA,HSA6 %s
 ; RUN: llc -filetype=obj -mtriple=amdgcn-amd-amdhsa -mcpu=gfx801 --amdhsa-code-object-version=6 < %s | llvm-readobj --file-headers - | FileCheck --check-prefixes=HSA,HSA6 %s
 ; RUN: llc -filetype=obj -mtriple=amdgcn-unknown-amdhsa -mcpu=gfx801 --amdhsa-code-object-version=6 < %s | llvm-readobj --file-headers - | FileCheck --check-prefixes=HSA,HSA6 %s
 ; RUN: llc -filetype=obj -mtriple=amdgcn--amdpal -mcpu=gfx801 < %s | llvm-readobj --file-headers - | FileCheck --check-prefixes=PAL %s

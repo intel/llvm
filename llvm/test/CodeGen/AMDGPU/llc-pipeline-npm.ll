@@ -1,10 +1,10 @@
-; RUN: llc -enable-new-pm -mtriple=amdgcn--amdhsa -O0 -print-pipeline-passes < %s 2>&1 \
+; RUN: llc -enable-new-pm -mtriple=amdgcn-amd-amdhsa -O0 -print-pipeline-passes < %s 2>&1 \
 ; RUN:   | sed 's/,/,\n/g' | FileCheck -check-prefix=GCN-O0 %s
 
-; RUN: llc -enable-new-pm -mtriple=amdgcn--amdhsa -print-pipeline-passes < %s 2>&1 \
+; RUN: llc -enable-new-pm -mtriple=amdgcn-amd-amdhsa -print-pipeline-passes < %s 2>&1 \
 ; RUN:   | sed 's/,/,\n/g' | FileCheck -check-prefix=GCN-O2 %s
 
-; RUN: llc -O3 -enable-new-pm -mtriple=amdgcn--amdhsa -print-pipeline-passes < %s 2>&1 \
+; RUN: llc -O3 -enable-new-pm -mtriple=amdgcn-amd-amdhsa -print-pipeline-passes < %s 2>&1 \
 ; RUN:   | sed 's/,/,\n/g' | FileCheck -check-prefix=GCN-O3 %s
 
 ; GCN-O0: require<MachineModuleAnalysis>,

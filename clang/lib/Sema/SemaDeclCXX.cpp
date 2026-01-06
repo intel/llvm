@@ -6186,7 +6186,7 @@ struct CheckAbstractUsage {
       Sel = Sema::AbstractArrayType;
       T = Info.S.Context.getBaseElementType(T);
     }
-    CanQualType CT = T->getCanonicalTypeUnqualified().getUnqualifiedType();
+    CanQualType CT = T->getCanonicalTypeUnqualified();
     if (CT != Info.AbstractType) return;
 
     // It matched; do some magic.
@@ -13021,8 +13021,7 @@ static CXXBaseSpecifier *findDirectBaseWithType(CXXRecordDecl *Derived,
                                                 QualType DesiredBase,
                                                 bool &AnyDependentBases) {
   // Check whether the named type is a direct base class.
-  CanQualType CanonicalDesiredBase = DesiredBase->getCanonicalTypeUnqualified()
-    .getUnqualifiedType();
+  CanQualType CanonicalDesiredBase = DesiredBase->getCanonicalTypeUnqualified();
   for (auto &Base : Derived->bases()) {
     CanQualType BaseType = Base.getType()->getCanonicalTypeUnqualified();
     if (CanonicalDesiredBase == BaseType)

@@ -1,5 +1,5 @@
 ; RUN: llc -mattr=+promote-alloca -mtriple=amdgcn < %s | FileCheck --check-prefixes=GCN,GCN-PROMOTE %s
-; RUN: llc -mattr=+promote-alloca,-flat-for-global -mtriple=amdgcn--amdhsa -mcpu=kaveri < %s | FileCheck --check-prefixes=GCN,GCN-PROMOTE %s
+; RUN: llc -mattr=+promote-alloca,-flat-for-global -mtriple=amdgcn-amd-amdhsa -mcpu=kaveri < %s | FileCheck --check-prefixes=GCN,GCN-PROMOTE %s
 ; RUN: llc -mattr=-promote-alloca -mtriple=amdgcn < %s | FileCheck --check-prefixes=GCN,GCN-ALLOCA %s
 ; RUN: llc -mattr=-promote-alloca,-flat-for-global -mtriple=amdgcn-amdhsa -mcpu=kaveri < %s | FileCheck  --check-prefixes=GCN,GCN-ALLOCA %s
 ; RUN: llc -mattr=+promote-alloca -mtriple=amdgcn -mcpu=tonga -mattr=-flat-for-global < %s | FileCheck --check-prefixes=GCN,GCN-PROMOTE %s

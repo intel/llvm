@@ -1,4 +1,4 @@
-; RUN: llc -mtriple=amdgcn--amdhsa -mcpu=kaveri < %s | FileCheck -check-prefixes=CO-V4,HSA,ALL %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=kaveri < %s | FileCheck -check-prefixes=CO-V4,HSA,ALL %s
 ; RUN: llc -mtriple=amdgcn-mesa-mesa3d < %s | FileCheck -check-prefixes=CO-V4,OS-MESA3D,ALL %s
 ; RUN: llc -mtriple=amdgcn-mesa-unknown < %s | FileCheck -check-prefixes=OS-UNKNOWN,ALL %s
 

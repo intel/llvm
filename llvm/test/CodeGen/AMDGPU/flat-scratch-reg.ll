@@ -7,17 +7,17 @@
 ; RUN: llc < %s -mtriple=amdgcn -mcpu=carrizo -mattr=+xnack | FileCheck -check-prefix=VI-XNACK  -check-prefix=GCN %s
 ; RUN: llc < %s -mtriple=amdgcn -mcpu=stoney -mattr=+xnack | FileCheck -check-prefix=VI-XNACK  -check-prefix=GCN %s
 
-; RUN: llc < %s -mtriple=amdgcn--amdhsa -mcpu=kaveri | FileCheck -check-prefixes=GCN %s
-; RUN: llc < %s -mtriple=amdgcn--amdhsa -mcpu=carrizo -mattr=-xnack | FileCheck -check-prefixes=HSA-VI-NOXNACK,GCN %s
-; RUN: llc < %s -mtriple=amdgcn--amdhsa -mcpu=carrizo -mattr=+xnack | FileCheck -check-prefixes=HSA-VI-XNACK,GCN %s
+; RUN: llc < %s -mtriple=amdgcn-amd-amdhsa -mcpu=kaveri | FileCheck -check-prefixes=GCN %s
+; RUN: llc < %s -mtriple=amdgcn-amd-amdhsa -mcpu=carrizo -mattr=-xnack | FileCheck -check-prefixes=HSA-VI-NOXNACK,GCN %s
+; RUN: llc < %s -mtriple=amdgcn-amd-amdhsa -mcpu=carrizo -mattr=+xnack | FileCheck -check-prefixes=HSA-VI-XNACK,GCN %s
 
-; RUN: llc < %s -mtriple=amdgcn--amdhsa -mcpu=gfx900 -mattr=+architected-flat-scratch | FileCheck -check-prefixes=GCN %s
-; RUN: llc < %s -mtriple=amdgcn--amdhsa -mcpu=gfx900 -mattr=+architected-flat-scratch,-xnack | FileCheck -check-prefixes=GFX9-ARCH-FLAT-NOXNACK,GCN %s
-; RUN: llc < %s -mtriple=amdgcn--amdhsa -mcpu=gfx900 -mattr=+architected-flat-scratch,+xnack | FileCheck -check-prefixes=GFX9-ARCH-FLAT-XNACK,GCN %s
+; RUN: llc < %s -mtriple=amdgcn-amd-amdhsa -mcpu=gfx900 -mattr=+architected-flat-scratch | FileCheck -check-prefixes=GCN %s
+; RUN: llc < %s -mtriple=amdgcn-amd-amdhsa -mcpu=gfx900 -mattr=+architected-flat-scratch,-xnack | FileCheck -check-prefixes=GFX9-ARCH-FLAT-NOXNACK,GCN %s
+; RUN: llc < %s -mtriple=amdgcn-amd-amdhsa -mcpu=gfx900 -mattr=+architected-flat-scratch,+xnack | FileCheck -check-prefixes=GFX9-ARCH-FLAT-XNACK,GCN %s
 
-; RUN: llc < %s -mtriple=amdgcn--amdhsa -mcpu=gfx1010 -mattr=+architected-flat-scratch | FileCheck -check-prefixes=GCN %s
-; RUN: llc < %s -mtriple=amdgcn--amdhsa -mcpu=gfx1010 -mattr=+architected-flat-scratch,-xnack | FileCheck -check-prefixes=GFX10-ARCH-FLAT-NOXNACK,GCN %s
-; RUN: llc < %s -mtriple=amdgcn--amdhsa -mcpu=gfx1010 -mattr=+architected-flat-scratch,+xnack | FileCheck -check-prefixes=GFX10-ARCH-FLAT-XNACK,GCN %s
+; RUN: llc < %s -mtriple=amdgcn-amd-amdhsa -mcpu=gfx1010 -mattr=+architected-flat-scratch | FileCheck -check-prefixes=GCN %s
+; RUN: llc < %s -mtriple=amdgcn-amd-amdhsa -mcpu=gfx1010 -mattr=+architected-flat-scratch,-xnack | FileCheck -check-prefixes=GFX10-ARCH-FLAT-NOXNACK,GCN %s
+; RUN: llc < %s -mtriple=amdgcn-amd-amdhsa -mcpu=gfx1010 -mattr=+architected-flat-scratch,+xnack | FileCheck -check-prefixes=GFX10-ARCH-FLAT-XNACK,GCN %s
 
 ; GCN-LABEL: {{^}}no_vcc_no_flat:
 
