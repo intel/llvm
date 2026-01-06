@@ -196,7 +196,7 @@ if(TARGET llvm-spirv)
   set(LLVM_TEST_DEPENDS ${LLVM_TEST_DEPENDS} llvm-spirv)
 endif()
 
-if(LLVM_BUILD_EXAMPLES)
+if(LLVM_INCLUDE_EXAMPLES)
   list(APPEND LLVM_TEST_DEPENDS
     Kaleidoscope-Ch3
     Kaleidoscope-Ch4
