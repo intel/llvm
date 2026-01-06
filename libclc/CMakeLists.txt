@@ -236,7 +236,7 @@ endforeach(t)
 # headers are not $build/include/ which is what LLVM_INCLUDE_DIR is set to.
 include_directories( ${LLVM_INCLUDE_DIRS} )
 
-# Configure prepare_builtins
+# Configure libclc-remangler tool
 add_subdirectory( utils )
 
 # Setup arch devices
