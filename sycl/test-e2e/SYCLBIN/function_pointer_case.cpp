@@ -7,7 +7,7 @@
 // once fixed.
 // REQUIRES: target-spir
 
-// RUN: %clangxx --offload-new-driver -fsyclbin=input -fsycl-allow-device-image-dependencies -DSYCLBIN_INPUT %s -o %t.input.syclbin
+// RUN: %clangxx --offload-new-driver -fsyclbin=input -fsycl-allow-device-image-dependencies -DSYCLBIN_INPUT -Xclang -fsycl-allow-func-ptr %s -o %t.input.syclbin
 // RUN: %clangxx --offload-new-driver -fsyclbin=object -fsycl-allow-device-image-dependencies -DSYCLBIN_OBJECT -Xclang -fsycl-allow-func-ptr %s -o %t.object.syclbin
 // RUN: %{build} -o %t.out
 //
@@ -37,7 +37,7 @@ struct ArgsT {
 
 SYCL_EXTERNAL size_t GetID();
 
-SYCL_EXTERNAL void Func(size_t *Ptr) {
+SYCL_EXTERNAL [[intel::device_indirectly_callable]] void Func(size_t *Ptr) {
   size_t GlobalID = GetID();
   Ptr[GlobalID] = GlobalID;
 }
