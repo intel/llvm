@@ -12,7 +12,7 @@
 // This test uses different data types, sizes and different simd constructor
 // invocation contexts.
 // The test do the following actions:
-//  - call init_simd.data() to retreive vector_type and then provide it to the
+//  - call init_simd.data() to retrieve vector_type and then provide it to the
 //    simd constructor
 //  - bitwise comparing expected and retrieved values
 

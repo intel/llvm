@@ -623,7 +623,7 @@ private:
   std::string_view Prefix{jit_compiler::resource::ToolchainPrefix.S,
                           jit_compiler::resource::ToolchainPrefix.Size};
   std::string ClangXXExe = (Prefix + "/bin/clang++").str();
-  std::string LibclcDir = Driver::GetResourcesPath(ClangXXExe) + "/lib/libclc/";
+  std::string LibclcDir = GetResourcesPath(ClangXXExe) + "/lib/libclc/";
 
   PrecompiledPreambles Preambles;
 };

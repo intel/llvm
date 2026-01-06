@@ -9,7 +9,7 @@
 // CHECK-SAME:,+SPV_EXT_shader_atomic_float_add
 // CHECK-SAME:,+SPV_EXT_shader_atomic_float_min_max
 // CHECK-SAME:,+SPV_INTEL_2d_block_io
-// CHECK-SAME:,+SPV_INTEL_arbitrary_precision_integers
+// CHECK-SAME:,+SPV_ALTERA_arbitrary_precision_integers
 // CHECK-SAME:,+SPV_INTEL_bfloat16_conversion
 // CHECK-SAME:,+SPV_INTEL_bindless_images
 // CHECK-SAME:,+SPV_INTEL_cache_controls
