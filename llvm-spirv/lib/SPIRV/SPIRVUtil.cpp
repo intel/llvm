@@ -2496,6 +2496,7 @@ public:
       addUnsignedArg(3);
       break;
     case OpGroupAsyncCopy:
+      setArgAttr(2, SPIR::ATTR_CONST);
       addUnsignedArg(3);
       addUnsignedArg(4);
       break;
@@ -2639,6 +2640,9 @@ public:
     case internal::OpConvertHandleToSampledImageINTEL:
       addUnsignedArg(0);
       break;
+    case OpGenericPtrMemSemantics:
+      setArgAttr(0, SPIR::ATTR_CONST);
+      break;
     default:;
       // No special handling is needed
     }
@@ -2715,6 +2719,7 @@ public:
     case OpenCLLIB::Vload_halfn:
     case OpenCLLIB::Vloada_halfn:
       addUnsignedArg(0);
+      setArgAttr(1, SPIR::ATTR_CONST);
       break;
     case OpenCLLIB::Vstoren:
     case OpenCLLIB::Vstore_half:

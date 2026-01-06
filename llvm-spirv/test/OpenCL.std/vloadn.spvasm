@@ -6,26 +6,26 @@
 ;
 ; CHECK-LABEL: spir_kernel void @testChar
 ;
-; CHECK-SPV-IR: call spir_func <2 x i8> @_Z25__spirv_ocl_vloadn_Rchar2jPU3AS1ci(
-; CHECK-SPV-IR: call spir_func <3 x i8> @_Z25__spirv_ocl_vloadn_Rchar3jPU3AS1ci(
-; CHECK-SPV-IR: call spir_func <4 x i8> @_Z25__spirv_ocl_vloadn_Rchar4jPU3AS1ci(
-; CHECK-SPV-IR: call spir_func <8 x i8> @_Z25__spirv_ocl_vloadn_Rchar8jPU3AS1ci(
-; CHECK-SPV-IR: call spir_func <16 x i8> @_Z26__spirv_ocl_vloadn_Rchar16jPU3AS1ci(
-; CHECK-SPV-IR: call spir_func <2 x i8> @_Z25__spirv_ocl_vloadn_Rchar2jPU3AS3ci(
-; CHECK-SPV-IR: call spir_func <3 x i8> @_Z25__spirv_ocl_vloadn_Rchar3jPU3AS3ci(
-; CHECK-SPV-IR: call spir_func <4 x i8> @_Z25__spirv_ocl_vloadn_Rchar4jPU3AS3ci(
-; CHECK-SPV-IR: call spir_func <8 x i8> @_Z25__spirv_ocl_vloadn_Rchar8jPU3AS3ci(
-; CHECK-SPV-IR: call spir_func <16 x i8> @_Z26__spirv_ocl_vloadn_Rchar16jPU3AS3ci(
-; CHECK-SPV-IR: call spir_func <2 x i8> @_Z25__spirv_ocl_vloadn_Rchar2jPU3AS2ci(
-; CHECK-SPV-IR: call spir_func <3 x i8> @_Z25__spirv_ocl_vloadn_Rchar3jPU3AS2ci(
-; CHECK-SPV-IR: call spir_func <4 x i8> @_Z25__spirv_ocl_vloadn_Rchar4jPU3AS2ci(
-; CHECK-SPV-IR: call spir_func <8 x i8> @_Z25__spirv_ocl_vloadn_Rchar8jPU3AS2ci(
-; CHECK-SPV-IR: call spir_func <16 x i8> @_Z26__spirv_ocl_vloadn_Rchar16jPU3AS2ci(
-; CHECK-SPV-IR: call spir_func <2 x i8> @_Z25__spirv_ocl_vloadn_Rchar2jPci(
-; CHECK-SPV-IR: call spir_func <3 x i8> @_Z25__spirv_ocl_vloadn_Rchar3jPci(
-; CHECK-SPV-IR: call spir_func <4 x i8> @_Z25__spirv_ocl_vloadn_Rchar4jPci(
-; CHECK-SPV-IR: call spir_func <8 x i8> @_Z25__spirv_ocl_vloadn_Rchar8jPci(
-; CHECK-SPV-IR: call spir_func <16 x i8> @_Z26__spirv_ocl_vloadn_Rchar16jPci(
+; CHECK-SPV-IR: call spir_func <2 x i8> @_Z25__spirv_ocl_vloadn_Rchar2jPU3AS1Kci(
+; CHECK-SPV-IR: call spir_func <3 x i8> @_Z25__spirv_ocl_vloadn_Rchar3jPU3AS1Kci(
+; CHECK-SPV-IR: call spir_func <4 x i8> @_Z25__spirv_ocl_vloadn_Rchar4jPU3AS1Kci(
+; CHECK-SPV-IR: call spir_func <8 x i8> @_Z25__spirv_ocl_vloadn_Rchar8jPU3AS1Kci(
+; CHECK-SPV-IR: call spir_func <16 x i8> @_Z26__spirv_ocl_vloadn_Rchar16jPU3AS1Kci(
+; CHECK-SPV-IR: call spir_func <2 x i8> @_Z25__spirv_ocl_vloadn_Rchar2jPU3AS3Kci(
+; CHECK-SPV-IR: call spir_func <3 x i8> @_Z25__spirv_ocl_vloadn_Rchar3jPU3AS3Kci(
+; CHECK-SPV-IR: call spir_func <4 x i8> @_Z25__spirv_ocl_vloadn_Rchar4jPU3AS3Kci(
+; CHECK-SPV-IR: call spir_func <8 x i8> @_Z25__spirv_ocl_vloadn_Rchar8jPU3AS3Kci(
+; CHECK-SPV-IR: call spir_func <16 x i8> @_Z26__spirv_ocl_vloadn_Rchar16jPU3AS3Kci(
+; CHECK-SPV-IR: call spir_func <2 x i8> @_Z25__spirv_ocl_vloadn_Rchar2jPU3AS2Kci(
+; CHECK-SPV-IR: call spir_func <3 x i8> @_Z25__spirv_ocl_vloadn_Rchar3jPU3AS2Kci(
+; CHECK-SPV-IR: call spir_func <4 x i8> @_Z25__spirv_ocl_vloadn_Rchar4jPU3AS2Kci(
+; CHECK-SPV-IR: call spir_func <8 x i8> @_Z25__spirv_ocl_vloadn_Rchar8jPU3AS2Kci(
+; CHECK-SPV-IR: call spir_func <16 x i8> @_Z26__spirv_ocl_vloadn_Rchar16jPU3AS2Kci(
+; CHECK-SPV-IR: call spir_func <2 x i8> @_Z25__spirv_ocl_vloadn_Rchar2jPKci(
+; CHECK-SPV-IR: call spir_func <3 x i8> @_Z25__spirv_ocl_vloadn_Rchar3jPKci(
+; CHECK-SPV-IR: call spir_func <4 x i8> @_Z25__spirv_ocl_vloadn_Rchar4jPKci(
+; CHECK-SPV-IR: call spir_func <8 x i8> @_Z25__spirv_ocl_vloadn_Rchar8jPKci(
+; CHECK-SPV-IR: call spir_func <16 x i8> @_Z26__spirv_ocl_vloadn_Rchar16jPKci(
 ;
 ; CHECK-CL20: call spir_func <2 x i8> @_Z6vload2jPU3AS1Kc(
 ; CHECK-CL20: call spir_func <3 x i8> @_Z6vload3jPU3AS1Kc(
@@ -50,26 +50,26 @@
 ;
 ; CHECK-LABEL: spir_kernel void @testShort
 ;
-; CHECK-SPV-IR: call spir_func <2 x i16> @_Z26__spirv_ocl_vloadn_Rshort2jPU3AS1si(
-; CHECK-SPV-IR: call spir_func <3 x i16> @_Z26__spirv_ocl_vloadn_Rshort3jPU3AS1si(
-; CHECK-SPV-IR: call spir_func <4 x i16> @_Z26__spirv_ocl_vloadn_Rshort4jPU3AS1si(
-; CHECK-SPV-IR: call spir_func <8 x i16> @_Z26__spirv_ocl_vloadn_Rshort8jPU3AS1si(
-; CHECK-SPV-IR: call spir_func <16 x i16> @_Z27__spirv_ocl_vloadn_Rshort16jPU3AS1si(
-; CHECK-SPV-IR: call spir_func <2 x i16> @_Z26__spirv_ocl_vloadn_Rshort2jPU3AS3si(
-; CHECK-SPV-IR: call spir_func <3 x i16> @_Z26__spirv_ocl_vloadn_Rshort3jPU3AS3si(
-; CHECK-SPV-IR: call spir_func <4 x i16> @_Z26__spirv_ocl_vloadn_Rshort4jPU3AS3si(
-; CHECK-SPV-IR: call spir_func <8 x i16> @_Z26__spirv_ocl_vloadn_Rshort8jPU3AS3si(
-; CHECK-SPV-IR: call spir_func <16 x i16> @_Z27__spirv_ocl_vloadn_Rshort16jPU3AS3si(
-; CHECK-SPV-IR: call spir_func <2 x i16> @_Z26__spirv_ocl_vloadn_Rshort2jPU3AS2si(
-; CHECK-SPV-IR: call spir_func <3 x i16> @_Z26__spirv_ocl_vloadn_Rshort3jPU3AS2si(
-; CHECK-SPV-IR: call spir_func <4 x i16> @_Z26__spirv_ocl_vloadn_Rshort4jPU3AS2si(
-; CHECK-SPV-IR: call spir_func <8 x i16> @_Z26__spirv_ocl_vloadn_Rshort8jPU3AS2si(
-; CHECK-SPV-IR: call spir_func <16 x i16> @_Z27__spirv_ocl_vloadn_Rshort16jPU3AS2si(
-; CHECK-SPV-IR: call spir_func <2 x i16> @_Z26__spirv_ocl_vloadn_Rshort2jPsi(
-; CHECK-SPV-IR: call spir_func <3 x i16> @_Z26__spirv_ocl_vloadn_Rshort3jPsi(
-; CHECK-SPV-IR: call spir_func <4 x i16> @_Z26__spirv_ocl_vloadn_Rshort4jPsi(
-; CHECK-SPV-IR: call spir_func <8 x i16> @_Z26__spirv_ocl_vloadn_Rshort8jPsi(
-; CHECK-SPV-IR: call spir_func <16 x i16> @_Z27__spirv_ocl_vloadn_Rshort16jPsi(
+; CHECK-SPV-IR: call spir_func <2 x i16> @_Z26__spirv_ocl_vloadn_Rshort2jPU3AS1Ksi(
+; CHECK-SPV-IR: call spir_func <3 x i16> @_Z26__spirv_ocl_vloadn_Rshort3jPU3AS1Ksi(
+; CHECK-SPV-IR: call spir_func <4 x i16> @_Z26__spirv_ocl_vloadn_Rshort4jPU3AS1Ksi(
+; CHECK-SPV-IR: call spir_func <8 x i16> @_Z26__spirv_ocl_vloadn_Rshort8jPU3AS1Ksi(
+; CHECK-SPV-IR: call spir_func <16 x i16> @_Z27__spirv_ocl_vloadn_Rshort16jPU3AS1Ksi(
+; CHECK-SPV-IR: call spir_func <2 x i16> @_Z26__spirv_ocl_vloadn_Rshort2jPU3AS3Ksi(
+; CHECK-SPV-IR: call spir_func <3 x i16> @_Z26__spirv_ocl_vloadn_Rshort3jPU3AS3Ksi(
+; CHECK-SPV-IR: call spir_func <4 x i16> @_Z26__spirv_ocl_vloadn_Rshort4jPU3AS3Ksi(
+; CHECK-SPV-IR: call spir_func <8 x i16> @_Z26__spirv_ocl_vloadn_Rshort8jPU3AS3Ksi(
+; CHECK-SPV-IR: call spir_func <16 x i16> @_Z27__spirv_ocl_vloadn_Rshort16jPU3AS3Ksi(
+; CHECK-SPV-IR: call spir_func <2 x i16> @_Z26__spirv_ocl_vloadn_Rshort2jPU3AS2Ksi(
+; CHECK-SPV-IR: call spir_func <3 x i16> @_Z26__spirv_ocl_vloadn_Rshort3jPU3AS2Ksi(
+; CHECK-SPV-IR: call spir_func <4 x i16> @_Z26__spirv_ocl_vloadn_Rshort4jPU3AS2Ksi(
+; CHECK-SPV-IR: call spir_func <8 x i16> @_Z26__spirv_ocl_vloadn_Rshort8jPU3AS2Ksi(
+; CHECK-SPV-IR: call spir_func <16 x i16> @_Z27__spirv_ocl_vloadn_Rshort16jPU3AS2Ksi(
+; CHECK-SPV-IR: call spir_func <2 x i16> @_Z26__spirv_ocl_vloadn_Rshort2jPKsi(
+; CHECK-SPV-IR: call spir_func <3 x i16> @_Z26__spirv_ocl_vloadn_Rshort3jPKsi(
+; CHECK-SPV-IR: call spir_func <4 x i16> @_Z26__spirv_ocl_vloadn_Rshort4jPKsi(
+; CHECK-SPV-IR: call spir_func <8 x i16> @_Z26__spirv_ocl_vloadn_Rshort8jPKsi(
+; CHECK-SPV-IR: call spir_func <16 x i16> @_Z27__spirv_ocl_vloadn_Rshort16jPKsi(
 ;
 ; CHECK-CL20: call spir_func <2 x i16> @_Z6vload2jPU3AS1Ks(
 ; CHECK-CL20: call spir_func <3 x i16> @_Z6vload3jPU3AS1Ks(
@@ -94,26 +94,26 @@
 ;
 ; CHECK-LABEL: spir_kernel void @testInt
 ;
-; CHECK-SPV-IR: call spir_func <2 x i32> @_Z24__spirv_ocl_vloadn_Rint2jPU3AS1ii(
-; CHECK-SPV-IR: call spir_func <3 x i32> @_Z24__spirv_ocl_vloadn_Rint3jPU3AS1ii(
-; CHECK-SPV-IR: call spir_func <4 x i32> @_Z24__spirv_ocl_vloadn_Rint4jPU3AS1ii(
-; CHECK-SPV-IR: call spir_func <8 x i32> @_Z24__spirv_ocl_vloadn_Rint8jPU3AS1ii(
-; CHECK-SPV-IR: call spir_func <16 x i32> @_Z25__spirv_ocl_vloadn_Rint16jPU3AS1ii(
-; CHECK-SPV-IR: call spir_func <2 x i32> @_Z24__spirv_ocl_vloadn_Rint2jPU3AS3ii(
-; CHECK-SPV-IR: call spir_func <3 x i32> @_Z24__spirv_ocl_vloadn_Rint3jPU3AS3ii(
-; CHECK-SPV-IR: call spir_func <4 x i32> @_Z24__spirv_ocl_vloadn_Rint4jPU3AS3ii(
-; CHECK-SPV-IR: call spir_func <8 x i32> @_Z24__spirv_ocl_vloadn_Rint8jPU3AS3ii(
-; CHECK-SPV-IR: call spir_func <16 x i32> @_Z25__spirv_ocl_vloadn_Rint16jPU3AS3ii(
-; CHECK-SPV-IR: call spir_func <2 x i32> @_Z24__spirv_ocl_vloadn_Rint2jPU3AS2ii(
-; CHECK-SPV-IR: call spir_func <3 x i32> @_Z24__spirv_ocl_vloadn_Rint3jPU3AS2ii(
-; CHECK-SPV-IR: call spir_func <4 x i32> @_Z24__spirv_ocl_vloadn_Rint4jPU3AS2ii(
-; CHECK-SPV-IR: call spir_func <8 x i32> @_Z24__spirv_ocl_vloadn_Rint8jPU3AS2ii(
-; CHECK-SPV-IR: call spir_func <16 x i32> @_Z25__spirv_ocl_vloadn_Rint16jPU3AS2ii(
-; CHECK-SPV-IR: call spir_func <2 x i32> @_Z24__spirv_ocl_vloadn_Rint2jPii(
-; CHECK-SPV-IR: call spir_func <3 x i32> @_Z24__spirv_ocl_vloadn_Rint3jPii(
-; CHECK-SPV-IR: call spir_func <4 x i32> @_Z24__spirv_ocl_vloadn_Rint4jPii(
-; CHECK-SPV-IR: call spir_func <8 x i32> @_Z24__spirv_ocl_vloadn_Rint8jPii(
-; CHECK-SPV-IR: call spir_func <16 x i32> @_Z25__spirv_ocl_vloadn_Rint16jPii(
+; CHECK-SPV-IR: call spir_func <2 x i32> @_Z24__spirv_ocl_vloadn_Rint2jPU3AS1Kii(
+; CHECK-SPV-IR: call spir_func <3 x i32> @_Z24__spirv_ocl_vloadn_Rint3jPU3AS1Kii(
+; CHECK-SPV-IR: call spir_func <4 x i32> @_Z24__spirv_ocl_vloadn_Rint4jPU3AS1Kii(
+; CHECK-SPV-IR: call spir_func <8 x i32> @_Z24__spirv_ocl_vloadn_Rint8jPU3AS1Kii(
+; CHECK-SPV-IR: call spir_func <16 x i32> @_Z25__spirv_ocl_vloadn_Rint16jPU3AS1Kii(
+; CHECK-SPV-IR: call spir_func <2 x i32> @_Z24__spirv_ocl_vloadn_Rint2jPU3AS3Kii(
+; CHECK-SPV-IR: call spir_func <3 x i32> @_Z24__spirv_ocl_vloadn_Rint3jPU3AS3Kii(
+; CHECK-SPV-IR: call spir_func <4 x i32> @_Z24__spirv_ocl_vloadn_Rint4jPU3AS3Kii(
+; CHECK-SPV-IR: call spir_func <8 x i32> @_Z24__spirv_ocl_vloadn_Rint8jPU3AS3Kii(
+; CHECK-SPV-IR: call spir_func <16 x i32> @_Z25__spirv_ocl_vloadn_Rint16jPU3AS3Kii(
+; CHECK-SPV-IR: call spir_func <2 x i32> @_Z24__spirv_ocl_vloadn_Rint2jPU3AS2Kii(
+; CHECK-SPV-IR: call spir_func <3 x i32> @_Z24__spirv_ocl_vloadn_Rint3jPU3AS2Kii(
+; CHECK-SPV-IR: call spir_func <4 x i32> @_Z24__spirv_ocl_vloadn_Rint4jPU3AS2Kii(
+; CHECK-SPV-IR: call spir_func <8 x i32> @_Z24__spirv_ocl_vloadn_Rint8jPU3AS2Kii(
+; CHECK-SPV-IR: call spir_func <16 x i32> @_Z25__spirv_ocl_vloadn_Rint16jPU3AS2Kii(
+; CHECK-SPV-IR: call spir_func <2 x i32> @_Z24__spirv_ocl_vloadn_Rint2jPKii(
+; CHECK-SPV-IR: call spir_func <3 x i32> @_Z24__spirv_ocl_vloadn_Rint3jPKii(
+; CHECK-SPV-IR: call spir_func <4 x i32> @_Z24__spirv_ocl_vloadn_Rint4jPKii(
+; CHECK-SPV-IR: call spir_func <8 x i32> @_Z24__spirv_ocl_vloadn_Rint8jPKii(
+; CHECK-SPV-IR: call spir_func <16 x i32> @_Z25__spirv_ocl_vloadn_Rint16jPKii(
 ;
 ; CHECK-CL20: call spir_func <2 x i32> @_Z6vload2jPU3AS1Ki(
 ; CHECK-CL20: call spir_func <3 x i32> @_Z6vload3jPU3AS1Ki(
@@ -138,26 +138,26 @@
 ;
 ; CHECK-LABEL: spir_kernel void @testLong
 ;
-; CHECK-SPV-IR: call spir_func <2 x i64> @_Z25__spirv_ocl_vloadn_Rlong2jPU3AS1li(
-; CHECK-SPV-IR: call spir_func <3 x i64> @_Z25__spirv_ocl_vloadn_Rlong3jPU3AS1li(
-; CHECK-SPV-IR: call spir_func <4 x i64> @_Z25__spirv_ocl_vloadn_Rlong4jPU3AS1li(
-; CHECK-SPV-IR: call spir_func <8 x i64> @_Z25__spirv_ocl_vloadn_Rlong8jPU3AS1li(
-; CHECK-SPV-IR: call spir_func <16 x i64> @_Z26__spirv_ocl_vloadn_Rlong16jPU3AS1li(
-; CHECK-SPV-IR: call spir_func <2 x i64> @_Z25__spirv_ocl_vloadn_Rlong2jPU3AS3li(
-; CHECK-SPV-IR: call spir_func <3 x i64> @_Z25__spirv_ocl_vloadn_Rlong3jPU3AS3li(
-; CHECK-SPV-IR: call spir_func <4 x i64> @_Z25__spirv_ocl_vloadn_Rlong4jPU3AS3li(
-; CHECK-SPV-IR: call spir_func <8 x i64> @_Z25__spirv_ocl_vloadn_Rlong8jPU3AS3li(
-; CHECK-SPV-IR: call spir_func <16 x i64> @_Z26__spirv_ocl_vloadn_Rlong16jPU3AS3li(
-; CHECK-SPV-IR: call spir_func <2 x i64> @_Z25__spirv_ocl_vloadn_Rlong2jPU3AS2li(
-; CHECK-SPV-IR: call spir_func <3 x i64> @_Z25__spirv_ocl_vloadn_Rlong3jPU3AS2li(
-; CHECK-SPV-IR: call spir_func <4 x i64> @_Z25__spirv_ocl_vloadn_Rlong4jPU3AS2li(
-; CHECK-SPV-IR: call spir_func <8 x i64> @_Z25__spirv_ocl_vloadn_Rlong8jPU3AS2li(
-; CHECK-SPV-IR: call spir_func <16 x i64> @_Z26__spirv_ocl_vloadn_Rlong16jPU3AS2li(
-; CHECK-SPV-IR: call spir_func <2 x i64> @_Z25__spirv_ocl_vloadn_Rlong2jPli(
-; CHECK-SPV-IR: call spir_func <3 x i64> @_Z25__spirv_ocl_vloadn_Rlong3jPli(
-; CHECK-SPV-IR: call spir_func <4 x i64> @_Z25__spirv_ocl_vloadn_Rlong4jPli(
-; CHECK-SPV-IR: call spir_func <8 x i64> @_Z25__spirv_ocl_vloadn_Rlong8jPli(
-; CHECK-SPV-IR: call spir_func <16 x i64> @_Z26__spirv_ocl_vloadn_Rlong16jPli(
+; CHECK-SPV-IR: call spir_func <2 x i64> @_Z25__spirv_ocl_vloadn_Rlong2jPU3AS1Kli(
+; CHECK-SPV-IR: call spir_func <3 x i64> @_Z25__spirv_ocl_vloadn_Rlong3jPU3AS1Kli(
+; CHECK-SPV-IR: call spir_func <4 x i64> @_Z25__spirv_ocl_vloadn_Rlong4jPU3AS1Kli(
+; CHECK-SPV-IR: call spir_func <8 x i64> @_Z25__spirv_ocl_vloadn_Rlong8jPU3AS1Kli(
+; CHECK-SPV-IR: call spir_func <16 x i64> @_Z26__spirv_ocl_vloadn_Rlong16jPU3AS1Kli(
+; CHECK-SPV-IR: call spir_func <2 x i64> @_Z25__spirv_ocl_vloadn_Rlong2jPU3AS3Kli(
+; CHECK-SPV-IR: call spir_func <3 x i64> @_Z25__spirv_ocl_vloadn_Rlong3jPU3AS3Kli(
+; CHECK-SPV-IR: call spir_func <4 x i64> @_Z25__spirv_ocl_vloadn_Rlong4jPU3AS3Kli(
+; CHECK-SPV-IR: call spir_func <8 x i64> @_Z25__spirv_ocl_vloadn_Rlong8jPU3AS3Kli(
+; CHECK-SPV-IR: call spir_func <16 x i64> @_Z26__spirv_ocl_vloadn_Rlong16jPU3AS3Kli(
+; CHECK-SPV-IR: call spir_func <2 x i64> @_Z25__spirv_ocl_vloadn_Rlong2jPU3AS2Kli(
+; CHECK-SPV-IR: call spir_func <3 x i64> @_Z25__spirv_ocl_vloadn_Rlong3jPU3AS2Kli(
+; CHECK-SPV-IR: call spir_func <4 x i64> @_Z25__spirv_ocl_vloadn_Rlong4jPU3AS2Kli(
+; CHECK-SPV-IR: call spir_func <8 x i64> @_Z25__spirv_ocl_vloadn_Rlong8jPU3AS2Kli(
+; CHECK-SPV-IR: call spir_func <16 x i64> @_Z26__spirv_ocl_vloadn_Rlong16jPU3AS2Kli(
+; CHECK-SPV-IR: call spir_func <2 x i64> @_Z25__spirv_ocl_vloadn_Rlong2jPKli(
+; CHECK-SPV-IR: call spir_func <3 x i64> @_Z25__spirv_ocl_vloadn_Rlong3jPKli(
+; CHECK-SPV-IR: call spir_func <4 x i64> @_Z25__spirv_ocl_vloadn_Rlong4jPKli(
+; CHECK-SPV-IR: call spir_func <8 x i64> @_Z25__spirv_ocl_vloadn_Rlong8jPKli(
+; CHECK-SPV-IR: call spir_func <16 x i64> @_Z26__spirv_ocl_vloadn_Rlong16jPKli(
 ;
 ; CHECK-CL20: call spir_func <2 x i64> @_Z6vload2jPU3AS1Kl(
 ; CHECK-CL20: call spir_func <3 x i64> @_Z6vload3jPU3AS1Kl(
@@ -182,26 +182,26 @@
 ;
 ; CHECK-LABEL: spir_kernel void @testHalf
 ;
-; CHECK-SPV-IR: call spir_func <2 x half> @_Z25__spirv_ocl_vloadn_Rhalf2jPU3AS1Dhi(
-; CHECK-SPV-IR: call spir_func <3 x half> @_Z25__spirv_ocl_vloadn_Rhalf3jPU3AS1Dhi(
-; CHECK-SPV-IR: call spir_func <4 x half> @_Z25__spirv_ocl_vloadn_Rhalf4jPU3AS1Dhi(
-; CHECK-SPV-IR: call spir_func <8 x half> @_Z25__spirv_ocl_vloadn_Rhalf8jPU3AS1Dhi(
-; CHECK-SPV-IR: call spir_func <16 x half> @_Z26__spirv_ocl_vloadn_Rhalf16jPU3AS1Dhi(
-; CHECK-SPV-IR: call spir_func <2 x half> @_Z25__spirv_ocl_vloadn_Rhalf2jPU3AS3Dhi(
-; CHECK-SPV-IR: call spir_func <3 x half> @_Z25__spirv_ocl_vloadn_Rhalf3jPU3AS3Dhi(
-; CHECK-SPV-IR: call spir_func <4 x half> @_Z25__spirv_ocl_vloadn_Rhalf4jPU3AS3Dhi(
-; CHECK-SPV-IR: call spir_func <8 x half> @_Z25__spirv_ocl_vloadn_Rhalf8jPU3AS3Dhi(
-; CHECK-SPV-IR: call spir_func <16 x half> @_Z26__spirv_ocl_vloadn_Rhalf16jPU3AS3Dhi(
-; CHECK-SPV-IR: call spir_func <2 x half> @_Z25__spirv_ocl_vloadn_Rhalf2jPU3AS2Dhi(
-; CHECK-SPV-IR: call spir_func <3 x half> @_Z25__spirv_ocl_vloadn_Rhalf3jPU3AS2Dhi(
-; CHECK-SPV-IR: call spir_func <4 x half> @_Z25__spirv_ocl_vloadn_Rhalf4jPU3AS2Dhi(
-; CHECK-SPV-IR: call spir_func <8 x half> @_Z25__spirv_ocl_vloadn_Rhalf8jPU3AS2Dhi(
-; CHECK-SPV-IR: call spir_func <16 x half> @_Z26__spirv_ocl_vloadn_Rhalf16jPU3AS2Dhi(
-; CHECK-SPV-IR: call spir_func <2 x half> @_Z25__spirv_ocl_vloadn_Rhalf2jPDhi(
-; CHECK-SPV-IR: call spir_func <3 x half> @_Z25__spirv_ocl_vloadn_Rhalf3jPDhi(
-; CHECK-SPV-IR: call spir_func <4 x half> @_Z25__spirv_ocl_vloadn_Rhalf4jPDhi(
-; CHECK-SPV-IR: call spir_func <8 x half> @_Z25__spirv_ocl_vloadn_Rhalf8jPDhi(
-; CHECK-SPV-IR: call spir_func <16 x half> @_Z26__spirv_ocl_vloadn_Rhalf16jPDhi(
+; CHECK-SPV-IR: call spir_func <2 x half> @_Z25__spirv_ocl_vloadn_Rhalf2jPU3AS1KDhi(
+; CHECK-SPV-IR: call spir_func <3 x half> @_Z25__spirv_ocl_vloadn_Rhalf3jPU3AS1KDhi(
+; CHECK-SPV-IR: call spir_func <4 x half> @_Z25__spirv_ocl_vloadn_Rhalf4jPU3AS1KDhi(
+; CHECK-SPV-IR: call spir_func <8 x half> @_Z25__spirv_ocl_vloadn_Rhalf8jPU3AS1KDhi(
+; CHECK-SPV-IR: call spir_func <16 x half> @_Z26__spirv_ocl_vloadn_Rhalf16jPU3AS1KDhi(
+; CHECK-SPV-IR: call spir_func <2 x half> @_Z25__spirv_ocl_vloadn_Rhalf2jPU3AS3KDhi(
+; CHECK-SPV-IR: call spir_func <3 x half> @_Z25__spirv_ocl_vloadn_Rhalf3jPU3AS3KDhi(
+; CHECK-SPV-IR: call spir_func <4 x half> @_Z25__spirv_ocl_vloadn_Rhalf4jPU3AS3KDhi(
+; CHECK-SPV-IR: call spir_func <8 x half> @_Z25__spirv_ocl_vloadn_Rhalf8jPU3AS3KDhi(
+; CHECK-SPV-IR: call spir_func <16 x half> @_Z26__spirv_ocl_vloadn_Rhalf16jPU3AS3KDhi(
+; CHECK-SPV-IR: call spir_func <2 x half> @_Z25__spirv_ocl_vloadn_Rhalf2jPU3AS2KDhi(
+; CHECK-SPV-IR: call spir_func <3 x half> @_Z25__spirv_ocl_vloadn_Rhalf3jPU3AS2KDhi(
+; CHECK-SPV-IR: call spir_func <4 x half> @_Z25__spirv_ocl_vloadn_Rhalf4jPU3AS2KDhi(
+; CHECK-SPV-IR: call spir_func <8 x half> @_Z25__spirv_ocl_vloadn_Rhalf8jPU3AS2KDhi(
+; CHECK-SPV-IR: call spir_func <16 x half> @_Z26__spirv_ocl_vloadn_Rhalf16jPU3AS2KDhi(
+; CHECK-SPV-IR: call spir_func <2 x half> @_Z25__spirv_ocl_vloadn_Rhalf2jPKDhi(
+; CHECK-SPV-IR: call spir_func <3 x half> @_Z25__spirv_ocl_vloadn_Rhalf3jPKDhi(
+; CHECK-SPV-IR: call spir_func <4 x half> @_Z25__spirv_ocl_vloadn_Rhalf4jPKDhi(
+; CHECK-SPV-IR: call spir_func <8 x half> @_Z25__spirv_ocl_vloadn_Rhalf8jPKDhi(
+; CHECK-SPV-IR: call spir_func <16 x half> @_Z26__spirv_ocl_vloadn_Rhalf16jPKDhi(
 ;
 ; CHECK-CL20: call spir_func <2 x half> @_Z6vload2jPU3AS1KDh(
 ; CHECK-CL20: call spir_func <3 x half> @_Z6vload3jPU3AS1KDh(
@@ -226,26 +226,26 @@
 ;
 ; CHECK-LABEL: spir_kernel void @testFloat
 ;
-; CHECK-SPV-IR: call spir_func <2 x float> @_Z26__spirv_ocl_vloadn_Rfloat2jPU3AS1fi(
-; CHECK-SPV-IR: call spir_func <3 x float> @_Z26__spirv_ocl_vloadn_Rfloat3jPU3AS1fi(
-; CHECK-SPV-IR: call spir_func <4 x float> @_Z26__spirv_ocl_vloadn_Rfloat4jPU3AS1fi(
-; CHECK-SPV-IR: call spir_func <8 x float> @_Z26__spirv_ocl_vloadn_Rfloat8jPU3AS1fi(
-; CHECK-SPV-IR: call spir_func <16 x float> @_Z27__spirv_ocl_vloadn_Rfloat16jPU3AS1fi(
-; CHECK-SPV-IR: call spir_func <2 x float> @_Z26__spirv_ocl_vloadn_Rfloat2jPU3AS3fi(
-; CHECK-SPV-IR: call spir_func <3 x float> @_Z26__spirv_ocl_vloadn_Rfloat3jPU3AS3fi(
-; CHECK-SPV-IR: call spir_func <4 x float> @_Z26__spirv_ocl_vloadn_Rfloat4jPU3AS3fi(
-; CHECK-SPV-IR: call spir_func <8 x float> @_Z26__spirv_ocl_vloadn_Rfloat8jPU3AS3fi(
-; CHECK-SPV-IR: call spir_func <16 x float> @_Z27__spirv_ocl_vloadn_Rfloat16jPU3AS3fi(
-; CHECK-SPV-IR: call spir_func <2 x float> @_Z26__spirv_ocl_vloadn_Rfloat2jPU3AS2fi(
-; CHECK-SPV-IR: call spir_func <3 x float> @_Z26__spirv_ocl_vloadn_Rfloat3jPU3AS2fi(
-; CHECK-SPV-IR: call spir_func <4 x float> @_Z26__spirv_ocl_vloadn_Rfloat4jPU3AS2fi(
-; CHECK-SPV-IR: call spir_func <8 x float> @_Z26__spirv_ocl_vloadn_Rfloat8jPU3AS2fi(
-; CHECK-SPV-IR: call spir_func <16 x float> @_Z27__spirv_ocl_vloadn_Rfloat16jPU3AS2fi(
-; CHECK-SPV-IR: call spir_func <2 x float> @_Z26__spirv_ocl_vloadn_Rfloat2jPfi(
-; CHECK-SPV-IR: call spir_func <3 x float> @_Z26__spirv_ocl_vloadn_Rfloat3jPfi(
-; CHECK-SPV-IR: call spir_func <4 x float> @_Z26__spirv_ocl_vloadn_Rfloat4jPfi(
-; CHECK-SPV-IR: call spir_func <8 x float> @_Z26__spirv_ocl_vloadn_Rfloat8jPfi(
-; CHECK-SPV-IR: call spir_func <16 x float> @_Z27__spirv_ocl_vloadn_Rfloat16jPfi(
+; CHECK-SPV-IR: call spir_func <2 x float> @_Z26__spirv_ocl_vloadn_Rfloat2jPU3AS1Kfi(
+; CHECK-SPV-IR: call spir_func <3 x float> @_Z26__spirv_ocl_vloadn_Rfloat3jPU3AS1Kfi(
+; CHECK-SPV-IR: call spir_func <4 x float> @_Z26__spirv_ocl_vloadn_Rfloat4jPU3AS1Kfi(
+; CHECK-SPV-IR: call spir_func <8 x float> @_Z26__spirv_ocl_vloadn_Rfloat8jPU3AS1Kfi(
+; CHECK-SPV-IR: call spir_func <16 x float> @_Z27__spirv_ocl_vloadn_Rfloat16jPU3AS1Kfi(
+; CHECK-SPV-IR: call spir_func <2 x float> @_Z26__spirv_ocl_vloadn_Rfloat2jPU3AS3Kfi(
+; CHECK-SPV-IR: call spir_func <3 x float> @_Z26__spirv_ocl_vloadn_Rfloat3jPU3AS3Kfi(
+; CHECK-SPV-IR: call spir_func <4 x float> @_Z26__spirv_ocl_vloadn_Rfloat4jPU3AS3Kfi(
+; CHECK-SPV-IR: call spir_func <8 x float> @_Z26__spirv_ocl_vloadn_Rfloat8jPU3AS3Kfi(
+; CHECK-SPV-IR: call spir_func <16 x float> @_Z27__spirv_ocl_vloadn_Rfloat16jPU3AS3Kfi(
+; CHECK-SPV-IR: call spir_func <2 x float> @_Z26__spirv_ocl_vloadn_Rfloat2jPU3AS2Kfi(
+; CHECK-SPV-IR: call spir_func <3 x float> @_Z26__spirv_ocl_vloadn_Rfloat3jPU3AS2Kfi(
+; CHECK-SPV-IR: call spir_func <4 x float> @_Z26__spirv_ocl_vloadn_Rfloat4jPU3AS2Kfi(
+; CHECK-SPV-IR: call spir_func <8 x float> @_Z26__spirv_ocl_vloadn_Rfloat8jPU3AS2Kfi(
+; CHECK-SPV-IR: call spir_func <16 x float> @_Z27__spirv_ocl_vloadn_Rfloat16jPU3AS2Kfi(
+; CHECK-SPV-IR: call spir_func <2 x float> @_Z26__spirv_ocl_vloadn_Rfloat2jPKfi(
+; CHECK-SPV-IR: call spir_func <3 x float> @_Z26__spirv_ocl_vloadn_Rfloat3jPKfi(
+; CHECK-SPV-IR: call spir_func <4 x float> @_Z26__spirv_ocl_vloadn_Rfloat4jPKfi(
+; CHECK-SPV-IR: call spir_func <8 x float> @_Z26__spirv_ocl_vloadn_Rfloat8jPKfi(
+; CHECK-SPV-IR: call spir_func <16 x float> @_Z27__spirv_ocl_vloadn_Rfloat16jPKfi(
 ;
 ; CHECK-CL20: call spir_func <2 x float> @_Z6vload2jPU3AS1Kf(
 ; CHECK-CL20: call spir_func <3 x float> @_Z6vload3jPU3AS1Kf(
@@ -270,26 +270,26 @@
 ;
 ; CHECK-LABEL: spir_kernel void @testDouble
 ;
-; CHECK-SPV-IR: call spir_func <2 x double> @_Z27__spirv_ocl_vloadn_Rdouble2jPU3AS1di(
-; CHECK-SPV-IR: call spir_func <3 x double> @_Z27__spirv_ocl_vloadn_Rdouble3jPU3AS1di(
-; CHECK-SPV-IR: call spir_func <4 x double> @_Z27__spirv_ocl_vloadn_Rdouble4jPU3AS1di(
-; CHECK-SPV-IR: call spir_func <8 x double> @_Z27__spirv_ocl_vloadn_Rdouble8jPU3AS1di(
-; CHECK-SPV-IR: call spir_func <16 x double> @_Z28__spirv_ocl_vloadn_Rdouble16jPU3AS1di(
-; CHECK-SPV-IR: call spir_func <2 x double> @_Z27__spirv_ocl_vloadn_Rdouble2jPU3AS3di(
-; CHECK-SPV-IR: call spir_func <3 x double> @_Z27__spirv_ocl_vloadn_Rdouble3jPU3AS3di(
-; CHECK-SPV-IR: call spir_func <4 x double> @_Z27__spirv_ocl_vloadn_Rdouble4jPU3AS3di(
-; CHECK-SPV-IR: call spir_func <8 x double> @_Z27__spirv_ocl_vloadn_Rdouble8jPU3AS3di(
-; CHECK-SPV-IR: call spir_func <16 x double> @_Z28__spirv_ocl_vloadn_Rdouble16jPU3AS3di(
-; CHECK-SPV-IR: call spir_func <2 x double> @_Z27__spirv_ocl_vloadn_Rdouble2jPU3AS2di(
-; CHECK-SPV-IR: call spir_func <3 x double> @_Z27__spirv_ocl_vloadn_Rdouble3jPU3AS2di(
-; CHECK-SPV-IR: call spir_func <4 x double> @_Z27__spirv_ocl_vloadn_Rdouble4jPU3AS2di(
-; CHECK-SPV-IR: call spir_func <8 x double> @_Z27__spirv_ocl_vloadn_Rdouble8jPU3AS2di(
-; CHECK-SPV-IR: call spir_func <16 x double> @_Z28__spirv_ocl_vloadn_Rdouble16jPU3AS2di(
-; CHECK-SPV-IR: call spir_func <2 x double> @_Z27__spirv_ocl_vloadn_Rdouble2jPdi(
-; CHECK-SPV-IR: call spir_func <3 x double> @_Z27__spirv_ocl_vloadn_Rdouble3jPdi(
-; CHECK-SPV-IR: call spir_func <4 x double> @_Z27__spirv_ocl_vloadn_Rdouble4jPdi(
-; CHECK-SPV-IR: call spir_func <8 x double> @_Z27__spirv_ocl_vloadn_Rdouble8jPdi(
-; CHECK-SPV-IR: call spir_func <16 x double> @_Z28__spirv_ocl_vloadn_Rdouble16jPdi(
+; CHECK-SPV-IR: call spir_func <2 x double> @_Z27__spirv_ocl_vloadn_Rdouble2jPU3AS1Kdi(
+; CHECK-SPV-IR: call spir_func <3 x double> @_Z27__spirv_ocl_vloadn_Rdouble3jPU3AS1Kdi(
+; CHECK-SPV-IR: call spir_func <4 x double> @_Z27__spirv_ocl_vloadn_Rdouble4jPU3AS1Kdi(
+; CHECK-SPV-IR: call spir_func <8 x double> @_Z27__spirv_ocl_vloadn_Rdouble8jPU3AS1Kdi(
+; CHECK-SPV-IR: call spir_func <16 x double> @_Z28__spirv_ocl_vloadn_Rdouble16jPU3AS1Kdi(
+; CHECK-SPV-IR: call spir_func <2 x double> @_Z27__spirv_ocl_vloadn_Rdouble2jPU3AS3Kdi(
+; CHECK-SPV-IR: call spir_func <3 x double> @_Z27__spirv_ocl_vloadn_Rdouble3jPU3AS3Kdi(
+; CHECK-SPV-IR: call spir_func <4 x double> @_Z27__spirv_ocl_vloadn_Rdouble4jPU3AS3Kdi(
+; CHECK-SPV-IR: call spir_func <8 x double> @_Z27__spirv_ocl_vloadn_Rdouble8jPU3AS3Kdi(
+; CHECK-SPV-IR: call spir_func <16 x double> @_Z28__spirv_ocl_vloadn_Rdouble16jPU3AS3Kdi(
+; CHECK-SPV-IR: call spir_func <2 x double> @_Z27__spirv_ocl_vloadn_Rdouble2jPU3AS2Kdi(
+; CHECK-SPV-IR: call spir_func <3 x double> @_Z27__spirv_ocl_vloadn_Rdouble3jPU3AS2Kdi(
+; CHECK-SPV-IR: call spir_func <4 x double> @_Z27__spirv_ocl_vloadn_Rdouble4jPU3AS2Kdi(
+; CHECK-SPV-IR: call spir_func <8 x double> @_Z27__spirv_ocl_vloadn_Rdouble8jPU3AS2Kdi(
+; CHECK-SPV-IR: call spir_func <16 x double> @_Z28__spirv_ocl_vloadn_Rdouble16jPU3AS2Kdi(
+; CHECK-SPV-IR: call spir_func <2 x double> @_Z27__spirv_ocl_vloadn_Rdouble2jPKdi(
+; CHECK-SPV-IR: call spir_func <3 x double> @_Z27__spirv_ocl_vloadn_Rdouble3jPKdi(
+; CHECK-SPV-IR: call spir_func <4 x double> @_Z27__spirv_ocl_vloadn_Rdouble4jPKdi(
+; CHECK-SPV-IR: call spir_func <8 x double> @_Z27__spirv_ocl_vloadn_Rdouble8jPKdi(
+; CHECK-SPV-IR: call spir_func <16 x double> @_Z28__spirv_ocl_vloadn_Rdouble16jPKdi(
 ;
 ; CHECK-CL20: call spir_func <2 x double> @_Z6vload2jPU3AS1Kd(
 ; CHECK-CL20: call spir_func <3 x double> @_Z6vload3jPU3AS1Kd(
