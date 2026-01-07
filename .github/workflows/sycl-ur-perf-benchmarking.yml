@@ -27,8 +27,9 @@ on:
           - Core
           - Normal
           - Test
-          - Gromacs
           - OneDNN
+          - Gromacs
+          - LLama
         default: 'Minimal'  # Only compute-benchmarks
       pr_no:
         type: string
