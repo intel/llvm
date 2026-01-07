@@ -190,7 +190,7 @@ jobs:
             extra_lit_opts: --param test-preview-mode=True
             binaries_artifact: e2e_bin_preview
           - name: Intel / ARL with L0 v2
-            runner: '["L0v2_arl"]'
+            runner: '["Linux", "arl"]'
             target_devices: level_zero_v2:arch-intel_gpu_mtl_u
             extra_lit_opts: --param test-preview-mode=True
 
