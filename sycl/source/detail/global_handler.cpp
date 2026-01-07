@@ -330,6 +330,22 @@ void shutdown_early(bool CanJoinThreads = true) {
     GlobalHandler::RTGlobalObjHandler->MHostTaskThreadPool.Inst.reset(nullptr);
   }
 
+  // Reset in-memory cache before releasing default contexts.
+  {
+    // Keeping the default context for platforms in the global cache to avoid
+    // shared_ptr based circular dependency between platform and context classes
+    std::lock_guard<std::mutex> Lock{
+        GlobalHandler::RTGlobalObjHandler
+            ->getPlatformToDefaultContextCacheMutex()};
+
+    auto &PlatformToDefaultContextCache =
+        GlobalHandler::RTGlobalObjHandler->getPlatformToDefaultContextCache();
+
+    for (auto &Pair : PlatformToDefaultContextCache) {
+      Pair.second->getKernelProgramCache().reset();
+    }
+  }
+
   // This releases OUR reference to the default context, but
   // other may yet have refs
   GlobalHandler::RTGlobalObjHandler->releaseDefaultContexts();

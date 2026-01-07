@@ -56,16 +56,9 @@ on:
         description: Save and upload results (to https://intel.github.io/llvm/benchmarks)
         type: choice
         options:
-          - false
-          - true
-        default: true
-      exit_on_failure:
-        description: Fail benchmark script on any error. Limit number of iterations to just test correctness.
-        type: choice
-        options:
-          - false
-          - true
-        default: false
+          - 'false'
+          - 'true'
+        default: 'true'
       runner:
         description: Self-hosted runner to use for the benchmarks
         type: choice
@@ -78,6 +71,21 @@ on:
         options:
           - 'level_zero:gpu'
           - 'level_zero_v2:gpu'
+      exit_on_failure:
+        description: Fail benchmark script on any error. If true, limit number of iterations to just test correctness.
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+        default: 'false'
+      # Special input to trigger nightly benchmarking; rest of inputs are ignored in that case.
+      trigger_nightly:
+        description: Trigger nightly benchmarking (run and save Baseline)
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+        default: 'false'
 
 concurrency:
   # Cancel a currently running workflow for:
@@ -96,7 +104,7 @@ jobs:
   # Manual trigger (dispatch) path:
   sanitize_inputs_dispatch:
     name: '[Dispatch] Sanitize inputs'
-    if: github.event_name == 'workflow_dispatch'
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.trigger_nightly == 'false' }}
     runs-on: ubuntu-latest
     env:
       COMMIT_HASH: ${{ inputs.commit_hash }}
@@ -194,7 +202,7 @@ jobs:
   # Nightly benchmarking path:
   build_nightly:
     name: '[Nightly] Build SYCL'
-    if: github.repository == 'intel/llvm' && github.event_name == 'schedule'
+    if: ${{ github.repository == 'intel/llvm' && (github.event_name == 'schedule' || inputs.trigger_nightly == 'true') }}
     uses: ./.github/workflows/sycl-linux-build.yml
     secrets: inherit
     with:
