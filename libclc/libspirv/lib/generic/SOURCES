@@ -1,7 +1,3 @@
-atomic/loadstore_helpers_unordered.ll
-atomic/loadstore_helpers_release.ll
-atomic/loadstore_helpers_acquire.ll
-atomic/loadstore_helpers_seq_cst.ll
 subnormal_config.cl
 subnormal_helper_func.ll
 async/async_work_group_strided_copy.cl
@@ -11,15 +7,17 @@ atomic/atomic_add.cl
 atomic/atomic_and.cl
 atomic/atomic_cmpxchg.cl
 atomic/atomic_dec.cl
+atomic/atomic_flag_clear.cl
+atomic/atomic_flag_test_and_set.cl
 atomic/atomic_inc.cl
+atomic/atomic_load.cl
 atomic/atomic_max.cl
 atomic/atomic_min.cl
 atomic/atomic_or.cl
+atomic/atomic_store.cl
 atomic/atomic_sub.cl
 atomic/atomic_xchg.cl
 atomic/atomic_xor.cl
-atomic/atomic_load.cl
-atomic/atomic_store.cl
 common/degrees.cl
 common/fclamp.cl
 common/mix.cl

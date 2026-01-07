@@ -6,63 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/atomic/clc_atomic_store.h>
+#include <libspirv/atomic/atomic_helper.h>
 #include <libspirv/spirv.h>
 
-_CLC_OVERLOAD _CLC_DEF void __spirv_AtomicStore(global float *p, int scope,
-                                                int semantics, float val) {
-  __spirv_AtomicStore((global uint *)p, scope, semantics, __clc_as_uint(val));
-}
+#define __CLC_FUNCTION __spirv_AtomicStore
+#define __CLC_IMPL_FUNCTION __clc_atomic_store
+#define __CLC_RETURN_VOID
 
-_CLC_OVERLOAD _CLC_DEF void __spirv_AtomicStore(local float *p, int scope,
-                                                int semantics, float val) {
-  __spirv_AtomicStore((local uint *)p, scope, semantics, __clc_as_uint(val));
-}
+#define __CLC_BODY <atomic_def.inc>
+#include <clc/integer/gentype.inc>
 
-#define FDECL(TYPE, PREFIX, AS, BYTE_SIZE, MEM_ORDER)                          \
-  TYPE __clc__atomic_##PREFIX##store_##AS##_##BYTE_SIZE##_##MEM_ORDER(         \
-      AS const TYPE *, TYPE);
-
-#define IMPL(TYPE, AS, PREFIX, BYTE_SIZE)                                      \
-  FDECL(TYPE, PREFIX, AS, BYTE_SIZE, unordered)                                \
-  FDECL(TYPE, PREFIX, AS, BYTE_SIZE, release)                                  \
-  FDECL(TYPE, PREFIX, AS, BYTE_SIZE, seq_cst)                                  \
-  _CLC_OVERLOAD _CLC_DEF void __spirv_AtomicStore(AS TYPE *p, int scope,       \
-                                                  int semantics, TYPE val) {   \
-    if (semantics == Release) {                                                \
-      __clc__atomic_##PREFIX##store_##AS##_##BYTE_SIZE##_release(p, val);      \
-    } else if (semantics == SequentiallyConsistent) {                          \
-      __clc__atomic_##PREFIX##store_##AS##_##BYTE_SIZE##_seq_cst(p, val);      \
-    } else {                                                                   \
-      __clc__atomic_##PREFIX##store_##AS##_##BYTE_SIZE##_unordered(p, val);    \
-    }                                                                          \
-  }
-
-#define IMPL_AS(TYPE, PREFIX, BYTE_SIZE)                                       \
-  IMPL(TYPE, global, PREFIX, BYTE_SIZE)                                        \
-  IMPL(TYPE, local, PREFIX, BYTE_SIZE)
-
-IMPL_AS(int, , 4)
-IMPL_AS(unsigned int, u, 4)
-
-#ifdef cl_khr_int64_base_atomics
-IMPL_AS(long, , 8)
-IMPL_AS(unsigned long, u, 8)
-#endif
-
-#if _CLC_GENERIC_AS_SUPPORTED
-
-#define IMPL_GENERIC(TYPE, PREFIX, BYTE_SIZE) IMPL(TYPE, , PREFIX, BYTE_SIZE)
-
-IMPL_GENERIC(int, , 4)
-IMPL_GENERIC(unsigned int, u, 4)
-
-#ifdef cl_khr_int64_base_atomics
-IMPL_GENERIC(long, , 8)
-IMPL_GENERIC(unsigned long, u, 8)
-#endif
-
-#endif //_CLC_GENERIC_AS_SUPPORTED
-
-#undef FDECL
-#undef IMPL_AS
-#undef IMPL
+#define __CLC_BODY <atomic_def.inc>
+#include <clc/math/gentype.inc>

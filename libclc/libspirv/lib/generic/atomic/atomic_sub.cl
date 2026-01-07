@@ -6,37 +6,29 @@
 //
 //===----------------------------------------------------------------------===//
 
+/*========================== begin_copyright_notice ============================
+
+INTEL CONFIDENTIAL
+
+Copyright (C) 2025 Intel Corporation
+
+This software and the related documents are Intel copyrighted materials,
+and your use of them is governed by the express license under which they were
+provided to you ("License"). Unless the License provides otherwise,
+you may not use, modify, copy, publish, distribute, disclose or transmit this
+software or the related documents without Intel's prior written permission.
+
+This software and the related documents are provided as is, with no express or
+implied warranties, other than those that are expressly stated in the License.
+
+============================= end_copyright_notice ===========================*/
+
+#include <clc/atomic/clc_atomic_fetch_sub.h>
+#include <libspirv/atomic/atomic_helper.h>
 #include <libspirv/spirv.h>
 
-#define IMPL(TYPE, AS, FN_NAME)                                                \
-  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_AtomicISub(AS TYPE *p, int scope,        \
-                                                 int semantics, TYPE val) {    \
-    return FN_NAME(p, val);                                                    \
-  }
+#define __CLC_FUNCTION __spirv_AtomicISub
+#define __CLC_IMPL_FUNCTION __clc_atomic_fetch_sub
 
-IMPL(int, global, __sync_fetch_and_sub)
-IMPL(unsigned int, global, __sync_fetch_and_sub)
-IMPL(int, local, __sync_fetch_and_sub)
-IMPL(unsigned int, local, __sync_fetch_and_sub)
-
-#ifdef cl_khr_int64_base_atomics
-IMPL(long, global, __sync_fetch_and_sub_8)
-IMPL(unsigned long, global, __sync_fetch_and_sub_8)
-IMPL(long, local, __sync_fetch_and_sub_8)
-IMPL(unsigned long, local, __sync_fetch_and_sub_8)
-#endif
-
-#if _CLC_GENERIC_AS_SUPPORTED
-
-#define IMPL_GENERIC(TYPE, FN_NAME) IMPL(TYPE, , FN_NAME)
-
-IMPL_GENERIC(int, __sync_fetch_and_sub)
-IMPL_GENERIC(unsigned int, __sync_fetch_and_sub)
-
-#ifdef cl_khr_int64_base_atomics
-IMPL_GENERIC(long, __sync_fetch_and_sub_8)
-IMPL_GENERIC(unsigned long, __sync_fetch_and_sub_8)
-#endif
-
-#endif //_CLC_GENERIC_AS_SUPPORTED
-#undef IMPL
+#define __CLC_BODY <atomic_def.inc>
+#include <clc/integer/gentype.inc>
