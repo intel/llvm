@@ -1,8 +1,10 @@
-//==---------------- queue_submit.cpp - SYCL queue submit test
-//--------------==//
+//==--- queue_submit.cpp - SYCL queue submit test --------------==//
 
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %t.out
+
+// This test submits same kernel via multiple threads to the same queue.
+// It's a regression test for CMPLRLLVM-72408
 
 #include <iostream>
 #include <sycl/sycl.hpp>
