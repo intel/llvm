@@ -2166,7 +2166,7 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   if ((C->isOffloadingHostKind(Action::OFK_OpenMP) &&
        TranslatedArgs->hasFlag(options::OPT_fopenmp_new_driver,
                                options::OPT_no_offload_new_driver, true)) ||
-        TranslatedArgs->hasFlag(options::OPT_offload_new_driver,
+      TranslatedArgs->hasFlag(options::OPT_offload_new_driver,
                               options::OPT_no_offload_new_driver, false))
     setUseNewOffloadingDriver();
 
