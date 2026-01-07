@@ -84,8 +84,8 @@ void SPIRVLowerBoolBase::handleExtInstructions(Instruction &I) {
     auto Opcode = I.getOpcode();
     auto *Ty = I.getType();
     auto *Zero = getScalarOrVectorConstantInt(Ty, 0, false);
-    auto *One = getScalarOrVectorConstantInt(
-        Ty, (Opcode == Instruction::SExt) ? ~0 : 1, false);
+    bool IsSigned = Opcode == Instruction::SExt;
+    auto *One = getScalarOrVectorConstantInt(Ty, IsSigned ? ~0 : 1, IsSigned);
     assert(Zero && One && "Couldn't create constant int");
     auto *Sel = SelectInst::Create(Op, One, Zero, "", I.getIterator());
     replace(&I, Sel);

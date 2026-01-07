@@ -1575,7 +1575,7 @@ Value *getScalarOrArray(Value *V, unsigned Size, BasicBlock::iterator Pos) {
 
 Constant *getScalarOrVectorConstantInt(Type *T, uint64_t V, bool IsSigned) {
   if (auto *IT = dyn_cast<IntegerType>(T))
-    return ConstantInt::get(IT, V);
+    return ConstantInt::get(IT, V, IsSigned);
   if (auto *VT = dyn_cast<FixedVectorType>(T)) {
     std::vector<Constant *> EV(
         VT->getNumElements(),
