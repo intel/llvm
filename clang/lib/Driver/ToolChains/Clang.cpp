@@ -11280,6 +11280,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       }
 
       if (Kind == Action::OFK_SYCL) {
+        // SYCL requires special processing to add target-specific arguments by calling
+        // AddImpliedTargetArgs, which takes BaseCompilerArgs (filtered Arg objects) and derives
+        // CompilerArgs (final argument strings) based on target triple, debug settings,
+        // optimization levels, and device-specific requirements.
         const toolchains::SYCLToolChain &SYCLTC =
             static_cast<const toolchains::SYCLToolChain &>(*TC);
         const ToolChain *HostTC =
@@ -11287,6 +11291,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         SYCLTC.AddImpliedTargetArgs(SYCLTC.getTriple(), BaseCompilerArgs,
                                     CompilerArgs, JA, *HostTC);
       } else {
+        // For non-SYCL offload kinds (CUDA, OpenMP, HIP), directly convert
+        // the BaseCompilerArgs to CompilerArgs without additional processing.
         for (Arg *A : BaseCompilerArgs) {
           CompilerArgs.emplace_back(A->getValue());
         }
