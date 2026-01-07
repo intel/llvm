@@ -1,5 +1,9 @@
 // REQUIRES: level_zero
 //
+// UNSUPPORTED: windows && level_zero_v2_adapter
+// UNSUPPORTED-TRACKER: Re-enable when windows L0 loader gets updated to
+// ver >= 2.25.2, https://github.com/intel/llvm/issues/20852
+//
 // RUN: %{build} -o %t.out
 //
 // RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_BATCH_SIZE=4 ONEAPI_DEVICE_SELECTOR='level_zero:*' %{l0_leak_check} %{run} %t.out wait  2>&1 | FileCheck %s
@@ -16,7 +20,8 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/properties/all_properties.hpp>
-int main(int argc, char *argv[]) {
+    int
+    main(int argc, char *argv[]) {
   assert(argc == 2 && "Invalid number of arguments");
   std::string use_queue_finish(argv[1]);
 

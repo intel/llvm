@@ -1,7 +1,8 @@
 // REQUIRES: level_zero, level_zero_dev_kit
 //
 // UNSUPPORTED: windows && level_zero_v2_adapter
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20852
+// UNSUPPORTED-TRACKER: Re-enable when windows L0 loader gets updated to
+// ver >= 2.25.2, https://github.com/intel/llvm/issues/20852
 //
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: %{l0_leak_check} %{run} %t.out wait 2>&1 | FileCheck %s
