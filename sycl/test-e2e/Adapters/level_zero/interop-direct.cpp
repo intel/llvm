@@ -1,5 +1,5 @@
 // REQUIRES: level_zero, level_zero_dev_kit
-// UNSUPPORTED: ze_debug, l_z_v2_a_r
+// UNSUPPORTED: ze_debug, level_zero_v2_adapter
 
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out
