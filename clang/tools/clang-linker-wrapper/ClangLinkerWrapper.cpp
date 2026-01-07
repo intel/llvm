@@ -2174,9 +2174,9 @@ extractSYCLCompileLinkOptions(ArrayRef<OffloadFile> OffloadFiles) {
 
 // Append SYCL device compiler and linker options specified at link time,
 // filtering by target triple and offload kind.
-// TODO: Consider how to refactor this function to merge it with getLinkerArgs() 
-// and determine if it's possible to use OPT_compiler_arg_EQ and OPT_linker_arg_EQ 
-// to handle device compiler/linker options
+// TODO: Consider how to refactor this function to merge it with getLinkerArgs()
+// and determine if it's possible to use OPT_compiler_arg_EQ and
+// OPT_linker_arg_EQ to handle device compiler/linker options
 static void appendSYCLDeviceOptionsAtLinkTime(const DerivedArgList &LinkerArgs,
                                               std::string &CompileOptions,
                                               std::string &LinkOptions) {
