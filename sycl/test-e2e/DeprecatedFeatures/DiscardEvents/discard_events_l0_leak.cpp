@@ -20,8 +20,7 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/properties/all_properties.hpp>
-    int
-    main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
   assert(argc == 2 && "Invalid number of arguments");
   std::string use_queue_finish(argv[1]);
 

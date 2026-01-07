@@ -10,7 +10,7 @@
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
-// UNSUPPORTED: gpu-intel-dg2, cpu
+// UNSUPPORTED: gpu-intel-dg2, cpu, arch-intel_gpu_pvc
 // UNSUPPORTED-INTENDED: Checked load/stores are not supported by DG2 and CPU HW
 
 // RUN: %{build} -o %t.out
