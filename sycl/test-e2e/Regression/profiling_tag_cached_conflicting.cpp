@@ -14,9 +14,6 @@
 // UNSUPPORTED: cuda
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/14053
 
-// UNSUPPORTED: l_z_v2_a_r
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17760
-
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/profiling_tag.hpp>
 

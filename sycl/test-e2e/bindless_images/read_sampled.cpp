@@ -3,9 +3,6 @@
 // UNSUPPORTED: hip
 // UNSUPPORTED-INTENDED: Returning non-FP values from sampling fails on HIP.
 
-// UNSUPPORTED: linux && arch-intel_gpu_bmg_g21 && l_z_v2_a_r
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20223
-
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out
 

@@ -7,9 +7,6 @@
 //
 // REQUIRES: aspect-usm_host_allocations
 
-// UNSUPPORTED: l_z_v2_a_r
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17847
-
 #include <level_zero/ze_api.h>
 #include <sycl/backend.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>

@@ -1,7 +1,7 @@
 // REQUIRES: level_zero
 // RUN: %{build} -o %t.out
 
-// UNSUPPORTED: l_z_v2_a_r
+// UNSUPPORTED: level_zero_v2_adapter
 // UNSUPPORTED-INTENDED: memory allocation logs are not emitted in
 // level_zero_v2_adapter
 

@@ -1,8 +1,5 @@
 // REQUIRES: level_zero
 //
-// UNSUPPORTED: windows && l_z_v2_a_r
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20852
-//
 // RUN: %{build} -o %t.out
 //
 // RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_BATCH_SIZE=4 ONEAPI_DEVICE_SELECTOR='level_zero:*' %{l0_leak_check} %{run} %t.out wait  2>&1 | FileCheck %s

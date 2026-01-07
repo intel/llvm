@@ -10,7 +10,7 @@
 
 // L0v2 adapter doesn't optimize buffer creation based on device type yet
 // (integrated buffer implementation needs more work).
-// UNSUPPORTED: l_z_v2_a_r
+// UNSUPPORTED: level_zero_v2_adapter
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20121
 
 #include <iostream>

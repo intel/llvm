@@ -20,9 +20,6 @@
 // UNSUPPORTED: cuda
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/14053
 
-// UNSUPPORTED: l_z_v2_a_r
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19116
-//
 // UNSUPPORTED: ((intel_gpu_acm{{.*}} || intel_gpu_pvc || intel_gpu_bmg{{.*}}) && (!level_zero)) || preview-mode
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19425
 

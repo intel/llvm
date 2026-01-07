@@ -1,9 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s
 
-// XFAIL: run-mode && linux && arch-intel_gpu_pvc && l_z_v2_a_r
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19585
-
 // This test merely checks the use of the correct UR call. Its sister test
 // fill_accessor.cpp thoroughly checks the workings of the .fill() call.
 

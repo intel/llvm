@@ -1,8 +1,5 @@
 // REQUIRES: level_zero
 //
-// UNSUPPORTED: windows && l_z_v2_a_r
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20852
-
 // RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 
 // RUN: %{l0_leak_check} %{run} %t.out u 2>&1 | FileCheck %s --implicit-check-not=LEAK
