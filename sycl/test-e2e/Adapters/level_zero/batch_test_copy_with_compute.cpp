@@ -1,5 +1,5 @@
 // REQUIRES: gpu, level_zero
-// UNSUPPORTED: ze_debug, l_z_v2_a_r
+// UNSUPPORTED: ze_debug, level_zero_v2_adapter
 
 // RUN: %{build} -o %t.out
 

@@ -3,7 +3,7 @@
 // UNSUPPORTED-INTENDED: ze_debug UR emits summary of leaks that contains
 // function names that we match in the test.
 
-// UNSUPPORTED: l_z_v2_a_r
+// UNSUPPORTED: level_zero_v2_adapter
 // UNSUPPORTED-INTENDED: Level Zero v2 adapter performs lazy initialization
 // and does not support SYCL_EAGER_INIT=1, which this test requires.
 

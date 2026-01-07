@@ -2,7 +2,7 @@
 
 // RUN: %{build} -o %t.ooo.out
 // RUN: %{build} -DUSING_INORDER -o %t.ino.out
-// UNSUPPORTED: ze_debug, l_z_v2_a_r
+// UNSUPPORTED: ze_debug, level_zero_v2_adapter
 
 // To test batching on out-of-order queue:
 // Set batching to 4 explicitly
