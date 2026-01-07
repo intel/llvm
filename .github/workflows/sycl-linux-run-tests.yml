@@ -155,6 +155,7 @@ on:
           - '["Linux", "build"]'
           - '["cuda"]'
           - '["PVC_PERF"]'
+          - '["L0v2_arl"]'
       image:
         type: choice
         options:
@@ -178,6 +179,7 @@ on:
           - 'opencl:gpu'
           - 'hip:gpu'
           - 'cuda:gpu'
+          - 'level_zero_v2:arch-intel_gpu_mtl_u'
       tests_selector:
         type: choice
         options:
