@@ -7594,16 +7594,22 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
                                            ? OffloadArch::Generic
                                            : OffloadArch::HIPDefault));
     } else if (Kind == Action::OFK_SYCL) {
+      // Accept legacy `-march` device arguments for SYCL.
       // For SYCL offloading, we need to check the triple for NVPTX or AMDGPU.
       // The default arch is set for NVPTX if not provided.  For AMDGPU, emit
       // an error as the user is responsible to set the arch.
-      if (TC.getTriple().isNVPTX())
-        Archs.insert(OffloadArchToString(OffloadArch::SM_75));
-      else if (TC.getTriple().isAMDGPU())
-        C.getDriver().Diag(clang::diag::err_drv_sycl_missing_amdgpu_arch)
-            << 1 << TC.getTriple().str();
-      else
-        Archs.insert(StringRef());
+      if (auto *Arg = C.getArgsForToolChain(&TC, /*BoundArch=*/"", Kind)
+                          .getLastArg(options::OPT_march_EQ)) {
+        Archs.insert(Arg->getValue());
+      } else {
+        if (TC.getTriple().isNVPTX())
+          Archs.insert(OffloadArchToString(OffloadArch::SM_75));
+        else if (TC.getTriple().isAMDGPU())
+          C.getDriver().Diag(clang::diag::err_drv_sycl_missing_amdgpu_arch)
+              << 1 << TC.getTriple().str();
+        else
+          Archs.insert(StringRef());
+      }
     } else if (Kind == Action::OFK_OpenMP) {
       // Accept legacy `-march` device arguments for OpenMP.
       if (auto *Arg = C.getArgsForToolChain(&TC, /*BoundArch=*/"", Kind)
