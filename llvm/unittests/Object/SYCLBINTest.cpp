@@ -202,7 +202,8 @@ void CommonCheck() {
     EXPECT_EQ(OBPtr->getString("triple"), StringRef(IRMTarget));
 
     // Find the image that matches.
-    std::vector<uint8_t> IRImage{OBPtr->getImage().begin(), OBPtr->getImage().end()};
+    std::vector<uint8_t> IRImage{OBPtr->getImage().begin(),
+                                 OBPtr->getImage().end()};
     auto ImageMatchIt = std::find(Images.begin(), Images.end(), IRImage);
     ASSERT_NE(ImageMatchIt, Images.end());
     ImageIts.push_back(ImageMatchIt);
