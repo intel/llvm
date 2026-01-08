@@ -121,13 +121,15 @@ Expected<std::unique_ptr<PropertySetRegistry>> PropertySetRegistry::read(
 
   // Iterate over each category in the string data.
   for (const auto &Entry : StringData) {
+    StringRef Category = Entry.first;
     StringRef PropertiesStr = Entry.second;
+
     // Skip empty categories or non-property values.
-    if (PropertiesStr.empty() || !PropertiesStr.starts_with("SYCL/") ||
-        !PropertiesStr.starts_with("SYCLBIN/"))
+    if (PropertiesStr.empty() ||
+        !(Category.starts_with("SYCL/") || !Category.starts_with("SYCLBIN/")))
       continue;
 
-    PropertySet &CurPropSet = (*Res)[Entry.first];
+    PropertySet &CurPropSet = (*Res)[Category];
 
     // Parse each line in the properties string.
     SmallVector<StringRef, 16> Lines;
