@@ -195,7 +195,7 @@ def get_device_architecture(additional_env_vars):
 
     if len(architectures) != 1:
         raise ValueError(
-            f"Expected exactly one device architecture, but found {len(architectures)}: {architectures}."
+            f"Expected exactly one device architecture, but found {len(architectures)}: {architectures}. "
             "Set ONEAPI_DEVICE_SELECTOR=backend:device_id to specify a single device."
         )
 

@@ -65,6 +65,7 @@ on:
         options:
           - '["PVC_PERF"]'
           - '["BMG_PERF"]'
+          - '["TEST_PERF"]'
       backend:
         description: Backend to use
         type: choice
@@ -257,8 +258,8 @@ jobs:
     if: github.event_name == 'pull_request'
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
-      name: 'Framework test: PVC_PERF, L0, Minimal preset'
-      runner: '["PVC_PERF"]'
+      name: 'Framework test only: L0, Minimal preset, dry-run'
+      runner: '["TEST_PERF"]'
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
       target_devices: 'level_zero:gpu'
