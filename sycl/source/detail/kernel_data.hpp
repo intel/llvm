@@ -190,13 +190,6 @@ public:
 
     // Early validation for graph-incompatible properties
     if (HasGraph) {
-      if (Kprop.get<work_group_scratch_size>()->MProperty) {
-        throw sycl::exception(
-            sycl::make_error_code(errc::invalid),
-            "Setting work group scratch memory size is not yet supported "
-            "for use with the SYCL Graph extension.");
-      }
-
       if (Kprop.get<cuda::cluster_size_key<1>>()->MProperty ||
           Kprop.get<cuda::cluster_size_key<2>>()->MProperty ||
           Kprop.get<cuda::cluster_size_key<3>>()->MProperty) {
