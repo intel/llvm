@@ -120,6 +120,10 @@ struct ur_integrated_buffer_handle_t : ur_mem_buffer_t {
   void unmapHostPtr(void *pMappedPtr, ze_command_list_handle_t cmdList,
                     wait_list_view &waitListView) override;
 
+  // Perform final copy-back to original host pointer if needed
+  // Called from urMemRelease before destructor
+  void copyBackToHostIfNeeded();
+
 private:
   usm_unique_ptr_t ptr;
   void *writeBackPtr = nullptr;

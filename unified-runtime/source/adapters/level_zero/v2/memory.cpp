@@ -113,7 +113,8 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
       auto hDevice = hContext->getDevices()[0];
       UR_CALL_THROWS(
           synchronousZeCopy(hContext, hDevice, this->ptr.get(), hostPtr, size));
-      // Set writeBackPtr to enable copy-back through map/unmap operations
+      // Store writeBackPtr for copy-back - needed when original pointer
+      // cannot be imported (e.g., misaligned, wrong allocation type)
       writeBackPtr = hostPtr;
     }
   }
@@ -187,6 +188,12 @@ void ur_integrated_buffer_handle_t::unmapHostPtr(
       UR_CALL_THROWS(synchronousZeCopy(
           hContext, hDevice, ur_cast<char *>(ptr.get()) + mappedRegion->offset,
           mappedRegion->ptr.get(), mappedRegion->size));
+
+      // If this was a full-buffer write map, we've completed the copy-back
+      // and urMemRelease doesn't need to do it again
+      if (mappedRegion->offset == 0 && mappedRegion->size == size) {
+        writeBackPtr = nullptr;
+      }
     }
 
     mappedRegions.erase(mappedRegion);
@@ -195,11 +202,38 @@ void ur_integrated_buffer_handle_t::unmapHostPtr(
   // No op for zero-copy path, memory is synced
 }
 
+void ur_integrated_buffer_handle_t::copyBackToHostIfNeeded() {
+  if (writeBackPtr) {
+    // Validate that the pointer is still valid before copy-back.
+    // SYCL might already do its own copy-back and free it.
+    ZeStruct<ze_memory_allocation_properties_t> memProps;
+    ze_device_handle_t device;
+    auto result = ZE_CALL_NOCHECK(
+        zeMemGetAllocProperties,
+        (hContext->getZeHandle(), writeBackPtr, &memProps, &device));
+
+    // If pointer is not a valid allocation (SYCL freed it), skip copy-back
+    if (result != ZE_RESULT_SUCCESS ||
+        memProps.type == ZE_MEMORY_TYPE_UNKNOWN) {
+      writeBackPtr = nullptr;
+      return;
+    }
+
+    // Pointer is valid, perform copy-back
+    auto hDevice = hContext->getDevices()[0];
+    auto result = synchronousZeCopy(hContext, hDevice, writeBackPtr,
+                                    this->ptr.get(), size);
+    if (result == UR_RESULT_SUCCESS) {
+      writeBackPtr = nullptr;
+    } else {
+      UR_LOG(ERR, "Failed to copy-back buffer data on release: {}", result);
+    }
+  }
+}
+
 ur_integrated_buffer_handle_t::~ur_integrated_buffer_handle_t() {
-  // Do NOT do automatic copy-back in destructor - it causes heap corruption
-  // because writeBackPtr may be freed by SYCL runtime before buffer destructor
-  // runs. Copy-back happens via explicit map/unmap operations (see
-  // mapHostPtr/unmapHostPtr).
+  // Copy-back happens in urMemRelease via copyBackToHostIfNeeded() before the
+  // destructor runs.
 }
 
 void *ur_discrete_buffer_handle_t::allocateOnDevice(ur_device_handle_t hDevice,
@@ -761,6 +795,16 @@ ur_result_t urMemRetain(ur_mem_handle_t hMem) try {
 ur_result_t urMemRelease(ur_mem_handle_t hMem) try {
   if (!hMem->RefCount.release())
     return UR_RESULT_SUCCESS;
+
+  // Perform copy-back for integrated buffers before destruction
+  if (!hMem->isImage()) {
+    auto *buffer = hMem->getBuffer();
+    // Check if it's specifically an integrated buffer
+    if (auto *integratedBuf =
+            dynamic_cast<ur_integrated_buffer_handle_t *>(buffer)) {
+      integratedBuf->copyBackToHostIfNeeded();
+    }
+  }
 
   delete hMem;
   return UR_RESULT_SUCCESS;
