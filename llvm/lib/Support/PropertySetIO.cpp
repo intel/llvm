@@ -48,7 +48,7 @@ parsePropertyLine(StringRef Line) {
   Expected<PropertyValue::Type> Ttag =
       PropertyValue::getTypeTag(static_cast<int>(Tint.getSExtValue()));
   StringRef Val = TypeVal.second;
-      
+
   if (!Ttag)
     return Ttag.takeError();
   PropertyValue Prop(Ttag.get());
@@ -104,7 +104,7 @@ PropertySetRegistry::read(const MemoryBuffer *Buf) {
     }
     if (!CurPropSet)
       return makeError("property category missing");
-    
+
     auto PropOrErr = parsePropertyLine(*LI);
     if (!PropOrErr)
       return PropOrErr.takeError();

@@ -109,7 +109,8 @@ SYCLBIN::SYCLBINDesc::SYCLBINDesc(BundleState State,
         ID.TheImageKind = ImageKind::IMG_SPIRV;
         AMD.IRModuleDescs.emplace_back(std::move(ID));
       } else {
-        // If the arch string is not empty, it must be an native device code image.
+        // If the arch string is not empty, it must be an native device code
+        // image.
         ID.TheImageKind = ImageKind::IMG_Object;
         ID.ArchString = MD.ArchString;
         AMD.NativeDeviceCodeImageDescs.emplace_back(std::move(ID));
@@ -403,7 +404,7 @@ bool SYCLBIN::isSYCLBIN(
 }
 
 Error SYCLBIN::initMetadata() {
-  for (const std::unique_ptr<OffloadBinary> &OBPtr : OffloadBinaries){
+  for (const std::unique_ptr<OffloadBinary> &OBPtr : OffloadBinaries) {
     if ((OBPtr->getFlags() & OIF_NoImage) == 0) {
       auto ErrorOrProperties =
           llvm::util::PropertySetRegistry::read(OBPtr->strings());
