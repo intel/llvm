@@ -127,6 +127,7 @@ Error SYCLBIN::write(const SYCLBIN::SYCLBINDesc &Desc, raw_ostream &OS) {
   OffloadingImage GlobalMDI{};
   GlobalMDI.TheOffloadKind = OffloadKind::OFK_SYCL;
   GlobalMDI.Flags = OIF_NoImage;
+  GlobalMDI.Image = MemoryBuffer::getMemBuffer("", "", false);
   Desc.GlobalMetadata->write(GlobalMDI.StringData, Buffers);
   Images.emplace_back(std::move(GlobalMDI));
 
@@ -405,7 +406,7 @@ bool SYCLBIN::isSYCLBIN(
 
 Error SYCLBIN::initMetadata() {
   for (const std::unique_ptr<OffloadBinary> &OBPtr : OffloadBinaries) {
-    if ((OBPtr->getFlags() & OIF_NoImage) == 0) {
+    if (OBPtr->getFlags() & OIF_NoImage) {
       auto ErrorOrProperties =
           llvm::util::PropertySetRegistry::read(OBPtr->strings());
       if (!ErrorOrProperties)
