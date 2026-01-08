@@ -118,8 +118,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     endif()
   endif()
 
-  # TODO: Enabled for MSVC
-  if (NOT MSVC AND SYCL_LIB_WITH_DEBUG_SYMBOLS)
+  if (SYCL_LIB_WITH_DEBUG_SYMBOLS AND NOT MSVC) # TODO: Enable for MSVC
     separate_arguments(CMAKE_CXX_FLAGS_DEBUG_SEPARATED UNIX_COMMAND "${CMAKE_CXX_FLAGS_DEBUG}")
     target_compile_options(${LIB_NAME} PRIVATE ${CMAKE_CXX_FLAGS_DEBUG_SEPARATED})
   endif()
@@ -182,17 +181,15 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_link_options(${LIB_NAME} PRIVATE "LINKER:/DEPENDENTLOADFLAG:0x2000" "LINKER:/MANIFEST:NO" "LINKER:/MANIFEST:EMBED" "LINKER:/MANIFESTINPUT:${CMAKE_CURRENT_SOURCE_DIR}/${MANIFEST_FILE_NAME}")
   endif()
 
-  if (WIN32)
-    if (ARG_IMPLIB_NAME)
-      add_custom_command(
-        TARGET ${LIB_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy
-        ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${LIB_NAME}.lib ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ARG_IMPLIB_NAME}.lib
-        COMMENT "Creating version-agnostic copy of the import library.")
-      install(
-        FILES ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ARG_IMPLIB_NAME}.lib
-        DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT sycl)
-    endif()
+  if (ARG_IMPLIB_NAME AND WIN32)
+    add_custom_command(
+      TARGET ${LIB_NAME} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy
+      ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${LIB_NAME}.lib ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ARG_IMPLIB_NAME}.lib
+      COMMENT "Creating version-agnostic copy of the import library.")
+    install(
+      FILES ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ARG_IMPLIB_NAME}.lib
+      DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT sycl)
   endif()
 
   if (MSVC)
