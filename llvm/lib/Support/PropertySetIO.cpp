@@ -28,6 +28,57 @@ using byte = Base64::byte;
   return createStringError(std::error_code{}, Msg);
 }
 
+// Helper function to parse a single property line.
+Expected<std::pair<SmallString<16>, PropertyValue>>
+parsePropertyLine(StringRef Line) {
+  // Parse name and type+value.
+  auto Parts = Line.split('=');
+
+  if (Parts.first.empty() || Parts.second.empty())
+    return makeError("invalid property line: " + Line);
+  auto TypeVal = Parts.second.split('|');
+
+  if (TypeVal.first.empty() || TypeVal.second.empty())
+    return makeError("invalid property value: " + Parts.second);
+  APInt Tint;
+
+  // Parse type
+  if (TypeVal.first.getAsInteger(10, Tint))
+    return makeError("invalid property type: " + TypeVal.first);
+  Expected<PropertyValue::Type> Ttag =
+      PropertyValue::getTypeTag(static_cast<int>(Tint.getSExtValue()));
+  StringRef Val = TypeVal.second;
+      
+  if (!Ttag)
+    return Ttag.takeError();
+  PropertyValue Prop(Ttag.get());
+
+  // Parse value depending on its type.
+  switch (Ttag.get()) {
+  case PropertyValue::Type::UINT32: {
+    APInt ValV;
+    if (Val.getAsInteger(10, ValV))
+      return createStringError(std::error_code{},
+                               "invalid property value: ", Val.data());
+    Prop.set(static_cast<uint32_t>(ValV.getZExtValue()));
+    break;
+  }
+  case PropertyValue::Type::BYTE_ARRAY: {
+    Expected<std::unique_ptr<byte[]>> DecArr =
+        Base64::decode(Val.data(), Val.size());
+    if (!DecArr)
+      return DecArr.takeError();
+    Prop.set(DecArr.get().release());
+    break;
+  }
+  default:
+    return createStringError(std::error_code{},
+                             "unsupported property type: ", Ttag.get());
+  }
+
+  return std::make_pair(SmallString<16>(Parts.first), std::move(Prop));
+}
+
 } // anonymous namespace
 
 Expected<std::unique_ptr<PropertySetRegistry>>
@@ -53,51 +104,46 @@ PropertySetRegistry::read(const MemoryBuffer *Buf) {
     }
     if (!CurPropSet)
       return makeError("property category missing");
-    // parse name and type+value
-    auto Parts = LI->split('=');
+    
+    auto PropOrErr = parsePropertyLine(*LI);
+    if (!PropOrErr)
+      return PropOrErr.takeError();
 
-    if (Parts.first.empty() || Parts.second.empty())
-      return makeError("invalid property line: " + *LI);
-    auto TypeVal = Parts.second.split('|');
+    (*CurPropSet)[PropOrErr->first] = std::move(PropOrErr->second);
+  }
 
-    if (TypeVal.first.empty() || TypeVal.second.empty())
-      return makeError("invalid property value: " + Parts.second);
-    APInt Tint;
+  return Expected<std::unique_ptr<PropertySetRegistry>>(std::move(Res));
+}
 
-    // parse type
-    if (TypeVal.first.getAsInteger(10, Tint))
-      return makeError("invalid property type: " + TypeVal.first);
-    Expected<PropertyValue::Type> Ttag =
-        PropertyValue::getTypeTag(static_cast<int>(Tint.getSExtValue()));
-    StringRef Val = TypeVal.second;
+Expected<std::unique_ptr<PropertySetRegistry>> PropertySetRegistry::read(
+    const llvm::object::OffloadBinary::string_iterator_range &StringData) {
+  auto Res = std::make_unique<PropertySetRegistry>();
 
-    if (!Ttag)
-      return Ttag.takeError();
-    PropertyValue Prop(Ttag.get());
+  // Iterate over each category in the string data.
+  for (const auto &Entry : StringData) {
+    StringRef PropertiesStr = Entry.second;
+    // Skip empty categories or non-property values.
+    if (PropertiesStr.empty() || !PropertiesStr.starts_with("SYCL/") ||
+        !PropertiesStr.starts_with("SYCLBIN/"))
+      continue;
 
-    // parse value depending on its type
-    switch (Ttag.get()) {
-    case PropertyValue::Type::UINT32: {
-      APInt ValV;
-      if (Val.getAsInteger(10, ValV))
-        return createStringError(std::error_code{},
-                                 "invalid property value: ", Val.data());
-      Prop.set(static_cast<uint32_t>(ValV.getZExtValue()));
-      break;
+    PropertySet &CurPropSet = (*Res)[Entry.first];
+
+    // Parse each line in the properties string.
+    SmallVector<StringRef, 16> Lines;
+    PropertiesStr.split(Lines, '\n', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+
+    for (StringRef Line : Lines) {
+      Line = Line.trim();
+      if (Line.empty())
+        continue;
+
+      auto PropOrErr = parsePropertyLine(Line);
+      if (!PropOrErr)
+        return PropOrErr.takeError();
+
+      CurPropSet[PropOrErr->first] = std::move(PropOrErr->second);
     }
-    case PropertyValue::Type::BYTE_ARRAY: {
-      Expected<std::unique_ptr<byte[]>> DecArr =
-          Base64::decode(Val.data(), Val.size());
-      if (!DecArr)
-        return DecArr.takeError();
-      Prop.set(DecArr.get().release());
-      break;
-    }
-    default:
-      return createStringError(std::error_code{},
-                               "unsupported property type: ", Ttag.get());
-    }
-    (*CurPropSet)[Parts.first] = std::move(Prop);
   }
 
   return Expected<std::unique_ptr<PropertySetRegistry>>(std::move(Res));
@@ -131,6 +177,19 @@ void PropertySetRegistry::write(raw_ostream &Out) const {
     for (const auto &Props : PropSet.second) {
       Out << Props.first << "=" << Props.second << "\n";
     }
+  }
+}
+
+void PropertySetRegistry::write(
+    MapVector<StringRef, StringRef> &StringData,
+    SmallVectorImpl<SmallString<128>> &BufferStorage) const {
+  for (const auto &PropSet : PropSetMap) {
+    SmallString<128> &ValueBuffer = BufferStorage.emplace_back();
+    raw_svector_ostream OS(ValueBuffer);
+
+    for (const auto &Prop : PropSet.second)
+      OS << Prop.first << "=" << Prop.second << "\n";
+    StringData[PropSet.first] = ValueBuffer;
   }
 }
 

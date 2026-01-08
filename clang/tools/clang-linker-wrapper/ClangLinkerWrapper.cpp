@@ -1234,30 +1234,14 @@ static Expected<StringRef> runCompile(StringRef &InputFile,
 
 /// Write an OffloadBinary containing the serialized SYCLBIN resulting from
 /// \p ModuleDescs to the ExecutableName file with the .syclbin extension.
-// Rewrite this function. SYCLBIN serialization would return OffloadBinary,
-// no need to serialize SYCLBIN and then wrap into OffloadBinary as an entry.
 static Expected<StringRef>
 packageSYCLBIN(SYCLBIN::BundleState State,
                const ArrayRef<SYCLBIN::SYCLBINModuleDesc> Modules) {
   SYCLBIN::SYCLBINDesc SYCLBIND{State, Modules};
-  size_t SYCLBINByteSize = 0;
-  if (Error E = SYCLBIND.getSYCLBINByteSize().moveInto(SYCLBINByteSize))
+  SmallString<0> Binary;
+  raw_svector_ostream BinaryOS{Binary};
+  if (Error E = SYCLBIN::write(SYCLBIND, BinaryOS))
     return std::move(E);
-
-  SmallString<0> SYCLBINImage;
-  SYCLBINImage.reserve(SYCLBINByteSize);
-  raw_svector_ostream SYCLBINImageOS{SYCLBINImage};
-  if (Error E = SYCLBIN::write(SYCLBIND, SYCLBINImageOS))
-    return std::move(E);
-
-  OffloadingImage Image{};
-  Image.TheImageKind = IMG_SYCLBIN;
-  Image.TheOffloadKind = OFK_SYCL;
-  Image.Image = MemoryBuffer::getMemBuffer(SYCLBINImage, /*BufferName=*/"",
-                                           /*RequiresNullTerminator=*/false);
-
-  std::unique_ptr<MemoryBuffer> Binary = MemoryBuffer::getMemBufferCopy(
-      OffloadBinary::write(Image), Image.Image->getBufferIdentifier());
 
   auto OutFileOrErr =
       createOutputFile(sys::path::filename(ExecutableName), "syclbin");
@@ -1265,11 +1249,11 @@ packageSYCLBIN(SYCLBIN::BundleState State,
     return OutFileOrErr.takeError();
 
   Expected<std::unique_ptr<FileOutputBuffer>> OutputOrErr =
-      FileOutputBuffer::create(*OutFileOrErr, Binary->getBufferSize());
+      FileOutputBuffer::create(*OutFileOrErr, Binary.size());
   if (!OutputOrErr)
     return OutputOrErr.takeError();
   std::unique_ptr<FileOutputBuffer> Output = std::move(*OutputOrErr);
-  llvm::copy(Binary->getBuffer(), Output->getBufferStart());
+  llvm::copy(Binary, Output->getBufferStart());
   if (Error E = Output->commit())
     return std::move(E);
 

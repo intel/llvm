@@ -417,7 +417,6 @@ ImageKind object::getImageKind(StringRef Name) {
       .Case("cubin", IMG_Cubin)
       .Case("fatbin", IMG_Fatbinary)
       .Case("s", IMG_PTX)
-      .Case("syclbin", IMG_SYCLBIN) // that would be removed.
       .Default(IMG_None);
 }
 
@@ -433,8 +432,6 @@ StringRef object::getImageKindName(ImageKind Kind) {
     return "fatbin";
   case IMG_PTX:
     return "s";
-  case IMG_SYCLBIN: // that would be removed.
-    return "syclbin";
   default:
     return "";
   }
@@ -464,7 +461,7 @@ bool object::areTargetsCompatible(const OffloadFile::TargetID &LHS,
   if (LHS.second.split(":").first != RHS.second.split(":").first)
     return false;
 
-  // Check combintions of on / off features that must match.
+  // Check combinations of on / off features that must match.
   if (LHS.second.contains("xnack+") && RHS.second.contains("xnack-"))
     return false;
   if (LHS.second.contains("xnack-") && RHS.second.contains("xnack+"))
