@@ -7,19 +7,15 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Object/SYCLBIN.h"
-
-#include "llvm/ADT/StringRef.h"
 #include "llvm/Object/OffloadBinary.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Path.h"
-#include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/Error.h"
 
 using namespace llvm;
 using namespace llvm::object;
+using OffloadingImage = OffloadBinary::OffloadingImage;
 
-// code here would need to be updated. We would need to support 2 formats for
-// some time...
-
+// Classes in this namespace scope are deprecated and are kept only for backward
+// compatibility. They should be removed in the future release.
 namespace {
 
 class SYCLBINBlockReader {
@@ -81,17 +77,10 @@ public:
 
 SYCLBIN::SYCLBINDesc::SYCLBINDesc(BundleState State,
                                   ArrayRef<SYCLBINModuleDesc> ModuleDescs) {
-  // TODO: Merge by properties, so overlap can live in the same abstract module.
-
   // Write global metadata.
-  {
-    raw_svector_ostream GlobalMetadataOS(GlobalMetadata);
-    llvm::util::PropertySetRegistry GlobalMetadataProps;
-    GlobalMetadataProps.add(
-        llvm::util::PropertySetRegistry::SYCLBIN_GLOBAL_METADATA, "state",
-        static_cast<uint32_t>(State));
-    GlobalMetadataProps.write(GlobalMetadataOS);
-  }
+  GlobalMetadata = std::make_unique<llvm::util::PropertySetRegistry>();
+  GlobalMetadata->add(llvm::util::PropertySetRegistry::SYCLBIN_GLOBAL_METADATA,
+                      "state", static_cast<uint32_t>(State));
 
   // We currently create a single abstract module per split module.
   // Some of these should be merged in the future.
@@ -105,221 +94,108 @@ SYCLBIN::SYCLBINDesc::SYCLBINDesc(BundleState State,
       AbstractModuleDesc &AMD = AbstractModuleDescs.emplace_back();
 
       // Write module metadata to the abstract module metadata.
-      raw_svector_ostream AMMetadataOS(AMD.Metadata);
-      SM.Properties.write(AMMetadataOS);
+      AMD.Metadata =
+          std::make_unique<llvm::util::PropertySetRegistry>(SM.Properties);
 
       ImageDesc ID;
       // Copy the filepath.
       ID.FilePath = SM.ModuleFilePath;
+      ID.TargetTriple = MD.TargetTriple;
 
       // Create metadata and save the descriptor to the right collection.
-      raw_svector_ostream IDMetadataOS(ID.Metadata);
       if (MD.ArchString.empty()) {
         // If the arch string is empty, it must be an IR module.
-        llvm::util::PropertySetRegistry IRMMetadata;
         // TODO: Determine type from the input.
-        IRMMetadata.add(
-            llvm::util::PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA, "type",
-            /*SPIR-V*/ 0);
-        IRMMetadata.add(
-            llvm::util::PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA,
-            "target", MD.TargetTriple.str());
-        IRMMetadata.write(IDMetadataOS);
+        ID.TheImageKind = ImageKind::IMG_SPIRV;
         AMD.IRModuleDescs.emplace_back(std::move(ID));
       } else {
-        // If the arch string is empty, it must be an native device code image.
-        llvm::util::PropertySetRegistry NDCIMetadata;
-        NDCIMetadata.add(llvm::util::PropertySetRegistry::
-                             SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA,
-                         "arch", MD.ArchString);
-        NDCIMetadata.add(llvm::util::PropertySetRegistry::
-                             SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA,
-                         "target", MD.TargetTriple.str());
-        NDCIMetadata.write(IDMetadataOS);
+        // If the arch string is not empty, it must be an native device code image.
+        ID.TheImageKind = ImageKind::IMG_Object;
+        ID.ArchString = MD.ArchString;
         AMD.NativeDeviceCodeImageDescs.emplace_back(std::move(ID));
       }
     }
   }
 }
 
-size_t SYCLBIN::SYCLBINDesc::getMetadataTableByteSize() const {
-  size_t MetadataTableSize = GlobalMetadata.size();
-  for (const SYCLBINDesc::AbstractModuleDesc &AMD : AbstractModuleDescs) {
-    MetadataTableSize += AMD.Metadata.size();
-    for (const SYCLBINDesc::ImageDesc &IRMD : AMD.IRModuleDescs)
-      MetadataTableSize += IRMD.Metadata.size();
-    for (const SYCLBINDesc::ImageDesc &NDCID : AMD.NativeDeviceCodeImageDescs)
-      MetadataTableSize += NDCID.Metadata.size();
-  }
-  return MetadataTableSize;
-}
-
-Expected<size_t> SYCLBIN::SYCLBINDesc::getBinaryTableByteSize() const {
-  size_t BinaryTableSize = 0;
-  const auto GetFileSizeAndIncrease =
-      [&BinaryTableSize](const StringRef FilePath) -> Error {
-    uint64_t FileSize = 0;
-    if (std::error_code EC = sys::fs::file_size(FilePath, FileSize))
-      return createFileError(FilePath, EC);
-    BinaryTableSize += FileSize;
-    return Error::success();
-  };
-  for (const SYCLBINDesc::AbstractModuleDesc &AMD : AbstractModuleDescs) {
-    for (const SYCLBINDesc::ImageDesc &IRMD : AMD.IRModuleDescs)
-      if (Error E = GetFileSizeAndIncrease(IRMD.FilePath))
-        return std::move(E);
-    for (const SYCLBINDesc::ImageDesc &NDCID : AMD.NativeDeviceCodeImageDescs)
-      if (Error E = GetFileSizeAndIncrease(NDCID.FilePath))
-        return std::move(E);
-  }
-  return BinaryTableSize;
-}
-
-Expected<size_t> SYCLBIN::SYCLBINDesc::getSYCLBINByteSize() const {
-  size_t ByteSize = 0;
-  ByteSize +=
-      alignTo(sizeof(FileHeaderType), 8) +
-      alignTo(sizeof(AbstractModuleHeaderType), 8) * AbstractModuleDescs.size();
-  for (const SYCLBINDesc::AbstractModuleDesc &AMD : AbstractModuleDescs)
-    ByteSize +=
-        alignTo(sizeof(IRModuleHeaderType), 8) * AMD.IRModuleDescs.size() +
-        alignTo(sizeof(NativeDeviceCodeImageHeaderType), 8) *
-            AMD.NativeDeviceCodeImageDescs.size();
-  ByteSize += alignTo(getMetadataTableByteSize(), 8);
-  size_t BinaryTableSize = 0;
-  if (Error E = getBinaryTableByteSize().moveInto(BinaryTableSize))
-    return std::move(E);
-  ByteSize += alignTo(BinaryTableSize, 8);
-  return ByteSize;
-}
-
 Error SYCLBIN::write(const SYCLBIN::SYCLBINDesc &Desc, raw_ostream &OS) {
-  uint32_t IRModuleCount = 0, NativeDeviceCodeImageCount = 0;
+  SmallVector<OffloadingImage> Images;
+  SmallVector<SmallString<128>> Buffers;
+
+  // Write global metadata image.
+  OffloadingImage GlobalMDI{};
+  GlobalMDI.TheOffloadKind = OffloadKind::OFK_SYCL;
+  GlobalMDI.Flags = OIF_NoImage;
+  Desc.GlobalMetadata->write(GlobalMDI.StringData, Buffers);
+  Images.emplace_back(std::move(GlobalMDI));
+
+  size_t AbstractModuleIndex = 0;
   for (const SYCLBINDesc::AbstractModuleDesc &AMD : Desc.AbstractModuleDescs) {
-    IRModuleCount += AMD.IRModuleDescs.size();
-    NativeDeviceCodeImageCount += AMD.NativeDeviceCodeImageDescs.size();
-  }
-  size_t HeaderTrackedMetadataOffset = 0, HeaderTrackedBinariesOffset = 0;
+    SmallString<128> &AbstractModuleID =
+        Buffers.emplace_back(std::to_string(AbstractModuleIndex));
 
-  // Headers:
-  // Write file header.
-  FileHeaderType FileHeader;
-  FileHeader.Magic = MagicNumber;
-  FileHeader.Version = CurrentVersion;
-  FileHeader.AbstractModuleCount = Desc.AbstractModuleDescs.size();
-  FileHeader.IRModuleCount = IRModuleCount;
-  FileHeader.NativeDeviceCodeImageCount = NativeDeviceCodeImageCount;
-  FileHeader.GlobalMetadataOffset = 0;
-  FileHeader.GlobalMetadataSize = Desc.GlobalMetadata.size();
-  FileHeader.MetadataByteTableSize = Desc.getMetadataTableByteSize();
-  if (Error E = Desc.getBinaryTableByteSize().moveInto(
-          FileHeader.BinaryByteTableSize))
-    return E;
-  OS << StringRef(reinterpret_cast<char *>(&FileHeader), sizeof(FileHeader));
-  OS.write_zeros(alignTo(OS.tell(), 8) - OS.tell());
-  HeaderTrackedMetadataOffset += FileHeader.GlobalMetadataSize;
-
-  // Write abstract module headers.
-  size_t IRModuleOffset = 0, NativeDeviceCodeImageOffset = 0;
-  size_t BinariesCount = 0;
-  for (const SYCLBINDesc::AbstractModuleDesc &AMD : Desc.AbstractModuleDescs) {
-    AbstractModuleHeaderType AMHeader;
-    AMHeader.MetadataOffset = HeaderTrackedMetadataOffset;
-    AMHeader.MetadataSize = AMD.Metadata.size();
-    AMHeader.IRModuleCount = AMD.IRModuleDescs.size();
-    AMHeader.IRModuleOffset = IRModuleOffset;
-    AMHeader.NativeDeviceCodeImageCount = AMD.NativeDeviceCodeImageDescs.size();
-    AMHeader.NativeDeviceCodeImageOffset = NativeDeviceCodeImageOffset;
-    OS << StringRef(reinterpret_cast<char *>(&AMHeader), sizeof(AMHeader));
-    OS.write_zeros(alignTo(OS.tell(), 8) - OS.tell());
-    HeaderTrackedMetadataOffset += AMHeader.MetadataSize;
-    IRModuleOffset += AMHeader.IRModuleCount;
-    NativeDeviceCodeImageOffset += AMHeader.NativeDeviceCodeImageCount;
-    BinariesCount +=
-        AMHeader.IRModuleCount + AMHeader.NativeDeviceCodeImageCount;
-  }
-
-  // Store file handles for later.
-  SmallVector<std::unique_ptr<MemoryBuffer>, 4> BinaryFileBuffers;
-  BinaryFileBuffers.reserve(BinariesCount);
-
-  // Write IR module headers.
-  for (const SYCLBINDesc::AbstractModuleDesc &AMD : Desc.AbstractModuleDescs) {
+    // Store IR modules.
     for (const SYCLBINDesc::ImageDesc &IRMD : AMD.IRModuleDescs) {
+      OffloadingImage OI{};
+
+      OI.TheImageKind = IRMD.TheImageKind;
+      OI.TheOffloadKind = OffloadKind::OFK_SYCL;
+
+      OI.StringData["syclbin_abstract_module_id"] = AbstractModuleID;
+      OI.StringData["triple"] = IRMD.TargetTriple.str();
+      AMD.Metadata->write(OI.StringData, Buffers);
+
       auto FileBufferOrError =
           llvm::MemoryBuffer::getFileOrSTDIN(IRMD.FilePath);
       if (!FileBufferOrError)
         return createFileError(IRMD.FilePath, FileBufferOrError.getError());
-      std::unique_ptr<MemoryBuffer> &BFB =
-          BinaryFileBuffers.emplace_back(std::move(*FileBufferOrError));
+      OI.Image = std::move(*FileBufferOrError);
 
-      IRModuleHeaderType IRMHeader;
-      IRMHeader.MetadataOffset = HeaderTrackedMetadataOffset;
-      IRMHeader.MetadataSize = IRMD.Metadata.size();
-      IRMHeader.RawIRBytesOffset = HeaderTrackedBinariesOffset;
-      IRMHeader.RawIRBytesSize = BFB->getBufferSize();
-      OS << StringRef(reinterpret_cast<char *>(&IRMHeader), sizeof(IRMHeader));
-      OS.write_zeros(alignTo(OS.tell(), 8) - OS.tell());
-      HeaderTrackedMetadataOffset += IRMHeader.MetadataSize;
-      HeaderTrackedBinariesOffset += IRMHeader.RawIRBytesSize;
+      Images.emplace_back(std::move(OI));
     }
-  }
 
-  // Write native device code image headers.
-  for (const SYCLBINDesc::AbstractModuleDesc &AMD : Desc.AbstractModuleDescs) {
+    // Store native device code images.
     for (const SYCLBINDesc::ImageDesc &NDCID : AMD.NativeDeviceCodeImageDescs) {
+      OffloadingImage OI{};
+
+      OI.TheImageKind = NDCID.TheImageKind;
+      OI.TheOffloadKind = OffloadKind::OFK_SYCL;
+
+      OI.StringData["syclbin_abstract_module_id"] = AbstractModuleID;
+      OI.StringData["triple"] = NDCID.TargetTriple.str();
+      OI.StringData["arch"] = NDCID.ArchString;
+      AMD.Metadata->write(OI.StringData, Buffers);
+
       auto FileBufferOrError =
           llvm::MemoryBuffer::getFileOrSTDIN(NDCID.FilePath);
       if (!FileBufferOrError)
         return createFileError(NDCID.FilePath, FileBufferOrError.getError());
-      std::unique_ptr<MemoryBuffer> &BFB =
-          BinaryFileBuffers.emplace_back(std::move(*FileBufferOrError));
+      OI.Image = std::move(*FileBufferOrError);
 
-      NativeDeviceCodeImageHeaderType NDCIHeader;
-      NDCIHeader.MetadataOffset = HeaderTrackedMetadataOffset;
-      NDCIHeader.MetadataSize = NDCID.Metadata.size();
-      NDCIHeader.BinaryBytesOffset = HeaderTrackedBinariesOffset;
-      NDCIHeader.BinaryBytesSize = BFB->getBufferSize();
-      OS << StringRef(reinterpret_cast<char *>(&NDCIHeader),
-                      sizeof(NDCIHeader));
-      OS.write_zeros(alignTo(OS.tell(), 8) - OS.tell());
-      HeaderTrackedMetadataOffset += NDCIHeader.MetadataSize;
-      HeaderTrackedBinariesOffset += NDCIHeader.BinaryBytesSize;
+      Images.emplace_back(std::move(OI));
     }
+
+    ++AbstractModuleIndex;
   }
 
-  // Metadata table:
-  // Write global metadata.
-  OS << Desc.GlobalMetadata;
-
-  // Write abstract module metadata.
-  for (const SYCLBINDesc::AbstractModuleDesc &AMD : Desc.AbstractModuleDescs)
-    OS << AMD.Metadata;
-
-  // Write IR module metadata.
-  for (const SYCLBINDesc::AbstractModuleDesc &AMD : Desc.AbstractModuleDescs)
-    for (const SYCLBINDesc::ImageDesc &IRMD : AMD.IRModuleDescs)
-      OS << IRMD.Metadata;
-
-  // Write native device code image metadata.
-  for (const SYCLBINDesc::AbstractModuleDesc &AMD : Desc.AbstractModuleDescs)
-    for (const SYCLBINDesc::ImageDesc &NDCID : AMD.NativeDeviceCodeImageDescs)
-      OS << NDCID.Metadata;
-
-  // Pad table to the right alignment.
-  OS.write_zeros(alignTo(OS.tell(), 8) - OS.tell());
-
-  // Binary byte table:
-  for (const std::unique_ptr<MemoryBuffer> &BFB : BinaryFileBuffers)
-    OS << StringRef{BFB->getBufferStart(), BFB->getBufferSize()};
-  OS.write_zeros(alignTo(OS.tell(), 8) - OS.tell());
-
+  OS << OffloadBinary::write(Images);
   return Error::success();
 }
 
 Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
-  auto Result = std::make_unique<SYCLBIN>(Source);
+  // Try to read SYCLBIN in new format (aka augmented OffloadBinary).
+  Expected<SmallVector<std::unique_ptr<OffloadBinary>>> OffloadBinariesOrErr =
+      OffloadBinary::create(Source);
+  if (OffloadBinariesOrErr) {
+    if (isSYCLBIN(*OffloadBinariesOrErr))
+      return create(std::move(*OffloadBinariesOrErr));
 
+    return createStringError(inconvertibleErrorCode(),
+                             "Valid Offload Binary, but not SYCLBIN.");
+  }
+
+  // Try to read SYCLBIN in legacy format for backward compatibility
+  // After reading, it will be written in OffloadBinary format and read again.
   if (Source.getBufferSize() < sizeof(FileHeaderType))
     return createStringError(inconvertibleErrorCode(),
                              "Unexpected file contents size.");
@@ -331,11 +207,10 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
     return createStringError(inconvertibleErrorCode(),
                              "Incorrect SYCLBIN magic number.");
 
-  if (FileHeader->Version > CurrentVersion)
+  if (FileHeader->Version != 1)
     return createStringError(inconvertibleErrorCode(),
                              "Unsupported SYCLBIN version " +
                                  std::to_string(FileHeader->Version) + ".");
-  Result->Version = FileHeader->Version;
 
   const size_t AMHeaderBlockSize =
       sizeof(AbstractModuleHeaderType) * FileHeader->AbstractModuleCount;
@@ -363,16 +238,29 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
       static_cast<size_t>(FileHeader->BinaryByteTableSize)};
 
   // Read global metadata.
+  std::unique_ptr<llvm::util::PropertySetRegistry> GlobalMetadata =
+      std::make_unique<llvm::util::PropertySetRegistry>();
   if (Error E = MetadataByteTableBlockReader
                     .GetMetadata(FileHeader->GlobalMetadataOffset,
                                  FileHeader->GlobalMetadataSize)
-                    .moveInto(Result->GlobalMetadata))
+                    .moveInto(GlobalMetadata))
     return std::move(E);
 
+  SmallVector<OffloadingImage> Images;
+  SmallVector<SmallString<128>> Buffers;
+
+  // Write global metadata image.
+  OffloadingImage GlobalMDI{};
+  GlobalMDI.TheOffloadKind = OffloadKind::OFK_SYCL;
+  GlobalMDI.Flags = OIF_NoImage;
+  GlobalMetadata->write(GlobalMDI.StringData, Buffers);
+  Images.emplace_back(std::move(GlobalMDI));
+
   // Read the abstract modules.
-  Result->AbstractModules.resize(FileHeader->AbstractModuleCount);
+  size_t AbstractModuleIndex = 0;
   for (uint32_t I = 0; I < FileHeader->AbstractModuleCount; ++I) {
-    AbstractModule &AM = Result->AbstractModules[I];
+    SmallString<128> &AbstractModuleID =
+        Buffers.emplace_back(std::to_string(AbstractModuleIndex));
 
     // Read the header for the current abstract module.
     const AbstractModuleHeaderType *AMHeader = nullptr;
@@ -385,16 +273,24 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
       return std::move(E);
 
     // Read the metadata for the current abstract module.
+    std::unique_ptr<llvm::util::PropertySetRegistry> AMMetadata =
+        std::make_unique<llvm::util::PropertySetRegistry>();
     if (Error E =
             MetadataByteTableBlockReader
                 .GetMetadata(AMHeader->MetadataOffset, AMHeader->MetadataSize)
-                .moveInto(AM.Metadata))
+                .moveInto(AMMetadata))
       return std::move(E);
 
     // Read the IR modules of the current abstract module.
-    AM.IRModules.resize(AMHeader->IRModuleCount);
     for (uint32_t J = 0; J < AMHeader->IRModuleCount; ++J) {
-      IRModule &IRM = AM.IRModules[J];
+      OffloadingImage OI{};
+
+      // Legacy SYCLBIN format used only SPIR-V image kind.
+      OI.TheImageKind = ImageKind::IMG_SPIRV;
+
+      OI.TheOffloadKind = OffloadKind::OFK_SYCL;
+      OI.StringData["syclbin_abstract_module_id"] = AbstractModuleID;
+      AMMetadata->write(OI.StringData, Buffers);
 
       // Read the header for the current IR module.
       const IRModuleHeaderType *IRMHeader = nullptr;
@@ -407,24 +303,39 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
         return std::move(E);
 
       // Read the metadata for the current IR module.
+      std::unique_ptr<llvm::util::PropertySetRegistry> IRMMetadata =
+          std::make_unique<llvm::util::PropertySetRegistry>();
       if (Error E = MetadataByteTableBlockReader
                         .GetMetadata(IRMHeader->MetadataOffset,
                                      IRMHeader->MetadataSize)
-                        .moveInto(IRM.Metadata))
+                        .moveInto(IRMMetadata))
         return std::move(E);
 
+      llvm::util::PropertySet PS = (*IRMMetadata)
+          [llvm::util::PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA];
+      OI.StringData["triple"] = reinterpret_cast<const char *>(
+          PS[llvm::util::PropertySet::key_type("target")].asByteArray());
+
       // Read the binary blob for the current IR module.
+      StringRef IRMRawIRBytes;
       if (Error E = BinaryByteTableBlockReader
                         .GetBinaryBlob(IRMHeader->RawIRBytesOffset,
                                        IRMHeader->RawIRBytesSize)
-                        .moveInto(IRM.RawIRBytes))
+                        .moveInto(IRMRawIRBytes))
         return std::move(E);
+      OI.Image = MemoryBuffer::getMemBuffer(IRMRawIRBytes, "",
+                                            /*RequiresNullTerminator=*/false);
+      Images.emplace_back(std::move(OI));
     }
 
     // Read the native device code images of the current abstract module.
-    AM.NativeDeviceCodeImages.resize(AMHeader->NativeDeviceCodeImageCount);
     for (uint32_t J = 0; J < AMHeader->NativeDeviceCodeImageCount; ++J) {
-      NativeDeviceCodeImage &NDCI = AM.NativeDeviceCodeImages[J];
+      OffloadingImage OI{};
+
+      OI.TheImageKind = ImageKind::IMG_Object;
+      OI.TheOffloadKind = OffloadKind::OFK_SYCL;
+      OI.StringData["syclbin_abstract_module_id"] = AbstractModuleID;
+      AMMetadata->write(OI.StringData, Buffers);
 
       // Read the header for the current native device code image.
       const NativeDeviceCodeImageHeaderType *NDCIHeader = nullptr;
@@ -439,20 +350,87 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
         return std::move(E);
 
       // Read the metadata for the current native device code image.
+      std::unique_ptr<llvm::util::PropertySetRegistry> NDCIMetadata =
+          std::make_unique<llvm::util::PropertySetRegistry>();
       if (Error E = MetadataByteTableBlockReader
                         .GetMetadata(NDCIHeader->MetadataOffset,
                                      NDCIHeader->MetadataSize)
-                        .moveInto(NDCI.Metadata))
+                        .moveInto(NDCIMetadata))
         return std::move(E);
 
+      llvm::util::PropertySet PS =
+          (*NDCIMetadata)[llvm::util::PropertySetRegistry::
+                              SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA];
+      OI.StringData["triple"] = reinterpret_cast<const char *>(
+          PS[llvm::util::PropertySet::key_type("target")].asByteArray());
+      OI.StringData["arch"] = reinterpret_cast<const char *>(
+          PS[llvm::util::PropertySet::key_type("arch")].asByteArray());
+
       // Read the binary blob for the current native device code image.
+      StringRef NDCIRawDeviceCodeImageBytes;
       if (Error E = BinaryByteTableBlockReader
                         .GetBinaryBlob(NDCIHeader->BinaryBytesOffset,
                                        NDCIHeader->BinaryBytesSize)
-                        .moveInto(NDCI.RawDeviceCodeImageBytes))
+                        .moveInto(NDCIRawDeviceCodeImageBytes))
         return std::move(E);
+      OI.Image = MemoryBuffer::getMemBuffer(NDCIRawDeviceCodeImageBytes, "",
+                                            /*RequiresNullTerminator=*/false);
+      Images.emplace_back(std::move(OI));
     }
+    ++AbstractModuleIndex;
   }
 
-  return std::move(Result);
+  SmallString<0> NewSYCLBIN = OffloadBinary::write(Images);
+  OffloadBinariesOrErr = OffloadBinary::create(
+      MemoryBufferRef(NewSYCLBIN, Source.getBufferIdentifier()));
+  if (!OffloadBinariesOrErr)
+    return std::move(OffloadBinariesOrErr.takeError());
+
+  return create(std::move(*OffloadBinariesOrErr));
+}
+
+bool SYCLBIN::isSYCLBIN(
+    const SmallVector<std::unique_ptr<OffloadBinary>> &OffloadBinaries) {
+  for (const std::unique_ptr<OffloadBinary> &OBPtr : OffloadBinaries) {
+    if ((OBPtr->getFlags() & OIF_NoImage) == 0)
+      continue;
+
+    StringRef MD = OBPtr->getString(
+        llvm::util::PropertySetRegistry::SYCLBIN_GLOBAL_METADATA);
+    return !MD.empty();
+  }
+  return false;
+}
+
+Error SYCLBIN::initMetadata() {
+  for (const std::unique_ptr<OffloadBinary> &OBPtr : OffloadBinaries){
+    if ((OBPtr->getFlags() & OIF_NoImage) == 0) {
+      auto ErrorOrProperties =
+          llvm::util::PropertySetRegistry::read(OBPtr->strings());
+      if (!ErrorOrProperties)
+        return ErrorOrProperties.takeError();
+
+      GlobalMetadata = std::move(*ErrorOrProperties);
+      continue;
+    }
+
+    auto ErrorOrProperties =
+        llvm::util::PropertySetRegistry::read(OBPtr->strings());
+    if (!ErrorOrProperties)
+      return ErrorOrProperties.takeError();
+
+    Metadata[OBPtr.get()] = std::move(*ErrorOrProperties);
+  }
+  return Error::success();
+}
+
+Expected<std::unique_ptr<SYCLBIN>>
+SYCLBIN::create(SmallVector<std::unique_ptr<OffloadBinary>> OffloadBinaries) {
+  std::unique_ptr<SYCLBIN> SYCLBINPtr =
+      std::unique_ptr<SYCLBIN>(new SYCLBIN(std::move(OffloadBinaries)));
+
+  if (Error E = SYCLBINPtr->initMetadata())
+    return std::move(E);
+
+  return SYCLBINPtr;
 }

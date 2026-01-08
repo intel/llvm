@@ -36,6 +36,7 @@
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Object/OffloadBinary.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
@@ -268,8 +269,18 @@ public:
   static Expected<std::unique_ptr<PropertySetRegistry>>
   read(const MemoryBuffer *Buf);
 
+  /// Parses from the given string map (from OffloadBinary) a property set
+  /// registry.
+  static Expected<std::unique_ptr<PropertySetRegistry>>
+  read(const llvm::object::OffloadBinary::string_iterator_range &StringData);
+
   /// Dumps the property set registry to the given \p Out stream.
   void write(raw_ostream &Out) const;
+  /// Dumps the property set registry to the given MapVector \p StringData
+  /// compatible with OffloadBinary StringData. Memory for \p StringData is kept
+  /// in \p BufferStorage.
+  void write(MapVector<StringRef, StringRef> &StringData,
+             SmallVectorImpl<SmallString<128>> &BufferStorage) const;
 
   MapTy::const_iterator begin() const { return PropSetMap.begin(); }
   MapTy::const_iterator end() const { return PropSetMap.end(); }
