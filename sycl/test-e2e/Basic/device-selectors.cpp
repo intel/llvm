@@ -156,9 +156,9 @@ int main() {
 
   // Pass aspects in an allowlist and a denylist.
   try {
-    device dev4 = device{aspect_selector(std::vector{aspect::accelerator},
-                                         std::vector{aspect::image})};
-    assert(dev4.is_accelerator() && "Incorrect device, expected accelerator.");
+    device dev4 = device{
+        aspect_selector(std::vector{aspect::gpu}, std::vector{aspect::image})};
+    assert(dev4.is_gpu() && "Incorrect device, expected accelerator.");
     assert(!dev4.has(aspect::image) &&
            "Device should NOT support aspect::image.");
   } catch (exception &e) {

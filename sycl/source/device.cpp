@@ -17,6 +17,10 @@
 #include <sycl/device_selector.hpp>
 #include <sycl/info/info_desc.hpp>
 
+// Trying to force MSVC to generate the symbol/export for the inline function
+// that it needs on the import (because the class itself is being exported):
+#include <sycl/ext/oneapi/weak_object.hpp>
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -41,9 +45,8 @@ device::device(cl_device_id DeviceId) {
   Adapter.call<detail::UrApiKind::urDeviceCreateWithNativeHandle>(
       detail::ur::cast<ur_native_handle_t>(DeviceId), Adapter.getUrAdapter(),
       nullptr, &Device);
-  impl = detail::platform_impl::getPlatformFromUrDevice(Device, Adapter)
-             .getOrMakeDeviceImpl(Device)
-             .shared_from_this();
+  impl = &detail::platform_impl::getPlatformFromUrDevice(Device, Adapter)
+              .getOrMakeDeviceImpl(Device);
   __SYCL_OCL_CALL(clRetainDevice, DeviceId);
 }
 
@@ -334,6 +337,16 @@ detail::string device::ext_oneapi_cl_profile_impl() const {
 context device::ext_oneapi_get_default_context() {
   return impl->get_platform().khr_get_default_context();
 }
+
+void device::ext_oneapi_wait() {
+  if (!has(aspect::ext_oneapi_device_wait))
+    throw sycl::exception(
+        make_error_code(errc::feature_not_supported),
+        "Device does not support aspect::ext_oneapi_device_wait.");
+  impl->wait();
+}
+
+void device::ext_oneapi_throw_asynchronous() { impl->throwAsynchronous(); }
 
 } // namespace _V1
 } // namespace sycl

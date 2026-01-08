@@ -111,7 +111,7 @@ jobs:
         $exitCode = $LASTEXITCODE
         Remove-Item -Path "windows_detect_hung_tests.ps1"
         exit $exitCode
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
       with:
         sparse-checkout: |
           devops/actions
@@ -186,10 +186,6 @@ jobs:
       if: ${{ !cancelled() && contains(inputs.changes, 'xptifw') }}
       run: |
         cmake --build build --target check-xptifw
-    - name: check-libdevice
-      if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
-      run: |
-        cmake --build build --target check-libdevice
     - name: Generate/diff new ABI symbols
       if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
       shell: bash
@@ -198,7 +194,7 @@ jobs:
         diff -Naur src/sycl/test/abi/sycl_symbols_windows.dump build/new_sycl_symbols_windows.dump || true
     - name: Upload new ABI symbols
       if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: sycl_windows_abi_symbols
         path: build/new_sycl_symbols_windows.dump
@@ -213,7 +209,7 @@ jobs:
       run: tar -czf ${{ inputs.toolchain_artifact_filename }} -C install .
     - name: Upload toolchain release
       if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: ${{ inputs.release_toolchain_artifact }}
         path: ${{ inputs.toolchain_artifact_filename }}
@@ -232,7 +228,7 @@ jobs:
         tar -czf ${{ inputs.toolchain_artifact_filename }} -C install .
     - name: Upload toolchain
       if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: sycl_windows_default
         path: ${{ inputs.toolchain_artifact_filename }}

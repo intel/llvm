@@ -498,10 +498,10 @@ ur_result_t MsanInterceptor::prepareLaunch(
 
   // Clean shadow
   // Its content is always zero, and is used for unsupport memory types
-  UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-      ContextInfo->Handle, DeviceInfo->Handle, nullptr, nullptr,
-      ContextInfo->CleanShadowSize,
-      (void **)&LaunchInfo.Data.Host.CleanShadow));
+  UR_CALL(SafeAllocate(ContextInfo->Handle, DeviceInfo->Handle,
+                       ContextInfo->CleanShadowSize, nullptr, nullptr,
+                       AllocType::DEVICE_USM,
+                       (void **)&LaunchInfo.Data.Host.CleanShadow));
   UR_CALL(EnqueueUSMSet(Queue, (void *)LaunchInfo.Data.Host.CleanShadow,
                         (char)0, ContextInfo->CleanShadowSize, 0, nullptr,
                         nullptr));

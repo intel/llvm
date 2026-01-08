@@ -624,7 +624,7 @@ EventImplPtr queue_impl::submit_graph_direct_impl(
                                       detail::CGType::ExecCommandBuffer),
               /*SchedulerBypass*/ false};
     } else {
-      return ExecGraph->enqueue(*this, CGData, EventNeeded);
+      return ExecGraph->enqueue(*this, std::move(CGData), EventNeeded);
     }
   };
   // If the graph contains a host task, we may need to insert a barrier prior
@@ -642,6 +642,8 @@ detail::EventImplPtr queue_impl::submit_direct(
   detail::CG::StorageInitHelper CGData;
   std::unique_lock<std::mutex> Lock(MMutex);
   const bool inOrder = isInOrder();
+
+  NestedCallsTracker tracker;
 
   // Sync with an external event
   std::optional<event> ExternalEvent = popExternalEvent();
@@ -926,32 +928,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
       LastEvent->wait();
     }
   } else if (!isInOrder()) {
-    std::vector<std::weak_ptr<event_impl>> WeakEvents;
-    {
-      std::lock_guard<std::mutex> Lock(MMutex);
-      WeakEvents.swap(MEventsWeak);
-      MMissedCleanupRequests.unset(
-          [&](MissedCleanupRequestsType &MissedCleanupRequests) {
-            for (auto &UpdatedGraph : MissedCleanupRequests)
-              doUnenqueuedCommandCleanup(UpdatedGraph);
-            MissedCleanupRequests.clear();
-          });
-    }
-
-    // Wait for unenqueued or host task events, starting
-    // from the latest submitted task in order to minimize total amount of
-    // calls, then handle the rest with urQueueFinish.
-    for (auto EventImplWeakPtrIt = WeakEvents.rbegin();
-         EventImplWeakPtrIt != WeakEvents.rend(); ++EventImplWeakPtrIt) {
-      if (std::shared_ptr<event_impl> EventImplSharedPtr =
-              EventImplWeakPtrIt->lock()) {
-        // A nullptr UR event indicates that urQueueFinish will not cover it,
-        // either because it's a host task event or an unenqueued one.
-        if (nullptr == EventImplSharedPtr->getHandle()) {
-          EventImplSharedPtr->wait();
-        }
-      }
-    }
+    waitForRuntimeLevelCmdsAndClear();
   }
 
   getAdapter().call<UrApiKind::urQueueFinish>(getHandleRef());
@@ -1171,6 +1148,47 @@ EventImplPtr queue_impl::insertHelperBarrier() {
       getHandleRef(), 0, nullptr, &UREvent);
   ResEvent->setHandle(UREvent);
   return ResEvent;
+}
+
+void queue_impl::waitForRuntimeLevelCmdsAndClear() {
+  if (isInOrder() && !MNoLastEventMode.load(std::memory_order_relaxed)) {
+    // if MLastEvent is not null and has no associated handle, we need to wait
+    // for it. We do not clear it however.
+    EventImplPtr LastEvent;
+    {
+      std::lock_guard<std::mutex> Lock(MMutex);
+      LastEvent = MDefaultGraphDeps.LastEventPtr;
+    }
+    if (LastEvent && nullptr == LastEvent->getHandle())
+      LastEvent->wait();
+  } else if (!isInOrder()) {
+    std::vector<std::weak_ptr<event_impl>> WeakEvents;
+    {
+      std::lock_guard<std::mutex> Lock(MMutex);
+      WeakEvents.swap(MEventsWeak);
+      MMissedCleanupRequests.unset(
+          [&](MissedCleanupRequestsType &MissedCleanupRequests) {
+            for (auto &UpdatedGraph : MissedCleanupRequests)
+              doUnenqueuedCommandCleanup(UpdatedGraph);
+            MissedCleanupRequests.clear();
+          });
+    }
+
+    // Wait for unenqueued or host task events, starting
+    // from the latest submitted task in order to minimize total amount of
+    // calls, then handle the rest with urQueueFinish.
+    for (auto EventImplWeakPtrIt = WeakEvents.rbegin();
+         EventImplWeakPtrIt != WeakEvents.rend(); ++EventImplWeakPtrIt) {
+      if (std::shared_ptr<event_impl> EventImplSharedPtr =
+              EventImplWeakPtrIt->lock()) {
+        // A nullptr UR event indicates that urQueueFinish will not cover it,
+        // either because it's a host task event or an unenqueued one.
+        if (nullptr == EventImplSharedPtr->getHandle()) {
+          EventImplSharedPtr->wait();
+        }
+      }
+    }
+  }
 }
 
 } // namespace detail

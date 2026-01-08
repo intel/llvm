@@ -33,7 +33,6 @@ def AspectExt_intel_gpu_slices : Aspect<"ext_intel_gpu_slices">;
 def AspectExt_intel_gpu_subslices_per_slice : Aspect<"ext_intel_gpu_subslices_per_slice">;
 def AspectExt_intel_gpu_eu_count_per_subslice : Aspect<"ext_intel_gpu_eu_count_per_subslice">;
 def AspectExt_intel_max_mem_bandwidth : Aspect<"ext_intel_max_mem_bandwidth">;
-def AspectExt_intel_mem_channel : Aspect<"ext_intel_mem_channel">;
 def AspectUsm_atomic_host_allocations : Aspect<"usm_atomic_host_allocations">;
 def AspectUsm_atomic_shared_allocations : Aspect<"usm_atomic_shared_allocations">;
 def AspectAtomic64 : Aspect<"atomic64">;
@@ -82,7 +81,6 @@ def AspectExt_oneapi_private_alloca : Aspect<"ext_oneapi_private_alloca">;
 def AspectExt_oneapi_queue_profiling_tag : Aspect<"ext_oneapi_queue_profiling_tag">;
 def AspectExt_oneapi_virtual_mem : Aspect<"ext_oneapi_virtual_mem">;
 def AspectExt_oneapi_cuda_cluster_group : Aspect<"ext_oneapi_cuda_cluster_group">;
-def AspectExt_intel_fpga_task_sequence : Aspect<"ext_intel_fpga_task_sequence">;
 def AspectExt_oneapi_atomic16 : Aspect<"ext_oneapi_atomic16">;
 def AspectExt_oneapi_virtual_functions : Aspect<"ext_oneapi_virtual_functions">;
 def AspectExt_intel_spill_memory_size : Aspect<"ext_intel_spill_memory_size">;
@@ -99,6 +97,7 @@ def Aspectext_oneapi_clock_work_group : Aspect<"ext_oneapi_clock_work_group">;
 def Aspectext_oneapi_clock_device : Aspect<"ext_oneapi_clock_device">;
 def Aspectext_oneapi_is_integrated_gpu : Aspect<"ext_oneapi_is_integrated_gpu">;
 def Aspectext_oneapi_ipc_memory : Aspect<"ext_oneapi_ipc_memory">;
+def Aspectext_oneapi_device_wait : Aspect<"ext_oneapi_device_wait">;
 
 // Deprecated aspects
 def AspectInt64_base_atomics : Aspect<"int64_base_atomics">;
@@ -139,7 +138,7 @@ def : TargetInfo<"__TestAspectList",
     AspectUsm_shared_allocations, AspectUsm_system_allocations, AspectExt_intel_pci_address,
     AspectExt_intel_gpu_eu_count, AspectExt_intel_gpu_eu_simd_width, AspectExt_intel_gpu_slices,
     AspectExt_intel_gpu_subslices_per_slice, AspectExt_intel_gpu_eu_count_per_subslice,
-    AspectExt_intel_max_mem_bandwidth, AspectExt_intel_mem_channel, AspectUsm_atomic_host_allocations,
+    AspectExt_intel_max_mem_bandwidth, AspectUsm_atomic_host_allocations,
     AspectUsm_atomic_shared_allocations, AspectAtomic64, AspectExt_intel_device_info_uuid, AspectExt_oneapi_srgb,
     AspectExt_oneapi_native_assert, AspectHost_debuggable, AspectExt_intel_gpu_hw_threads_per_eu,
     AspectExt_oneapi_cuda_async_barrier, AspectExt_intel_free_memory,
@@ -163,7 +162,6 @@ def : TargetInfo<"__TestAspectList",
     AspectExt_oneapi_tangle, AspectExt_intel_matrix, AspectExt_oneapi_is_composite, AspectExt_oneapi_is_component,
     AspectExt_oneapi_graph, AspectExt_oneapi_limited_graph, AspectExt_oneapi_private_alloca, 
     AspectExt_oneapi_queue_profiling_tag, AspectExt_oneapi_virtual_mem, AspectExt_oneapi_cuda_cluster_group, 
-    AspectExt_intel_fpga_task_sequence,
     AspectExt_oneapi_atomic16,
     AspectExt_oneapi_virtual_functions,
     AspectExt_intel_spill_memory_size,
@@ -178,7 +176,8 @@ def : TargetInfo<"__TestAspectList",
     Aspectext_oneapi_clock_work_group,
     Aspectext_oneapi_clock_device,
     Aspectext_oneapi_is_integrated_gpu,
-    Aspectext_oneapi_ipc_memory],
+    Aspectext_oneapi_ipc_memory,
+    Aspectext_oneapi_device_wait],
     []>;
 // This definition serves the only purpose of testing whether the deprecated aspect list defined in here and in SYCL RT
 // match.
@@ -202,7 +201,6 @@ defvar IntelCpuAspects = [
 def : TargetInfo<"spir64", [], [], "", "", 1>;
 def : TargetInfo<"spir64_gen", [], [], "", "", 1>;
 def : TargetInfo<"spir64_x86_64", IntelCpuAspects, [4, 8, 16, 32, 64], "", "", 1>;
-def : TargetInfo<"spir64_fpga", [], [], "", "", 1>;
 def : TargetInfo<"x86_64", IntelCpuAspects, [4, 8, 16, 32, 64], "", "", 1>;
 def : TargetInfo<"intel_cpu_spr", IntelCpuAspects, [4, 8, 16, 32, 64], "", "", 1>;
 // Examples of how to use a combination of explicitly specified values + predefined lists

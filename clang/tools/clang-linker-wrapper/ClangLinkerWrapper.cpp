@@ -908,7 +908,8 @@ getTripleBasedSPIRVTransOpts(const ArgList &Args,
       ",+SPV_KHR_non_semantic_info"
       ",+SPV_KHR_cooperative_matrix"
       ",+SPV_EXT_shader_atomic_float16_add"
-      ",+SPV_INTEL_fp_max_error";
+      ",+SPV_INTEL_fp_max_error"
+      ",+SPV_INTEL_memory_access_aliasing";
   TranslatorArgs.push_back(Args.MakeArgString(ExtArg));
 }
 
@@ -2256,6 +2257,12 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
 
       auto &SplitModules = *SplitModulesOrErr;
       const llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
+      StringRef Arch = LinkerArgs.getLastArgValue(OPT_arch_EQ);
+      if (Arch.empty())
+        Arch = "native";
+      // TODO: Take into account Arch values considered as JIT: "native",
+      // "spir64", "spir", "spirv32" and "spirv64" for SPIR targets.
+      // For now we only consider NoSubArch target as JIT.
       bool IsJIT = Triple.isSPIROrSPIRV() &&
                    Triple.getSubArch() == llvm::Triple::NoSubArch;
       if ((Triple.isNVPTX() || Triple.isAMDGCN()) &&
@@ -2273,9 +2280,6 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       }
       for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
         SmallVector<StringRef> Files = {SplitModules[I].ModuleFilePath};
-        StringRef Arch = LinkerArgs.getLastArgValue(OPT_arch_EQ);
-        if (Arch.empty())
-          Arch = "native";
         SmallVector<std::pair<StringRef, StringRef>, 4> BundlerInputFiles;
         auto ClangOutputOrErr =
             linkDevice(Files, LinkerArgs, true /* IsSYCLKind */,

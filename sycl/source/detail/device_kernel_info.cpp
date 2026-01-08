@@ -12,15 +12,9 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-DeviceKernelInfo::DeviceKernelInfo(const CompileTimeKernelInfoTy &Info)
-    : CompileTimeKernelInfoTy(Info) {
-  init(Name.data());
-}
-
-void DeviceKernelInfo::init(std::string_view KernelName) {
-  auto &PM = detail::ProgramManager::getInstance();
-  MImplicitLocalArgPos = PM.kernelImplicitLocalArgPos(KernelName);
-}
+DeviceKernelInfo::DeviceKernelInfo(const CompileTimeKernelInfoTy &Info,
+                                   std::optional<sycl::kernel_id> KernelID)
+    : CompileTimeKernelInfoTy{Info}, MKernelID{std::move(KernelID)} {}
 
 template <typename OtherTy>
 inline constexpr bool operator==(const CompileTimeKernelInfoTy &LHS,
@@ -50,6 +44,10 @@ void DeviceKernelInfo::setCompileTimeInfoIfNeeded(
   assert(Info == *this);
 }
 
+void DeviceKernelInfo::setImplicitLocalArgPos(int Pos) {
+  assert(!MImplicitLocalArgPos.has_value() || MImplicitLocalArgPos == Pos);
+  MImplicitLocalArgPos = Pos;
+}
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

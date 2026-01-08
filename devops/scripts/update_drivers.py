@@ -37,18 +37,7 @@ def get_artifacts_download_url(repo, name):
     return json.loads(artifacts)["artifacts"][0]["archive_download_url"]
 
 
-def uplift_linux_igfx_driver(config, platform_tag, igc_dev_only):
-
-    if igc_dev_only:
-        igc_dev = get_latest_workflow_runs("intel/intel-graphics-compiler", "build-IGC")
-        igcdevver = igc_dev["head_sha"][:7]
-        config[platform_tag]["igc_dev"]["github_tag"] = "igc-dev-" + igcdevver
-        config[platform_tag]["igc_dev"]["version"] = igcdevver
-        config[platform_tag]["igc_dev"]["updated_at"] = igc_dev["updated_at"]
-        config[platform_tag]["igc_dev"]["url"] = get_artifacts_download_url(
-            "intel/intel-graphics-compiler", "IGC_Ubuntu24.04_llvm15_clang-" + igcdevver
-        )
-        return config
+def uplift_linux_igfx_driver(config, platform_tag):
 
     compute_runtime = get_latest_release('intel/compute-runtime')
 
@@ -87,23 +76,18 @@ def uplift_linux_igfx_driver(config, platform_tag, igc_dev_only):
     return config
 
 
-def main(platform_tag, igc_dev_only):
+def main(platform_tag):
     script = os.path.dirname(os.path.realpath(__file__))
-    config_name = os.path.join(script, '..', 'dependencies.json')
-    if igc_dev_only:
-        config_name = os.path.join(script, "..", "dependencies-igc-dev.json")
+    config_name = os.path.join(script, "..", "dependencies.json")
     config = {}
 
     with open(config_name, "r") as f:
         config = json.loads(f.read())
-        config = uplift_linux_igfx_driver(config, platform_tag, igc_dev_only)
+        config = uplift_linux_igfx_driver(config, platform_tag)
 
     with open(config_name, "w") as f:
         json.dump(config, f, indent=2)
         f.write('\n')
-
-    if igc_dev_only:
-        return config[platform_tag]["igc_dev"]["github_tag"]
 
     return config[platform_tag]['compute_runtime']['version']
 
@@ -111,6 +95,5 @@ def main(platform_tag, igc_dev_only):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("platform_tag")
-    parser.add_argument("--igc-dev-only", action="store_true")
     args = parser.parse_args()
-    sys.stdout.write(main(args.platform_tag, args.igc_dev_only) + "\n")
+    sys.stdout.write(main(args.platform_tag) + "\n")
