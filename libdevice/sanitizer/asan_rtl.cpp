@@ -941,9 +941,12 @@ __asan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
   __asan_memset_p##as(__attribute__((address_space(as))) char *ptr, int val,   \
                       size_t size, const char __SYCL_CONSTANT__ *file,         \
                       uint32_t line, const char __SYCL_CONSTANT__ *func) {     \
-    DebugInfo debug{(uptr)ptr, as, size, true, file, func, line};              \
-    if (auto poisoned_addr = IsRegionPoisoned((uptr)ptr, as, size, &debug)) {  \
-      ReportAccessError(poisoned_addr, as, false, &debug);                     \
+    if (__AsanLaunchInfo) {                                                    \
+      DebugInfo debug{(uptr)ptr, as, size, true, file, func, line};            \
+      if (auto poisoned_addr =                                                 \
+              IsRegionPoisoned((uptr)ptr, as, size, &debug)) {                 \
+        ReportAccessError(poisoned_addr, as, false, &debug);                   \
+      }                                                                        \
     }                                                                          \
     return Memset(ptr, val, size);                                             \
   }
@@ -960,15 +963,17 @@ ASAN_MEMSET(4)
       __attribute__((address_space(src_as))) char *src, size_t size,           \
       const char __SYCL_CONSTANT__ *file, uint32_t line,                       \
       const char __SYCL_CONSTANT__ *func) {                                    \
-    DebugInfo debug_dst{(uptr)dst, dst_as, size, true, file, func, line};      \
-    if (auto poisoned_addr =                                                   \
-            IsRegionPoisoned((uptr)dst, dst_as, size, &debug_dst)) {           \
-      ReportAccessError(poisoned_addr, dst_as, false, &debug_dst);             \
-    }                                                                          \
-    DebugInfo debug_src{(uptr)src, src_as, size, false, file, func, line};     \
-    if (auto poisoned_addr =                                                   \
-            IsRegionPoisoned((uptr)src, src_as, size, &debug_src)) {           \
-      ReportAccessError(poisoned_addr, src_as, false, &debug_src);             \
+    if (__AsanLaunchInfo) {                                                    \
+      DebugInfo debug_dst{(uptr)dst, dst_as, size, true, file, func, line};    \
+      if (auto poisoned_addr =                                                 \
+              IsRegionPoisoned((uptr)dst, dst_as, size, &debug_dst)) {         \
+        ReportAccessError(poisoned_addr, dst_as, false, &debug_dst);           \
+      }                                                                        \
+      DebugInfo debug_src{(uptr)src, src_as, size, false, file, func, line};   \
+      if (auto poisoned_addr =                                                 \
+              IsRegionPoisoned((uptr)src, src_as, size, &debug_src)) {         \
+        ReportAccessError(poisoned_addr, src_as, false, &debug_src);           \
+      }                                                                        \
     }                                                                          \
     return Memcpy(dst, src, size);                                             \
   }
@@ -992,15 +997,17 @@ ASAN_MEMCPY(4)
       __attribute__((address_space(src_as))) char *src, size_t size,           \
       const char __SYCL_CONSTANT__ *file, uint32_t line,                       \
       const char __SYCL_CONSTANT__ *func) {                                    \
-    DebugInfo debug_dst{(uptr)dst, dst_as, size, true, file, func, line};      \
-    if (auto poisoned_addr =                                                   \
-            IsRegionPoisoned((uptr)dst, dst_as, size, &debug_dst)) {           \
-      ReportAccessError(poisoned_addr, dst_as, false, &debug_dst);             \
-    }                                                                          \
-    DebugInfo debug_src{(uptr)src, src_as, size, false, file, func, line};     \
-    if (auto poisoned_addr =                                                   \
-            IsRegionPoisoned((uptr)src, src_as, size, &debug_src)) {           \
-      ReportAccessError(poisoned_addr, src_as, false, &debug_src);             \
+    if (__AsanLaunchInfo) {                                                    \
+      DebugInfo debug_dst{(uptr)dst, dst_as, size, true, file, func, line};    \
+      if (auto poisoned_addr =                                                 \
+              IsRegionPoisoned((uptr)dst, dst_as, size, &debug_dst)) {         \
+        ReportAccessError(poisoned_addr, dst_as, false, &debug_dst);           \
+      }                                                                        \
+      DebugInfo debug_src{(uptr)src, src_as, size, false, file, func, line};   \
+      if (auto poisoned_addr =                                                 \
+              IsRegionPoisoned((uptr)src, src_as, size, &debug_src)) {         \
+        ReportAccessError(poisoned_addr, src_as, false, &debug_src);           \
+      }                                                                        \
     }                                                                          \
     return Memmove(dst, src, size);                                            \
   }

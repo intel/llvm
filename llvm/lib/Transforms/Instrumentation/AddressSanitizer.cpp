@@ -1364,7 +1364,6 @@ public:
     AsanSetPrivateBaseFunc =
         M->getOrInsertFunction("__asan_set_private_base", IRB.getVoidTy(),
                                PointerType::get(*C, kSpirOffloadPrivateAS));
-
   }
 
   void instrumentPrivateBase(Function &F) {
