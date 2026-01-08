@@ -3903,6 +3903,9 @@
 ?ext_oneapi_supports_cl_c_version@device@_V1@sycl@@QEBA_NAEBUcl_version@experimental@oneapi@ext@23@@Z
 ?ext_oneapi_supports_cl_extension@device@_V1@sycl@@AEBA_NVstring_view@detail@23@PEAUcl_version@experimental@oneapi@ext@23@@Z
 ?ext_oneapi_supports_cl_extension@device@_V1@sycl@@QEBA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAUcl_version@experimental@oneapi@ext@23@@Z
+?ext_oneapi_throw_asynchronous@device@_V1@sycl@@QEAAXXZ
+?ext_oneapi_wait@device@_V1@sycl@@QEAAXXZ
+?ext_oneapi_wait_and_throw@device@_V1@sycl@@QEAAXXZ
 ?ext_oneapi_wait_external_semaphore@handler@_V1@sycl@@QEAAXUexternal_semaphore@experimental@oneapi@ext@23@@Z
 ?ext_oneapi_wait_external_semaphore@handler@_V1@sycl@@QEAAXUexternal_semaphore@experimental@oneapi@ext@23@_K@Z
 ?ext_oneapi_wait_external_semaphore@queue@_V1@sycl@@QEAA?AVevent@23@Uexternal_semaphore@experimental@oneapi@ext@23@AEBUcode_location@detail@23@@Z
