@@ -6,48 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/atomic/clc_atomic_fetch_min.h>
+#include <libspirv/atomic/atomic_helper.h>
 #include <libspirv/spirv.h>
 
-#define IMPL(TYPE, AS, NAME, PREFIX, SUFFIX)                                   \
-  _CLC_OVERLOAD _CLC_DEF TYPE NAME(AS TYPE *p, int scope, int semantics,       \
-                                   TYPE val) {                                 \
-    return PREFIX##__sync_fetch_and_##SUFFIX(p, val);                          \
-  }
+#define __CLC_IMPL_FUNCTION __clc_atomic_fetch_min
+#define __CLC_ATOMIC_MIN
 
-IMPL(int, global, __spirv_AtomicSMin, , min)
-IMPL(unsigned int, global, __spirv_AtomicUMin, , umin)
-IMPL(int, local, __spirv_AtomicSMin, , min)
-IMPL(unsigned int, local, __spirv_AtomicUMin, , umin)
+#define __CLC_BODY <atomic_minmax.inc>
+#include <clc/integer/gentype.inc>
 
-#ifdef cl_khr_int64_extended_atomics
-unsigned long __clc__sync_fetch_and_min_local_8(volatile local long *, long);
-unsigned long __clc__sync_fetch_and_min_global_8(volatile global long *, long);
-unsigned long __clc__sync_fetch_and_umin_local_8(volatile local unsigned long *, unsigned long);
-unsigned long __clc__sync_fetch_and_umin_global_8(volatile global unsigned long *, unsigned long);
+#define __CLC_FUNCTION __spirv_AtomicFMinEXT
 
-IMPL(long, global, __spirv_AtomicSMin, __clc, min_global_8)
-IMPL(unsigned long, global, __spirv_AtomicUMin, __clc, umin_global_8)
-IMPL(long, local, __spirv_AtomicSMin, __clc, min_local_8)
-IMPL(unsigned long, local, __spirv_AtomicUMin, __clc, umin_local_8)
-#endif
-
-#if _CLC_GENERIC_AS_SUPPORTED
-
-#define IMPL_GENERIC(TYPE, NAME, PREFIX, SUFFIX)                               \
-  IMPL(TYPE, , NAME, PREFIX, SUFFIX)
-
-IMPL_GENERIC(int, __spirv_AtomicSMin, , min)
-IMPL_GENERIC(unsigned int, __spirv_AtomicUMin, , umin)
-
-#ifdef cl_khr_int64_extended_atomics
-
-unsigned long __clc__sync_fetch_and_min_generic_8(volatile generic long *, long);
-unsigned long __clc__sync_fetch_and_umin_generic_8(volatile __generic unsigned long *, unsigned long);
-
-IMPL_GENERIC(long, __spirv_AtomicSMin, __clc, min_generic_8)
-IMPL_GENERIC(unsigned long, __spirv_AtomicUMin, __clc, umin_generic_8)
-#endif
-
-
-#endif //_CLC_GENERIC_AS_SUPPORTED
-#undef IMPL
+#define __CLC_BODY <atomic_def.inc>
+#include <clc/math/gentype.inc>

@@ -6,38 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/atomic/clc_atomic_fetch_and.h>
+#include <libspirv/atomic/atomic_helper.h>
 #include <libspirv/spirv.h>
 
-#define IMPL(TYPE, AS, FN_NAME)                                                \
-  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_AtomicAnd(AS TYPE *p, int scope,         \
-                                                int semantics, TYPE val) {     \
-    return FN_NAME(p, val);                                                    \
-  }
+#define __CLC_FUNCTION __spirv_AtomicAnd
+#define __CLC_IMPL_FUNCTION __clc_atomic_fetch_and
 
-IMPL(int, global, __sync_fetch_and_and)
-IMPL(unsigned int, global, __sync_fetch_and_and)
-IMPL(int, local, __sync_fetch_and_and)
-IMPL(unsigned int, local, __sync_fetch_and_and)
-
-#ifdef cl_khr_int64_extended_atomics
-IMPL(long, global, __sync_fetch_and_and_8)
-IMPL(unsigned long, global, __sync_fetch_and_and_8)
-IMPL(long, local, __sync_fetch_and_and_8)
-IMPL(unsigned long, local, __sync_fetch_and_and_8)
-#endif
-
-#if _CLC_GENERIC_AS_SUPPORTED
-
-#define IMPL_GENERIC(TYPE, FN_NAME) IMPL(TYPE, , FN_NAME)
-
-IMPL_GENERIC(int, __sync_fetch_and_and)
-IMPL_GENERIC(unsigned int, __sync_fetch_and_and)
-
-#ifdef cl_khr_int64_base_atomics
-IMPL_GENERIC(long, __sync_fetch_and_and_8)
-IMPL_GENERIC(unsigned long, __sync_fetch_and_and_8)
-#endif
-
-#endif //_CLC_GENERIC_AS_SUPPORTED
-
-#undef IMPL
+#define __CLC_BODY <atomic_def.inc>
+#include <clc/integer/gentype.inc>
