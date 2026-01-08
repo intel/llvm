@@ -65,6 +65,7 @@
 #include "clang/Driver/ToolChain.h"
 #include "clang/Driver/Types.h"
 #include "clang/Lex/DependencyDirectivesScanner.h"
+#include "clang/Options/OptionUtils.h"
 #include "clang/Options/Options.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/MapVector.h"
@@ -90,6 +91,7 @@
 #include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/LineIterator.h"
+#include "llvm/Support/IOSandbox.h"
 #include "llvm/Support/MD5.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/PrettyStackTrace.h"
@@ -126,40 +128,6 @@ template <typename F> static bool usesInput(const ArgList &Args, F &&Fn) {
             Fn(types::lookupTypeForExtension(
                 &A->getValue()[StringRef(A->getValue()).rfind('.') + 1])));
   });
-}
-
-// static
-std::string Driver::GetResourcesPath(StringRef BinaryPath) {
-  // Since the resource directory is embedded in the module hash, it's important
-  // that all places that need it call this function, so that they get the
-  // exact same string ("a/../b/" and "b/" get different hashes, for example).
-
-  // Dir is bin/ or lib/, depending on where BinaryPath is.
-  StringRef Dir = llvm::sys::path::parent_path(BinaryPath);
-  SmallString<128> P(Dir);
-
-  StringRef ConfiguredResourceDir(CLANG_RESOURCE_DIR);
-  if (!ConfiguredResourceDir.empty()) {
-    // FIXME: We should fix the behavior of llvm::sys::path::append so we don't
-    // need to check for absolute paths here.
-    if (llvm::sys::path::is_absolute(ConfiguredResourceDir))
-      P = ConfiguredResourceDir;
-    else
-      llvm::sys::path::append(P, ConfiguredResourceDir);
-  } else {
-    // On Windows, libclang.dll is in bin/.
-    // On non-Windows, libclang.so/.dylib is in lib/.
-    // With a static-library build of libclang, LibClangPath will contain the
-    // path of the embedding binary, which for LLVM binaries will be in bin/.
-    // ../lib gets us to lib/ in both cases.
-    P = llvm::sys::path::parent_path(Dir);
-    // This search path is also created in the COFF driver of lld, so any
-    // changes here also needs to happen in lld/COFF/Driver.cpp
-    llvm::sys::path::append(P, CLANG_INSTALL_LIBDIR_BASENAME, "clang",
-                            CLANG_VERSION_MAJOR_STRING);
-  }
-
-  return std::string(P);
 }
 
 CUIDOptions::CUIDOptions(llvm::opt::DerivedArgList &Args, const Driver &D)
@@ -2243,6 +2211,8 @@ bool Driver::getCrashDiagnosticFile(StringRef ReproCrashFilename,
   using namespace llvm::sys;
   assert(llvm::Triple(llvm::sys::getProcessTriple()).isOSDarwin() &&
          "Only knows about .crash files on Darwin");
+  // This is not a formal output of the compiler, let's bypass the sandbox.
+  auto BypassSandbox = sandbox::scopedDisable();
 
   // The .crash file can be found on at ~/Library/Logs/DiagnosticReports/
   // (or /Library/Logs/DiagnosticReports for root) and has the filename pattern
@@ -7690,16 +7660,22 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
                                            ? OffloadArch::Generic
                                            : OffloadArch::HIPDefault));
     } else if (Kind == Action::OFK_SYCL) {
+      // Accept legacy `-march` device arguments for SYCL.
       // For SYCL offloading, we need to check the triple for NVPTX or AMDGPU.
       // The default arch is set for NVPTX if not provided.  For AMDGPU, emit
       // an error as the user is responsible to set the arch.
-      if (TC.getTriple().isNVPTX())
-        Archs.insert(OffloadArchToString(OffloadArch::SM_75));
-      else if (TC.getTriple().isAMDGPU())
-        C.getDriver().Diag(clang::diag::err_drv_sycl_missing_amdgpu_arch)
-            << 1 << TC.getTriple().str();
-      else
-        Archs.insert(StringRef());
+      if (auto *Arg = C.getArgsForToolChain(&TC, /*BoundArch=*/"", Kind)
+                          .getLastArg(options::OPT_march_EQ)) {
+        Archs.insert(Arg->getValue());
+      } else {
+        if (TC.getTriple().isNVPTX())
+          Archs.insert(OffloadArchToString(OffloadArch::SM_75));
+        else if (TC.getTriple().isAMDGPU())
+          C.getDriver().Diag(clang::diag::err_drv_sycl_missing_amdgpu_arch)
+              << 1 << TC.getTriple().str();
+        else
+          Archs.insert(StringRef());
+      }
     } else if (Kind == Action::OFK_OpenMP) {
       // Accept legacy `-march` device arguments for OpenMP.
       if (auto *Arg = C.getArgsForToolChain(&TC, /*BoundArch=*/"", Kind)
@@ -7891,15 +7867,24 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
     // Compiling HIP in device-only non-RDC mode requires linking each action
     // individually.
     for (Action *&A : DeviceActions) {
-      // Special handling for the HIP SPIR-V toolchain because it doesn't use
-      // the SPIR-V backend yet doesn't report the output as an object.
       bool IsAMDGCNSPIRV = A->getOffloadingToolChain() &&
                            A->getOffloadingToolChain()->getTriple().getOS() ==
                                llvm::Triple::OSType::AMDHSA &&
                            A->getOffloadingToolChain()->getTriple().isSPIRV();
+      bool UseSPIRVBackend = Args.hasFlag(options::OPT_use_spirv_backend,
+                                          options::OPT_no_use_spirv_backend,
+                                          /*Default=*/false);
+
+      // Special handling for the HIP SPIR-V toolchain in device-only.
+      // The translator path has a linking step, whereas the SPIR-V backend path
+      // does not to avoid any external dependency such as spirv-link. The
+      // linking step is skipped for the SPIR-V backend path.
+      bool IsAMDGCNSPIRVWithBackend = IsAMDGCNSPIRV && UseSPIRVBackend;
+
       if ((A->getType() != types::TY_Object && !IsAMDGCNSPIRV &&
            A->getType() != types::TY_LTO_BC) ||
-          HIPRelocatableObj || !HIPNoRDC || !offloadDeviceOnly())
+          HIPRelocatableObj || !HIPNoRDC || !offloadDeviceOnly() ||
+          (IsAMDGCNSPIRVWithBackend && offloadDeviceOnly()))
         continue;
       ActionList LinkerInput = {A};
       A = C.MakeAction<LinkJobAction>(LinkerInput, types::TY_Image);
@@ -8262,6 +8247,21 @@ Action *Driver::ConstructPhaseAction(
       }
       return C.MakeAction<BackendJobAction>(Input, Output);
     }
+    bool UseSPIRVBackend = Args.hasFlag(options::OPT_use_spirv_backend,
+                                        options::OPT_no_use_spirv_backend,
+                                        /*Default=*/false);
+
+    auto OffloadingToolChain = Input->getOffloadingToolChain();
+    // For AMD SPIRV, if offloadDeviceOnly(), we call the SPIRV backend unless
+    // LLVM bitcode was requested explicitly or RDC is set. If
+    // !offloadDeviceOnly, we emit LLVM bitcode, and clang-linker-wrapper will
+    // compile it to SPIRV.
+    bool UseSPIRVBackendForHipDeviceOnlyNoRDC =
+        TargetDeviceOffloadKind == Action::OFK_HIP && OffloadingToolChain &&
+        OffloadingToolChain->getTriple().isSPIRV() && UseSPIRVBackend &&
+        offloadDeviceOnly() &&
+        !Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc, false);
+
     if (Args.hasArg(options::OPT_emit_llvm) ||
         (TargetDeviceOffloadKind == Action::OFK_SYCL &&
          C.getDriver().getUseNewOffloadingDriver()) ||
@@ -8269,6 +8269,7 @@ Action *Driver::ConstructPhaseAction(
            Input->getOffloadingToolChain()->getTriple().isAMDGPU() &&
            TargetDeviceOffloadKind != Action::OFK_None) ||
           TargetDeviceOffloadKind == Action::OFK_HIP) &&
+         !UseSPIRVBackendForHipDeviceOnlyNoRDC &&
          ((Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
                         false) ||
            (Args.hasFlag(options::OPT_offload_new_driver,
@@ -8290,6 +8291,19 @@ Action *Driver::ConstructPhaseAction(
               : types::TY_LLVM_BC;
       return C.MakeAction<BackendJobAction>(Input, Output);
     }
+
+    // The SPIRV backend compilation path for HIP must avoid external
+    // dependencies. The default compilation path assembles and links its
+    // output, but the SPIRV assembler and linker are external tools. This code
+    // ensures the backend emits binary SPIRV directly to bypass those steps and
+    // avoid failures. Without -save-temps, the compiler may already skip
+    // assembling and linking. With -save-temps, these steps must be explicitly
+    // disabled, as done here. We also force skipping these steps regardless of
+    // -save-temps to avoid relying on optimizations (unless -S is set).
+    // The current HIP bundling expects the type to be types::TY_Image
+    if (UseSPIRVBackendForHipDeviceOnlyNoRDC && !Args.hasArg(options::OPT_S))
+      return C.MakeAction<BackendJobAction>(Input, types::TY_Image);
+
     return C.MakeAction<BackendJobAction>(Input, types::TY_PP_Asm);
   }
   case phases::Assemble:

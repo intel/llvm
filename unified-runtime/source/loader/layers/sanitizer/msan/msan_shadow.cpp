@@ -389,9 +389,8 @@ ur_result_t MsanShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
       LastAllocedSize = 0;
     }
 
-    UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-        Context, Device, nullptr, nullptr, RequiredShadowSize,
-        (void **)&LocalShadowOffset));
+    UR_CALL(SafeAllocate(Context, Device, RequiredShadowSize, nullptr, nullptr,
+                         AllocType::DEVICE_USM, (void **)&LocalShadowOffset));
 
     // Initialize shadow memory
     ur_result_t URes =
@@ -435,9 +434,9 @@ ur_result_t MsanShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
 
       ur_usm_desc_t PrivateBaseProps{UR_STRUCTURE_TYPE_USM_DESC, nullptr,
                                      UR_USM_ADVICE_FLAG_DEFAULT, sizeof(uptr)};
-      UR_CALL_THROWS(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-          Context, Device, &PrivateBaseProps, nullptr, NewPrivateBaseSize,
-          (void **)&PrivateBasePtr));
+      UR_CALL_THROWS(SafeAllocate(
+          Context, Device, NewPrivateBaseSize, &PrivateBaseProps, nullptr,
+          AllocType::DEVICE_USM, (void **)&PrivateBasePtr));
 
       // No need to clean the shadow base, their should be set by work item on
       // launch
@@ -456,9 +455,9 @@ ur_result_t MsanShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
         LastPrivateShadowAllocedSize = 0;
       }
 
-      UR_CALL_THROWS(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-          Context, Device, nullptr, nullptr, NewPrivateShadowSize,
-          (void **)&PrivateShadowOffset));
+      UR_CALL_THROWS(SafeAllocate(Context, Device, NewPrivateShadowSize,
+                                  nullptr, nullptr, AllocType::DEVICE_USM,
+                                  (void **)&PrivateShadowOffset));
       LastPrivateShadowAllocedSize = NewPrivateShadowSize;
       UR_CALL_THROWS(EnqueueUSMSetZero(Queue, (void *)PrivateShadowOffset,
                                        NewPrivateShadowSize));

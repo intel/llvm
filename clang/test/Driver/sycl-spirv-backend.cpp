@@ -9,7 +9,7 @@
 // CHECK-SAME:,+SPV_EXT_shader_atomic_float_add
 // CHECK-SAME:,+SPV_EXT_shader_atomic_float_min_max
 // CHECK-SAME:,+SPV_INTEL_2d_block_io
-// CHECK-SAME:,+SPV_INTEL_arbitrary_precision_integers
+// CHECK-SAME:,+SPV_ALTERA_arbitrary_precision_integers
 // CHECK-SAME:,+SPV_INTEL_bfloat16_conversion
 // CHECK-SAME:,+SPV_INTEL_bindless_images
 // CHECK-SAME:,+SPV_INTEL_cache_controls
@@ -22,6 +22,7 @@
 // CHECK-SAME:,+SPV_INTEL_subgroups
 // CHECK-SAME:,+SPV_INTEL_tensor_float32_conversion
 // CHECK-SAME:,+SPV_INTEL_variable_length_array
+// CHECK-SAME:,+SPV_INTEL_memory_access_aliasing
 // CHECK-SAME:,+SPV_KHR_16bit_storage
 // CHECK-SAME:,+SPV_KHR_cooperative_matrix
 // CHECK-SAME:,+SPV_KHR_expect_assume
