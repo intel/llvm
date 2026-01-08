@@ -118,11 +118,8 @@ bool kernel_impl::hasSYCLMetadata() const noexcept {
 
 // TODO this is how kernel_impl::get_info<function_name> should behave instead.
 std::string_view kernel_impl::getName() const {
-  static std::once_flag NameInitFlag;
-  while (MName.empty()) {
-    std::call_once(NameInitFlag,
-                   [&]() { MName = get_info<info::kernel::function_name>(); });
-  }
+  std::call_once(MNameInitFlag,
+                 [&]() { MName = get_info<info::kernel::function_name>(); });
 
   return MName;
 }
