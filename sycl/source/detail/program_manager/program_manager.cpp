@@ -618,7 +618,7 @@ static bool checkLinkingSupport(const device_impl &DeviceImpl,
     return true;
   }
   if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) {
-    return DeviceImpl.is_gpu() && DeviceImpl.getBackend() == backend::opencl;
+    return DeviceImpl.is_gpu();
   }
   return false;
 }
