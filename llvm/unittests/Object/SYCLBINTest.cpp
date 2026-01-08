@@ -186,20 +186,21 @@ void CommonCheck() {
     case ImageKind::IMG_SPIRV:
       // The kind is currently locked to SPIR-V. This will change in the future.
       ++ObservedIRModules;
+      // Make sure the triple string is preserved.
+      EXPECT_EQ(OBPtr->getString("triple"), StringRef(IRMTarget));
       break;
     case ImageKind::IMG_Object:
       ++ObservedNativeDeviceCodeImages;
       // Make sure the arch string is preserved.
       EXPECT_EQ(OBPtr->getString("arch"), StringRef(Arch));
+      // Make sure the triple string is preserved.
+      EXPECT_EQ(OBPtr->getString("triple"), StringRef(NDCITarget));
       break;
     default:
       FAIL() << "Unexpected ImageKind: "
              << static_cast<int>(OBPtr->getImageKind());
       break;
     }
-
-    // Make sure the triple string is preserved.
-    EXPECT_EQ(OBPtr->getString("triple"), StringRef(IRMTarget));
 
     // Find the image that matches.
     std::vector<uint8_t> IRImage{OBPtr->getImage().begin(),

@@ -126,7 +126,7 @@ Expected<std::unique_ptr<PropertySetRegistry>> PropertySetRegistry::read(
 
     // Skip empty categories or non-property values.
     if (PropertiesStr.empty() ||
-        !(Category.starts_with("SYCL/") || !Category.starts_with("SYCLBIN/")))
+        !(Category.starts_with("SYCL/") || Category.starts_with("SYCLBIN/")))
       continue;
 
     PropertySet &CurPropSet = (*Res)[Category];
