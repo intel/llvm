@@ -883,11 +883,17 @@ if __name__ == "__main__":
         log.warning(f"Failed to fetch device architecture: {e}")
         log.warning("Defaulting to generic benchmark parameters.")
         execution_stats["warnings"] += 1
+    finally:
+        log.info(f"Selected device architecture: {options.device_architecture}")
 
-    log.info(f"Selected device architecture: {options.device_architecture}")
     if options.ur_adapter:
         log.info(f"Selected adapter (to force load): {options.ur_adapter}")
-    if warn_if_level_zero_is_not_found(additional_env_vars):
+
+    try:
+        if warn_if_level_zero_is_not_found(additional_env_vars):
+            execution_stats["warnings"] += 1
+    except Exception as e:
+        log.warning(f"Failed to check Level Zero and GPU presence: {e}")
         execution_stats["warnings"] += 1
 
     main(

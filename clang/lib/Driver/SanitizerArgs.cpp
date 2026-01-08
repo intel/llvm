@@ -359,7 +359,7 @@ bool SanitizerArgs::needsFuzzerInterceptors() const {
 bool SanitizerArgs::needsUbsanRt() const {
   // All of these include ubsan.
   if (needsAsanRt() || needsMsanRt() || needsNsanRt() || needsHwasanRt() ||
-      needsTsanRt() || needsDfsanRt() || needsLsanRt() ||
+      needsTsanRt() || needsDfsanRt() || needsLsanRt() || needsTysanRt() ||
       needsCfiCrossDsoDiagRt() || (needsScudoRt() && !requiresMinimalRuntime()))
     return false;
 
@@ -420,6 +420,7 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
   const Driver &D = TC.getDriver();
   SanitizerMask TrappingKinds = parseSanitizeTrapArgs(D, Args, DiagnoseErrors);
   SanitizerMask InvalidTrappingKinds = TrappingKinds & NotAllowedWithTrap;
+  const llvm::Triple &Triple = TC.getTriple();
 
   MinimalRuntime =
       Args.hasFlag(options::OPT_fsanitize_minimal_runtime,
@@ -427,7 +428,8 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
   HandlerPreserveAllRegs =
       Args.hasFlag(options::OPT_fsanitize_handler_preserve_all_regs,
                    options::OPT_fno_sanitize_handler_preserve_all_regs,
-                   HandlerPreserveAllRegs);
+                   HandlerPreserveAllRegs) &&
+      MinimalRuntime && (Triple.isAArch64() || Triple.isX86_64());
 
   // The object size sanitizer should not be enabled at -O0.
   Arg *OptLevel = Args.getLastArg(options::OPT_O_Group);
@@ -495,7 +497,6 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
       // -fsanitize=function and -fsanitize=kcfi instrument indirect function
       // calls to load a type hash before the function label. Therefore, an
       // execute-only target doesn't support the function and kcfi sanitizers.
-      const llvm::Triple &Triple = TC.getTriple();
       if (isExecuteOnlyTarget(Triple, Args)) {
         if (SanitizerMask KindsToDiagnose =
                 Add & NotAllowedWithExecuteOnly & ~DiagnosedKinds) {
