@@ -105,7 +105,8 @@ template <> struct DenseMapInfo<COW_OffloadKind> {
   }
 
   static inline COW_OffloadKind getTombstoneKey() {
-    return static_cast<COW_OffloadKind>(DenseMapInfo<unsigned>::getTombstoneKey());
+    return static_cast<COW_OffloadKind>(
+        DenseMapInfo<unsigned>::getTombstoneKey());
   }
 
   static unsigned getHashValue(const COW_OffloadKind &Val) {
@@ -1234,10 +1235,10 @@ private:
     // Get RegFuncName function declaration.
     auto *RegFuncTy = FunctionType::get(Type::getVoidTy(C), getPtrTy(),
                                         /*isVarArg=*/false);
-    FunctionCallee RegFuncC =
-        M.getOrInsertFunction(Kind == COW_OffloadKind::SYCL ? "__sycl_register_lib"
-                                                        : "__tgt_register_lib",
-                              RegFuncTy);
+    FunctionCallee RegFuncC = M.getOrInsertFunction(
+        Kind == COW_OffloadKind::SYCL ? "__sycl_register_lib"
+                                      : "__tgt_register_lib",
+        RegFuncTy);
 
     // Construct function body
     IRBuilder<> Builder(BasicBlock::Create(C, "entry", Func));
@@ -1265,7 +1266,7 @@ private:
                                           /*isVarArg=*/false);
     FunctionCallee UnRegFuncC = M.getOrInsertFunction(
         Kind == COW_OffloadKind::SYCL ? "__sycl_unregister_lib"
-                                  : "__tgt_unregister_lib",
+                                      : "__tgt_unregister_lib",
         UnRegFuncTy);
 
     // Construct function body

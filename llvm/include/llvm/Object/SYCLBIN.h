@@ -93,7 +93,7 @@ public:
 private:
   SYCLBIN(SmallVector<std::unique_ptr<OffloadBinary>> OB)
       : OffloadBinaries(std::move(OB)) {}
-  
+
   Error initMetadata();
 
   SmallVector<std::unique_ptr<OffloadBinary>> OffloadBinaries;

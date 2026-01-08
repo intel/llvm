@@ -150,7 +150,7 @@ int main(int argc, char **argv) {
     OS << "Image Kind: "
        << llvm::object::getImageKindName(OBPtr->getImageKind()) << "\n";
     OS << "Triple: " << OBPtr->getString("triple") << "\n";
-    OS << "Arch: " << OBPtr->getString("Arch") << "\n";
+    OS << "Arch: " << OBPtr->getString("arch") << "\n";
 
     OS << "Metadata:\n";
     PrintProperties(OS, *ParsedSYCLBIN->Metadata[OBPtr.get()]);
