@@ -1,7 +1,5 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-
-
 //
 //==---------- subbuffer.cpp --- sub-buffer basic test ---------------------==//
 //
@@ -124,10 +122,9 @@ void check1DSubBuffer(sycl::queue &q) {
   }
 
   // check buffer data in the area of the subbuffer
-  // OCL:GPU confused   =>  320 330 340 -350 -360 -370 -380 39   40   41
-  // every other device =>  320 330 340 -350 -360 -370 -380 -390 -400 -410
+  // vec buffer result =>  320 330 340 -350 -360 -370 -380 -390 -400 -410
   for (int i = offset; i < offset + subbuf_size; ++i)
-    assert(vec[i] == (i < offset + offset_inside_subbuf ? i * 10 : i * -10) &&
+    assert(vec[i] ==  i * -10 &&
            "Invalid result in buffer overlapped by 1d sub buffer");
 
   // check buffer data in the area OUTSIDE the subbuffer
@@ -140,10 +137,9 @@ void check1DSubBuffer(sycl::queue &q) {
   }
 
   // check the copy of the subbuffer data after the first operation
-  // OCL:GPU        => 32 33 34 -35 -36 -37 -38 0   0   0
-  // everyone else  => 32 33 34 -35 -36 -37 -38 -39 -40 -41
+  // vec2 buffer result  => 32 33 34 -35 -36 -37 -38 -39 -40 -41
   for (int i = 0; i < subbuf_size; ++i)
-    assert(vec2[i] == (i < 3 ? (offset + i) : (offset + i) * -1) &&
+    assert(vec2[i] == (offset + i) * -1 &&
            "Invalid result in captured 1d sub buffer, vec2");
 }
 
