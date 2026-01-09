@@ -124,7 +124,7 @@ void check1DSubBuffer(sycl::queue &q) {
   // check buffer data in the area of the subbuffer
   // vec buffer result =>  320 330 340 -350 -360 -370 -380 -390 -400 -410
   for (int i = offset; i < offset + subbuf_size; ++i)
-    assert(vec[i] ==  i * -10 &&
+    assert(vec[i] == i * -10 &&
            "Invalid result in buffer overlapped by 1d sub buffer");
 
   // check buffer data in the area OUTSIDE the subbuffer
