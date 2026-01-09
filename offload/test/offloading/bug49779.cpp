@@ -5,7 +5,7 @@
 
 // We need malloc/global_alloc support
 // UNSUPPORTED: amdgcn-amd-amdhsa
-// UNSUPPORTED: amdgcn-amd-amdhsa-oldDriver
+// XFAIL: intelgpu
 
 #include <cassert>
 #include <iostream>
