@@ -1400,7 +1400,7 @@ void EmitAssemblyHelper::RunCodegenPipeline(
       createTargetTransformInfoWrapperPass(getTargetIRAnalysis()));
   // Add LibraryInfo.
   std::unique_ptr<TargetLibraryInfoImpl> TLII(
-      llvm::driver::createTLII(TargetTriple, CodeGenOpts.getVecLib()));
+      createTLII(TargetTriple, CodeGenOpts));
   CodeGenPasses.add(new TargetLibraryInfoWrapperPass(*TLII));
 
   const llvm::TargetOptions &Options = TM->Options;
