@@ -255,6 +255,7 @@ private:
   const KernelArgMask *MKernelArgMaskPtr;
   std::mutex *MCacheMutex = nullptr;
   mutable std::string MName;
+  mutable std::once_flag MNameInitFlag;
 
   // Used for images that aren't obtained with standard SYCL offline
   // compilation.

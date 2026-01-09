@@ -99,6 +99,10 @@ class GromacsBench(Suite):
         )
 
 
+# FIXME: This benchmark is disabled in "Full" and "Normal" presets due to CI issues:
+# - OneApi version seems to be incompatible with Gromacs build, even if 2025.3 was used...
+#
+# If you wish to run this benchmark (e.g. for debugging), use preset "Gromacs".
 class GromacsBenchmark(Benchmark):
     def __init__(self, suite, model, type, option):
         self.suite = suite

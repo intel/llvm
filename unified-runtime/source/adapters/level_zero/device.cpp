@@ -1307,7 +1307,12 @@ ur_result_t urDeviceGetInfo(
 #endif
   }
   case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP:
+#ifdef _WIN32
+    // TODO: Remove when IPC memory works in UMF on Windows.
+    return ReturnValue(false);
+#else
     return ReturnValue(true);
+#endif
   case UR_DEVICE_INFO_ASYNC_BARRIER:
     return ReturnValue(false);
   case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT:

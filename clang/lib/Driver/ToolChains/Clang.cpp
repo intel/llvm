@@ -10548,6 +10548,7 @@ static void getSPIRVBackendOpts(const llvm::opt::ArgList &TCArgs,
                             ",+SPV_INTEL_subgroups"
                             ",+SPV_INTEL_tensor_float32_conversion"
                             ",+SPV_INTEL_variable_length_array"
+                            ",+SPV_INTEL_memory_access_aliasing"
                             ",+SPV_INTEL_global_variable_host_access";
   std::string KHRExtArg = ",+SPV_KHR_16bit_storage"
                           ",+SPV_KHR_cooperative_matrix"
@@ -10644,6 +10645,7 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
       ",+SPV_KHR_cooperative_matrix"
       ",+SPV_EXT_shader_atomic_float16_add"
       ",+SPV_INTEL_fp_max_error"
+      ",+SPV_INTEL_memory_access_aliasing"
       ",+SPV_INTEL_global_variable_host_access";
 
   TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));

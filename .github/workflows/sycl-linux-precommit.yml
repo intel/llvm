@@ -26,6 +26,7 @@ on:
     - '.github/workflows/sycl-rel-nightly-launch.yml'
     - '.github/workflows/sycl-trivy.yml'
     - '.github/workflows/sycl-coverity.yml'
+    - '.github/workflows/sycl-weekly.yml'
     - 'devops/containers/**'
     - 'devops/actions/build_container/**'
     - 'unified-runtime/examples/**'
@@ -165,22 +166,11 @@ jobs:
             extra_lit_opts: -j 1
           - name: Intel / Arc A-Series Graphics
             runner: '["Linux", "arc"]'
-            target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
-          - name: Intel Dev IGC / Arc A-Series Graphics
-            runner: '["Linux", "arc"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
-            target_devices: level_zero:gpu
-            use_igc_dev: true
+            target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu         
             env: '{"LIT_FILTER":"Matrix/"}'
           - name: Intel / Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
             target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
-          - name: Intel Dev IGC / Ponte Vecchio GPU
-            runner: '["Linux", "pvc"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
-            target_devices: level_zero:gpu
-            use_igc_dev: true
-            env: '{"LIT_FILTER":"Matrix/"}'
           - name: Intel / Battlemage Graphics
             runner: '["Linux", "bmg"]'
             target_devices: level_zero_v1:gpu;level_zero_v2:gpu
@@ -189,6 +179,10 @@ jobs:
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             extra_lit_opts: --param test-preview-mode=True
             binaries_artifact: e2e_bin_preview
+          - name: Intel / ARL with L0 v2
+            runner: '["Linux", "arl"]'
+            target_devices: level_zero_v2:arch-intel_gpu_mtl_u
+            extra_lit_opts: --param test-preview-mode=True
 
           # We're in an ABI-breaking window, so these don't make sense for now.
           - name: ABI compatibility / sycl-rel-6_2
@@ -226,14 +220,7 @@ jobs:
         ${{ !contains(matrix.target_devices, 'cuda') &&
         !contains(matrix.target_devices, 'hip') &&
         contains(needs.detect_changes.outputs.filters, 'drivers') }}
-      install_dev_igc_driver: >-
-        ${{ !contains(matrix.target_devices, 'cuda') &&
-        !contains(matrix.target_devices, 'hip') &&
-        matrix.use_igc_dev &&
-        (contains(needs.detect_changes.outputs.filters, 'devigccfg') || contains(needs.detect_changes.outputs.filters, 'drivers')) ||
-        'false' }}
-      # Run only if the PR does not have the 'ci-no-devigc' label.
-      skip_run: ${{matrix.use_igc_dev && contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') || matrix.skip_run || 'false'}}
+      skip_run: ${{ matrix.skip_run || 'false' }}
       env: ${{ matrix.env || (contains(needs.detect_changes.outputs.filters, 'esimd') && '{}' || '{"LIT_FILTER_OUT":"ESIMD/"}') }}
 
   test-perf:

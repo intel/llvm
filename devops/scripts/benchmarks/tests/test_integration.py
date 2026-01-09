@@ -189,8 +189,8 @@ class TestE2E(unittest.TestCase):
 
     def test_submit_kernel(self):
         self._checkCase(
-            "api_overhead_benchmark_l0 SubmitKernel out of order with measure completion KernelExecTime=20",
-            "SubmitKernel out of order with completion using events long kernel",
+            "api_overhead_benchmark_l0 SubmitKernel out of order with measure completion",
+            "SubmitKernel out of order with completion using events",
             {"L0", "latency", "micro", "submit"},
         )
 
