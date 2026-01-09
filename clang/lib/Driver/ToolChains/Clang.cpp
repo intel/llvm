@@ -11278,11 +11278,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       }
 
       if (Kind == Action::OFK_SYCL) {
-        // SYCL requires special processing to add target-specific arguments by
-        // calling AddImpliedTargetArgs, which takes BaseCompilerArgs (filtered
-        // Arg objects) and derives CompilerArgs (final argument strings) based
-        // on target triple, debug settings, optimization levels, and
-        // device-specific requirements.
+        // Add implied SYCL target arguments to `CompilerArgs`
+        // based on the selected target.
         const toolchains::SYCLToolChain &SYCLTC =
             static_cast<const toolchains::SYCLToolChain &>(*TC);
         const ToolChain *HostTC =
