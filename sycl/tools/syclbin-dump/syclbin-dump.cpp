@@ -120,14 +120,17 @@ int main(int argc, char **argv) {
 
   // If direct SYCLBIN parsing failed, try parsing as OffloadBinary wrapper.
   if (!SYCLBINPtrOrErr) {
-    consumeError(SYCLBINPtrOrErr.takeError());
+    Error FirstError = SYCLBINPtrOrErr.takeError();
     auto OffloadBinaryVecOrError =
         llvm::object::OffloadBinary::create(**FileMemBufferOrError);
     if (!OffloadBinaryVecOrError) {
-      errs() << "Failed to parse SYCLBIN file: "
+      errs() << "Failed to parse SYCLBIN file: " << FirstError
+             << " Failed to parse Offload Binary: "
              << OffloadBinaryVecOrError.takeError() << "\n";
       std::abort();
     }
+
+    consumeError(std::move(FirstError));
 
     SYCLBINPtrOrErr = llvm::object::SYCLBIN::read(
         MemoryBufferRef(OffloadBinaryVecOrError->front()->getImage(), ""));
@@ -145,12 +148,14 @@ int main(int argc, char **argv) {
   PrintProperties(OS, *(ParsedSYCLBIN->GlobalMetadata));
 
   for (const auto &OBPtr : ParsedSYCLBIN->getOffloadBinaries()) {
+    if (OBPtr->getFlags() & llvm::object::OIF_NoImage)
+      continue;
     OS << "Abstract Module ID: "
        << OBPtr->getString("syclbin_abstract_module_id") << "\n";
     OS << "Image Kind: "
-       << llvm::object::getImageKindName(OBPtr->getImageKind()) << "\n";
-    OS << "Triple: " << OBPtr->getString("triple") << "\n";
-    OS << "Arch: " << OBPtr->getString("arch") << "\n";
+       << llvm::object::getImageKindName(OBPtr->getImageKind()).str() << "\n";
+    OS << "Triple: " << OBPtr->getString("triple").str() << "\n";
+    OS << "Arch: " << OBPtr->getString("arch").str() << "\n";
 
     OS << "Metadata:\n";
     PrintProperties(OS, *ParsedSYCLBIN->Metadata[OBPtr.get()]);

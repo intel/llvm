@@ -196,6 +196,9 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
                              "Valid Offload Binary, but not SYCLBIN.");
   }
 
+  // Consume the error from new format parsing before trying legacy format.
+  consumeError(OffloadBinariesOrErr.takeError());
+
   // Try to read SYCLBIN in legacy format for backward compatibility
   // After reading, it will be written in OffloadBinary format and read again.
   if (Source.getBufferSize() < sizeof(FileHeaderType))
@@ -423,6 +426,12 @@ Error SYCLBIN::initMetadata() {
 
     Metadata[OBPtr.get()] = std::move(*ErrorOrProperties);
   }
+
+  // Ensure GlobalMetadata is always initialized, even if no global metadata
+  // entry was found.
+  if (!GlobalMetadata)
+    GlobalMetadata = std::make_unique<llvm::util::PropertySetRegistry>();
+
   return Error::success();
 }
 
