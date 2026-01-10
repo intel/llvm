@@ -36,6 +36,9 @@ void force_type(info::device_type &t, const info::device_type &ft) {
 
 device::device() : device(default_selector_v) {}
 
+device::device(const device &rhs) = default;
+device::device(device &&rhs) = default;
+
 device::device(cl_device_id DeviceId) {
   detail::adapter_impl &Adapter =
       sycl::detail::ur::getAdapter<backend::opencl>();
