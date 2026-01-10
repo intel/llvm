@@ -2706,27 +2706,13 @@ ur_result_t enqueueImpCommandBufferKernel(
   const std::optional<int> &ImplicitLocalArg =
       CommandGroup.MDeviceKernelInfo.getImplicitLocalArgPos();
 
-#if 0
-    	  DeviceKernelInfo.getImplicitLocalArgPos();
-      ProgramManager::getInstance().kernelImplicitLocalArgPos(
-          CommandGroup.MDeviceKernelInfo.Name);
-#endif
   // Set the implicit local memory buffer to support
   // get_work_group_scratch_memory. This is for backend not supporting
   // CUDA-style local memory setting. Note that we may have -1 as a position,
   // this indicates the buffer is actually unused and was elided.
   if (ImplicitLocalArg.has_value() && ImplicitLocalArg.value() != -1) {
-#if 0
-      	  Args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
-                    nullptr,
-                    UR_EXP_KERNEL_ARG_TYPE_LOCAL,
-                    static_cast<uint32_t>(ImplicitLocalArg.value()),
-                    WorkGroupMemorySize,
-                    {nullptr}});
-#else
     Adapter.call<UrApiKind::urKernelSetArgLocal>(
         UrKernel, ImplicitLocalArg.value(), WorkGroupMemorySize, nullptr);
-#endif
   }
 
   // Remember this information before the range dimensions are reversed
