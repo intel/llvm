@@ -107,9 +107,9 @@ public:
 
   bool operator!=(const device &rhs) const { return !(*this == rhs); }
 
-  device(const device &rhs) = default;
+  device(const device &rhs);
 
-  device(device &&rhs) = default;
+  device(device &&rhs);
 
   device &operator=(const device &rhs) = default;
 
