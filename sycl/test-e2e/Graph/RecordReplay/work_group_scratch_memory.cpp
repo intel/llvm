@@ -8,6 +8,7 @@
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
 // XFAIL: hip
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16072
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
