@@ -692,8 +692,7 @@ detail::EventImplPtr handler::finalize() {
 
     } else {
       detail::queue_impl &Queue = impl->get_queue();
-      bool DiscardEvent = !impl->MEventNeeded &&
-                          Queue.supportsDiscardingPiEvents() &&
+      bool DiscardEvent = !impl->MEventNeeded && Queue.isInOrder() &&
                           !impl->MExecGraph->containsHostTask();
       auto [GraphCompletionEvent, Unused] = impl->MExecGraph->enqueue(
           Queue, std::move(impl->CGData), !DiscardEvent);
@@ -770,7 +769,7 @@ detail::EventImplPtr handler::finalize() {
   // could have been bypassed (not supported yet), the event can be skipped.
   bool DiscardEvent =
       (type != detail::CGType::Kernel && KernelSchedulerBypass &&
-       !impl->MEventNeeded && Queue->supportsDiscardingPiEvents());
+       !impl->MEventNeeded && Queue->isInOrder());
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
       std::move(CommandGroup), *Queue, !DiscardEvent);

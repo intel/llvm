@@ -399,7 +399,7 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
     RawEvents = detail::Command::getUrEvents(DepEvents, this, false);
   }
 
-  bool DiscardEvent = !EventNeeded && supportsDiscardingPiEvents();
+  bool DiscardEvent = !EventNeeded && isInOrder();
   std::shared_ptr<detail::event_impl> ResultEvent =
       DiscardEvent ? nullptr : detail::event_impl::create_device_event(*this);
 
@@ -604,7 +604,7 @@ EventImplPtr queue_impl::submit_graph_direct_impl(
     bool CallerNeedsEvent, sycl::span<const event> DepEvents,
     [[maybe_unused]] const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
   bool EventNeeded = CallerNeedsEvent || ExecGraph->containsHostTask() ||
-                     !supportsDiscardingPiEvents();
+                     !isInOrder();
   auto SubmitGraphFunc = [&](detail::CG::StorageInitHelper &&CGData)
       -> std::pair<EventImplPtr, bool> {
     if (auto ParentGraph = getCommandGraph(); ParentGraph) {
@@ -732,7 +732,7 @@ event queue_impl::submitWithHandler(const std::vector<event> &DepEvents,
   };
   detail::type_erased_cgfo_ty CGF{L};
 
-  if (!CallerNeedsEvent && supportsDiscardingPiEvents()) {
+  if (!CallerNeedsEvent && isInOrder()) {
     submit_without_event(CGF, SI,
                          /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
     return createSyclObjFromImpl<event>(event_impl::create_discarded_event());
