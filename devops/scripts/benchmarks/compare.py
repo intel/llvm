@@ -1,4 +1,4 @@
-# Copyright (C) 2024-2025 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -15,9 +15,6 @@ from utils.validate import Validate
 from utils.result import BenchmarkRun
 from utils.logger import log, initialize_logger
 from options import options
-
-
-verbose = False
 
 
 @dataclass
@@ -66,12 +63,12 @@ class Compare:
             result_name (str): Name of benchmarking result to obtain average for
             result_dir (str): Path to folder containing benchmark results
             cutoff (str): Timestamp in YYYYMMDD_HHMMSS of oldest results used in
-            average calcultaion
+                average calculation
             hostname (str): Hostname of machine on which results ran on
             aggregator (Aggregator): The aggregator to use for calculating the
-            historic average
+                historic average
             exclude (list[str]): List of filenames (only the stem) to exclude
-            from average calculation
+                from average calculation
 
         Returns:
             A dictionary mapping benchmark names to BenchmarkHistoricAverage
@@ -242,17 +239,17 @@ class Compare:
         cutoff: str,
     ) -> tuple:
         """
-        Pregenerate a historic average from results named result_name in
+        Regenerate a historic average from results named result_name in
         result_dir, and compares the results in compare_file to it
 
         Args:
             result_name (str): Save name of the result
-            compare_name (str): Result file name to compare historic average against
+            compare_file (str): Result file name to compare historic average against
             result_dir (str): Directory to look for results in
             cutoff (str): Timestamp (in YYYYMMDD_HHMMSS) indicating the oldest
-            result included in the historic average calculation
+                result included in the historic average calculation
             avg_type (str): Type of "average" (measure of central tendency) to
-            use in historic "average" calculation
+                use in historic "average" calculation
 
         Returns:
             A tuple returning (list of improved tests, list of regressed tests).
