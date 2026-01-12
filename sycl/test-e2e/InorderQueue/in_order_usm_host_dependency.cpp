@@ -1,6 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21025
+
 // Test checks that dependency chain between commands is preserved for in-order
 // queue in the case when usm commands and host tasks are interleaved.
 

@@ -7,11 +7,14 @@
 // XFAIL: gpu-intel-dg2
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/18576
 
-// XFAIL: linux && run-mode && arch-intel_gpu_bmg_g21 && !igc-dev
+// XFAIL: linux && run-mode && arch-intel_gpu_bmg_g21
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/18576
 
 // XFAIL: windows && arch-intel_gpu_bmg_g21
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/18576
+
+// XFAIL: linux && arch-intel_gpu_mtl_u
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20896
 
 // RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 

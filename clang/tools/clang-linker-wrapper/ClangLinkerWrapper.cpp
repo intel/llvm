@@ -721,8 +721,12 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
 /// 'Args' encompasses all arguments required for linking and wrapping device
 /// code and will be parsed to generate options required to be passed into the
 /// sycl-post-link tool.
+/// 'IsDevicePassedWithSyclTargetBackend' indicates whether the device
+/// architecture is already specified through -Xsycl-target-backend=spir64_gen
+/// "-device <arch>" format.
 static Expected<std::vector<module_split::SplitModule>>
-runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
+runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args,
+                    bool IsDevicePassedWithSyclTargetBackend) {
   Expected<std::string> SYCLPostLinkPath =
       findProgram("sycl-post-link", {getMainExecutable("sycl-post-link")});
   if (!SYCLPostLinkPath)
@@ -737,14 +741,11 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
 
   // Enable the driver to invoke sycl-post-link with the device architecture
   // when Intel GPU targets are passed in -fsycl-targets.
-  // OPT_gpu_tool_arg_EQ is checked to ensure the device architecture is not
-  // passed through -Xsycl-target-backend=spir64_gen "-device <arch>" format
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
-  StringRef IsGPUTool = Args.getLastArgValue(OPT_gpu_tool_arg_EQ);
 
   if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen && !Arch.empty() &&
-      IsGPUTool.empty() && Arch != "*")
+      !IsDevicePassedWithSyclTargetBackend && Arch != "*")
     OutputPathWithArch = "intel_gpu_" + Arch.str() + "," + OutputPathWithArch;
   else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
     OutputPathWithArch = "spir64_x86_64," + OutputPathWithArch;
@@ -908,7 +909,8 @@ getTripleBasedSPIRVTransOpts(const ArgList &Args,
       ",+SPV_KHR_non_semantic_info"
       ",+SPV_KHR_cooperative_matrix"
       ",+SPV_EXT_shader_atomic_float16_add"
-      ",+SPV_INTEL_fp_max_error";
+      ",+SPV_INTEL_fp_max_error"
+      ",+SPV_INTEL_memory_access_aliasing";
   TranslatorArgs.push_back(Args.MakeArgString(ExtArg));
 }
 
@@ -951,8 +953,8 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
 
 /// Adds all AOT backend options required for SYCL AOT compilation step to
 /// \p CmdArgs.
-/// \p Args encompasses all arguments required for linking and wrapping device
-/// code.
+/// \p Args is passed to provide MakeArgString function for creating persistent
+/// argument string storage.
 /// \p IsCPU is a bool used to distinguish whether the target is an Intel GPU or
 /// Intel CPU.
 /// \p BackendOptions is a string containing backend compilation options. For
@@ -988,11 +990,6 @@ static void addSYCLBackendOptions(const ArgList &Args,
       CmdArgs.push_back(Args.MakeArgString(JoinedOptions));
     }
   }
-
-  StringRef OptTool = (IsCPU) ? Args.getLastArgValue(OPT_cpu_tool_arg_EQ)
-                              : Args.getLastArgValue(OPT_gpu_tool_arg_EQ);
-  OptTool.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-  return;
 }
 
 /// Run AOT compilation for Intel CPU.
@@ -2176,6 +2173,42 @@ extractSYCLCompileLinkOptions(ArrayRef<OffloadFile> OffloadFiles) {
   return std::make_pair(std::string(RefCompileOpts), std::string(RefLinkOpts));
 }
 
+// Append SYCL device compiler and linker options specified at link time,
+// filtering by target triple and offload kind.
+// TODO: Consider how to refactor this function to merge it with getLinkerArgs()
+// and determine if it's possible to use OPT_compiler_arg_EQ and
+// OPT_linker_arg_EQ to handle device compiler/linker options
+static void appendSYCLDeviceOptionsAtLinkTime(const DerivedArgList &LinkerArgs,
+                                              std::string &CompileOptions,
+                                              std::string &LinkOptions) {
+  const StringRef TripleStr = LinkerArgs.getLastArgValue(OPT_triple_EQ);
+  auto processDeviceArgs = [&](unsigned OptID, std::string &Options) {
+    for (StringRef Arg : LinkerArgs.getAllArgValues(OptID)) {
+      size_t ColonPos = Arg.find(':');
+      if (ColonPos != StringRef::npos) {
+        StringRef Kind = Arg.substr(0, ColonPos);
+        if (getOffloadKind(Kind) != OFK_SYCL)
+          continue;
+        Arg = Arg.substr(ColonPos + 1);
+      }
+      size_t EqPos = Arg.find('=');
+      if (EqPos != StringRef::npos) {
+        StringRef TargetTriple = Arg.substr(0, EqPos);
+        if (!TargetTriple.empty() && TargetTriple != TripleStr)
+          continue;
+        Arg = Arg.substr(EqPos + 1);
+      }
+      if (Arg.empty())
+        continue;
+      Options += " ";
+      Options += Arg;
+    }
+  };
+
+  processDeviceArgs(OPT_device_compiler_args_EQ, CompileOptions);
+  processDeviceArgs(OPT_device_linker_args_EQ, LinkOptions);
+}
+
 /// Transforms all the extracted offloading input files into an image that can
 /// be registered by the runtime. If NeedsWrapping is false, writes bundled
 /// output directly without wrapping or host linking.
@@ -2231,6 +2264,10 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       if (!CompileLinkOptionsOrErr)
         return CompileLinkOptionsOrErr.takeError();
 
+      appendSYCLDeviceOptionsAtLinkTime(LinkerArgs,
+                                        CompileLinkOptionsOrErr->first,
+                                        CompileLinkOptionsOrErr->second);
+
       SmallVector<StringRef> InputFiles;
       // Write device inputs to an output file for the linker.
       for (const OffloadFile &File : Input) {
@@ -2246,9 +2283,15 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         return TmpOutputOrErr.takeError();
       SmallVector<StringRef> InputFilesSYCL;
       InputFilesSYCL.emplace_back(*TmpOutputOrErr);
+
+      SmallVector<StringRef, 16> Args;
+      StringRef(CompileLinkOptionsOrErr->first).split(Args, ' ');
+      bool IsDevicePassedWithSyclTargetBackend =
+          std::find(Args.begin(), Args.end(), "-device") != Args.end();
       auto SplitModulesOrErr =
           UseSYCLPostLinkTool
-              ? sycl::runSYCLPostLinkTool(InputFilesSYCL, LinkerArgs)
+              ? sycl::runSYCLPostLinkTool(InputFilesSYCL, LinkerArgs,
+                                          IsDevicePassedWithSyclTargetBackend)
               : sycl::runSYCLSplitLibrary(InputFilesSYCL, LinkerArgs,
                                           *SYCLModuleSplitMode);
       if (!SplitModulesOrErr)

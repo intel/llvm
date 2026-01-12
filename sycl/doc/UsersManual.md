@@ -392,6 +392,13 @@ and not recommended to use in production environment.
 
     NOTE: This flag is currently only supported with the CUDA and HIP targets.
 
+**`-fsycl-fp64-conv-emu`**
+
+    Use fp64 partial emulation for kernels with only fp64 conversion operations
+    and no fp64 computation operations.
+
+    NOTE: This requires an Intel GPU that supports fp64 partial emulation.
+
 **`-fsycl-dump-device-code=<path-to-device-build-artifacts-directory>`** [DEPRECATED]
 
     Enable dumping of device object files (SPIR-V and PTX files) during SYCL
