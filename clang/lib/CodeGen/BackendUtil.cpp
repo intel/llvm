@@ -1129,6 +1129,13 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
             // to current implementation restriction.
             MPM.addPass(SYCLLowerWGLocalMemoryPass());
           });
+      PB.registerVectorizerStartEPCallback(
+          [](FunctionPassManager &FPM, OptimizationLevel Level) {
+            // Eliminate redundant memory operations appearing after
+            // SYCLLowerWGLocalMemoryPass and AlwaysInlinerPass.
+            if (Level != OptimizationLevel::O0)
+              FPM.addPass(EarlyCSEPass());
+          });
     } else if (LangOpts.SYCLIsHost && !LangOpts.SYCLESIMDBuildHostCode) {
       PB.registerPipelineStartEPCallback(
           [&](ModulePassManager &MPM, OptimizationLevel Level) {
