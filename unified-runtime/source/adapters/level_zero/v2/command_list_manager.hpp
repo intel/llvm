@@ -246,6 +246,11 @@ struct ur_command_list_manager {
       const ur_kernel_launch_ext_properties_t *launchPropList,
       wait_list_view &waitListView, ur_event_handle_t phEvent);
 
+  ur_result_t
+  appendHostTaskExp(ur_exp_host_task_function_t pfnHostTask, void *data,
+                    const ur_exp_host_task_properties_t *pProperties,
+                    wait_list_view &waitListView, ur_event_handle_t phEvent);
+
   /************ Graph methods *************/
   ur_result_t appendGraph(ur_exp_executable_graph_handle_t hGraph,
                           wait_list_view &waitListView,

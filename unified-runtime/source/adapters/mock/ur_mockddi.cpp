@@ -12285,6 +12285,73 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueHostTaskExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueHostTaskExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] Host task callback function. Must not call any UR functions.
+    ur_exp_host_task_function_t pfnHostTask,
+    /// [in][optional] data used by pfnHostTask
+    void *data,
+    /// [in][optional] pointer to the host task properties
+    const ur_exp_host_task_properties_t *pProperties,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] return an event object that identifies the work
+    /// that has
+    /// been enqueued in nativeEnqueueFunc. If phEventWaitList and phEvent are
+    /// not NULL, phEvent must not refer to an element of the phEventWaitList
+    /// array.
+    ur_event_handle_t *phEvent) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_enqueue_host_task_exp_params_t params = {
+      &hQueue,          &pfnHostTask, &data, &pProperties, &numEventsInWaitList,
+      &phEventWaitList, &phEvent};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urEnqueueHostTaskExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urEnqueueHostTaskExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    // optional output handle
+    if (phEvent) {
+      *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+    }
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urEnqueueHostTaskExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueEventsWaitWithBarrierExt
 __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrierExt(
     /// [in] handle of the queue object
@@ -13309,6 +13376,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   pDdiTable->pfnCommandBufferExp = driver::urEnqueueCommandBufferExp;
 
   pDdiTable->pfnTimestampRecordingExp = driver::urEnqueueTimestampRecordingExp;
+
+  pDdiTable->pfnHostTaskExp = driver::urEnqueueHostTaskExp;
 
   pDdiTable->pfnNativeCommandExp = driver::urEnqueueNativeCommandExp;
 

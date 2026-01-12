@@ -1051,6 +1051,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(0);
   case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP:
+    return ReturnValue(false);
   default:
     break;
   }

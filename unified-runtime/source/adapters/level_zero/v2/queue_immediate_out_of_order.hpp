@@ -628,6 +628,21 @@ public:
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
+  ur_result_t
+  enqueueHostTaskExp(ur_exp_host_task_function_t pfnHostTask, void *data,
+                     const ur_exp_host_task_properties_t *pProperties,
+                     uint32_t numEventsInWaitList,
+                     const ur_event_handle_t *phEventWaitList,
+                     ur_event_handle_t *phEvent) override {
+    wait_list_view waitListView =
+        wait_list_view(phEventWaitList, numEventsInWaitList);
+
+    auto commandListId = getNextCommandListId();
+    return commandListManagers.lock()[commandListId].appendHostTaskExp(
+        pfnHostTask, data, pProperties, waitListView,
+        createEventIfRequested(eventPool.get(), phEvent, this));
+  }
+
   ur::RefCount RefCount;
 };
 

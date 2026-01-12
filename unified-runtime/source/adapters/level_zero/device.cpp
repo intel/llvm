@@ -1510,6 +1510,12 @@ ur_result_t urDeviceGetInfo(
 #else
     return ReturnValue(false);
 #endif
+  case UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP:
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+    return ReturnValue(Device->Platform->ZeHostTaskExt.Supported);
+#else
+    return ReturnValue(false);
+#endif
   default:
     UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
     UR_LOG(ERR, "ParamNameParamName={}(0x{})", ParamName,
