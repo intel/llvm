@@ -2701,8 +2701,6 @@ ur_result_t enqueueImpCommandBufferKernel(
   auto Args = CommandGroup.MArgs;
   sycl::detail::applyFuncOnFilteredArgs(EliminatedArgMask, Args, SetFunc);
 
-  auto WorkGroupMemorySize = CommandGroup.MKernelWorkGroupMemorySize;
-
   const std::optional<int> &ImplicitLocalArg =
       CommandGroup.MDeviceKernelInfo.getImplicitLocalArgPos();
 
@@ -2712,7 +2710,8 @@ ur_result_t enqueueImpCommandBufferKernel(
   // this indicates the buffer is actually unused and was elided.
   if (ImplicitLocalArg.has_value() && ImplicitLocalArg.value() != -1) {
     Adapter.call<UrApiKind::urKernelSetArgLocal>(
-        UrKernel, ImplicitLocalArg.value(), WorkGroupMemorySize, nullptr);
+        UrKernel, ImplicitLocalArg.value(),
+        CommandGroup.MKernelWorkGroupMemorySize, nullptr);
   }
 
   // Remember this information before the range dimensions are reversed
