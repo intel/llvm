@@ -603,8 +603,8 @@ EventImplPtr queue_impl::submit_graph_direct_impl(
         ExecGraph,
     bool CallerNeedsEvent, sycl::span<const event> DepEvents,
     [[maybe_unused]] const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
-  bool EventNeeded = CallerNeedsEvent || ExecGraph->containsHostTask() ||
-                     !isInOrder();
+  bool EventNeeded =
+      CallerNeedsEvent || ExecGraph->containsHostTask() || !isInOrder();
   auto SubmitGraphFunc = [&](detail::CG::StorageInitHelper &&CGData)
       -> std::pair<EventImplPtr, bool> {
     if (auto ParentGraph = getCommandGraph(); ParentGraph) {
