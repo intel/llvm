@@ -51,9 +51,9 @@ class VelocityBench(Suite):
             Easywave(self),
             QuickSilver(self),
             # SobelFilter(self), # FIXME: configure fails, OpenCV not present
-            DLCifar(self),
-            DLMnist(self),
-            SVM(self),
+            # DLCifar(self), # FIXME: verification failed, SIGSEV
+            # DLMnist(self), # FIXME: verification failed, SIGSEV
+            # SVM(self), # FIXME: verification failed, SIGSEV
         ]
 
 

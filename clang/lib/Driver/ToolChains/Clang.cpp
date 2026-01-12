@@ -11214,6 +11214,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       OPT_R_value_Group,
       OPT_R_Group,
       OPT_Xcuda_ptxas,
+      OPT_ftarget_register_alloc_mode_EQ,
       OPT_ftime_report,
       OPT_ftime_trace,
       OPT_ftime_trace_EQ,
@@ -11268,13 +11269,31 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       ArgStringList LinkerArgs;
       const DerivedArgList &ToolChainArgs =
           C.getArgsForToolChain(TC, /*BoundArch=*/"", Kind);
+      DerivedArgList BaseCompilerArgs(ToolChainArgs.getBaseArgs());
       for (Arg *A : ToolChainArgs) {
         if (A->getOption().matches(OPT_Zlinker_input))
           LinkerArgs.emplace_back(A->getValue());
         else if (ShouldForward(CompilerOptions, A, *TC))
-          A->render(Args, CompilerArgs);
+          BaseCompilerArgs.append(A);
         else if (ShouldForward(LinkerOptions, A, *TC))
           A->render(Args, LinkerArgs);
+      }
+
+      if (Kind == Action::OFK_SYCL) {
+        // Add implied SYCL target arguments to `CompilerArgs`
+        // based on the selected target.
+        const toolchains::SYCLToolChain &SYCLTC =
+            static_cast<const toolchains::SYCLToolChain &>(*TC);
+        const ToolChain *HostTC =
+            C.getSingleOffloadToolChain<Action::OFK_Host>();
+        SYCLTC.AddImpliedTargetArgs(SYCLTC.getTriple(), BaseCompilerArgs,
+                                    CompilerArgs, JA, *HostTC);
+      } else {
+        // For non-SYCL offload kinds (CUDA, OpenMP, HIP), directly convert
+        // the BaseCompilerArgs to CompilerArgs without additional processing.
+        for (Arg *A : BaseCompilerArgs) {
+          A->render(BaseCompilerArgs, CompilerArgs);
+        }
       }
 
       // If the user explicitly requested it via `--offload-arch` we should
@@ -11499,32 +11518,16 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(
           Args.MakeArgString("-sycl-allow-device-image-dependencies"));
 
-    // Formulate and add any offload-wrapper and AOT specific options. These
-    // are additional options passed in via -Xsycl-target-linker and
-    // -Xsycl-target-backend.
+    // Pass backend compiler and linker options specified at link time to
+    // clang-linker-wrapper. Link-time options passed via -Xsycl-target-backend
+    // are forwarded using --device-compiler, while options passed via
+    // -Xsycl-target-linker are forwarded using --device-linker.
     const toolchains::SYCLToolChain &SYCLTC =
         static_cast<const toolchains::SYCLToolChain &>(getToolChain());
-    // Only store compile/link opts in the image descriptor for the SPIR-V
-    // target.  For AOT, pass along the addition options via GPU or CPU
-    // specific clang-linker-wrapper options.
-    const ArgList &Args =
-        C.getArgsForToolChain(nullptr, StringRef(), Action::OFK_SYCL);
     for (auto &ToolChainMember :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       const ToolChain *TC = ToolChainMember.second;
-      bool IsJIT = false;
-      StringRef WrapperOption;
-      StringRef WrapperLinkOption;
-      if (TC->getTriple().isSPIROrSPIRV()) {
-        if (TC->getTriple().getSubArch() == llvm::Triple::NoSubArch) {
-          IsJIT = true;
-          WrapperOption = "--sycl-backend-compile-options=";
-        }
-        if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen)
-          WrapperOption = "--gpu-tool-arg=";
-        if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
-          WrapperOption = "--cpu-tool-arg=";
-      } else
+      if (!TC->getTriple().isSPIROrSPIRV())
         continue;
       ArgStringList BuildArgs;
       SmallString<128> BackendOptString;
@@ -11536,20 +11539,29 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       BuildArgs.clear();
       SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);
       for (const auto &A : BuildArgs) {
-        if (IsJIT)
+        if (TC->getTriple().getSubArch() == llvm::Triple::NoSubArch)
           appendOption(LinkOptString, A);
         else
           // For AOT, combine the Backend and Linker strings into one.
           appendOption(BackendOptString, A);
       }
-      if (!BackendOptString.empty())
-        CmdArgs.push_back(
-            Args.MakeArgString(Twine(WrapperOption) + BackendOptString));
-      if (!LinkOptString.empty())
-        CmdArgs.push_back(
-            Args.MakeArgString("--sycl-target-link-options=" + LinkOptString));
+
+      if (!BackendOptString.empty()) {
+        CmdArgs.push_back(Args.MakeArgString(
+            "--device-compiler=" +
+            Action::GetOffloadKindName(Action::OFK_SYCL) + ":" +
+            TC->getTripleString() + "=" + BackendOptString));
+      }
+      if (!LinkOptString.empty()) {
+        CmdArgs.push_back(Args.MakeArgString(
+            "--device-linker=" + Action::GetOffloadKindName(Action::OFK_SYCL) +
+            ":" + TC->getTripleString() + "=" + LinkOptString));
+      }
     }
+
     // Add option to enable creating of the .syclbin file.
+    const ArgList &Args =
+        C.getArgsForToolChain(nullptr, StringRef(), Action::OFK_SYCL);
     if (Arg *A = Args.getLastArg(options::OPT_fsyclbin_EQ))
       CmdArgs.push_back(
           Args.MakeArgString("--syclbin=" + StringRef{A->getValue()}));
