@@ -7,6 +7,8 @@
 // XFAIL: target-native_cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
+// XFAIL: hip
+
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/work_group_scratch_memory.hpp>
