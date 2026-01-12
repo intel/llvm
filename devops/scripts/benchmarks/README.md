@@ -77,9 +77,8 @@ To indicate a specific results location, use the option `--results-dir <path>`.
 
 You can compare benchmark results using `--compare` option. The comparison will be presented in a markdown output file (see below). If you want to calculate the relative performance of the new results against the previously saved data, use `--compare <previously_saved_data>` (i.e. `--compare baseline`). In case of comparing only stored data without generating new results, use `--dry-run --compare <name1> --compare <name2> --relative-perf <name1>`, where `name1` indicates the baseline for the relative performance calculation and `--dry-run` prevents the script for running benchmarks. Listing more than two `--compare` options results in displaying only execution time, without statistical analysis.
 
->NOTE: Baseline_L0, as well as Baseline_L0v2 (for the level-zero adapter v2) is updated automatically during a nightly job.  
-The results
-are stored [here](https://oneapi-src.github.io/unified-runtime/performance/).
+>NOTE: Baseline_[BMG|PVC]_L0, as well as Baseline_[BMG|PVC]_L0v2 (for the level-zero adapter v2) is updated automatically during a nightly job.
+The results are stored [here](https://intel.github.io/llvm/benchmarks/).
 
 ### Output formats
 You can display the results in the form of a HTML file by using `--ouptut-html` and a markdown file by using `--output-markdown`. Due to character limits for posting PR comments, the final content of the markdown file might be reduced. In order to obtain the full markdown output, use `--output-markdown full`.
@@ -112,13 +111,14 @@ In addition to the above parameters, there are also additional options that help
 `--preset <option>` - limits the types of benchmarks that are run.
 
 The available benchmarks options are:
-* `Full` (BenchDNN, Compute, Gromacs, llama, SYCL, Velocity and UMF benchmarks)
-* `SYCL` (Compute, llama, SYCL, Velocity)
+* `Full` (BenchDNN, Compute, SYCL, Velocity and UMF benchmarks)
+* `SYCL` (Compute, SYCL, Velocity)
 * `Minimal` (Compute)
 * `Core` (Compute: SubmitKernel)
-* `Normal` (BenchDNN, Compute, Gromacs, llama, Velocity)
-* `Gromacs` (Gromacs)
+* `Normal` (BenchDNN, Compute, Velocity)
 * `OneDNN` (BenchDNN)
+* `Gromacs` (Gromacs)
+* `LLama` (llama)
 * `Test` (Test Suite)
 
 `--filter <regex>` - allows to set the regex pattern to filter benchmarks by name.
