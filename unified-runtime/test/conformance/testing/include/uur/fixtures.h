@@ -405,7 +405,7 @@ struct urQueueTest : urContextTest {
   }
 
   ur_queue_properties_t queue_properties = {UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
-                                            nullptr, 0};
+                                            nullptr, UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE};
   ur_queue_handle_t queue = nullptr;
 };
 
