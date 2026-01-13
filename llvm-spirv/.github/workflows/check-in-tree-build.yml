@@ -50,7 +50,7 @@ on:
     - cron: 0 0 * * *
 
 env:
-  LLVM_VERSION: 22
+  LLVM_VERSION: 23
 
 jobs:
   build_and_test_linux:
