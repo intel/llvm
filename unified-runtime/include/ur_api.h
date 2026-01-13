@@ -13372,8 +13372,8 @@ typedef struct ur_exp_host_task_properties_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Host task function.
 typedef void (*ur_exp_host_task_function_t)(
-    /// [in][out] pointer to data to be passed to callback
-    void *pUserData);
+    /// [in] Host task callback function. Must not call any UR functions.
+    void *pfnHostTask);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue host task to be executed on the queue.
@@ -13391,6 +13391,12 @@ typedef void (*ur_exp_host_task_function_t)(
 ///         + `NULL != pProperties && ::UR_EXP_HOST_TASK_FLAGS_MASK &
 ///         pProperties->flags`
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If `zeCommandListAppendHostFunction` Level Zero API is not
+///         supported by the driver.
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueHostTaskExp(
     /// [in] handle of the queue object
     ur_queue_handle_t hQueue,

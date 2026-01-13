@@ -11249,6 +11249,12 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueHostTaskExp(
     if (NULL != pProperties && UR_EXP_HOST_TASK_FLAGS_MASK & pProperties->flags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
+    if (phEventWaitList == NULL && numEventsInWaitList > 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
+    if (phEventWaitList != NULL && numEventsInWaitList == 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
     if (phEventWaitList != NULL && numEventsInWaitList > 0) {
       for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
         if (phEventWaitList[i] == NULL) {

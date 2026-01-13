@@ -9493,6 +9493,12 @@ ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
 ///         + `NULL != pProperties && ::UR_EXP_HOST_TASK_FLAGS_MASK &
 ///         pProperties->flags`
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If `zeCommandListAppendHostFunction` Level Zero API is not
+///         supported by the driver.
 ur_result_t UR_APICALL urEnqueueHostTaskExp(
     /// [in] handle of the queue object
     ur_queue_handle_t hQueue,
