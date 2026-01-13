@@ -233,7 +233,7 @@ to create the image.
 
 To support the needed option passing triggered by use of the
 `-Xsycl-target-backend` option and implied options based on the optional
-device behaviors for AOT compilations for GPU new command line interfaces
+device behaviors for AOT compilations for GPU and CPU, new command line interfaces
 are needed to pass along this information.
 
 | Target | Triple        | Offline Tool   | Option for Additional Args |
@@ -243,13 +243,13 @@ are needed to pass along this information.
 
 *Table: Ahead of Time Info*
 
-#### Device Compiler Option
+#### Format of the --device-compiler Option
 The `--device-compiler` option uses the format `--device-compiler=[<kind>:][<triple>=]<value>` where:
- <kind> : specifies the offloading kind (e.g., sycl, hip, openmp) and is optional.
- <triple> : specifies the target triple (e.g., `spir64_gen-unknown-unknown`, `spir64_x86_64-unknown-unknown`) and is optional.
- <value> : contains the arguments to be passed to the backend compiler.
+- `<kind>` : specifies the offloading kind (e.g., sycl, hip, openmp) and is optional.
+- `<triple>` : specifies the target triple (e.g., `spir64_gen-unknown-unknown`, `spir64_x86_64-unknown-unknown`) and is optional.
+- `<value>` : contains the arguments to be passed to the backend compiler.
 
-In clang-linker-wrapper, the kind and triple are matched against the current compilation target. Only arguments that match both the offloading kind and target triple will be passed to the appropriate backend compiler (such as ocloc for GPU targets or opencl-aot for CPU targets). If <kind> is not specified, the arguments will match any offloading kind; if <triple> is not specified, the arguments will match any target triple; and if neither is specified, the arguments will be applied to all targets. 
+In clang-linker-wrapper, the `<kind>` and `<triple>` are matched against the current compilation target. Only arguments that match both the offloading kind and target triple will be passed to the backend compiler. If `<kind>` is not specified, the arguments will match any offloading kind; if `<triple>` is not specified, the arguments will match any target triple; and if neither is specified, the arguments will be applied to all targets. 
 
 #### Other Available Options
 To complete the support needed for the various targets using the
@@ -267,6 +267,7 @@ The `clang-linker-wrapper` provides an existing option named `-wrapper-jobs`
 that may be useful for our usage.
 
 #### spir64_gen support
+
 Compilation behaviors involving AOT for GPU involve an additional call to
 the OpenCL Offline compiler (OCLOC).  This call occurs after the post-link
 step performed by `sycl-post-link` and the SPIR-V translation step which is done
@@ -288,12 +289,19 @@ list to be passed along.
 
 *Example: spir64_gen enabling options*
 
-> "--device-compiler=sycl:spir64_gen-unknown-unknown=-device pvc -options -extraopt_pvc -options -extraopt_skl"
+> "--device-compiler=sycl:spir64_gen-unknown-unknown= -device pvc -options extraopt_pvc"
+"--device-compiler=sycl:spir64_gen-unknown-unknown= -options -extraopt_skl"
 
 *Example: clang-linker-wrapper options*
 
 Each OCLOC call will be represented as a separate device binary that is
 individually wrapped and linked into the final executable.
+
+Additionally, the syntax can be expanded to enable the ability to pass specific
+options to a specific device GPU target for spir64_gen.  The syntax will
+resemble `--device-compiler=sycl:spir64_gen-unknown-unknown==<arch> <arg>`.  This corresponds to the existing
+option syntax of `-fsycl-targets=intel_gpu_arch` where `arch` can be a fixed
+set of targets.
 
 #### --offload-arch
 
@@ -424,7 +432,7 @@ Compilation behaviors involving AOT for CPU involve an additional call to
 `sycl-post-link` and the SPIR-V translation step performed by `llvm-spirv`.
 Additional options passed by the user via the
 `-Xsycl-target-backend=spir64_x86_64 <opts>` command will be processed by a new
-option to the wrapper, `--cpu-tool-arg=<arg>`
+option to the wrapper, `--device-compiler=sycl:spir64_gen-unknown-unknown=<arg>`
 
 Similar to SYCL offloading to Intel GPUs using `--offload-arch`, SYCL AOT for Intel CPUs
 will also leverage the `--offload-arch` option.
