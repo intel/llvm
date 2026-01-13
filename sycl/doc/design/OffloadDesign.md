@@ -236,10 +236,10 @@ To support the needed option passing triggered by use of the
 device behaviors for AOT compilations for GPU and CPU, new command line interfaces
 are needed to pass along this information.
 
-| Target | Triple        | Offline Tool   | Option for Additional Args |
-|--------|---------------|----------------|----------------------------|
+| Target | Triple        | Offline Tool   | Option for Additional Args                                       |
+|--------|---------------|----------------|------------------------------------------------------------------|
 | CPU    | spir64_x86_64 | opencl-aot     | `--device-compiler=sycl:spir64_x86_64-unknown-unknown=<arg>`     |
-| GPU    | spir64_gen    | ocloc          | `--device-compiler=sycl:spir64_gen-unknown-unknown=<arg>`     |
+| GPU    | spir64_gen    | ocloc          | `--device-compiler=sycl:spir64_gen-unknown-unknown=<arg>`        |
 
 *Table: Ahead of Time Info*
 
