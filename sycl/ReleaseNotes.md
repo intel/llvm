@@ -85,9 +85,8 @@ Deprecations section below.
 - Fixed some memory leaks in sanitizers implementation. intel/llvm#19066
 - Fixed possible hangs when an application is stopped by a sanitizer because
   errors were discovered. intel/llvm#19085
-
-- 97f508bd257d [DevSAN] Set maximum supported local/private shadow memory size (#19465)
-  -  What if the limit we set is too small? What is a user-visible side effect of this?
+- Reduced memory overhead and improved performance of applications built with
+  sanitizers enabled. intel/llvm#19465
 
 - 69c3b9f9e01b [SYCL] Cherry-pick sanitizer patches (#19867)
   -  Looks like 2/3 were fixes for regressions, as such the plan is to omit this
@@ -116,14 +115,10 @@ Deprecations section below.
 - Fixed false positive reports coming from barriers usage. intel/llvm#17900
 - Fixed memory leaks in thread sanitizer. intel/llvm#18880
 - Improved thread sanitizer performance. intel/llvm#19127
-
-- 1d7e9ef8e71a [DevTSAN] Fix missing intercepted API and release local shadow (#18942)
-  -  Looks like some bugfix
-- e2968564552a [DevTSAN] Don't insert cleanup instruction for dynamic allocas (#18090)
-  -  Unclear what this is
-- 597709bd52c0 [DevTSAN] Treat each work item as a thread for both CPU & GPU device (#18580)
-- 1a83e6ec3272 [DevTSAN] Treat each work item as a thread for GPU device (#18347)
-  -  ???
+- Fixed a couple of bugs which could lead to segfaults when thread sanitizer is
+  used. intel/llvm#18942 intel/llvm@18090
+- Fixed a bug resulting in false negative reports about data races within a
+  sub-group. intel/llvm#18580 intel/llvm#18347
 
 #### Memory sanitizer
 
@@ -131,13 +126,11 @@ Deprecations section below.
   allocation associated with an issue report comes from. intel/llvm#18693
 - Fixed a bug with `async_work_group_copy` causing false negative report.
   intel/llvm#18216
-
-- b07a0cf68226 [DevMSAN] Always make sure poison shuffle mask point to clean shadow (#18191)
-  -  Some bugfix?
-- 923eca9baf7c [DevMSAN] Don't report error when write `__MsanLaunchInfo` failed (#18129)
-  -  Some bugfix?
-- 23969c664d94 [DevMSAN] Fix wrong arguments when calling Memset (#19188)
-  -  Not sure what does it fix
+- Fixed a bug where using memory sanitizer on kernels that use the
+  `sycl_ext_oneapi_work_group_static` extension would lead to segfaults.
+  intel/llvm#19188
+- Fixed a false positive report coming from vector reverse usage.
+  intel/llvm#18191
 
 ### Native CPU
 
@@ -238,9 +231,7 @@ have been improved.
   intel/llvm#17732 intel/llvm#17471
 - Reduced amount of template instantiations needed to submit a kernel.
   intel/llvm#18065 intel/llvm#17640 intel/llvm#17670 intel/llvm#18019
-  intel/llvm#18534
 - Made other smaller code cleanups/simplifications. intel/llvm#19183
-  intel/llvm#18114
 
 Even bigger series of patches was submitted with aim to improve performance of
 SYCL RT and reduce overheads over underlying layers such as Unified Runtime.
@@ -642,16 +633,13 @@ This changes are available for preview under `-fpreview-breaking-changes` flag.
 They will be enabled by default (with no option to switch to the old behavior)
 in the next ABI-breaking release:
 
-- Fixed 1-element `vec` ambiguities in accordance with
-  KhronosGroup/SYCL-Docs#670. intel/llvm#17722
-- Updated `vec` constructors in accordance with KhronosGroup/SYCL-Docs#668.
-  intel/llvm#17712
-- Removed underspecified `vec::vector_t` in accordance with
-  KhronosGroup/SYCL-Docs#676. intel/llvm#17867
-- Implemented `vec` explicit conversions in accordance with
-  KhronosGroup/SYCL-Docs#669. intel/llvm#17713
-- Reimplemented `__swizzled_vec__` following recent SYCL 2020 specification
-  changes (see items about `vec` above). intel/llvm#17817
+- Aligned `sycl::vec` and its `swizzle`s with the specification changes from
+  SYCL 2020 Revision 10. Specific list of spec changes that we had accomodated
+  for: KhronosGroup/SYCL-Docs#670, KhronosGroup/SYCL-Docs#668,
+  KhronosGroup/SYCL-Docs#676, KhronosGroup/SYCL-Docs#669.
+  There will be a way to (temporarily) preserve current
+  behavior by defining `__SYCL_USE_LIBSYCL8_VEC_IMPL` macro. intel/llvm#17722
+  intel/llvm#17712 intel/llvm#17867 intel/llvm#17713 intel/llvm#17817
 - Changed return types of `logical_or` and `logical_and` in accordance with
   KhronosGroups/SYCL-Docs#648. intel/llvm#17239
 - Performed general cleanup of legacy ABI entry points. intel/llvm#19276
