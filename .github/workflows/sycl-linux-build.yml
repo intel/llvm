@@ -313,7 +313,7 @@ jobs:
 
     - name: Build E2E tests
       if: ${{ inputs.e2e_binaries_artifact && !cancelled() && steps.build.conclusion == 'success' }}
-      uses: ./devops/actions/run-tests/e2e
+      uses: ./devops/actions/run-tests/linux/e2e
       with:
         ref: ${{ inputs.ref || github.sha }}
         testing_mode: build-only
@@ -324,7 +324,7 @@ jobs:
 
     - name: Build E2E tests with SPIR-V Backend
       if: ${{ inputs.e2e_binaries_spirv_backend_artifact && !cancelled() && steps.build.conclusion == 'success' }}
-      uses: ./devops/actions/run-tests/e2e
+      uses: ./devops/actions/run-tests/linux/e2e
       with:
         ref: ${{ inputs.ref || github.sha }}
         testing_mode: build-only
@@ -335,7 +335,7 @@ jobs:
 
     - name: Build E2E tests in Preview Mode
       if: ${{ inputs.e2e_binaries_preview_artifact && !cancelled() && steps.build.conclusion == 'success' }}
-      uses: ./devops/actions/run-tests/e2e
+      uses: ./devops/actions/run-tests/linux/e2e
       with:
         ref: ${{ inputs.ref || github.sha }}
         testing_mode: build-only

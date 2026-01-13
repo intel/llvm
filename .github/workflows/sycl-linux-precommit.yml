@@ -95,7 +95,7 @@ jobs:
           tar -xf llvm_sycl.tar.zst -C toolchain
           rm llvm_sycl.tar.zst
       - name: Build and run E2E tests
-        uses: ./devops/actions/run-tests/e2e
+        uses: ./devops/actions/run-tests/linux/e2e
         with:
           ref: ${{ inputs.ref || github.sha }}
           testing_mode: full
