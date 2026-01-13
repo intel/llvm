@@ -251,7 +251,7 @@ The `--device-compiler` option uses the format `--device-compiler=[<kind>:][<tri
 
 In clang-linker-wrapper, the `<kind>` and `<triple>` are matched against the current compilation target. Only arguments that match both the offloading kind and target triple will be passed to the backend compiler. If `<kind>` is not specified, the arguments will match any offloading kind; if `<triple>` is not specified, the arguments will match any target triple; and if neither is specified, the arguments will be applied to all targets. 
 
-#### Other Available Options
+#### Other Supported Options
 To complete the support needed for the various targets using the
 `clang-linker-wrapper` as the main interface, a few additional options will
 be needed to communicate from the driver to the tool.  Further details of usage
@@ -289,8 +289,8 @@ list to be passed along.
 
 *Example: spir64_gen enabling options*
 
-> "--device-compiler=sycl:spir64_gen-unknown-unknown= -device pvc -options extraopt_pvc"
-"--device-compiler=sycl:spir64_gen-unknown-unknown= -options -extraopt_skl"
+> "--device-compiler=sycl:spir64_gen-unknown-unknown=-device pvc -options extraopt_pvc"
+"--device-compiler=sycl:spir64_gen-unknown-unknown=-options -extraopt_skl"
 
 *Example: clang-linker-wrapper options*
 
@@ -432,7 +432,7 @@ Compilation behaviors involving AOT for CPU involve an additional call to
 `sycl-post-link` and the SPIR-V translation step performed by `llvm-spirv`.
 Additional options passed by the user via the
 `-Xsycl-target-backend=spir64_x86_64 <opts>` command will be processed by a new
-option to the wrapper, `--device-compiler=sycl:spir64_gen-unknown-unknown=<arg>`
+option to the wrapper, `--device-compiler=sycl:spir64_x86_64-unknown-unknown=<arg>`
 
 Similar to SYCL offloading to Intel GPUs using `--offload-arch`, SYCL AOT for Intel CPUs
 will also leverage the `--offload-arch` option.
