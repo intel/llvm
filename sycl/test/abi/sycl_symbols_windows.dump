@@ -7,9 +7,6 @@
 # REQUIRES: windows
 # UNSUPPORTED: libcxx
 
-# UNSUPPORTED: windows
-# UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20915
-
 ??$create_sub_devices@$0BAIG@@device@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@_K@Z
 ??$create_sub_devices@$0BAIH@@device@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@AEBV?$vector@_KV?$allocator@_K@std@@@4@@Z
 ??$create_sub_devices@$0BAII@@device@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@W4partition_affinity_domain@info@12@@Z
@@ -4289,15 +4286,7 @@
 ?setKernelFunc@handler@_V1@sycl@@AEAAXPEAX@Z
 ?setKernelLaunchProperties@handler@_V1@sycl@@AEAAXAEBU?$PropsHolder@Uwork_group_scratch_size@experimental@oneapi@ext@_V1@sycl@@Ucache_config@2intel@456@Uuse_root_sync_key@23456@Uwork_group_progress_key@23456@Usub_group_progress_key@23456@Uwork_item_progress_key@23456@U?$cluster_size@$00@cuda@23456@U?$cluster_size@$01@cuda@23456@U?$cluster_size@$02@cuda@23456@@kernel_launch_properties_v1@detail@23@@Z
 ?setLocalAccessorArgHelper@handler@_V1@sycl@@AEAAXHAEAVLocalAccessorBaseHost@detail@23@@Z
-?setNDRangeDescriptor@handler@_V1@sycl@@AEAAXV?$range@$00@23@0V?$id@$00@23@@Z
-?setNDRangeDescriptor@handler@_V1@sycl@@AEAAXV?$range@$00@23@V?$id@$00@23@@Z
-?setNDRangeDescriptor@handler@_V1@sycl@@AEAAXV?$range@$00@23@_N@Z
-?setNDRangeDescriptor@handler@_V1@sycl@@AEAAXV?$range@$01@23@0V?$id@$01@23@@Z
-?setNDRangeDescriptor@handler@_V1@sycl@@AEAAXV?$range@$01@23@V?$id@$01@23@@Z
-?setNDRangeDescriptor@handler@_V1@sycl@@AEAAXV?$range@$01@23@_N@Z
-?setNDRangeDescriptor@handler@_V1@sycl@@AEAAXV?$range@$02@23@0V?$id@$02@23@@Z
-?setNDRangeDescriptor@handler@_V1@sycl@@AEAAXV?$range@$02@23@V?$id@$02@23@@Z
-?setNDRangeDescriptor@handler@_V1@sycl@@AEAAXV?$range@$02@23@_N@Z
+?setNDRangeDescriptor@handler@_V1@sycl@@AEAAXVnd_range_view@nd_range_view_v1@detail@23@_N@Z
 ?setStateExplicitKernelBundle@handler@_V1@sycl@@AEAAXXZ
 ?setStateSpecConstSet@handler@_V1@sycl@@AEAAXXZ
 ?setType@handler@_V1@sycl@@AEAAXW4CGType@detail@23@@Z
@@ -4370,4 +4359,3 @@
 DllMain
 __sycl_register_lib
 __sycl_unregister_lib
-
