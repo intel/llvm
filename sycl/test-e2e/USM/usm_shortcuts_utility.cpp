@@ -17,7 +17,6 @@
 #include <cassert>
 
 using namespace sycl;
-using namespace sycl::ext::oneapi::experimental;
 
 constexpr int N = 8;
 
@@ -38,92 +37,104 @@ int main() {
   int *array;
 
   if (dev.get_info<sycl::info::device::usm_host_allocations>()) {
-    array = (int *)malloc(N * sizeof(int), dev, usm::alloc::host);
+    array = (int *)ext::oneapi::experimental::malloc(N * sizeof(int), dev,
+                                                     usm::alloc::host);
     check_and_free(array, dev, ctxt, usm::alloc::host);
 
-    array =
-        (int *)malloc(N * sizeof(int), dev, usm::alloc::host, property_list{});
+    array = (int *)ext::oneapi::experimental::malloc(
+        N * sizeof(int), dev, usm::alloc::host, property_list{});
     check_and_free(array, dev, ctxt, usm::alloc::host);
 
-    array = malloc<int>(N * sizeof(int), dev, usm::alloc::host);
+    array = ext::oneapi::experimental::malloc<int>(N * sizeof(int), dev,
+                                                   usm::alloc::host);
     check_and_free(array, dev, ctxt, usm::alloc::host);
 
-    array =
-        malloc<int>(N * sizeof(int), dev, usm::alloc::host, property_list{});
+    array = ext::oneapi::experimental::malloc<int>(
+        N * sizeof(int), dev, usm::alloc::host, property_list{});
     check_and_free(array, dev, ctxt, usm::alloc::host);
 
-    array = (int *)aligned_alloc(alignof(long long), N * sizeof(int), dev,
-                                 usm::alloc::host);
+    array = (int *)ext::oneapi::experimental::aligned_alloc(
+        alignof(long long), N * sizeof(int), dev, usm::alloc::host);
     check_and_free(array, dev, ctxt, usm::alloc::host);
 
-    array = (int *)aligned_alloc(alignof(long long), N * sizeof(int), dev,
-                                 usm::alloc::host, property_list{});
+    array = (int *)ext::oneapi::experimental::aligned_alloc(
+        alignof(long long), N * sizeof(int), dev, usm::alloc::host,
+        property_list{});
     check_and_free(array, dev, ctxt, usm::alloc::host);
 
-    array = aligned_alloc<int>(alignof(long long), N * sizeof(int), dev,
-                               usm::alloc::host);
+    array = ext::oneapi::experimental::aligned_alloc<int>(
+        alignof(long long), N * sizeof(int), dev, usm::alloc::host);
     check_and_free(array, dev, ctxt, usm::alloc::host);
 
-    array = aligned_alloc<int>(alignof(long long), N * sizeof(int), dev,
-                               usm::alloc::host, property_list{});
+    array = ext::oneapi::experimental::aligned_alloc<int>(
+        alignof(long long), N * sizeof(int), dev, usm::alloc::host,
+        property_list{});
     check_and_free(array, dev, ctxt, usm::alloc::host);
   }
 
   if (dev.get_info<sycl::info::device::usm_shared_allocations>()) {
-    array = (int *)malloc_shared(N * sizeof(int), dev);
-    check_and_free(array, dev, ctxt, usm::alloc::shared);
-
-    array = (int *)malloc_shared(N * sizeof(int), dev, property_list{});
-    check_and_free(array, dev, ctxt, usm::alloc::shared);
-
-    array = malloc_shared<int>(N * sizeof(int), dev);
-    check_and_free(array, dev, ctxt, usm::alloc::shared);
-
-    array = malloc_shared<int>(N * sizeof(int), dev, property_list{});
-    check_and_free(array, dev, ctxt, usm::alloc::shared);
-
     array =
-        (int *)aligned_alloc_shared(alignof(long long), N * sizeof(int), dev);
+        (int *)ext::oneapi::experimental::malloc_shared(N * sizeof(int), dev);
     check_and_free(array, dev, ctxt, usm::alloc::shared);
 
-    array = (int *)aligned_alloc_shared(alignof(long long), N * sizeof(int),
-                                        dev, property_list{});
+    array = (int *)ext::oneapi::experimental::malloc_shared(
+        N * sizeof(int), dev, property_list{});
     check_and_free(array, dev, ctxt, usm::alloc::shared);
 
-    array = aligned_alloc_shared<int>(alignof(long long), N * sizeof(int), dev);
+    array = ext::oneapi::experimental::malloc_shared<int>(N * sizeof(int), dev);
     check_and_free(array, dev, ctxt, usm::alloc::shared);
 
-    array = aligned_alloc_shared<int>(alignof(long long), N * sizeof(int), dev,
-                                      property_list{});
+    array = ext::oneapi::experimental::malloc_shared<int>(N * sizeof(int), dev,
+                                                          property_list{});
+    check_and_free(array, dev, ctxt, usm::alloc::shared);
+
+    array = (int *)ext::oneapi::experimental::aligned_alloc_shared(
+        alignof(long long), N * sizeof(int), dev);
+    check_and_free(array, dev, ctxt, usm::alloc::shared);
+
+    array = (int *)ext::oneapi::experimental::aligned_alloc_shared(
+        alignof(long long), N * sizeof(int), dev, property_list{});
+    check_and_free(array, dev, ctxt, usm::alloc::shared);
+
+    array = ext::oneapi::experimental::aligned_alloc_shared<int>(
+        alignof(long long), N * sizeof(int), dev);
+    check_and_free(array, dev, ctxt, usm::alloc::shared);
+
+    array = ext::oneapi::experimental::aligned_alloc_shared<int>(
+        alignof(long long), N * sizeof(int), dev, property_list{});
     check_and_free(array, dev, ctxt, usm::alloc::shared);
   }
 
   if (dev.get_info<sycl::info::device::usm_device_allocations>()) {
-    array = (int *)malloc_device(N * sizeof(int), dev);
+    array =
+        (int *)ext::oneapi::experimental::malloc_device(N * sizeof(int), dev);
     check_and_free(array, dev, ctxt, usm::alloc::device);
 
-    array = (int *)malloc_device(N, dev, property_list{});
+    array = (int *)ext::oneapi::experimental::malloc_device(N, dev,
+                                                            property_list{});
     check_and_free(array, dev, ctxt, usm::alloc::device);
 
-    array = malloc_device<int>(N * sizeof(int), dev);
-    check_and_free(array, dev, ctxt, usm::alloc::device);
-
-    array = malloc_device<int>(N, dev, property_list{});
+    array = ext::oneapi::experimental::malloc_device<int>(N * sizeof(int), dev);
     check_and_free(array, dev, ctxt, usm::alloc::device);
 
     array =
-        (int *)aligned_alloc_device(alignof(long long), N * sizeof(int), dev);
+        ext::oneapi::experimental::malloc_device<int>(N, dev, property_list{});
     check_and_free(array, dev, ctxt, usm::alloc::device);
 
-    array = (int *)aligned_alloc_device(alignof(long long), N * sizeof(int),
-                                        dev, property_list{});
+    array = (int *)ext::oneapi::experimental::aligned_alloc_device(
+        alignof(long long), N * sizeof(int), dev);
     check_and_free(array, dev, ctxt, usm::alloc::device);
 
-    array = aligned_alloc_device<int>(alignof(long long), N * sizeof(int), dev);
+    array = (int *)ext::oneapi::experimental::aligned_alloc_device(
+        alignof(long long), N * sizeof(int), dev, property_list{});
     check_and_free(array, dev, ctxt, usm::alloc::device);
 
-    array = aligned_alloc_device<int>(alignof(long long), N * sizeof(int), dev,
-                                      property_list{});
+    array = ext::oneapi::experimental::aligned_alloc_device<int>(
+        alignof(long long), N * sizeof(int), dev);
+    check_and_free(array, dev, ctxt, usm::alloc::device);
+
+    array = ext::oneapi::experimental::aligned_alloc_device<int>(
+        alignof(long long), N * sizeof(int), dev, property_list{});
     check_and_free(array, dev, ctxt, usm::alloc::device);
   }
 
