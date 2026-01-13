@@ -354,8 +354,8 @@ __SYCL_EXPORT void *malloc_device(size_t numBytes, const device &syclDevice,
                                   const property_list &propList = {});
 
 template <typename T>
-__SYCL_EXPORT T *malloc_device(size_t count, const device &syclDevice,
-                               const property_list &propList = {}) {
+T *malloc_device(size_t count, const device &syclDevice,
+                 const property_list &propList = {}) {
   sycl::context ctxt = syclDevice.get_platform().khr_get_default_context();
   return sycl::malloc_device<T>(count, syclDevice, ctxt, propList);
 }
@@ -365,9 +365,9 @@ __SYCL_EXPORT void *aligned_alloc_device(size_t alignment, size_t numBytes,
                                          const property_list &propList = {});
 
 template <typename T>
-__SYCL_EXPORT T *aligned_alloc_device(size_t alignment, size_t count,
-                                      const device &syclDevice,
-                                      const property_list &propList = {}) {
+T *aligned_alloc_device(size_t alignment, size_t count,
+                        const device &syclDevice,
+                        const property_list &propList = {}) {
   sycl::context ctxt = syclDevice.get_platform().khr_get_default_context();
   return sycl::aligned_alloc_device<T>(alignment, count, syclDevice, ctxt,
                                        propList);
@@ -377,8 +377,8 @@ __SYCL_EXPORT void *malloc_shared(size_t numBytes, const device &syclDevice,
                                   const property_list &propList = {});
 
 template <typename T>
-__SYCL_EXPORT T *malloc_shared(size_t count, const device &syclDevice,
-                               const property_list &propList = {}) {
+T *malloc_shared(size_t count, const device &syclDevice,
+                 const property_list &propList = {}) {
   sycl::context ctxt = syclDevice.get_platform().khr_get_default_context();
   return sycl::malloc_shared<T>(count, syclDevice, ctxt, propList);
 }
@@ -388,9 +388,9 @@ __SYCL_EXPORT void *aligned_alloc_shared(size_t alignment, size_t numBytes,
                                          const property_list &propList = {});
 
 template <typename T>
-__SYCL_EXPORT T *aligned_alloc_shared(size_t alignment, size_t count,
-                                      const device &syclDevice,
-                                      const property_list &propList = {}) {
+T *aligned_alloc_shared(size_t alignment, size_t count,
+                        const device &syclDevice,
+                        const property_list &propList = {}) {
   sycl::context ctxt = syclDevice.get_platform().khr_get_default_context();
   return sycl::aligned_alloc_shared<T>(alignment, count, syclDevice, ctxt,
                                        propList);
@@ -400,8 +400,8 @@ __SYCL_EXPORT void *malloc(size_t numBytes, const device &syclDevice,
                            usm::alloc kind, const property_list &propList = {});
 
 template <typename T>
-__SYCL_EXPORT T *malloc(size_t count, const device &syclDevice, usm::alloc kind,
-                        const property_list &propList = {}) {
+T *malloc(size_t count, const device &syclDevice, usm::alloc kind,
+          const property_list &propList = {}) {
   sycl::context ctxt = syclDevice.get_platform().khr_get_default_context();
   return sycl::malloc<T>(count, syclDevice, ctxt, kind, propList);
 }
@@ -411,9 +411,8 @@ __SYCL_EXPORT void *aligned_alloc(size_t alignment, size_t numBytes,
                                   const property_list &propList = {});
 
 template <typename T>
-__SYCL_EXPORT T *aligned_alloc(size_t alignment, size_t count,
-                               const device &syclDevice, usm::alloc kind,
-                               const property_list &propList = {}) {
+T *aligned_alloc(size_t alignment, size_t count, const device &syclDevice,
+                 usm::alloc kind, const property_list &propList = {}) {
   sycl::context ctxt = syclDevice.get_platform().khr_get_default_context();
   return sycl::aligned_alloc<T>(alignment, count, syclDevice, ctxt, kind,
                                 propList);
