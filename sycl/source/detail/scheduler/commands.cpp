@@ -1189,7 +1189,7 @@ ur_result_t AllocaSubBufCommand::enqueueImp() {
           MMemAllocation, MemoryManager::allocateMemSubBuffer,
           getContext(MQueue), MParentAlloca->getMemAllocation(),
           MRequirement.MElemSize, MRequirement.MOffsetInBytes,
-          MRequirement.MAccessRange, std::move(EventImpls), UREvent);
+          MRequirement.MMemoryRange, std::move(EventImpls), UREvent);
       Result != UR_RESULT_SUCCESS)
     return Result;
 
