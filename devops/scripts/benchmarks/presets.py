@@ -20,7 +20,7 @@ presets: dict[str, list[str]] = {
     ],
     "SYCL": [
         "Compute Benchmarks",
-        "llama.cpp bench",
+        # "llama.cpp bench",
         "SYCL-Bench",
         "Velocity Bench",
     ],
@@ -37,9 +37,6 @@ presets: dict[str, list[str]] = {
         # "llama.cpp bench",
         "Velocity Bench",
     ],
-    "Test": [
-        "Test Suite",
-    ],
     "OneDNN": [
         "BenchDNN",
     ],
@@ -48,6 +45,9 @@ presets: dict[str, list[str]] = {
     ],
     "LLama": [
         "llama.cpp bench",
+    ],
+    "Test": [
+        "Test Suite",
     ],
 }
 
