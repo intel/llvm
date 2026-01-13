@@ -235,9 +235,6 @@ if lit_config.params.get("gpu-intel-dg2", False):
 if lit_config.params.get("gpu-intel-pvc-vg", False):
     config.available_features.add("gpu-intel-pvc-vg")
 
-if lit_config.params.get("igc-dev", False):
-    config.available_features.add("igc-dev")
-
 # Map between device family and architecture types.
 device_family_arch_map = {
     # <Family name> : Set of architectures types (and aliases)
@@ -276,8 +273,6 @@ def check_igc_tag_and_add_feature():
     if os.path.isfile(config.igc_tag_file):
         with open(config.igc_tag_file, "r") as tag_file:
             contents = tag_file.read()
-            if "igc-dev" in contents:
-                config.available_features.add("igc-dev")
 
 
 def quote_path(path):
@@ -986,11 +981,6 @@ if config.test_mode != "build-only":
         lit_config.note(
             "sycl-jit was not found. Tests requiring sycl-jit will be skipped."
         )
-
-# Check for enabled NewOffloadModel
-if lit_config.params.get("enable_new_offload_model", "False") != "False":
-    config.available_features.add("new-offload-model")
-    config.cxx_flags += " --offload-new-driver "
 
 # That has to be executed last so that all device-independent features have been
 # discovered already.

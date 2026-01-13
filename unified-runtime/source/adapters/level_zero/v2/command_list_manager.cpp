@@ -1123,19 +1123,20 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpOld(
     wait_list_view &waitListView, ur_event_handle_t phEvent) {
   {
     std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
+    ur_device_handle_t hDevice = this->hDevice.get();
     for (uint32_t argIndex = 0; argIndex < numArgs; argIndex++) {
       switch (pArgs[argIndex].type) {
       case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
-        UR_CALL(hKernel->setArgValue(pArgs[argIndex].index,
+        UR_CALL(hKernel->setArgValue(hDevice, pArgs[argIndex].index,
                                      pArgs[argIndex].size, nullptr, nullptr));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_VALUE:
-        UR_CALL(hKernel->setArgValue(pArgs[argIndex].index,
+        UR_CALL(hKernel->setArgValue(hDevice, pArgs[argIndex].index,
                                      pArgs[argIndex].size, nullptr,
                                      pArgs[argIndex].value.value));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_POINTER:
-        UR_CALL(hKernel->setArgPointer(pArgs[argIndex].index, nullptr,
+        UR_CALL(hKernel->setArgPointer(hDevice, pArgs[argIndex].index, nullptr,
                                        pArgs[argIndex].value.pointer));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ:
@@ -1147,7 +1148,7 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpOld(
         break;
       case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
         UR_CALL(
-            hKernel->setArgValue(argIndex, sizeof(void *), nullptr,
+            hKernel->setArgValue(hDevice, argIndex, sizeof(void *), nullptr,
                                  &pArgs[argIndex].value.sampler->ZeSampler));
         break;
       }

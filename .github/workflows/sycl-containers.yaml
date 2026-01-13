@@ -59,7 +59,7 @@ jobs:
             build_args: ""
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 2
       - name: Build and Push Container
@@ -109,7 +109,7 @@ jobs:
               base_tag=latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 2
       - name: Build and Push Container

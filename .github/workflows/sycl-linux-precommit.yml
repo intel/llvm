@@ -26,6 +26,7 @@ on:
     - '.github/workflows/sycl-rel-nightly-launch.yml'
     - '.github/workflows/sycl-trivy.yml'
     - '.github/workflows/sycl-coverity.yml'
+    - '.github/workflows/sycl-weekly.yml'
     - 'devops/containers/**'
     - 'devops/actions/build_container/**'
     - 'unified-runtime/examples/**'
@@ -66,7 +67,6 @@ jobs:
       toolchain_artifact: sycl_linux_default
       e2e_binaries_artifact: e2e_bin
       e2e_binaries_preview_artifact: e2e_bin_preview
-      e2e_binaries_new_offload_model_artifact: e2e_bin_new_offload_model
 
   # Build and run native cpu e2e tests separately as cannot currently
   # build all the e2e tests
@@ -78,14 +78,14 @@ jobs:
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       options: -u 1001:1001
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           sparse-checkout: |
             devops/
 
       # download build artefact
       - name: Download toolchain
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: sycl_linux_default
       - name: Extract SYCL toolchain
@@ -128,7 +128,7 @@ jobs:
       FILTER_6_2: ${{ steps.result.outputs.FILTER_6_2 }}
       FILTER_6_3: ${{ steps.result.outputs.FILTER_6_3 }}
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
       with:
         sparse-checkout: |
           devops/
@@ -166,22 +166,11 @@ jobs:
             extra_lit_opts: -j 1
           - name: Intel / Arc A-Series Graphics
             runner: '["Linux", "arc"]'
-            target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
-          - name: Intel Dev IGC / Arc A-Series Graphics
-            runner: '["Linux", "arc"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
-            target_devices: level_zero:gpu
-            use_igc_dev: true
+            target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu         
             env: '{"LIT_FILTER":"Matrix/"}'
           - name: Intel / Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
             target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
-          - name: Intel Dev IGC / Ponte Vecchio GPU
-            runner: '["Linux", "pvc"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
-            target_devices: level_zero:gpu
-            use_igc_dev: true
-            env: '{"LIT_FILTER":"Matrix/"}'
           - name: Intel / Battlemage Graphics
             runner: '["Linux", "bmg"]'
             target_devices: level_zero_v1:gpu;level_zero_v2:gpu
@@ -190,6 +179,10 @@ jobs:
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             extra_lit_opts: --param test-preview-mode=True
             binaries_artifact: e2e_bin_preview
+          - name: Intel / ARL with L0 v2
+            runner: '["Linux", "arl"]'
+            target_devices: level_zero_v2:arch-intel_gpu_mtl_u
+            extra_lit_opts: --param test-preview-mode=True
 
           # We're in an ABI-breaking window, so these don't make sense for now.
           - name: ABI compatibility / sycl-rel-6_2
@@ -227,66 +220,8 @@ jobs:
         ${{ !contains(matrix.target_devices, 'cuda') &&
         !contains(matrix.target_devices, 'hip') &&
         contains(needs.detect_changes.outputs.filters, 'drivers') }}
-      install_dev_igc_driver: >-
-        ${{ !contains(matrix.target_devices, 'cuda') &&
-        !contains(matrix.target_devices, 'hip') &&
-        matrix.use_igc_dev &&
-        (contains(needs.detect_changes.outputs.filters, 'devigccfg') || contains(needs.detect_changes.outputs.filters, 'drivers')) ||
-        'false' }}
-      # Run only if the PR does not have the 'ci-no-devigc' label.
-      skip_run: ${{matrix.use_igc_dev && contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') || matrix.skip_run || 'false'}}
+      skip_run: ${{ matrix.skip_run || 'false' }}
       env: ${{ matrix.env || (contains(needs.detect_changes.outputs.filters, 'esimd') && '{}' || '{"LIT_FILTER_OUT":"ESIMD/"}') }}
-
-  E2E-with-new-offload-model:
-    needs: [build, detect_changes, compat_read_exclude]
-    if: |
-      !cancelled() &&
-      needs.build.outputs.build_conclusion == 'success' &&
-      contains(github.event.pull_request.labels.*.name, 'new-offload-model')
-    permissions:
-      contents: write
-      packages: read
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Intel / GEN 12 Integrated
-            runner: '["Linux", "gen12"]'
-            target_devices: opencl:cpu;opencl:gpu
-          - name: Intel / Arc A-Series Graphics
-            runner: '["Linux", "arc"]'
-            target_devices: level_zero:gpu
-          - name: Intel / Ponte Vecchio GPU
-            runner: '["Linux", "pvc"]'
-            target_devices: level_zero:gpu
-          - name: Intel / Battlemage Graphics
-            runner: '["Linux", "bmg"]'
-            target_devices: level_zero_v2:gpu
-          - name: NVIDIA/CUDA
-            runner: '["Linux", "cuda"]'
-            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
-            target_devices: cuda:gpu
-          - name: AMD/HIP
-            runner: '["Linux", "amdgpu"]'
-            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
-            target_devices: hip:gpu
-            extra_lit_opts: -j 1
-
-    uses: ./.github/workflows/sycl-linux-run-tests.yml
-    with:
-      name: ${{ matrix.name }} with NewOffloadModel
-      runner: ${{ matrix.runner }}
-      image: ${{ matrix.image }}
-      image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
-      target_devices: ${{ matrix.target_devices }}
-      extra_lit_opts: ${{ matrix.extra_lit_opts }} --param enable_new_offload_model=True
-      repo_ref: ${{ github.sha }}
-      toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
-      toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
-      toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}
-      binaries_artifact: 'e2e_bin_new_offload_model'
-      testing_mode: 'run-only'
-
 
   test-perf:
     needs: [build, detect_changes]

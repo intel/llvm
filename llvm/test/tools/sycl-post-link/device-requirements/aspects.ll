@@ -13,12 +13,12 @@
 ;   });
 ; }
 
-; RUN: sycl-post-link -properties -split=auto < %s -o %t.files.table
-; RUN: FileCheck %s -input-file=%t.files_0.prop --check-prefix CHECK-PROP-AUTO-SPLIT
+; RUN: sycl-post-link -properties -split=auto < %s -o %t.auto.table
+; RUN: FileCheck %s -input-file=%t.auto_0.prop --check-prefix CHECK-PROP-AUTO-SPLIT
 
-; RUN: sycl-post-link -properties -split=kernel < %s -o %t.files.table
-; RUN: FileCheck %s -input-file=%t.files_0.prop --check-prefix CHECK-PROP-KERNEL-SPLIT-1
-; RUN: FileCheck %s -input-file=%t.files_1.prop --check-prefix CHECK-PROP-KERNEL-SPLIT-0
+; RUN: sycl-post-link -properties -split=kernel < %s -o %t.kernel.table
+; RUN: FileCheck %s -input-file=%t.kernel_0.prop --check-prefix CHECK-PROP-KERNEL-SPLIT-1
+; RUN: FileCheck %s -input-file=%t.kernel_1.prop --check-prefix CHECK-PROP-KERNEL-SPLIT-0
 
 ; CHECK-PROP-AUTO-SPLIT: [SYCL/device requirements]
 ; CHECK-PROP-AUTO-SPLIT-NEXT: aspects=2|gCAAAAAAAAAAAAAABAAAAYAAAAQCAAAAMAAAAA

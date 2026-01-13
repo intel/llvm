@@ -12,10 +12,6 @@
 // RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{run} %t.out
 // RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{l0_leak_check} %{run} %t.out
 
-// This test is flaky in NewOffloadModel model for Arc GPU in windows.
-// UNSUPPORTED: new-offload-model && windows && run-mode
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20797
-
 // XFAIL: target-native_cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 

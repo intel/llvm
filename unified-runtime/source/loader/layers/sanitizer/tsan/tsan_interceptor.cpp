@@ -78,9 +78,9 @@ ur_result_t TsanRuntimeDataWrapper::importLocalArgsInfo(
   Host.NumLocalArgs = LocalArgs.size();
   const size_t LocalArgsInfoSize =
       sizeof(TsanLocalArgsInfo) * Host.NumLocalArgs;
-  UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-      Context, Device, nullptr, nullptr, LocalArgsInfoSize,
-      ur_cast<void **>(&Host.LocalArgs)));
+  UR_CALL(SafeAllocate(Context, Device, LocalArgsInfoSize, nullptr, nullptr,
+                       AllocType::DEVICE_USM,
+                       ur_cast<void **>(&Host.LocalArgs)));
 
   UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
       Queue, true, Host.LocalArgs, &LocalArgs[0], LocalArgsInfoSize, 0, nullptr,
@@ -140,16 +140,8 @@ ur_result_t TsanInterceptor::allocateMemory(ur_context_handle_t Context,
 
   void *Allocated = nullptr;
 
-  if (Type == AllocType::DEVICE_USM) {
-    UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-        Context, Device, Properties, Pool, Size, &Allocated));
-  } else if (Type == AllocType::HOST_USM) {
-    UR_CALL(getContext()->urDdiTable.USM.pfnHostAlloc(Context, Properties, Pool,
-                                                      Size, &Allocated));
-  } else if (Type == AllocType::SHARED_USM) {
-    UR_CALL(getContext()->urDdiTable.USM.pfnSharedAlloc(
-        Context, Device, Properties, Pool, Size, &Allocated));
-  }
+  UR_CALL(
+      SafeAllocate(Context, Device, Size, Properties, Pool, Type, &Allocated));
 
   auto AI = TsanAllocInfo{reinterpret_cast<uptr>(Allocated), Size};
   // For updating shadow memory

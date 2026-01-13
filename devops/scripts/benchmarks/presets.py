@@ -7,19 +7,20 @@ import argparse
 
 from utils.logger import log
 
+# TODO: Both Gromacs and LLama are disabled by default due to their failures in CI.
 presets: dict[str, list[str]] = {
     "Full": [
         "BenchDNN",
         "Compute Benchmarks",
-        "Gromacs Bench",
-        "llama.cpp bench",
+        # "Gromacs Bench",
+        # "llama.cpp bench",
         "SYCL-Bench",
         "Velocity Bench",
         "UMF",
     ],
     "SYCL": [
         "Compute Benchmarks",
-        "llama.cpp bench",
+        # "llama.cpp bench",
         "SYCL-Bench",
         "Velocity Bench",
     ],
@@ -32,18 +33,21 @@ presets: dict[str, list[str]] = {
     "Normal": [
         "BenchDNN",
         "Compute Benchmarks",
-        "Gromacs Bench",
-        "llama.cpp bench",
+        # "Gromacs Bench",
+        # "llama.cpp bench",
         "Velocity Bench",
     ],
-    "Test": [
-        "Test Suite",
+    "OneDNN": [
+        "BenchDNN",
     ],
     "Gromacs": [
         "Gromacs Bench",
     ],
-    "OneDNN": [
-        "BenchDNN",
+    "LLama": [
+        "llama.cpp bench",
+    ],
+    "Test": [
+        "Test Suite",
     ],
 }
 

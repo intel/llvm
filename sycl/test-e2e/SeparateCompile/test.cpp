@@ -1,6 +1,3 @@
-// XFAIL: new-offload-model
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20797
-
 // REQUIRES: target-spir
 //
 // FIXME Disabled fallback assert as it'll require either online linking or

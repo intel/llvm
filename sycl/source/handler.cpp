@@ -57,13 +57,6 @@ markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl) {
   BufImpl->markAsInternal();
 }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-// TODO: Check if two ABI exports below are still necessary.
-#endif
-device_impl &getDeviceImplFromHandler(handler &CGH) {
-  return getSyclObjImpl(CGH)->get_device();
-}
-
 device getDeviceFromHandler(handler &CGH) {
   return createSyclObjFromImpl<device>(getSyclObjImpl(CGH)->get_device());
 }
@@ -571,11 +564,6 @@ detail::EventImplPtr handler::finalize() {
   std::unique_ptr<detail::CG> CommandGroup;
   switch (type) {
   case detail::CGType::Kernel: {
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    // Copy kernel name here instead of move so that it's available after
-    // running of this method by reductions implementation. This allows for
-    // assert feature to check if kernel uses assertions
-#endif
     CommandGroup.reset(new detail::CGExecKernel(
         impl->MKernelData.getNDRDesc(), std::move(MHostKernel),
         std::move(MKernel), std::move(impl->MKernelBundle),
