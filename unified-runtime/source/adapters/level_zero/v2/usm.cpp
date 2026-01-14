@@ -349,7 +349,6 @@ ur_usm_pool_handle_t_::allocateEnqueued(ur_context_handle_t hContext,
   if ((alignment & (alignment - 1)) != 0) {
     return std::nullopt;
   }
-
   auto deviceFlags = getDeviceFlags(pUSMDesc);
 
   auto umfPool = getPool(usm::pool_descriptor{
@@ -853,14 +852,28 @@ ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t hContext,
 }
 
 ur_result_t urUSMHostAllocRegisterExp(
-    ur_context_handle_t /*hContext*/, void * /*pHostMem*/, size_t /*size*/,
+    ur_context_handle_t hContext, void *pHostMem, size_t size,
     const ur_exp_usm_host_alloc_register_properties_t * /*pProperties*/) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  ze_external_memmap_sysmem_ext_desc_t sysMemDesc = {
+      ZE_STRUCTURE_TYPE_EXTERNAL_MEMMAP_SYSMEM_EXT_DESC, nullptr, pHostMem,
+      size};
+
+  ze_host_mem_alloc_desc_t hostDesc = {ZE_STRUCTURE_TYPE_HOST_MEM_ALLOC_DESC,
+                                       &sysMemDesc, 0};
+
+  void *mappedMem = nullptr;
+  ZE2UR_CALL(zeMemAllocHost,
+             (hContext->getZeHandle(), &hostDesc, size, 1, &mappedMem));
+  assert(mappedMem == pHostMem);
+
+  return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urUSMHostAllocUnregisterExp(ur_context_handle_t /*hContext*/,
-                                        void * /*pHostMem*/) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+ur_result_t urUSMHostAllocUnregisterExp(ur_context_handle_t hContext,
+                                        void *pHostMem) {
+  ZE2UR_CALL(zeMemFree, (hContext->getZeHandle(), pHostMem));
+
+  return UR_RESULT_SUCCESS;
 }
 
 } // namespace ur::level_zero
