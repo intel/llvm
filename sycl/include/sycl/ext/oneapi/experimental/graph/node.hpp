@@ -47,6 +47,8 @@ enum class node_type {
 
 /// Class representing a node in the graph, returned by command_graph::add().
 class __SYCL_EXPORT node {
+  friend sycl::detail::ImplUtils;
+
 public:
   node() = delete;
 
@@ -80,16 +82,6 @@ public:
 
 private:
   node(const std::shared_ptr<detail::node_impl> &Impl) : impl(Impl) {}
-
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  sycl::detail::getSyclObjImpl(const Obj &SyclObject);
-  template <class T>
-  friend T sycl::detail::createSyclObjFromImpl(
-      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
-  template <class T>
-  friend T sycl::detail::createSyclObjFromImpl(
-      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   std::shared_ptr<detail::node_impl> impl;
 };

@@ -20,7 +20,7 @@ int main() {
   std::vector<int> HostDataB(Size);
   std::vector<int> HostDataC(Size);
 
-  exp_ext::dynamic_parameter DynParam(Graph, PtrA);
+  exp_ext::dynamic_parameter DynParam(PtrA);
 
   auto CGFA = [&](handler &CGH) {
     CGH.set_arg(0, DynParam);

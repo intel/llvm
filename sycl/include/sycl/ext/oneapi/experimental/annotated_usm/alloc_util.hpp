@@ -162,18 +162,6 @@ struct CheckTAndPropListsWithUsmKind<Kind, T, detail::properties_t<PropsA...>,
 //  Utility functions for USM allocation with property support
 ////
 
-// Transform a compile-time property list to a USM property_list (working at
-// runtime). Right now only the `buffer_location<N>` has its corresponding USM
-// runtime property and is transformable
-template <typename PropertyListT> inline property_list get_usm_property_list() {
-  if constexpr (PropertyListT::template has_property<buffer_location_key>()) {
-    return property_list{
-        sycl::ext::intel::experimental::property::usm::buffer_location(
-            PropertyListT::template get_property<buffer_location_key>().value)};
-  }
-  return {};
-}
-
 // Combine two alignment requirements for a pointer in the following way:
 // 1. if either of the alignments is 0, return the other alignment
 // 2. otherwise return the least common multiple of the two alignments

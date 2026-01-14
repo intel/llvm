@@ -9,10 +9,10 @@
 // CHECK-SPIRV: Capability BitInstructions
 // CHECK-SPIRV: Extension "SPV_KHR_bit_instructions"
 
-// CHECK-SPIRV: Name [[#testInsertFn:]] "testInsert"
-// CHECK-SPIRV: Name [[#testExtractSFn:]] "testExtractS"
-// CHECK-SPIRV: Name [[#testExtractUFn:]] "testExtractU"
-// CHECK-SPIRV: Name [[#testBitReverseFn:]] "testBitReverse"
+// CHECK-SPIRV: EntryPoint [[#]] [[#testInsertFn:]] "testInsert"
+// CHECK-SPIRV: EntryPoint [[#]] [[#testExtractSFn:]] "testExtractS"
+// CHECK-SPIRV: EntryPoint [[#]] [[#testExtractUFn:]] "testExtractU"
+// CHECK-SPIRV: EntryPoint [[#]] [[#testBitReverseFn:]] "testBitReverse"
 
 // CHECK-LLVM-LABEL: @testInsert
 // CHECK-LLVM: call spir_func <2 x i32> @_Z15bitfield_insertDv2_iS_jj(

@@ -86,7 +86,7 @@ TEST_P(urCommandBufferUSMCopyInOrderTest, Success) {
   // D[0] = 42 * 1 + 2
   // D[0] = 44
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                       &global_offset, &global_size, nullptr, 0,
+                                       &global_offset, &global_size, nullptr,
                                        nullptr, 0, nullptr, nullptr));
 
   // command-buffer sync point used to enforce linear dependencies when

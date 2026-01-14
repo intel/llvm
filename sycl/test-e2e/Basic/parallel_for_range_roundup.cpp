@@ -13,31 +13,30 @@
 //
 // These tests test 3 things:
 //
-// 1. The user range is the same as the in kernel range (using BufRange) as
+// 1. The user range is the same as the in kernel range (using RangePtr) as
 //    reported by get_range().
 // 2. That the effective range is the same as the reported range (using
-//    BufCounter). i.e. check that the mapping of effective range to user range
+//    CouterPtr). i.e. check that the mapping of effective range to user range
 //    is "onto".
 // 3. That every index in a 1, 2, or 3 dimension range is active the execution
-//    (using BufIndexes). i.e. check that the mapping of effective range to user
-//    range is "one-to-one".
+//    (using ItemIndexesPtr). i.e. check that the mapping of effective range to
+//    user range is "one-to-one".
 //
 // UNSUPPORTED: hip
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17077
 //
-#include <sycl/atomic.hpp>
+#include <sycl/atomic_ref.hpp>
 #include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 #include <sycl/vector.hpp>
+
+#include "../helpers.hpp"
 
 #include <iostream>
 
 using namespace sycl;
 
 constexpr size_t MagicY = 33, MagicZ = 64;
-
-range<1> Range1 = {0};
-range<2> Range2 = {0, 0};
-range<3> Range3 = {0, 0, 0};
 
 template <typename T> class Kernel1;
 template <typename T> class Kernel2;
@@ -58,156 +57,203 @@ template <unsigned Dims> void checkVec(vec<int, Dims> a, vec<int, Dims> b) {
     assert(a[2] == b[2]);
 }
 
-template <typename KernelIdT> void try_1d_range(size_t size) {
+template <typename KernelIdT>
+void try_1d_range(size_t size, bool useShortcutFunction) {
   using IndexCheckT = int;
-  range<1> Size{size};
-  int Counter = 0;
-  std::vector<IndexCheckT> ItemIndexes(Size[0]);
-  {
-    buffer<range<1>, 1> BufRange(&Range1, 1);
-    buffer<int, 1> BufCounter(&Counter, 1);
-    buffer<IndexCheckT, 1> BufIndexes(ItemIndexes);
-    queue myQueue;
+  range<1> Range{size};
+  queue Queue;
 
-    myQueue.submit([&](handler &cgh) {
-      auto AccRange = BufRange.get_access<access::mode::read_write>(cgh);
-      auto AccCounter = BufCounter.get_access<access::mode::atomic>(cgh);
-      auto AccIndexes = BufIndexes.get_access<access::mode::write>(cgh);
-      cgh.parallel_for<Kernel1<KernelIdT>>(Size, [=](KernelIdT I) {
-        AccCounter[0].fetch_add(1);
-        if constexpr (std::is_same_v<KernelIdT, item<1>>)
-          AccRange[0] = sycl::range<1>(I.get_range(0));
-        int Idx = I[0];
-        AccIndexes[Idx] = IndexCheckT(I[0]);
-      });
-    });
-    myQueue.wait();
-  }
+  range<1> *RangePtr = malloc_shared<range<1>>(1, Queue);
+  int *CounterPtr = malloc_shared<int>(1, Queue);
+  IndexCheckT *ItemIndexesPtr = malloc_shared<IndexCheckT>(Range[0], Queue);
+
+  (*CounterPtr) = 0;
+
+  auto KernelFunc = [=](KernelIdT I) {
+    auto atm = atomic_ref<int, sycl::memory_order::relaxed,
+                          sycl::memory_scope::device>(*CounterPtr);
+    atm.fetch_add(1);
+    if constexpr (std::is_same_v<KernelIdT, item<1>>)
+      (*RangePtr) = range<1>(I.get_range(0));
+    int Idx = I[0];
+    ItemIndexesPtr[Idx] = IndexCheckT(I[0]);
+  };
+
+  command_submit_wrappers::parallel_for_wrapper<Kernel1<KernelIdT>>(
+      useShortcutFunction, Queue, Range, KernelFunc);
+
+  Queue.wait();
+
   if constexpr (std::is_same_v<KernelIdT, item<1>>) {
-    check("Size seen by user at Dim 0 = ", Range1.get(0), size);
+    check("Size seen by user at Dim 0 = ", RangePtr->get(0), size);
   }
-  check("Counter = ", Counter, size);
-  for (auto i = 0; i < Size[0]; ++i) {
-    checkVec<1>(vec<int, 1>(ItemIndexes[i]), vec<int, 1>(i));
+  check("Counter = ", *CounterPtr, size);
+  for (auto i = 0; i < Range[0]; ++i) {
+    checkVec<1>(vec<int, 1>(ItemIndexesPtr[i]), vec<int, 1>(i));
   }
   std::cout << "Correct kernel indexes used\n";
+
+  auto Context = Queue.get_context();
+  free(RangePtr, Context);
+  free(CounterPtr, Context);
+  free(ItemIndexesPtr, Context);
 }
 
-template <typename KernelIdT> void try_2d_range(size_t size) {
+template <typename KernelIdT>
+void try_2d_range(size_t size, bool useShortcutFunction) {
   using IndexCheckT = int2;
-  range<2> Size{size, MagicY};
-  int Counter = 0;
-  std::vector<IndexCheckT> ItemIndexes(Size[0] * Size[1]);
-  {
-    buffer<range<2>, 1> BufRange(&Range2, 1);
-    buffer<int, 1> BufCounter(&Counter, 1);
-    buffer<IndexCheckT, 1> BufIndexes(ItemIndexes);
-    queue myQueue;
+  range<2> Range{size, MagicY};
+  queue Queue;
 
-    myQueue.submit([&](handler &cgh) {
-      auto AccRange = BufRange.get_access<access::mode::read_write>(cgh);
-      auto AccCounter = BufCounter.get_access<access::mode::atomic>(cgh);
-      auto AccIndexes = BufIndexes.get_access<access::mode::write>(cgh);
-      cgh.parallel_for<Kernel2<KernelIdT>>(Size, [=](KernelIdT I) {
-        AccCounter[0].fetch_add(1);
-        if constexpr (std::is_same_v<KernelIdT, item<2>>)
-          AccRange[0] = sycl::range<2>(I.get_range(0), I.get_range(1));
-        int Idx = I[0] * Size[1] + I[1];
-        AccIndexes[Idx] = IndexCheckT(I[0], I[1]);
-      });
-    });
-    myQueue.wait();
-  }
+  range<2> *RangePtr = malloc_shared<range<2>>(1, Queue);
+  int *CounterPtr = malloc_shared<int>(1, Queue);
+  IndexCheckT *ItemIndexesPtr =
+      malloc_shared<IndexCheckT>(Range[0] * Range[1], Queue);
+
+  (*CounterPtr) = 0;
+
+  auto KernelFunc = [=](KernelIdT I) {
+    auto atm = atomic_ref<int, sycl::memory_order::relaxed,
+                          sycl::memory_scope::device>(*CounterPtr);
+    atm.fetch_add(1);
+
+    if constexpr (std::is_same_v<KernelIdT, item<2>>)
+      (*RangePtr) = range<2>(I.get_range(0), I.get_range(1));
+    int Idx = I[0] * Range[1] + I[1];
+    ItemIndexesPtr[Idx] = IndexCheckT(I[0], I[1]);
+  };
+
+  command_submit_wrappers::parallel_for_wrapper<Kernel2<KernelIdT>>(
+      useShortcutFunction, Queue, Range, KernelFunc);
+
+  Queue.wait();
+
   if constexpr (std::is_same_v<KernelIdT, item<2>>) {
-    check("Size seen by user at Dim 0 = ", Range2.get(0), Size[0]);
-    check("Size seen by user at Dim 1 = ", Range2.get(1), Size[1]);
+    check("Size seen by user at Dim 0 = ", RangePtr->get(0), Range[0]);
+    check("Size seen by user at Dim 1 = ", RangePtr->get(1), Range[1]);
   }
-  check("Counter = ", Counter, size * MagicY);
-  for (auto i = 0; i < Size[0]; ++i)
-    for (auto j = 0; j < Size[1]; ++j)
-      checkVec<2>(ItemIndexes[i * Size[1] + j], IndexCheckT(i, j));
+  check("Counter = ", *CounterPtr, size * MagicY);
+  for (auto i = 0; i < Range[0]; ++i)
+    for (auto j = 0; j < Range[1]; ++j)
+      checkVec<2>(ItemIndexesPtr[i * Range[1] + j], IndexCheckT(i, j));
   std::cout << "Correct kernel indexes used\n";
+
+  auto Context = Queue.get_context();
+  free(RangePtr, Context);
+  free(CounterPtr, Context);
+  free(ItemIndexesPtr, Context);
 }
 
-template <typename KernelIdT> void try_3d_range(size_t size) {
+template <typename KernelIdT>
+void try_3d_range(size_t size, bool useShortcutFunction) {
   using IndexCheckT = int3;
-  range<3> Size{size, MagicY, MagicZ};
-  int Counter = 0;
-  std::vector<IndexCheckT> ItemIndexes(Size[0] * Size[1] * Size[2]);
-  {
-    buffer<range<3>, 1> BufRange(&Range3, 1);
-    buffer<int, 1> BufCounter(&Counter, 1);
-    buffer<IndexCheckT, 1> BufIndexes(ItemIndexes);
-    queue myQueue;
+  range<3> Range{size, MagicY, MagicZ};
+  queue Queue;
 
-    myQueue.submit([&](handler &cgh) {
-      auto AccRange = BufRange.get_access<access::mode::read_write>(cgh);
-      auto AccCounter = BufCounter.get_access<access::mode::atomic>(cgh);
-      auto AccIndexes = BufIndexes.get_access<access::mode::write>(cgh);
-      cgh.parallel_for<Kernel3<KernelIdT>>(Size, [=](KernelIdT I) {
-        AccCounter[0].fetch_add(1);
-        if constexpr (std::is_same_v<KernelIdT, item<3>>)
-          AccRange[0] =
-              sycl::range<3>(I.get_range(0), I.get_range(1), I.get_range(2));
-        int Idx = I[0] * Size[1] * Size[2] + I[1] * Size[2] + I[2];
-        AccIndexes[Idx] = IndexCheckT(I[0], I[1], I[2]);
-      });
-    });
-    myQueue.wait();
-  }
+  range<3> *RangePtr = malloc_shared<range<3>>(1, Queue);
+  int *CounterPtr = malloc_shared<int>(1, Queue);
+  IndexCheckT *ItemIndexesPtr =
+      malloc_shared<IndexCheckT>(Range[0] * Range[1] * Range[2], Queue);
+
+  (*CounterPtr) = 0;
+
+  auto KernelFunc = [=](KernelIdT I) {
+    auto atm = atomic_ref<int, sycl::memory_order::relaxed,
+                          sycl::memory_scope::device>(*CounterPtr);
+    atm.fetch_add(1);
+
+    if constexpr (std::is_same_v<KernelIdT, item<3>>)
+      (*RangePtr) = range<3>(I.get_range(0), I.get_range(1), I.get_range(2));
+    int Idx = I[0] * Range[1] * Range[2] + I[1] * Range[2] + I[2];
+    ItemIndexesPtr[Idx] = IndexCheckT(I[0], I[1], I[2]);
+  };
+
+  command_submit_wrappers::parallel_for_wrapper<Kernel3<KernelIdT>>(
+      useShortcutFunction, Queue, Range, KernelFunc);
+
+  Queue.wait();
+
   if constexpr (std::is_same_v<KernelIdT, item<3>>) {
-    check("Size seen by user at Dim 0 = ", Range3.get(0), Size[0]);
-    check("Size seen by user at Dim 1 = ", Range3.get(1), Size[1]);
-    check("Size seen by user at Dim 2 = ", Range3.get(2), Size[2]);
+    check("Size seen by user at Dim 0 = ", RangePtr->get(0), Range[0]);
+    check("Size seen by user at Dim 1 = ", RangePtr->get(1), Range[1]);
+    check("Size seen by user at Dim 2 = ", RangePtr->get(2), Range[2]);
   }
-  check("Counter = ", Counter, size * MagicY * MagicZ);
-  for (auto i = 0; i < Size[0]; ++i)
-    for (auto j = 0; j < Size[1]; ++j)
-      for (auto k = 0; k < Size[2]; ++k)
-        checkVec<3>(ItemIndexes[i * Size[1] * Size[2] + j * Size[2] + k],
+  check("Counter = ", *CounterPtr, size * MagicY * MagicZ);
+  for (auto i = 0; i < Range[0]; ++i)
+    for (auto j = 0; j < Range[1]; ++j)
+      for (auto k = 0; k < Range[2]; ++k)
+        checkVec<3>(ItemIndexesPtr[i * Range[1] * Range[2] + j * Range[2] + k],
                     IndexCheckT(i, j, k));
   std::cout << "Correct kernel indexes used\n";
+
+  auto Context = Queue.get_context();
+  free(RangePtr, Context);
+  free(CounterPtr, Context);
+  free(ItemIndexesPtr, Context);
 }
 
-void try_unnamed_lambda(size_t size) {
-  range<3> Size{size, MagicY, MagicZ};
-  int Counter = 0;
-  {
-    buffer<range<3>, 1> BufRange(&Range3, 1);
-    buffer<int, 1> BufCounter(&Counter, 1);
-    queue myQueue;
+void try_unnamed_lambda(size_t size, bool useShortcutFunction) {
+  range<3> Range{size, MagicY, MagicZ};
+  queue Queue;
 
-    myQueue.submit([&](handler &cgh) {
-      auto AccRange = BufRange.get_access<access::mode::read_write>(cgh);
-      auto AccCounter = BufCounter.get_access<access::mode::atomic>(cgh);
-      cgh.parallel_for(Size, [=](id<3> ID) {
-        AccCounter[0].fetch_add(1);
-        AccRange[0][0] = ID[0];
-      });
-    });
-    myQueue.wait();
-  }
-  check("Counter = ", Counter, size * MagicY * MagicZ);
+  range<3> *RangePtr = malloc_shared<range<3>>(1, Queue);
+  int *CounterPtr = malloc_shared<int>(1, Queue);
+
+  (*CounterPtr) = 0;
+
+  auto KernelFunc = [=](id<3> ID) {
+    auto atm = atomic_ref<int, sycl::memory_order::relaxed,
+                          sycl::memory_scope::device>(*CounterPtr);
+    atm.fetch_add(1);
+    (*RangePtr)[0] = ID[0];
+  };
+
+  command_submit_wrappers::parallel_for_wrapper<class TestKernel>(
+      useShortcutFunction, Queue, Range, KernelFunc);
+
+  Queue.wait();
+
+  check("Counter = ", *CounterPtr, size * MagicY * MagicZ);
+
+  auto Context = Queue.get_context();
+  free(RangePtr, Context);
+  free(CounterPtr, Context);
 }
 
 int main() {
   int x = 1500;
-  try_1d_range<item<1>>(x);
-  try_1d_range<id<1>>(x);
-  try_2d_range<item<2>>(x);
-  try_2d_range<id<2>>(x);
-  try_3d_range<item<3>>(x);
-  try_3d_range<id<3>>(x);
-  try_unnamed_lambda(x);
+  try_1d_range<item<1>>(x, true);
+  try_1d_range<id<1>>(x, true);
+  try_2d_range<item<2>>(x, true);
+  try_2d_range<id<2>>(x, true);
+  try_3d_range<item<3>>(x, true);
+  try_3d_range<id<3>>(x, true);
+  try_unnamed_lambda(x, true);
+
+  try_1d_range<item<1>>(x, false);
+  try_1d_range<id<1>>(x, false);
+  try_2d_range<item<2>>(x, false);
+  try_2d_range<id<2>>(x, false);
+  try_3d_range<item<3>>(x, false);
+  try_3d_range<id<3>>(x, false);
+  try_unnamed_lambda(x, false);
 
   x = 256;
-  try_1d_range<item<1>>(x);
-  try_1d_range<id<1>>(x);
-  try_2d_range<item<2>>(x);
-  try_2d_range<id<2>>(x);
-  try_3d_range<item<3>>(x);
-  try_3d_range<id<3>>(x);
-  try_unnamed_lambda(x);
+  try_1d_range<item<1>>(x, true);
+  try_1d_range<id<1>>(x, true);
+  try_2d_range<item<2>>(x, true);
+  try_2d_range<id<2>>(x, true);
+  try_3d_range<item<3>>(x, true);
+  try_3d_range<id<3>>(x, true);
+  try_unnamed_lambda(x, true);
+
+  try_1d_range<item<1>>(x, false);
+  try_1d_range<id<1>>(x, false);
+  try_2d_range<item<2>>(x, false);
+  try_2d_range<id<2>>(x, false);
+  try_3d_range<item<3>>(x, false);
+  try_3d_range<id<3>>(x, false);
+  try_unnamed_lambda(x, false);
 }
 
 // CHECK-DEFAULT:       parallel_for range adjusted at dim 0 from 1500 to 1504
@@ -236,6 +282,51 @@ int main() {
 // CHECK-DEFAULT-NEXT:  Correct kernel indexes used
 // CHECK-DEFAULT-NEXT:  parallel_for range adjusted at dim 0 from 1500 to 1504
 // CHECK-DEFAULT-NEXT:  Counter = 3168000
+// CHECK-DEFAULT:       parallel_for range adjusted at dim 0 from 1500 to 1504
+// CHECK-DEFAULT-NEXT:  Size seen by user at Dim 0 = 1500
+// CHECK-DEFAULT-NEXT:  Counter = 1500
+// CHECK-DEFAULT-NEXT:  Correct kernel indexes used
+// CHECK-DEFAULT-NEXT:  parallel_for range adjusted at dim 0 from 1500 to 1504
+// CHECK-DEFAULT-NEXT:  Counter = 1500
+// CHECK-DEFAULT-NEXT:  Correct kernel indexes used
+// CHECK-DEFAULT-NEXT:  parallel_for range adjusted at dim 0 from 1500 to 1504
+// CHECK-DEFAULT-NEXT:  Size seen by user at Dim 0 = 1500
+// CHECK-DEFAULT-NEXT:  Size seen by user at Dim 1 = 33
+// CHECK-DEFAULT-NEXT:  Counter = 49500
+// CHECK-DEFAULT-NEXT:  Correct kernel indexes used
+// CHECK-DEFAULT-NEXT:  parallel_for range adjusted at dim 0 from 1500 to 1504
+// CHECK-DEFAULT-NEXT:  Counter = 49500
+// CHECK-DEFAULT-NEXT:  Correct kernel indexes used
+// CHECK-DEFAULT-NEXT:  parallel_for range adjusted at dim 0 from 1500 to 1504
+// CHECK-DEFAULT-NEXT:  Size seen by user at Dim 0 = 1500
+// CHECK-DEFAULT-NEXT:  Size seen by user at Dim 1 = 33
+// CHECK-DEFAULT-NEXT:  Size seen by user at Dim 2 = 64
+// CHECK-DEFAULT-NEXT:  Counter = 3168000
+// CHECK-DEFAULT-NEXT:  Correct kernel indexes used
+// CHECK-DEFAULT-NEXT:  parallel_for range adjusted at dim 0 from 1500 to 1504
+// CHECK-DEFAULT-NEXT:  Counter = 3168000
+// CHECK-DEFAULT-NEXT:  Correct kernel indexes used
+// CHECK-DEFAULT-NEXT:  parallel_for range adjusted at dim 0 from 1500 to 1504
+// CHECK-DEFAULT-NEXT:  Counter = 3168000
+// CHECK-DEFAULT-NEXT:  Size seen by user at Dim 0 = 256
+// CHECK-DEFAULT-NEXT:  Counter = 256
+// CHECK-DEFAULT-NEXT:  Correct kernel indexes used
+// CHECK-DEFAULT-NEXT:  Counter = 256
+// CHECK-DEFAULT-NEXT:  Correct kernel indexes used
+// CHECK-DEFAULT-NEXT:  Size seen by user at Dim 0 = 256
+// CHECK-DEFAULT-NEXT:  Size seen by user at Dim 1 = 33
+// CHECK-DEFAULT-NEXT:  Counter = 8448
+// CHECK-DEFAULT-NEXT:  Correct kernel indexes used
+// CHECK-DEFAULT-NEXT:  Counter = 8448
+// CHECK-DEFAULT-NEXT:  Correct kernel indexes used
+// CHECK-DEFAULT-NEXT:  Size seen by user at Dim 0 = 256
+// CHECK-DEFAULT-NEXT:  Size seen by user at Dim 1 = 33
+// CHECK-DEFAULT-NEXT:  Size seen by user at Dim 2 = 64
+// CHECK-DEFAULT-NEXT:  Counter = 540672
+// CHECK-DEFAULT-NEXT:  Correct kernel indexes used
+// CHECK-DEFAULT-NEXT:  Counter = 540672
+// CHECK-DEFAULT-NEXT:  Correct kernel indexes used
+// CHECK-DEFAULT-NEXT:  Counter = 540672
 // CHECK-DEFAULT-NEXT:  Size seen by user at Dim 0 = 256
 // CHECK-DEFAULT-NEXT:  Counter = 256
 // CHECK-DEFAULT-NEXT:  Correct kernel indexes used
@@ -287,6 +378,61 @@ int main() {
 // CHECK-EXP-NEXT:  parallel_for range adjusted at dim 0 from 1500 to 1504
 // CHECK-EXP-NEXT:  parallel_for range adjusted at dim 1 from 33 to 40
 // CHECK-EXP-NEXT:  Counter = 3168000
+// CHECK-EXP:       parallel_for range adjusted at dim 0 from 1500 to 1504
+// CHECK-EXP-NEXT:  Size seen by user at Dim 0 = 1500
+// CHECK-EXP-NEXT:  Counter = 1500
+// CHECK-EXP-NEXT:  Correct kernel indexes used
+// CHECK-EXP-NEXT:  parallel_for range adjusted at dim 0 from 1500 to 1504
+// CHECK-EXP-NEXT:  Counter = 1500
+// CHECK-EXP-NEXT:  Correct kernel indexes used
+// CHECK-EXP-NEXT:  parallel_for range adjusted at dim 0 from 1500 to 1504
+// CHECK-EXP-NEXT:  parallel_for range adjusted at dim 1 from 33 to 48
+// CHECK-EXP-NEXT:  Size seen by user at Dim 0 = 1500
+// CHECK-EXP-NEXT:  Size seen by user at Dim 1 = 33
+// CHECK-EXP-NEXT:  Counter = 49500
+// CHECK-EXP-NEXT:  Correct kernel indexes used
+// CHECK-EXP-NEXT:  parallel_for range adjusted at dim 0 from 1500 to 1504
+// CHECK-EXP-NEXT:  parallel_for range adjusted at dim 1 from 33 to 48
+// CHECK-EXP-NEXT:  Counter = 49500
+// CHECK-EXP-NEXT:  Correct kernel indexes used
+// CHECK-EXP-NEXT:  parallel_for range adjusted at dim 0 from 1500 to 1504
+// CHECK-EXP-NEXT:  parallel_for range adjusted at dim 1 from 33 to 40
+// CHECK-EXP-NEXT:  Size seen by user at Dim 0 = 1500
+// CHECK-EXP-NEXT:  Size seen by user at Dim 1 = 33
+// CHECK-EXP-NEXT:  Size seen by user at Dim 2 = 64
+// CHECK-EXP-NEXT:  Counter = 3168000
+// CHECK-EXP-NEXT:  Correct kernel indexes used
+// CHECK-EXP-NEXT:  parallel_for range adjusted at dim 0 from 1500 to 1504
+// CHECK-EXP-NEXT:  parallel_for range adjusted at dim 1 from 33 to 40
+// CHECK-EXP-NEXT:  Counter = 3168000
+// CHECK-EXP-NEXT:  Correct kernel indexes used
+// CHECK-EXP-NEXT:  parallel_for range adjusted at dim 0 from 1500 to 1504
+// CHECK-EXP-NEXT:  parallel_for range adjusted at dim 1 from 33 to 40
+// CHECK-EXP-NEXT:  Counter = 3168000
+// CHECK-EXP-NEXT:  Size seen by user at Dim 0 = 256
+// CHECK-EXP-NEXT:  Counter = 256
+// CHECK-EXP-NEXT:  Correct kernel indexes used
+// CHECK-EXP-NEXT:  Counter = 256
+// CHECK-EXP-NEXT:  Correct kernel indexes used
+// CHECK-EXP-NEXT:  parallel_for range adjusted at dim 1 from 33 to 48
+// CHECK-EXP-NEXT:  Size seen by user at Dim 0 = 256
+// CHECK-EXP-NEXT:  Size seen by user at Dim 1 = 33
+// CHECK-EXP-NEXT:  Counter = 8448
+// CHECK-EXP-NEXT:  Correct kernel indexes used
+// CHECK-EXP-NEXT:  parallel_for range adjusted at dim 1 from 33 to 48
+// CHECK-EXP-NEXT:  Counter = 8448
+// CHECK-EXP-NEXT:  Correct kernel indexes used
+// CHECK-EXP-NEXT:  parallel_for range adjusted at dim 1 from 33 to 40
+// CHECK-EXP-NEXT:  Size seen by user at Dim 0 = 256
+// CHECK-EXP-NEXT:  Size seen by user at Dim 1 = 33
+// CHECK-EXP-NEXT:  Size seen by user at Dim 2 = 64
+// CHECK-EXP-NEXT:  Counter = 540672
+// CHECK-EXP-NEXT:  Correct kernel indexes used
+// CHECK-EXP-NEXT:  parallel_for range adjusted at dim 1 from 33 to 40
+// CHECK-EXP-NEXT:  Counter = 540672
+// CHECK-EXP-NEXT:  Correct kernel indexes used
+// CHECK-EXP-NEXT:  parallel_for range adjusted at dim 1 from 33 to 40
+// CHECK-EXP-NEXT:  Counter = 540672
 // CHECK-EXP-NEXT:  Size seen by user at Dim 0 = 256
 // CHECK-EXP-NEXT:  Counter = 256
 // CHECK-EXP-NEXT:  Correct kernel indexes used

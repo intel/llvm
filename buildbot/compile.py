@@ -31,14 +31,17 @@ def do_compile(args):
         "cmake",
         "--build",
         abs_obj_dir,
+    ]
+
+    if args.verbose:
+        cmake_cmd.append("--verbose")
+
+    cmake_cmd += [
         "--",
         args.build_target,
         "-j",
         str(cpu_count),
     ]
-
-    if args.verbose:
-        cmake_cmd.append("--verbose")
 
     print("[Cmake Command]: {}".format(" ".join(cmake_cmd)))
 

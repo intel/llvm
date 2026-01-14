@@ -1,9 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: linux && arch-intel_gpu_bmg_g21 && level_zero_v2_adapter
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20225
-
 // This test verifies that we can use scoped enum types as arguments in free
 // function kernels.
 
@@ -47,25 +44,22 @@ int main() {
     sycl::buffer<bool, 1> flagBuffer2(&flag2, 1);
     sycl::buffer<bool, 1> flagBuffer3(&flag3, 1);
     Queue.submit([&](sycl::handler &Handler) {
-      flagType flagAcc1{flagBuffer1, Handler};
       rAccType acc1;
-
+      flagType flagAcc1{flagBuffer1, Handler};
       Handler.set_args(acc1, rMode, flagAcc1);
       Handler.single_task(Kernel1);
     });
 
     Queue.submit([&](sycl::handler &Handler) {
-      flagType flagAcc2{flagBuffer2, Handler};
       wAccType acc2;
-
+      flagType flagAcc2{flagBuffer2, Handler};
       Handler.set_args(acc2, wMode, flagAcc2);
       Handler.single_task(Kernel2);
     });
 
     Queue.submit([&](sycl::handler &Handler) {
-      flagType flagAcc3{flagBuffer3, Handler};
       rwAccType acc3;
-
+      flagType flagAcc3{flagBuffer3, Handler};
       Handler.set_args(acc3, rwMode, flagAcc3);
       Handler.single_task(Kernel3);
     });

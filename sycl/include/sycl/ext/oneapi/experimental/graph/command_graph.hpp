@@ -85,6 +85,8 @@ UnsupportedFeatureToString(UnsupportedGraphFeatures Feature) {
 /// Graph in the modifiable state.
 template <graph_state State = graph_state::modifiable>
 class command_graph : public detail::modifiable_command_graph {
+  friend sycl::detail::ImplUtils;
+
 public:
   /// Constructor.
   /// @param SyclContext Context to use for graph.
@@ -113,13 +115,6 @@ private:
   /// @param Impl Detail implementation class to construct object with.
   command_graph(const std::shared_ptr<detail::graph_impl> &Impl)
       : modifiable_command_graph(Impl) {}
-
-  template <class T>
-  friend T sycl::detail::createSyclObjFromImpl(
-      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
-  template <class T>
-  friend T sycl::detail::createSyclObjFromImpl(
-      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 };
 
 template <>

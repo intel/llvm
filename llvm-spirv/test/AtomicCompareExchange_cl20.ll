@@ -17,7 +17,9 @@ target triple = "spir-unknown-unknown"
 
 ; CHECK: 4 TypeInt [[int:[0-9]+]] 32 0
 ; CHECK: Constant [[int]] [[DeviceScope:[0-9]+]] 1
-; CHECK: Constant [[int]] [[SequentiallyConsistent_MS:[0-9]+]] 16
+; For generic AS with SequentiallyConsistent: 784 = 768 (storage class) + 16 (SeqCst)
+; Where 768 = CrossWorkgroupMemory (512) | WorkgroupMemory (256)
+; CHECK: Constant [[int]] [[SequentiallyConsistent_MS:[0-9]+]] 784
 ; CHECK-TYPED-PTR: 4 TypePointer [[int_ptr:[0-9]+]] 8 [[int]]
 ; CHECK-UNTYPED-PTR: 3 TypeUntypedPointerKHR [[int_ptr:[0-9]+]] 8
 ; CHECK: 2 TypeBool [[bool:[0-9]+]]

@@ -3,6 +3,10 @@
 // UNSUPPORTED-INTENDED: ze_debug UR emits summary of leaks that contains
 // function names that we match in the test.
 
+// UNSUPPORTED: level_zero_v2_adapter
+// UNSUPPORTED-INTENDED: Level Zero v2 adapter performs lazy initialization
+// and does not support SYCL_EAGER_INIT=1, which this test requires.
+
 // RUN: %{build} -Wno-error=deprecated-declarations %level_zero_options -o %t.out
 // RUN: env UR_L0_DEBUG=1 SYCL_EAGER_INIT=1 %{run} %t.out 2>&1 | FileCheck %s
 //

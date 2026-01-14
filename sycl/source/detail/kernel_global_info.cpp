@@ -23,6 +23,17 @@ __SYCL_EXPORT void add(const char *const *FreeFunctionNames,
       std::move(GlobalInfoToCopy));
 }
 
+__SYCL_EXPORT void remove(const char *const *FreeFunctionNames,
+                          const unsigned *FreeFunctionNumArgs, unsigned Size) {
+  std::unordered_map<std::string_view, unsigned> GlobalInfoToCopy;
+  for (size_t i = 0; i < Size; ++i) {
+    GlobalInfoToCopy[std::string_view{FreeFunctionNames[i]}] =
+        FreeFunctionNumArgs[i];
+  }
+  detail::ProgramManager::getInstance().unRegisterKernelGlobalInfo(
+      std::move(GlobalInfoToCopy));
+}
+
 } // namespace detail::free_function_info_map
 } // namespace _V1
 } // namespace sycl

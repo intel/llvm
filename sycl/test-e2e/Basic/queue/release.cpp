@@ -11,7 +11,7 @@ int main() {
   return 0;
 }
 
-// CHECK: <--- urEnqueueKernelLaunch(
+// CHECK: <--- urEnqueueKernelLaunchWithArgsExp(
 // FIXME the order of these 2 varies between adapters due to a Level Zero
 // specific queue workaround.
 // CHECK-DAG: <--- urEventRelease(
@@ -23,7 +23,7 @@ int main() {
 // of these UR objects. So, we currently shutdown without releasing them and
 // windows should handle the memory cleanup.
 
-// CHECK-RELEASE: <--- urContextRelease(
 // CHECK-RELEASE: <--- urKernelRelease(
 // CHECK-RELEASE: <--- urProgramRelease(
+// CHECK-RELEASE: <--- urContextRelease(
 // CHECK-RELEASE: <--- urDeviceRelease(

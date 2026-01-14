@@ -22,7 +22,7 @@
 // PREPROC_PHASES: 1: preprocessor, {0}, c++-cpp-output, (device-sycl)
 // PREPROC_PHASES: 2: offload, "device-sycl (spir64-unknown-unknown)" {1}, c++-cpp-output
 // PREPROC_PHASES: 3: input, "[[INPUT]]", c++, (host-sycl)
-// PREPROC_PHASES: 4: compiler, {1}, none, (device-sycl)
+// PREPROC_PHASES: 4: compiler, {0}, none, (device-sycl)
 // PREPROC_PHASES: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {3}, "device-sycl (spir64-unknown-unknown)" {4}, c++
 // PREPROC_PHASES: 6: preprocessor, {5}, c++-cpp-output, (host-sycl)
 // PREPROC_PHASES: 7: clang-offload-bundler, {2, 6}, c++-cpp-output, (host-sycl)

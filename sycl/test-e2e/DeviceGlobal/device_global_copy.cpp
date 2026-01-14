@@ -3,6 +3,9 @@
 // RUN: %{build} %{cpp23} -o %t.out
 // RUN: %{run} %t.out
 //
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20591
+//
 // UNSUPPORTED: opencl && gpu
 // UNSUPPORTED-TRACKER: GSD-4287
 // UNSUPPORTED: target-native_cpu

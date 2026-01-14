@@ -5,6 +5,8 @@
 ; are properly handled by LowerWGScope pass. Check that WG-shared local "shadow" variables are created
 ; and before each PFWI invocation leader WI stores its private copy of the variable into the shadow,
 ; then all WIs load the shadow value into their private copies ("materialize" the private copy).
+; Also check that an indirect call to a function marked with parallel_for_work_item is treated
+; the same as a direct call.
 
 %struct.bar = type { i8 }
 %struct.zot = type { %struct.widget, %struct.widget, %struct.widget, %struct.foo }
@@ -54,6 +56,7 @@ define internal spir_func void @wibble(ptr addrspace(4) %arg, ptr byval(%struct.
 ; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 272) #[[ATTR0]]
 ; CHECK-NEXT:    [[TMP9:%.*]] = addrspacecast ptr [[ARG1]] to ptr addrspace(4)
 ; CHECK-NEXT:    call spir_func void @bar(ptr addrspace(4) [[TMP9]], ptr byval([[STRUCT_FOO_0]]) align 1 [[TMP1]])
+; CHECK-NEXT:    call spir_func void @foo(ptr addrspace(4) [[TMP9]], ptr byval([[STRUCT_FOO_0]]) align 1 [[TMP1]])
 ; CHECK-NEXT:    ret void
 ;
 bb:
@@ -62,6 +65,57 @@ bb:
   store ptr addrspace(4) %arg, ptr %0, align 8
   %2 = addrspacecast ptr %arg1 to ptr addrspace(4)
   call spir_func void @bar(ptr addrspace(4) %2, ptr byval(%struct.foo.0) align 1 %1)
+  call spir_func void @foo(ptr addrspace(4) %2, ptr byval(%struct.foo.0) align 1 %1)
+  ret void
+}
+
+define internal spir_func void @foo(ptr addrspace(4) %arg, ptr byval(%struct.foo.0) align 1 %arg1) align 2 !work_group_scope !0 {
+; CHECK:       bb:
+; CHECK-NEXT:    [[TMP0:%.*]] = alloca ptr addrspace(4), align 8
+; CHECK-NEXT:    [[TMP1:%.*]] = alloca [[STRUCT_FOO_0:%.*]], align 1
+; CHECK-NEXT:    [[TMP2:%.*]] = load i64, ptr addrspace(1) @__spirv_BuiltInLocalInvocationIndex, align 4
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 272) #[[ATTR0]]
+; CHECK-NEXT:    [[CMPZ3:%.*]] = icmp eq i64 [[TMP2]], 0
+; CHECK-NEXT:    br i1 [[CMPZ3]], label [[LEADER:%.*]], label [[MERGE:%.*]]
+; CHECK:       leader:
+; CHECK-NEXT:    call void @llvm.memcpy.p3.p0.i64(ptr addrspace(3) align 8 @ArgShadow.4, ptr align 1 [[ARG1:%.*]], i64 1, i1 false)
+; CHECK-NEXT:    br label [[MERGE]]
+; CHECK:       merge:
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 272) #[[ATTR0]]
+; CHECK-NEXT:    call void @llvm.memcpy.p0.p3.i64(ptr align 1 [[ARG1]], ptr addrspace(3) align 8 @ArgShadow.4, i64 1, i1 false)
+; CHECK-NEXT:    [[TMP3:%.*]] = load i64, ptr addrspace(1) @__spirv_BuiltInLocalInvocationIndex, align 4
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 272) #[[ATTR0]]
+; CHECK-NEXT:    [[CMPZ:%.*]] = icmp eq i64 [[TMP3]], 0
+; CHECK-NEXT:    br i1 [[CMPZ]], label [[WG_LEADER:%.*]], label [[WG_CF:%.*]]
+; CHECK:       wg_leader:
+; CHECK-NEXT:    store ptr addrspace(4) [[ARG:%.*]], ptr [[TMP0]], align 8
+; CHECK-NEXT:    br label [[WG_CF]]
+; CHECK:       wg_cf:
+; CHECK-NEXT:    [[TMP4:%.*]] = load i64, ptr addrspace(1) @__spirv_BuiltInLocalInvocationIndex, align 4
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 272) #[[ATTR0]]
+; CHECK-NEXT:    [[CMPZ2:%.*]] = icmp eq i64 [[TMP4]], 0
+; CHECK-NEXT:    br i1 [[CMPZ2]], label [[TESTMAT:%.*]], label [[LEADERMAT:%.*]]
+; CHECK:       TestMat:
+; CHECK-NEXT:    call void @llvm.memcpy.p3.p0.i64(ptr addrspace(3) align 8 @WGCopy.3, ptr align 1 [[TMP1]], i64 1, i1 false)
+; CHECK-NEXT:    [[MAT_LD:%.*]] = load ptr addrspace(4), ptr [[TMP0]], align 8
+; CHECK-NEXT:    store ptr addrspace(4) [[MAT_LD]], ptr addrspace(3) @WGCopy.2, align 8
+; CHECK-NEXT:    br label [[LEADERMAT]]
+; CHECK:       LeaderMat:
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 272) #[[ATTR0]]
+; CHECK-NEXT:    [[MAT_LD1:%.*]] = load ptr addrspace(4), ptr addrspace(3) @WGCopy.2, align 8
+; CHECK-NEXT:    store ptr addrspace(4) [[MAT_LD1]], ptr [[TMP0]], align 8
+; CHECK-NEXT:    call void @llvm.memcpy.p0.p3.i64(ptr align 1 [[TMP1]], ptr addrspace(3) align 8 @WGCopy.3, i64 1, i1 false)
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 272) #[[ATTR0]]
+; CHECK-NEXT:    [[TMP5:%.*]] = addrspacecast ptr [[ARG1]] to ptr addrspace(4)
+; CHECK-NEXT:    call spir_func void @bar(ptr addrspace(4) [[TMP5]], ptr byval([[STRUCT_FOO_0]]) align 1 [[TMP1]])
+; CHECK-NEXT:    ret void
+;
+bb:
+  %1 = alloca ptr addrspace(4), align 8
+  %2 = alloca %struct.foo.0, align 1
+  store ptr addrspace(4) %arg, ptr %1, align 8
+  %3 = addrspacecast ptr %arg1 to ptr addrspace(4)
+  call spir_func void @bar(ptr addrspace(4) %3, ptr byval(%struct.foo.0) align 1 %2)
   ret void
 }
 

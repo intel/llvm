@@ -280,8 +280,8 @@ explanation and LLVM-related notes.  For full documentation, consult the CMake
 manual, or execute ``cmake --help-variable VARIABLE_NAME``.
 
 **CMAKE_CXX_STANDARD**:STRING
-  Sets the C++ standard to conform to when building LLVM.  Possible values are
-  17 and 20.  LLVM requires C++17 or higher.  This defaults to 17.
+  Sets the C++ standard to conform to when building LLVM.
+  LLVM requires C++17 or higher.  This defaults to 17.
 
 **CMAKE_INSTALL_BINDIR**:PATH
   The path to install executables, relative to the *CMAKE_INSTALL_PREFIX*.
@@ -477,6 +477,12 @@ its enabled sub-projects. Nearly all of these variable names begin with
 
 **LLVM_ENABLE_BINDINGS**:BOOL
   If disabled, do not try to build the OCaml bindings.
+
+**LLVM_ENABLE_CURL**:
+  Used to decide if LLVM tools, should support downloading information
+  (particularly debug info from ``llvm-debuginfod``) over HTTP. Allowed
+  values are ``OFF`` (default), ``ON``, and ``FORCE_ON`` (error if libcurl
+  is not found).
 
 **LLVM_ENABLE_DEBUGLOC_COVERAGE_TRACKING**:STRING
   Enhances Debugify's ability to detect line number errors by storing extra
@@ -1200,3 +1206,14 @@ Windows
   When compiling with clang-cl, CMake may use ``llvm-mt`` as the Manifest Tool
   when available. ```llvm-mt``` is only present when libxml2 is found at build-time.
   To ensure using Microsoft's Manifest Tool set `CMAKE_MT=mt`.
+
+Apple/OSX
+---------
+
+**CMAKE_OSX_SYSROOT**:STRING
+  When compiling for OSX, in order for the test suite to find libSystem to link
+  dylib tests you'll need to run CMake with ```xcrun --show-sdk-path``` as the
+  string to pass in so that the testsuite can find your os libraries.
+
+  This will show up as ```ld: library not found for -lSystem``` when running
+  tests.

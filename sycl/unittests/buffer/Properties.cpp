@@ -52,15 +52,6 @@ TEST(BufferProps, ValidPropsPinnedHostMem) {
   }
 }
 
-TEST(BufferProps, ValidPropsMemChannel) {
-  try {
-    sycl::buffer<int, 1> Buf(1, sycl::property::buffer::mem_channel{1});
-    // no explicit checks, we expect no exception to be thrown
-  } catch (...) {
-    FAIL();
-  }
-}
-
 TEST(BufferProps, SetAndQueryMatch) {
   try {
     sycl::unittest::UrMock<> Mock;

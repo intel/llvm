@@ -18,7 +18,7 @@ typedef int __v16si __attribute__((__vector_size__(64)));
 // CHECK-NEXT:    [[TMP2:%.*]] = load i16, ptr [[__U_ADDR]], align 2
 // CHECK-NEXT:    [[TMP3:%.*]] = addrspacecast ptr addrspace(4) [[TMP0]] to ptr
 // CHECK-NEXT:    [[TMP4:%.*]] = bitcast i16 [[TMP2]] to <16 x i1>
-// CHECK-NEXT:    [[TMP5:%.*]] = call <16 x i32> @llvm.masked.load.v16i32.p0(ptr [[TMP3]], i32 1, <16 x i1> [[TMP4]], <16 x i32> [[TMP1]])
+// CHECK-NEXT:    [[TMP5:%.*]] = call <16 x i32> @llvm.masked.load.v16i32.p0(ptr align 1 [[TMP3]], <16 x i1> [[TMP4]], <16 x i32> [[TMP1]])
 // CHECK-NEXT:    ret void
 //
 void load(unsigned short __U, void const *__P) {
@@ -39,7 +39,7 @@ void load(unsigned short __U, void const *__P) {
 // CHECK-NEXT:    [[TMP2:%.*]] = load i16, ptr [[__U_ADDR]], align 2
 // CHECK-NEXT:    [[TMP3:%.*]] = addrspacecast ptr addrspace(4) [[TMP0]] to ptr
 // CHECK-NEXT:    [[TMP4:%.*]] = bitcast i16 [[TMP2]] to <16 x i1>
-// CHECK-NEXT:    call void @llvm.masked.store.v16i32.p0(<16 x i32> [[TMP1]], ptr [[TMP3]], i32 1, <16 x i1> [[TMP4]])
+// CHECK-NEXT:    call void @llvm.masked.store.v16i32.p0(<16 x i32> [[TMP1]], ptr align 1 [[TMP3]], <16 x i1> [[TMP4]])
 // CHECK-NEXT:    ret void
 //
 void store(unsigned short __U, void const *__P) {

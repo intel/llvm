@@ -74,12 +74,6 @@ auto getInitializerNumElements(const Constant *Initializer) {
 //    /// a null-terminated string; target- and compiler-specific options
 //    /// which are suggested to use to "link" program at runtime
 //    const char *LinkOptions;
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-//    /// Pointer to the manifest data start
-//    const unsigned char *ManifestStart;
-//    /// Pointer to the manifest data end
-//    const unsigned char *ManifestEnd;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 //    /// Pointer to the device binary image start
 //    void *ImageStart;
 //    /// Pointer to the device binary image end
@@ -92,8 +86,8 @@ auto getInitializerNumElements(const Constant *Initializer) {
 //  };
 //
 
-constexpr unsigned int EntriesBeginIndexInTDI{10};
-constexpr unsigned int PropertySetBeginIndexInTDI{12};
+constexpr unsigned int EntriesBeginIndexInTDI{8};
+constexpr unsigned int PropertySetBeginIndexInTDI{10};
 
 // struct __tgt_offload_entry {
 //   void *addr;

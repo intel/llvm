@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 149
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 142
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -201,10 +201,3 @@
 // CHECK-NEXT: Tracing/usm/queue_single_task_released_pointer.cpp
 // CHECK-NEXT: USM/badmalloc.cpp
 // CHECK-NEXT: USM/pointer_query_descendent_device.cpp
-// CHECK-NEXT: syclcompat/atomic/atomic_arith.cpp
-// CHECK-NEXT: syclcompat/atomic/atomic_bitwise.cpp
-// CHECK-NEXT: syclcompat/atomic/atomic_class.cpp
-// CHECK-NEXT: syclcompat/atomic/atomic_comp_exchange.cpp
-// CHECK-NEXT: syclcompat/atomic/atomic_memory_acq_rel.cpp
-// CHECK-NEXT: syclcompat/atomic/atomic_minmax.cpp
-// CHECK-NEXT: syclcompat/kernel/kernel_lin.cpp

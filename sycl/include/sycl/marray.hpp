@@ -114,7 +114,7 @@ private:
       : MData{Arr[Is]...} {}
 
 public:
-  constexpr marray() : MData{} {}
+  constexpr marray() = default;
 
   explicit constexpr marray(const Type &Arg) : MData{Arg} {
     initialize_data(Arg);

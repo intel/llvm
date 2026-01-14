@@ -8,6 +8,6 @@
 // RUN:   -foffload-fp32-prec-sqrt %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=JIT %s
 
-// AOT: clang-offload-packager{{.*}} "--image=file={{.*}}.bc,triple=spir64_gen-unknown-unknown,arch={{.*}},kind=sycl,compile-opts=-options -ze-fp32-correctly-rounded-divide-sqrt{{.*}}"
+// AOT: llvm-offload-binary{{.*}} "--image=file={{.*}}.bc,triple=spir64_gen-unknown-unknown,arch={{.*}},kind=sycl,compile-opts=-options -ze-fp32-correctly-rounded-divide-sqrt{{.*}}"
 
-// JIT: clang-offload-packager{{.*}} "--image=file={{.*}}.bc,triple=spir64-unknown-unknown,arch={{.*}}compile-opts={{.*}}-foffload-fp32-prec-sqrt"
+// JIT: llvm-offload-binary{{.*}} "--image=file={{.*}}.bc,triple=spir64-unknown-unknown,arch={{.*}}compile-opts={{.*}}-foffload-fp32-prec-sqrt"

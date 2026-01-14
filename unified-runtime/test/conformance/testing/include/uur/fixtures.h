@@ -1504,8 +1504,8 @@ struct KernelLaunchHelper {
   void Launch1DRange(size_t global_size, size_t local_size = 1) {
     size_t offset = 0;
     ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &offset,
-                                         &global_size, &local_size, 0, nullptr,
-                                         0, nullptr, nullptr));
+                                         &global_size, &local_size, nullptr, 0,
+                                         nullptr, nullptr));
     ASSERT_SUCCESS(urQueueFinish(queue));
   }
 

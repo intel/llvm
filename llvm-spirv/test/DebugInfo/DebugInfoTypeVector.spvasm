@@ -22,7 +22,7 @@
           %1 = OpExtInstImport "OpenCL.std"
           %2 = OpExtInstImport "OpenCL.DebugInfo.100"
                OpMemoryModel Physical32 OpenCL
-               OpEntryPoint Kernel %23 "do_add_sub" %__spirv_BuiltInGlobalInvocationId
+               OpEntryPoint Kernel %23 "kernel" %__spirv_BuiltInGlobalInvocationId
          %27 = OpString "/app/<stdin>"
          %28 = OpString "//__CSK_MD5:df3c6ff4eef4b9de43419af39216b003"
          %31 = OpString "short4"

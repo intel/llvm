@@ -48,7 +48,8 @@ public:
         &MPhysicalMem);
 
     if (Err == UR_RESULT_ERROR_OUT_OF_RESOURCES ||
-        Err == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY)
+        Err == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY ||
+        Err == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY)
       throw sycl::exception(make_error_code(errc::memory_allocation),
                             "Failed to allocate physical memory.");
     Adapter.checkUrResult(Err);

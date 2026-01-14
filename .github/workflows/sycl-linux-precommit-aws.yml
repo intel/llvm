@@ -48,7 +48,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: aws
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           sparse-checkout: devops/actions/aws-ec2
       - run: npm install ./devops/actions/aws-ec2
@@ -63,6 +63,9 @@ jobs:
   e2e-cuda:
     needs: [aws-start]
     uses: ./.github/workflows/sycl-linux-run-tests.yml
+    permissions:
+      contents: write
+      packages: read
     with:
       name: CUDA E2E
       runner: '["aws_cuda-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}"]'
@@ -109,7 +112,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: aws
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           sparse-checkout: devops/actions/aws-ec2
       - run: npm install ./devops/actions/aws-ec2

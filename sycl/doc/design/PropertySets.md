@@ -72,20 +72,6 @@ constant.
 
 See also [SYCL2020-SpecializationConstants.md](./SYCL2020-SpecializationConstants.md).
 
-
-### [SYCL/devicelib req mask]
-
-__Key:__ At most one entry with "DeviceLibReqMask".
-
-__Value type:__ 32 bit integer. ("1")
-
-__Value:__ A bitmask of which device libraries the binary uses.
-
-__Notes:__
-
-1. If this property set is missing, no device libraries are used by the binary.
-
-
 ### [SYCL/kernel param opt]
 
 __Key:__ Kernel name.
@@ -123,20 +109,10 @@ Miscellaneous properties:
 | Key                             | Value type            | Value                                                                                                            |
 | ------------------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | "isEsimdImage"                  | 32 bit integer. ("1") | 1 if the image is ESIMD and 0 or missing otherwise.                                                              |
-| "sycl-register-alloc-mode"      | 32 bit integer. ("1") | The register allocation mode: 2 for large and 0 or missing for automatic.                                        |
 | "sycl-grf-size"                 | 32 bit integer. ("1") | The GRF size. Automatic if 0 or missing.                                                                         |
 | "optLevel"                      | 32 bit integer. ("1") | Optimization level, corresponding to the `-O` option used during compilation.                                    |
 | "sanUsed"                       | Byte array. ("2")     | Specifying if address sanitization ("asan") or memory sanitization ("msan") is used. Missing if neither is used. |
 | "specConstsReplacedWithDefault" | 32 bit integer. ("1") | 1 if the specialization constants have been replaced by their default values and 0 or missing otherwise.         |
-
-
-### [SYCL/assert used]
-
-__Key:__ Kernel name.
-
-__Value type:__ 32 bit integer. ("1")
-
-__Value:__ 1 if the kernel uses assertions and 0 or missing otherwise.
 
 
 ### [SYCL/kernel names]
@@ -215,26 +191,6 @@ Set of device requirements for the entire module:
 
 
 See also [OptionalDeviceFeatures.md](OptionalDeviceFeatures.md).
-
-
-### [SYCL/host pipes]
-
-__Key:__ Host pipe variable name.
-
-__Value type:__ Byte array. ("2")
-
-__Value:__ Information about the host pipe variable with the following
-fields: 
-
-```c++
-  // Encodes size of the underlying type T of the host pipe variable.
-  uint32_t Size;
-```
-
-__Notes:__
-
-1. If this property set is missing, the binary does not contain any host pipe
-variables.
 
 
 ### [SYCL/virtual functions]

@@ -28,7 +28,8 @@ apt update && apt install -yqq \
       libzstd-dev \
       linux-tools-generic \
       linux-tools-common \
-      time 
+      time \
+      numactl
 
 # To obtain latest release of spriv-tool.
 # Same as what's done in SPRIV-LLVM-TRANSLATOR:

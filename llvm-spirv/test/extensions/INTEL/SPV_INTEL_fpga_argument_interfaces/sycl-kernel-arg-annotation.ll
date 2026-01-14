@@ -1,5 +1,4 @@
-; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -spirv-ext=-all,+SPV_INTEL_fpga_argument_interfaces,+SPV_INTEL_fpga_buffer_location -o %t.spv
+; RUN: llvm-spirv %s -spirv-ext=-all,+SPV_INTEL_fpga_argument_interfaces,+SPV_INTEL_fpga_buffer_location -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
@@ -53,7 +52,6 @@ entry:
 ; CHECK-SPIRV: Capability FPGAArgumentInterfacesINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_fpga_argument_interfaces"
 ; CHECK-SPIRV: Extension "SPV_INTEL_fpga_buffer_location"
-; CHECK-SPIRV-DAG:  Name [[IDS:[0-9]+]] "_arg_p"
 ; CHECK-SPIRV-DAG:  Name [[ID:[0-9]+]] "_arg_p"
 ; CHECK-SPIRV:  Decorate [[ID]] Alignment 4
 ; CHECK-SPIRV:  Decorate [[ID]] MMHostInterfaceAddressWidthINTEL 32

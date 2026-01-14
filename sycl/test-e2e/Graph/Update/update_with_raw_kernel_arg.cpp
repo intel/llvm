@@ -40,8 +40,8 @@ int main() {
   int32_t ScalarB = 0xA;
   exp_ext::raw_kernel_arg RawScalarB(&ScalarB, sizeof(int32_t));
 
-  exp_ext::dynamic_parameter PtrParam(Graph, PtrA);
-  exp_ext::dynamic_parameter ScalarParam(Graph, RawScalarA);
+  exp_ext::dynamic_parameter PtrParam(PtrA);
+  exp_ext::dynamic_parameter ScalarParam(RawScalarA);
 
   auto KernelNode = Graph.add([&](handler &cgh) {
     cgh.set_arg(0, ScalarParam);

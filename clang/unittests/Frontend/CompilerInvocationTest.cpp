@@ -650,6 +650,62 @@ TEST_F(CommandLineTest, ConditionalParsingIfTrueFlagNotPresentDevice) {
   ASSERT_THAT(GeneratedArgs, Contains(HasSubstr("-sycl-std=")));
 }
 
+TEST_F(CommandLineTest, ConditionalParsingIfHLSLFlagPresent) {
+  const char *Args[] = {"-xhlsl"};
+
+  CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags);
+
+  ASSERT_EQ(Invocation.getLangOpts().MaxMatrixDimension, 4u);
+  ASSERT_EQ(Invocation.getLangOpts().getDefaultMatrixMemoryLayout(),
+            LangOptions::MatrixMemoryLayout::MatrixColMajor);
+
+  Invocation.generateCC1CommandLine(GeneratedArgs, *this);
+}
+
+TEST_F(CommandLineTest, ConditionalParsingHLSLRowMajor) {
+  const char *Args[] = {"-xhlsl", "-fmatrix-memory-layout=row-major"};
+
+  CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags);
+  ASSERT_EQ(Invocation.getLangOpts().getDefaultMatrixMemoryLayout(),
+            LangOptions::MatrixMemoryLayout::MatrixRowMajor);
+
+  Invocation.generateCC1CommandLine(GeneratedArgs, *this);
+}
+
+TEST_F(CommandLineTest, ConditionalParsingIfHLSLFlagNotPresent) {
+  const char *Args[] = {""};
+
+  CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags);
+
+  ASSERT_EQ(Invocation.getLangOpts().MaxMatrixDimension, 1048575u);
+  ASSERT_EQ(Invocation.getLangOpts().getDefaultMatrixMemoryLayout(),
+            LangOptions::MatrixMemoryLayout::MatrixColMajor);
+
+  Invocation.generateCC1CommandLine(GeneratedArgs, *this);
+}
+
+TEST_F(CommandLineTest, ConditionalParsingClangRowMajor) {
+  const char *Args[] = {"-fenable-matrix", "-fmatrix-memory-layout=row-major"};
+
+  CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags);
+
+  ASSERT_EQ(Invocation.getLangOpts().getDefaultMatrixMemoryLayout(),
+            LangOptions::MatrixMemoryLayout::MatrixRowMajor);
+
+  Invocation.generateCC1CommandLine(GeneratedArgs, *this);
+}
+
+TEST_F(CommandLineTest, ConditionalParsingIgnoreRowMajorIfMatrixNotEnabled) {
+  const char *Args[] = {"-fmatrix-memory-layout=row-major"};
+
+  CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags);
+
+  ASSERT_EQ(Invocation.getLangOpts().getDefaultMatrixMemoryLayout(),
+            LangOptions::MatrixMemoryLayout::MatrixColMajor);
+
+  Invocation.generateCC1CommandLine(GeneratedArgs, *this);
+}
+
 // Wide integer option.
 
 TEST_F(CommandLineTest, WideIntegerHighValue) {

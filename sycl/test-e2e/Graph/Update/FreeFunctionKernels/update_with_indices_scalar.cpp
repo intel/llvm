@@ -22,7 +22,7 @@ int main() {
 
   Queue.memset(DeviceData, 0, Size * sizeof(int)).wait();
 
-  exp_ext::dynamic_parameter InputParam(Graph, ScalarValue);
+  exp_ext::dynamic_parameter InputParam(ScalarValue);
 
   kernel_bundle Bundle = get_kernel_bundle<bundle_state::executable>(Ctxt);
   kernel_id Kernel_id = exp_ext::get_kernel_id<ff_6>();

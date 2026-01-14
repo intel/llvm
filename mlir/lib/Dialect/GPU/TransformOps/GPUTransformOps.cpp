@@ -8,6 +8,7 @@
 
 #include "mlir/Dialect/GPU/TransformOps/GPUTransformOps.h"
 
+#include "mlir/Conversion/AMDGPUToROCDL/AMDGPUToROCDL.h"
 #include "mlir/Conversion/GPUCommon/GPUCommonPass.h"
 #include "mlir/Conversion/GPUToNVVM/GPUToNVVMPass.h"
 #include "mlir/Conversion/GPUToROCDL/GPUToROCDLPass.h"
@@ -71,16 +72,14 @@ void transform::ApplyGPUToNVVMConversionPatternsOp::populatePatterns(
       llvmTypeConverter, [](AddressSpace space) -> unsigned {
         switch (space) {
         case AddressSpace::Global:
-          return static_cast<unsigned>(
-              NVVM::NVVMMemorySpace::kGlobalMemorySpace);
+          return static_cast<unsigned>(NVVM::NVVMMemorySpace::Global);
         case AddressSpace::Workgroup:
-          return static_cast<unsigned>(
-              NVVM::NVVMMemorySpace::kSharedMemorySpace);
+          return static_cast<unsigned>(NVVM::NVVMMemorySpace::Shared);
         case AddressSpace::Private:
           return 0;
         }
         llvm_unreachable("unknown address space enum value");
-        return 0;
+        return static_cast<unsigned>(NVVM::NVVMMemorySpace::Generic);
       });
   // Used in GPUToNVVM/WmmaOpsToNvvm.cpp so attaching here for now.
   // TODO: We should have a single to_nvvm_type_converter.
@@ -130,18 +129,7 @@ LogicalResult transform::ApplyGPUSubgroupReduceToNVVMConversionPatternsOp::
 void transform::ApplyGPUToROCDLConversionPatternsOp::populatePatterns(
     TypeConverter &typeConverter, RewritePatternSet &patterns) {
   auto &llvmTypeConverter = static_cast<LLVMTypeConverter &>(typeConverter);
-  populateGpuMemorySpaceAttributeConversions(
-      llvmTypeConverter, [](AddressSpace space) {
-        switch (space) {
-        case AddressSpace::Global:
-          return ROCDL::ROCDLDialect::kGlobalMemoryAddressSpace;
-        case AddressSpace::Workgroup:
-          return ROCDL::ROCDLDialect::kSharedMemoryAddressSpace;
-        case AddressSpace::Private:
-          return ROCDL::ROCDLDialect::kPrivateMemoryAddressSpace;
-        }
-        llvm_unreachable("unknown address space enum value");
-      });
+  populateCommonAMDGPUTypeAndAttributeConversions(llvmTypeConverter);
   FailureOr<amdgpu::Chipset> maybeChipset =
       amdgpu::Chipset::parse(getChipset());
   assert(llvm::succeeded(maybeChipset) && "expected valid chipset");
@@ -849,9 +837,7 @@ getThreadIdBuilder(std::optional<TransformOpInterface> transformOp,
             return GpuLaneIdBuilder(ctx, warpSize, useLinearMapping,
                                     *maybeMaskingAttr);
           })
-          .Default([&](DeviceMappingAttrInterface) -> GpuIdBuilder {
-            llvm_unreachable("unknown mapping attribute");
-          });
+          .DefaultUnreachable("unknown mapping attribute");
   return DiagnosedSilenceableFailure::success();
 }
 

@@ -150,7 +150,7 @@ int main() {
   const size_t lWorkSize[] = {1, 1, 1};
   ur_event_handle_t event;
   ur_check(urEnqueueKernelLaunch(queue, hKernel, 3, gWorkOffset, gWorkSize,
-                                 lWorkSize, 0, nullptr, &event));
+                                 lWorkSize, nullptr, &event));
 
   ur_check(urEnqueueMemBufferRead(queue, dB, true, 0, a_size * sizeof(int),
                                   b.data, 1, &event, nullptr));

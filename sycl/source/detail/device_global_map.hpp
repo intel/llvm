@@ -9,13 +9,13 @@
 #pragma once
 
 #include <mutex>
+#include <string_view>
 #include <unordered_map>
 
 #include <detail/compiler.hpp>
 #include <detail/device_binary_image.hpp>
 #include <detail/device_global_map_entry.hpp>
 #include <sycl/detail/defines_elementary.hpp>
-#include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/kernel_bundle.hpp>
 
 namespace sycl {
@@ -75,7 +75,10 @@ public:
         //       cannot be set until registration happens.
         auto EntryUPtr = std::make_unique<DeviceGlobalMapEntry>(
             DeviceGlobal->Name, Img, TypeSize, DeviceImageScopeDecorated);
-        MDeviceGlobals.emplace(DeviceGlobal->Name, std::move(EntryUPtr));
+        auto NewEntry =
+            MDeviceGlobals.emplace(DeviceGlobal->Name, std::move(EntryUPtr));
+        if (NewEntry.first->second->isProfileCounter())
+          MProfileCounterDeviceGlobals.push_back(NewEntry.first->second.get());
       }
     }
   }
@@ -114,6 +117,8 @@ public:
     auto EntryUPtr =
         std::make_unique<DeviceGlobalMapEntry>(UniqueId, DeviceGlobalPtr);
     auto NewEntry = MDeviceGlobals.emplace(UniqueId, std::move(EntryUPtr));
+    if (NewEntry.first->second->isProfileCounter())
+      MProfileCounterDeviceGlobals.push_back(NewEntry.first->second.get());
     MPtr2DeviceGlobal.insert({DeviceGlobalPtr, NewEntry.first->second.get()});
   }
 
@@ -154,6 +159,11 @@ public:
     }
   }
 
+  std::vector<DeviceGlobalMapEntry *> getProfileCounterEntries() {
+    std::lock_guard<std::mutex> DeviceGlobalsGuard(MDeviceGlobalsMutex);
+    return MProfileCounterDeviceGlobals;
+  }
+
   const std::unordered_map<const void *, DeviceGlobalMapEntry *>
   getPointerMap() const {
     return MPtr2DeviceGlobal;
@@ -161,7 +171,7 @@ public:
 
   size_t size() const { return MDeviceGlobals.size(); }
 
-  size_t count(const KernelNameStrT &UniqueId) const {
+  size_t count(std::string_view UniqueId) const {
     return MDeviceGlobals.count(UniqueId);
   }
 
@@ -173,9 +183,12 @@ private:
   bool MOwnerControlledCleanup = true;
 
   // Maps between device_global identifiers and associated information.
-  std::unordered_map<KernelNameStrT, std::unique_ptr<DeviceGlobalMapEntry>>
+  std::unordered_map<std::string_view, std::unique_ptr<DeviceGlobalMapEntry>>
       MDeviceGlobals;
   std::unordered_map<const void *, DeviceGlobalMapEntry *> MPtr2DeviceGlobal;
+
+  // List of profile counter device globals.
+  std::vector<DeviceGlobalMapEntry *> MProfileCounterDeviceGlobals;
 
   /// Protects MDeviceGlobals and MPtr2DeviceGlobal.
   std::mutex MDeviceGlobalsMutex;

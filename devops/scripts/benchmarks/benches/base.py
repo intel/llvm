@@ -6,15 +6,18 @@
 import os
 import shutil
 import subprocess
-from pathlib import Path
-from enum import Enum
-from utils.result import BenchmarkMetadata, BenchmarkTag, Result
-from options import options
-from utils.utils import download, run
 from abc import ABC, abstractmethod
-from utils.unitrace import get_unitrace
+from enum import Enum
+from pathlib import Path
+
+from psutil import Process
+
+from options import options
 from utils.flamegraph import get_flamegraph
 from utils.logger import log
+from utils.result import BenchmarkMetadata, BenchmarkTag, Result
+from utils.unitrace import get_unitrace
+from utils.utils import download, run
 
 
 class TracingType(Enum):
@@ -56,6 +59,28 @@ class Benchmark(ABC):
     def name(self) -> str:
         pass
 
+    @abstractmethod
+    def run(
+        self,
+        env_vars,
+        run_trace: TracingType = TracingType.NONE,
+        force_trace: bool = False,
+    ) -> list[Result]:
+        """Execute the benchmark with the given environment variables.
+
+        Args:
+            env_vars: Environment variables to use when running the benchmark.
+            run_trace: The type of tracing to run (NONE, UNITRACE, or FLAMEGRAPH).
+            force_trace: If True, ignore the traceable() method and force tracing.
+
+        Returns:
+            A list of Result objects with the benchmark results.
+
+        Raises:
+            Exception: If the benchmark fails for any reason.
+        """
+        pass
+
     def display_name(self) -> str:
         """Returns a user-friendly name for display in charts.
         By default returns the same as name(), but can be overridden.
@@ -86,44 +111,6 @@ class Benchmark(ABC):
     def setup(self):
         """Extra setup steps to be performed before running the benchmark."""
         pass
-
-    @abstractmethod
-    def teardown(self):
-        pass
-
-    @abstractmethod
-    def run(
-        self,
-        env_vars,
-        run_trace: TracingType = TracingType.NONE,
-        force_trace: bool = False,
-    ) -> list[Result]:
-        """Execute the benchmark with the given environment variables.
-
-        Args:
-            env_vars: Environment variables to use when running the benchmark.
-            run_trace: The type of tracing to run (NONE, UNITRACE, or FLAMEGRAPH).
-            force_trace: If True, ignore the traceable() method and force tracing.
-
-        Returns:
-            A list of Result objects with the benchmark results.
-
-        Raises:
-            Exception: If the benchmark fails for any reason.
-        """
-        pass
-
-    @staticmethod
-    def get_adapter_full_path():
-        for libs_dir_name in ["lib", "lib64"]:
-            adapter_path = os.path.join(
-                options.ur, libs_dir_name, f"libur_adapter_{options.ur_adapter}.so"
-            )
-            if os.path.isfile(adapter_path):
-                return adapter_path
-        assert (
-            False
-        ), f"could not find adapter file {adapter_path} (and in similar lib paths)"
 
     def run_bench(
         self,
@@ -166,6 +153,8 @@ class Benchmark(ABC):
             )
             log.debug(f"FlameGraph perf data: {perf_data_file}")
             log.debug(f"FlameGraph command: {' '.join(command)}")
+
+        command = self.taskset_cmd() + command
 
         try:
             result = run(
@@ -267,6 +256,28 @@ class Benchmark(ABC):
                 explicit_group=self.explicit_group(),
             )
         }
+
+    def taskset_cmd(self) -> list[str]:
+        """Returns a list of strings with taskset usage for core pinning.
+        Pin compute benchmarks to a CPU cores set to ensure consistent results
+        and non-zero CPU count measurements (e.g. avoid E-cores). Exactly 4 cores
+        are pinned by default to satisfy multiple threads benchmarks. It is assumed
+        that they have the maximum, or at least similar, frequency.
+        """
+        selected_cores = [str(core) for core in Process().cpu_affinity()[:4]]  # type: ignore
+        return ["taskset", "-c", ",".join(selected_cores)]
+
+    @staticmethod
+    def get_adapter_full_path():
+        for libs_dir_name in ["lib", "lib64"]:
+            adapter_path = os.path.join(
+                options.ur, libs_dir_name, f"libur_adapter_{options.ur_adapter}.so"
+            )
+            if os.path.isfile(adapter_path):
+                return adapter_path
+        assert (
+            False
+        ), f"could not find adapter file {adapter_path} (and in similar lib paths)"
 
 
 class Suite(ABC):

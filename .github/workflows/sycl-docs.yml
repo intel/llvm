@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.repository == 'intel/llvm'
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
       with:
         path: repo
     - name: Install deps
@@ -64,7 +64,7 @@ jobs:
         touch .nojekyll
         # Update benchmarking dashboard configuration
         cat << EOF > benchmarks/config.js
-        remoteDataUrl = 'https://raw.githubusercontent.com/intel/llvm-ci-perf-results/refs/heads/unify-ci/';
+        remoteDataUrl = 'https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl-benchmark-ci-results/';
         defaultCompareNames = ["Baseline_PVC_L0"];
         EOF
     # Upload the generated docs as an artifact and deploy to GitHub Pages.

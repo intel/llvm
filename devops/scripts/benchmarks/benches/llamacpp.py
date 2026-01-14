@@ -14,6 +14,7 @@ from utils.result import Result
 from options import options
 from utils.oneapi import get_oneapi
 from git_project import GitProject
+from utils.logger import log
 
 
 class LlamaCppBench(Suite):
@@ -27,7 +28,8 @@ class LlamaCppBench(Suite):
         return "https://github.com/ggerganov/llama.cpp"
 
     def git_hash(self) -> str:
-        return "916c83bfe7f8b08ada609c3b8e583cf5301e594b"
+        # 12 Nov, 2025
+        return "78010a0d52ad03cd469448df89101579b225582c"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -39,7 +41,6 @@ class LlamaCppBench(Suite):
                 self.git_hash(),
                 Path(options.workdir),
                 "llamacpp",
-                force_rebuild=True,
             )
 
         models_dir = Path(options.workdir, "llamacpp-models")
@@ -53,6 +54,10 @@ class LlamaCppBench(Suite):
         )
 
         self.oneapi = get_oneapi()
+
+        if not self.project.needs_rebuild():
+            log.info(f"Rebuilding {self.project.name} skipped")
+            return
 
         extra_args = [
             f"-DGGML_SYCL=ON",
@@ -71,14 +76,19 @@ class LlamaCppBench(Suite):
         return [LlamaBench(self)]
 
 
+# FIXME: This benchmark is disabled in "Full" and "Normal" presets due to CI issues:
+# - for a reason curl cannot be found on the machine, consider adding: "-DLLAMA_CURL=OFF"
+# - syclcompat headers couldn't be found (should we source oneapi setvars?)
+#
+# If you wish to run this benchmark (e.g. for debugging), use preset "LLama".
 class LlamaBench(Benchmark):
-    def __init__(self, bench):
-        super().__init__(bench)
-        self.bench = bench
+    def __init__(self, suite: LlamaCppBench):
+        super().__init__(suite)
+        self.suite = suite
 
     @property
     def benchmark_bin(self) -> Path:
-        return self.bench.project.build_dir / "bin" / "llama-bench"
+        return self.suite.project.build_dir / "bin" / "llama-bench"
 
     def enabled(self):
         if options.sycl is None:
@@ -134,13 +144,13 @@ class LlamaBench(Benchmark):
             "--mmap",
             "0",
             "--model",
-            f"{self.bench.model}",
+            f"{self.suite.model}",
         ]
 
         result = self.run_bench(
             command,
             env_vars,
-            ld_library=self.bench.oneapi.ld_libraries(),
+            ld_library=self.suite.oneapi.ld_libraries(),
             run_trace=run_trace,
             force_trace=force_trace,
         )
@@ -156,8 +166,8 @@ class LlamaBench(Benchmark):
                     command=command,
                     env=env_vars,
                     unit="token/s",
-                    git_url=self.bench.git_url(),
-                    git_hash=self.bench.git_hash(),
+                    git_url=self.suite.git_url(),
+                    git_hash=self.suite.git_hash(),
                 )
             )
         return results
@@ -179,6 +189,3 @@ class LlamaBench(Benchmark):
                 raise ValueError(f"Error parsing output: {e}")
 
         return results
-
-    def teardown(self):
-        return

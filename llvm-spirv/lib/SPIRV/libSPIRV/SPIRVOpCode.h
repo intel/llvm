@@ -122,6 +122,14 @@ inline bool isCvtOpCode(Op OpCode) {
          OpCode == OpCrossWorkgroupCastToPtrINTEL;
 }
 
+inline bool isIntelCvtOpCode(Op OpCode) {
+  return OpCode == internal::OpClampConvertFToFINTEL ||
+         OpCode == internal::OpClampConvertFToSINTEL ||
+         OpCode == internal::OpStochasticRoundFToFINTEL ||
+         OpCode == internal::OpClampStochasticRoundFToFINTEL ||
+         OpCode == internal::OpClampStochasticRoundFToSINTEL;
+}
+
 inline bool isCvtToUnsignedOpCode(Op OpCode) {
   return OpCode == OpConvertFToU || OpCode == OpUConvert ||
          OpCode == OpSatConvertSToU;
@@ -238,8 +246,6 @@ inline bool isTypeOpCode(Op OpCode) {
   return (OpTypeVoid <= OC && OC <= OpTypePipe) || OC == OpTypePipeStorage ||
          isSubgroupAvcINTELTypeOpCode(OpCode) || OC == OpTypeVmeImageINTEL ||
          isVCOpCode(OpCode) || OC == internal::OpTypeTokenINTEL ||
-         OC == internal::OpTypeJointMatrixINTEL ||
-         OC == internal::OpTypeJointMatrixINTELv2 ||
          OC == OpTypeCooperativeMatrixKHR ||
          OC == internal::OpTypeTaskSequenceINTEL ||
          OC == OpTypeUntypedPointerKHR;

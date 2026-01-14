@@ -69,13 +69,16 @@ EXPORTS
 	urDeviceRelease
 	urDeviceRetain
 	urDeviceSelectBinary
+	urDeviceWaitExp
 	urEnqueueCommandBufferExp
 	urEnqueueDeviceGlobalVariableRead
 	urEnqueueDeviceGlobalVariableWrite
 	urEnqueueEventsWait
 	urEnqueueEventsWaitWithBarrier
 	urEnqueueEventsWaitWithBarrierExt
+	urEnqueueGraphExp
 	urEnqueueKernelLaunch
+	urEnqueueKernelLaunchWithArgsExp
 	urEnqueueMemBufferCopy
 	urEnqueueMemBufferCopyRect
 	urEnqueueMemBufferFill
@@ -114,10 +117,12 @@ EXPORTS
 	urGetBindlessImagesExpProcAddrTable
 	urGetCommandBufferExpProcAddrTable
 	urGetContextProcAddrTable
+	urGetDeviceExpProcAddrTable
 	urGetDeviceProcAddrTable
 	urGetEnqueueExpProcAddrTable
 	urGetEnqueueProcAddrTable
 	urGetEventProcAddrTable
+	urGetGraphExpProcAddrTable
 	urGetIPCExpProcAddrTable
 	urGetKernelProcAddrTable
 	urGetMemProcAddrTable
@@ -126,12 +131,19 @@ EXPORTS
 	urGetPlatformProcAddrTable
 	urGetProgramExpProcAddrTable
 	urGetProgramProcAddrTable
+	urGetQueueExpProcAddrTable
 	urGetQueueProcAddrTable
 	urGetSamplerProcAddrTable
 	urGetUSMExpProcAddrTable
 	urGetUSMProcAddrTable
 	urGetUsmP2PExpProcAddrTable
 	urGetVirtualMemProcAddrTable
+	urGraphCreateExp
+	urGraphDestroyExp
+	urGraphDumpContentsExp
+	urGraphExecutableGraphDestroyExp
+	urGraphInstantiateGraphExp
+	urGraphIsEmptyExp
 	urIPCCloseMemHandleExp
 	urIPCGetMemHandleExp
 	urIPCOpenMemHandleExp
@@ -286,13 +298,16 @@ EXPORTS
 	urPrintDeviceThrottleReasonsFlags
 	urPrintDeviceType
 	urPrintDeviceUsmAccessCapabilityFlags
+	urPrintDeviceWaitExpParams
 	urPrintEnqueueCommandBufferExpParams
 	urPrintEnqueueDeviceGlobalVariableReadParams
 	urPrintEnqueueDeviceGlobalVariableWriteParams
 	urPrintEnqueueEventsWaitParams
 	urPrintEnqueueEventsWaitWithBarrierExtParams
 	urPrintEnqueueEventsWaitWithBarrierParams
+	urPrintEnqueueGraphExpParams
 	urPrintEnqueueKernelLaunchParams
+	urPrintEnqueueKernelLaunchWithArgsExpParams
 	urPrintEnqueueMemBufferCopyParams
 	urPrintEnqueueMemBufferCopyRectParams
 	urPrintEnqueueMemBufferFillParams
@@ -354,7 +369,11 @@ EXPORTS
 	urPrintExpImageCopyInputTypes
 	urPrintExpImageCopyRegion
 	urPrintExpImageMemType
+	urPrintExpKernelArgMemObjTuple
+	urPrintExpKernelArgProperties
+	urPrintExpKernelArgType
 	urPrintExpPeerInfo
+	urPrintExpProgramFlags
 	urPrintExpSamplerAddrModes
 	urPrintExpSamplerCubemapFilterMode
 	urPrintExpSamplerCubemapProperties
@@ -362,6 +381,12 @@ EXPORTS
 	urPrintExpWin32Handle
 	urPrintFunction
 	urPrintFunctionParams
+	urPrintGraphCreateExpParams
+	urPrintGraphDestroyExpParams
+	urPrintGraphDumpContentsExpParams
+	urPrintGraphExecutableGraphDestroyExpParams
+	urPrintGraphInstantiateGraphExpParams
+	urPrintGraphIsEmptyExpParams
 	urPrintImageChannelOrder
 	urPrintImageChannelType
 	urPrintImageDesc
@@ -388,9 +413,11 @@ EXPORTS
 	urPrintKernelGetSuggestedLocalWorkSizeParams
 	urPrintKernelGroupInfo
 	urPrintKernelInfo
+	urPrintKernelLaunchClusterProperty
+	urPrintKernelLaunchExtProperties
+	urPrintKernelLaunchFlags
 	urPrintKernelLaunchPropertiesFlags
-	urPrintKernelLaunchProperty
-	urPrintKernelLaunchPropertyId
+	urPrintKernelLaunchWorkgroupProperty
 	urPrintKernelNativeProperties
 	urPrintKernelReleaseParams
 	urPrintKernelRetainParams
@@ -460,6 +487,7 @@ EXPORTS
 	urPrintProgramCreateWithBinaryParams
 	urPrintProgramCreateWithIlParams
 	urPrintProgramCreateWithNativeHandleParams
+	urPrintProgramDynamicLinkExpParams
 	urPrintProgramGetBuildInfoParams
 	urPrintProgramGetFunctionPointerParams
 	urPrintProgramGetGlobalVariablePointerParams
@@ -475,8 +503,11 @@ EXPORTS
 	urPrintProgramReleaseParams
 	urPrintProgramRetainParams
 	urPrintProgramSetSpecializationConstantsParams
+	urPrintQueueBeginCaptureIntoGraphExpParams
+	urPrintQueueBeginGraphCaptureExpParams
 	urPrintQueueCreateParams
 	urPrintQueueCreateWithNativeHandleParams
+	urPrintQueueEndGraphCaptureExpParams
 	urPrintQueueFinishParams
 	urPrintQueueFlags
 	urPrintQueueFlushParams
@@ -484,6 +515,7 @@ EXPORTS
 	urPrintQueueGetNativeHandleParams
 	urPrintQueueIndexProperties
 	urPrintQueueInfo
+	urPrintQueueIsGraphCaptureEnabledExpParams
 	urPrintQueueNativeDesc
 	urPrintQueueNativeProperties
 	urPrintQueueProperties
@@ -561,6 +593,7 @@ EXPORTS
 	urProgramCreateWithBinary
 	urProgramCreateWithIL
 	urProgramCreateWithNativeHandle
+	urProgramDynamicLinkExp
 	urProgramGetBuildInfo
 	urProgramGetFunctionPointer
 	urProgramGetGlobalVariablePointer
@@ -571,12 +604,16 @@ EXPORTS
 	urProgramRelease
 	urProgramRetain
 	urProgramSetSpecializationConstants
+	urQueueBeginCaptureIntoGraphExp
+	urQueueBeginGraphCaptureExp
 	urQueueCreate
 	urQueueCreateWithNativeHandle
+	urQueueEndGraphCaptureExp
 	urQueueFinish
 	urQueueFlush
 	urQueueGetInfo
 	urQueueGetNativeHandle
+	urQueueIsGraphCaptureEnabledExp
 	urQueueRelease
 	urQueueRetain
 	urSamplerCreate

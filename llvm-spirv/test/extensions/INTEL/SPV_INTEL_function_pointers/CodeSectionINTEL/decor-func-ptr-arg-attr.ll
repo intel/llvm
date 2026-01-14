@@ -1,5 +1,4 @@
-; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spt -spirv-text -spirv-ext=+SPV_INTEL_function_pointers
+; RUN: llvm-spirv %s -o %t.spt -spirv-text -spirv-ext=+SPV_INTEL_function_pointers
 ; RUN: FileCheck < %t.spt %s --check-prefix CHECK-SPIRV
 
 ; RUN: llvm-spirv %t.spt -o %t.spv -to-binary

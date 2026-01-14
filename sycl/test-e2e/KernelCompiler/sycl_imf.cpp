@@ -9,9 +9,6 @@
 // REQUIRES: sycl-jit, aspect-usm_device_allocations
 // REQUIRES: (opencl || level_zero)
 
-// UNSUPPORTED: accelerator
-// UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
-
 // RUN: %{build} -o %t.out
 // RUN: %{l0_leak_check} %{run} %t.out
 

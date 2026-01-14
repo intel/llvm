@@ -17,7 +17,7 @@
 namespace logger {
 
 void print_backtrace() {
-  for (auto btLine : ur::getCurrentBacktrace()) {
+  for (const auto &btLine : ur::getCurrentBacktrace()) {
     std::cerr << btLine << std::endl;
   }
 }

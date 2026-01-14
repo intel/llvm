@@ -24,6 +24,7 @@
 #include "event_provider_counter.hpp"
 #include "event_provider_normal.hpp"
 #include "queue_handle.hpp"
+#include "uur/checks.h"
 #include "uur/fixtures.h"
 #include "ze_api.h"
 
@@ -136,8 +137,8 @@ struct EventPoolTest : public uur::urQueueTestWithParam<ProviderParams> {
           // the provider
           switch (params.provider) {
           case TEST_PROVIDER_COUNTER:
-            return std::make_unique<provider_counter>(platform, context,
-                                                      device);
+            return std::make_unique<provider_counter>(
+                platform, context, params.queue, device, params.flags);
           case TEST_PROVIDER_NORMAL:
             return std::make_unique<provider_normal>(context, params.queue,
                                                      flags);
@@ -277,6 +278,7 @@ TEST_P(EventPoolTestWithQueue, WithTimestamp) {
     GTEST_SKIP() << "Profiling needs to be enabled";
   }
 
+  SKIP_IF_BATCHED_QUEUE(queue);
   auto zeEvent = createZeEvent(context, device);
 
   ur_event_handle_t hEvent;

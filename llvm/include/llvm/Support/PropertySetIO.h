@@ -209,14 +209,10 @@ public:
       "SYCL/specialization constants";
   static constexpr char SYCL_SPEC_CONSTANTS_DEFAULT_VALUES[] =
       "SYCL/specialization constants default values";
-  // TODO: remove SYCL_DEVICELIB_REQ_MASK when devicelib online linking path
-  // is totally removed.
-  static constexpr char SYCL_DEVICELIB_REQ_MASK[] = "SYCL/devicelib req mask";
   static constexpr char SYCL_DEVICELIB_METADATA[] = "SYCL/devicelib metadata";
   static constexpr char SYCL_KERNEL_PARAM_OPT_INFO[] = "SYCL/kernel param opt";
   static constexpr char SYCL_PROGRAM_METADATA[] = "SYCL/program metadata";
   static constexpr char SYCL_MISC_PROP[] = "SYCL/misc properties";
-  static constexpr char SYCL_ASSERT_USED[] = "SYCL/assert used";
   static constexpr char SYCL_KERNEL_NAMES[] = "SYCL/kernel names";
   static constexpr char SYCL_EXPORTED_SYMBOLS[] = "SYCL/exported symbols";
   static constexpr char SYCL_IMPORTED_SYMBOLS[] = "SYCL/imported symbols";

@@ -21,7 +21,7 @@ def do_configure(args, passthrough_args):
     if not os.path.isdir(abs_obj_dir):
         os.makedirs(abs_obj_dir)
 
-    llvm_external_projects = "sycl;llvm-spirv;opencl;xpti;xptifw"
+    llvm_external_projects = "sycl;llvm-spirv;opencl;xpti;xptifw;compiler-rt"
 
     # libdevice build requires a working SYCL toolchain, which is not the case
     # with macOS target right now.
@@ -32,7 +32,7 @@ def do_configure(args, passthrough_args):
     libclc_nvidia_target_names = ";nvptx64--nvidiacl"
 
     sycl_enable_jit = "OFF"
-    if not args.disable_jit:
+    if not args.disable_jit and sys.platform != "darwin":
         llvm_external_projects += ";sycl-jit"
         sycl_enable_jit = "ON"
 
@@ -64,7 +64,7 @@ def do_configure(args, passthrough_args):
 
     sycl_enable_xpti_tracing = "ON"
     xpti_enable_werror = "OFF"
-    llvm_enable_zstd = "OFF"
+    llvm_enable_zstd = "ON"
     spirv_enable_dis = "OFF"
 
     if sys.platform != "darwin":

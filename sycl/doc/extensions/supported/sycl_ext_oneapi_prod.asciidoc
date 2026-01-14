@@ -106,5 +106,5 @@ in such cases to override default behavior and encourage earlier execution.
 Although `ext_oneapi_prod` is a performance hint, its impact upon application
 performance will be highly dependent upon the combination of device, backend
 and application characteristics. In some cases, it may even degrade performance
-(e.g. by interfering with batching or fusion optimizations).
+(e.g. by interfering with batching optimization).
 ====

@@ -194,11 +194,18 @@ ur_kernel_handle_t_::getProperties(ur_device_handle_t hDevice) const {
 }
 
 ur_result_t ur_kernel_handle_t_::setArgValue(
-    uint32_t argIndex, size_t argSize,
+    ur_device_handle_t hDevice, uint32_t argIndex, size_t argSize,
     const ur_kernel_arg_value_properties_t * /*pProperties*/,
     const void *pArgValue) {
   if (argIndex > zeCommonProperties.numKernelArgs - 1) {
     return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
+  }
+
+  if (hDevice) { // Set argument only on the specified device
+    auto &deviceKernel = deviceKernels[deviceIndex(hDevice)].value();
+    UR_CALL(setArgValueOnZeKernel(deviceKernel.hKernel.get(), argIndex, argSize,
+                                  pArgValue));
+    return UR_RESULT_SUCCESS;
   }
 
   for (auto &singleDeviceKernel : deviceKernels) {
@@ -213,12 +220,13 @@ ur_result_t ur_kernel_handle_t_::setArgValue(
 }
 
 ur_result_t ur_kernel_handle_t_::setArgPointer(
-    uint32_t argIndex,
+    ur_device_handle_t hDevice, uint32_t argIndex,
     const ur_kernel_arg_pointer_properties_t * /*pProperties*/,
     const void *pArgValue) {
 
   // KernelSetArgValue is expecting a pointer to the argument
-  return setArgValue(argIndex, sizeof(const void *), nullptr, &pArgValue);
+  return setArgValue(hDevice, argIndex, sizeof(const void *), nullptr,
+                     &pArgValue);
 }
 
 ur_program_handle_t ur_kernel_handle_t_::getProgramHandle() const {
@@ -265,6 +273,30 @@ ur_result_t ur_kernel_handle_t_::setExecInfo(ur_kernel_exec_info_t propName,
   return UR_RESULT_SUCCESS;
 }
 
+// Compute a zePtr pointer for the given memory handle and store it in *pZePtr
+ur_result_t ur_kernel_handle_t_::computeZePtr(
+    ur_mem_handle_t hMem, ur_device_handle_t hDevice,
+    ur_mem_buffer_t::device_access_mode_t accessMode,
+    ze_command_list_handle_t zeCommandList, wait_list_view &waitListView,
+    void **pZePtr) {
+  UR_ASSERT(pZePtr, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  void *zePtr = nullptr;
+  if (hMem) {
+    if (!hMem->isImage()) {
+      auto hBuffer = hMem->getBuffer();
+      zePtr = hBuffer->getDevicePtr(hDevice, accessMode, 0, hBuffer->getSize(),
+                                    zeCommandList, waitListView);
+    } else {
+      auto hImage = static_cast<ur_mem_image_t *>(hMem->getImage());
+      zePtr = reinterpret_cast<void *>(hImage->getZeImage());
+    }
+  }
+
+  *pZePtr = zePtr;
+  return UR_RESULT_SUCCESS;
+}
+
 // Perform any required allocations and set the kernel arguments.
 ur_result_t ur_kernel_handle_t_::prepareForSubmission(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
@@ -287,17 +319,10 @@ ur_result_t ur_kernel_handle_t_::prepareForSubmission(
 
   for (auto &pending : pending_allocations) {
     void *zePtr = nullptr;
-    if (pending.hMem) {
-      if (!pending.hMem->isImage()) {
-        auto hBuffer = pending.hMem->getBuffer();
-        zePtr =
-            hBuffer->getDevicePtr(hDevice, pending.mode, 0, hBuffer->getSize(),
-                                  commandList, waitListView);
-      } else {
-        auto hImage = static_cast<ur_mem_image_t *>(pending.hMem->getImage());
-        zePtr = reinterpret_cast<void *>(hImage->getZeImage());
-      }
-    }
+    // Compute a zePtr pointer for the given memory handle and store it in zePtr
+    UR_CALL(computeZePtr(pending.hMem, hDevice, pending.mode, commandList,
+                         waitListView, &zePtr));
+
     // Set the argument only on this device's kernel.
     UR_CALL(deviceKernel.setArgPointer(pending.argIndex, zePtr));
   }
@@ -412,7 +437,8 @@ ur_result_t urKernelSetArgValue(
   TRACK_SCOPE_LATENCY("urKernelSetArgValue");
 
   std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
-  return hKernel->setArgValue(argIndex, argSize, pProperties, pArgValue);
+  return hKernel->setArgValue(nullptr, argIndex, argSize, pProperties,
+                              pArgValue);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
@@ -435,19 +461,17 @@ ur_result_t urKernelSetArgPointer(
   return exceptionToResult(std::current_exception());
 }
 
-static ur_mem_buffer_t::device_access_mode_t memAccessFromKernelProperties(
-    const ur_kernel_arg_mem_obj_properties_t *pProperties) {
-  if (pProperties) {
-    switch (pProperties->memoryAccess) {
-    case UR_MEM_FLAG_READ_WRITE:
-      return ur_mem_buffer_t::device_access_mode_t::read_write;
-    case UR_MEM_FLAG_WRITE_ONLY:
-      return ur_mem_buffer_t::device_access_mode_t::write_only;
-    case UR_MEM_FLAG_READ_ONLY:
-      return ur_mem_buffer_t::device_access_mode_t::read_only;
-    default:
-      return ur_mem_buffer_t::device_access_mode_t::read_write;
-    }
+static ur_mem_buffer_t::device_access_mode_t
+memAccessFromMemFlags(const ur_mem_flags_t &Flags) {
+  switch (Flags) {
+  case UR_MEM_FLAG_READ_WRITE:
+    return ur_mem_buffer_t::device_access_mode_t::read_write;
+  case UR_MEM_FLAG_WRITE_ONLY:
+    return ur_mem_buffer_t::device_access_mode_t::write_only;
+  case UR_MEM_FLAG_READ_ONLY:
+    return ur_mem_buffer_t::device_access_mode_t::read_only;
+  default:
+    break;
   }
   return ur_mem_buffer_t::device_access_mode_t::read_write;
 }
@@ -461,7 +485,9 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
   std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
 
   UR_CALL(hKernel->addPendingMemoryAllocation(
-      {hArgValue, memAccessFromKernelProperties(pProperties), argIndex}));
+      {hArgValue,
+       memAccessFromMemFlags(pProperties ? pProperties->memoryAccess : 0),
+       argIndex}));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -475,7 +501,7 @@ ur_result_t urKernelSetArgLocal(
 
   std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
 
-  return hKernel->setArgValue(argIndex, argSize, nullptr, nullptr);
+  return hKernel->setArgValue(nullptr, argIndex, argSize, nullptr, nullptr);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
@@ -719,7 +745,7 @@ ur_result_t urKernelSetArgSampler(
     ur_sampler_handle_t hArgValue) try {
   TRACK_SCOPE_LATENCY("urKernelSetArgSampler");
   std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
-  return hKernel->setArgValue(argIndex, sizeof(void *), nullptr,
+  return hKernel->setArgValue(nullptr, argIndex, sizeof(void *), nullptr,
                               &hArgValue->ZeSampler);
 } catch (...) {
   return exceptionToResult(std::current_exception());

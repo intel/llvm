@@ -32,6 +32,9 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #undef __SYCL_TOSTRING
 #undef __SYCL_STRINGIFY
 
+// All SYCL macro are provided through this header
+#include <sycl/khr/includes/version.hpp>
+
 #include <sycl/detail/core.hpp>
 
 #include <sycl/accessor_image.hpp>
@@ -71,7 +74,6 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #include <sycl/multi_ptr.hpp>
 #include <sycl/nd_item.hpp>
 #include <sycl/nd_range.hpp>
-#include <sycl/pipes.hpp>
 #include <sycl/platform.hpp>
 #include <sycl/pointers.hpp>
 #include <sycl/properties/all_properties.hpp>
@@ -87,23 +89,13 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #include <sycl/vector.hpp>
 #include <sycl/version.hpp>
 
-#include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
 #include <sycl/ext/intel/experimental/fp_control_kernel_properties.hpp>
-#include <sycl/ext/intel/experimental/fpga_mem/fpga_datapath.hpp>
-#include <sycl/ext/intel/experimental/fpga_mem/fpga_mem.hpp>
-#include <sycl/ext/intel/experimental/fpga_mem/properties.hpp>
-#include <sycl/ext/intel/experimental/pipe_properties.hpp>
-#include <sycl/ext/intel/experimental/pipes.hpp>
-#include <sycl/ext/intel/experimental/task_sequence.hpp>
-#include <sycl/ext/intel/experimental/task_sequence_properties.hpp>
 #include <sycl/ext/intel/experimental/usm_properties.hpp>
-#include <sycl/ext/intel/usm_pointers.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/experimental/address_cast.hpp>
-#include <sycl/ext/oneapi/experimental/annotated_arg/annotated_arg.hpp>
 #include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp>
 #include <sycl/ext/oneapi/experimental/annotated_usm/alloc_device.hpp>
 #include <sycl/ext/oneapi/experimental/annotated_usm/alloc_host.hpp>
@@ -128,12 +120,14 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #include <sycl/ext/oneapi/experimental/group_helpers_sorters.hpp>
 #include <sycl/ext/oneapi/experimental/group_load_store.hpp>
 #include <sycl/ext/oneapi/experimental/group_sort.hpp>
+#include <sycl/ext/oneapi/experimental/ipc_memory.hpp>
 #include <sycl/ext/oneapi/experimental/prefetch.hpp>
 #include <sycl/ext/oneapi/experimental/profiling_tag.hpp>
 #include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
 #include <sycl/ext/oneapi/experimental/reduction_properties.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
 #include <sycl/ext/oneapi/experimental/syclbin_kernel_bundle.hpp>
+#include <sycl/ext/oneapi/experimental/syclbin_properties.hpp>
 #include <sycl/ext/oneapi/experimental/tangle.hpp>
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/ext/oneapi/filter_selector.hpp>
@@ -152,6 +146,7 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #include <sycl/ext/oneapi/virtual_mem/physical_mem.hpp>
 #include <sycl/ext/oneapi/virtual_mem/virtual_mem.hpp>
 #include <sycl/ext/oneapi/weak_object.hpp>
+#include <sycl/ext/oneapi/work_group_static.hpp>
 #include <sycl/khr/dynamic_addrspace_cast.hpp>
 #include <sycl/khr/free_function_commands.hpp>
 #include <sycl/khr/group_interface.hpp>

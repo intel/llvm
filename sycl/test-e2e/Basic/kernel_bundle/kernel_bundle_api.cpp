@@ -230,7 +230,7 @@ int main() {
     // CHECK-SAME: .hKernel = [[KERNEL_HANDLE]]
     // CHECK-SAME:-> UR_RESULT_SUCCESS;
     //
-    // CHECK:<--- urEnqueueKernelLaunch(
+    // CHECK:<--- urEnqueueKernelLaunchWithArgsExp(
     // CHECK-SAME: .hKernel = [[KERNEL_HANDLE]]
     //
     // CHECK:<--- urKernelRelease(

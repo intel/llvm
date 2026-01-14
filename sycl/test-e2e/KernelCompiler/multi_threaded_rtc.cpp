@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} '-DPCH_DIR="%/t.dir"' -o %t.out
 // RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{run} %t.out
 
 // UNSUPPORTED: target-native_cpu
@@ -9,10 +9,13 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
 
+#include <filesystem>
 #include <thread>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 int main() {
+  std::error_code ec;
+  std::filesystem::remove_all(PCH_DIR, ec); // noexcept overload
   sycl::queue q;
   constexpr int N = 16;
   std::string src_str = R"""(
@@ -46,6 +49,14 @@ void foo(int *p) {
 
   for (auto &t : threads)
     t = std::thread{Run, auto_pch};
+  for (auto &t : threads)
+    t.join();
+
+  auto persistent_auto_pch = syclexp::properties{syclexp::build_options{
+      std::vector<std::string>{"--persistent-auto-pch=" PCH_DIR}}};
+
+  for (auto &t : threads)
+    t = std::thread{Run, persistent_auto_pch};
   for (auto &t : threads)
     t.join();
 }

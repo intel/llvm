@@ -130,4 +130,14 @@ DEVICE_EXTERN_C_INLINE float __devicelib_imf_invf(float a) { return 1.0f / a; }
 DEVICE_EXTERN_C_INLINE float __devicelib_imf_copysignf(float a, float b) {
   return __copysign(a, b);
 }
+
+DEVICE_EXTERN_C_INLINE float __devicelib_imf_fsigmf(float x) {
+  return __fsigm(x);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_half_internal __devicelib_imf_fsigmf16(_iml_half_internal x) {
+  _iml_half hx(x);
+  return __fsigm(hx).get_internal();
+}
 #endif /*__LIBDEVICE_IMF_ENABLED__*/

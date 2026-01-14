@@ -19,6 +19,12 @@ if (NOT DEFINED XPTI_DIR) # don't overwrite if already set
   endif()
 endif()
 
+if (LLVM_ENABLE_PROJECTS)
+  # If XPTIFW is built as part of LLVM (i.e. as part of SYCL), then let's
+  # re-use existing infrastructure for setting up various hardening flags
+  include(HandleLLVMOptions)
+endif()
+
 option(XPTI_ENABLE_WERROR OFF)
 option(XPTI_BUILD_SAMPLES OFF)
 option(XPTI_BUILD_BENCHMARK OFF)

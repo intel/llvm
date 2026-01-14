@@ -39,18 +39,11 @@ class platform_impl : public std::enable_shared_from_this<platform_impl> {
   //
   // Platforms can only be created under `GlobalHandler`'s ownership via
   // `platform_impl::getOrMakePlatformImpl` method.
-  explicit platform_impl(ur_platform_handle_t APlatform, adapter_impl &Adapter)
-      : MPlatform(APlatform), MAdapter(&Adapter) {
+  explicit platform_impl(ur_platform_handle_t APlatform, adapter_impl &Adapter);
 
-    // Find out backend of the platform
-    ur_backend_t UrBackend = UR_BACKEND_UNKNOWN;
-    Adapter.call_nocheck<UrApiKind::urPlatformGetInfo>(
-        APlatform, UR_PLATFORM_INFO_BACKEND, sizeof(ur_backend_t), &UrBackend,
-        nullptr);
-    MBackend = convertUrBackend(UrBackend);
-  }
-
-  ~platform_impl() = default;
+  ~platform_impl();
+  platform_impl(const platform_impl &) = delete;
+  platform_impl &operator=(const platform_impl &) = delete;
 
 public:
   /// Checks if this platform supports extension.
@@ -221,7 +214,7 @@ private:
 
   adapter_impl *MAdapter;
 
-  std::vector<std::shared_ptr<device_impl>> MDevices;
+  std::vector<std::unique_ptr<device_impl>> MDevices;
   friend class GlobalHandler;
   std::mutex MDeviceMapMutex;
 };

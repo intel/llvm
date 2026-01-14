@@ -44,7 +44,7 @@ This custom LIT test format also overrides the meaning of
 `REQUIRES`/`UNSUPPORTED`/`XFAIL` directives, although in a natural way that
 suits the `%{run}` expansion described above. First, "features" are split into
 device independent (e.g. "linux" or "cuda_dev_kit") and device dependent
-("cpu/gpu/accelerator", "opencl/cuda/hip/level_zero" and multiple "aspect-\*").
+("cpu/gpu", "opencl/cuda/hip/level_zero" and multiple "aspect-\*").
 Second, for each device in `sycl_devices` LIT parameter, we check if it
 satisfies the conditions in `UNSUPPORTED`/`REQUIRES` rules. If none of the
 devices do, the entire test is skipped as `UNSUPPORTED`. Otherwise, if multiple
@@ -237,7 +237,7 @@ The following features are automatically detected by `llvm-lit` by scanning the
 environment:
 
 * **windows**, **linux** - host OS;
-* **cpu**, **gpu**, **accelerator** - target device;
+* **cpu**, **gpu** - target device;
 * **cuda**, **hip**, **opencl**, **level_zero** - target backend;
 * **sycl-ls** - sycl-ls tool availability;
 * **cm-compiler** - C for Metal compiler availability;

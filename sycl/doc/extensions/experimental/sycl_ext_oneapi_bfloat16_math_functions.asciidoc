@@ -57,14 +57,14 @@ specification.
 
 This extension adds `bfloat16` support to the `fma`, `fmin`, `fmax`, `fabs`,
 `isnan`, `ceil`, `floor`, `cos`, `sin`, `exp`, `exp2`, `exp10`, `log`, `log2`,
-`log10`, `rint`, `sqrt`, `rsqrt` and `trunc` SYCL floating point math functions.
-These functions can be used as element wise operations on matrices, supplementing
-the `bfloat16` support in the sycl_ext_oneapi_matrix extension.
+`log10`, `rint`, `sqrt`, `rsqrt`, `trunc` and `tanh` SYCL floating point math
+functions. These functions can be used as element wise operations on matrices,
+supplementing the `bfloat16` support in the sycl_ext_oneapi_matrix extension.
 
 The descriptions of the `fma`, `fmin`, `fmax`, `fabs`, `isnan`, `ceil`, `floor`,
 `cos`, `sin`, `exp`, `exp2`, `exp10`, `log`, `log2`, `log10`, `rint`, `sqrt`,
-`rsqrt` and `trunc` SYCL floating point math functions can be found in the SYCL
-specification:
+`rsqrt`, `trunc` and `tanh` SYCL floating point math functions can be found in
+the SYCL specification:
 https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#_math_functions.
 
 [NOTE]

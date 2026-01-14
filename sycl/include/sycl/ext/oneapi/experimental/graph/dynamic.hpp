@@ -45,6 +45,8 @@ class dynamic_command_group_impl;
 } // namespace detail
 
 class __SYCL_EXPORT dynamic_command_group {
+  friend sycl::detail::ImplUtils;
+
 public:
   dynamic_command_group(
       const command_graph<graph_state::modifiable> &Graph,
@@ -64,34 +66,19 @@ public:
   }
 
 private:
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  sycl::detail::getSyclObjImpl(const Obj &SyclObject);
-
   std::shared_ptr<detail::dynamic_command_group_impl> impl;
 };
 
 namespace detail {
 class __SYCL_EXPORT dynamic_parameter_base {
+  friend sycl::detail::ImplUtils;
+
 public:
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   dynamic_parameter_base(size_t ParamSize, const void *Data);
   dynamic_parameter_base();
-#else
-  dynamic_parameter_base() = default;
-#endif
 
   dynamic_parameter_base(
       const std::shared_ptr<detail::dynamic_parameter_impl> &impl);
-
-  dynamic_parameter_base(const sycl::ext::oneapi::experimental::command_graph<
-                         graph_state::modifiable>
-                             Graph);
-
-  dynamic_parameter_base(const sycl::ext::oneapi::experimental::command_graph<
-                             graph_state::modifiable>
-                             Graph,
-                         size_t ParamSize, const void *Data);
 
   /// Common Reference Semantics
   friend bool operator==(const dynamic_parameter_base &LHS,
@@ -114,10 +101,6 @@ protected:
   void updateAccessor(const sycl::detail::AccessorBaseHost *Acc);
 
   std::shared_ptr<dynamic_parameter_impl> impl;
-
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  sycl::detail::getSyclObjImpl(const Obj &SyclObject);
 };
 
 class __SYCL_EXPORT dynamic_work_group_memory_base
@@ -126,13 +109,7 @@ class __SYCL_EXPORT dynamic_work_group_memory_base
 public:
   dynamic_work_group_memory_base() = default;
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   dynamic_work_group_memory_base(size_t BufferSizeInBytes);
-#endif
-  // TODO: Remove in next ABI breaking window
-  dynamic_work_group_memory_base(
-      const experimental::command_graph<graph_state::modifiable> Graph,
-      size_t BufferSizeInBytes);
 
 protected:
   void updateWorkGroupMem(size_t NewBufferSizeInBytes);
@@ -171,7 +148,6 @@ public:
   // closed.
   dynamic_work_group_memory() = default;
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #ifndef __SYCL_DEVICE_ONLY__
   /// Constructs a new dynamic_work_group_memory object.
   /// @param Num Number of elements in the unbounded array DataT.
@@ -180,30 +156,6 @@ public:
             Num * sizeof(std::remove_extent_t<DataT>)) {}
 #else
   dynamic_work_group_memory(size_t /*Num*/) {}
-#endif
-#endif
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  __SYCL_DEPRECATED("Dynamic_work_group_memory constructors taking a graph "
-                    "object have been deprecated "
-                    "and will be removed in the next ABI breaking window.")
-#endif
-
-#ifndef __SYCL_DEVICE_ONLY__
-  /// Constructs a new dynamic_work_group_memory object.
-  /// @param Graph The graph associated with this object.
-  /// @param Num Number of elements in the unbounded array DataT.
-  dynamic_work_group_memory(
-      const experimental::command_graph<graph_state::modifiable> &Graph,
-      size_t Num)
-      : detail::dynamic_work_group_memory_base(
-            Graph, Num * sizeof(std::remove_extent_t<DataT>)) {}
-
-#else
-  dynamic_work_group_memory(
-      const experimental::command_graph<graph_state::modifiable> &
-      /* Graph */,
-      size_t /* Num */) {}
 #endif
 
   work_group_memory<DataT, PropertyListT> get() const {
@@ -259,21 +211,16 @@ public:
 
 #ifndef __SYCL_DEVICE_ONLY__
   /// Constructs a new dynamic_local_accessor object.
-  /// @param Graph The graph associated with this object.
   /// @param AllocationSize The size of the local accessor.
   /// @param PropList List of properties for the underlying accessor.
-  dynamic_local_accessor(
-      const experimental::command_graph<graph_state::modifiable> & /* Graph */,
-      range<Dimensions> AllocationSize, const property_list &PropList = {})
+  dynamic_local_accessor(range<Dimensions> AllocationSize,
+                         const property_list &PropList = {})
       : detail::dynamic_local_accessor_base(
             detail::convertToArrayOfN<3, 1>(AllocationSize), Dimensions,
             sizeof(DataT), PropList) {}
 #else
-  dynamic_local_accessor(
-      const experimental::command_graph<graph_state::modifiable> &
-      /* Graph */,
-      range<Dimensions> /* AllocationSize */,
-      const property_list & /*PropList */ = {}) {}
+  dynamic_local_accessor(range<Dimensions> /* AllocationSize */,
+                         const property_list & /*PropList */ = {}) {}
 #endif
 
   local_accessor<DataT, Dimensions> get() const {
@@ -320,26 +267,11 @@ class dynamic_parameter : public detail::dynamic_parameter_base {
           : sycl::detail::kernel_param_kind_t::kind_std_layout;
 
 public:
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Constructs a new dynamic parameter.
   /// @param Graph The graph associated with this parameter.
   /// @param Param A reference value for this parameter used for CTAD.
   dynamic_parameter(const ValueT &Param)
       : detail::dynamic_parameter_base(sizeof(ValueT), &Param) {}
-#endif
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  __SYCL_DEPRECATED("Dynamic_parameter constructors taking a graph object have "
-                    "been deprecated "
-                    "and will be removed in the next ABI breaking window.")
-#endif
-  /// Constructs a new dynamic parameter.
-  /// @param Graph The graph associated with this parameter.
-  /// @param Param A reference value for this parameter used for CTAD.
-  dynamic_parameter(
-      const experimental::command_graph<graph_state::modifiable> &Graph,
-      const ValueT &Param)
-      : detail::dynamic_parameter_base(Graph, sizeof(ValueT), &Param) {}
 
   /// Updates this dynamic parameter and all registered nodes with a new value.
   /// @param NewValue The new value for the parameter.

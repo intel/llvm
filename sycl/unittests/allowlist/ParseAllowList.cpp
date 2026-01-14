@@ -29,17 +29,13 @@ TEST(ParseAllowListTests, CheckAllowListSingleDeviceDesc) {
 TEST(ParseAllowListTests, CheckAllowListMultipleDeviceDesc) {
   sycl::detail::AllowListParsedT ActualValue = sycl::detail::parseAllowList(
       "BackendName:level_zero,DeviceType:gpu,DeviceVendorId:0x0000|BackendName:"
-      "opencl,DeviceType:cpu,DeviceVendorId:0x1234|BackendName:opencl,"
-      "DeviceType:acc,DeviceVendorId:0x4321");
+      "opencl,DeviceType:cpu,DeviceVendorId:0x1234");
   sycl::detail::AllowListParsedT ExpectedValue{{{"BackendName", "level_zero"},
                                                 {"DeviceType", "gpu"},
                                                 {"DeviceVendorId", "0x0000"}},
                                                {{"BackendName", "opencl"},
                                                 {"DeviceType", "cpu"},
-                                                {"DeviceVendorId", "0x1234"}},
-                                               {{"BackendName", "opencl"},
-                                                {"DeviceType", "acc"},
-                                                {"DeviceVendorId", "0x4321"}}};
+                                                {"DeviceVendorId", "0x1234"}}};
   EXPECT_EQ(ExpectedValue, ActualValue);
 }
 
@@ -176,18 +172,17 @@ TEST(ParseAllowListTests, CheckAllValidBackendNameValuesAreProcessed) {
 
 TEST(ParseAllowListTests, CheckAllValidDeviceTypeValuesAreProcessed) {
   std::string AllowList;
-  for (const auto &SyclDeviceType :
-       sycl::detail::getSyclDeviceTypeMap<true /*Enable 'acc'*/>()) {
+  for (const auto &SyclDeviceType : sycl::detail::getSyclDeviceTypeMap()) {
     if (!AllowList.empty())
       AllowList += "|";
     AllowList += "DeviceType:" + SyclDeviceType.first;
   }
   sycl::detail::AllowListParsedT ActualValue =
       sycl::detail::parseAllowList(AllowList);
-  sycl::detail::AllowListParsedT ExpectedValue{
-      {{"DeviceType", "host"}}, {{"DeviceType", "cpu"}},
-      {{"DeviceType", "gpu"}},  {{"DeviceType", "acc"}},
-      {{"DeviceType", "fpga"}}, {{"DeviceType", "*"}}};
+  sycl::detail::AllowListParsedT ExpectedValue{{{"DeviceType", "host"}},
+                                               {{"DeviceType", "cpu"}},
+                                               {{"DeviceType", "gpu"}},
+                                               {{"DeviceType", "*"}}};
   EXPECT_EQ(ExpectedValue, ActualValue);
 }
 

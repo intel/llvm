@@ -14,8 +14,8 @@ set(OCL_LOADER_REPO
 
 # Repo tags/hashes
 
-set(OCL_HEADERS_TAG 6eabe90aa7b6cff9c67800a2fe25a0cd88d8b749)
-set(OCL_LOADER_TAG ddf6c70230a79cdb8fcccfd3c775b09e6820f42e)
+set(OCL_HEADERS_TAG v2025.07.22)
+set(OCL_LOADER_TAG v2025.07.22)
 
 # Set NO_CMAKE_PACKAGE_REGISTRY so only system-wide installs are
 # detected.

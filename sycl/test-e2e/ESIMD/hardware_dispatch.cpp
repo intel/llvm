@@ -5,8 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: ocloc && arch-intel_gpu_tgllp
-// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_tgllp %s -o %t.out
+// REQUIRES: ocloc && gpu-intel-dg2
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_acm_g10 %s -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out
 
 // This is basic test to test hardware dispatch functionality with ESIMD.
@@ -36,30 +36,30 @@ int main() {
 
         // test if_architecture_is
         sycl::ext::oneapi::experimental::if_architecture_is<
-            sycl::ext::oneapi::experimental::architecture::intel_gpu_tgllp>(
+            sycl::ext::oneapi::experimental::architecture::intel_gpu_acm_g10>(
             [&]() { result[0] = 1; })
             .otherwise([&]() { result[0] = 0; });
 
         // test else_if_architecture_is
         sycl::ext::oneapi::experimental::if_architecture_is<
-            sycl::ext::oneapi::experimental::architecture::intel_gpu_dg1>(
+            sycl::ext::oneapi::experimental::architecture::intel_gpu_pvc>(
             [&]() { result[1] = 0; })
-            .else_if_architecture_is<
-                sycl::ext::oneapi::experimental::architecture::intel_gpu_tgllp>(
+            .else_if_architecture_is<sycl::ext::oneapi::experimental::
+                                         architecture::intel_gpu_acm_g10>(
                 [&]() { result[1] = 2; })
             .otherwise([&]() { result[1] = 0; });
 
         // test otherwise
         sycl::ext::oneapi::experimental::if_architecture_is<
-            sycl::ext::oneapi::experimental::architecture::intel_gpu_dg1>(
+            sycl::ext::oneapi::experimental::architecture::intel_gpu_pvc>(
             [&]() { result[2] = 0; })
             .otherwise([&]() { result[2] = 3; });
 
         // test more than one architecture template parameter is passed to
         // if_architecture_is
         sycl::ext::oneapi::experimental::if_architecture_is<
-            sycl::ext::oneapi::experimental::architecture::intel_gpu_dg1,
-            sycl::ext::oneapi::experimental::architecture::intel_gpu_tgllp>(
+            sycl::ext::oneapi::experimental::architecture::intel_gpu_pvc,
+            sycl::ext::oneapi::experimental::architecture::intel_gpu_acm_g10>(
             [&]() { result[3] = 4; })
             .otherwise([&]() { result[3] = 0; });
         result.copy_to(output_ptr);

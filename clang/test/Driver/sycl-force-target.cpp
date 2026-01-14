@@ -25,7 +25,7 @@
 /// Verify the usage of -fsycl-force-target applies to all expected unbundlings
 /// and also applies to clang-offload-deps step
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -fsycl-force-target=spir64 \
-// RUN:          -target x86_64-unknown-linux-gnu -fno-sycl-device-lib=all \
+// RUN:          -target x86_64-unknown-linux-gnu --no-offloadlib \
 // RUN:          %s %S/Inputs/SYCL/liblin64.a -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=CHECK_FORCE_TARGET_ARCHIVE
 // CHECK_FORCE_TARGET_ARCHIVE: clang-offload-deps{{.*}} "-targets=sycl-spir64-unknown-unknown" "-outputs={{.*}}"

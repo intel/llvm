@@ -3,9 +3,6 @@
 // RUN: %{build} -fno-builtin %{mathflags} -o %t1.out
 // RUN: %{run} %t1.out
 
-// RUN: %if target-spir %{ %{build} -fno-builtin -fsycl-device-lib-jit-link -Wno-deprecated %{mathflags} -o %t2.out %}
-// RUN: %if target-spir && !gpu %{ %{run} %t2.out %}
-//
 // // Check that --fast-math works with cmath funcs for CUDA
 // RUN: %if target-nvidia %{ %clangxx -fsycl -fsycl-targets=nvptx64-nvidia-cuda %s -Wno-nan-infinity-disabled -fno-builtin %{mathflags} -o %t3.out -ffast-math -DSYCL_E2E_FASTMATH %}
 // RUN: %if cuda %{ %{run} %t3.out %}

@@ -66,7 +66,7 @@ runNDimTestHost(sycl::range<NDims> globalSize, float offset,
           coords[1] = j;
         }
 
-        // Sampling is done only within array layers, not accross layers.
+        // Sampling is done only within array layers, not across layers.
         // To mimic this on host, extract the layer and sample that.
         std::vector<sycl::vec<DType, NChannels>> layer(
             inputImage.begin() + arr_idx * globalSizeTwoComp.size(),

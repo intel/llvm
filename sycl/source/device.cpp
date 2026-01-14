@@ -17,6 +17,10 @@
 #include <sycl/device_selector.hpp>
 #include <sycl/info/info_desc.hpp>
 
+// Trying to force MSVC to generate the symbol/export for the inline function
+// that it needs on the import (because the class itself is being exported):
+#include <sycl/ext/oneapi/weak_object.hpp>
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -32,6 +36,9 @@ void force_type(info::device_type &t, const info::device_type &ft) {
 
 device::device() : device(default_selector_v) {}
 
+device::device(const device &rhs) = default;
+device::device(device &&rhs) = default;
+
 device::device(cl_device_id DeviceId) {
   detail::adapter_impl &Adapter =
       sycl::detail::ur::getAdapter<backend::opencl>();
@@ -41,9 +48,8 @@ device::device(cl_device_id DeviceId) {
   Adapter.call<detail::UrApiKind::urDeviceCreateWithNativeHandle>(
       detail::ur::cast<ur_native_handle_t>(DeviceId), Adapter.getUrAdapter(),
       nullptr, &Device);
-  impl = detail::platform_impl::getPlatformFromUrDevice(Device, Adapter)
-             .getOrMakeDeviceImpl(Device)
-             .shared_from_this();
+  impl = &detail::platform_impl::getPlatformFromUrDevice(Device, Adapter)
+              .getOrMakeDeviceImpl(Device);
   __SYCL_OCL_CALL(clRetainDevice, DeviceId);
 }
 
@@ -127,13 +133,8 @@ detail::ABINeutralT_t<typename detail::is_device_info_desc<Param>::return_type>
 device::get_info_impl() const {
   static_assert(
       std::is_same_v<typename detail::is_device_info_desc<Param>::return_type,
-                     decltype(impl->template
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-                              get_info
-#else
-                              get_info_abi_workaround
-#endif
-                              <Param, true /* InitializingCache */>())>);
+                     decltype(impl->template get_info<
+                              Param, true /* InitializingCache */>())>);
   return detail::convert_to_abi_neutral(impl->template get_info<Param>());
 }
 
@@ -201,14 +202,6 @@ typename detail::is_backend_info_desc<Param>::return_type
 device::get_backend_info() const {
   return impl->get_backend_info<Param>();
 }
-
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, Picode)              \
-  template __SYCL_EXPORT ReturnT                                               \
-  device::get_backend_info<info::DescType::Desc>() const;
-
-#include <sycl/info/sycl_backend_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
 
 backend device::get_backend() const noexcept { return impl->getBackend(); }
 
@@ -343,6 +336,20 @@ detail::string device::ext_oneapi_cl_profile_impl() const {
       ext::oneapi::experimental::detail::OpenCLC_Profile(ipVersion);
   return detail::string{profile};
 }
+
+context device::ext_oneapi_get_default_context() {
+  return impl->get_platform().khr_get_default_context();
+}
+
+void device::ext_oneapi_wait() {
+  if (!has(aspect::ext_oneapi_device_wait))
+    throw sycl::exception(
+        make_error_code(errc::feature_not_supported),
+        "Device does not support aspect::ext_oneapi_device_wait.");
+  impl->wait();
+}
+
+void device::ext_oneapi_throw_asynchronous() { impl->throwAsynchronous(); }
 
 } // namespace _V1
 } // namespace sycl

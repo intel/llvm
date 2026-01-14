@@ -21,7 +21,7 @@
 // RUN:   %S/Inputs/SYCL/objnvptx64-sm_50.o -### %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=NVPTX64_MATCH_DIAG
 // RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvptx64-nvidia-cuda \
-// RUN:   %S/Inputs/SYCL/objnvptx64-sm_50.o -### %s 2>&1 \
+// RUN:   %S/Inputs/SYCL/objnvptx64-sm_75.o -### %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=NVPTX64_MATCH_DIAG
 // RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend --cuda-gpu-arch=sm_60 \
 // RUN:   -Wno-sycl-target %S/Inputs/SYCL/objnvptx64-sm_50.o -### %s 2>&1 \

@@ -10,6 +10,7 @@
 
 #define SYCL_EXT_ONEAPI_CUDA_TEX_CACHE_READ 1
 
+#include <sycl/exception.hpp>
 #include <sycl/vector.hpp>
 
 #if defined(_WIN32) || defined(_WIN64)

@@ -49,11 +49,9 @@ template <typename T> struct IsValidAtomicRefType {
 };
 
 template <sycl::access::address_space AS> struct IsValidAtomicRefAddressSpace {
-  static constexpr bool value =
-      (AS == access::address_space::global_space ||
-       AS == access::address_space::local_space ||
-       AS == access::address_space::ext_intel_global_device_space ||
-       AS == access::address_space::generic_space);
+  static constexpr bool value = (AS == access::address_space::global_space ||
+                                 AS == access::address_space::local_space ||
+                                 AS == access::address_space::generic_space);
 };
 
 // DefaultOrder parameter is limited to read-modify-write orders
@@ -129,8 +127,7 @@ class atomic_ref_base {
       "and pointer types");
   static_assert(detail::IsValidAtomicRefAddressSpace<AddressSpace>::value,
                 "Invalid atomic address_space.  Valid address spaces are: "
-                "global_space, local_space, ext_intel_global_device_space, "
-                "generic_space");
+                "global_space, local_space, generic_space");
   static_assert(
       detail::IsValidDefaultOrder<DefaultOrder>::value,
       "Invalid default memory_order for atomics.  Valid defaults are: "

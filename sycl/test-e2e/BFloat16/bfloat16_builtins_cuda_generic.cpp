@@ -7,8 +7,8 @@
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
 // If CUDA, test "new" again for sm_75/generic
-// RUN:  %if target-nvidia %{ %if preview-breaking-changes-supported %{  %clangxx -fsycl -fpreview-breaking-changes %{sycl_target_opts}  -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_75  %s -o %t3.out %{mathflags} %} %}
-// RUN:  %if target-nvidia %{ %if preview-breaking-changes-supported %{  %{run} %t3.out  %} %}
+// RUN:  %if target-nvidia %{ %clangxx -fsycl %{sycl_target_opts}  -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_75  %s -o %t3.out %{mathflags} %}
+// RUN:  %if target-nvidia %{ %{run} %t3.out %}
 
 #include "bfloat16_builtins.hpp"
 

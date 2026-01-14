@@ -42,13 +42,21 @@ static sycl::unittest::MockDeviceImageArray<1> ImgArray{&Img};
 using namespace sycl;
 
 bool PropertyPresent = false;
-ur_kernel_arg_mem_obj_properties_t PropsCopy{};
+ur_mem_flags_t MemFlags{};
 
-ur_result_t redefinedKernelSetArgMemObj(void *pParams) {
-  auto params = *static_cast<ur_kernel_set_arg_mem_obj_params_t *>(pParams);
-  PropertyPresent = *params.ppProperties != nullptr;
-  if (PropertyPresent)
-    PropsCopy = **params.ppProperties;
+ur_result_t redefinedEnqueueKernelLaunchWithArgsExp(void *pParams) {
+  auto params =
+      *static_cast<ur_enqueue_kernel_launch_with_args_exp_params_t *>(pParams);
+  auto Args = *params.ppArgs;
+  for (uint32_t i = 0; i < *params.pnumArgs; i++) {
+    if (Args[i].type != UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ) {
+      continue;
+    }
+    PropertyPresent = Args[i].value.memObjTuple.flags != 0;
+    if (PropertyPresent) {
+      MemFlags = Args[i].value.memObjTuple.flags;
+    }
+  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -59,9 +67,10 @@ public:
 protected:
   void SetUp() override {
     PropertyPresent = false;
-    PropsCopy = {};
-    mock::getCallbacks().set_before_callback("urKernelSetArgMemObj",
-                                             &redefinedKernelSetArgMemObj);
+    MemFlags = 0;
+    mock::getCallbacks().set_before_callback(
+        "urEnqueueKernelLaunchWithArgsExp",
+        &redefinedEnqueueKernelLaunchWithArgsExp);
   }
 
   template <sycl::access::mode AccessMode>
@@ -80,7 +89,7 @@ protected:
         })
         .wait();
     ASSERT_TRUE(PropertyPresent);
-    EXPECT_EQ(PropsCopy.memoryAccess, ExpectedAccessMode);
+    EXPECT_EQ(MemFlags, ExpectedAccessMode);
   }
 
 protected:

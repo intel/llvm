@@ -30,7 +30,7 @@ inline ur_result_t redefinedAdapterGetLastError(void *) {
   return UR_RESULT_ERROR_INVALID_VALUE;
 }
 
-ur_result_t redefinedEnqueueKernelLaunch(void *) {
+ur_result_t redefinedEnqueueKernelLaunchWithArgsExp(void *) {
   return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
 }
 
@@ -92,8 +92,9 @@ public:
 };
 
 TEST_F(QueueApiFailures, QueueSubmit) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefinedEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefinedEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_replace_callback("urAdapterGetLastError",
                                             &redefinedAdapterGetLastError);
   sycl::queue Q;
@@ -116,8 +117,9 @@ TEST_F(QueueApiFailures, QueueSubmit) {
 }
 
 TEST_F(QueueApiFailures, QueueSingleTask) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefinedEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefinedEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_replace_callback("urAdapterGetLastError",
                                             &redefinedAdapterGetLastError);
   sycl::queue Q;
@@ -319,8 +321,9 @@ TEST_F(QueueApiFailures, QueueMemAdvise) {
 }
 
 TEST_F(QueueApiFailures, QueueParallelFor) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefinedEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefinedEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_replace_callback("urAdapterGetLastError",
                                             &redefinedAdapterGetLastError);
   sycl::queue Q;
@@ -378,7 +381,7 @@ TEST_F(QueueApiFailures, QueueHostTaskWaitFail) {
     ExceptionCaught = true;
   }
   EXPECT_FALSE(ExceptionCaught);
-  Q.wait();
+  Q.wait_and_throw();
 
   uint16_t TraceType = 0;
   std::string Message;
@@ -422,7 +425,7 @@ TEST_F(QueueApiFailures, QueueHostTaskFail) {
       ExceptionCaught = true;
     }
     EXPECT_FALSE(ExceptionCaught);
-    Q.wait();
+    Q.wait_and_throw();
 
     uint16_t TraceType = 0;
     std::string Message;
@@ -451,7 +454,8 @@ ur_result_t redefinedEnqueueKernelLaunchWithStatus(void *) {
 
 TEST_F(QueueApiFailures, QueueKernelAsync) {
   mock::getCallbacks().set_replace_callback(
-      "urEnqueueKernelLaunch", &redefinedEnqueueKernelLaunchWithStatus);
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefinedEnqueueKernelLaunchWithStatus);
   mock::getCallbacks().set_replace_callback("urAdapterGetLastError",
                                             &redefinedAdapterGetLastError);
 
@@ -499,7 +503,7 @@ TEST_F(QueueApiFailures, QueueKernelAsync) {
   }
 
   try {
-    Q.wait();
+    Q.wait_and_throw();
   } catch (...) {
     // kernel enqueue leads to exception throw
   }

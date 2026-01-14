@@ -15,6 +15,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
 
@@ -41,6 +42,8 @@ void getFunctionsOfUser(User *User, SmallVectorImpl<Function *> &Functions);
 SmallString<128>
 computeKernelMetadataUniqueId(StringRef Prefix,
                               SmallVectorImpl<uint8_t> &KernelNamesBytes);
+
+bool hasESIMDKernel(Module &M);
 
 // Sync with sanitizer_common/sanitizer_common.hpp
 enum SanitizedKernelFlags : uint32_t {

@@ -5,7 +5,7 @@
 
 // Linux
 // clang -fsycl --no-offload-new-driver -target x86_64-unknown-linux-gnu
-// RUN: %clang -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -target x86_64-unknown-linux-gnu -save-offload-code=/user/input/path %s -### 2>&1 \
+// RUN: %clang -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib -target x86_64-unknown-linux-gnu -save-offload-code=/user/input/path %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefixes=CHK-save-offload-code
 
 // clang -fsycl --no-offload-new-driver -fsycl-targets=spir64-unknown-unknown

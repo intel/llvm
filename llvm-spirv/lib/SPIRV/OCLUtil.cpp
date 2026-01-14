@@ -911,8 +911,6 @@ SPIRAddressSpace getOCLOpaqueTypeAddrSpace(Op OpCode) {
   case OpConstantSampler:
   case OpTypeSampler:
     return SPIRV_SAMPLER_T_ADDR_SPACE;
-  case internal::OpTypeJointMatrixINTEL:
-  case internal::OpTypeJointMatrixINTELv2:
   case OpTypeCooperativeMatrixKHR:
   case internal::OpTypeTaskSequenceINTEL:
     return SPIRAS_Global;

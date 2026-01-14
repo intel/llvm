@@ -18,7 +18,7 @@ __kernel void test_legacy_atomics(__global int *p, int val) {
   atomic_add(p, val);   // from OpenCL C 1.1
 }
 
-// CHECK-SPIRV: Name [[TEST:[0-9]+]] "test_legacy_atomics"
+// CHECK-SPIRV: EntryPoint [[#]] [[TEST:[0-9]+]] "test_legacy_atomics"
 // CHECK-SPIRV-DAG: TypeInt [[UINT:[0-9]+]] 32 0
 // CHECK-SPIRV-TYPED-PTRS-DAG: TypePointer [[UINT_PTR:[0-9]+]] 5 [[UINT]]
 // CHECK-SPIRV-UNTYPED-PTRS-DAG: TypeUntypedPointerKHR [[UINT_PTR:[0-9]+]] 5
@@ -31,8 +31,9 @@ __kernel void test_legacy_atomics(__global int *p, int val) {
 // 0x2 Workgroup
 // CHECK-SPIRV-DAG: Constant [[UINT]] [[WORKGROUP_SCOPE:[0-9]+]] 2
 //
-// 0x0 Relaxed
-// CHECK-SPIRV-DAG: Constant [[UINT]] [[RELAXED:[0-9]+]] 0
+// 0x200 CrossWorkgroupMemory | 0x0 Relaxed = 512
+// Global address space (AS 1) maps to CrossWorkgroupMemory storage class
+// CHECK-SPIRV-DAG: Constant [[UINT]] [[RELAXED:[0-9]+]] 512
 //
 // CHECK-SPIRV: Function {{[0-9]+}} [[TEST]]
 // CHECK-SPIRV: FunctionParameter [[UINT_PTR]] [[PTR:[0-9]+]]

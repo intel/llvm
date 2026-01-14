@@ -16,13 +16,8 @@ namespace ext::oneapi::experimental::this_thread {
 
 namespace detail {
 using namespace sycl::detail;
-// Underlying `std::shared_ptr<device_impl>`'s lifetime is tied to the
-// `global_handler`, so a subsequent `lock()` is expected to be successful when
-// used from user app. We still go through `std::weak_ptr` here because our own
-// unittests are linked statically against SYCL RT objects and have to implement
-// some hacks to emulate the lifetime management done by the `global_handler`.
-inline std::weak_ptr<device_impl> &get_current_device_impl() {
-  static thread_local std::weak_ptr<device_impl> current_device{
+inline device_impl *&get_current_device_impl() {
+  static thread_local device_impl *current_device{
       getSyclObjImpl(sycl::device{sycl::default_selector_v})};
   return current_device;
 }
@@ -36,7 +31,7 @@ inline std::weak_ptr<device_impl> &get_current_device_impl() {
 /// task or an asynchronous error handler.
 inline sycl::device get_current_device() {
   return detail::createSyclObjFromImpl<device>(
-      detail::get_current_device_impl().lock());
+      *detail::get_current_device_impl());
 }
 
 /// @brief Sets the current default device to `dev` for the calling host thread.

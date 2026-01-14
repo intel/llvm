@@ -25,6 +25,7 @@
 #include "llvm/ADT/FloatingPointMode.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/DXContainer.h"
+#include "llvm/Support/AllocToken.h"
 #include "llvm/TargetParser/Triple.h"
 #include <optional>
 #include <string>
@@ -257,6 +258,13 @@ public:
     /// line and so the target should be queried for its default evaluation
     /// method instead.
     FEM_UnsetOnCommandLine = 3
+  };
+
+  enum class MatrixMemoryLayout : unsigned {
+    // Use column-major layout for matrices
+    MatrixColMajor = 0,
+    // Use row-major layout for matrices
+    MatrixRowMajor = 1,
   };
 
   enum ExcessPrecisionKind { FPP_Standard, FPP_Fast, FPP_None };
@@ -588,8 +596,7 @@ public:
   bool CheckNew = false;
 
   /// The HLSL root signature version for dxil.
-  llvm::dxbc::RootSignatureVersion HLSLRootSigVer =
-      llvm::dxbc::RootSignatureVersion::V1_1;
+  llvm::dxbc::RootSignatureVersion HLSLRootSigVer;
 
   /// The HLSL root signature that will be used to overide the root signature
   /// used for the shader entry point.
@@ -604,6 +611,13 @@ public:
   bool AtomicRemoteMemory = false;
   bool AtomicFineGrainedMemory = false;
   bool AtomicIgnoreDenormalMode = false;
+
+  /// Maximum number of allocation tokens (0 = target SIZE_MAX), nullopt if none
+  /// set (use target SIZE_MAX).
+  std::optional<uint64_t> AllocTokenMax;
+
+  /// The allocation token mode.
+  std::optional<llvm::AllocTokenMode> AllocTokenMode;
 
   LangOptions();
 
@@ -654,6 +668,8 @@ public:
     return ObjCRuntime.isSubscriptPointerArithmetic() &&
            !ObjCSubscriptingLegacyRuntime;
   }
+
+  bool isCompatibleWithMSVC() const { return MSCompatibilityVersion > 0; }
 
   bool isCompatibleWithMSVC(MSVCMajorVersion MajorVersion) const {
     return MSCompatibilityVersion >= MajorVersion * 100000U;
@@ -796,6 +812,15 @@ public:
   bool isTargetDevice() const {
     return OpenMPIsTargetDevice || CUDAIsDevice || SYCLIsDevice;
   }
+
+  /// Returns the most applicable C standard-compliant language version code.
+  /// If none could be determined, returns \ref std::nullopt.
+  std::optional<uint32_t> getCLangStd() const;
+
+  /// Returns the most applicable C++ standard-compliant language
+  /// version code.
+  /// If none could be determined, returns \ref std::nullopt.
+  std::optional<uint32_t> getCPlusPlusLangStd() const;
 };
 
 /// Floating point control options

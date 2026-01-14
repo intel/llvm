@@ -91,9 +91,9 @@ template <typename T> void testAlloc() {
     // Given a property list, all compile-time properties in it appear on
     // the returned annotated_ptr, and runtime properties do not appear on the
     // returned annotated_ptr (e.g. `foo`, `foz`)
-    properties InP1{conduit, buffer_location<5>};
-    properties InP2{conduit, buffer_location<5>, foo{foo_enum::a}, foz{0.1, 1}};
-    properties OutP{conduit, buffer_location<5>, usm_kind_device};
+    properties InP1{};
+    properties InP2{foo{foo_enum::a}, foz{0.1, 1}};
+    properties OutP{usm_kind_device};
 
     TEST_GROUP(malloc_device_annotated, N, q);
     TEST_GROUP(malloc_device_annotated, N, Dev, Ctx);
@@ -126,9 +126,9 @@ template <typename T> void testAlloc() {
 
   // Test shared allocation
   {
-    properties InP1{conduit, buffer_location<5>};
-    properties InP2{conduit, buffer_location<5>, foo{foo_enum::a}, foz{0.1, 0}};
-    properties OutP{conduit, buffer_location<5>, usm_kind_shared};
+    properties InP1{};
+    properties InP2{foo{foo_enum::a}, foz{0.1, 0}};
+    properties OutP{usm_kind_shared};
 
     TEST_GROUP(malloc_shared_annotated, N, q);
     TEST_GROUP(malloc_shared_annotated, N, Dev, Ctx);
@@ -146,10 +146,9 @@ template <typename T> void testAlloc() {
   // property, usm_kind does not appear on the returned annotated_ptr
   {
     {
-      properties InP1{conduit, buffer_location<5>};
-      properties InP2{conduit, buffer_location<5>, foo{foo_enum::a},
-                      foz{0.1, 1}};
-      properties OutP{conduit, buffer_location<5>};
+      properties InP1{};
+      properties InP2{foo{foo_enum::a}, foz{0.1, 1}};
+      properties OutP{};
 
       TEST_GROUP(malloc_annotated, N, q, alloc::device);
       TEST_GROUP(malloc_annotated, N, Dev, Ctx, alloc::device);

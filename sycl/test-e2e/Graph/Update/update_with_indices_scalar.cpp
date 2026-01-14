@@ -23,7 +23,7 @@ int main() {
 
   Queue.memset(DeviceData, 0, N * sizeof(int)).wait();
 
-  exp_ext::dynamic_parameter InputParam(Graph, ScalarValue);
+  exp_ext::dynamic_parameter InputParam(ScalarValue);
 
   auto KernelNode = Graph.add([&](handler &cgh) {
     cgh.set_arg(1, InputParam);

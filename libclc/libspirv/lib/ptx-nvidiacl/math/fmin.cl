@@ -64,7 +64,7 @@ _CLC_DEF _CLC_OVERLOAD half2 __spirv_ocl_fmin(half2 x, half2 y) {
 
 #endif
 
-#undef FUNCTION
+#undef __CLC_FUNCTION
 #define __CLC_FUNCTION __clc_fmin
 #define __CLC_SCALAR
 
@@ -91,4 +91,4 @@ _CLC_DEF _CLC_OVERLOAD uint __clc_fmin(uint x, uint y) {
 #undef __CLC_GENTYPE
 
 #undef __CLC_SCALAR
-#undef FUNCTION
+#undef __CLC_FUNCTION

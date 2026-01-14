@@ -542,6 +542,6 @@ TEST(KernelBundle, HasKernelForSubDevice) {
   EXPECT_EQ(std::find(BundleDevs.begin(), BundleDevs.end(), SubDev),
             BundleDevs.end())
       << "Sub-device should not be in the devices of the kernel bundle.";
-  EXPECT_FALSE(getSyclObjImpl(SubDev)->isRootDevice());
+  EXPECT_FALSE(sycl::detail::getSyclObjImpl(SubDev)->isRootDevice());
   EXPECT_TRUE(Bundle.has_kernel(KernelId, SubDev));
 }

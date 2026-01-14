@@ -92,87 +92,107 @@ int main() {
   EmptyWrapperWithImplicitAndFilter.kernel_single_task<class EKWIF9>([]() [[sycl::device_has(sycl::aspect::cpu)]] {});
   EmptyWrapperWithImplicitAndFilter.kernel_single_task<class EKWIF10>([]() [[sycl::device_has(sycl::aspect::cpu, sycl::aspect::gpu)]] {});
 
-  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size" it will be ignored}}
   NonemptyWrapper.kernel_single_task<class NEK1>([]() [[sycl::reqd_work_group_size(1)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size" it will be ignored}}
   NonemptyWrapper.kernel_single_task<class NEK2>([]() [[sycl::reqd_work_group_size(1,2)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size" it will be ignored}}
   NonemptyWrapper.kernel_single_task<class NEK3>([]() [[sycl::reqd_work_group_size(1,2,3)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size_hint" it will be ignored}}
   NonemptyWrapper.kernel_single_task<class NEK4>([]() [[sycl::work_group_size_hint(1)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size_hint" it will be ignored}}
   NonemptyWrapper.kernel_single_task<class NEK5>([]() [[sycl::work_group_size_hint(1,2)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size_hint" it will be ignored}}
   NonemptyWrapper.kernel_single_task<class NEK6>([]() [[sycl::work_group_size_hint(1,2,3)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_sub_group_size' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_sub_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::sub_group_size" it will be ignored}}
   NonemptyWrapper.kernel_single_task<class NEK7>([]() [[sycl::reqd_sub_group_size(1)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::device_has" it will be ignored}}
   NonemptyWrapper.kernel_single_task<class NEK8>([]() [[sycl::device_has()]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::device_has" it will be ignored}}
   NonemptyWrapper.kernel_single_task<class NEK9>([]() [[sycl::device_has(sycl::aspect::cpu)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::device_has" it will be ignored}}
   NonemptyWrapper.kernel_single_task<class NEK10>([]() [[sycl::device_has(sycl::aspect::cpu, sycl::aspect::gpu)]] {});
+  // expected-warning@+4 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size" it will be ignored}}
+  // expected-warning@+3 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size_hint" it will be ignored}}
+  // expected-warning@+2 {{kernel has both attribute 'sycl::reqd_sub_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::sub_group_size" it will be ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::device_has" it will be ignored}}
+  NonemptyWrapper.kernel_single_task<class NEK11>([]() [[sycl::reqd_work_group_size(1)]] [[sycl::work_group_size_hint(1)]] [[sycl::reqd_sub_group_size(1)]] [[sycl::device_has(sycl::aspect::cpu, sycl::aspect::gpu)]] {});
 
-  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size" it will be ignored}}
   NonemptyWrapperWithImplicit.kernel_single_task<class NEKWI1>([]() [[sycl::reqd_work_group_size(1)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size" it will be ignored}}
   NonemptyWrapperWithImplicit.kernel_single_task<class NEKWI2>([]() [[sycl::reqd_work_group_size(1,2)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size" it will be ignored}}
   NonemptyWrapperWithImplicit.kernel_single_task<class NEKWI3>([]() [[sycl::reqd_work_group_size(1,2,3)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size_hint" it will be ignored}}
   NonemptyWrapperWithImplicit.kernel_single_task<class NEKWI4>([]() [[sycl::work_group_size_hint(1)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size_hint" it will be ignored}}
   NonemptyWrapperWithImplicit.kernel_single_task<class NEKWI5>([]() [[sycl::work_group_size_hint(1,2)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size_hint" it will be ignored}}
   NonemptyWrapperWithImplicit.kernel_single_task<class NEKWI6>([]() [[sycl::work_group_size_hint(1,2,3)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_sub_group_size' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_sub_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::sub_group_size" it will be ignored}}
   NonemptyWrapperWithImplicit.kernel_single_task<class NEKWI7>([]() [[sycl::reqd_sub_group_size(1)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::device_has" it will be ignored}}
   NonemptyWrapperWithImplicit.kernel_single_task<class NEKWI8>([]() [[sycl::device_has()]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::device_has" it will be ignored}}
   NonemptyWrapperWithImplicit.kernel_single_task<class NEKWI9>([]() [[sycl::device_has(sycl::aspect::cpu)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::device_has" it will be ignored}}
   NonemptyWrapperWithImplicit.kernel_single_task<class NEKWI10>([]() [[sycl::device_has(sycl::aspect::cpu, sycl::aspect::gpu)]] {});
+  // expected-warning@+4 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size" it will be ignored}}
+  // expected-warning@+3 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size_hint" it will be ignored}}
+  // expected-warning@+2 {{kernel has both attribute 'sycl::reqd_sub_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::sub_group_size" it will be ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::device_has" it will be ignored}}
+  NonemptyWrapperWithImplicit.kernel_single_task<class NEKWI11>([]() [[sycl::reqd_work_group_size(1)]] [[sycl::work_group_size_hint(1)]] [[sycl::reqd_sub_group_size(1)]] [[sycl::device_has(sycl::aspect::cpu, sycl::aspect::gpu)]] {});
 
-  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size" it will be ignored}}
   NonemptyWrapperWithFilter.kernel_single_task<class NEKWF1>([]() [[sycl::reqd_work_group_size(1)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size" it will be ignored}}
   NonemptyWrapperWithFilter.kernel_single_task<class NEKWF2>([]() [[sycl::reqd_work_group_size(1,2)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size" it will be ignored}}
   NonemptyWrapperWithFilter.kernel_single_task<class NEKWF3>([]() [[sycl::reqd_work_group_size(1,2,3)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size_hint" it will be ignored}}
   NonemptyWrapperWithFilter.kernel_single_task<class NEKWF4>([]() [[sycl::work_group_size_hint(1)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size_hint" it will be ignored}}
   NonemptyWrapperWithFilter.kernel_single_task<class NEKWF5>([]() [[sycl::work_group_size_hint(1,2)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size_hint" it will be ignored}}
   NonemptyWrapperWithFilter.kernel_single_task<class NEKWF6>([]() [[sycl::work_group_size_hint(1,2,3)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_sub_group_size' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_sub_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::sub_group_size" it will be ignored}}
   NonemptyWrapperWithFilter.kernel_single_task<class NEKWF7>([]() [[sycl::reqd_sub_group_size(1)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::device_has" it will be ignored}}
   NonemptyWrapperWithFilter.kernel_single_task<class NEKWF8>([]() [[sycl::device_has()]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::device_has" it will be ignored}}
   NonemptyWrapperWithFilter.kernel_single_task<class NEKWF9>([]() [[sycl::device_has(sycl::aspect::cpu)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::device_has" it will be ignored}}
   NonemptyWrapperWithFilter.kernel_single_task<class NEKWF10>([]() [[sycl::device_has(sycl::aspect::cpu, sycl::aspect::gpu)]] {});
+  // expected-warning@+4 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size" it will be ignored}}
+  // expected-warning@+3 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size_hint" it will be ignored}}
+  // expected-warning@+2 {{kernel has both attribute 'sycl::reqd_sub_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::sub_group_size" it will be ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::device_has" it will be ignored}}
+  NonemptyWrapperWithFilter.kernel_single_task<class NEKWF11>([]() [[sycl::reqd_work_group_size(1)]] [[sycl::work_group_size_hint(1)]] [[sycl::reqd_sub_group_size(1)]] [[sycl::device_has(sycl::aspect::cpu, sycl::aspect::gpu)]] {});
 
-  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size" it will be ignored}}
   NonemptyWrapperWithImplicitAndFilter.kernel_single_task<class NEKWIF1>([]() [[sycl::reqd_work_group_size(1)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size" it will be ignored}}
   NonemptyWrapperWithImplicitAndFilter.kernel_single_task<class NEKWIF2>([]() [[sycl::reqd_work_group_size(1,2)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size" it will be ignored}}
   NonemptyWrapperWithImplicitAndFilter.kernel_single_task<class NEKWIF3>([]() [[sycl::reqd_work_group_size(1,2,3)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size_hint" it will be ignored}}
   NonemptyWrapperWithImplicitAndFilter.kernel_single_task<class NEKWIF4>([]() [[sycl::work_group_size_hint(1)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size_hint" it will be ignored}}
   NonemptyWrapperWithImplicitAndFilter.kernel_single_task<class NEKWIF5>([]() [[sycl::work_group_size_hint(1,2)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size_hint" it will be ignored}}
   NonemptyWrapperWithImplicitAndFilter.kernel_single_task<class NEKWIF6>([]() [[sycl::work_group_size_hint(1,2,3)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_sub_group_size' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_sub_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::sub_group_size" it will be ignored}}
   NonemptyWrapperWithImplicitAndFilter.kernel_single_task<class NEKWIF7>([]() [[sycl::reqd_sub_group_size(1)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::device_has" it will be ignored}}
   NonemptyWrapperWithImplicitAndFilter.kernel_single_task<class NEKWIF8>([]() [[sycl::device_has()]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::device_has" it will be ignored}}
   NonemptyWrapperWithImplicitAndFilter.kernel_single_task<class NEKWIF9>([]() [[sycl::device_has(sycl::aspect::cpu)]] {});
-  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::device_has" it will be ignored}}
   NonemptyWrapperWithImplicitAndFilter.kernel_single_task<class NEKWIF10>([]() [[sycl::device_has(sycl::aspect::cpu, sycl::aspect::gpu)]] {});
+  // expected-warning@+4 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size" it will be ignored}}
+  // expected-warning@+3 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size_hint" it will be ignored}}
+  // expected-warning@+2 {{kernel has both attribute 'sycl::reqd_sub_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::sub_group_size" it will be ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'sycl::device_has' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::device_has" it will be ignored}}
+  NonemptyWrapperWithImplicitAndFilter.kernel_single_task<class NEKWIF11>([]() [[sycl::reqd_work_group_size(1)]] [[sycl::work_group_size_hint(1)]] [[sycl::reqd_sub_group_size(1)]] [[sycl::device_has(sycl::aspect::cpu, sycl::aspect::gpu)]] {});
 }

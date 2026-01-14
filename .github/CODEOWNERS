@@ -133,11 +133,10 @@ sycl/cts_exclude_filter/ @intel/dpcpp-devops-reviewers
 **/package-lock.json @intel/dpcpp-devops-reviewers
 llvm/utils/git/requirements_formatting.txt @intel/dpcpp-devops-reviewers
 
-# dev-igc driver update
-devops/dependencies-igc-dev.json @intel/sycl-matrix-reviewers @intel/dpcpp-esimd-reviewers @intel/dpcpp-devops-reviewers
-
 # Benchmarking scripts
 devops/scripts/benchmarks/ @intel/llvm-reviewers-benchmarking
+devops/actions/run-tests/benchmark/ @intel/llvm-reviewers-benchmarking
+.github/workflows/sycl-ur-perf-benchmarking.yml @intel/llvm-reviewers-benchmarking
 
 # JIT compiler
 sycl-jit/ @intel/llvm-reviewers-runtime @cperkinsintel @aelovikov-intel

@@ -48,28 +48,6 @@ private:
   sycl::context MCtx;
 };
 
-class mem_channel : public detail::PropertyWithData<
-                        detail::PropWithDataKind::BufferMemChannel> {
-public:
-  mem_channel(uint32_t Channel) : MChannel(Channel) {}
-  uint32_t get_channel() const { return MChannel; }
-
-private:
-  uint32_t MChannel;
-};
-
-namespace detail {
-class buffer_location
-    : public sycl::detail::PropertyWithData<
-          sycl::detail::PropWithDataKind::AccPropBufferLocation> {
-public:
-  buffer_location(uint64_t Location) : MLocation(Location) {}
-  uint64_t get_buffer_location() const { return MLocation; }
-
-private:
-  uint64_t MLocation;
-};
-} // namespace detail
 } // namespace property::buffer
 
 // Forward declaration

@@ -99,7 +99,7 @@ TEST_P(QueueUSMTestWithParam, QueueUSMTest) {
     ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 1, nullptr, DeviceMem2));
 
     ASSERT_SUCCESS(urEnqueueKernelLaunch(Queue, kernel, NDimensions,
-                                         &GlobalOffset, &ArraySize, nullptr, 0,
+                                         &GlobalOffset, &ArraySize, nullptr,
                                          nullptr, 0, nullptr, &Event));
     ASSERT_NO_FATAL_FAILURE(submitBarrierIfNeeded(Event));
 
@@ -110,7 +110,7 @@ TEST_P(QueueUSMTestWithParam, QueueUSMTest) {
     ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 1, nullptr, DeviceMem1));
 
     ASSERT_SUCCESS(urEnqueueKernelLaunch(Queue, kernel, NDimensions,
-                                         &GlobalOffset, &ArraySize, nullptr, 0,
+                                         &GlobalOffset, &ArraySize, nullptr,
                                          nullptr, 0, nullptr, &Event));
     ASSERT_NO_FATAL_FAILURE(submitBarrierIfNeeded(Event));
 

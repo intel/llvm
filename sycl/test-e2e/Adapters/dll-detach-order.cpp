@@ -1,5 +1,5 @@
 // REQUIRES: windows
-// RUN: env SYCL_UR_TRACE=-1 %{run-unfiltered-devices} sycl-ls | FileCheck %s
+// RUN: env SYCL_UR_TRACE=-1 %{run-unfiltered-devices} sycl-ls 2>&1 | FileCheck %s
 
 // ensure that the adapters are detached AFTER urLoaderTearDown is done
 // executing

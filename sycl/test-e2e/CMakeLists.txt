@@ -98,6 +98,9 @@ if(NOT SYCL_TEST_E2E_STANDALONE)
     sycl-toolchain
     FileCheck
     not
+    compiler-rt
+    llvm-profdata
+    llvm-cov
   )
 endif() # Standalone.
 

@@ -357,7 +357,8 @@ if __name__ == "__main__":
     parser_avg.add_argument(
         "--produce-github-summary",
         action="store_true",
-        help=f"Create a summary file '{options.github_summary_filename}' for Github workflow summaries.",
+        help=f"Produce regression summary for Github workflow, in file '{options.github_summary_regression_filename}'.",
+        default=False,
     )
 
     args = parser.parse_args()
@@ -410,7 +411,7 @@ if __name__ == "__main__":
             log_func(f"-- Delta: {entry['delta']}")
             log_func("")
             if args.produce_github_summary:
-                gh_summary.append(f"#### {entry['name']}:")
+                gh_summary.append(f"##### {entry['name']}:")
                 gh_summary.append(
                     f"- Historic {entry['avg_type']}: {entry['hist_avg']}"
                 )
@@ -426,12 +427,16 @@ if __name__ == "__main__":
                 )
                 gh_summary.append("")
 
+        if args.produce_github_summary:
+            gh_summary.append("")
+            gh_summary.append("### Regressions and Improvements")
+
         if improvements:
             log.info("#")
             log.info("# Improvements:")
             log.info("#")
             if args.produce_github_summary:
-                gh_summary.append(f"### Improvements")
+                gh_summary.append(f"#### Improvements")
                 gh_summary.append(
                     f"<details><summary>{len(improvements)} improved tests:</summary>"
                 )
@@ -443,12 +448,16 @@ if __name__ == "__main__":
                 gh_summary.append("")
         if regressions_ignored:
             log.info("#")
-            log.info("# Regressions (filtered out by --regression-filter):")
+            log.info(
+                f"# Regressions Ignored (filtered out by --regression-filter: {filter_type_capitalized})"
+            )
             log.info("#")
             if args.produce_github_summary:
-                gh_summary.append(f"### Non-{filter_type_capitalized} Regressions")
                 gh_summary.append(
-                    f"<details><summary>{len(regressions_ignored)} non-{args.regression_filter_type} regressions:</summary>"
+                    f"#### Regressions Ignored (filtered out by --regression-filter: {filter_type_capitalized})"
+                )
+                gh_summary.append(
+                    f"<details><summary>{len(regressions_ignored)} non-'{args.regression_filter_type}' regressions:</summary>"
                 )
                 gh_summary.append("")
             for test in regressions_ignored:
@@ -461,7 +470,7 @@ if __name__ == "__main__":
             log.warning("# Regressions:")
             log.warning("#")
             if args.produce_github_summary:
-                gh_summary.append(f"### {filter_type_capitalized} Regressions")
+                gh_summary.append(f"#### {filter_type_capitalized} Regressions")
                 gh_summary.append(
                     f"{len(regressions_of_concern)} {args.regression_filter_type} regressions. These regressions warrant a CI failure:"
                 )
@@ -473,14 +482,14 @@ if __name__ == "__main__":
 
             if not args.dry_run:
                 if args.produce_github_summary:
-                    with open(options.github_summary_filename, "w") as f:
+                    with open(options.github_summary_regression_filename, "w") as f:
                         f.write("\n".join(gh_summary))
                 exit(1)  # Exit 1 to trigger Github test failure
 
         log.info("No unexpected regressions found!")
         if args.produce_github_summary:
             gh_summary.append("No unexpected regressions found!")
-            with open(options.github_summary_filename, "w") as f:
+            with open(options.github_summary_regression_filename, "w") as f:
                 f.write("\n".join(gh_summary))
 
     else:

@@ -56,9 +56,13 @@ namespace ur_loader
             if (platform.initStatus != ${X}_RESULT_SUCCESS)
                 continue;
 
+            auto *${th.make_pfn_name(n, tags, obj)} = platform.dditable.${th.get_table_name(n, tags, obj)}.${th.make_pfn_name(n, tags, obj)};
+            if (*${th.make_pfn_name(n, tags, obj)} == nullptr)
+                return ${X}_RESULT_ERROR_UNINITIALIZED;
+
             uint32_t adapter;
             ur_adapter_handle_t *adapterHandle = numAdapters < NumEntries ? &${obj['params'][1]['name']}[numAdapters] : nullptr;
-            platform.dditable.${th.get_table_name(n, tags, obj)}.${th.make_pfn_name(n, tags, obj)}( 1, adapterHandle, &adapter );
+            ${th.make_pfn_name(n, tags, obj)}( 1, adapterHandle, &adapter );
 
             numAdapters += adapter;
         }
@@ -129,6 +133,7 @@ ${tbl['export']['name']}(
 
         if(platform.initStatus != ${X}_RESULT_SUCCESS)
             continue;
+
         auto getTable = reinterpret_cast<${tbl['pfn']}>(
             ur_loader::LibLoader::getFunctionPtr(platform.handle.get(), "${tbl['export']['name']}"));
         if(!getTable)
