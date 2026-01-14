@@ -1,4 +1,4 @@
-# Copyright (C) 2024-2025 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -1027,9 +1027,11 @@ class TorchBenchmark(ComputeBenchmark):
 
     def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
         iters = self._get_iters(run_trace)
-        return [f"--iterations={iters}"] + [
-            f"--{k}={v}" for k, v in self._torch_params.items()
-        ]
+        return (
+            [f"--iterations={iters}"]
+            + [f"--profilerType={self._profiler_type.value}"]
+            + [f"--{k}={v}" for k, v in self._torch_params.items()]
+        )
 
 
 class TorchSingleQueue(TorchBenchmark):

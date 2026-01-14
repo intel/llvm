@@ -1,4 +1,4 @@
-# Copyright (C) 2025 Intel Corporation
+# Copyright (C) 2025-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -63,7 +63,7 @@ class App:
             if d is not None:
                 shutil.rmtree(d, ignore_errors=True)
 
-    def run_main(self, *args):
+    def run_main(self, *args) -> subprocess.CompletedProcess:
 
         # TODO: not yet tested: "--detect-version", "sycl,compute_runtime"
 
@@ -101,9 +101,9 @@ class App:
             "MAIN_PY_STDERR:",
             "\n" + proc.stderr.decode() if proc.stderr else " <empty>",
         )
-        return proc.returncode
+        return proc
 
-    def get_output(self):
+    def get_benchmark_output_data(self):
         with open(os.path.join(self.OUTPUT_DIR, "data.json")) as f:
             out = json.load(f)
             return DataJson(
@@ -169,11 +169,30 @@ class TestE2E(unittest.TestCase):
     def _checkResultsExist(self, caseName: str, out: DataJson):
         self.assertIn(caseName, [r.name for r in out.runs[0].results])
 
-    def _checkCase(self, caseName: str, groupName: str, tags: set[str]):
-        run_result = self.app.run_main("--filter", caseName + "$")
-        self.assertEqual(run_result, 0, "Subprocess did not exit cleanly")
+    def _checkExistsInProcessOutput(
+        self, proc: subprocess.CompletedProcess, expected: str
+    ):
+        """
+        Check that expected regex string exists in process output.
+        It's useful for checking e.g. if expected params are passed to the benchmark's bin execution.
+        """
+        stdout = proc.stdout.decode()
+        self.assertRegex(stdout, expected, "Expected string not found in output")
 
-        out = self.app.get_output()
+    def _checkCase(
+        self,
+        caseName: str,
+        groupName: str,
+        tags: set[str],
+        expected_in_output: str = None,
+    ):
+        return_proc = self.app.run_main("--filter", caseName + "$")
+        self.assertEqual(return_proc.returncode, 0, "Subprocess did not exit cleanly")
+
+        if expected_in_output:
+            self._checkExistsInProcessOutput(return_proc, expected_in_output)
+
+        out = self.app.get_benchmark_output_data()
         self._checkResultsExist(caseName, out)
 
         metadata = out.metadata[caseName]
@@ -199,11 +218,13 @@ class TestE2E(unittest.TestCase):
             "torch_benchmark_l0 KernelSubmitSingleQueue KernelBatchSize 512, KernelDataType Int32, KernelName Add, KernelParamsNum 5, KernelSubmitPattern Single, KernelWGCount 4096, KernelWGSize 512",
             "KernelSubmitSingleQueue Int32Large",
             {"pytorch", "L0"},
+            "--test=KernelSubmitSingleQueue.*--profilerType=timer",
         )
         self._checkCase(
             "torch_benchmark_l0 KernelSubmitSingleQueue KernelBatchSize 512, KernelDataType Int32, KernelName Add, KernelParamsNum 5, KernelSubmitPattern Single, KernelWGCount 4096, KernelWGSize 512 CPU count",
             "KernelSubmitSingleQueue Int32Large, CPU count",
             {"pytorch", "L0"},
+            "--test=KernelSubmitSingleQueue.*--profilerType=cpuCounter",
         )
         self._checkCase(
             "torch_benchmark_l0 KernelSubmitMultiQueue kernelsPerQueue 20, workgroupCount 4096, workgroupSize 512",
