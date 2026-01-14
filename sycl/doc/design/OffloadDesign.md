@@ -107,7 +107,7 @@ to be taken.
 For example, when an embedded device binary is of the `OFK_SYCL` kind and of
 the `spir64_gen` architecture triple, the resulting extracted binary is linked,
 post-link processed and converted to SPIR-V before being passed to `ocloc` to
-generate the final device binary.  Options passed via `--device-compiler=` will
+generate the final device binary.  Options passed via `--device-compiler=sycl:spir64_gen-unknown-unknown=<arg>` will
 be applied to the `ocloc` step as well.
 
 Binaries generated during the offload compilation will be 'bundled' together
