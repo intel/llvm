@@ -188,12 +188,6 @@ void ur_integrated_buffer_handle_t::unmapHostPtr(
       UR_CALL_THROWS(synchronousZeCopy(
           hContext, hDevice, ur_cast<char *>(ptr.get()) + mappedRegion->offset,
           mappedRegion->ptr.get(), mappedRegion->size));
-
-      // If this was a full-buffer write map, we've completed the copy-back
-      // and dtor doesn't need to do it again
-      if (mappedRegion->offset == 0 && mappedRegion->size == size) {
-        writeBackPtr = nullptr;
-      }
     }
 
     mappedRegions.erase(mappedRegion);
@@ -226,7 +220,7 @@ void ur_integrated_buffer_handle_t::copyBackToHostIfNeeded() {
     if (result2 == UR_RESULT_SUCCESS) {
       writeBackPtr = nullptr;
     } else {
-      UR_LOG(ERR, "Failed to copy-back buffer data on release: {}", result2);
+      UR_LOG(ERR, "Failed to copy-back buffer data: {}", result2);
     }
   }
 }
