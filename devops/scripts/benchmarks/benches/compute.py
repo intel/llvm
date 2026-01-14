@@ -61,8 +61,8 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        # Jan 9, 2026
-        return "172365d0761d5a73cb4283087e561f8832641980"
+        # Jan 13, 2026
+        return "ca382c152aa54931acb868c2624386277266da3c"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -208,16 +208,20 @@ class ComputeBench(Suite):
             measure_completion_time,
             use_events,
         ) in submit_graph_params:
-            # SYCL only supports graph mode, UR supports only emulation with command buffers,
-            # and L0 supports both modes via graph and command list APIs.
+            # SYCL only supports graph mode, UR & L0 support both emulated
+            # and non-emulated graph APIs.
             if runtime == RUNTIMES.SYCL or runtime == RUNTIMES.SYCL_PREVIEW:
                 emulate_graphs = [0]
-            elif runtime == RUNTIMES.UR:
-                emulate_graphs = [1]
-            else:  # level-zero
-                # SubmitGraph with L0 graph segfaults on PVC
+            else:  # level-zero and unified-runtime
+                # SubmitGraph with L0 / UR graph segfaults on PVC
                 device_arch = getattr(options, "device_architecture", "")
-                emulate_graphs = [1] if "pvc" in device_arch else [0, 1]
+                # UR currently only supports EmulateGraphs=0 with in-order queue and Level-Zero V2 Adapter
+                skip_ur_native_graph = runtime == RUNTIMES.UR and (
+                    in_order_queue == 0 or options.ur_adapter != "level_zero_v2"
+                )
+                emulate_graphs = (
+                    [1] if "pvc" in device_arch or skip_ur_native_graph else [0, 1]
+                )
             for emulate_graph in emulate_graphs:
                 benches.append(
                     GraphApiSubmitGraph(
