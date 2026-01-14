@@ -2746,6 +2746,16 @@ ur_result_t enqueueImpCommandBufferKernel(
       LocalSize = RequiredWGSize;
   }
 
+  // If there is no implicit arg, let the driver handle it via a property
+  // which is not yet supported!
+  if (WorkGroupMemorySize && !ImplicitLocalArg.has_value()) {
+    throw sycl::exception(
+        sycl::make_error_code(errc::invalid),
+        "Setting work group scratch memory size is not yet supported "
+        "for use with the SYCL Graph extension and backends using "
+        "CUDA-style local memory settings.");
+  }
+
   // Command-buffers which are not updatable cannot return command handles, so
   // we query the descriptor here to check if a handle is required.
   ur_exp_command_buffer_desc_t CommandBufferDesc{};
