@@ -201,8 +201,18 @@ class TestE2E(unittest.TestCase):
             {"pytorch", "L0"},
         )
         self._checkCase(
+            "torch_benchmark_l0 KernelSubmitSingleQueue KernelBatchSize 512, KernelDataType Int32, KernelName Add, KernelParamsNum 5, KernelSubmitPattern Single, KernelWGCount 4096, KernelWGSize 512 CPU count",
+            "KernelSubmitSingleQueue Int32Large, CPU count",
+            {"pytorch", "L0"},
+        )
+        self._checkCase(
             "torch_benchmark_l0 KernelSubmitMultiQueue kernelsPerQueue 20, workgroupCount 4096, workgroupSize 512",
             "KernelSubmitMultiQueue large",
+            {"pytorch", "L0"},
+        )
+        self._checkCase(
+            "torch_benchmark_l0 KernelSubmitMultiQueue kernelsPerQueue 20, workgroupCount 4096, workgroupSize 512 CPU count",
+            "KernelSubmitMultiQueue large, CPU count",
             {"pytorch", "L0"},
         )
         self._checkCase(
@@ -238,6 +248,11 @@ class TestE2E(unittest.TestCase):
             {"pytorch", "SYCL"},
         )
         self._checkCase(
+            "torch_benchmark_sycl KernelSubmitSlmSize batchSize 512, slmNum 16384, warmupIterations 1 CPU count",
+            "KernelSubmitSlmSize large, CPU count",
+            {"pytorch", "SYCL"},
+        )
+        self._checkCase(
             "torch_benchmark_sycl KernelSubmitLinearKernelSize kernelBatchSize 512, kernelSize 5120",
             "KernelSubmitLinearKernelSize array5120",
             {"pytorch", "SYCL"},
@@ -270,8 +285,18 @@ class TestE2E(unittest.TestCase):
             {"pytorch", "SYCL"},
         )
         self._checkCase(
+            "torch_benchmark_syclpreview KernelSubmitLinearKernelSize kernelBatchSize 512, kernelSize 512 CPU count",
+            "KernelSubmitLinearKernelSize array512, CPU count",
+            {"pytorch", "SYCL"},
+        )
+        self._checkCase(
             "torch_benchmark_syclpreview KernelSubmitMemoryReuse dataType Float, kernelBatchSize 512",
             "KernelSubmitMemoryReuse FloatMedium",
+            {"pytorch", "SYCL"},
+        )
+        self._checkCase(
+            "torch_benchmark_syclpreview KernelSubmitMemoryReuse dataType Float, kernelBatchSize 512 CPU count",
+            "KernelSubmitMemoryReuse FloatMedium, CPU count",
             {"pytorch", "SYCL"},
         )
 
