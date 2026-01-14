@@ -331,7 +331,7 @@ jobs:
         !cancelled()
         && steps.build.conclusion == 'success' &&
         contains(github.event.pull_request.labels.*.name, 'new-offload-model')
-      uses: ./devops/actions/run-tests/e2e
+      uses: ./devops/actions/run-tests/linux/e2e
       with:
         ref: ${{ inputs.ref || github.sha }}
         testing_mode: build-only
