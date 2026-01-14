@@ -3,8 +3,13 @@
 // UNSUPPORTED: hip
 // UNSUPPORTED-INTENDED: Returning non-FP values from sampling fails on HIP.
 
+// NOTE: on sycl all bindless_images tests were disabled on Win+BMG.
+// On sycl-rel-6_3 only this one is affected.
+// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20562
+
 // RUN: %{build} -o %t.out
-// RUN: %{run-unfiltered-devices} %t.out
+// RUN: %{run} %t.out
 
 // Print test names and pass status
 // #define VERBOSE_LV1

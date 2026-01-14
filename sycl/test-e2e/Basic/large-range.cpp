@@ -2,6 +2,9 @@
 // RUN: %{build} -fno-sycl-id-queries-fit-in-int -O2 -o %t.out
 // RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %{run} %t.out
 
+// XFAIL: windows && arch-intel_gpu_bmg_g21
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20861
+
 #include <numeric>
 #include <sycl/atomic_ref.hpp>
 #include <sycl/detail/core.hpp>
