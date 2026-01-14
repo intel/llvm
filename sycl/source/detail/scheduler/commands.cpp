@@ -2748,7 +2748,8 @@ ur_result_t enqueueImpCommandBufferKernel(
 
   // If there is no implicit arg, let the driver handle it via a property
   // which is not yet supported!
-  if (WorkGroupMemorySize && !ImplicitLocalArg.has_value()) {
+  if (CommandGroup.MKernelWorkGroupMemorySize &&
+      !ImplicitLocalArg.has_value()) {
     throw sycl::exception(
         sycl::make_error_code(errc::invalid),
         "Setting work group scratch memory size is not yet supported "
