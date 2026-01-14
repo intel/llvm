@@ -71,7 +71,7 @@ def run(
         command_str = " ".join(command)
         env_str = " ".join(f"{key}={value}" for key, value in env_vars.items())
         full_command_str = f"{env_str} {command_str}".strip()
-        log.debug(f"Running: {full_command_str}")
+        log.info(f"Running: {full_command_str}")
 
         for key, value in env_vars.items():
             # Only PATH and LD_LIBRARY_PATH should be prepended to existing values

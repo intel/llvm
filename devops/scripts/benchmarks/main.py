@@ -107,8 +107,8 @@ def run_iterations(
     Unless options.exit_on_failure is set, then exception is raised.
     """
 
+    log.info(f"Running '{benchmark.name()}' {iters}x iterations...")
     for iter in range(iters):
-        log.info(f"running {benchmark.name()}, iteration {iter}... ")
         try:
             bench_results = benchmark.run(
                 env_vars, run_trace=run_trace, force_trace=force_trace
@@ -145,7 +145,7 @@ def run_iterations(
                 log.error(f"{failure_label}: verification failed: {str(e)}.")
                 continue
 
-    # Iterations completed successfully
+    log.info(f"Completed '{benchmark.name()}' {iters}x iterations")
     return True
 
 
