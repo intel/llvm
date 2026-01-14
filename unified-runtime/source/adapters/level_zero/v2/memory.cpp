@@ -190,7 +190,7 @@ void ur_integrated_buffer_handle_t::unmapHostPtr(
           mappedRegion->ptr.get(), mappedRegion->size));
 
       // If this was a full-buffer write map, we've completed the copy-back
-      // and urMemRelease doesn't need to do it again
+      // and dtor doesn't need to do it again
       if (mappedRegion->offset == 0 && mappedRegion->size == size) {
         writeBackPtr = nullptr;
       }
@@ -221,19 +221,18 @@ void ur_integrated_buffer_handle_t::copyBackToHostIfNeeded() {
 
     // Pointer is valid, perform copy-back
     auto hDevice = hContext->getDevices()[0];
-    auto result = synchronousZeCopy(hContext, hDevice, writeBackPtr,
-                                    this->ptr.get(), size);
-    if (result == UR_RESULT_SUCCESS) {
+    auto result2 = synchronousZeCopy(hContext, hDevice, writeBackPtr,
+                                     this->ptr.get(), size);
+    if (result2 == UR_RESULT_SUCCESS) {
       writeBackPtr = nullptr;
     } else {
-      UR_LOG(ERR, "Failed to copy-back buffer data on release: {}", result);
+      UR_LOG(ERR, "Failed to copy-back buffer data on release: {}", result2);
     }
   }
 }
 
 ur_integrated_buffer_handle_t::~ur_integrated_buffer_handle_t() {
-  // Copy-back happens in urMemRelease via copyBackToHostIfNeeded() before the
-  // destructor runs.
+  copyBackToHostIfNeeded();
 }
 
 void *ur_discrete_buffer_handle_t::allocateOnDevice(ur_device_handle_t hDevice,
@@ -795,16 +794,6 @@ ur_result_t urMemRetain(ur_mem_handle_t hMem) try {
 ur_result_t urMemRelease(ur_mem_handle_t hMem) try {
   if (!hMem->RefCount.release())
     return UR_RESULT_SUCCESS;
-
-  // Perform copy-back for integrated buffers before destruction
-  if (!hMem->isImage()) {
-    auto *buffer = hMem->getBuffer();
-    // Check if it's specifically an integrated buffer
-    if (auto *integratedBuf =
-            dynamic_cast<ur_integrated_buffer_handle_t *>(buffer)) {
-      integratedBuf->copyBackToHostIfNeeded();
-    }
-  }
 
   delete hMem;
   return UR_RESULT_SUCCESS;
