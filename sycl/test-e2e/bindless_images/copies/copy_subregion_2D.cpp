@@ -2,8 +2,6 @@
 // UNSUPPORTED: gpu
 // UNSUPPORTED-INTENDED: sporadic failure in CI
 //                       https://github.com/intel/llvm/issues/20006
-// XFAIL: linux && arch-intel_gpu_acm_g10 && level_zero_v2_adapter
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20004
 // XFAIL: hip
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/19957
 
