@@ -137,6 +137,12 @@ on:
         type: string
         required: False
         default: '0'
+      benchmark_custom_cr:
+        description: |
+          Custom Compute Runtime to use in benchmarks.
+        type: string
+        required: False
+        default: ''
 
       in_workflow_call_mode:
         description: |
@@ -369,3 +375,4 @@ jobs:
         build_ref: ${{ inputs.repo_ref }}
         runner: ${{ inputs.runner }}
         gdb_mode: ${{ inputs.benchmark_gdb_mode }}
+        custom_cr: ${{ inputs.benchmark_custom_cr }}
