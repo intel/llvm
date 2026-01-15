@@ -903,7 +903,7 @@ struct AddressSanitizer {
   bool instrumentSyclDynamicLocalMemory(Function &F);
   void instrumentInitAsanLaunchInfo(Function &F, const TargetLibraryInfo *TLI);
 
-  void AppendDebugInfoToArgs(Instruction *InsertBefore, Value *Addr,
+  void AppendDebugInfoToArgs(Instruction *InsertBefore,
                              SmallVectorImpl<Value *> &Args);
 
 private:
@@ -964,6 +964,9 @@ private:
   FunctionCallee AsanMemoryAccessCallbackSizedAS[2][2][kNumberOfAddressSpace];
 
   FunctionCallee AsanMemmove, AsanMemcpy, AsanMemset;
+  FunctionCallee AsanMemcpyAS[kNumberOfAddressSpace][kNumberOfAddressSpace],
+      AsanMemmoveAS[kNumberOfAddressSpace][kNumberOfAddressSpace],
+      AsanMemsetAS[kNumberOfAddressSpace];
   Value *LocalDynamicShadow = nullptr;
   const StackSafetyGlobalInfo *SSGI;
   DenseMap<const AllocaInst *, bool> ProcessedAllocas;
@@ -1355,7 +1358,7 @@ public:
   void initializeCallbacks() {
     IRBuilder<> IRB(*C);
 
-    // __msan_set_private_base(
+    // __asan_set_private_base(
     //   as(0) void *  ptr
     // )
     AsanSetPrivateBaseFunc =
@@ -1803,7 +1806,6 @@ static bool isUnsupportedSPIRAccess(Value *Addr, Instruction *Inst) {
 }
 
 void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
-                                             Value *Addr,
                                              SmallVectorImpl<Value *> &Args) {
   auto *M = InsertBefore->getModule();
   auto &C = InsertBefore->getContext();
@@ -1933,17 +1935,48 @@ void AddressSanitizer::instrumentMemIntrinsic(MemIntrinsic *MI,
                                               RuntimeCallInserter &RTCI) {
   InstrumentationIRBuilder IRB(MI);
   if (isa<MemTransferInst>(MI)) {
-    RTCI.createRuntimeCall(
-        IRB, isa<MemMoveInst>(MI) ? AsanMemmove : AsanMemcpy,
-        {IRB.CreateAddrSpaceCast(MI->getOperand(0), PtrTy),
-         IRB.CreateAddrSpaceCast(MI->getOperand(1), PtrTy),
-         IRB.CreateIntCast(MI->getOperand(2), IntptrTy, false)});
+    if (TargetTriple.isSPIROrSPIRV()) {
+      unsigned int DstAS =
+          cast<PointerType>(MI->getOperand(0)->getType()->getScalarType())
+              ->getPointerAddressSpace();
+      unsigned int SrcAS =
+          cast<PointerType>(MI->getOperand(1)->getType()->getScalarType())
+              ->getPointerAddressSpace();
+      SmallVector<Value *, 6> Args;
+      Args.push_back(MI->getOperand(0));
+      Args.push_back(MI->getOperand(1));
+      Args.push_back(IRB.CreateIntCast(MI->getOperand(2), IntptrTy, false));
+      AppendDebugInfoToArgs(MI, Args);
+      RTCI.createRuntimeCall(IRB,
+                             isa<MemMoveInst>(MI) ? AsanMemmoveAS[DstAS][SrcAS]
+                                                  : AsanMemcpyAS[DstAS][SrcAS],
+                             Args);
+    } else {
+      RTCI.createRuntimeCall(
+          IRB, isa<MemMoveInst>(MI) ? AsanMemmove : AsanMemcpy,
+          {IRB.CreateAddrSpaceCast(MI->getOperand(0), PtrTy),
+           IRB.CreateAddrSpaceCast(MI->getOperand(1), PtrTy),
+           IRB.CreateIntCast(MI->getOperand(2), IntptrTy, false)});
+    }
   } else if (isa<MemSetInst>(MI)) {
-    RTCI.createRuntimeCall(
-        IRB, AsanMemset,
-        {IRB.CreateAddrSpaceCast(MI->getOperand(0), PtrTy),
-         IRB.CreateIntCast(MI->getOperand(1), IRB.getInt32Ty(), false),
-         IRB.CreateIntCast(MI->getOperand(2), IntptrTy, false)});
+    if (TargetTriple.isSPIROrSPIRV()) {
+      unsigned int AS =
+          cast<PointerType>(MI->getOperand(0)->getType()->getScalarType())
+              ->getPointerAddressSpace();
+      SmallVector<Value *, 6> Args;
+      Args.push_back(MI->getOperand(0));
+      Args.push_back(
+          IRB.CreateIntCast(MI->getOperand(1), IRB.getInt32Ty(), false));
+      Args.push_back(IRB.CreateIntCast(MI->getOperand(2), IntptrTy, false));
+      AppendDebugInfoToArgs(MI, Args);
+      RTCI.createRuntimeCall(IRB, AsanMemsetAS[AS], Args);
+    } else {
+      RTCI.createRuntimeCall(
+          IRB, AsanMemset,
+          {IRB.CreateAddrSpaceCast(MI->getOperand(0), PtrTy),
+           IRB.CreateIntCast(MI->getOperand(1), IRB.getInt32Ty(), false),
+           IRB.CreateIntCast(MI->getOperand(2), IntptrTy, false)});
+    }
   }
   MI->eraseFromParent();
 }
@@ -2496,7 +2529,7 @@ void AddressSanitizer::instrumentAddress(Instruction *OrigIns,
         auto AS = cast<PointerType>(Addr->getType()->getScalarType())
                       ->getPointerAddressSpace();
         Args.push_back(AddrLong);
-        AppendDebugInfoToArgs(InsertBefore, Addr, Args);
+        AppendDebugInfoToArgs(InsertBefore, Args);
         RTCI.createRuntimeCall(
             IRB, AsanMemoryAccessCallbackAS[IsWrite][0][AccessSizeIndex][AS],
             Args);
@@ -2582,7 +2615,7 @@ void AddressSanitizer::instrumentUnusualSizeOrAlignment(
                       ->getPointerAddressSpace();
         Args.push_back(AddrLong);
         Args.push_back(Size);
-        AppendDebugInfoToArgs(InsertBefore, Addr, Args);
+        AppendDebugInfoToArgs(InsertBefore, Args);
         RTCI.createRuntimeCall(
             IRB, AsanMemoryAccessCallbackSizedAS[IsWrite][0][AS], Args);
       } else {
@@ -3774,6 +3807,46 @@ void AddressSanitizer::initializeCallbacks(const TargetLibraryInfo *TLI) {
     }
   }
 
+  if (TargetTriple.isSPIROrSPIRV()) {
+    auto *Int8PtrTy = PointerType::get(*C, kSpirOffloadConstantAS);
+    for (size_t FirstArgAS = 0; FirstArgAS < kNumberOfAddressSpace;
+         FirstArgAS++) {
+      PointerType *FirstArgPtrTy = PointerType::get(*C, FirstArgAS);
+      // __asan_memset_pX (
+      //   ...
+      //   char* file,
+      //   unsigned int line,
+      //   char* func
+      // )
+      AsanMemsetAS[FirstArgAS] = M.getOrInsertFunction(
+          ClMemoryAccessCallbackPrefix + "memset_p" + itostr(FirstArgAS),
+          TLI->getAttrList(C, {1}, /*Signed=*/false), FirstArgPtrTy,
+          FirstArgPtrTy, IRB.getInt32Ty(), IntptrTy, Int8PtrTy,
+          IRB.getInt32Ty(), Int8PtrTy);
+
+      for (size_t SecondArgAS = 0; SecondArgAS < kNumberOfAddressSpace;
+           SecondArgAS++) {
+        PointerType *SecondArgPtrTy = PointerType::get(*C, SecondArgAS);
+        // __asan_mem[cpy|move]_pX_pX (
+        //   ...
+        //   char* file,
+        //   unsigned int line,
+        //   char* func
+        // )
+        AsanMemcpyAS[FirstArgAS][SecondArgAS] = M.getOrInsertFunction(
+            ClMemoryAccessCallbackPrefix + "memcpy_p" + itostr(FirstArgAS) +
+                "_p" + itostr(SecondArgAS),
+            FirstArgPtrTy, FirstArgPtrTy, SecondArgPtrTy, IntptrTy, Int8PtrTy,
+            IRB.getInt32Ty(), Int8PtrTy);
+        AsanMemmoveAS[FirstArgAS][SecondArgAS] = M.getOrInsertFunction(
+            ClMemoryAccessCallbackPrefix + "memmove_p" + itostr(FirstArgAS) +
+                "_p" + itostr(SecondArgAS),
+            FirstArgPtrTy, FirstArgPtrTy, SecondArgPtrTy, IntptrTy, Int8PtrTy,
+            IRB.getInt32Ty(), Int8PtrTy);
+      }
+    }
+  }
+
   const std::string MemIntrinCallbackPrefix =
       (CompileKernel && !ClKasanMemIntrinCallbackPrefix)
           ? std::string("")
@@ -4048,12 +4121,10 @@ bool AddressSanitizer::instrumentFunction(Function &F,
                     F.getDataLayout(), RTCI);
     FunctionModified = true;
   }
-  if (!TargetTriple.isSPIROrSPIRV()) {
-    for (auto *Inst : IntrinToInstrument) {
-      if (!suppressInstrumentationSiteForDebug(NumInstrumented))
-        instrumentMemIntrinsic(Inst, RTCI);
-      FunctionModified = true;
-    }
+  for (auto *Inst : IntrinToInstrument) {
+    if (!suppressInstrumentationSiteForDebug(NumInstrumented))
+      instrumentMemIntrinsic(Inst, RTCI);
+    FunctionModified = true;
   }
 
   FunctionStackPoisoner FSP(F, *this, RTCI);

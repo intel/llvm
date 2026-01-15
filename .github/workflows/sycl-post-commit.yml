@@ -19,7 +19,6 @@ on:
     - ./devops/actions/cleanup
     - ./devops/actions/cached_checkout
     - ./devops/dependencies.json
-    - ./devops/dependencies-igc-dev.json
 
 concurrency:
   #  Cancel a currently running workflow from the same PR or commit hash.

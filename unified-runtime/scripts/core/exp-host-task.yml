@@ -1,0 +1,113 @@
+#
+# Copyright (C) 2026 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime Experimental API for host tasks"
+ordinal: "100"
+
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+typed_etors: true
+desc: "Extension enums to $x_device_info_t to support host tasks."
+name: $x_device_info_t
+etors:
+    - name: ENQUEUE_HOST_TASK_SUPPORT_EXP
+      value: "0x9000"
+      desc: "[$x_bool_t] returns true if the device supports enqueueing host tasks"
+
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+desc: "Command Type experimental enumerations."
+name: $x_command_t
+etors:
+    - name: HOST_TASK_EXP
+      value: "0x2200"
+      desc: Event created by $xEnqueueHostTaskExp
+
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Host task flag properties"
+name: $x_exp_host_task_flags_t
+etors:
+    - name: TBD
+      desc: "reserved for future use."
+
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Host task properties"
+name: $x_exp_host_task_properties_t
+base: $x_base_properties_t
+members:
+    - type: $x_exp_host_task_flags_t
+      name: flags
+      desc: "[in] host task flags"
+
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+desc: "Structure type experimental enumerations"
+name: $x_structure_type_t
+etors:
+    - name: EXP_HOST_TASK_PROPERTIES
+      desc: $x_exp_host_task_properties_t
+      value: "0x6000"
+
+--- #--------------------------------------------------------------------------
+type: fptr_typedef
+desc: "Host task function."
+name: $x_exp_host_task_function_t
+return: void
+params:
+    - type: void*
+      name: pfnHostTask
+      desc: "[in] Host task callback function. Must not call any UR functions."
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue host task to be executed on the queue."
+class: $xEnqueue
+name: HostTaskExp
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_exp_host_task_function_t
+      desc: "[in] Host task callback function. Must not call any UR functions."
+      name: pfnHostTask
+    - type: void*
+      name: data
+      desc: "[in][optional] data used by pfnHostTask"
+    - type: const $x_exp_host_task_properties_t*
+      name: pProperties
+      desc: "[in][optional] pointer to the host task properties"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: const $x_event_handle_t*
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
+            If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies the work that has
+            been enqueued in nativeEnqueueFunc. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If `zeCommandListAppendHostFunction` Level Zero API is not supported by the driver."

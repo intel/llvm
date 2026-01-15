@@ -1,6 +1,6 @@
 //===--------- platform.cpp - Level Zero Adapter --------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -577,6 +577,14 @@ ur_result_t ur_platform_handle_t_::initialize() {
   ZeCommandListAppendLaunchKernelWithArgumentsExt
       .DisableZeLaunchKernelWithArgs =
       getenv_tobool("UR_L0_V2_DISABLE_ZE_LAUNCH_KERNEL_WITH_ARGS", false);
+
+  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                  (ZeDriver, "zeCommandListAppendHostFunction",
+                   reinterpret_cast<void **>(
+                       &ZeHostTaskExt.zeCommandListAppendHostFunction)));
+
+  ZeHostTaskExt.Supported =
+      ZeHostTaskExt.zeCommandListAppendHostFunction != nullptr;
 
   return UR_RESULT_SUCCESS;
 }
