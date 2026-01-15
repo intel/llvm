@@ -90,7 +90,7 @@ jobs:
       target_devices: ${{ matrix.target_devices }}
       tests_selector: e2e
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
-      repo_ref: ${{ github.sha  }}
+      repo_ref: ${{ github.sha }}
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
@@ -102,7 +102,7 @@ jobs:
       # We upload both Linux/Windows build via Github's "Releases"
       # functionality, make sure Linux/Windows names follow the same pattern.
       artifact_archive_name: sycl_windows.tar.gz
-      build_configure_extra_args: '-DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off -DCMAKE_POSITION_INDEPENDENT_CODE=ON --disable-jit --no-assertions --add_security_flags=sanitize'
+      build_configure_extra_args: '-DSYCL_BUILD_INFO="${{ needs.get_build_info.outputs.info }}" -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off -DCMAKE_POSITION_INDEPENDENT_CODE=ON --disable-jit --no-assertions --add_security_flags=sanitize'
       pack_release: 'true'
 
   e2e-win:
@@ -143,7 +143,7 @@ jobs:
       image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps-ae0e85c8391ba07b7c895e36cfb8a78cacd421dd
       image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
       tests_selector: cts
-      repo_ref: ${{ github.sha  }}
+      repo_ref: ${{ github.sha }}
       # Author: Tom Deakin <thomasdeakin@gmail.com>
       # Date:   Thu Jul 10 16:45:48 2025 +0100
       # Merge pull request #1102 from steffenlarsen/steffen/remove_secondary_queue_exceptions
@@ -179,7 +179,7 @@ jobs:
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
       tests_selector: cts
-      repo_ref: ${{ github.sha  }}
+      repo_ref: ${{ github.sha }}
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
