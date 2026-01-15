@@ -2216,7 +2216,7 @@ public:
   }
 
   /// Synchronizes with all queues on the device.
-  void wait() const;
+  void wait();
 
   // Dispatch all unconsumed asynchronous exception to the appropriate handlers.
   void throwAsynchronous();
