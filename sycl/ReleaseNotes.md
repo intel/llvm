@@ -154,42 +154,6 @@ Deprecations section below.
 - Fixed a bug causing incorrect results from math built-ins operating on
   3-element vectors on AArch64 on the `native_cpu` backend. intel/llvm#19087
 
-- 0386b1d169da [SYCL][NativeCPU] Add libclc at compile time. (#19346)
-  -  ???
-- 8ceaf1d03efc [SYCL][NativeCPU] Update OCK. (#17862)
-- f12844427bad [SYCL][NativeCPU] Update OCK. (#18533)
-- e22b8e49bb2f [SYCL][NativeCPU] Update OCK. (#18803)
-- 52c775b35b46 [SYCL][NativeCPU] Update OCK. (#18930)
-- c666567b7b90 [SYCL][NativeCPU] Update OCK. (#19241)
-  -  Are there any benefits? should it be mentioned?
-- 65d926c3f9a3 [SYCL][NativeCPU] Set target attrs for subkernels. (#19169)
-  -  Some kind of bugfix?
-- 72829cdeb123 [SYCL][NativeCPU] Fix alignment of global and local memory. (#19076)
-  -  Also some kind of bugfix?
-- a877430a6b39 [NATIVECPU][UR] added mutex to backend queue (#18923)
-
-- d653b20d863d [SYCL][NativeCPU] Copy over more host/aux target data. (#17999)
-  -  Some bugfix?
-- 85030796ab40 [SYCL] Revert prepare-builtins change for non-NativeCPU. (#18490)
-  -  this is a follow-up fix for #17999
-
-- 07d8bab1b3f0 [SYCL][NativeCPU] Unify definitions of `__spirv_*` functions. (#18010)
-  -  Bugfix? or just a cleanup?
-
-- 9433a80ef9f9 [SYCL][NativeCPU] Process nativecpu_utils with prepare_builtins (#17850)
-  -  Fixed some compilation issues?
-
-- e811c53a2ed3 [SYCL][NativeCPU] Build libclc target-independently. (#17408)
-  -  Looks like build system improvement
-
-Plan to ignore:
--   5a99c82dd888 [SYCL][NativeCPU][NFC] Prevent generating unnamed functions (#17707)
--   735410dd5ed8 [SYCL][NATIVECPU] remove Comdat from kernel whose name was taken/renamed (#18726)
-    -  Bugfix for #17707
--   dc2fc8d2ff66 [SYCL][NativeCPU] Support native_cpu in llvm::Triple. (#18783)
--   b902d64bba9e [SYCL][NativeCPU] Create NativeCPUABIInfo (#19344)
--   ebe975834995 [SYCL][NativeCPU] Move __spirv_AtomicF{Add,Min,Max}EXT into libclc. (#19365)
-
 ### ESIMD
 
 - Made experimental `get_hw_thread_id` and `get_subdevice_id` functions always
@@ -216,9 +180,6 @@ Plan to ignore:
 - Fixed a bug where operations with external semaphore would ignore any SYCL
   command group dependencies and won't participate in the dependency graph on
   their own, causing race conditions. intel/llvm#20196
-
-- b0351a0f2c6c [UR][CUDA][HIP] Fix error handling in bindless images code (#18246)
-  - Any user-visible impact?
 
 ### Performance improvements
 
@@ -341,28 +302,6 @@ SYCL RT and reduce overheads over underlying layers such as Unified Runtime.
   [`sycl_ext_codeplay_enqueue_native_command`](https://github.com/intel/llvm/blob/7ce4d2f374ad2c2ebc8569dc46fe74c354238796/sycl/doc/extensions/experimental/sycl_ext_codeplay_enqueue_native_command.asciidoc)
   native-command object in a graph. intel/llvm#19091
 
-- 7e7dffcaab28 [SYCL][UR][Graph] Require OpenCL simultaneous use (#17658)
-  -   Looks like internal changes to make graph spec work on OpenCL backend
-- 99cd1adb038a [UR][OpenCL][Graph] Set simultaneous-use property (#18154)
-  -   Follow-up to the one above
-
-- 4ed8534f20ea [SYCL][Graph][OpenCL] Map copy/fill to SVM (#18177)
-  -   Looks like internal changes to make graph spec work on OpenCL backend
-
-- 6635e44d8eb9 [UR][Graph] Serialize submissions of the same command-buffer (#18295)
-- 320516be6443 [UR][Graph] Strengthen in-order command-buffer property (#18444)
-
-- 2abe0d616777 [SYCL][Graph] Implement dynamic_work_group_memory for SYCL-Graphs  (#17314)
-- c20712f4b8dd [SYCL][Graph] Implement dynamic local accessors (#18437)
-  -   Corresponding specification was newer merged, plan to omit this
-
-- 877beeec6f34 [SYCL][Graph] Remove explicit L0 wait from SYCL-RT (#18064)
-  -   Looks like internal refactoring, plan to omit this
-
-- bc10261335d0 [L0] Revert copy engine refactor and disable copy-engine for SYCL-Graph on DG2 (#18720)
-  - The reverted commit was not mentioned in release notes for the previous
-  - release, however this commit does fix some bug.
-
 ### Documentation
 
 - Added
@@ -388,10 +327,6 @@ SYCL RT and reduce overheads over underlying layers such as Unified Runtime.
   intel/llvm#17990
 - Reflected removal of the experimenal kernel fusion feature in our
   documentation. intel/llvm#17929
-
-- 637476efb32e [SYCL][Doc] Add SPV_INTEL_function_variants extension (#18365)
-- b12d2803a61e [SYCL][Docs] Move sycl_ext_intel_event_mode to experimental (#18417)
-- c8986cd400b6 [SYCL] Update `khr_free_function_commands` extension interfaces to accept `const queue&`  (#18564)
 
 ### Compiler
 
@@ -572,30 +507,6 @@ SYCL RT and reduce overheads over underlying layers such as Unified Runtime.
   of the standard C/C++ library (but only `cmath` header for now) earlier in
   the compilation flow, allowing us to reduce the package size and in the future
   save some time during the link stage. intel/llvm#18706
-
-- 155a0aa3c12f [SYCL][Doc] Add new device descriptors to sycl_ext_intel_device_info extension (#17386)
-  -  Doc-only change, do we have an implementation for this?
-- 418be5a98bae [SYCL][CUDA] Add implementation of new device descriptors (#17590)
-  -  Does it implement support for some Intel extension on CUDA?
-
-- 4a905ca36143 [SYCL] Cherry-pick fixes for UR L0 v1 adapter memory leaks (#20253)
-- 85a3861afc8b [SYCL][UR][OpenCL] allow passing events from multiple contexts to urEventWait (#18711)
-- c60a1fc51295 [SYCL] Make host task timestamps share the same base as device tasks (#18710)
-- 51e8d95d8bcb [SYCL][host_task] Align host_task event submission clock with start/end clock (#18377)
-- 8cd13a7a2e45 [SYCL][CL] Fix ownership of native handle in sycl::make_queue (#18309)
-  - Follow-up fix for #17572
-- 35ed0b04b011 [SYCL] Fix handling of discarded events in preview lib (#19005)
-  -  Do we need to mention this at all?
-- 2799ba32e240 [SYCL] Always store last event (for ioq) if scheduler was not bypassed (#18867)
-- f7583cabf6c4 [SYCL] Do not count devices for banned platforms (#18878)
-- 1e9c41dc6b69 [SYCL] Fix potential misaligned allocation size (#18375)
-- 1dee646dfc8b [SYCL] Hide inline definitions of stdio functions (#18174)
-- 80fd6651b00d [SYCL] Keep multiple copies for bf16 device library image (#17461)
-- ad788883ddbc [SYCL] Fix race condition in submission time read/write (#18716)
-- 3b42472928ba [SYCL] Make adapter releasing more robust wrt adapter specific errors (#19050)
-
-- d0279af830d8 [SYCL] Support UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP on Cuda (#19267)
-- e2bd09d76ec0 [SYCL][LowerWGScope] Fix getSizeTTy to use pointer size in global address space (#19011)
 
 ## API/ABI breakages
 
