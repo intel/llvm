@@ -4,7 +4,7 @@
 // UNSUPPORTED-INTENDED: Returning non-FP values from sampling fails on HIP.
 
 // RUN: %{build} -o %t.out
-// RUN: %{run-unfiltered-devices} %t.out
+// RUN: %{run} %t.out
 
 // Print test names and pass status
 // #define VERBOSE_LV1

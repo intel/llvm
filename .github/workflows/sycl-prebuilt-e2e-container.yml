@@ -111,7 +111,7 @@ jobs:
       - run: |
           sycl-ls
       - name: Run E2E tests
-        uses: ./devops/actions/run-tests/e2e
+        uses: ./devops/actions/run-tests/linux/e2e
         timeout-minutes: 20
         with:
           testing_mode: run-only

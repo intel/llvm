@@ -76,6 +76,11 @@ class LlamaCppBench(Suite):
         return [LlamaBench(self)]
 
 
+# FIXME: This benchmark is disabled in "Full" and "Normal" presets due to CI issues:
+# - for a reason curl cannot be found on the machine, consider adding: "-DLLAMA_CURL=OFF"
+# - syclcompat headers couldn't be found (should we source oneapi setvars?)
+#
+# If you wish to run this benchmark (e.g. for debugging), use preset "LLama".
 class LlamaBench(Benchmark):
     def __init__(self, suite: LlamaCppBench):
         super().__init__(suite)
