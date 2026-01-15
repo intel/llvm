@@ -511,6 +511,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_GRAPH_INSTANTIATE_GRAPH_EXP = 307,
   /// Enumerator for ::urEnqueueGraphExp
   UR_FUNCTION_ENQUEUE_GRAPH_EXP = 308,
+  /// Enumerator for ::urEnqueueHostTaskExp
+  UR_FUNCTION_ENQUEUE_HOST_TASK_EXP = 309,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -632,6 +634,8 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES = 0x4000,
   /// ::ur_exp_kernel_arg_properties_t
   UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES = 0x5000,
+  /// ::ur_exp_host_task_properties_t
+  UR_STRUCTURE_TYPE_EXP_HOST_TASK_PROPERTIES = 0x6000,
   /// @cond
   UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2511,6 +2515,9 @@ typedef enum ur_device_info_t {
   /// exportable linear layout device memory and exporting that memory to
   /// an interoperable handle.
   UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP = 0x8000,
+  /// [::ur_bool_t] returns true if the device supports enqueueing host
+  /// tasks
+  UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP = 0x9000,
   /// @cond
   UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2536,8 +2543,7 @@ typedef enum ur_device_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP <
-///         propName`
+///         + `::UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -7411,6 +7417,8 @@ typedef enum ur_command_t {
   UR_COMMAND_ENQUEUE_USM_FREE_EXP = 0x2053,
   /// Event created by ::urEnqueueGraphExp
   UR_COMMAND_ENQUEUE_GRAPH_EXP = 0x2100,
+  /// Event created by ::urEnqueueHostTaskExp
+  UR_COMMAND_HOST_TASK_EXP = 0x2200,
   /// @cond
   UR_COMMAND_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -13330,6 +13338,91 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
+// Intel 'oneAPI' Unified Runtime Experimental API for host tasks
+#if !defined(__GNUC__)
+#pragma region host_task_(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Host task flag properties
+typedef uint32_t ur_exp_host_task_flags_t;
+typedef enum ur_exp_host_task_flag_t {
+  /// reserved for future use.
+  UR_EXP_HOST_TASK_FLAG_TBD = UR_BIT(0),
+  /// @cond
+  UR_EXP_HOST_TASK_FLAG_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_exp_host_task_flag_t;
+/// @brief Bit Mask for validating ur_exp_host_task_flags_t
+#define UR_EXP_HOST_TASK_FLAGS_MASK 0xfffffffe
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Host task properties
+typedef struct ur_exp_host_task_properties_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_EXP_HOST_TASK_PROPERTIES
+  ur_structure_type_t stype;
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
+  /// [in] host task flags
+  ur_exp_host_task_flags_t flags;
+
+} ur_exp_host_task_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Host task function.
+typedef void (*ur_exp_host_task_function_t)(
+    /// [in] Host task callback function. Must not call any UR functions.
+    void *pfnHostTask);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue host task to be executed on the queue.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pfnHostTask`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `NULL != pProperties && ::UR_EXP_HOST_TASK_FLAGS_MASK &
+///         pProperties->flags`
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If `zeCommandListAppendHostFunction` Level Zero API is not
+///         supported by the driver.
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueHostTaskExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] Host task callback function. Must not call any UR functions.
+    ur_exp_host_task_function_t pfnHostTask,
+    /// [in][optional] data used by pfnHostTask
+    void *data,
+    /// [in][optional] pointer to the host task properties
+    const ur_exp_host_task_properties_t *pProperties,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] return an event object that identifies the work
+    /// that has
+    /// been enqueued in nativeEnqueueFunc. If phEventWaitList and phEvent are
+    /// not NULL, phEvent must not refer to an element of the phEventWaitList
+    /// array.
+    ur_event_handle_t *phEvent);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
 // Intel 'oneAPI' Unified Runtime Experimental API for low-power events API
 #if !defined(__GNUC__)
 #pragma region low_power_events_(experimental)
@@ -15311,6 +15404,20 @@ typedef struct ur_enqueue_timestamp_recording_exp_params_t {
   const ur_event_handle_t **pphEventWaitList;
   ur_event_handle_t **pphEvent;
 } ur_enqueue_timestamp_recording_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urEnqueueHostTaskExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_enqueue_host_task_exp_params_t {
+  ur_queue_handle_t *phQueue;
+  ur_exp_host_task_function_t *ppfnHostTask;
+  void **pdata;
+  const ur_exp_host_task_properties_t **ppProperties;
+  uint32_t *pnumEventsInWaitList;
+  const ur_event_handle_t **pphEventWaitList;
+  ur_event_handle_t **pphEvent;
+} ur_enqueue_host_task_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urEnqueueNativeCommandExp

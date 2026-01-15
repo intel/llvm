@@ -5921,6 +5921,42 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueHostTaskExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueHostTaskExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] Host task callback function. Must not call any UR functions.
+    ur_exp_host_task_function_t pfnHostTask,
+    /// [in][optional] data used by pfnHostTask
+    void *data,
+    /// [in][optional] pointer to the host task properties
+    const ur_exp_host_task_properties_t *pProperties,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] return an event object that identifies the work
+    /// that has
+    /// been enqueued in nativeEnqueueFunc. If phEventWaitList and phEvent are
+    /// not NULL, phEvent must not refer to an element of the phEventWaitList
+    /// array.
+    ur_event_handle_t *phEvent) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+
+  auto *pfnHostTaskExp = dditable->EnqueueExp.pfnHostTaskExp;
+  if (nullptr == pfnHostTaskExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnHostTaskExp(hQueue, pfnHostTask, data, pProperties,
+                        numEventsInWaitList, phEventWaitList, phEvent);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueEventsWaitWithBarrierExt
 __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrierExt(
     /// [in] handle of the queue object
@@ -6655,6 +6691,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
       pDdiTable->pfnCommandBufferExp = ur_loader::urEnqueueCommandBufferExp;
       pDdiTable->pfnTimestampRecordingExp =
           ur_loader::urEnqueueTimestampRecordingExp;
+      pDdiTable->pfnHostTaskExp = ur_loader::urEnqueueHostTaskExp;
       pDdiTable->pfnNativeCommandExp = ur_loader::urEnqueueNativeCommandExp;
       pDdiTable->pfnGraphExp = ur_loader::urEnqueueGraphExp;
     } else {
