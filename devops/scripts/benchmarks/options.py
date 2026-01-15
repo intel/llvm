@@ -67,7 +67,7 @@ class Options:
     dry_run: bool = False
     stddev_threshold: float = 0.02
     iterations_stddev: int = 5
-    build_compute_runtime: bool = False
+    build_compute_runtime: bool = True
     extra_ld_libraries: list[str] = field(default_factory=list)
     extra_env_vars: dict = field(default_factory=dict)
     compute_runtime_tag: str = "25.27.34303.5"

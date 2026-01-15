@@ -110,21 +110,21 @@ class ComputeRuntime:
             llvm_projects = llvm_project.src_dir / "llvm" / "projects"
             GitProject(
                 "https://github.com/intel/opencl-clang",
-                "ocl-open-160",
+                "6ab2da341420eba7d022a85a5190c46133347719",
                 llvm_projects,
                 "opencl-clang",
                 no_suffix_src=True,
             )
             GitProject(
                 "https://github.com/KhronosGroup/SPIRV-LLVM-Translator",
-                "llvm_release_160",
+                "ee2a14e38f24c422cf1f0375b5b9cec0afe4412c",
                 llvm_projects,
                 "llvm-spirv",
                 no_suffix_src=True,
             )
             GitProject(
                 "https://github.com/KhronosGroup/SPIRV-Tools.git",
-                "049de81a0f8ac3f5c092f56a103b66c90bc90ec3",
+                "28a883ba4c67f58a9540fb0651c647bb02883622",
                 Path(options.workdir),
                 "SPIRV-Tools",
                 no_suffix_src=True,
@@ -132,7 +132,7 @@ class ComputeRuntime:
             )
             GitProject(
                 "https://github.com/KhronosGroup/SPIRV-Headers.git",
-                "6146b3d9ad4fcc5fb512209d348e97ce03749169",
+                "01e0577914a75a2569c846778c2f93aa8e6feddd",
                 Path(options.workdir),
                 "SPIRV-Headers",
                 no_suffix_src=True,
@@ -167,10 +167,12 @@ class ComputeRuntime:
             return repo, revision
         return None, None
 
+    # "https://github.com/lslusarczyk/compute-runtime.git",
+    # "worker-thread",
     def build_compute_runtime(self):
         project = GitProject(
             "https://github.com/intel/compute-runtime.git",
-            options.compute_runtime_tag,
+            "master",
             Path(options.workdir),
             "compute-runtime",
             use_installdir=False,

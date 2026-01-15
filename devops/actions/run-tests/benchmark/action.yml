@@ -246,7 +246,14 @@ runs:
       fi
 
       sudo apt-get update
-      sudo apt-get install -y linux-tools-$(uname -r)
+      sudo apt-get install -y linux-tools-$(uname -r) bison flex ocl-icd-libopencl1
+
+      mkdir neo_debs
+      cd neo_debs
+      wget -q https://github.com/intel/intel-graphics-compiler/releases/download/v2.27.10/intel-igc-core-2_2.27.10+20617_amd64.deb
+      # wget -q https://github.com/intel/intel-graphics-compiler/releases/download/v2.27.10/intel-igc-opencl-2_2.27.10+20617_amd64.deb
+      sudo dpkg -i --force-all *.deb
+      cd ..
 
       echo "::endgroup::"
       echo "::group::install_python_deps"
@@ -285,6 +292,11 @@ runs:
       echo "::endgroup::"
       echo "::group::run_benchmarks"
 
+      # export IGC_OPTION__ARCHITECTURE_TARGET=Linux64
+      # git config user.name "github-actions[bot]"
+      # git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # --verbose \
       numactl --cpunodebind "$NUMA_NODE" --membind "$NUMA_NODE" \
       ./devops/scripts/benchmarks/main.py "$BENCH_WORKDIR" \
         --sycl "$(realpath $CMPLR_ROOT)" \
@@ -298,6 +310,7 @@ runs:
         --timestamp-override "$SAVE_TIMESTAMP" \
         --detect-version sycl,compute_runtime \
         --produce-github-summary \
+        --compute-runtime pr_882 \
         ${{ inputs.exit_on_failure == 'true' && '--exit-on-failure --iterations 1' || '' }}
       # TODO: add back: "--flamegraph inclusive" once works properly
 
