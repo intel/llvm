@@ -1,4 +1,7 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
+// UNSUPPORTED: arch-intel_gpu_bmg_g21 && arch-intel_gpu_lnl_m
+// UNSUPPORTED-INTENDED: sporadic failure in CI
+//                       https://github.com/intel/llvm/issues/20006
 // XFAIL: hip
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/19957
 
