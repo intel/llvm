@@ -123,6 +123,22 @@ Error SYCLBIN::write(const SYCLBIN::SYCLBINDesc &Desc, raw_ostream &OS) {
   SmallVector<OffloadingImage> Images;
   SmallVector<SmallString<128>> Buffers;
 
+  // Pre-calculate total buffer size to prevent reallocation that would
+  // invalidate StringRef keys in StringData maps.
+  size_t TotalBuffersNeeded = 0;
+  // Global metadata: 2 entries per property set (key + value).
+  TotalBuffersNeeded += Desc.GlobalMetadata->getPropSets().size() * 2;
+
+  // For each abstract module: 1 for AbstractModuleID + metadata entries.
+  for (const SYCLBINDesc::AbstractModuleDesc &AMD : Desc.AbstractModuleDescs) {
+    TotalBuffersNeeded += 1; // AbstractModuleID
+    // Each IR module and native device code image needs metadata entries.
+    size_t NumImages =
+        AMD.IRModuleDescs.size() + AMD.NativeDeviceCodeImageDescs.size();
+    TotalBuffersNeeded += AMD.Metadata->getPropSets().size() * 2 * NumImages;
+  }
+  Buffers.reserve(TotalBuffersNeeded);
+
   // Write global metadata image.
   OffloadingImage GlobalMDI{};
   GlobalMDI.TheOffloadKind = OffloadKind::OFK_SYCL;
