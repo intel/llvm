@@ -22,6 +22,8 @@ atomic/atomic_load.cl
 atomic/atomic_store.cl
 common/degrees.cl
 common/fclamp.cl
+common/fmax_common.cl
+common/fmin_common.cl
 common/mix.cl
 common/radians.cl
 common/sign.cl
@@ -88,9 +90,7 @@ math/fdim.cl
 math/floor.cl
 math/fma.cl
 math/fmax.cl
-math/fmax_common.cl
 math/fmin.cl
-math/fmin_common.cl
 math/fmod.cl
 math/fract.cl
 math/frem.cl
