@@ -1,6 +1,6 @@
 //===--------- device.cpp - Level Zero Adapter ----------------------------===//
 //
-// Copyright (C) 2023-2025 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -1507,6 +1507,12 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP:
 #ifdef UR_ADAPTER_LEVEL_ZERO_V2
     return ReturnValue(Device->Platform->ZeGraphExt.Supported);
+#else
+    return ReturnValue(false);
+#endif
+  case UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP:
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+    return ReturnValue(Device->Platform->ZeHostTaskExt.Supported);
 #else
     return ReturnValue(false);
 #endif

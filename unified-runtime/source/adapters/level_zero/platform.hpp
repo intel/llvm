@@ -1,6 +1,6 @@
 //===--------- platform.hpp - Level Zero Adapter --------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -199,4 +199,12 @@ struct ur_platform_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter>,
     ze_result_t (*zeGraphDumpContentsExp)(ze_graph_handle_t hGraph,
                                           const char *filePath, void *pNext);
   } ZeGraphExt;
+
+  struct ZeHostTaskExtension {
+    bool Supported = false;
+    ze_result_t (*zeCommandListAppendHostFunction)(
+        ze_command_list_handle_t hCommandList, void *pHostFunction,
+        void *pUserData, void *pNext, ze_event_handle_t hSignalEvent,
+        uint32_t numWaitEvents, ze_event_handle_t *phWaitEvents);
+  } ZeHostTaskExt;
 };

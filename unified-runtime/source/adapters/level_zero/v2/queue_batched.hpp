@@ -1,6 +1,6 @@
 //===--------------- queue_batched.hpp - Level Zero Adapter ---------------===//
 //
-// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2025-2026 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -474,6 +474,20 @@ public:
 
   ur_result_t queueIsGraphCapteEnabledExp(bool * /* pResult */) override {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  ur_result_t
+  enqueueHostTaskExp(ur_exp_host_task_function_t pfnHostTask, void *data,
+                     const ur_exp_host_task_properties_t *pProperties,
+                     uint32_t numEventsInWaitList,
+                     const ur_event_handle_t *phEventWaitList,
+                     ur_event_handle_t *phEvent) override {
+    wait_list_view waitListView =
+        wait_list_view(phEventWaitList, numEventsInWaitList);
+
+    return currentCmdLists.lock()->getActiveBatch().appendHostTaskExp(
+        pfnHostTask, data, pProperties, waitListView,
+        createEventIfRequested(eventPoolRegular.get(), phEvent, this));
   }
 
   ur::RefCount RefCount;
