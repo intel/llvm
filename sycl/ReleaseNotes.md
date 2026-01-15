@@ -88,11 +88,6 @@ Deprecations section below.
 - Reduced memory overhead and improved performance of applications built with
   sanitizers enabled. intel/llvm#19465
 
-- 69c3b9f9e01b [SYCL] Cherry-pick sanitizer patches (#19867)
-  -  Looks like 2/3 were fixes for regressions, as such the plan is to omit this
-- fae8cc2630b5 [DeviceSanitizer] Print log when build/link fail (#17521)
-- 55416cae415f [DeviceSanitizers] Set names to nameless globals (#17599)
-
 #### Address sanitizer
 
 - Improved error messages which are logged if enqueue kernel failed with
