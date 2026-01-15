@@ -186,12 +186,14 @@ void PropertySetRegistry::write(
     MapVector<StringRef, StringRef> &StringData,
     SmallVectorImpl<SmallString<128>> &BufferStorage) const {
   for (const auto &PropSet : PropSetMap) {
+    // Store the key and the value in BufferStorage to ensure its lifetime.
+    SmallString<128> &KeyBuffer = BufferStorage.emplace_back(PropSet.first);
     SmallString<128> &ValueBuffer = BufferStorage.emplace_back();
     raw_svector_ostream OS(ValueBuffer);
 
     for (const auto &Prop : PropSet.second)
       OS << Prop.first << "=" << Prop.second << "\n";
-    StringData[PropSet.first] = ValueBuffer;
+    StringData[KeyBuffer] = ValueBuffer;
   }
 }
 
