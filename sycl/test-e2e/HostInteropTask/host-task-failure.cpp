@@ -1,9 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: linux && arch-intel_gpu_pvc
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20961
-
+#include <condition_variable>
 #include <sycl/detail/core.hpp>
 
 using namespace sycl;
@@ -15,6 +13,10 @@ template <typename T> class Modifier;
 
 template <typename T> class Init;
 
+std::mutex cvMutex;
+std::condition_variable cv;
+bool ready = false;
+
 template <typename DataT>
 void copy(buffer<DataT, 1> &Src, buffer<DataT, 1> &Dst, queue &Q) {
   Q.submit([&](handler &CGH) {
@@ -24,6 +26,11 @@ void copy(buffer<DataT, 1> &Src, buffer<DataT, 1> &Dst, queue &Q) {
     CGH.host_task([=]() {
       for (size_t Idx = 0; Idx < SrcA.size(); ++Idx)
         DstA[Idx] = SrcA[Idx];
+      {
+        std::unique_lock<std::mutex> lk(cvMutex);
+        ready = true;
+      }
+      cv.notify_one();
     });
   });
 }
@@ -49,6 +56,9 @@ void test() {
   init<int>(Buffer1, Buffer2, Q);
 
   copy(Buffer1, Buffer2, Q);
+
+  std::unique_lock<std::mutex> lk(cvMutex);
+  cv.wait(lk, [&] { return ready; });
 }
 
 int main() {
