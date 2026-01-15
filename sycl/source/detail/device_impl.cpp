@@ -29,7 +29,7 @@ device_impl::device_impl(ur_device_handle_t Device, platform_impl &Platform,
                       ? nullptr
                       : get_info_impl<UR_DEVICE_INFO_PARENT_DEVICE>()),
       // TODO catch an exception and put it to list of asynchronous exceptions:
-      MCache{*this}, IndexWithinPlatform(idx) {
+      MCache{*this}, MIndexWithinPlatform(idx) {
   // Interoperability Constructor already calls DeviceRetain in
   // urDeviceCreateWithNativeHandle.
   getAdapter().call<UrApiKind::urDeviceRetain>(MDevice);
@@ -44,10 +44,6 @@ device_impl::~device_impl() {
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~device_impl", e);
   }
-}
-
-size_t device_impl::getIndexWithinPlatform() const {
-  return IndexWithinPlatform;
 }
 
 bool device_impl::is_affinity_supported(

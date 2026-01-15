@@ -431,7 +431,7 @@ public:
   /// Get the index of the device within the device vector of its platform.
   ///
   /// \return the index if the device
-  size_t getIndexWithinPlatform() const;
+  size_t getIndexWithinPlatform() const { return MIndexWithinPlatform; }
 
   /// Get instance of OpenCL device
   ///
@@ -2270,7 +2270,7 @@ private:
           aspect::ext_oneapi_is_composite, aspect::ext_oneapi_is_component>>
       MCache;
 
-  const size_t IndexWithinPlatform = 0;
+  const size_t MIndexWithinPlatform = 0;
 
 }; // class device_impl
 

@@ -368,7 +368,8 @@ public:
 
   /// If this device is a root device as defined by the core SYCL specification,
   /// returns the index that it has in the std::vector that is returned when
-  /// calling platform::get_devices() on the platform that contains this device.
+  /// calling platform::get_devices() on the platform that contains this device,
+  /// otherwise throws an exception.
   ///
   /// \return the index that it has in the std::vector that is returned when
   /// calling platform::get_devices() on the platform that contains this device.
