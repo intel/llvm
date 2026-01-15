@@ -6,12 +6,24 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/atomic/clc_atomic_fetch_and.h>
-#include <libspirv/atomic/atomic_helper.h>
-#include <libspirv/spirv.h>
+#ifdef __CLC_GEN_S
 
-#define __CLC_FUNCTION __spirv_AtomicAnd
-#define __CLC_IMPL_FUNCTION __clc_atomic_fetch_and
+#ifdef __CLC_ATOMIC_MIN
+#define __CLC_FUNCTION __spirv_AtomicSMin
+#else
+#define __CLC_FUNCTION __spirv_AtomicSMax
+#endif
 
-#define __CLC_BODY <atomic_def.inc>
-#include <clc/integer/gentype.inc>
+#else
+
+#ifdef __CLC_ATOMIC_MIN
+#define __CLC_FUNCTION __spirv_AtomicUMin
+#else
+#define __CLC_FUNCTION __spirv_AtomicUMax
+#endif
+
+#endif
+
+#include <atomic_def.inc>
+
+#undef __CLC_FUNCTION
