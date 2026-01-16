@@ -96,6 +96,113 @@ static inline native_cpu::state getState(const native_cpu::NDRDescT &ndr) {
   return resized_state;
 }
 
+static inline void invoke_kernel(native_cpu::state &state,
+                                 const ur_kernel_handle_t_ &kernel, size_t g0,
+                                 size_t g1, size_t g2,
+                                 size_t numParallelThreads, size_t threadId,
+                                 const native_cpu::NDRDescT &ndr) {
+#ifdef NATIVECPU_USE_OCK
+  state.update(g0, g1, g2);
+  kernel._subhandler(kernel.getArgs(numParallelThreads, threadId).data(),
+                     &state);
+  (void)ndr;
+#else
+  for (size_t local2 = 0; local2 < ndr.LocalSize[2]; ++local2) {
+    for (size_t local1 = 0; local1 < ndr.LocalSize[1]; ++local1) {
+      for (size_t local0 = 0; local0 < ndr.LocalSize[0]; ++local0) {
+        state.update(g0, g1, g2, local0, local1, local2);
+        kernel._subhandler(kernel.getArgs(numParallelThreads, threadId).data(),
+                           &state);
+      }
+    }
+  }
+#endif
+}
+
+#ifdef NATIVECPU_WITH_ONETBB
+
+#define NATIVECPU_WITH_ONETBB_PARALLELFOR
+
+using IndexT = std::array<size_t, 3>;
+using RangeT = native_cpu::NDRDescT::RangeT;
+
+static inline void execute_range(native_cpu::state &state,
+                                 const ur_kernel_handle_t_ &hKernel,
+                                 IndexT first, IndexT lastPlusOne,
+                                 size_t numParallelThreads, size_t threadId,
+                                 const native_cpu::NDRDescT &ndr) {
+  for (size_t g2 = first[2]; g2 < lastPlusOne[2]; g2++) {
+    for (size_t g1 = first[1]; g1 < lastPlusOne[1]; g1++) {
+      for (size_t g0 = first[0]; g0 < lastPlusOne[0]; g0 += 1) {
+        invoke_kernel(state, hKernel, g0, g1, g2, numParallelThreads, threadId,
+                      ndr);
+      }
+    }
+  }
+}
+
+namespace native_cpu {
+
+class nativecpu_tbb_executor {
+  const native_cpu::NDRDescT ndr;
+
+protected:
+  const ur_kernel_handle_t_ &hKernel;
+  const size_t numParallelThreads;
+
+  void execute(IndexT first, IndexT last_plus_one) const {
+    auto state = getState(ndr);
+    auto threadId = native_cpu::getTBBThreadID();
+    execute_range(state, hKernel, first, last_plus_one, numParallelThreads,
+                  threadId, ndr);
+  }
+
+public:
+  void operator()(const tbb::blocked_range3d<size_t> &r) const {
+    execute({r.pages().begin(), r.rows().begin(), r.cols().begin()},
+            {r.pages().end(), r.rows().end(), r.cols().end()});
+  }
+  void operator()(const tbb::blocked_range2d<size_t> &r) const {
+    execute({r.rows().begin(), r.cols().begin(), 0},
+            {r.rows().end(), r.cols().end(), 1});
+  }
+  void operator()(const tbb::blocked_range<size_t> &r) const {
+    execute({r.begin(), 0, 0}, {r.end(), 1, 1});
+  }
+  nativecpu_tbb_executor(const native_cpu::NDRDescT &n,
+                         const ur_kernel_handle_t_ &k,
+                         const size_t numParallelThreads)
+      : ndr(n), hKernel(k), numParallelThreads(numParallelThreads) {}
+};
+
+using tbb_nd_executor = nativecpu_tbb_executor;
+
+template <template <class> class RangeTpl, class... T>
+static inline void invoke_tbb_parallel_for(const tbb_nd_executor &tbb_ex,
+                                           T... inits) {
+  RangeTpl<size_t> range(inits...);
+  tbb::parallel_for(range, tbb_ex);
+}
+
+static inline void invoke_tbb_parallel_for(size_t workDim,
+                                           const nativecpu_tbb_executor &tbb_ex,
+                                           IndexT first, IndexT last) {
+  if (workDim == 3) {
+    native_cpu::invoke_tbb_parallel_for<tbb::blocked_range3d>(
+        tbb_ex, first[0], last[0], first[1], last[1], first[2], last[2]);
+  } else if (workDim == 2) {
+    native_cpu::invoke_tbb_parallel_for<tbb::blocked_range2d>(
+        tbb_ex, first[0], last[0], first[1], last[1]);
+  } else {
+    native_cpu::invoke_tbb_parallel_for<tbb::blocked_range>(tbb_ex, first[0],
+                                                            last[0]);
+  }
+}
+
+} // namespace native_cpu
+
+#endif // NATIVECPU_WITH_ONETBB
+
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
@@ -185,6 +292,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   auto InEvents =
       native_cpu::getWaitInfo(numEventsInWaitList, phEventWaitList, Tasks);
 
+#ifndef NATIVECPU_WITH_ONETBB_PARALLELFOR
   const size_t numWG = numWG0 * numWG1 * numWG2;
   const size_t numWGPerThread = numWG / numParallelThreads;
   const size_t remainderWG = numWG - numWGPerThread * numParallelThreads;
@@ -206,21 +314,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       for (size_t g0 = rangeStart[0], g1 = rangeStart[1], g2 = rangeStart[2],
                   g3 = rangeStart[3];
            g3 < rangeEnd; ++g3) {
-#ifdef NATIVECPU_USE_OCK
-        state.update(g0, g1, g2);
-        kernel._subhandler(kernel.getArgs(numParallelThreads, threadId).data(),
-                           &state);
-#else
-        for (size_t local2 = 0; local2 < ndr.LocalSize[2]; ++local2) {
-          for (size_t local1 = 0; local1 < ndr.LocalSize[1]; ++local1) {
-            for (size_t local0 = 0; local0 < ndr.LocalSize[0]; ++local0) {
-              state.update(g0, g1, g2, local0, local1, local2);
-              kernel._subhandler(
-                  kernel.getArgs(numParallelThreads, threadId).data(), &state);
-            }
-          }
-        }
-#endif
+        invoke_kernel(state, kernel, g0, g1, g2, numParallelThreads, threadId,
+                      ndr);
         if (++g0 == numWG0) {
           g0 = 0;
           if (++g1 == numWG1) {
@@ -232,6 +327,45 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     });
     rangeStart = rangeEnd;
   }
+#else
+  const IndexT numWG = {numWG0, numWG1, numWG2};
+  IndexT groupsPerThread;
+  size_t dim = 0;
+  for (size_t t = 0; t < 3; t++)
+    groupsPerThread[t] = numWG[t] / numParallelThreads;
+  if (groupsPerThread[0] == 0) {
+    if (groupsPerThread[1])
+      dim = 1;
+    else if (groupsPerThread[2])
+      dim = 2;
+  }
+  IndexT first = {0, 0, 0}, last = numWG;
+  size_t wg_start = 0;
+  const native_cpu::tbb_nd_executor tbb_ex(ndr, *kernel, numParallelThreads);
+  auto invoke_parallel_for = [workDim, &tbb_ex, &first, &last]() {
+    if (workDim == 3) {
+      native_cpu::invoke_tbb_parallel_for<tbb::blocked_range3d>(
+          tbb_ex, first[0], last[0], first[1], last[1], first[2], last[2]);
+    } else if (workDim == 2) {
+      native_cpu::invoke_tbb_parallel_for<tbb::blocked_range2d>(
+          tbb_ex, first[0], last[0], first[1], last[1]);
+    } else {
+      native_cpu::invoke_tbb_parallel_for<tbb::blocked_range>(tbb_ex, first[0],
+                                                              last[0]);
+    }
+  };
+
+  if (groupsPerThread[dim]) {
+    native_cpu::invoke_tbb_parallel_for(workDim, tbb_ex, first, last);
+    wg_start = groupsPerThread[dim] * numParallelThreads;
+  }
+  if (wg_start < numWG[dim]) {
+    first[dim] = wg_start;
+    last[dim] = numWG[dim];
+    native_cpu::invoke_tbb_parallel_for(workDim, tbb_ex, first, last);
+  }
+#endif // NATIVECPU_WITH_ONETBB_PARALLELFOR
+
   event->set_tasksinfo(Tasks.getMovedTaskInfo());
 
   if (phEvent) {
