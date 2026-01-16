@@ -1,10 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: linux && arch-intel_gpu_pvc
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20961
-
 #include <sycl/detail/core.hpp>
+#include <chrono>
+#include <thread>
 
 using namespace sycl;
 using namespace sycl::access;
@@ -22,6 +21,7 @@ void copy(buffer<DataT, 1> &Src, buffer<DataT, 1> &Dst, queue &Q) {
     auto DstA = Dst.template get_access<mode::write>(CGH);
 
     CGH.host_task([=]() {
+      std::cout << "host_task" << std::endl;
       for (size_t Idx = 0; Idx < SrcA.size(); ++Idx)
         DstA[Idx] = SrcA[Idx];
     });
@@ -49,6 +49,8 @@ void test() {
   init<int>(Buffer1, Buffer2, Q);
 
   copy(Buffer1, Buffer2, Q);
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 }
 
 int main() {
