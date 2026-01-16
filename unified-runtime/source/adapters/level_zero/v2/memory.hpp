@@ -121,7 +121,6 @@ struct ur_integrated_buffer_handle_t : ur_mem_buffer_t {
                     wait_list_view &waitListView) override;
 
   // Perform final copy-back to original host pointer if needed
-  // Called from urMemRelease before destructor
   void copyBackToHostIfNeeded();
 
 private:
