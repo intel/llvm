@@ -8,8 +8,16 @@
 
 #include <libspirv/spirv.h>
 
-size_t __ockl_get_global_offset(int dim);
-
 _CLC_OVERLOAD _CLC_DEF size_t __spirv_BuiltInGlobalOffset(int dim) {
-  return __ockl_get_global_offset(dim);
+  constant uint *ptr = __builtin_amdgcn_implicit_offset();
+  switch (dim) {
+  case 0:
+    return ptr[0];
+  case 1:
+    return ptr[1];
+  case 2:
+    return ptr[2];
+  default:
+    return 0;
+  }
 }

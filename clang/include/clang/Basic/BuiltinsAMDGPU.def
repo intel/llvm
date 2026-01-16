@@ -497,7 +497,7 @@ TARGET_BUILTIN(__builtin_amdgcn_cvt_sr_fp8_f32, "ifiiIi", "nc", "fp8-conversion-
 //===----------------------------------------------------------------------===//
 // SYCL builtin.
 //===----------------------------------------------------------------------===//
-BUILTIN(__builtin_amdgcn_implicit_offset, "Ui*5", "nc")
+BUILTIN(__builtin_amdgcn_implicit_offset, "Ui*4", "nc")
 
 //===----------------------------------------------------------------------===//
 // GFX950 only builtins.
