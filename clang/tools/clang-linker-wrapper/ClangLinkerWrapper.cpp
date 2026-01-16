@@ -2100,38 +2100,43 @@ DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
   if (llvm::all_of(Input, ContainsBitcode))
     DAL.AddFlagArg(nullptr, Tbl.getOption(OPT_whole_program));
 
-  // Forward '-Xoffload-linker' options to the appropriate backend.
-  for (StringRef Arg : Args.getAllArgValues(OPT_device_linker_args_EQ)) {
-    auto [Triple, Value] = Arg.split('=');
-    llvm::Triple TT(Triple);
-    // If this isn't a recognized triple then it's an `arg=value` option.
-    if (TT.getArch() == Triple::ArchType::UnknownArch)
-      DAL.AddJoinedArg(nullptr, Tbl.getOption(OPT_linker_arg_EQ),
-                       Args.MakeArgString(Arg));
-    else if (Value.empty())
-      DAL.AddJoinedArg(nullptr, Tbl.getOption(OPT_linker_arg_EQ),
-                       Args.MakeArgString(Triple));
-    else if (Triple == DAL.getLastArgValue(OPT_triple_EQ))
-      DAL.AddJoinedArg(nullptr, Tbl.getOption(OPT_linker_arg_EQ),
-                       Args.MakeArgString(Value));
-  }
+  // This function filters the SYCL device compiler and linker options by target
+  // triple and offload kind.
+  // The device_linker_args and device_compiler_args options accept values
+  // in the form [<kind>:][<triple>=]<value>.
+  // An example of passing such an option to clang-linker-wrapper is:
+  // --device-compiler=sycl:spir64_gen-unknown-unknown=opt_val.
+  const StringRef TripleStr = DAL.getLastArgValue(OPT_triple_EQ);
+  auto ProcessDeviceArgs = [&](llvm::opt::OptSpecifier DeviceArgsOptionID,
+                               llvm::opt::OptSpecifier ForwardedOptionID) {
+    for (StringRef DeviceArgValue : Args.getAllArgValues(DeviceArgsOptionID)) {
+      size_t ColonPos = DeviceArgValue.find(':');
+      if (ColonPos != StringRef::npos) {
+        StringRef Kind = DeviceArgValue.take_front(ColonPos);
+        if (getOffloadKind(Kind) != OFK_SYCL)
+          continue;
+        DeviceArgValue = DeviceArgValue.drop_front(ColonPos + 1);
+      }
+      size_t EqPos = DeviceArgValue.find('=');
+      if (EqPos != StringRef::npos) {
+        StringRef ArgTargetTripleStr = DeviceArgValue.take_front(EqPos);
+        llvm::Triple ArgTargetTriple(ArgTargetTripleStr);
+        // If this isn't a recognized triple then it's an `arg=value` option.
+        if (ArgTargetTriple.getArch() != Triple::ArchType::UnknownArch) {
+          if (ArgTargetTripleStr != TripleStr)
+            continue;
+          DeviceArgValue = DeviceArgValue.drop_front(EqPos + 1);
+        }
+      }
+      if (DeviceArgValue.empty())
+        continue;
+      DAL.AddJoinedArg(nullptr, Tbl.getOption(ForwardedOptionID),
+                       Args.MakeArgString(DeviceArgValue));
+    }
+  };
 
-  // Forward '-Xoffload-compiler' options to the appropriate backend.
-  for (StringRef Arg : Args.getAllArgValues(OPT_device_compiler_args_EQ)) {
-    auto [Triple, Value] = Arg.split('=');
-    llvm::Triple TT(Triple);
-    // If this isn't a recognized triple then it's an `arg=value` option.
-    if (TT.getArch() == Triple::ArchType::UnknownArch)
-      DAL.AddJoinedArg(nullptr, Tbl.getOption(OPT_compiler_arg_EQ),
-                       Args.MakeArgString(Arg));
-    else if (Value.empty())
-      DAL.AddJoinedArg(nullptr, Tbl.getOption(OPT_compiler_arg_EQ),
-                       Args.MakeArgString(Triple));
-    else if (Triple == DAL.getLastArgValue(OPT_triple_EQ))
-      DAL.AddJoinedArg(nullptr, Tbl.getOption(OPT_compiler_arg_EQ),
-                       Args.MakeArgString(Value));
-  }
-
+  ProcessDeviceArgs(OPT_device_linker_args_EQ, OPT_linker_arg_EQ);
+  ProcessDeviceArgs(OPT_device_compiler_args_EQ, OPT_compiler_arg_EQ);
   return DAL;
 }
 
@@ -2198,42 +2203,6 @@ extractSYCLCompileLinkOptions(ArrayRef<OffloadFile> OffloadFiles) {
   return std::make_pair(std::string(RefCompileOpts), std::string(RefLinkOpts));
 }
 
-// Append SYCL device compiler and linker options specified at link time,
-// filtering by target triple and offload kind.
-// TODO: Consider how to refactor this function to merge it with getLinkerArgs()
-// and determine if it's possible to use OPT_compiler_arg_EQ and
-// OPT_linker_arg_EQ to handle device compiler/linker options
-static void appendSYCLDeviceOptionsAtLinkTime(const DerivedArgList &LinkerArgs,
-                                              std::string &CompileOptions,
-                                              std::string &LinkOptions) {
-  const StringRef TripleStr = LinkerArgs.getLastArgValue(OPT_triple_EQ);
-  auto processDeviceArgs = [&](unsigned OptID, std::string &Options) {
-    for (StringRef Arg : LinkerArgs.getAllArgValues(OptID)) {
-      size_t ColonPos = Arg.find(':');
-      if (ColonPos != StringRef::npos) {
-        StringRef Kind = Arg.substr(0, ColonPos);
-        if (getOffloadKind(Kind) != OFK_SYCL)
-          continue;
-        Arg = Arg.substr(ColonPos + 1);
-      }
-      size_t EqPos = Arg.find('=');
-      if (EqPos != StringRef::npos) {
-        StringRef TargetTriple = Arg.substr(0, EqPos);
-        if (!TargetTriple.empty() && TargetTriple != TripleStr)
-          continue;
-        Arg = Arg.substr(EqPos + 1);
-      }
-      if (Arg.empty())
-        continue;
-      Options += " ";
-      Options += Arg;
-    }
-  };
-
-  processDeviceArgs(OPT_device_compiler_args_EQ, CompileOptions);
-  processDeviceArgs(OPT_device_linker_args_EQ, LinkOptions);
-}
-
 /// Transforms all the extracted offloading input files into an image that can
 /// be registered by the runtime. If NeedsWrapping is false, writes bundled
 /// output directly without wrapping or host linking.
@@ -2289,9 +2258,21 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       if (!CompileLinkOptionsOrErr)
         return CompileLinkOptionsOrErr.takeError();
 
-      appendSYCLDeviceOptionsAtLinkTime(LinkerArgs,
-                                        CompileLinkOptionsOrErr->first,
-                                        CompileLinkOptionsOrErr->second);
+      // Append device compiler and linker options passed via
+      // -device-compiler= and -device-linker= to clang-linker-warpper,
+      // together with options extracted from the image.
+      StringRef DeviceCompilerArgs =
+          LinkerArgs.getLastArgValue(OPT_compiler_arg_EQ);
+      if (!DeviceCompilerArgs.empty()) {
+        CompileLinkOptionsOrErr->first += " ";
+        CompileLinkOptionsOrErr->first += DeviceCompilerArgs;
+      }
+      StringRef DeviceLinkerArgs =
+          LinkerArgs.getLastArgValue(OPT_linker_arg_EQ);
+      if (!DeviceLinkerArgs.empty()) {
+        CompileLinkOptionsOrErr->second += " ";
+        CompileLinkOptionsOrErr->second += DeviceLinkerArgs;
+      }
 
       SmallVector<StringRef> InputFiles;
       // Write device inputs to an output file for the linker.
