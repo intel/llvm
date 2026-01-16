@@ -1,8 +1,12 @@
-// UNSUPPORTED: cuda || hip
-// UNSUPPORTED-TRACKER: CMPLRLLVM-69415
+// This test uses the same kernel name in multiple shared libraries to verify
+// that the runtime can properly isolate and distinguish kernels from different
+// libraries. The test must compile each library with the appropriate backend
+// target (SPIR-V for Level Zero/OpenCL, PTX for CUDA, AMDGCN for HIP) since
+// the default SYCL compilation only generates SPIR-V device code.
 
 // DEFINE: %{fPIC_flag} =  %if windows %{%} %else %{-fPIC%}
 // DEFINE: %{shared_lib_ext} = %if windows %{dll%} %else %{so%}
+// DEFINE: %{target} = %if target-nvidia %{-fsycl-targets=nvptx64-nvidia-cuda%} %else-if target-amd %{-fsycl-targets=amdgcn-amd-amdhsa %amd_arch_options%}
 
 // clang-format off
 // IMPORTANT   -DSO_PATH='R"(%t.dir)"'
@@ -21,11 +25,10 @@
 // like we do for the AoT tests.
 
 // RUN: rm -rf %t.dir ; mkdir -p %t.dir 
-// RUN: %{run-aux} %clangxx -fsycl  %{fPIC_flag} -DSO_PATH='R"(%t.dir)"' -o %t.out %s
-
-// RUN:  %{run-aux} %clangxx -fsycl %{fPIC_flag} %shared_lib -DINC=1 -o %t.dir/lib_a.%{shared_lib_ext} %S/Inputs/incrementing_lib.cpp
-// RUN:  %{run-aux} %clangxx -fsycl %{fPIC_flag} %shared_lib -DINC=2 -o %t.dir/lib_b.%{shared_lib_ext} %S/Inputs/incrementing_lib.cpp
-// RUN:  %{run-aux} %clangxx -fsycl %{fPIC_flag} %shared_lib -DINC=4 -o %t.dir/lib_c.%{shared_lib_ext} %S/Inputs/incrementing_lib.cpp
+// RUN: %{run-aux} %clangxx -fsycl %{target} %{fPIC_flag} -DSO_PATH='R"(%t.dir)"' -o %t.out %s
+// RUN: %{run-aux} %clangxx -fsycl %{target} %{fPIC_flag} %shared_lib -DINC=1 -o %t.dir/lib_a.%{shared_lib_ext} %S/Inputs/incrementing_lib.cpp
+// RUN: %{run-aux} %clangxx -fsycl %{target} %{fPIC_flag} %shared_lib -DINC=2 -o %t.dir/lib_b.%{shared_lib_ext} %S/Inputs/incrementing_lib.cpp
+// RUN: %{run-aux} %clangxx -fsycl %{target} %{fPIC_flag} %shared_lib -DINC=4 -o %t.dir/lib_c.%{shared_lib_ext} %S/Inputs/incrementing_lib.cpp
 
 // RUN:  env UR_L0_LEAKS_DEBUG=1 %{run} %t.out
 
