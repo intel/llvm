@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: env SYCL_GRAPH_ENABLE_NATIVE_RECORDING=1 %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
-// RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// RUN: %if level_zero %{env SYCL_GRAPH_ENABLE_NATIVE_RECORDING=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
 // Test that native recording properly fails when used with non-immediate command lists
 
@@ -13,12 +13,9 @@ int main() {
   // Create a regular queue without immediate command list property
   queue Queue{{property::queue::in_order{}}};
 
-  // Create a graph with native recording enabled
-  auto MyProperties = property_list{
-      exp_ext::property::graph::enable_native_recording{}
-  };
-  
-  exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device(), MyProperties};
+  // Create a graph - native recording is enabled via SYCL_GRAPH_ENABLE_NATIVE_RECORDING
+  // environment variable
+  exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
   // This should throw an exception because native recording requires immediate command lists
   // (unless the global environment variable SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 is set)

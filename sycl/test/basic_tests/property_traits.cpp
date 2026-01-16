@@ -82,8 +82,6 @@ int main() {
   CHECK_IS_PROPERTY(ext::oneapi::experimental::property::graph::updatable);
   CHECK_IS_PROPERTY(
       ext::oneapi::experimental::property::graph::enable_profiling);
-  CHECK_IS_PROPERTY(
-      ext::oneapi::experimental::property::graph::enable_native_recording);
 
   // Node is_property
   CHECK_IS_PROPERTY(
@@ -151,10 +149,6 @@ int main() {
       ext::oneapi::experimental::property::graph::enable_profiling,
       ext::oneapi::experimental::command_graph<
           ext::oneapi::experimental::graph_state::modifiable>);
-  CHECK_IS_PROPERTY_OF(
-      ext::oneapi::experimental::property::graph::enable_native_recording,
-      ext::oneapi::experimental::command_graph<
-          ext::oneapi::experimental::graph_state::modifiable>);
 
   // Node is_property_of
   CHECK_IS_PROPERTY_OF(
@@ -198,9 +192,6 @@ int main() {
       ext::oneapi::experimental::property::graph::updatable, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF(
       ext::oneapi::experimental::property::graph::enable_profiling,
-      NotASYCLObject);
-  CHECK_IS_NOT_PROPERTY_OF(
-      ext::oneapi::experimental::property::graph::enable_native_recording,
       NotASYCLObject);
 
   CHECK_IS_NOT_PROPERTY_OF(
@@ -261,8 +252,6 @@ int main() {
   CHECK_IS_PROPERTY_V(ext::oneapi::experimental::property::graph::updatable);
   CHECK_IS_PROPERTY_V(
       ext::oneapi::experimental::property::graph::enable_profiling);
-  CHECK_IS_PROPERTY_V(
-      ext::oneapi::experimental::property::graph::enable_native_recording);
 
   // Node is_property_v
   CHECK_IS_PROPERTY_V(
@@ -344,15 +333,7 @@ int main() {
       ext::oneapi::experimental::command_graph<
           ext::oneapi::experimental::graph_state::modifiable>);
   CHECK_IS_PROPERTY_OF_V(
-      ext::oneapi::experimental::property::graph::updatable,
-      ext::oneapi::experimental::command_graph<
-          ext::oneapi::experimental::graph_state::modifiable>);
-  CHECK_IS_PROPERTY_OF_V(
       ext::oneapi::experimental::property::graph::enable_profiling,
-      ext::oneapi::experimental::command_graph<
-          ext::oneapi::experimental::graph_state::modifiable>);
-  CHECK_IS_PROPERTY_OF_V(
-      ext::oneapi::experimental::property::graph::enable_native_recording,
       ext::oneapi::experimental::command_graph<
           ext::oneapi::experimental::graph_state::modifiable>);
 
@@ -398,9 +379,6 @@ int main() {
       ext::oneapi::experimental::property::graph::updatable, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF_V(
       ext::oneapi::experimental::property::graph::enable_profiling,
-      NotASYCLObject);
-  CHECK_IS_NOT_PROPERTY_OF_V(
-      ext::oneapi::experimental::property::graph::enable_native_recording,
       NotASYCLObject);
 
   CHECK_IS_NOT_PROPERTY_OF_V(
