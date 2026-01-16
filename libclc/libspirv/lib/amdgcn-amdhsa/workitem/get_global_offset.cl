@@ -6,9 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/workitem/clc_get_global_offset.h>
 #include <libspirv/spirv.h>
 
+size_t __ockl_get_global_offset(int dim);
+
 _CLC_OVERLOAD _CLC_DEF size_t __spirv_BuiltInGlobalOffset(int dim) {
-  return __clc_get_global_offset(dim);
+  return __ockl_get_global_offset(dim);
 }
