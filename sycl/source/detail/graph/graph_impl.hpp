@@ -467,6 +467,11 @@ public:
   /// of recording queues associated with this graph.
   /// @param[in] Queue The queue to be recorded from.
   void beginRecording(sycl::detail::queue_impl &Queue);
+  void endRecording();
+
+  bool isLinearRecorded() const { return MIsLinearRecorded; }
+  void setHasSubGraph() { MOriginGraphHasSubGraph = true; }
+  bool hasSubGraph() const { return MOriginGraphHasSubGraph; }
 
   /// Store the last barrier node that was submitted to the queue.
   /// @param[in] Queue The queue the barrier was recorded from.
@@ -597,6 +602,11 @@ private:
   // The number of live executable graphs that have been created from this
   // modifiable graph
   std::atomic<size_t> MExecGraphCount = 0;
+
+  // True if the graph is recorded from a single in-order queue
+  bool MIsLinearRecorded = false;
+  // True if the graph contains subgraph when constructed by recording
+  bool MOriginGraphHasSubGraph = false;
 };
 
 /// Class representing the implementation of command_graph<executable>.
