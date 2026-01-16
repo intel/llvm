@@ -270,6 +270,49 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
   SmallVector<OffloadingImage> Images;
   SmallVector<SmallString<128>> Buffers;
 
+  // Pre-read Abstract module headers and metadata to calculate
+  // Buffers size.
+  SmallVector<const AbstractModuleHeaderType *> AMHeaders;
+  SmallVector<std::unique_ptr<llvm::util::PropertySetRegistry>>
+      AMMetadataVector;
+  for (uint32_t I = 0; I < FileHeader->AbstractModuleCount; ++I) {
+    // Read the header for the current abstract module.
+    const size_t AMHeaderByteOffset =
+        sizeof(FileHeaderType) + sizeof(AbstractModuleHeaderType) * I;
+    if (Error E =
+            HeaderBlockReader
+                .GetHeaderPtr<AbstractModuleHeaderType>(AMHeaderByteOffset)
+                .moveInto(AMHeaders[I]))
+      return std::move(E);
+
+    // Read the metadata for the current abstract module.
+    std::unique_ptr<llvm::util::PropertySetRegistry> &AMMetadata =
+        AMMetadataVector.emplace_back();
+    if (Error E = MetadataByteTableBlockReader
+                      .GetMetadata(AMHeaders[I]->MetadataOffset,
+                                   AMHeaders[I]->MetadataSize)
+                      .moveInto(AMMetadata))
+      return std::move(E);
+  }
+
+  // Pre-calculate total buffer size to prevent reallocation that would
+  // invalidate StringRef keys in StringData maps.
+  size_t TotalBuffersNeeded = 0;
+  // Global metadata: 2 entries per property set (key + value).
+  TotalBuffersNeeded += GlobalMetadata->getPropSets().size() * 2;
+
+  // For each abstract module: 1 for AbstractModuleID + metadata entries.
+  for (uint32_t I = 0; I < FileHeader->AbstractModuleCount; ++I) {
+    TotalBuffersNeeded += 1; // AbstractModuleID
+    // Each IR module and native device code image needs metadata entries.
+    size_t NumImages =
+        AMHeaders[I]->IRModuleCount + AMHeaders[I]->NativeDeviceCodeImageCount;
+    TotalBuffersNeeded +=
+        AMMetadataVector[I]->getPropSets().size() * 2 * NumImages;
+  }
+
+  Buffers.reserve(TotalBuffersNeeded);
+
   // Write global metadata image.
   OffloadingImage GlobalMDI{};
   GlobalMDI.TheOffloadKind = OffloadKind::OFK_SYCL;
@@ -283,27 +326,8 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
     SmallString<128> &AbstractModuleID =
         Buffers.emplace_back(std::to_string(AbstractModuleIndex));
 
-    // Read the header for the current abstract module.
-    const AbstractModuleHeaderType *AMHeader = nullptr;
-    const size_t AMHeaderByteOffset =
-        sizeof(FileHeaderType) + sizeof(AbstractModuleHeaderType) * I;
-    if (Error E =
-            HeaderBlockReader
-                .GetHeaderPtr<AbstractModuleHeaderType>(AMHeaderByteOffset)
-                .moveInto(AMHeader))
-      return std::move(E);
-
-    // Read the metadata for the current abstract module.
-    std::unique_ptr<llvm::util::PropertySetRegistry> AMMetadata =
-        std::make_unique<llvm::util::PropertySetRegistry>();
-    if (Error E =
-            MetadataByteTableBlockReader
-                .GetMetadata(AMHeader->MetadataOffset, AMHeader->MetadataSize)
-                .moveInto(AMMetadata))
-      return std::move(E);
-
     // Read the IR modules of the current abstract module.
-    for (uint32_t J = 0; J < AMHeader->IRModuleCount; ++J) {
+    for (uint32_t J = 0; J < AMHeaders[I]->IRModuleCount; ++J) {
       OffloadingImage OI{};
 
       // Legacy SYCLBIN format used only SPIR-V image kind.
@@ -311,13 +335,13 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
 
       OI.TheOffloadKind = OffloadKind::OFK_SYCL;
       OI.StringData["syclbin_abstract_module_id"] = AbstractModuleID;
-      AMMetadata->write(OI.StringData, Buffers);
+      AMMetadataVector[I]->write(OI.StringData, Buffers);
 
       // Read the header for the current IR module.
       const IRModuleHeaderType *IRMHeader = nullptr;
       const size_t IRMHeaderByteOffset =
           sizeof(FileHeaderType) + AMHeaderBlockSize +
-          sizeof(IRModuleHeaderType) * (AMHeader->IRModuleOffset + J);
+          sizeof(IRModuleHeaderType) * (AMHeaders[I]->IRModuleOffset + J);
       if (Error E = HeaderBlockReader
                         .GetHeaderPtr<IRModuleHeaderType>(IRMHeaderByteOffset)
                         .moveInto(IRMHeader))
@@ -350,20 +374,20 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
     }
 
     // Read the native device code images of the current abstract module.
-    for (uint32_t J = 0; J < AMHeader->NativeDeviceCodeImageCount; ++J) {
+    for (uint32_t J = 0; J < AMHeaders[I]->NativeDeviceCodeImageCount; ++J) {
       OffloadingImage OI{};
 
       OI.TheImageKind = ImageKind::IMG_Object;
       OI.TheOffloadKind = OffloadKind::OFK_SYCL;
       OI.StringData["syclbin_abstract_module_id"] = AbstractModuleID;
-      AMMetadata->write(OI.StringData, Buffers);
+      AMMetadataVector[I]->write(OI.StringData, Buffers);
 
       // Read the header for the current native device code image.
       const NativeDeviceCodeImageHeaderType *NDCIHeader = nullptr;
       const size_t NDCIHeaderByteOffset =
           sizeof(FileHeaderType) + AMHeaderBlockSize + IRMHeaderBlockSize +
           sizeof(NativeDeviceCodeImageHeaderType) *
-              (AMHeader->NativeDeviceCodeImageOffset + J);
+              (AMHeaders[I]->NativeDeviceCodeImageOffset + J);
       if (Error E = HeaderBlockReader
                         .GetHeaderPtr<NativeDeviceCodeImageHeaderType>(
                             NDCIHeaderByteOffset)
