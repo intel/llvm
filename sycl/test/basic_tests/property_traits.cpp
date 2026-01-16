@@ -333,6 +333,10 @@ int main() {
       ext::oneapi::experimental::command_graph<
           ext::oneapi::experimental::graph_state::modifiable>);
   CHECK_IS_PROPERTY_OF_V(
+      ext::oneapi::experimental::property::graph::updatable,
+      ext::oneapi::experimental::command_graph<
+          ext::oneapi::experimental::graph_state::modifiable>);
+  CHECK_IS_PROPERTY_OF_V(
       ext::oneapi::experimental::property::graph::enable_profiling,
       ext::oneapi::experimental::command_graph<
           ext::oneapi::experimental::graph_state::modifiable>);
