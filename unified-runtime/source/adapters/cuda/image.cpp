@@ -298,7 +298,7 @@ ur_result_t urTextureCreate(const ur_sampler_desc_t *pSamplerDesc,
 UR_APIEXPORT ur_result_t UR_APICALL urUSMPitchedAllocExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_usm_desc_t * /*pUSMDesc*/, ur_usm_pool_handle_t /*pool*/,
-    size_t widthInBytes, size_t height, size_t elementSizeBytes, void **ppMem,
+    size_t widthInBytes, size_t height, size_t elementSizeBytes, void *ppMem,
     size_t *pResultPitch) {
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
