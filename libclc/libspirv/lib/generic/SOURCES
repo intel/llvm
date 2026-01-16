@@ -7,6 +7,8 @@ atomic/atomic_add.cl
 atomic/atomic_and.cl
 atomic/atomic_cmpxchg.cl
 atomic/atomic_dec.cl
+atomic/atomic_flag_clear.cl
+atomic/atomic_flag_test_and_set.cl
 atomic/atomic_inc.cl
 atomic/atomic_load.cl
 atomic/atomic_max.cl
