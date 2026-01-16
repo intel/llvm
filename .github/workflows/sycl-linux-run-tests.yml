@@ -321,6 +321,8 @@ jobs:
       if: inputs.tests_selector == 'e2e'
       uses: ./devops/actions/run-tests/linux/e2e
       timeout-minutes: 60
+      env:
+        UR_ENABLE_LAYERS: UR_LAYER_FULL_VALIDATION
       with:
         ref: ${{ inputs.tests_ref || inputs.repo_ref || github.sha }}
         binaries_artifact: ${{ inputs.in_workflow_call_mode && inputs.binaries_artifact
