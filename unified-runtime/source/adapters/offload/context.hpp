@@ -29,16 +29,14 @@ struct ur_context_handle_t_ : RefCounted {
   ~ur_context_handle_t_() { urDeviceRelease(Device); }
 
   ur_device_handle_t Device;
-  std::unordered_map<void *, alloc_info_t> AllocTypeMap;
 
-  std::optional<alloc_info_t> getAllocType(const void *UsmPtr) {
-    for (auto &pair : AllocTypeMap) {
-      if (UsmPtr >= pair.first &&
-          reinterpret_cast<uintptr_t>(UsmPtr) <
-              reinterpret_cast<uintptr_t>(pair.first) + pair.second.Size) {
-        return pair.second;
-      }
+  ol_result_t getAllocType(const void *UsmPtr, ol_alloc_type_t &Type) {
+    auto Err = olGetMemInfo(UsmPtr, OL_MEM_INFO_TYPE, sizeof(Type), &Type);
+    if (Err && Err->Code == OL_ERRC_NOT_FOUND) {
+      // Treat unknown allocations as host
+      Type = OL_ALLOC_TYPE_HOST;
+      return OL_SUCCESS;
     }
-    return std::nullopt;
+    return Err;
   }
 };
