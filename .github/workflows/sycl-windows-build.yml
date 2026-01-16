@@ -257,7 +257,7 @@ jobs:
 
     - name: Build E2E tests with New Offload Model
       if: |
-        inputs.e2e_binaries_artifact &&
+        inputs.e2e_binaries_new_offload_model_artifact &&
         !cancelled() &&
         steps.build.conclusion == 'success' &&
         contains(github.event.pull_request.labels.*.name, 'new-offload-model')
