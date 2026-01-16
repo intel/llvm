@@ -33,6 +33,8 @@
 #include "llvm/IR/Operator.h"
 #include "llvm/Pass.h"
 
+#define DEBUG_TYPE "sycl-virtual-functions-analysis"
+
 using namespace llvm;
 
 namespace {
@@ -110,7 +112,8 @@ void collectVTablesThatUseFunction(
       //    ptr addrspace(4) addrspacecast (ptr @foo to ptr addrspace(4)), ...]
       collectVTablesThatUseFunction(U, VTables);
     } else {
-      llvm_unreachable("Unhandled type of user");
+      LLVM_DEBUG(dbgs() << "Ignoring unknown indirectly callable func user: '"
+                        << *U << "'\n");
     }
   }
 }
