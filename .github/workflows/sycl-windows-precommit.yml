@@ -96,11 +96,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Intel GEN12 Graphics with Level Zero
+          - name: New Offload Model / Intel GEN12 Graphics with Level Zero
             runner: '["Windows","gen12"]'
-          - name: Intel Arc Graphics with Level Zero
+          - name: New Offload Model / Intel Arc Graphics with Level Zero
             runner: '["Windows","arc"]'
-          - name: Intel Battlemage Graphics with Level Zero
+          - name: New Offload Model / Intel Battlemage Graphics with Level Zero
             runner: '["Windows","bmg"]'
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
