@@ -1,9 +1,9 @@
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{build} -o %t.out
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out
+// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 SYCL_GRAPH_ENABLE_NATIVE_RECORDING=1 %{build} -o %t.out
+// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 SYCL_GRAPH_ENABLE_NATIVE_RECORDING=1 %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
-// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 SYCL_GRAPH_ENABLE_NATIVE_RECORDING=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
-// Test for enable_native_recording property with global immediate command list setting
+// Test for SYCL_GRAPH_ENABLE_NATIVE_RECORDING with global immediate command list setting
 
 #include "../graph_common.hpp"
 
@@ -14,12 +14,9 @@ int main() {
   // via the environment variable SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1
   queue Queue{{property::queue::in_order{}}};
 
-  // Create a graph with native recording enabled for improved performance
-  auto MyProperties = property_list{
-      exp_ext::property::graph::enable_native_recording{}
-  };
-  
-  exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device(), MyProperties};
+  // Create a graph - native recording is enabled via SYCL_GRAPH_ENABLE_NATIVE_RECORDING
+  // environment variable for improved performance
+  exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
   const size_t N = 1024;
   int *Data = malloc_device<int>(N, Queue);
