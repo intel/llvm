@@ -774,6 +774,7 @@ class Attr {
   // Any documentation that should be associated with the attribute. Since an
   // attribute may be documented under multiple categories, more than one
   // Documentation entry may be listed.
+  string comparisonFn = "";
   list<Documentation> Documentation;
   // The SYCL specification allows attributes on lambdas as a nonconforming
   // extension to C++. The attributes are written in the type position but will
@@ -927,6 +928,7 @@ def Aligned : InheritableAttr {
                    Accessor<"isAlignas", [CustomKeyword<"alignas">,
                                           CustomKeyword<"_Alignas">]>,
                    Accessor<"isDeclspec",[Declspec<"align">]>];
+  let comparisonFn = "areAlignedAttrsEqual";
   let Documentation = [Undocumented];
 }
 
