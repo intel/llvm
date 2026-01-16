@@ -44,9 +44,8 @@ enum DataLessPropKind {
   GraphDependOnAllLeaves = 19,
   GraphUpdatable = 20,
   GraphEnableProfiling = 21,
-  GraphEnableNativeRecording = 22,
   // Indicates the last known dataless property.
-  LastKnownDataLessPropKind = 22,
+  LastKnownDataLessPropKind = 21,
   // Exceeding 32 may cause ABI breaking change on some of OSes.
   DataLessPropKindSize = 32
 };
