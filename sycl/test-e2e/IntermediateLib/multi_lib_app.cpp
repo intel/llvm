@@ -6,7 +6,7 @@
 
 // DEFINE: %{fPIC_flag} =  %if windows %{%} %else %{-fPIC%}
 // DEFINE: %{shared_lib_ext} = %if windows %{dll%} %else %{so%}
-// DEFINE: %{target} = %if target-nvidia %{-fsycl-targets=nvptx64-nvidia-cuda%} %else-if target-amd %{-fsycl-targets=amdgcn-amd-amdhsa %amd_arch_options%}
+// DEFINE: %{target} = %if target-nvidia %{-fsycl-targets=nvptx64-nvidia-cuda%} %else %if target-amd %{-fsycl-targets=amdgcn-amd-amdhsa %amd_arch_options%} %else %{%}
 
 // clang-format off
 // IMPORTANT   -DSO_PATH='R"(%t.dir)"'
