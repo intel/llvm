@@ -1368,41 +1368,6 @@ exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
                          sycl::detail::CG::StorageInitHelper CGData,
                          bool EventNeeded) {
   WriteLock Lock(MMutex);
-#if 0
-  // Use native UR graph execution if available
-  if (MNativeExecutableGraphHandle) {
-    auto UrQueue = Queue.getHandleRef();
-    
-    // Convert wait events to UR events
-    std::vector<ur_event_handle_t> UrWaitEvents;
-    for (auto &WaitEvent : CGData.MEvents) {
-      if (WaitEvent && WaitEvent->getHandle()) {
-        UrWaitEvents.push_back(WaitEvent->getHandle());
-      }
-    }
-    
-    ur_event_handle_t UrSignalEvent = nullptr;
-    //ur_event_handle_t *UrSignalEventPtr = EventNeeded ? &UrSignalEvent : nullptr;
-    
-    ur_result_t Result = urQueueAppendGraphExp(
-        UrQueue, MNativeExecutableGraphHandle, nullptr, UrSignalEvent,
-        static_cast<uint32_t>(UrWaitEvents.size()),
-        UrWaitEvents.empty() ? nullptr : UrWaitEvents.data());
-        
-    if (Result != UR_RESULT_SUCCESS) {
-      throw sycl::exception(sycl::make_error_code(errc::runtime),
-                           "Failed to enqueue native UR executable graph");
-    }
-    
-    if (EventNeeded && UrSignalEvent) {
-      auto SignalEvent = std::make_shared<sycl::detail::event_impl>(UrSignalEvent, Queue.getContextImpl());
-      SignalEvent->setProfilingEnabled(MEnableProfiling);
-      return SignalEvent;
-    }
-    
-    return nullptr;
-  }
-#endif
   cleanupExecutionEvents(MSchedulerDependencies);
   CGData.MEvents.insert(CGData.MEvents.end(), MSchedulerDependencies.begin(),
                         MSchedulerDependencies.end());
