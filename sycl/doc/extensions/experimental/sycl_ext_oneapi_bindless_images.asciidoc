@@ -534,7 +534,9 @@ void *pitched_alloc_device(size_t *resultPitch,
 
 This function will allocate a memory region aimed to be used for 
 two-dimensional images. It allocates memory that is guaranteed to 
-adhere to the device's alignment requirements for USM images.
+adhere to the device's alignment requirements for USM images. E.g.,
+for Level Zero and OpenCL, the USM base pointer is aligned to the
+number of pixels.
 
 If the user does not wish to use `pitched_alloc_device` to allocate 
 two-dimensional USM images, but prefers to use another USM allocation 
