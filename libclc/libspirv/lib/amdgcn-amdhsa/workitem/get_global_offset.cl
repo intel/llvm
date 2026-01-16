@@ -9,7 +9,7 @@
 #include <libspirv/spirv.h>
 
 _CLC_OVERLOAD _CLC_DEF size_t __spirv_BuiltInGlobalOffset(int dim) {
-  constant uint *ptr = __builtin_amdgcn_implicit_offset();
+  uint *ptr = __builtin_amdgcn_implicit_offset();
   switch (dim) {
   case 0:
     return ptr[0];
