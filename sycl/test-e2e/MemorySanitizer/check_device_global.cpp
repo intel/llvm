@@ -6,6 +6,9 @@
 // RUN: %{build} %device_msan_flags -O2 -g -o %t3.out
 // RUN: %{run} not %t3.out 2>&1 | FileCheck %s
 
+// XFAIL: spirv-backend && gpu
+// XFAIL-TRACKER: CMPLRLLVM-64705
+
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/usm.hpp>
