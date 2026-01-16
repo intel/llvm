@@ -3,7 +3,8 @@
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 SYCL_GRAPH_ENABLE_NATIVE_RECORDING=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
-// Test for SYCL_GRAPH_ENABLE_NATIVE_RECORDING with global immediate command list setting
+// Test for SYCL_GRAPH_ENABLE_NATIVE_RECORDING with global immediate command
+// list setting
 
 #include "../graph_common.hpp"
 
@@ -11,11 +12,13 @@
 
 int main() {
   // Create a regular queue - immediate command lists will be enabled globally
-  // via the environment variable SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1
+  // via the environment variable
+  // SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1
   queue Queue{{property::queue::in_order{}}};
 
-  // Create a graph - native recording is enabled via SYCL_GRAPH_ENABLE_NATIVE_RECORDING
-  // environment variable for improved performance
+  // Create a graph - native recording is enabled via
+  // SYCL_GRAPH_ENABLE_NATIVE_RECORDING environment variable for improved
+  // performance
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
   const size_t N = 1024;
@@ -27,27 +30,23 @@ int main() {
 
   // Record initialization kernel
   Queue.submit([&](handler &CGH) {
-    CGH.parallel_for(range<1>{N}, [=](id<1> idx) {
-      Data[idx] = static_cast<int>(idx);
-    });
+    CGH.parallel_for(range<1>{N},
+                     [=](id<1> idx) { Data[idx] = static_cast<int>(idx); });
   });
 
   // Record computation kernel
   Queue.submit([&](handler &CGH) {
-    CGH.parallel_for(range<1>{N}, [=](id<1> idx) {
-      Data[idx] = Data[idx] * 2;
-    });
+    CGH.parallel_for(range<1>{N},
+                     [=](id<1> idx) { Data[idx] = Data[idx] * 2; });
   });
 
   Graph.end_recording(Queue);
 
   // Finalize and execute the graph
   auto ExecutableGraph = Graph.finalize();
-  
-  Queue.submit([&](handler &CGH) { 
-    CGH.ext_oneapi_graph(ExecutableGraph); 
-  });
-  
+
+  Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecutableGraph); });
+
   Queue.wait();
 
   // Verify results
@@ -61,6 +60,8 @@ int main() {
 
   free(Data, Queue);
 
-  std::cout << "Test passed - native recording works with global immediate command list setting" << std::endl;
+  std::cout << "Test passed - native recording works with global immediate "
+               "command list setting"
+            << std::endl;
   return 0;
 }
