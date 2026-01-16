@@ -5,10 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Adjusted copy of llvm/lib/Object/SYCLBIN.cpp.
-// TODO: Remove once we can consistently link the SYCL runtime library with
-// LLVMObject.
-
 #include <detail/compiler.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
@@ -24,102 +20,6 @@ std::unique_ptr<char[]> ContentCopy(const char *Data, size_t Size) {
   std::unique_ptr<char[]> Result{new char[Size]};
   std::memcpy(Result.get(), Data, Size);
   return Result;
-}
-
-// Offload binary header and entry.
-constexpr uint8_t OffloadBinaryMagic[4] = {0x10, 0xFF, 0x10, 0xAD};
-struct OffloadBinaryHeaderType {
-  uint8_t Magic[4];
-  uint32_t Version;
-  uint64_t Size;
-  uint64_t EntryOffset;
-  uint64_t EntrySize;
-};
-struct OffloadBinaryEntryType {
-  uint16_t ImageKind;
-  uint16_t OffloadKind;
-  uint32_t Flags;
-  uint64_t StringOffset;
-  uint64_t NumStrings;
-  uint64_t ImageOffset;
-  uint64_t ImageSize;
-};
-
-class BlockReader {
-protected:
-  BlockReader(const char *Data, size_t Size) : Data{Data}, Size{Size} {}
-
-  void ReadSizeCheck(size_t ByteOffset, size_t ReadSize) {
-    if (ByteOffset + ReadSize > Size)
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "Unexpected file contents size.");
-  }
-
-  const char *Data = nullptr;
-  size_t Size = 0;
-};
-
-class HeaderBlockReader : public BlockReader {
-public:
-  HeaderBlockReader(const char *Data, size_t Size) : BlockReader(Data, Size) {}
-
-  template <typename HeaderT> const HeaderT *GetHeaderPtr(size_t ByteOffset) {
-    ReadSizeCheck(ByteOffset, sizeof(HeaderT));
-    return reinterpret_cast<const HeaderT *>(Data + ByteOffset);
-  }
-};
-
-class SYCLBINByteTableBlockReader : public BlockReader {
-public:
-  SYCLBINByteTableBlockReader(const char *Data, size_t Size)
-      : BlockReader(Data, Size) {}
-
-  std::string_view GetBinaryBlob(size_t ByteOffset, uint64_t BlobSize) {
-    ReadSizeCheck(ByteOffset, BlobSize);
-    return {Data + ByteOffset, BlobSize};
-  }
-
-  std::unique_ptr<PropertySetRegistry> GetMetadata(size_t ByteOffset,
-                                                   uint64_t MetadataSize) {
-    return PropertySetRegistry::read(GetBinaryBlob(ByteOffset, MetadataSize));
-  }
-};
-
-std::pair<const char *, size_t> getImageInOffloadBinary(const char *Data,
-                                                        size_t Size) {
-  if (sizeof(OffloadBinaryHeaderType) > Size)
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Invalid Offload Binary size.");
-
-  // Read the header.
-  const OffloadBinaryHeaderType *Header =
-      reinterpret_cast<const OffloadBinaryHeaderType *>(Data);
-  if (memcmp(Header->Magic, OffloadBinaryMagic, 4) != 0)
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Incorrect Offload Binary magic number.");
-
-  if (Header->Version == 0 || Header->Version > 2)
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Unsupported Offload Binary version number.");
-
-  if (Header->EntryOffset + sizeof(OffloadBinaryEntryType) > Size)
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Invalid entry offset.");
-
-  // Read the table entry.
-  const OffloadBinaryEntryType *Entry =
-      reinterpret_cast<const OffloadBinaryEntryType *>(Data +
-                                                       Header->EntryOffset);
-
-  if (Entry->ImageKind != /*IMG_SYCLBIN*/ 7)
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Unexpected image type.");
-
-  if (Entry->ImageOffset + Entry->ImageSize > Size)
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Invalid image offset and size.");
-
-  return std::make_pair(Data + Entry->ImageOffset, Entry->ImageSize);
 }
 
 const char *getDeviceTargetSpecFromTriple(std::string_view Triple) {
@@ -150,124 +50,25 @@ const char *getDeviceTargetSpecFromTriple(std::string_view Triple) {
 
 } // namespace
 
-SYCLBIN::SYCLBIN(const char *Data, size_t Size) {
-  auto [SYCLBINData, SYCLBINSize] = getImageInOffloadBinary(Data, Size);
-
-  if (SYCLBINSize < sizeof(FileHeaderType))
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Unexpected file contents size.");
-
-  // Read the file header.
-  const FileHeaderType *FileHeader =
-      reinterpret_cast<const FileHeaderType *>(SYCLBINData);
-  if (FileHeader->Magic != MagicNumber)
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Incorrect SYCLBIN magic number.");
-
-  if (FileHeader->Version > CurrentVersion)
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Unsupported SYCLBIN version " +
-                              std::to_string(FileHeader->Version) + ".");
-  Version = FileHeader->Version;
-
-  const uint64_t AMHeaderBlockSize =
-      sizeof(AbstractModuleHeaderType) * FileHeader->AbstractModuleCount;
-  const uint64_t IRMHeaderBlockSize =
-      sizeof(IRModuleHeaderType) * FileHeader->IRModuleCount;
-  const uint64_t NDCIHeaderBlockSize = sizeof(NativeDeviceCodeImageHeaderType) *
-                                       FileHeader->NativeDeviceCodeImageCount;
-  const uint64_t HeaderBlockSize = sizeof(FileHeaderType) + AMHeaderBlockSize +
-                                   IRMHeaderBlockSize + NDCIHeaderBlockSize;
-  // Align metadata table size to 8.
-  const uint64_t AlignedMetadataByteTableSize =
-      FileHeader->MetadataByteTableSize +
-      (-FileHeader->MetadataByteTableSize & 7);
-  if (SYCLBINSize < HeaderBlockSize + AlignedMetadataByteTableSize +
-                        FileHeader->BinaryByteTableSize)
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Unexpected file contents size.");
-
-  // Create reader objects. These help with checking out-of-bounds access.
-  HeaderBlockReader HeaderBlockReader{SYCLBINData, HeaderBlockSize};
-  SYCLBINByteTableBlockReader MetadataByteTableBlockReader{
-      SYCLBINData + HeaderBlockSize, FileHeader->MetadataByteTableSize};
-  SYCLBINByteTableBlockReader BinaryByteTableBlockReader{
-      SYCLBINData + HeaderBlockSize + AlignedMetadataByteTableSize,
-      FileHeader->BinaryByteTableSize};
-
-  // Read global metadata.
-  GlobalMetadata = MetadataByteTableBlockReader.GetMetadata(
-      FileHeader->GlobalMetadataOffset, FileHeader->GlobalMetadataSize);
-
-  // Read the abstract modules.
-  AbstractModules.resize(FileHeader->AbstractModuleCount);
-  for (uint32_t I = 0; I < FileHeader->AbstractModuleCount; ++I) {
-    AbstractModule &AM = AbstractModules[I];
-
-    // Read the header for the current abstract module.
-    const uint64_t AMHeaderByteOffset =
-        sizeof(FileHeaderType) + sizeof(AbstractModuleHeaderType) * I;
-    const AbstractModuleHeaderType *AMHeader =
-        HeaderBlockReader.GetHeaderPtr<AbstractModuleHeaderType>(
-            AMHeaderByteOffset);
-
-    // Read the metadata for the current abstract module.
-    AM.Metadata = MetadataByteTableBlockReader.GetMetadata(
-        AMHeader->MetadataOffset, AMHeader->MetadataSize);
-
-    // Read the IR modules of the current abstract module.
-    AM.IRModules.resize(AMHeader->IRModuleCount);
-    for (uint32_t J = 0; J < AMHeader->IRModuleCount; ++J) {
-      IRModule &IRM = AM.IRModules[J];
-
-      // Read the header for the current IR module.
-      const uint64_t IRMHeaderByteOffset =
-          sizeof(FileHeaderType) + AMHeaderBlockSize +
-          sizeof(IRModuleHeaderType) * (AMHeader->IRModuleOffset + J);
-      const IRModuleHeaderType *IRMHeader =
-          HeaderBlockReader.GetHeaderPtr<IRModuleHeaderType>(
-              IRMHeaderByteOffset);
-
-      // Read the metadata for the current IR module.
-      IRM.Metadata = MetadataByteTableBlockReader.GetMetadata(
-          IRMHeader->MetadataOffset, IRMHeader->MetadataSize);
-
-      // Read the binary blob for the current IR module.
-      IRM.RawIRBytes = BinaryByteTableBlockReader.GetBinaryBlob(
-          IRMHeader->RawIRBytesOffset, IRMHeader->RawIRBytesSize);
-    }
-
-    // Read the native device code images of the current abstract module.
-    AM.NativeDeviceCodeImages.resize(AMHeader->NativeDeviceCodeImageCount);
-    for (uint32_t J = 0; J < AMHeader->NativeDeviceCodeImageCount; ++J) {
-      NativeDeviceCodeImage &NDCI = AM.NativeDeviceCodeImages[J];
-
-      // Read the header for the current native device code image.
-      const uint64_t NDCIHeaderByteOffset =
-          sizeof(FileHeaderType) + AMHeaderBlockSize + IRMHeaderBlockSize +
-          sizeof(NativeDeviceCodeImageHeaderType) *
-              (AMHeader->NativeDeviceCodeImageOffset + J);
-      const NativeDeviceCodeImageHeaderType *NDCIHeader =
-          HeaderBlockReader.GetHeaderPtr<NativeDeviceCodeImageHeaderType>(
-              NDCIHeaderByteOffset);
-
-      // Read the metadata for the current native device code image.
-      NDCI.Metadata = MetadataByteTableBlockReader.GetMetadata(
-          NDCIHeader->MetadataOffset, NDCIHeader->MetadataSize);
-
-      // Read the binary blob for the current native device code image.
-      NDCI.RawDeviceCodeImageBytes = BinaryByteTableBlockReader.GetBinaryBlob(
-          NDCIHeader->BinaryBytesOffset, NDCIHeader->BinaryBytesSize);
-    }
-  }
-}
-
 SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
     : SYCLBINContentCopy{ContentCopy(SYCLBINContent, SYCLBINSize)},
-      SYCLBINContentCopySize{SYCLBINSize},
-      ParsedSYCLBIN(SYCLBIN{SYCLBINContentCopy.get(), SYCLBINSize}) {
+      SYCLBINContentCopySize{SYCLBINSize} {
+  llvm::MemoryBufferRef ContentRef(
+      llvm::StringRef(SYCLBINContentCopy.get(), SYCLBINSize), "");
+  llvm::Expected<std::unique_ptr<llvm::object::SYCLBIN>> SYCLBINOrErr =
+      llvm::object::SYCLBIN::read(ContentRef);
+  if (SYCLBINOrErr)
+    ParsedSYCLBIN = std::move(*SYCLBINOrErr);
+  else {
+    // try legacy format just in case for backward compatibility
+    // check dump or some other util...
+    // getImageInOffloadBinary
+        // throw sycl::exception(make_error_code(errc::invalid),
+        //                   llvm::toString(SYCLBINOrErr.takeError()));
+  }
+
   AbstractModuleDescriptors = std::unique_ptr<AbstractModuleDesc[]>(
-      new AbstractModuleDesc[ParsedSYCLBIN.AbstractModules.size()]);
+      new AbstractModuleDesc[ParsedSYCLBIN->getOffloadBinaries().size()]);
 
   size_t NumBinaries = 0;
   for (const SYCLBIN::AbstractModule &AM : ParsedSYCLBIN.AbstractModules)
@@ -354,7 +155,7 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
 }
 
 std::vector<_sycl_device_binary_property_set_struct> &
-SYCLBINBinaries::convertAbstractModuleProperties(SYCLBIN::AbstractModule &AM) {
+SYCLBINBinaries::convertAbstractModuleProperties(std::unique_ptr<llvm::util::PropertySetRegistry> Metadata) {
   std::vector<_sycl_device_binary_property_set_struct> &BinPropertySets =
       BinaryPropertySets.emplace_back();
   BinPropertySets.reserve(AM.Metadata->getPropSets().size());
