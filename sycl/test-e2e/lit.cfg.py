@@ -845,8 +845,8 @@ tools = [
     ToolSubst("sycl-post-link", unresolved="fatal"),
     ToolSubst("file-table-tform", unresolved="fatal"),
     ToolSubst("llvm-foreach", unresolved="fatal"),
-    ToolSubst("llvm-profdata", unresolved="fatal"),
-    ToolSubst("llvm-cov", unresolved="fatal"),
+    ToolSubst("llvm-profdata", unresolved="ignore"),
+    ToolSubst("llvm-cov", unresolved="ignore"),
 ] + feature_tools
 
 # Try and find each of these tools in the DPC++ bin directory, in the llvm tools directory
