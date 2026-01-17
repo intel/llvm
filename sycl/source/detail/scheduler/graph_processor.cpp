@@ -46,12 +46,16 @@ void Scheduler::GraphProcessor::waitForEvent(event_impl &Event,
 bool Scheduler::GraphProcessor::handleBlockingCmd(Command *Cmd,
                                                   EnqueueResultT &EnqueueResult,
                                                   Command *RootCommand,
-                                                  BlockingT Blocking) {
+                                                  BlockingT Blocking,
+                                                  bool TrackBlockedUser) {
   if (Cmd == RootCommand || Blocking)
     return true;
   {
-    std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
     if (Cmd->isBlocking()) {
+      if (!TrackBlockedUser) {
+        return false;
+      }
+      std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
       const EventImplPtr &RootCmdEvent = RootCommand->getEvent();
       Cmd->addBlockedUserUnique(RootCmdEvent);
       EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
@@ -68,11 +72,11 @@ bool Scheduler::GraphProcessor::handleBlockingCmd(Command *Cmd,
 bool Scheduler::GraphProcessor::enqueueCommand(
     Command *Cmd, ReadLockT &GraphReadLock, EnqueueResultT &EnqueueResult,
     std::vector<Command *> &ToCleanUp, Command *RootCommand,
-    BlockingT Blocking) {
+    BlockingT Blocking, bool TrackBlockedUser) {
   if (!Cmd)
     return true;
   if (Cmd->isSuccessfullyEnqueued())
-    return handleBlockingCmd(Cmd, EnqueueResult, RootCommand, Blocking);
+    return handleBlockingCmd(Cmd, EnqueueResult, RootCommand, Blocking, TrackBlockedUser);
 
   // Exit early if the command is blocked and the enqueue type is non-blocking
   if (Cmd->isEnqueueBlocked() && !Blocking) {
@@ -80,12 +84,13 @@ bool Scheduler::GraphProcessor::enqueueCommand(
     return false;
   }
 
+  TrackBlockedUser = TrackBlockedUser && (Cmd == RootCommand || !Cmd->isBlocking());
   // Recursively enqueue all the implicit + explicit backend level dependencies
   // first and exit immediately if any of the commands cannot be enqueued.
   for (const EventImplPtr &Event : Cmd->getPreparedDepsEvents()) {
     if (Command *DepCmd = Event->getCommand())
       if (!enqueueCommand(DepCmd, GraphReadLock, EnqueueResult, ToCleanUp,
-                          RootCommand, Blocking))
+                          RootCommand, Blocking, TrackBlockedUser))
         return false;
   }
 
@@ -98,7 +103,7 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   for (const EventImplPtr &Event : Cmd->getPreparedHostDepsEvents()) {
     if (Command *DepCmd = Event->getCommand())
       if (!enqueueCommand(DepCmd, GraphReadLock, EnqueueResult, ToCleanUp,
-                          RootCommand, Blocking))
+                          RootCommand, Blocking, TrackBlockedUser))
         return false;
   }
 
@@ -117,7 +122,7 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   // removing C out of it. Iterators become invalid.
   bool Result = Cmd->enqueue(EnqueueResult, Blocking, ToCleanUp);
   if (Result)
-    Result = handleBlockingCmd(Cmd, EnqueueResult, RootCommand, Blocking);
+    Result = handleBlockingCmd(Cmd, EnqueueResult, RootCommand, Blocking, TrackBlockedUser);
   return Result;
 }
 
