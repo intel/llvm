@@ -3,7 +3,6 @@ atomic/atomic_max.cl
 atomic/atomic_min.cl
 atomic/atomic_or.cl
 atomic/atomic_xor.cl
-workitem/get_global_offset.ll
 group/group_ballot.cl
 group/collectives.cl
 group/collectives_helpers.ll
@@ -50,6 +49,7 @@ math/sincos.cl
 math/sinh.cl
 math/tan.cl
 math/tanh.cl
+workitem/get_global_offset.cl
 workitem/get_global_size.cl
 workitem/get_local_linear_id.cl
 workitem/get_local_size.cl
