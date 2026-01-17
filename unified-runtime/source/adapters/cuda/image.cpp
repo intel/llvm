@@ -661,6 +661,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     CUstream Stream = hQueue->getNextTransferStream();
     enqueueEventsWait(hQueue, Stream, numEventsInWaitList, phEventWaitList);
 
+    std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
+    if (phEvent) {
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_IMAGE_COPY, hQueue, Stream);
+      UR_CHECK_ERROR(RetImplEvent->start());
+    }
+
     // We have to use a different copy function for each image dimensionality.
 
     if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
@@ -962,10 +969,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     }
 
     if (phEvent) {
-      auto NewEvent =
-          new ur_event_handle_t_(UR_COMMAND_MEM_IMAGE_COPY, hQueue, Stream);
-      NewEvent->record();
-      *phEvent = NewEvent;
+      UR_CHECK_ERROR(RetImplEvent->record());
+      *phEvent = RetImplEvent.release();
     }
   } catch (ur_result_t Err) {
     return Err;
@@ -1784,6 +1789,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
 
     enqueueEventsWait(hQueue, Stream, numEventsInWaitList, phEventWaitList);
 
+    std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
+    if (phEvent) {
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_EXTERNAL_SEMAPHORE_WAIT_EXP, hQueue, Stream);
+      UR_CHECK_ERROR(RetImplEvent->start());
+    }
+
     CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS SemWaitParams = {};
     if (hasValue) {
       SemWaitParams.params.fence.value = waitValue;
@@ -1795,10 +1807,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
         Stream));
 
     if (phEvent) {
-      auto NewEvent = new ur_event_handle_t_(
-          UR_COMMAND_EXTERNAL_SEMAPHORE_WAIT_EXP, hQueue, Stream);
-      NewEvent->record();
-      *phEvent = NewEvent;
+      UR_CHECK_ERROR(RetImplEvent->record());
+      *phEvent = RetImplEvent.release();
     }
   } catch (ur_result_t Err) {
     return Err;
@@ -1824,16 +1834,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
       SemSignalParams.params.fence.value = signalValue;
     }
 
+    std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
+    if (phEvent) {
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_EXTERNAL_SEMAPHORE_SIGNAL_EXP, hQueue, Stream);
+      UR_CHECK_ERROR(RetImplEvent->start());
+    }
+
     // Signal one external semaphore
     UR_CHECK_ERROR(cuSignalExternalSemaphoresAsync(
         (CUexternalSemaphore *)&hSemaphore, &SemSignalParams,
         1 /* numExtSems */, Stream));
 
     if (phEvent) {
-      auto NewEvent = new ur_event_handle_t_(
-          UR_COMMAND_EXTERNAL_SEMAPHORE_SIGNAL_EXP, hQueue, Stream);
-      NewEvent->record();
-      *phEvent = NewEvent;
+      UR_CHECK_ERROR(RetImplEvent->record());
+      *phEvent = RetImplEvent.release();
     }
   } catch (ur_result_t Err) {
     return Err;
