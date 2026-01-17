@@ -1374,7 +1374,6 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
       if (CommandList->second.size() < CommandBatch.QueueBatchSize &&
           !IsBlocking) {
         CommandBatch.OpenCommandList = CommandList;
-        return UR_RESULT_SUCCESS;
       }
 
       adjustBatchSizeForFullBatch(UseCopyEngine);
