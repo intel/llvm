@@ -35,7 +35,7 @@ define weak_odr dso_local spir_kernel void @_ZTSZ4mainEUlN2cl4sycl14kernel_handl
 ; CHECK-IR: %[[#NS3:]] = call spir_func [3 x float] @_Z29__spirv_SpecConstantCompositefff_RA3_f(float %[[#NS0]], float %[[#NS1]], float %[[#NS2]])
 ; CHECK-IR: %[[#NS4:]] = call spir_func %"class.std::array" @"_Z29__spirv_SpecConstantCompositeA3_f_Rclass.std::array"([3 x float] %[[#NS3]])
 ; CHECK-IR: %[[#NS5:]] = call spir_func i64 @_Z20__spirv_SpecConstantix(i32 [[#SCID3:]], i64 0)
-; CHECK-IR: %[[#NS6:]] = call spir_func %struct.coeff_str_aligned_t @"_Z29__spirv_SpecConstantCompositeclass.std::arrayxA8_a_Rstruct.coeff_str_aligned_t"(%"class.std::array" %[[#NS4]], i64 %[[#NS5]], [8 x i8] undef)
+; CHECK-IR: %[[#NS6:]] = call spir_func %struct.coeff_str_aligned_t @"_Z29__spirv_SpecConstantCompositeclass.std::arrayxA8_a_Rstruct.coeff_str_aligned_t"(%"class.std::array" %[[#NS4]], i64 %[[#NS5]], [8 x i8] zeroinitializer)
 
   %4 = alloca %struct.coeff2_str_aligned_t, align 32
   %5 = addrspacecast %struct.coeff2_str_aligned_t* %4 to %struct.coeff2_str_aligned_t addrspace(4)*
@@ -47,7 +47,7 @@ define weak_odr dso_local spir_kernel void @_ZTSZ4mainEUlN2cl4sycl14kernel_handl
 ; CHECK-IR: %[[#NS10:]] = call spir_func [3 x float] @_Z29__spirv_SpecConstantCompositefff_RA3_f(float %[[#NS7]], float %[[#NS8]], float %[[#NS9]])
 ; CHECK-IR: %[[#NS11:]] = call spir_func %"class.std::array" @"_Z29__spirv_SpecConstantCompositeA3_f_Rclass.std::array"([3 x float] %[[#NS10]])
 ; CHECK-IR: %[[#NS12:]] = call spir_func i64 @_Z20__spirv_SpecConstantix(i32 [[#SCID7:]], i64 0)
-; CHECK-IR: %[[#NS13:]] = call spir_func %struct.coeff2_str_aligned_t @"_Z29__spirv_SpecConstantCompositeclass.std::arrayxA7_aa_Rstruct.coeff2_str_aligned_t"(%"class.std::array" %[[#NS11]], i64 %[[#NS12]], [7 x i8] undef, i8 undef)
+; CHECK-IR: %[[#NS13:]] = call spir_func %struct.coeff2_str_aligned_t @"_Z29__spirv_SpecConstantCompositeclass.std::arrayxA7_aa_Rstruct.coeff2_str_aligned_t"(%"class.std::array" %[[#NS11]], i64 %[[#NS12]], [7 x i8] zeroinitializer, i8 0)
 
   ret void
 }
