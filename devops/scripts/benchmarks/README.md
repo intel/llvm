@@ -119,7 +119,6 @@ The available benchmarks options are:
 * `OneDNN` (BenchDNN)
 * `Gromacs` (Gromacs)
 * `LLama` (llama)
-* `Test` (Test Suite)
 
 `--filter <regex>` - allows to set the regex pattern to filter benchmarks by name.
 

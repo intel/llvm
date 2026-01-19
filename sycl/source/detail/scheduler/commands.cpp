@@ -1189,7 +1189,7 @@ ur_result_t AllocaSubBufCommand::enqueueImp() {
           MMemAllocation, MemoryManager::allocateMemSubBuffer,
           getContext(MQueue), MParentAlloca->getMemAllocation(),
           MRequirement.MElemSize, MRequirement.MOffsetInBytes,
-          MRequirement.MAccessRange, std::move(EventImpls), UREvent);
+          MRequirement.MMemoryRange, std::move(EventImpls), UREvent);
       Result != UR_RESULT_SUCCESS)
     return Result;
 
@@ -2701,6 +2701,19 @@ ur_result_t enqueueImpCommandBufferKernel(
   auto Args = CommandGroup.MArgs;
   sycl::detail::applyFuncOnFilteredArgs(EliminatedArgMask, Args, SetFunc);
 
+  const std::optional<int> &ImplicitLocalArg =
+      CommandGroup.MDeviceKernelInfo.getImplicitLocalArgPos();
+
+  // Set the implicit local memory buffer to support
+  // get_work_group_scratch_memory. This is for backend not supporting
+  // CUDA-style local memory setting. Note that we may have -1 as a position,
+  // this indicates the buffer is actually unused and was elided.
+  if (ImplicitLocalArg.has_value() && ImplicitLocalArg.value() != -1) {
+    Adapter.call<UrApiKind::urKernelSetArgLocal>(
+        UrKernel, ImplicitLocalArg.value(),
+        CommandGroup.MKernelWorkGroupMemorySize, nullptr);
+  }
+
   // Remember this information before the range dimensions are reversed
   const bool HasLocalSize = (CommandGroup.MNDRDesc.LocalSize[0] != 0);
 
@@ -2731,6 +2744,17 @@ ur_result_t enqueueImpCommandBufferKernel(
          (NDRDesc.Dims < 3 || RequiredWGSize[2] != 0));
     if (EnforcedLocalSize)
       LocalSize = RequiredWGSize;
+  }
+
+  // If there is no implicit arg, let the driver handle it via a property
+  // which is not yet supported!
+  if (CommandGroup.MKernelWorkGroupMemorySize &&
+      !ImplicitLocalArg.has_value()) {
+    throw sycl::exception(
+        sycl::make_error_code(errc::invalid),
+        "Setting work group scratch memory size is not yet supported "
+        "for use with the SYCL Graph extension and backends using "
+        "CUDA-style local memory settings.");
   }
 
   // Command-buffers which are not updatable cannot return command handles, so
