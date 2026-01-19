@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: arch-intel_gpu_pvc
+// REQUIRES-INTEL-DRIVER: lin: 30508
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -20,7 +21,8 @@ using bf16 = sycl::ext::oneapi::bfloat16;
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 using namespace sycl::ext::intel::experimental::esimd;
-template <typename T> bool test() {
+template <typename T, bool Transposed = false, bool Transformed = false>
+bool test() {
   sycl::queue Q(sycl::gpu_selector_v);
   auto dev = Q.get_device();
   std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
@@ -28,7 +30,7 @@ template <typename T> bool test() {
 
   constexpr int TM = 8;
   constexpr int TN = 8;
-  constexpr int NBLOCKS = 2;
+  constexpr int NBLOCKS = Transposed ? 1 : 2;
   constexpr int WIDTH = 2 * TN;
   constexpr int HEIGHT = TM;
   constexpr int PITCH = WIDTH;
@@ -49,11 +51,12 @@ template <typename T> bool test() {
          A, WIDTH * sizeof(T) - 1, HEIGHT - 1, PITCH * sizeof(T) - 1, 0, 0);
 
      simd<T, NBLOCKS * TM * TN> tmp =
-         lsc_load_2d<T, TN, TM, NBLOCKS, false, false>(my_config);
-     simd<T, NBLOCKS * TM * TN> tmp1 = lsc_load_2d<T, TN, TM, NBLOCKS>(
-         my_config.get_data_pointer(), my_config.get_surface_width(),
-         my_config.get_surface_height(), my_config.get_surface_pitch(),
-         my_config.get_x(), my_config.get_y());
+         lsc_load_2d<T, TN, TM, NBLOCKS, Transposed, Transformed>(my_config);
+     simd<T, NBLOCKS * TM * TN> tmp1 =
+         lsc_load_2d<T, TN, TM, NBLOCKS, Transposed, Transformed>(
+             my_config.get_data_pointer(), my_config.get_surface_width(),
+             my_config.get_surface_height(), my_config.get_surface_pitch(),
+             my_config.get_x(), my_config.get_y());
 
      tmp.copy_to(C);
      tmp1.copy_to(C1);
@@ -76,6 +79,15 @@ int main() {
   result |= test<uint16_t>();
   result |= test<uint8_t>();
   result |= test<sycl::half>();
+  result |= test<bf16>();
+
+  result |= test<float, true>();
+  result |= test<uint32_t, true>();
+
+  result |= test<uint16_t, false, true>();
+  result |= test<uint8_t, false, true>();
+  result |= test<sycl::half, false, true>();
+  result |= test<bf16, false, true>();
 
   std::cout << (result ? "FAILED" : "passed") << std::endl;
   return 0;

@@ -17,7 +17,8 @@ int main() {
     cgh.single_task<class event_kernel>([]() {});
   });
   // Check that get_native function returns a vector
-  std::vector<cl_event> ClEventVec = get_native<sycl::backend::opencl>(event);
+  std::vector<cl_event> ClEventVec =
+      sycl::get_native<sycl::backend::opencl>(event);
   // Check that make_event is working properly with vector<cl_event> as a
   // param
   sycl::event SyclEvent =

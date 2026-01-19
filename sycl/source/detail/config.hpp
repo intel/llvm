@@ -9,10 +9,9 @@
 #pragma once
 
 #include <detail/global_handler.hpp>
-#include <sycl/backend_types.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/device_filter.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/info/info_desc.hpp>
 
@@ -25,6 +24,7 @@
 
 namespace sycl {
 inline namespace _V1 {
+enum class backend : char;
 namespace detail {
 
 #ifdef DISABLE_CONFIG_FROM_ENV
@@ -127,8 +127,8 @@ private:
   }
 };
 
-template <> class SYCLConfig<SYCL_PI_TRACE> {
-  using BaseT = SYCLConfigBase<SYCL_PI_TRACE>;
+template <> class SYCLConfig<SYCL_UR_TRACE> {
+  using BaseT = SYCLConfigBase<SYCL_UR_TRACE>;
 
 public:
   static int get() {
@@ -199,59 +199,82 @@ template <> class SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS> {
 private:
 public:
   static void GetSettings(size_t &MinFactor, size_t &GoodFactor,
-                          size_t &MinRange) {
-    static const char *RoundParams = BaseT::getRawValue();
+                          size_t &MinRange, bool ForceUpdate = false) {
+    const char *RoundParams = BaseT::getRawValue();
     if (RoundParams == nullptr)
       return;
 
     static bool ProcessedFactors = false;
+    static bool FactorsAreValid = false;
     static size_t MF;
     static size_t GF;
     static size_t MR;
-    if (!ProcessedFactors) {
+    if (!ProcessedFactors || ForceUpdate) {
+      auto GuardedStoi = [](size_t &val, const std::string &str) {
+        try {
+          int ParsedResult = std::stoi(str);
+          if (ParsedResult < 0)
+            return false;
+          val = ParsedResult;
+          return true;
+          // Ignore parsing exceptions, but throw on unexpected exceptions:
+        } catch (const std::invalid_argument &) {
+        } catch (const std::out_of_range &) {
+        }
+        return false;
+      };
+
       // Parse optional parameters of this form (all values required):
       // MinRound:PreferredRound:MinRange
       std::string Params(RoundParams);
       size_t Pos = Params.find(':');
-      if (Pos != std::string::npos) {
-        MF = std::stoi(Params.substr(0, Pos));
+      if (Pos != std::string::npos && GuardedStoi(MF, Params.substr(0, Pos)) &&
+          MF > 0) {
         Params.erase(0, Pos + 1);
         Pos = Params.find(':');
-        if (Pos != std::string::npos) {
-          GF = std::stoi(Params.substr(0, Pos));
+        if (Pos != std::string::npos &&
+            GuardedStoi(GF, Params.substr(0, Pos)) && GF > 0) {
           Params.erase(0, Pos + 1);
-          MR = std::stoi(Params);
+          // Factors are valid only if all parsed successfully:
+          FactorsAreValid = GuardedStoi(MR, Params);
+          // Note that MinRange = 0 is considered valid.
         }
       }
-      ProcessedFactors = true;
+      if (FactorsAreValid) {
+        ProcessedFactors = true;
+      } else {
+        std::cerr
+            << "WARNING: Invalid value passed for "
+            << "SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS (Expected format "
+            << "MinRound:PreferredRound:MinRange, where MinRound, "
+               "PreferredRound"
+            << " > 0, MinRange >= 0). Provided parameters will be ignored."
+            << std::endl;
+      }
     }
-    MinFactor = MF;
-    GoodFactor = GF;
-    MinRange = MR;
+    if (FactorsAreValid) {
+      MinFactor = MF;
+      GoodFactor = GF;
+      MinRange = MR;
+    }
   }
 };
 
 // Array is used by SYCL_DEVICE_ALLOWLIST and ONEAPI_DEVICE_SELECTOR.
-// The 'supportAcc' parameter is used by SYCL_DEVICE_ALLOWLIST which,
-// unlike ONEAPI_DEVICE_SELECTOR, also accepts 'acc' as a valid device type.
 template <bool supportAcc = false>
-const std::array<std::pair<std::string, info::device_type>, 6> &
+const std::array<std::pair<std::string, info::device_type>, 4> &
 getSyclDeviceTypeMap() {
-  static const std::array<std::pair<std::string, info::device_type>, 6>
-      SyclDeviceTypeMap = {
-          {{"host", info::device_type::host},
-           {"cpu", info::device_type::cpu},
-           {"gpu", info::device_type::gpu},
-           /* Duplicate entries are fine as this map is one-directional.*/
-           {supportAcc ? "acc" : "fpga", info::device_type::accelerator},
-           {"fpga", info::device_type::accelerator},
-           {"*", info::device_type::all}}};
+  static const std::array<std::pair<std::string, info::device_type>, 4>
+      SyclDeviceTypeMap = {{{"host", info::device_type::host},
+                            {"cpu", info::device_type::cpu},
+                            {"gpu", info::device_type::gpu},
+                            {"*", info::device_type::all}}};
   return SyclDeviceTypeMap;
 }
 
 // Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
 // ONEAPI_DEVICE_SELECTOR
-const std::array<std::pair<std::string, backend>, 7> &getSyclBeMap();
+const std::array<std::pair<std::string, backend>, 8> &getSyclBeMap();
 
 // ---------------------------------------
 // ONEAPI_DEVICE_SELECTOR support
@@ -445,7 +468,6 @@ template <> class SYCLConfig<SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE> {
   struct ParsedValue {
     size_t CPU = 0;
     size_t GPU = 0;
-    size_t Accelerator = 0;
   };
 
 public:
@@ -466,13 +488,11 @@ private:
       return Value.CPU;
     case info::device_type::gpu:
       return Value.GPU;
-    case info::device_type::accelerator:
-      return Value.Accelerator;
     default:
       // Expect to get here if user used wrong device type. Include wildcard
       // in the message even though it's handled in the caller.
       throw INVALID_CONFIG_EXCEPTION(
-          BaseT, "Device types must be \"cpu\", \"gpu\", \"acc\", or \"*\".");
+          BaseT, "Device types must be \"cpu\", \"gpu\", or \"*\".");
     }
   }
 
@@ -485,7 +505,7 @@ private:
       return Result;
 
     std::string ValueStr{ValueRaw};
-    auto DeviceTypeMap = getSyclDeviceTypeMap<true /*Enable 'acc'*/>();
+    auto DeviceTypeMap = getSyclDeviceTypeMap();
 
     // Iterate over all configurations.
     size_t Start = 0, End = 0;
@@ -537,7 +557,6 @@ private:
         // Set all configuration values if we got the device-type wildcard.
         Result.GPU = DeviceConfigValue;
         Result.CPU = DeviceConfigValue;
-        Result.Accelerator = DeviceConfigValue;
       } else {
         // Try setting the corresponding configuration.
         getRefByDeviceType(Result, DeviceTypeIter->second) = DeviceConfigValue;
@@ -558,34 +577,6 @@ private:
   }
 };
 
-template <> class SYCLConfig<SYCL_ENABLE_FUSION_CACHING> {
-  using BaseT = SYCLConfigBase<SYCL_ENABLE_FUSION_CACHING>;
-
-public:
-  static bool get() {
-    constexpr bool DefaultValue = true;
-
-    const char *ValStr = getCachedValue();
-
-    if (!ValStr)
-      return DefaultValue;
-
-    return ValStr[0] == '1';
-  }
-
-  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
-
-  static const char *getName() { return BaseT::MConfigName; }
-
-private:
-  static const char *getCachedValue(bool ResetCache = false) {
-    static const char *ValStr = BaseT::getRawValue();
-    if (ResetCache)
-      ValStr = BaseT::getRawValue();
-    return ValStr;
-  }
-};
-
 template <> class SYCLConfig<SYCL_CACHE_IN_MEM> {
   using BaseT = SYCLConfigBase<SYCL_CACHE_IN_MEM>;
 
@@ -593,6 +584,7 @@ public:
   static constexpr bool Default = true; // default is true
   static bool get() { return getCachedValue(); }
   static const char *getName() { return BaseT::MConfigName; }
+  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
 
 private:
   static bool parseValue() {
@@ -608,9 +600,217 @@ private:
     return ValStr[0] == '1';
   }
 
-  static bool getCachedValue() {
+  static bool getCachedValue(bool ResetCache = false) {
     static bool Val = parseValue();
+    if (ResetCache) {
+      Val = BaseT::getRawValue();
+    }
     return Val;
+  }
+};
+
+template <> class SYCLConfig<SYCL_JIT_AMDGCN_PTX_KERNELS> {
+  using BaseT = SYCLConfigBase<SYCL_JIT_AMDGCN_PTX_KERNELS>;
+
+public:
+  static bool get() {
+    constexpr bool DefaultValue = false;
+    const char *ValStr = getCachedValue();
+    if (!ValStr)
+      return DefaultValue;
+
+    return ValStr[0] == '1';
+  }
+
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  static const char *getCachedValue(bool ResetCache = false) {
+    static const char *ValStr = BaseT::getRawValue();
+    if (ResetCache)
+      ValStr = BaseT::getRawValue();
+    return ValStr;
+  }
+};
+
+template <> class SYCLConfig<SYCL_JIT_AMDGCN_PTX_TARGET_CPU> {
+  using BaseT = SYCLConfigBase<SYCL_JIT_AMDGCN_PTX_TARGET_CPU>;
+
+public:
+  static std::string get() {
+    std::string DefaultValue{""};
+
+    const char *ValStr = getCachedValue();
+
+    if (!ValStr)
+      return DefaultValue;
+
+    return std::string{ValStr};
+  }
+
+  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
+
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  static const char *getCachedValue(bool ResetCache = false) {
+    static const char *ValStr = BaseT::getRawValue();
+    if (ResetCache)
+      ValStr = BaseT::getRawValue();
+    return ValStr;
+  }
+};
+
+template <> class SYCLConfig<SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES> {
+  using BaseT = SYCLConfigBase<SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES>;
+
+public:
+  static std::string get() {
+    std::string DefaultValue{""};
+
+    const char *ValStr = getCachedValue();
+
+    if (!ValStr)
+      return DefaultValue;
+
+    return std::string{ValStr};
+  }
+
+  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
+
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  static const char *getCachedValue(bool ResetCache = false) {
+    static const char *ValStr = BaseT::getRawValue();
+    if (ResetCache)
+      ValStr = BaseT::getRawValue();
+    return ValStr;
+  }
+};
+
+// SYCL_CACHE_TRACE accepts a bit-mask to control the tracing of
+// different SYCL caches. The input value is parsed as an integer and
+// the following bit-masks is used to determine the tracing behavior:
+// 0x01 - trace disk cache
+// 0x02 - trace in-memory cache
+// 0x04 - trace kernel_compiler cache
+// Any valid combination of the above bit-masks can be used to enable/disable
+// tracing of the corresponding caches. If the input value is not null and
+// not a valid number, the disk cache tracing will be enabled (depreciated
+// behavior). The default value is 0 and no tracing is enabled.
+template <> class SYCLConfig<SYCL_CACHE_TRACE> {
+  using BaseT = SYCLConfigBase<SYCL_CACHE_TRACE>;
+  enum TraceBitmask { DiskCache = 1, InMemCache = 2, KernelCompiler = 4 };
+
+public:
+  static unsigned int get() { return Level; }
+  static void reset();
+  static bool isTraceDiskCache() { return Level & DiskCache; }
+  static bool isTraceInMemCache() { return Level & InMemCache; }
+  static bool isTraceKernelCompiler() { return Level & KernelCompiler; }
+
+private:
+  static unsigned int Level;
+};
+
+// SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD accepts an integer that specifies
+// the maximum size of the in-memory Program cache.
+// Cache eviction is performed when the cache size exceeds the threshold.
+// The thresholds are specified in bytes.
+// The default value is "0" which means that eviction is disabled.
+template <> class SYCLConfig<SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD> {
+  using BaseT = SYCLConfigBase<SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD>;
+
+public:
+  static int get() { return getCachedValue(); }
+  static void reset() { (void)getCachedValue(true); }
+
+  static int getProgramCacheSize() { return getCachedValue(); }
+
+  static bool isProgramCacheEvictionEnabled() {
+    return getProgramCacheSize() > 0;
+  }
+
+private:
+  static int getCachedValue(bool ResetCache = false) {
+    const auto Parser = []() {
+      const char *ValStr = BaseT::getRawValue();
+
+      // Disable eviction by default.
+      if (!ValStr)
+        return 0;
+
+      int CacheSize = 0;
+      try {
+        CacheSize = std::stoi(ValStr);
+        if (CacheSize < 0)
+          throw INVALID_CONFIG_EXCEPTION(BaseT, "Value must be non-negative");
+      } catch (...) {
+        std::string Msg = std::string{
+            "Invalid input to SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD. Please try "
+            "a positive integer."};
+        throw exception(make_error_code(errc::runtime), Msg);
+      }
+
+      return CacheSize;
+    };
+
+    static auto EvictionThresholds = Parser();
+    if (ResetCache)
+      EvictionThresholds = Parser();
+
+    return EvictionThresholds;
+  }
+};
+
+// SYCL_CACHE_MAX_SIZE accepts an integer that specifies
+// the maximum size of the on-disk Program cache.
+// Cache eviction is performed when the cache size exceeds the threshold.
+// The thresholds are specified in bytes.
+// The default value is "0" which means that eviction is disabled.
+template <> class SYCLConfig<SYCL_CACHE_MAX_SIZE> {
+  using BaseT = SYCLConfigBase<SYCL_CACHE_MAX_SIZE>;
+
+public:
+  static long long get() { return getCachedValue(); }
+  static void reset() { (void)getCachedValue(true); }
+
+  static long long getProgramCacheSize() { return getCachedValue(); }
+
+  static bool isPersistentCacheEvictionEnabled() {
+    return getProgramCacheSize() > 0;
+  }
+
+private:
+  static long long getCachedValue(bool ResetCache = false) {
+    const auto Parser = []() {
+      const char *ValStr = BaseT::getRawValue();
+
+      // Disable eviction by default.
+      if (!ValStr)
+        return (long long)0;
+
+      long long CacheSize = 0;
+      try {
+        CacheSize = std::stoll(ValStr);
+        if (CacheSize < 0)
+          throw INVALID_CONFIG_EXCEPTION(BaseT, "Value must be non-negative");
+      } catch (...) {
+        std::string Msg =
+            std::string{"Invalid input to SYCL_CACHE_MAX_SIZE. Please try "
+                        "a positive integer."};
+        throw exception(make_error_code(errc::runtime), Msg);
+      }
+
+      return CacheSize;
+    };
+
+    static auto EvictionThresholds = Parser();
+    if (ResetCache)
+      EvictionThresholds = Parser();
+
+    return EvictionThresholds;
   }
 };
 

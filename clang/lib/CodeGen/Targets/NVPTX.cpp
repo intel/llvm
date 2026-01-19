@@ -9,6 +9,9 @@
 #include "ABIInfoImpl.h"
 #include "TargetInfo.h"
 #include "clang/Basic/Cuda.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringExtras.h"
+#include "llvm/IR/CallingConv.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
 
 using namespace clang;
@@ -76,6 +79,10 @@ public:
     return true;
   }
 
+  unsigned getDeviceKernelCallingConv() const override {
+    return llvm::CallingConv::PTX_Kernel;
+  }
+
   // Adds a NamedMDNode with GV, Name, and Operand as operands, and adds the
   // resulting MDNode to the nvvm.annotations MDNode.
   static void addNVVMMetadata(llvm::GlobalValue *GV, StringRef Name,
@@ -123,10 +130,9 @@ bool NVPTXABIInfo::isUnsupportedType(QualType T) const {
     return true;
   if (const auto *AT = T->getAsArrayTypeUnsafe())
     return isUnsupportedType(AT->getElementType());
-  const auto *RT = T->getAs<RecordType>();
-  if (!RT)
+  const auto *RD = T->getAsRecordDecl();
+  if (!RD)
     return false;
-  const RecordDecl *RD = RT->getDecl();
 
   // If this is a C++ record, check the bases first.
   if (const CXXRecordDecl *CXXRD = dyn_cast<CXXRecordDecl>(RD))
@@ -166,8 +172,8 @@ ABIArgInfo NVPTXABIInfo::classifyReturnType(QualType RetTy) const {
     return ABIArgInfo::getDirect();
 
   // Treat an enum type as its underlying type.
-  if (const EnumType *EnumTy = RetTy->getAs<EnumType>())
-    RetTy = EnumTy->getDecl()->getIntegerType();
+  if (const auto *ED = RetTy->getAsEnumDecl())
+    RetTy = ED->getIntegerType();
 
   return (isPromotableIntegerTypeForABI(RetTy) ? ABIArgInfo::getExtend(RetTy)
                                                : ABIArgInfo::getDirect());
@@ -175,8 +181,8 @@ ABIArgInfo NVPTXABIInfo::classifyReturnType(QualType RetTy) const {
 
 ABIArgInfo NVPTXABIInfo::classifyArgumentType(QualType Ty) const {
   // Treat an enum type as its underlying type.
-  if (const EnumType *EnumTy = Ty->getAs<EnumType>())
-    Ty = EnumTy->getDecl()->getIntegerType();
+  if (const auto *ED = Ty->getAsEnumDecl())
+    Ty = ED->getIntegerType();
 
   // Return aggregates type as indirect by value
   if (isAggregateTypeForABI(Ty)) {
@@ -190,14 +196,18 @@ ABIArgInfo NVPTXABIInfo::classifyArgumentType(QualType Ty) const {
         return ABIArgInfo::getDirect(
             CGInfo.getCUDADeviceBuiltinTextureDeviceType());
     }
-    return getNaturalAlignIndirect(Ty, /* byval */ true);
+    return getNaturalAlignIndirect(
+        Ty, /* AddrSpace */ getDataLayout().getAllocaAddrSpace(),
+        /* byval */ true);
   }
 
   if (const auto *EIT = Ty->getAs<BitIntType>()) {
     if ((EIT->getNumBits() > 128) ||
         (!getContext().getTargetInfo().hasInt128Type() &&
          EIT->getNumBits() > 64))
-      return getNaturalAlignIndirect(Ty, /* byval */ true);
+      return getNaturalAlignIndirect(
+          Ty, /* AddrSpace */ getDataLayout().getAllocaAddrSpace(),
+          /* byval */ true);
   }
 
   return (isPromotableIntegerTypeForABI(Ty) ? ABIArgInfo::getExtend(Ty)
@@ -207,8 +217,11 @@ ABIArgInfo NVPTXABIInfo::classifyArgumentType(QualType Ty) const {
 void NVPTXABIInfo::computeInfo(CGFunctionInfo &FI) const {
   if (!getCXXABI().classifyReturnType(FI))
     FI.getReturnInfo() = classifyReturnType(FI.getReturnType());
-  for (auto &I : FI.arguments())
-    I.info = classifyArgumentType(I.type);
+
+  for (auto &&[ArgumentsCount, I] : llvm::enumerate(FI.arguments()))
+    I.info = ArgumentsCount < FI.getNumRequiredArgs()
+                 ? classifyArgumentType(I.type)
+                 : ABIArgInfo::getDirect();
 
   // Always honor user-specified calling convention.
   if (FI.getCallingConvention() != llvm::CallingConv::C)
@@ -219,29 +232,32 @@ void NVPTXABIInfo::computeInfo(CGFunctionInfo &FI) const {
 
 RValue NVPTXABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
                                QualType Ty, AggValueSlot Slot) const {
-  llvm_unreachable("NVPTX does not support varargs");
+  return emitVoidPtrVAArg(CGF, VAListAddr, Ty, /*IsIndirect=*/false,
+                          getContext().getTypeInfoInChars(Ty),
+                          CharUnits::fromQuantity(1),
+                          /*AllowHigherAlign=*/true, Slot);
 }
 
-// Get current CudaArch and ignore any unknown values
+// Get current OffloadArch and ignore any unknown values
 // Copied from CGOpenMPRuntimeGPU
-static CudaArch getCudaArch(CodeGenModule &CGM) {
+static OffloadArch getOffloadArch(CodeGenModule &CGM) {
   if (!CGM.getTarget().hasFeature("ptx"))
-    return CudaArch::UNKNOWN;
+    return OffloadArch::UNKNOWN;
   for (const auto &Feature : CGM.getTarget().getTargetOpts().FeatureMap) {
     if (Feature.getValue()) {
-      CudaArch Arch = StringToCudaArch(Feature.getKey());
-      if (Arch != CudaArch::UNKNOWN)
+      OffloadArch Arch = StringToOffloadArch(Feature.getKey());
+      if (Arch != OffloadArch::UNKNOWN)
         return Arch;
     }
   }
-  return CudaArch::UNKNOWN;
+  return OffloadArch::UNKNOWN;
 }
 
-static bool supportsGridConstant(CudaArch Arch) {
-  assert((Arch == CudaArch::UNKNOWN || IsNVIDIAGpuArch(Arch)) &&
+static bool supportsGridConstant(OffloadArch Arch) {
+  assert((Arch == OffloadArch::UNKNOWN || IsNVIDIAOffloadArch(Arch)) &&
          "Unexpected architecture");
-  static_assert(CudaArch::UNKNOWN < CudaArch::SM_70);
-  return Arch >= CudaArch::SM_70;
+  static_assert(OffloadArch::UNKNOWN < OffloadArch::SM_70);
+  return Arch >= OffloadArch::SM_70;
 }
 
 void NVPTXTargetCodeGenInfo::setTargetAttributes(
@@ -260,23 +276,22 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
   }
 
   const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D);
-  if (!FD) return;
+  if (!FD)
+    return;
 
   llvm::Function *F = cast<llvm::Function>(GV);
 
   // Perform special handling in OpenCL mode
-  if (M.getLangOpts().OpenCL || M.getLangOpts().SYCLIsDevice) {
+  if (M.getLangOpts().OpenCL || M.getLangOpts().SYCLIsDevice || M.getLangOpts().CUDA) {
     // Use OpenCL function attributes to check for kernel functions
+    // Use function attributes to check for kernel functions
     // By default, all functions are device functions
-    if (FD->hasAttr<OpenCLKernelAttr>()) {
-      // OpenCL __kernel functions get kernel metadata
-      // Create !{<func-ref>, metadata !"kernel", i32 1} node
-      addNVVMMetadata(F, "kernel", 1);
+    if (FD->hasAttr<DeviceKernelAttr>() || FD->hasAttr<CUDAGlobalAttr>()) {
+      // OpenCL/CUDA kernel functions get kernel metadata
       // And kernel functions are not subject to inlining
       F->addFnAttr(llvm::Attribute::NoInline);
-
       if (M.getLangOpts().SYCLIsDevice &&
-          supportsGridConstant(getCudaArch(M))) {
+          supportsGridConstant(getOffloadArch(M))) {
         // Add grid_constant annotations to all relevant kernel-function
         // parameters. We can guarantee that in SYCL, all by-val kernel
         // parameters are "grid_constant".
@@ -290,99 +305,18 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
         if (!GridConstantParamIdxs.empty())
           addNVVMMetadata(F, "grid_constant", GridConstantParamIdxs);
       }
-    }
-    bool HasMaxWorkGroupSize = false;
-    bool HasMinWorkGroupPerCU = false;
-    if (const auto *MWGS = FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-      HasMaxWorkGroupSize = true;
-      // We must index-flip between SYCL's notation, X,Y,Z (aka dim0,dim1,dim2)
-      // with the fastest-moving dimension rightmost, to CUDA's, where X is the
-      // fastest-moving dimension.
-      addNVVMMetadata(F, "maxntidx", MWGS->getZDimVal());
-      addNVVMMetadata(F, "maxntidy", MWGS->getYDimVal());
-      addNVVMMetadata(F, "maxntidz", MWGS->getXDimVal());
-    }
+      if (FD->hasAttr<CUDAGlobalAttr>()) {
+        F->setCallingConv(getDeviceKernelCallingConv());
 
-    if (const auto *RWGS = FD->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
-      llvm::SmallVector<std::optional<int64_t>, 3> Ops;
-      // Index-flip and pad out any missing elements. Note the misleading
-      // nomenclature of the methods: getXDimVal doesn't return the X dimension;
-      // it returns the left-most dimension (dim0). This could correspond to
-      // CUDA's X, Y, or Z, depending on the number of operands provided.
-      if (auto Dim0 = RWGS->getXDimVal())
-        Ops.push_back(Dim0->getExtValue());
-      if (auto Dim1 = RWGS->getYDimVal())
-        Ops.push_back(Dim1->getExtValue());
-      if (auto Dim2 = RWGS->getZDimVal())
-        Ops.push_back(Dim2->getExtValue());
-      std::reverse(Ops.begin(), Ops.end());
-      Ops.append(3 - Ops.size(), std::nullopt);
-
-      // Work-group sizes (in NVVM annotations) must be positive and less than
-      // INT32_MAX, whereas SYCL can allow for larger work-group sizes (see
-      // -fno-sycl-id-queries-fit-in-int). If any dimension is too large for
-      // NVPTX, don't emit any annotation at all.
-      if (llvm::all_of(Ops, [](std::optional<int64_t> V) {
-            return !V || llvm::isUInt<31>(*V);
-          })) {
-        if (auto X = Ops[0])
-          addNVVMMetadata(F, "reqntidx", *X);
-        if (auto Y = Ops[1])
-          addNVVMMetadata(F, "reqntidy", *Y);
-        if (auto Z = Ops[2])
-          addNVVMMetadata(F, "reqntidz", *Z);
+        for (auto IV : llvm::enumerate(FD->parameters()))
+          if (IV.value()->hasAttr<CUDAGridConstantAttr>())
+            F->addParamAttr(
+                IV.index(),
+                llvm::Attribute::get(F->getContext(), "nvvm.grid_constant"));
       }
+      if (CUDALaunchBoundsAttr *Attr = FD->getAttr<CUDALaunchBoundsAttr>())
+        M.handleCUDALaunchBoundsAttr(F, Attr);
     }
-
-    auto attrValue = [&](Expr *E) {
-      const auto *CE = cast<ConstantExpr>(E);
-      std::optional<llvm::APInt> Val = CE->getResultAsAPSInt();
-      return Val->getZExtValue();
-    };
-
-    if (const auto *MWGPCU =
-            FD->getAttr<SYCLIntelMinWorkGroupsPerComputeUnitAttr>()) {
-      if (!HasMaxWorkGroupSize && FD->hasAttr<OpenCLKernelAttr>()) {
-        M.getDiags().Report(D->getLocation(),
-                            diag::warn_launch_bounds_missing_attr)
-            << MWGPCU << 0;
-      } else {
-        // The value is guaranteed to be > 0, pass it to the metadata.
-        addNVVMMetadata(F, "minctasm", attrValue(MWGPCU->getValue()));
-        HasMinWorkGroupPerCU = true;
-      }
-    }
-
-    if (const auto *MWGPMP =
-            FD->getAttr<SYCLIntelMaxWorkGroupsPerMultiprocessorAttr>()) {
-      if ((!HasMaxWorkGroupSize || !HasMinWorkGroupPerCU) &&
-          FD->hasAttr<OpenCLKernelAttr>()) {
-        M.getDiags().Report(D->getLocation(),
-                            diag::warn_launch_bounds_missing_attr)
-            << MWGPMP << 1;
-      } else {
-        // The value is guaranteed to be > 0, pass it to the metadata.
-        addNVVMMetadata(F, "maxclusterrank", attrValue(MWGPMP->getValue()));
-      }
-    }
-  }
-
-  // Perform special handling in CUDA mode.
-  if (M.getLangOpts().CUDA) {
-    // CUDA __global__ functions get a kernel metadata entry.  Since
-    // __global__ functions cannot be called from the device, we do not
-    // need to set the noinline attribute.
-    if (FD->hasAttr<CUDAGlobalAttr>()) {
-      // Create !{<func-ref>, metadata !"kernel", i32 1} node
-      addNVVMMetadata(F, "kernel", 1);
-    }
-    if (CUDALaunchBoundsAttr *Attr = FD->getAttr<CUDALaunchBoundsAttr>())
-      M.handleCUDALaunchBoundsAttr(F, Attr);
-  }
-
-  // Attach kernel metadata directly if compiling for NVPTX.
-  if (FD->hasAttr<NVPTXKernelAttr>()) {
-    addNVVMMetadata(F, "kernel", 1);
   }
 }
 
@@ -394,10 +328,11 @@ void NVPTXTargetCodeGenInfo::addNVVMMetadata(llvm::GlobalValue *GV,
   // Get "nvvm.annotations" metadata node
   llvm::NamedMDNode *MD = M->getOrInsertNamedMetadata("nvvm.annotations");
 
-  llvm::Metadata *MDVals[] = {
+  SmallVector<llvm::Metadata *, 5> MDVals = {
       llvm::ConstantAsMetadata::get(GV), llvm::MDString::get(Ctx, Name),
       llvm::ConstantAsMetadata::get(
           llvm::ConstantInt::get(llvm::Type::getInt32Ty(Ctx), Operand))};
+
   // Append metadata to nvvm.annotations
   MD->addOperand(llvm::MDNode::get(Ctx, MDVals));
 }
@@ -441,24 +376,20 @@ NVPTXTargetCodeGenInfo::getNullPointer(const CodeGen::CodeGenModule &CGM,
   return llvm::ConstantExpr::getAddrSpaceCast(
       llvm::ConstantPointerNull::get(NPT), PT);
 }
-}
+} // namespace
 
 void CodeGenModule::handleCUDALaunchBoundsAttr(llvm::Function *F,
                                                const CUDALaunchBoundsAttr *Attr,
                                                int32_t *MaxThreadsVal,
                                                int32_t *MinBlocksVal,
                                                int32_t *MaxClusterRankVal) {
-  // Create !{<func-ref>, metadata !"maxntidx", i32 <val>} node
   llvm::APSInt MaxThreads(32);
   MaxThreads = Attr->getMaxThreads()->EvaluateKnownConstInt(getContext());
   if (MaxThreads > 0) {
     if (MaxThreadsVal)
       *MaxThreadsVal = MaxThreads.getExtValue();
-    if (F) {
-      // Create !{<func-ref>, metadata !"maxntidx", i32 <val>} node
-      NVPTXTargetCodeGenInfo::addNVVMMetadata(F, "maxntidx",
-                                              MaxThreads.getExtValue());
-    }
+    if (F)
+      F->addFnAttr("nvvm.maxntid", llvm::utostr(MaxThreads.getExtValue()));
   }
 
   // min and max blocks is an optional argument for CUDALaunchBoundsAttr. If it
@@ -470,11 +401,8 @@ void CodeGenModule::handleCUDALaunchBoundsAttr(llvm::Function *F,
     if (MinBlocks > 0) {
       if (MinBlocksVal)
         *MinBlocksVal = MinBlocks.getExtValue();
-      if (F) {
-        // Create !{<func-ref>, metadata !"minctasm", i32 <val>} node
-        NVPTXTargetCodeGenInfo::addNVVMMetadata(F, "minctasm",
-                                                MinBlocks.getExtValue());
-      }
+      if (F)
+        F->addFnAttr("nvvm.minctasm", llvm::utostr(MinBlocks.getExtValue()));
     }
   }
   if (Attr->getMaxBlocks()) {
@@ -483,11 +411,9 @@ void CodeGenModule::handleCUDALaunchBoundsAttr(llvm::Function *F,
     if (MaxBlocks > 0) {
       if (MaxClusterRankVal)
         *MaxClusterRankVal = MaxBlocks.getExtValue();
-      if (F) {
-        // Create !{<func-ref>, metadata !"maxclusterrank", i32 <val>} node
-        NVPTXTargetCodeGenInfo::addNVVMMetadata(F, "maxclusterrank",
-                                                MaxBlocks.getExtValue());
-      }
+      if (F)
+        F->addFnAttr("nvvm.maxclusterrank",
+                     llvm::utostr(MaxBlocks.getExtValue()));
     }
   }
 }

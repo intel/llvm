@@ -28,27 +28,10 @@ public:
 
 namespace intel::experimental::property::usm {
 
-class buffer_location
-    : public sycl::detail::PropertyWithData<
-          sycl::detail::PropWithDataKind::AccPropBufferLocation> {
-public:
-  buffer_location(uint64_t Location) : MLocation(Location) {}
-  uint64_t get_buffer_location() const { return MLocation; }
-
-private:
-  uint64_t MLocation;
-};
+// If new properties are added here, update `verifyUSMAllocatorProperties` to
+// include them!
 
 } // namespace intel::experimental::property::usm
 } // namespace ext
-
-template <>
-struct is_property<ext::oneapi::property::usm::device_read_only>
-    : std::true_type {};
-
-template <>
-struct is_property<ext::intel::experimental::property::usm::buffer_location>
-    : std::true_type {};
-
 } // namespace _V1
 } // namespace sycl

@@ -35,7 +35,7 @@ private:
     printHelper<Idx + 1>(Out, Elem1);
   }
   template <>
-  static void printHelper<EndIdx>(std::ostream &Out, const VecT &Elem1) {}
+  inline void printHelper<EndIdx>(std::ostream &Out, const VecT &Elem1) {}
 
   VecT MVec;
 };
@@ -102,3 +102,50 @@ OutputIterator inclusive_scan(InputIterator first, InputIterator last,
   return result;
 }
 } // namespace emu
+
+namespace env {
+
+bool isDefined(const char *name) {
+  char *buf = nullptr;
+#ifdef _WIN32
+  size_t sz;
+  _dupenv_s(&buf, &sz, name);
+  free(buf);
+#else
+  buf = getenv(name);
+#endif
+  return buf != nullptr;
+}
+
+std::string getVal(const char *name) {
+  char *buf = nullptr;
+  std::string res = "";
+#ifdef _WIN32
+  size_t sz;
+  _dupenv_s(&buf, &sz, name);
+  if (buf != nullptr)
+    res = std::string(buf);
+  free(buf);
+#else
+  buf = getenv(name);
+  if (buf != nullptr)
+    res = std::string(buf);
+#endif
+  return res;
+}
+} // namespace env
+
+namespace command_submit_wrappers {
+template <typename KernelName, typename KernelType, int Dims>
+sycl::event parallel_for_wrapper(bool UseShortcutFunction, sycl::queue &Q,
+                                 sycl::range<Dims> Range,
+                                 const KernelType &KernelFunc) {
+  if (UseShortcutFunction) {
+    return Q.parallel_for<KernelName>(Range, KernelFunc);
+  } else {
+    return Q.submit([&](sycl::handler &cgh) {
+      cgh.parallel_for<KernelName>(Range, KernelFunc);
+    });
+  }
+}
+} // namespace command_submit_wrappers

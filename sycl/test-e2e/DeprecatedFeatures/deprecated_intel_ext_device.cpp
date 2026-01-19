@@ -2,9 +2,6 @@
 // REQUIRES: opencl || level_zero
 // RUN: %{build} -o %t.out -Wno-deprecated-declarations
 // RUN: %{run} %t.out
-//
-// Temporarily disable on L0 due to fails in CI
-// UNSUPPORTED: level_zero
 
 //==--------- intel-ext-device.cpp - SYCL device test ------------==//
 //
@@ -18,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 
 #include <cassert>
 #include <iostream>

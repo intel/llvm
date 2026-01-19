@@ -57,8 +57,10 @@
 ;   sub_group_non_uniform_scan_exclusive_logical_xor(x);
 ;   sub_group_rotate(c, x);
 ; }
+
+; REQUIRES: spirv-dis
 ; clang -cc1 -O2 -triple spir -cl-std=cl2.0 -finclude-default-header -cl-ext=+all source.cl -emit-llvm-bc -o tmp.bc
-; llvm-spirv tmp.bc --spirv-ext=+all -o tmp.spv
+; llvm-spirv tmp.bc --spirv-ext=+all,-SPV_KHR_untyped_pointers -o tmp.spv
 ; spirv-dis tmp.spv -o llvm-spirv/test/GroupAndSubgroupInstructions.spvasm
 
 ; REQUIRES: spirv-as
@@ -76,7 +78,7 @@
 ; RUN: llvm-dis %t.bc -o %t.ll
 ; RUN: FileCheck < %t.ll %s --check-prefixes=CHECK-COMMON,CHECK-SPV-IR
 
-; RUN: llvm-spirv %t.bc --spirv-ext=+all -o %t.rev.spv
+; RUN: llvm-spirv %t.bc --spirv-ext=+all,-SPV_KHR_untyped_pointers -o %t.rev.spv
 ; RUN: spirv-val %t.rev.spv
 
 
@@ -102,8 +104,8 @@
 ; CHECK-CL-DAG: declare spir_func i32 @_Z27intel_sub_group_shuffle_xorij(i32, i32) #[[#Attrs]]
 ; CHECK-CL-DAG: declare spir_func i32 @_Z26intel_sub_group_block_readPU3AS1Kj(ptr addrspace(1)) #[[#Attrs]]
 ; CHECK-CL-DAG: declare spir_func void @_Z27intel_sub_group_block_writePU3AS1jj(ptr addrspace(1), i32) #[[#Attrs]]
-; CHECK-CL-DAG: declare spir_func i32 @_Z26intel_sub_group_block_read14ocl_image2d_rwDv2_i(ptr addrspace(1), <2 x i32>) #[[#Attrs]]
-; CHECK-CL-DAG: declare spir_func void @_Z27intel_sub_group_block_write14ocl_image2d_rwDv2_ij(ptr addrspace(1), <2 x i32>, i32) #[[#Attrs]]
+; CHECK-CL-DAG: declare spir_func i32 @_Z26intel_sub_group_block_read14ocl_image2d_rwDv2_i(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 2), <2 x i32>) #[[#Attrs]]
+; CHECK-CL-DAG: declare spir_func void @_Z27intel_sub_group_block_write14ocl_image2d_rwDv2_ij(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 2), <2 x i32>, i32) #[[#Attrs]]
 ; CHECK-CL-DAG: declare spir_func i32 @_Z15sub_group_electv() #[[#Attrs]]
 ; CHECK-CL-DAG: declare spir_func i32 @_Z25sub_group_non_uniform_alli(i32) #[[#Attrs]]
 ; CHECK-CL-DAG: declare spir_func i32 @_Z25sub_group_non_uniform_anyi(i32) #[[#Attrs]]
@@ -135,7 +137,7 @@
 
 ; CHECK-SPV-IR: declare spir_func i1 @_Z16__spirv_GroupAllib(i32, i1) #[[#Attrs:]]
 ; CHECK-SPV-IR: declare spir_func i1 @_Z16__spirv_GroupAnyib(i32, i1) #[[#Attrs]]
-; CHECK-SPV-IR: declare spir_func i32 @_Z22__spirv_GroupBroadcastiii(i32, i32, i32) #[[#Attrs]]
+; CHECK-SPV-IR: declare spir_func i32 @_Z22__spirv_GroupBroadcastiij(i32, i32, i32) #[[#Attrs]]
 ; CHECK-SPV-IR: declare spir_func void @_Z22__spirv_ControlBarrieriii(i32, i32, i32) #[[#Attrs]]
 ; CHECK-SPV-IR: declare spir_func i32 @_Z17__spirv_GroupIAddiii(i32, i32, i32) #[[#Attrs]]
 ; CHECK-SPV-IR: declare spir_func float @_Z17__spirv_GroupFAddiif(i32, i32, float) #[[#Attrs]]

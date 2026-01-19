@@ -7,8 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/allowlist.hpp>
+#include <sycl/platform.hpp>
 
 #include <gtest/gtest.h>
+
+#ifdef _WIN32
+#include <windows.h> // SetEnvironmentVariable
+#endif
 
 constexpr char SyclDeviceAllowList[] =
     "BackendName:opencl,DeviceType:gpu,DeviceVendorId:0x8086,DriverVersion:{{("
@@ -16,20 +21,14 @@ constexpr char SyclDeviceAllowList[] =
     "100\\.(737[2-9]|73[8-9]\\d|7[4-9]\\d+|[8-9]\\d+)|\\.\\d+\\.\\d+\\.10[1-9]"
     "\\.\\d+)}}|BackendName:opencl,DeviceType:cpu,DeviceVendorId:0x8086,"
     "DriverVersion:{{(2019\\.[^\\.]+\\.[1-9][1-9]\\..*)|(20[2-9][0-9]\\..*)}}|"
-    "BackendName:opencl,DeviceType:acc,DeviceVendorId:0x1172,DriverVersion:{{("
-    "2019\\.[^\\.]+\\.[1-9][0-9]\\..*)|(20[2-9][0-9]\\..*)}}|BackendName:"
-    "opencl,DeviceType:acc,DeviceVendorId:0x1172,PlatformVersion:{{.*Version "
-    "(19\\.[3-9][0-9]*|2[0-9]\\.[0-9]+).*}}|BackendName:level_zero,DeviceType:"
-    "gpu,DeviceVendorId:0x8086,DriverVersion:{{.*}}";
+    "BackendName:level_zero,DeviceType:gpu,DeviceVendorId:0x8086,DriverVersion:"
+    "{{.*}}";
 constexpr char SyclDeviceAllowListOldStyle[] =
     "DeviceName:{{.*Intel.*Graphics.*}},DriverVersion:{{(19\\.(4[3-9]|[5-9]\\d)"
     "\\..*)|([2-9][0-9]\\.\\d+\\..*)|(\\d+\\.\\d+\\.100\\.(737[2-9]|73[8-9]\\d|"
     "7[4-9]\\d+|[8-9]\\d+)|\\.\\d+\\.\\d+\\.10[1-9]\\.\\d+)}}|DeviceName:{{.*"
     "Intel.*(CPU|Processor).*}},DriverVersion:{{(2019\\.[^\\.]+\\.[1-9][1-9]\\."
-    ".*)|(20[2-9][0-9]\\..*)}}|DeviceName:{{.*Intel.*FPGA "
-    "Emulation.*}},DriverVersion:{{(2019\\.[^\\.]+\\.[1-9][0-9]\\..*)|(20[2-9]["
-    "0-9]\\..*)}}|PlatformName:{{.*Intel.*FPGA.*}},PlatformVersion:{{.*Version "
-    "(19\\.[3-9][0-9]*|2[0-9]\\.[0-9]+).*}}|PlatformName:{{.*Intel.*Level-Zero."
+    ".*)|(20[2-9][0-9]\\..*)}}|PlatformName:{{.*Intel.*Level-Zero."
     "*}},DeviceName:{{.*Intel.*Gen.*}},DriverVersion:{{.*}}";
 
 sycl::detail::DeviceDescT OpenCLGPUDeviceDesc{
@@ -50,26 +49,6 @@ sycl::detail::DeviceDescT OpenCLCPUDeviceDesc{
     {"DeviceName", "Intel(R) Core(TM) i7-8700K Processor @ 4.60GHz"},
     {"PlatformName", "Intel(R) OpenCL"}};
 
-sycl::detail::DeviceDescT OpenCLFPGAEmuDeviceDesc{
-    {"BackendName", "opencl"},
-    {"DeviceType", "acc"},
-    {"DeviceVendorId", "0x1172"},
-    {"DriverVersion", "2021.12.5.0.09"},
-    {"PlatformVersion",
-     "OpenCL 1.2 Intel(R) FPGA SDK for OpenCL(TM), Version 20.3"},
-    {"DeviceName", "Intel(R) FPGA Emulation Device"},
-    {"PlatformName", "Intel(R) FPGA Emulation Platform for OpenCL(TM)"}};
-
-sycl::detail::DeviceDescT OpenCLFPGABoardDeviceDesc{
-    {"BackendName", "opencl"},
-    {"DeviceType", "acc"},
-    {"DeviceVendorId", "0x1172"},
-    {"DriverVersion", "20.3.0.0.00"},
-    {"PlatformVersion",
-     "OpenCL 1.0 Intel(R) FPGA SDK for OpenCL(TM), Version 20.3"},
-    {"DeviceName", "Intel(R) Arria(R) 10 GX FPGA"},
-    {"PlatformName", "Intel(R) FPGA SDK for OpenCL(TM)"}};
-
 sycl::detail::DeviceDescT LevelZeroGPUDeviceDesc{
     {"BackendName", "level_zero"},
     {"DeviceType", "gpu"},
@@ -85,23 +64,42 @@ TEST(DeviceIsAllowedTests, CheckSupportedOpenCLGPUDeviceIsAllowed) {
   EXPECT_EQ(Actual, true);
 }
 
+TEST(DeviceIsAllowedTests, CheckLocalizationDoesNotImpact) {
+  // The localization can affect std::stringstream output.
+  // We want to make sure that DeviceVenderId doesn't have a comma
+  // inserted (ie "0x8,086" ), which will break the platform retrieval.
+
+  if (sycl::platform::get_platforms().empty()) {
+    GTEST_SKIP() << "No SYCL platforms found.";
+  }
+
+  try {
+    auto previous = std::locale::global(std::locale("en_US.UTF-8"));
+#ifdef _WIN32
+    SetEnvironmentVariableA("SYCL_DEVICE_ALLOWLIST", SyclDeviceAllowList);
+#else
+    setenv("SYCL_DEVICE_ALLOWLIST", SyclDeviceAllowList, 1);
+#endif
+
+    auto post_platforms = sycl::platform::get_platforms();
+    std::locale::global(previous);
+#ifdef _WIN32
+    SetEnvironmentVariableA("SYCL_DEVICE_ALLOWLIST", nullptr);
+#else
+    unsetenv("SYCL_DEVICE_ALLOWLIST");
+#endif
+
+    EXPECT_NE(size_t{0}, post_platforms.size());
+  } catch (...) {
+    // It is possible that the en_US locale is not available.
+    // In this case, we just skip the test.
+    GTEST_SKIP() << "Locale en_US.UTF-8 not available.";
+  }
+}
+
 TEST(DeviceIsAllowedTests, CheckSupportedOpenCLCPUDeviceIsAllowed) {
   bool Actual = sycl::detail::deviceIsAllowed(
       OpenCLCPUDeviceDesc, sycl::detail::parseAllowList(SyclDeviceAllowList));
-  EXPECT_EQ(Actual, true);
-}
-
-TEST(DeviceIsAllowedTests, CheckSupportedOpenCLFPGAEmuDeviceIsAllowed) {
-  bool Actual = sycl::detail::deviceIsAllowed(
-      OpenCLFPGAEmuDeviceDesc,
-      sycl::detail::parseAllowList(SyclDeviceAllowList));
-  EXPECT_EQ(Actual, true);
-}
-
-TEST(DeviceIsAllowedTests, CheckSupportedOpenCLFPGABoardDeviceIsAllowed) {
-  bool Actual = sycl::detail::deviceIsAllowed(
-      OpenCLFPGABoardDeviceDesc,
-      sycl::detail::parseAllowList(SyclDeviceAllowList));
   EXPECT_EQ(Actual, true);
 }
 
@@ -149,15 +147,6 @@ TEST(DeviceIsAllowedTests,
 }
 
 TEST(DeviceIsAllowedTests,
-     CheckOpenCLFPGABoardDeviceWithNotSupportedPlatformVersionIsNotAllowed) {
-  auto DeviceDesc = OpenCLFPGABoardDeviceDesc;
-  DeviceDesc.at("PlatformVersion") = "42";
-  bool Actual = sycl::detail::deviceIsAllowed(
-      DeviceDesc, sycl::detail::parseAllowList(SyclDeviceAllowList));
-  EXPECT_EQ(Actual, false);
-}
-
-TEST(DeviceIsAllowedTests,
      DISABLED_CheckAssertHappensIfIncompleteDeviceDescIsPassedToTheFunc) {
   sycl::detail::DeviceDescT IncompleteDeviceDesc{{"BackendName", "level_zero"}};
   EXPECT_DEATH(sycl::detail::deviceIsAllowed(
@@ -182,22 +171,6 @@ TEST(DeviceIsAllowedTests, CheckSupportedOpenCLCPUDeviceIsAllowedInOldStyle) {
 }
 
 TEST(DeviceIsAllowedTests,
-     CheckSupportedOpenCLFPGAEmuDeviceIsAllowedInOldStyle) {
-  bool Actual = sycl::detail::deviceIsAllowed(
-      OpenCLFPGAEmuDeviceDesc,
-      sycl::detail::parseAllowList(SyclDeviceAllowListOldStyle));
-  EXPECT_EQ(Actual, true);
-}
-
-TEST(DeviceIsAllowedTests,
-     CheckSupportedOpenCLFPGABoardDeviceIsAllowedInOldStyle) {
-  bool Actual = sycl::detail::deviceIsAllowed(
-      OpenCLFPGABoardDeviceDesc,
-      sycl::detail::parseAllowList(SyclDeviceAllowListOldStyle));
-  EXPECT_EQ(Actual, true);
-}
-
-TEST(DeviceIsAllowedTests,
      CheckSupportedLevelZeroGPUDeviceIsAllowedInOldStyle) {
   bool Actual = sycl::detail::deviceIsAllowed(
       LevelZeroGPUDeviceDesc,
@@ -209,16 +182,6 @@ TEST(DeviceIsAllowedTests,
      CheckLevelZeroGPUDeviceWithNotSupportedDeviceNameIsNotAllowedInOldStyle) {
   auto DeviceDesc = OpenCLGPUDeviceDesc;
   DeviceDesc.at("DeviceName") = "ABCD";
-  bool Actual = sycl::detail::deviceIsAllowed(
-      DeviceDesc, sycl::detail::parseAllowList(SyclDeviceAllowListOldStyle));
-  EXPECT_EQ(Actual, false);
-}
-
-TEST(
-    DeviceIsAllowedTests,
-    CheckOpenCLFPGABoardDeviceWithNotSupportedPlatformNameIsNotAllowedInOldStyle) {
-  auto DeviceDesc = OpenCLFPGABoardDeviceDesc;
-  DeviceDesc.at("PlatformName") = "AABBCCDD";
   bool Actual = sycl::detail::deviceIsAllowed(
       DeviceDesc, sycl::detail::parseAllowList(SyclDeviceAllowListOldStyle));
   EXPECT_EQ(Actual, false);

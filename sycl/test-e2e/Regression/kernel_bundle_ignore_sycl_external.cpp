@@ -1,13 +1,12 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// XFAIL: cuda
-// UNSUPPORTED: hip
-
-// Windows doesn't yet have full shutdown().
-// UNSUPPORTED: ze_debug && windows
+// XFAIL: target-nvidia
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16417
+// UNSUPPORTED: target-amd
 
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 class KernelName;
 

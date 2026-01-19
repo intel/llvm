@@ -107,6 +107,10 @@ public:
   ///  intel_sub_group_media_block_write
   void visitCallSPIRVImageMediaBlockBuiltin(CallInst *CI, Op OC);
 
+  /// Transform __spirv_OpGenericCastToPtr_To{Global|Local|Private} to llvm
+  /// addrspacecast instruction.
+  void visitCallGenericCastToPtrBuiltIn(CallInst *CI, Op OC);
+
   /// Transform __spirv_OpGenericCastToPtrExplicit_To{Global|Local|Private} to
   /// to_{global|local|private} OCL builtin.
   void visitCallGenericCastToPtrExplicitBuiltIn(CallInst *CI, Op OC);
@@ -254,6 +258,12 @@ public:
   // Transform FP atomic opcode to corresponding OpenCL function name
   virtual std::string mapFPAtomicName(Op OC) = 0;
 
+  /// Transform integer dot product builtins to corresponding OpenCL builtins
+  /// examples: __spirv_SDotKHR => dot, __spirv_SDotAccSatKHR => dot_acc_sat
+  void visitCallSPIRVDot(CallInst *CI, Op OC, StringRef DemangledName);
+
+  static std::string translateOpaqueType(StringRef STName);
+
   void translateOpaqueTypes();
 
 private:
@@ -282,8 +292,6 @@ private:
   /// example: spirv.Pipe._0 => opencl.pipe_ro_t
   static std::string
   getOCLPipeOpaqueType(SmallVector<std::string, 8> &Postfixes);
-
-  static std::string translateOpaqueType(StringRef STName);
 
   /// Mutate the call instruction based on (optional) image operands at position
   /// ImOpArgIndex. The new function name will be based on NewFuncName, and the

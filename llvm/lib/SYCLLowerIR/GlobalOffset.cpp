@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/GlobalOffset.h"
-#include "llvm/ADT/SmallSet.h"
+#include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Intrinsics.h"
@@ -15,8 +15,9 @@
 #include "llvm/IR/IntrinsicsNVPTX.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/SYCLLowerIR/TargetHelpers.h"
-#include "llvm/Target/TargetIntrinsicInfo.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include <deque>
 
 using namespace llvm;
 
@@ -59,26 +60,153 @@ ModulePass *llvm::createGlobalOffsetPassLegacy() {
   return new GlobalOffsetLegacy();
 }
 
-// Recursive helper function to collect Loads from GEPs in a BFS fashion.
-static void getLoads(Instruction *P, SmallVectorImpl<Instruction *> &Traversed,
-                     SmallVectorImpl<LoadInst *> &Loads) {
-  Traversed.push_back(P);
-  if (auto *L = dyn_cast<LoadInst>(P)) // Base case for recursion
-    Loads.push_back(L);
-  else {
-    assert(isa<GetElementPtrInst>(*P));
-    for (Value *V : P->users())
-      getLoads(cast<Instruction>(V), Traversed, Loads);
+// Helper function to collect all Uses of Load's pointer operand in post-order.
+static void collectGlobalOffsetUses(Function *ImplicitOffsetIntrinsic,
+                                    SmallVectorImpl<Instruction *> &LoadPtrUses,
+                                    SmallVectorImpl<Instruction *> &Loads) {
+  SmallVector<Instruction *, 4> WorkList;
+  SmallPtrSet<Value *, 4> Visited;
+
+  // Find load instructions.
+  for (auto *U : ImplicitOffsetIntrinsic->users()) {
+    for (auto *U2 : cast<CallInst>(U)->users()) {
+      auto *I = cast<Instruction>(U2);
+      WorkList.push_back(I);
+      Visited.insert(I);
+    }
+  }
+  while (!WorkList.empty()) {
+    Instruction *I = WorkList.pop_back_val();
+    if (isa<PHINode>(I) || isa<GetElementPtrInst>(I)) {
+      for (User *U : I->users())
+        if (Visited.insert(U).second)
+          WorkList.push_back(cast<Instruction>(U));
+    }
+    if (isa<LoadInst>(I))
+      Loads.push_back(I);
+  }
+
+  // For each load, find its defs by post-order walking operand use.
+  Visited.clear();
+  for (auto *LI : Loads) {
+    Use *OpUse0 = &LI->getOperandUse(0);
+    auto PostOrderTraveral = [&](auto &Self, Use &U) -> void {
+      auto *I = cast<Instruction>(U.get());
+      Visited.insert(I);
+      for (auto &Op : I->operands()) {
+        auto *OpI = dyn_cast<Instruction>(Op.get());
+        if (!OpI || isa<CallInst>(OpI))
+          continue;
+        if (!Visited.contains(OpI))
+          Self(Self, Op);
+      }
+      if (!isa<CallInst>(I))
+        LoadPtrUses.push_back(I);
+    };
+    Visited.insert(LI);
+    if (!Visited.contains(OpUse0->get()))
+      PostOrderTraveral(PostOrderTraveral, *OpUse0);
+  }
+}
+
+static void validateKernels(Module &M, TargetHelpers::KernelCache &KCache) {
+  SmallVector<GlobalValue *, 4> Vec;
+  collectUsedGlobalVariables(M, Vec, /*CompilerUsed=*/false);
+  collectUsedGlobalVariables(M, Vec, /*CompilerUsed=*/true);
+  SmallPtrSet<GlobalValue *, 8u> Used = {Vec.begin(), Vec.end()};
+
+  auto HasUseOtherThanLLVMUsed = [&Used](GlobalValue *GV) {
+    if (GV->use_empty())
+      return false;
+    return !GV->hasOneUse() || !Used.count(GV);
+  };
+
+  for (auto &F : KCache) {
+    if (HasUseOtherThanLLVMUsed(F))
+      llvm_unreachable("Kernel entry point can't have uses.");
+  }
+}
+
+void GlobalOffsetPass::createClonesAndPopulateVMap(
+    const TargetHelpers::KernelCache &KCache,
+    Function *ImplicitOffsetIntrinsic) {
+  std::deque<User *> WorkList;
+  for (auto *U : ImplicitOffsetIntrinsic->users())
+    WorkList.emplace_back(U);
+
+  while (!WorkList.empty()) {
+    auto *WI = WorkList.front();
+    WorkList.pop_front();
+    auto *Call = dyn_cast<CallInst>(WI);
+    if (!Call)
+      continue; // Not interesting.
+
+    auto *Func = Call->getFunction();
+    if (0 != GlobalVMap.count(Func))
+      continue; // Already processed.
+
+    const bool IsKernel = KCache.isKernel(*Func);
+    FunctionType *FuncTy = Func->getFunctionType();
+    Type *ImplicitArgumentType =
+        IsKernel ? KernelImplicitArgumentType->getPointerTo()
+                 : ImplicitOffsetPtrType;
+
+    // Construct an argument list containing all of the previous arguments.
+    SmallVector<Type *, 8> Arguments;
+    for (const auto &A : Func->args())
+      Arguments.push_back(A.getType());
+
+    // Add the offset argument. Must be the same type as returned by
+    // `llvm.{amdgcn|nvvm}.implicit.offset`.
+    Arguments.push_back(ImplicitArgumentType);
+
+    // Build the new function.
+    if (FuncTy->isVarArg())
+      llvm_unreachable("Variadic arguments prohibited in SYCL");
+    FunctionType *NewFuncTy = FunctionType::get(FuncTy->getReturnType(),
+                                                Arguments, FuncTy->isVarArg());
+    Function *NewFunc = Function::Create(NewFuncTy, Func->getLinkage(),
+                                         Func->getAddressSpace());
+    NewFunc->setName(Func->getName() + "_with_offset");
+    // Remove the subprogram, if exists, as it will be pointing to an incorrect
+    // data.
+    if (Func->getSubprogram())
+      NewFunc->setSubprogram(nullptr);
+
+    // Keep original function ordering, clone goes right after the original.
+    Func->getParent()->getFunctionList().insertAfter(Func->getIterator(),
+                                                     NewFunc);
+
+    // Populate the global value to value map with function arguments as well
+    // as the cloned function itself.
+    for (Function::arg_iterator FuncArg = Func->arg_begin(),
+                                FuncEnd = Func->arg_end(),
+                                NewFuncArg = NewFunc->arg_begin();
+         FuncArg != FuncEnd; ++FuncArg, ++NewFuncArg) {
+      GlobalVMap[FuncArg] = NewFuncArg;
+    }
+    GlobalVMap[Func] = NewFunc;
+
+    // Extend the work list with the users of the function.
+    for (auto *U : Func->users())
+      WorkList.emplace_back(U);
   }
 }
 
 // New PM implementation.
 PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
-  AT = TargetHelpers::getArchType(M);
+  // Only run this pass on SYCL device code
+  if (!TargetHelpers::isSYCLDevice(M))
+    return PreservedAnalyses::all();
+
+  // And only for NVPTX/AMDGCN targets.
+  Triple T(M.getTargetTriple());
+  if (!T.isNVPTX() && !T.isAMDGCN())
+    return PreservedAnalyses::all();
+
   Function *ImplicitOffsetIntrinsic = M.getFunction(Intrinsic::getName(
-      AT == ArchType::Cuda
-          ? static_cast<unsigned>(Intrinsic::nvvm_implicit_offset)
-          : static_cast<unsigned>(Intrinsic::amdgcn_implicit_offset)));
+      T.isNVPTX() ? static_cast<unsigned>(Intrinsic::nvvm_implicit_offset)
+                  : static_cast<unsigned>(Intrinsic::amdgcn_implicit_offset)));
 
   if (!ImplicitOffsetIntrinsic || ImplicitOffsetIntrinsic->use_empty())
     return PreservedAnalyses::all();
@@ -86,68 +214,65 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
   if (EnableGlobalOffset) {
     // For AMD allocas and pointers have to be to CONSTANT_PRIVATE (5), NVVM is
     // happy with ADDRESS_SPACE_GENERIC (0).
-    TargetAS = AT == ArchType::Cuda ? 0 : 5;
+    TargetAS = T.isNVPTX() ? 0 : 5;
     /// The value for NVVM's adDRESS_SPACE_SHARED and AMD's LOCAL_ADDRESS happen
     /// to be 3, use it for the implicit argument pointer type.
     KernelImplicitArgumentType =
         ArrayType::get(Type::getInt32Ty(M.getContext()), 3);
     ImplicitOffsetPtrType =
-        Type::getInt32Ty(M.getContext())->getPointerTo(TargetAS);
+        PointerType::get(Type::getInt32Ty(M.getContext()), TargetAS);
     assert(
         (ImplicitOffsetIntrinsic->getReturnType() == ImplicitOffsetPtrType) &&
         "Implicit offset intrinsic does not return the expected type");
 
-    SmallVector<KernelPayload, 4> KernelPayloads;
-    TargetHelpers::populateKernels(M, KernelPayloads, AT);
+    TargetHelpers::KernelCache KCache;
+    KCache.populateKernels(M);
+    // Validate kernels
+    validateKernels(M, KCache);
 
-    // Validate kernels and populate entry map
-    EntryPointMetadata = generateKernelMDNodeMap(M, KernelPayloads);
+    createClonesAndPopulateVMap(KCache, ImplicitOffsetIntrinsic);
 
     // Add implicit parameters to all direct and indirect users of the offset
-    addImplicitParameterToCallers(M, ImplicitOffsetIntrinsic, nullptr);
+    addImplicitParameterToCallers(M, ImplicitOffsetIntrinsic, nullptr, KCache);
   }
-  SmallVector<CallInst *, 4> Worklist;
-  SmallVector<LoadInst *, 4> Loads;
+  SmallVector<Instruction *, 4> Loads;
   SmallVector<Instruction *, 4> PtrUses;
 
-  // Collect all GEPs and Loads from the intrinsic's CallInsts
-  for (Value *V : ImplicitOffsetIntrinsic->users()) {
-    Worklist.push_back(cast<CallInst>(V));
-    for (Value *V2 : V->users())
-      getLoads(cast<Instruction>(V2), PtrUses, Loads);
-  }
+  collectGlobalOffsetUses(ImplicitOffsetIntrinsic, PtrUses, Loads);
 
   // Replace each use of a collected Load with a Constant 0
-  for (LoadInst *L : Loads)
+  for (Instruction *L : Loads) {
     L->replaceAllUsesWith(ConstantInt::get(L->getType(), 0));
+    L->eraseFromParent();
+  }
 
-  // Remove all collected Loads and GEPs from the kernel.
-  // PtrUses is returned by `getLoads` in topological order.
+  // Try to remove all collected Loads and their Defs from the kernel.
+  // PtrUses is returned by `collectGlobalOffsetUses` in topological order.
   // Walk it backwards so we don't violate users.
-  for (auto *I : reverse(PtrUses))
-    I->eraseFromParent();
+  for (auto *I : reverse(PtrUses)) {
+    // A Def might not be a GEP. Remove it if it has no use.
+    if (I->use_empty())
+      I->eraseFromParent();
+  }
 
   // Remove all collected CallInsts from the kernel.
-  for (CallInst *CI : Worklist) {
-    auto *I = cast<Instruction>(CI);
-    I->eraseFromParent();
-  }
+  for (auto *U : make_early_inc_range(ImplicitOffsetIntrinsic->users()))
+    cast<Instruction>(U)->eraseFromParent();
 
   // Assert that all uses of `ImplicitOffsetIntrinsic` are removed and delete
   // it.
   assert(ImplicitOffsetIntrinsic->use_empty() &&
          "Not all uses of intrinsic removed");
   ImplicitOffsetIntrinsic->eraseFromParent();
+
   return PreservedAnalyses::none();
 }
 
-void GlobalOffsetPass::processKernelEntryPoint(Function *Func) {
-  assert(EntryPointMetadata.count(Func) != 0 &&
-         "Function must be an entry point");
-
+void GlobalOffsetPass::processKernelEntryPoint(
+    Function *Func, TargetHelpers::KernelCache &KCache) {
   auto &M = *Func->getParent();
+  Triple T(M.getTargetTriple());
   LLVMContext &Ctx = M.getContext();
-  MDNode *FuncMetadata = EntryPointMetadata[Func];
 
   // Already processed.
   if (ProcessedFunctions.count(Func) == 1)
@@ -155,32 +280,27 @@ void GlobalOffsetPass::processKernelEntryPoint(Function *Func) {
 
   // Add the new argument to all other kernel entry points, despite not
   // using the global offset.
-  auto *KernelMetadata = M.getNamedMetadata(getAnnotationString(AT).c_str());
-  assert(KernelMetadata && "IR compiled must have correct annotations");
-
   auto *NewFunc = addOffsetArgumentToFunction(
-                      M, Func, KernelImplicitArgumentType->getPointerTo(),
+                      M, Func, PointerType::getUnqual(Func->getContext()),
                       /*KeepOriginal=*/true,
                       /*IsKernel=*/true)
                       .first;
+
   Argument *NewArgument = std::prev(NewFunc->arg_end());
   // Pass byval to the kernel for NVIDIA, AMD's calling convention disallows
   // byval args, use byref.
   auto Attr =
-      AT == ArchType::Cuda
+      T.isNVPTX()
           ? Attribute::getWithByValType(Ctx, KernelImplicitArgumentType)
           : Attribute::getWithByRefType(Ctx, KernelImplicitArgumentType);
   NewArgument->addAttr(Attr);
 
-  // Add the metadata.
-  Metadata *NewMetadata[] = {ConstantAsMetadata::get(NewFunc),
-                             FuncMetadata->getOperand(1),
-                             FuncMetadata->getOperand(2)};
-  KernelMetadata->addOperand(MDNode::get(Ctx, NewMetadata));
+  KCache.handleNewCloneOf(*Func, *NewFunc, /*KernelOnly*/ true);
 }
 
 void GlobalOffsetPass::addImplicitParameterToCallers(
-    Module &M, Value *Callee, Function *CalleeWithImplicitParam) {
+    Module &M, Value *Callee, Function *CalleeWithImplicitParam,
+    TargetHelpers::KernelCache &KCache) {
   SmallVector<User *, 8> Users{Callee->users()};
 
   for (User *U : Users) {
@@ -196,8 +316,8 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
       continue;
 
     // Kernel entry points need additional processing and change Metdadata.
-    if (EntryPointMetadata.count(Caller) != 0)
-      processKernelEntryPoint(Caller);
+    if (KCache.isKernel(*Caller))
+      processKernelEntryPoint(Caller, KCache);
 
     // Determine if `Caller` needs to be processed or if this is another
     // callsite from a non-offset function or an already-processed function.
@@ -208,10 +328,10 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
     if (AlreadyProcessed) {
       NewFunc = Caller;
     } else {
-      std::tie(NewFunc, ImplicitOffset) =
-          addOffsetArgumentToFunction(M, Caller,
-                                      /*KernelImplicitArgumentType*/ nullptr,
-                                      /*KeepOriginal=*/true);
+      std::tie(NewFunc, ImplicitOffset) = addOffsetArgumentToFunction(
+          M, Caller,
+          /*KernelImplicitArgumentType*/ nullptr,
+          /*KeepOriginal=*/true, /*IsKernel=*/false);
     }
     CallToOld = cast<CallInst>(GlobalVMap[CallToOld]);
     if (!CalleeWithImplicitParam) {
@@ -232,7 +352,7 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
           /* Func= */ CalleeWithImplicitParam,
           /* Args= */ ImplicitOffsets,
           /* NameStr= */ Twine(),
-          /* InsertBefore= */ CallToOld);
+          /* InsertBefore= */ CallToOld->getIterator());
       NewCallInst->setTailCallKind(CallToOld->getTailCallKind());
       NewCallInst->copyMetadata(*CallToOld);
       CallToOld->replaceAllUsesWith(NewCallInst);
@@ -249,7 +369,7 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
       continue;
 
     // Process callers of the old function.
-    addImplicitParameterToCallers(M, Caller, NewFunc);
+    addImplicitParameterToCallers(M, Caller, NewFunc, KCache);
   }
 }
 
@@ -278,38 +398,23 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
   AttributeList NAttrs =
       AttributeList::get(Func->getContext(), FuncAttrs.getFnAttrs(),
                          FuncAttrs.getRetAttrs(), ArgumentAttributes);
-  assert(!FuncTy->isVarArg() && "Variadic arguments prohibited in SYCL");
-  FunctionType *NewFuncTy =
-      FunctionType::get(FuncTy->getReturnType(), Arguments, FuncTy->isVarArg());
-
-  Function *NewFunc =
-      Function::Create(NewFuncTy, Func->getLinkage(), Func->getAddressSpace());
-
-  // Keep original function ordering.
-  M.getFunctionList().insertAfter(Func->getIterator(), NewFunc);
+  assert(GlobalVMap.count(Func) != 0 &&
+         "All relevant functions must be prepared ahead of time.");
+  Function *NewFunc = dyn_cast<Function>(GlobalVMap[Func]);
 
   Value *ImplicitOffset = nullptr;
   bool ImplicitOffsetAllocaInserted = false;
   if (KeepOriginal) {
-    // TODO: Are there better naming alternatives that allow for unmangling?
-    NewFunc->setName(Func->getName() + "_with_offset");
-
-    for (Function::arg_iterator FuncArg = Func->arg_begin(),
-                                FuncEnd = Func->arg_end(),
-                                NewFuncArg = NewFunc->arg_begin();
-         FuncArg != FuncEnd; ++FuncArg, ++NewFuncArg) {
-      GlobalVMap[FuncArg] = NewFuncArg;
-    }
-
     SmallVector<ReturnInst *, 8> Returns;
     CloneFunctionInto(NewFunc, Func, GlobalVMap,
                       CloneFunctionChangeType::GlobalChanges, Returns);
+
     // In order to keep the signatures of functions called by the kernel
     // unified, the pass has to copy global offset to an array allocated in
     // addrspace(3). This is done as kernels can't allocate and fill the
     // array in constant address space.
     // Not required any longer, but left due to deprecatedness.
-    if (IsKernel && AT == ArchType::AMDHSA) {
+    if (IsKernel && Func->getCallingConv() == CallingConv::AMDGPU_KERNEL) {
       BasicBlock *EntryBlock = &NewFunc->getEntryBlock();
       IRBuilder<> Builder(EntryBlock, EntryBlock->getFirstInsertionPt());
       Type *ImplicitOffsetType =
@@ -324,8 +429,8 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
       // are replaced with uses of kernarg.segment.ptr which is in
       // addrspace(4), cast implicit offset arg to constant memory so the
       // memcpy is issued into a correct address space.
-      auto OrigImplicitOffsetAS4 = Builder.CreateAddrSpaceCast(
-          OrigImplicitOffset, Type::getInt8Ty(M.getContext())->getPointerTo(4));
+      auto *OrigImplicitOffsetAS4 = Builder.CreateAddrSpaceCast(
+          OrigImplicitOffset, llvm::PointerType::get(M.getContext(), 4));
       Builder.CreateMemCpy(
           ImplicitOffsetAlloca, ImplicitOffsetAlloca->getAlign(),
           OrigImplicitOffsetAS4, OrigImplicitOffsetAS4->getPointerAlignment(DL),
@@ -372,37 +477,11 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
             : EntryBlock->getFirstInsertionPt();
     IRBuilder<> Builder(EntryBlock, InsertionPt);
     ImplicitOffset = Builder.CreateBitCast(
-        ImplicitOffset,
-        Type::getInt32Ty(M.getContext())->getPointerTo(TargetAS));
+        ImplicitOffset, llvm::PointerType::get(M.getContext(), TargetAS));
   }
 
   ProcessedFunctions[Func] = ImplicitOffset;
   Clones.insert(NewFunc);
   // Return the new function and the offset argument.
   return {NewFunc, ImplicitOffset};
-}
-
-DenseMap<Function *, MDNode *> GlobalOffsetPass::generateKernelMDNodeMap(
-    Module &M, SmallVectorImpl<KernelPayload> &KernelPayloads) {
-  SmallPtrSet<GlobalValue *, 8u> Used;
-  SmallVector<GlobalValue *, 4> Vec;
-  collectUsedGlobalVariables(M, Vec, /*CompilerUsed=*/false);
-  collectUsedGlobalVariables(M, Vec, /*CompilerUsed=*/true);
-  Used = {Vec.begin(), Vec.end()};
-
-  auto HasUseOtherThanLLVMUsed = [&Used](GlobalValue *GV) {
-    if (GV->use_empty())
-      return false;
-    return !GV->hasOneUse() || !Used.count(GV);
-  };
-
-  DenseMap<Function *, MDNode *> EntryPointMetadata;
-  for (auto &KP : KernelPayloads) {
-    if (HasUseOtherThanLLVMUsed(KP.Kernel))
-      llvm_unreachable("Kernel entry point can't have uses.");
-
-    EntryPointMetadata[KP.Kernel] = KP.MD;
-  }
-
-  return EntryPointMetadata;
 }

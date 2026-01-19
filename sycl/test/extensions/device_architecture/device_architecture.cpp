@@ -5,6 +5,9 @@
 
 // RUN: %clangxx -fsycl -DSYCL_EXT_ONEAPI_DEVICE_ARCHITECTURE_NEW_DESIGN_IMPL %s -o %t.out
 
+// XFAIL: libcxx
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19616
+
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/sycl.hpp>
 

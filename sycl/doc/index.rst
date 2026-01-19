@@ -10,14 +10,14 @@ Using oneAPI DPC++ for Application Development
    GetStartedGuide
    Getting Started (Japanese) <https://www.isus.jp/others/get-started-with-oneapi-dpc/>
    UsersManual
+   Releases
    PreprocessorMacros
    cuda/contents
    Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/extensions>
-   syclcompat/README.md
    FAQ
-   User API Reference <https://intel.github.io/llvm-docs/doxygen/group__sycl__api.html>
    EnvironmentVariables
    MultiTileCardWithLevelZero
+   syclgraph/SYCLGraphUsageGuide
 
 Design Documents for the oneAPI DPC++ Compiler
 ----------------------------------------------
@@ -25,12 +25,10 @@ Design Documents for the oneAPI DPC++ Compiler
 .. toctree::
    :maxdepth: 1
 
-   API Reference <https://intel.github.io/llvm-docs/doxygen>
    Clang Documentation <https://intel.github.io/llvm-docs/clang>
-   Clang API Reference <https://intel.github.io/llvm-docs/clang_doxygen>
    design/CompilerAndRuntimeDesign
    design/KernelParameterPassing
-   design/PluginInterface
+   design/UnifiedRuntime
    design/SYCL2020-SpecializationConstants
    design/KernelProgramCache
    design/GlobalObjectsInRuntime
@@ -41,24 +39,30 @@ Design Documents for the oneAPI DPC++ Compiler
    design/ParallelForRangeRounding
    design/SYCLInstrumentationUsingXPTI
    design/ITTAnnotations
+   design/DeviceCodeCoverage
    design/DeviceGlobal
    design/CompileTimeProperties
-   design/HostPipes
    design/ESIMDStatelesAccessors
    design/ESIMDDesignNotes
    design/DeviceIf
-   design/KernelFusionJIT
    design/NonRelocatableDeviceCode
    design/DeviceAspectTraitDesign
    design/DeviceConfigFile
    design/PropagateCompilerFlagsToRuntime
    design/SYCLNativeCPU
    design/VirtualFunctions
+   design/SYCLNativeCPUPipeline
+   design/SYCLNativeCPUPipelinePasses
+   design/SYCLNativeCPUVecz
    design/CommandGraph
    design/OffloadDesign
    design/PrivateAlloca
+   design/SYCLBINDesign
+   design/PropertySets
+   design/SYCL-RTC
    New OpenCL Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/design/opencl-extensions>
    New SPIR-V Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/design/spirv-extensions>
+   design/Fuzzing
 
 Developer Documentation
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -66,6 +70,9 @@ Developer Documentation
 .. toctree::
    :maxdepth: 1
 
+   developer/Debugging
    developer/DockerBKMs
    developer/ABIPolicyGuide
    developer/ContributeToDPCPP
+   developer/KHRExtensions
+   developer/WorkingOnAReleaseBranch

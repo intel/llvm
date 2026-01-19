@@ -3,6 +3,7 @@
 #include <sycl/detail/core.hpp>
 
 #include <sycl/builtins.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 #ifdef DEFINE_NDEBUG_INFILE1
 #define NDEBUG
@@ -44,8 +45,12 @@ void enqueueKernel_1_fromFile1(queue *Q) {
 
 int main(int Argc, const char *Argv[]) {
 
-  queue Q;
+  queue Q({sycl::property::queue::in_order{}});
   enqueueKernel_1_fromFile1(&Q);
+  // Should wait for enqueueKernel1 to trigger assert to abort the program,
+  // otherwise we still see assert error msg from file2 since the kernel from
+  // file2 will be launched before kernel from file1 finishes.
+  Q.wait();
   enqueueKernel_2_fromFile2(&Q);
   Q.wait();
 

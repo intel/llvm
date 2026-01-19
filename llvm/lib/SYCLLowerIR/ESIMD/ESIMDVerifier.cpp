@@ -53,6 +53,7 @@ static const char *LegalSYCLFunctions[] = {
     "^sycl::_V1::multi_ptr<.+>::.+",
     "^sycl::_V1::nd_item<.+>::.+",
     "^sycl::_V1::group<.+>::.+",
+    "^sycl::_V1::group_barrier<.+>",
     "^sycl::_V1::sub_group::.+",
     "^sycl::_V1::range<.+>::.+",
     "^sycl::_V1::kernel_handler::.+",
@@ -64,9 +65,12 @@ static const char *LegalSYCLFunctions[] = {
     "^sycl::_V1::operator.+<.+>",
     "^sycl::_V1::ext::oneapi::experimental::properties",
     "^sycl::_V1::ext::oneapi::experimental::detail::ExtractProperties",
+    "^sycl::_V1::ext::oneapi::experimental::root_group<.+>::.+",
+    "^sycl::_V1::ext::oneapi::experimental::this_group<.+>",
     "^sycl::_V1::ext::oneapi::sub_group::.+",
     "^sycl::_V1::ext::oneapi::experimental::spec_constant<.+>::.+",
     "^sycl::_V1::ext::oneapi::experimental::this_sub_group",
+    "^sycl::_V1::ext::oneapi::experimental::this_work_item::get_root_group<.+>",
     "^sycl::_V1::ext::oneapi::experimental::uniform<.+>::.+",
     "^sycl::_V1::ext::oneapi::bfloat16::.+",
     "^sycl::_V1::ext::oneapi::experimental::if_architecture_is"};
@@ -84,6 +88,21 @@ static const char *LegalSYCLFunctionsInStatelessMode[] = {
 // clang-format on
 
 namespace {
+
+class BuffDeleter {
+public:
+  BuffDeleter(char *Buffer) : Buff(Buffer) {};
+  ~BuffDeleter() { std::free(Buff); };
+
+  BuffDeleter() = delete;
+  BuffDeleter(const BuffDeleter &) = delete;
+  BuffDeleter(BuffDeleter &&) = delete;
+  BuffDeleter &operator=(BuffDeleter &) = delete;
+  BuffDeleter &operator=(BuffDeleter &&) = delete;
+
+private:
+  char *Buff;
+};
 
 class ESIMDVerifierImpl {
   const Module &M;
@@ -146,6 +165,7 @@ public:
 
           id::OutputBuffer NameBuf;
           NameNode->print(NameBuf);
+          BuffDeleter NameBufDeleter(NameBuf.getBuffer());
           StringRef Name(NameBuf.getBuffer(), NameBuf.getCurrentPosition());
 
           // We are interested in functions defined in SYCL namespace, but

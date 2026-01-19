@@ -1,4 +1,8 @@
 // REQUIRES: level_zero, level_zero_dev_kit
+
+// UNSUPPORTED: arch-intel_gpu_mtl_u
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20898
+
 // RUN: %{build} -o %t.out %level_zero_options
 // RUN: %{run} %t.out
 
@@ -17,7 +21,9 @@ int main(int argc, char *argv[]) {
   int level0DriverIndex = 0;
   int level0DeviceIndex = 0;
 
-  zeInit(0);
+  ze_result_t result = zeInit(0);
+  assert(result == ZE_RESULT_SUCCESS);
+
   uint32_t level0NumDrivers = 0;
   zeDriverGet(&level0NumDrivers, nullptr);
 

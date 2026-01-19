@@ -22,7 +22,6 @@
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/PostOrderIterator.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
@@ -150,6 +149,27 @@ public:
     StmtVisitor::VisitIfStmt(If);
   }
 
+  void VisitConstantExpr(ConstantExpr *CE) {
+    if (G->shouldSkipConstantExpressions())
+      return;
+    StmtVisitor::VisitConstantExpr(CE);
+  }
+
+  void VisitDeclStmt(DeclStmt *DS) {
+    if (G->shouldSkipConstantExpressions()) {
+      auto IsConstexprVarDecl = [this](Decl *D) {
+        if (const auto *VD = dyn_cast<VarDecl>(D))
+          return VD->isUsableInConstantExpressions(G->getASTContext());
+        return false;
+      };
+      if (llvm::any_of(DS->decls(), IsConstexprVarDecl)) {
+        return;
+      }
+    }
+
+    StmtVisitor::VisitDeclStmt(DS);
+  }
+
   void VisitChildren(Stmt *S) {
     for (Stmt *SubStmt : S->children())
       if (SubStmt)
@@ -169,6 +189,9 @@ void CallGraph::addNodesForBlocks(DeclContext *D) {
 }
 
 CallGraph::CallGraph() {
+  ShouldWalkTypesOfTypeLocs = false;
+  ShouldVisitTemplateInstantiations = true;
+  ShouldVisitImplicitCode = true;
   Root = getOrInsertNode(nullptr);
 }
 
@@ -243,10 +266,7 @@ void CallGraph::print(raw_ostream &OS) const {
   // We are going to print the graph in reverse post order, partially, to make
   // sure the output is deterministic.
   llvm::ReversePostOrderTraversal<const CallGraph *> RPOT(this);
-  for (llvm::ReversePostOrderTraversal<const CallGraph *>::rpo_iterator
-         I = RPOT.begin(), E = RPOT.end(); I != E; ++I) {
-    const CallGraphNode *N = *I;
-
+  for (const CallGraphNode *N : RPOT) {
     OS << "  Function: ";
     if (N == Root)
       OS << "< root >";

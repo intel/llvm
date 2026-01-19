@@ -1,11 +1,7 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
-// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
-// Extra run to check for immediate-command-list in Level Zero
-// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
-
-// REQUIRES: aspect-usm_shared_allocations
+// RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
 // Tests that whole graph update works when using dynamic parameters.
 
@@ -35,7 +31,7 @@ int main() {
 
   exp_ext::command_graph GraphA{Queue.get_context(), Queue.get_device()};
 
-  exp_ext::dynamic_parameter InputParam(GraphA, InputDataDevice1);
+  exp_ext::dynamic_parameter InputParam(InputDataDevice1);
   auto KernelLambda = [=]() {
     for (size_t i = 0; i < Size; i++) {
       OutputDataDevice1[i] = InputDataDevice1[i];

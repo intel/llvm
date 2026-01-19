@@ -8,11 +8,11 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>     // for mode, placeholder, target
-#include <sycl/detail/defines.hpp>    // for __SYCL_SPECIAL_CLASS, __SYCL_TYPE
-#include <sycl/detail/export.hpp>     // for __SYCL_EXPORT
+#include <sycl/access/access.hpp>  // for mode, placeholder, target
+#include <sycl/detail/defines.hpp> // for __SYCL_SPECIAL_CLASS, __SYCL_TYPE
+#include <sycl/detail/export.hpp>  // for __SYCL_EXPORT
+#include <sycl/detail/fwd/accessor.hpp>
 #include <sycl/detail/impl_utils.hpp> // for getSyclObjImpl
-#include <sycl/detail/pi.h>           // for PI_SAMPLER_ADDRESSING_MODE_CLAMP
 #include <sycl/property_list.hpp>     // for property_list
 
 #include <cstddef> // for size_t
@@ -22,28 +22,23 @@
 namespace sycl {
 inline namespace _V1 {
 enum class addressing_mode : unsigned int {
-  mirrored_repeat = PI_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT,
-  repeat = PI_SAMPLER_ADDRESSING_MODE_REPEAT,
-  clamp_to_edge = PI_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE,
-  clamp = PI_SAMPLER_ADDRESSING_MODE_CLAMP,
-  none = PI_SAMPLER_ADDRESSING_MODE_NONE
+  mirrored_repeat = 0x1134, // Value of CL_ADDRESS_MIRRORED_REPEAT
+  repeat = 0x1133,          // Value of CL_ADDRESS_REPEAT
+  clamp_to_edge = 0x1131,   // Value of CL_ADDRESS_CLAMP_TO_EDGE
+  clamp = 0x1132,           // Value of CL_ADDRESS_CLAMP
+  ext_oneapi_clamp_to_border = clamp,
+  none = 0x1130 // Value of CL_ADDRESS_NONE
 };
 
 enum class filtering_mode : unsigned int {
-  nearest = PI_SAMPLER_FILTER_MODE_NEAREST,
-  linear = PI_SAMPLER_FILTER_MODE_LINEAR
+  nearest = 0x1140, // Value of CL_FILTER_NEAREST
+  linear = 0x1141   // Value of CL_FILTER_LINEAR
 };
 
 enum class coordinate_normalization_mode : unsigned int {
   normalized = 1,
   unnormalized = 0
 };
-
-namespace detail {
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder>
-class image_accessor;
-}
 
 namespace detail {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -68,6 +63,8 @@ class sampler_impl;
 ///
 /// \ingroup sycl_api
 class __SYCL_EXPORT __SYCL_SPECIAL_CLASS __SYCL_TYPE(sampler) sampler {
+  friend sycl::detail::ImplUtils;
+
 public:
   sampler(coordinate_normalization_mode normalizationMode,
           addressing_mode addressingMode, filtering_mode filteringMode,
@@ -124,9 +121,6 @@ public:
 private:
 #else
   std::shared_ptr<detail::sampler_impl> impl;
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
 #endif
   template <typename DataT, int Dimensions, sycl::access::mode AccessMode,
             sycl::access::target AccessTarget,
@@ -146,16 +140,7 @@ struct image_sampler {
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
-template <> struct hash<sycl::sampler> {
-  size_t operator()(const sycl::sampler &s) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    (void)s;
-    return 0;
-#else
-    return hash<std::shared_ptr<sycl::detail::sampler_impl>>()(
-        sycl::detail::getSyclObjImpl(s));
-#endif
-  }
-};
-} // namespace std
+template <>
+struct std::hash<sycl::sampler>
+    : public sycl::detail::sycl_obj_hash<sycl::sampler,
+                                         false /*SupportedOnDevice*/> {};

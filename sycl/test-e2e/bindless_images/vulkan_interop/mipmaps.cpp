@@ -1,4 +1,6 @@
-// REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_bindless_images
+// REQUIRES: aspect-ext_oneapi_external_memory_import
+// REQUIRES: aspect-ext_oneapi_mipmap
 // REQUIRES: vulkan
 
 // RUN: %{build} %link-vulkan -o %t.out
@@ -10,8 +12,8 @@
 // Define NOMINMAX to enable compilation on Windows
 #define NOMINMAX
 
+#include "../../CommonUtils/vulkan_common.hpp"
 #include "../helpers/common.hpp"
-#include "vulkan_common.hpp"
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
@@ -20,7 +22,7 @@ namespace syclexp = sycl::ext::oneapi::experimental;
 struct handles_t {
   syclexp::sampled_image_handle imgInput;
   syclexp::image_mem_handle imgMem;
-  syclexp::interop_mem_handle inputInteropMemHandle;
+  syclexp::external_mem inputExternalMem;
 };
 
 template <typename InteropMemHandleT>
@@ -42,19 +44,18 @@ handles_t create_handles(sycl::context &ctxt, sycl::device &dev,
 #endif
 
   // Extension: interop mem handle imported from file descriptor
-  syclexp::interop_mem_handle inputInteropMemHandle =
+  syclexp::external_mem inputExternalMem =
       syclexp::import_external_memory(inputExtMemDesc, dev, ctxt);
 
   // Extension: interop mem handle imported from file descriptor
   syclexp::image_mem_handle inputMappedMemHandle =
-      syclexp::map_external_image_memory(inputInteropMemHandle, desc, dev,
-                                         ctxt);
+      syclexp::map_external_image_memory(inputExternalMem, desc, dev, ctxt);
 
   // Extension: create the image and return the handle
   syclexp::sampled_image_handle imgInput =
       syclexp::create_image(inputMappedMemHandle, samp, desc, dev, ctxt);
 
-  return {imgInput, inputMappedMemHandle, inputInteropMemHandle};
+  return {imgInput, inputMappedMemHandle, inputExternalMem};
 }
 
 template <int NDims, typename DType, int NChannels,
@@ -150,9 +151,9 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
     q.wait_and_throw();
 
     syclexp::destroy_image_handle(handles.imgInput, dev, ctxt);
-    syclexp::free_image_mem(handles.imgMem, syclexp::image_type::mipmap, dev,
-                            ctxt);
-    syclexp::release_external_memory(handles.inputInteropMemHandle, dev, ctxt);
+    syclexp::unmap_external_image_memory(
+        handles.imgMem, syclexp::image_type::mipmap, dev, ctxt);
+    syclexp::release_external_memory(handles.inputExternalMem, dev, ctxt);
   } catch (sycl::exception e) {
     std::cerr << "\tKernel submission failed! " << e.what() << std::endl;
     exit(-1);
@@ -267,14 +268,13 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   // Create input image memory
   auto inputImage = vkutil::createImage(imgType, format, {width, height, depth},
                                         VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                                            VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                                            VK_IMAGE_USAGE_STORAGE_BIT,
+                                            VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                                         mipLevels);
   VkMemoryRequirements memRequirements;
   auto inputImageMemoryTypeIndex = vkutil::getImageMemoryTypeIndex(
       inputImage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, memRequirements);
-  auto inputMemory = vkutil::allocateDeviceMemory(memRequirements.size,
-                                                  inputImageMemoryTypeIndex);
+  auto inputMemory = vkutil::allocateDeviceMemory(
+      memRequirements.size, inputImageMemoryTypeIndex, inputImage);
   VK_CHECK_CALL(vkBindImageMemory(vk_device, inputImage, inputMemory,
                                   0 /*memoryOffset*/));
 
@@ -287,7 +287,8 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
       inputStagingBuffer, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
   auto inputStagingMemory = vkutil::allocateDeviceMemory(
-      memRequirements.size, inputStagingMemoryTypeIndex, false /*exportable*/);
+      memRequirements.size, inputStagingMemoryTypeIndex, nullptr /*image*/,
+      false /*exportable*/);
   VK_CHECK_CALL(vkBindBufferMemory(vk_device, inputStagingBuffer,
                                    inputStagingMemory, 0 /*memoryOffset*/));
 
@@ -446,8 +447,7 @@ int main() {
 
   sycl::device dev;
 
-  if (vkutil::setupDevice(dev.get_info<sycl::info::device::name>()) !=
-      VK_SUCCESS) {
+  if (vkutil::setupDevice(dev) != VK_SUCCESS) {
     std::cerr << "Device setup failed!\n";
     return EXIT_FAILURE;
   }

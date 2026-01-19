@@ -110,7 +110,7 @@ int main(void) {
   try {
     auto e = q.submit([&](handler &cgh) {
       cgh.parallel_for<class Test>(
-          Range, [=](nd_item<1> ndi) [[intel::reqd_sub_group_size(VL)]] {
+          Range, [=](nd_item<1> ndi) [[sycl::reqd_sub_group_size(VL)]] {
             sub_group sg = ndi.get_sub_group();
             group<1> g = ndi.get_group();
             uint32_t i =

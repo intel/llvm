@@ -1,6 +1,9 @@
-// REQUIRES: cuda
-// RUN: %{build} -o %t.out -lcuda
+// REQUIRES: target-nvidia, cuda_dev_kit
+// UNSUPPORTED: cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16951
+// RUN: %{build} -o %t.out %cuda_options
 // RUN: %{run} %t.out
+
 #include <cuda.h>
 
 #include <iostream>

@@ -15,7 +15,7 @@ target triple = "spir64-unknown-unknown"
 source_filename = "linear-dbg-value.ll"
 
 ; Function Attrs: nounwind readonly uwtable
-define i32 @foo(ptr nocapture readonly %a, i32 %N) local_unnamed_addr #0 !dbg !6 {
+define i32 @foo(ptr captures(none) readonly %a, i32 %N) local_unnamed_addr #0 !dbg !6 {
 entry:
   %cmp6 = icmp sgt i32 %N, 0, !dbg !11
   br i1 %cmp6, label %for.body.preheader, label %for.cond.cleanup, !dbg !15

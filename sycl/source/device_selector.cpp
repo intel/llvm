@@ -33,15 +33,14 @@ namespace detail {
 // itself, so only matching devices will be scored.
 static int getDevicePreference(const device &Device) {
   int Score = 0;
-
+  const device_impl &DeviceImpl = *getSyclObjImpl(Device);
   // Strongly prefer devices with available images.
   auto &program_manager = sycl::detail::ProgramManager::getInstance();
-  if (program_manager.hasCompatibleImage(Device))
+  if (program_manager.hasCompatibleImage(DeviceImpl))
     Score += 1000;
 
   // Prefer level_zero backend devices.
-  if (detail::getSyclObjImpl(Device)->getBackend() ==
-      backend::ext_oneapi_level_zero)
+  if (DeviceImpl.getBackend() == backend::ext_oneapi_level_zero)
     Score += 50;
 
   return Score;
@@ -50,10 +49,11 @@ static int getDevicePreference(const device &Device) {
 static void traceDeviceSelection(const device &Device, int Score, bool Chosen) {
   bool shouldTrace = false;
   if (Chosen) {
-    shouldTrace = detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_BASIC);
+    shouldTrace = detail::ur::trace(detail::ur::TraceLevel::TRACE_BASIC);
   } else {
-    shouldTrace = detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL);
+    shouldTrace = detail::ur::trace(detail::ur::TraceLevel::TRACE_ALL);
   }
+
   if (shouldTrace) {
     std::string PlatformName = Device.get_info<info::device::platform>()
                                    .get_info<info::platform::name>();
@@ -61,11 +61,11 @@ static void traceDeviceSelection(const device &Device, int Score, bool Chosen) {
     auto selectionMsg = Chosen ? "Selected device: -> final score = "
                                : "Candidate device: -> score = ";
 
-    std::cout << "SYCL_PI_TRACE[all]: " << selectionMsg << Score
+    std::cout << "SYCL_UR_TRACE: " << selectionMsg << Score
               << ((Score < 0) ? " (REJECTED)" : "") << std::endl
-              << "SYCL_PI_TRACE[all]: "
+              << "SYCL_UR_TRACE: "
               << "  platform: " << PlatformName << std::endl
-              << "SYCL_PI_TRACE[all]: "
+              << "SYCL_UR_TRACE: "
               << "  device: " << DeviceName << std::endl;
   }
 }
@@ -167,10 +167,9 @@ select_device(const DSelectorInvocableType &DeviceSelectorInvocable,
 /// 4. Accelerator
 
 static void traceDeviceSelector(const std::string &DeviceType) {
-  bool ShouldTrace = false;
-  ShouldTrace = detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_BASIC);
+  bool ShouldTrace = detail::ur::trace(detail::ur::TraceLevel::TRACE_BASIC);
   if (ShouldTrace) {
-    std::cout << "SYCL_PI_TRACE[all]: Requested device_type: " << DeviceType
+    std::cout << "SYCL_UR_TRACE: Requested device_type: " << DeviceType
               << std::endl;
   }
 }
@@ -187,11 +186,8 @@ __SYCL_EXPORT int default_selector_v(const device &dev) {
   if (dev.is_cpu())
     Score += 300;
 
-  // Since we deprecate SYCL_BE and SYCL_DEVICE_TYPE,
-  // we should not disallow accelerator to be chosen.
-  // But this device type gets the lowest heuristic point.
   if (dev.is_accelerator())
-    Score += 75;
+    Score = detail::REJECT_DEVICE_SCORE;
 
   // Add preference score.
   Score += detail::getDevicePreference(dev);
@@ -221,15 +217,8 @@ __SYCL_EXPORT int cpu_selector_v(const device &dev) {
   return Score;
 }
 
-__SYCL_EXPORT int accelerator_selector_v(const device &dev) {
-  int Score = detail::REJECT_DEVICE_SCORE;
-
-  traceDeviceSelector("info::device_type::accelerator");
-  if (dev.is_accelerator()) {
-    Score = 1000;
-    Score += detail::getDevicePreference(dev);
-  }
-  return Score;
+__SYCL_EXPORT int accelerator_selector_v(const device &) {
+  return detail::REJECT_DEVICE_SCORE;
 }
 
 __SYCL_EXPORT detail::DSelectorInvocableType
@@ -237,6 +226,12 @@ aspect_selector(const std::vector<aspect> &RequireList,
                 const std::vector<aspect> &DenyList /* ={} */) {
   return [=](const sycl::device &Dev) {
     auto DevHas = [&](const aspect &Asp) -> bool { return Dev.has(Asp); };
+
+    // SYCL 2020 4.6.1.1. Device selector:
+    // If no aspects are passed in, the generated selector behaves like
+    // default_selector_v.
+    if (RequireList.empty() && DenyList.empty())
+      return default_selector_v(Dev);
 
     // All aspects from require list are required.
     if (!std::all_of(RequireList.begin(), RequireList.end(), DevHas))
@@ -246,14 +241,7 @@ aspect_selector(const std::vector<aspect> &RequireList,
     if (std::any_of(DenyList.begin(), DenyList.end(), DevHas))
       return detail::REJECT_DEVICE_SCORE;
 
-    if (RequireList.size() > 0) {
-      return 1000 + detail::getDevicePreference(Dev);
-    } else {
-      // No required aspects specified.
-      // SYCL 2020 4.6.1.1 "If no aspects are passed in, the generated selector
-      // behaves like default_selector."
-      return default_selector_v(Dev);
-    }
+    return 1000 + detail::getDevicePreference(Dev);
   };
 }
 
@@ -284,7 +272,8 @@ int accelerator_selector::operator()(const device &dev) const {
 namespace ext::oneapi {
 
 filter_selector::filter_selector(sycl::detail::string_view Input)
-    : impl(std::make_shared<detail::filter_selector_impl>(Input.data())) {}
+    : impl(std::make_shared<detail::filter_selector_impl>(
+          std::string(std::string_view(Input)))) {}
 
 int filter_selector::operator()(const device &Dev) const {
   return impl->operator()(Dev);

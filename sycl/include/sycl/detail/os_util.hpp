@@ -12,7 +12,9 @@
 
 #include <sycl/detail/export.hpp> // for __SYCL_EXPORT
 
-#include <cstdlib>    // for size_t
+#include <array>
+#include <cstdlib> // for size_t
+#include <functional>
 #include <string>     // for string
 #include <sys/stat.h> // for stat
 
@@ -44,10 +46,8 @@ namespace detail {
 class __SYCL_EXPORT OSUtil {
 public:
   /// Returns an absolute path to a directory where the object was found.
+  __SYCL_DLL_LOCAL
   static std::string getCurrentDSODir();
-
-  /// Returns a directory component of a path.
-  static std::string getDirName(const char *Path);
 
 #ifdef __SYCL_RT_OS_WINDOWS
   static constexpr const char *DirSep = "\\";
@@ -68,7 +68,7 @@ public:
   /// Make all directories on the path, throws on error.
   static int makeDir(const char *Dir);
 
-  /// Checks if specified path is present
+  /// Checks if specified path is present.
   static bool isPathPresent(const std::string &Path) {
 #ifdef __SYCL_RT_OS_WINDOWS
     struct _stat Stat;
@@ -79,6 +79,54 @@ public:
 #endif
   }
 };
+
+// These functions are not a part of OSUtils class to prevent
+// exporting them as ABI. They are only used in persistent cache
+// implementation and should not be exposed to the end users.
+// Get size of directory in bytes.
+size_t getDirectorySize(const std::string &Path, bool ignoreErrors = false);
+
+// Get size of file in bytes.
+size_t getFileSize(const std::string &Path);
+
+// Function to recursively iterate over the directory and execute
+// 'Func' on each regular file.
+void fileTreeWalk(const std::string Path,
+                  std::function<void(const std::string)> Func,
+                  bool ignoreErrors = false);
+
+// Look up a function name that was dynamically linked
+// This is used by the runtime where it needs to manipulate native handles
+// (e.g. retaining OpenCL handles).
+//
+// The library must already have been loaded (perhaps by UR), otherwise this
+// function throws a SYCL runtime exception.
+void *dynLookup(const char *const *LibNames, size_t LibNameSizes,
+                const char *FunName);
+
+template <typename fn>
+fn *dynLookupFunction(const char *const *LibNames, size_t LibNameSize,
+                      const char *FunName) {
+  return reinterpret_cast<fn *>(dynLookup(LibNames, LibNameSize, FunName));
+}
+
+// On Linux, first try to load from libur_adapter_opencl.so, then
+// libur_adapter_opencl.so.0 if the first is not found. libur_adapter_opencl.so
+// and libur_adapter_opencl.so.0 might be different libraries if they are not
+// symlinked, which is the case with PyPi compiler distribution package.
+// We can't load libur_adapter_opencl.so.0 always as the first choice because
+// that would break SYCL unittests, which rely on mocking libur_adapter_opencl.
+#ifdef __SYCL_RT_OS_WINDOWS
+constexpr std::array<const char *, 1> OCLLibNames = {"OpenCL"};
+#else
+constexpr std::array<const char *, 2> OCLLibNames = {
+    "libur_adapter_opencl.so", "libur_adapter_opencl.so.0"};
+#endif
+
+#define __SYCL_OCL_CALL(FN, ...)                                               \
+  (sycl::_V1::detail::dynLookupFunction<decltype(FN)>(                         \
+      sycl::detail::OCLLibNames.data(), sycl::detail::OCLLibNames.size(),      \
+      #FN)(__VA_ARGS__))
 
 } // namespace detail
 } // namespace _V1

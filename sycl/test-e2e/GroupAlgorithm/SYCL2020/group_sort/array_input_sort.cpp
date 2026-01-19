@@ -1,4 +1,8 @@
 // REQUIRES: sg-8
+// UNSUPPORTED: target-nvidia || target-amd
+// UNSUPPORTED-INTENDED: subgroup size requirement implicitly make nvptx/amdgcn
+// not supported
+
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
@@ -78,7 +82,7 @@ void RunSortOverGroupArray(sycl::queue &Q, const std::vector<T> &DataToSort,
                                                        CGH);
 
        CGH.parallel_for(
-           NDRange, [=](sycl::nd_item<Dims> id) [[intel::reqd_sub_group_size(
+           NDRange, [=](sycl::nd_item<Dims> id) [[sycl::reqd_sub_group_size(
                         ReqSubGroupSize)]] {
              const size_t GlobalLinearID = id.get_global_linear_id();
              using RadixSorterT = oneapi_exp::radix_sorters::group_sorter<

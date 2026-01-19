@@ -16,7 +16,7 @@ template <typename T>
 void tmpl(T t){}
 // See Check Lines below.
 
-__attribute__((sycl_device)) void usages() {
+[[clang::sycl_external]] void usages() {
   int *NoAS;
   // CHECK-DAG: [[NoAS:%[a-zA-Z0-9]+]] = alloca ptr, align 8
   __attribute__((opencl_global)) int *GLOB;

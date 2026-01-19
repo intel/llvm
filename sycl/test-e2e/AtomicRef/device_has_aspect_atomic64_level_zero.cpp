@@ -9,6 +9,12 @@
 using namespace sycl;
 
 int main() {
+  // Initializing Level Zero driver is required if this test is linked
+  // statically with Level Zero loader, otherwise the driver will not be
+  // initialized.
+  ze_result_t result = zeInit(ZE_INIT_FLAG_GPU_ONLY);
+  assert(result == ZE_RESULT_SUCCESS && "zeInit failed");
+
   queue Queue;
   device Dev = Queue.get_device();
   bool Result;

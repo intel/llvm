@@ -17,11 +17,9 @@ def cuda_path_EQ : Joined<["--"], "cuda-path=">,
   Flags<[WrapperOnlyOption]>, MetaVarName<"<dir>">,
   HelpText<"Set the system CUDA path">;
 def host_triple_EQ : Joined<["--"], "host-triple=">,
-  Flags<[WrapperOnlyOption]>, MetaVarName<"<triple>">,
-  HelpText<"Triple to use for the host compilation">;
-def opt_level : Joined<["--"], "opt-level=">,
-  Flags<[WrapperOnlyOption]>, MetaVarName<"<O0, O1, O2, or O3>">,
-  HelpText<"Optimization level for LTO">;
+                     Flags<[WrapperOnlyOption]>,
+                     MetaVarName<"<triple>">,
+                     HelpText<"Triple to use for the host compilation">;
 def bitcode_library_EQ : Joined<["--"], "bitcode-library=">,
   Flags<[WrapperOnlyOption]>, MetaVarName<"<kind>-<triple>-<arch>=<path>">,
   HelpText<"Extra bitcode library to link">;
@@ -30,8 +28,11 @@ def builtin_bitcode_EQ : Joined<["--"], "builtin-bitcode=">,
   HelpText<"Perform a special internalizing link on the bitcode file. "
            "This is necessary for some vendor libraries to be linked correctly">;
 def device_linker_args_EQ : Joined<["--"], "device-linker=">,
-  Flags<[WrapperOnlyOption]>, MetaVarName<"<value> or <triple>=<value>">,
+  Flags<[WrapperOnlyOption]>, MetaVarName<"[<kind>:][<triple>=]<value>">,
   HelpText<"Arguments to pass to the device linker invocation">;
+def device_compiler_args_EQ : Joined<["--"], "device-compiler=">,
+  Flags<[WrapperOnlyOption]>, MetaVarName<"[<kind>:][<triple>=]<value>">,
+  HelpText<"Arguments to pass to the device compiler invocation">;
 def clang_backend : Flag<["--"], "clang-backend">,
   Flags<[WrapperOnlyOption]>,
   HelpText<"Run the backend using clang rather than the LTO backend">;
@@ -41,18 +42,8 @@ def dry_run : Flag<["--"], "dry-run">,
 def verbose : Flag<["--"], "wrapper-verbose">,
   Flags<[WrapperOnlyOption]>, HelpText<"Verbose output from tools">;
 def embed_bitcode : Flag<["--"], "embed-bitcode">,
-  Flags<[WrapperOnlyOption]>, HelpText<"Embed linked bitcode in the module">;
-def debug : Flag<["--"], "device-debug">, Flags<[WrapperOnlyOption]>, 
-  HelpText<"Use debugging">;
-def ptxas_arg : Joined<["--"], "ptxas-arg=">,
-  Flags<[WrapperOnlyOption]>,
-  HelpText<"Argument to pass to the 'ptxas' invocation">;
-def pass_remarks_EQ : Joined<["--"], "pass-remarks=">,
-  Flags<[WrapperOnlyOption]>, HelpText<"Pass remarks for LTO">;
-def pass_remarks_missed_EQ : Joined<["--"], "pass-remarks-missed=">,
-  Flags<[WrapperOnlyOption]>, HelpText<"Pass remarks for LTO">;
-def pass_remarks_analysis_EQ : Joined<["--"], "pass-remarks-analysis=">,
-  Flags<[WrapperOnlyOption]>, HelpText<"Pass remarks for LTO">;
+                    Flags<[WrapperOnlyOption]>,
+                    HelpText<"Embed linked bitcode in the module">;
 def print_wrapped_module : Flag<["--"], "print-wrapped-module">,
   Flags<[WrapperOnlyOption]>,
   HelpText<"Print the wrapped module's IR for testing">;
@@ -72,11 +63,25 @@ def wrapper_time_trace_granularity : Joined<["--"], "wrapper-time-trace-granular
 
 def wrapper_jobs : Joined<["--"], "wrapper-jobs=">,
   Flags<[WrapperOnlyOption]>, MetaVarName<"<number>">,
-  HelpText<"Sets the number of parallel jobs to use for device linking">;
+  HelpText<"Sets the number of parallel jobs for device linking. Can be a "
+            "positive integer or 'jobserver'.">;
 
 def override_image : Joined<["--"], "override-image=">,
   Flags<[WrapperOnlyOption]>, MetaVarName<"<kind=file>">,
   HelpText<"Uses the provided file as if it were the output of the device link step">;
+
+def should_extract : CommaJoined<["--"], "should-extract=">,
+  Flags<[WrapperOnlyOption]>, MetaVarName<"<kind=file>">,
+  HelpText<"Set of device architectures we should always extract if found.">;
+
+def preview_breaking_changes : Flag<["-"], "fpreview-breaking-changes">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Enables preview of breaking changes in the wrapper">;
+
+def emit_fatbin_only
+    : Flag<["--"], "emit-fatbin-only">,
+      Flags<[WrapperOnlyOption]>,
+      HelpText<"Emit fat binary directly without wrapping or host linking">;
 
 // Flags passed to the device linker.
 def arch_EQ : Joined<["--"], "arch=">,
@@ -91,12 +96,19 @@ def whole_program : Flag<["--"], "whole-program">,
 def linker_arg_EQ : Joined<["--"], "linker-arg=">,
   Flags<[DeviceOnlyOption, HelpHidden]>,
   HelpText<"An extra argument to be passed to the linker">;
+def compiler_arg_EQ : Joined<["--"], "compiler-arg=">,
+  Flags<[DeviceOnlyOption, HelpHidden]>,
+  HelpText<"An extra argument to be passed to the compiler">;
 
 // Arguments for the LLVM backend.
 def mllvm : Separate<["-"], "mllvm">, Flags<[WrapperOnlyOption]>,
-  MetaVarName<"<arg>">, HelpText<"Arguments passed to the LLVM invocation">;
-def offload_opt_eq_minus : Joined<["--", "-"], "offload-opt=-">, Flags<[HelpHidden, WrapperOnlyOption]>,
-  HelpText<"Options passed to LLVM">;
+  MetaVarName<"<arg>">,
+  HelpText<"Arguments passed to LLVM, including Clang invocations, for which "
+           "the '-mllvm' prefix is preserved. Use '-mllvm --help' for a list "
+           "of options.">;
+def offload_opt_eq_minus : Joined<["--", "-"], "offload-opt=">, Flags<[HelpHidden, WrapperOnlyOption]>,
+  HelpText<"Options passed to LLVM, not including the Clang invocation. Use "
+           "'--offload-opt=--help' for a list of options.">;
 
 // Standard linker flags also used by the linker wrapper.
 def sysroot_EQ : Joined<["--"], "sysroot=">, HelpText<"Set the system root">;
@@ -150,19 +162,6 @@ def sycl_device_lib_EQ : CommaJoined<["--", "-"], "sycl-device-libraries=">,
 def sycl_device_library_location_EQ : Joined<["--", "-"],
   "sycl-device-library-location=">, Flags<[WrapperOnlyOption]>,
   HelpText<"Location of SYCL device library files">;
-def sycl_nvptx_device_lib_EQ : CommaJoined<["--", "-"], "sycl-nvptx-device-libraries=">,
-  Flags<[WrapperOnlyOption]>,
-  HelpText<"A comma separated list of nvptx-specific device libraries that are linked during the device link.">;
-
-// Options for SYCL backends and linker options for shared libraries.
-def sycl_backend_compile_options_EQ :
-  Joined<["--", "-"], "sycl-backend-compile-options">,
-  Flags<[WrapperOnlyOption]>,
-  HelpText<"Options that are passed to the backend of target device compiler">;
-def sycl_target_link_options_EQ :
-  Joined<["--", "-"], "sycl-target-link-options">,
-  Flags<[WrapperOnlyOption]>,
-  HelpText<"Options that are passed to target linker during a linking of shared device code.">;
 
 // Special option to pass in sycl-post-link options
 def sycl_post_link_options_EQ : Joined<["--", "-"], "sycl-post-link-options=">,
@@ -173,6 +172,15 @@ def sycl_module_split_mode_EQ :
   Joined<["--", "-"], "sycl-module-split-mode=">,
   Flags<[WrapperOnlyOption]>,
   HelpText<"Option that turns on split library with the given split mode">;
+
+// TODO: Options will be removed when the sycl-post-link tool becomes removed.
+def use_sycl_post_link_tool : Flag<["--", "-"], "use-sycl-post-link-tool">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Use the sycl-post-link tool. On by default">;
+
+def no_use_sycl_post_link_tool : Flag<["--", "-"], "no-use-sycl-post-link-tool">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Use a SYCL library instead of sycl-post-link tool. (experimental)">;
 
 // Special option to pass in llvm-spirv options
 def llvm_spirv_options_EQ : Joined<["--", "-"], "llvm-spirv-options=">,
@@ -196,24 +204,27 @@ def sycl_add_default_spec_consts_image : Flag<["--", "-"], "sycl-add-default-spe
 def no_sycl_add_default_spec_consts_image : Flag<["--", "-"], "no-sycl-add-default-spec-consts-image">,
   Flags<[WrapperOnlyOption, HelpHidden]>;
 
-// Special options to pass backend options required for AOT compilation
-def gpu_tool_arg_EQ :
-  Joined<["--", "-"], "gpu-tool-arg=">,
-  Flags<[WrapperOnlyOption]>,
-  HelpText<"Options that are passed to the backend of target device compiler for Intel GPU during AOT compilation">;
-def cpu_tool_arg_EQ :
-  Joined<["--", "-"], "cpu-tool-arg=">,
-  Flags<[WrapperOnlyOption]>,
-  HelpText<"Options that are passed to the backend of target device compiler for Intel CPU during AOT compilation">;
-
-// Hidden options to store backend compile/link options that are stored in
-// device images for SYCL offloading
-def sycl_backend_compile_options_from_image_EQ : Joined<["--", "-"], "sycl-backend-compile-options-from-image=">,
-  Flags<[WrapperOnlyOption]>,
-  HelpText<"Compile options that will be transmitted to the SYCL backend compiler">;
-def sycl_backend_link_options_from_image_EQ : Joined<["--", "-"], "sycl-backend-link-options-from-image=">,
-  Flags<[WrapperOnlyOption]>,
-  HelpText<"Link options that will be transmitted to the SYCL backend compiler">;
-
 def sycl_thin_lto : Flag<["--", "-"], "sycl-thin-lto">,
 Flags<[WrapperOnlyOption]>,  HelpText<"Link SYCL device code using thinLTO">;
+
+def sycl_embed_ir : Flag<["--", "-"], "sycl-embed-ir">,
+Flags<[WrapperOnlyOption]>,  HelpText<"Embed LLVM IR for runtime kernel fusion">;
+
+def sycl_device_link
+    : Flag<["--", "-"], "sycl-device-link">,
+      Flags<[WrapperOnlyOption]>,
+      HelpText<"Link SYCL device code only. Discard host code.">;
+
+def sycl_dump_device_code_EQ : Joined<["--", "-"], "sycl-dump-device-code=">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Directory to dump offloading images to.">;
+
+// Options to enable/disable device dynamic linking.
+def sycl_allow_device_image_dependencies : Flag<["--", "-"], "sycl-allow-device-image-dependencies">,
+  Flags<[WrapperOnlyOption, HelpHidden]>,
+  HelpText<"Allow dependencies between device code images">;
+
+// Options to force the output to be of the SYCLBIN format.
+def syclbin_EQ : Joined<["--", "-"], "syclbin=">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Output in the SYCLBIN binary format in the state specified by <arg> (input, object or executable)">;

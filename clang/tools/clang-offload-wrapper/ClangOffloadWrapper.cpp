@@ -67,6 +67,9 @@
 #include <string>
 #include <tuple>
 
+// For device image compression.
+#include <llvm/Support/Compression.h>
+
 #define OPENMP_OFFLOAD_IMAGE_VERSION "1.0"
 
 using namespace llvm;
@@ -78,7 +81,6 @@ using namespace llvm::object;
 static constexpr char COL_CODE[] = "Code";
 static constexpr char COL_SYM[] = "Symbols";
 static constexpr char COL_PROPS[] = "Properties";
-static constexpr char COL_MANIFEST[] = "Manifest";
 
 // Offload models supported by this tool. The support basically means mapping
 // a string representation given at the command line to a value from this
@@ -115,6 +117,11 @@ template <> struct DenseMapInfo<OffloadKind> {
 
 static cl::opt<bool> Help("h", cl::desc("Alias for -help"), cl::Hidden);
 
+static cl::opt<bool>
+    PreviewBreakingChanges("fpreview-breaking-changes",
+                           cl::desc("Enable preview breaking changes"),
+                           cl::init(false), cl::Hidden);
+
 // Mark all our options with this category, everything else (except for -version
 // and -help) will be hidden.
 static cl::OptionCategory
@@ -139,6 +146,25 @@ static cl::list<std::string> Inputs(cl::Positional, cl::OneOrMore,
                                     cl::desc("<input files>"),
                                     cl::cat(ClangOffloadWrapperCategory));
 
+// CLI options for device image compression.
+static cl::opt<bool> OffloadCompressDevImgs(
+    "offload-compress", cl::init(false), cl::Optional,
+    cl::desc("Enable device image compression using ZSTD."),
+    cl::cat(ClangOffloadWrapperCategory));
+
+static cl::opt<int>
+    OffloadCompressLevel("offload-compression-level", cl::init(10),
+                         cl::Optional,
+                         cl::desc("ZSTD Compression level. Default: 10"),
+                         cl::cat(ClangOffloadWrapperCategory));
+
+static cl::opt<int>
+    OffloadCompressThreshold("offload-compression-threshold", cl::init(512),
+                             cl::Optional,
+                             cl::desc("Threshold (in bytes) over which to "
+                                      "compress images. Default: 512"),
+                             cl::cat(ClangOffloadWrapperCategory));
+
 // Binary image formats supported by this tool. The support basically means
 // mapping string representation given at the command line to a value from this
 // enum. No format checking is performed.
@@ -146,8 +172,9 @@ enum BinaryImageFormat {
   none,   // image kind is not determined
   native, // image kind is native
   // portable image kinds go next
-  spirv, // SPIR-V
-  llvmbc // LLVM bitcode
+  spirv,          // SPIR-V
+  llvmbc,         // LLVM bitcode
+  compressed_none // compressed image with unknown format
 };
 
 /// Sets offload kind.
@@ -227,8 +254,8 @@ static cl::opt<bool> BatchMode(
              "Table files consist of a table of filenames that provide\n"
              "Code, Symbols, Properties, etc.\n"
              "Example input table file in batch mode:\n"
-             "  [Code|Symbols|Properties|Manifest]\n"
-             "  a_0.bc|a_0.sym|a_0.props|a_0.mnf\n"
+             "  [Code|Symbols|Properties]\n"
+             "  a_0.bc|a_0.sym|a_0.props\n"
              "  a_1.bin|||\n"
              "Example usage:\n"
              "  clang-offload-wrapper -batch -host=x86_64-unknown-linux-gnu\n"
@@ -265,6 +292,8 @@ static StringRef formatToString(BinaryImageFormat Fmt) {
     return "llvmbc";
   case BinaryImageFormat::native:
     return "native";
+  case BinaryImageFormat::compressed_none:
+    return "compressed_none";
   }
   llvm_unreachable("bad format");
 
@@ -290,18 +319,16 @@ public:
   /// Represents a single image to wrap.
   class Image {
   public:
-    Image(const llvm::StringRef File_, const llvm::StringRef Manif_,
-          const llvm::StringRef Tgt_, BinaryImageFormat Fmt_,
-          const llvm::StringRef CompileOpts_, const llvm::StringRef LinkOpts_,
-          const llvm::StringRef EntriesFile_, const llvm::StringRef PropsFile_)
-        : File(File_.str()), Manif(Manif_.str()), Tgt(Tgt_.str()), Fmt(Fmt_),
+    Image(const llvm::StringRef File_, const llvm::StringRef Tgt_,
+          BinaryImageFormat Fmt_, const llvm::StringRef CompileOpts_,
+          const llvm::StringRef LinkOpts_, const llvm::StringRef EntriesFile_,
+          const llvm::StringRef PropsFile_)
+        : File(File_.str()), Tgt(Tgt_.str()), Fmt(Fmt_),
           CompileOpts(CompileOpts_.str()), LinkOpts(LinkOpts_.str()),
           EntriesFile(EntriesFile_.str()), PropsFile(PropsFile_.str()) {}
 
     /// Name of the file with actual contents
     const std::string File;
-    /// Name of the manifest file
-    const std::string Manif;
     /// Offload target architecture
     const std::string Tgt;
     /// Format
@@ -335,6 +362,7 @@ private:
   StructType *SyclDescTy = nullptr;
   StructType *SyclPropSetTy = nullptr;
   StructType *SyclPropTy = nullptr;
+  PointerType *PtrTy = nullptr;
 
   /// Records all added device binary images per offload kind.
   llvm::DenseMap<OffloadKind, std::unique_ptr<SameKindPack>> Packs;
@@ -343,15 +371,14 @@ private:
 
 public:
   void addImage(const OffloadKind Kind, llvm::StringRef File,
-                llvm::StringRef Manif, llvm::StringRef Tgt,
-                const BinaryImageFormat Fmt, llvm::StringRef CompileOpts,
-                llvm::StringRef LinkOpts, llvm::StringRef EntriesFile,
-                llvm::StringRef PropsFile) {
+                llvm::StringRef Tgt, const BinaryImageFormat Fmt,
+                llvm::StringRef CompileOpts, llvm::StringRef LinkOpts,
+                llvm::StringRef EntriesFile, llvm::StringRef PropsFile) {
     std::unique_ptr<SameKindPack> &Pack = Packs[Kind];
     if (!Pack)
       Pack.reset(new SameKindPack());
     Pack->emplace_back(std::make_unique<Image>(
-        File, Manif, Tgt, Fmt, CompileOpts, LinkOpts, EntriesFile, PropsFile));
+        File, Tgt, Fmt, CompileOpts, LinkOpts, EntriesFile, PropsFile));
   }
 
   std::string ToolName;
@@ -367,7 +394,7 @@ private:
   std::unique_ptr<SymPropReader> MySymPropReader;
 
   IntegerType *getSizeTTy() {
-    switch (M.getDataLayout().getPointerTypeSize(PointerType::getUnqual(C))) {
+    switch (M.getDataLayout().getPointerTypeSize(getPtrTy())) {
     case 4u:
       return Type::getInt32Ty(C);
     case 8u:
@@ -384,7 +411,7 @@ private:
   std::pair<Constant *, Constant *>
   addStructArrayToModule(ArrayRef<Constant *> ArrayData, Type *ElemTy) {
 
-    auto *PtrTy = ElemTy->getPointerTo();
+    auto *PtrTy = getPtrTy();
 
     if (ArrayData.size() == 0) {
       auto *NullPtr = Constant::getNullValue(PtrTy);
@@ -416,13 +443,11 @@ private:
   // };
   StructType *getEntryTy() {
     if (!EntryTy)
-      EntryTy = StructType::create("__tgt_offload_entry", PointerType::getUnqual(C),
-                                   PointerType::getUnqual(C), getSizeTTy(),
+      EntryTy = StructType::create("__tgt_offload_entry", getPtrTy(),
+                                   getPtrTy(), getSizeTTy(),
                                    Type::getInt32Ty(C), Type::getInt32Ty(C));
     return EntryTy;
   }
-
-  PointerType *getEntryPtrTy() { return PointerType::getUnqual(getEntryTy()); }
 
   // struct __tgt_device_image {
   //   void *ImageStart;
@@ -432,14 +457,9 @@ private:
   // };
   StructType *getDeviceImageTy() {
     if (!ImageTy)
-      ImageTy = StructType::create("__tgt_device_image", PointerType::getUnqual(C),
-                                   PointerType::getUnqual(C), getEntryPtrTy(),
-                                   getEntryPtrTy());
+      ImageTy = StructType::create("__tgt_device_image", getPtrTy(), getPtrTy(),
+                                   getPtrTy(), getPtrTy());
     return ImageTy;
-  }
-
-  PointerType *getDeviceImagePtrTy() {
-    return PointerType::getUnqual(getDeviceImageTy());
   }
 
   // struct __tgt_bin_desc {
@@ -451,18 +471,14 @@ private:
   StructType *getBinDescTy() {
     if (!DescTy)
       DescTy = StructType::create("__tgt_bin_desc", Type::getInt32Ty(C),
-                                  getDeviceImagePtrTy(), getEntryPtrTy(),
-                                  getEntryPtrTy());
+                                  getPtrTy(), getPtrTy(), getPtrTy());
     return DescTy;
-  }
-
-  PointerType *getBinDescPtrTy() {
-    return PointerType::getUnqual(getBinDescTy());
   }
 
   // DeviceImageStructVersion change log:
   // -- version 2: updated to PI 1.2 binary image format
-  const uint16_t DeviceImageStructVersion = 2;
+  // -- version 3: removed ManifestStart, ManifestEnd pointers
+  const uint16_t DeviceImageStructVersion = 3;
 
   // typedef enum {
   //   PI_PROPERTY_TYPE_INT32,
@@ -480,18 +496,14 @@ private:
     if (!SyclPropTy) {
       SyclPropTy = StructType::create(
           {
-              PointerType::getUnqual(C), // Name
-              PointerType::getUnqual(C), // ValAddr
-              Type::getInt32Ty(C),   // Type
-              Type::getInt64Ty(C)    // ValSize
+              getPtrTy(),          // Name
+              getPtrTy(),          // ValAddr
+              Type::getInt32Ty(C), // Type
+              Type::getInt64Ty(C)  // ValSize
           },
           "_pi_device_binary_property_struct");
     }
     return SyclPropTy;
-  }
-
-  PointerType *getSyclPropPtrTy() {
-    return PointerType::getUnqual(getSyclPropTy());
   }
 
   // struct _pi_device_binary_property_set_struct {
@@ -504,17 +516,13 @@ private:
     if (!SyclPropSetTy) {
       SyclPropSetTy = StructType::create(
           {
-              PointerType::getUnqual(C), // Name
-              getSyclPropPtrTy(),    // PropertiesBegin
-              getSyclPropPtrTy()     // PropertiesEnd
+              getPtrTy(), // Name
+              getPtrTy(), // PropertiesBegin
+              getPtrTy()  // PropertiesEnd
           },
           "_pi_device_binary_property_set_struct");
     }
     return SyclPropSetTy;
-  }
-
-  PointerType *getSyclPropSetPtrTy() {
-    return PointerType::getUnqual(getSyclPropSetTy());
   }
 
   // SYCL specific image descriptor type.
@@ -536,10 +544,6 @@ private:
   //    /// a null-terminated string; target- and compiler-specific options
   //    /// which are suggested to use to "link" program at runtime
   //    const char *LinkOptions;
-  //    /// Pointer to the manifest data start
-  //    const unsigned char *ManifestStart;
-  //    /// Pointer to the manifest data end
-  //    const unsigned char *ManifestEnd;
   //    /// Pointer to the device binary image start
   //    void *ImageStart;
   //    /// Pointer to the device binary image end
@@ -556,28 +560,28 @@ private:
     if (!SyclImageTy) {
       SyclImageTy = StructType::create(
           {
-              Type::getInt16Ty(C),   // Version
-              Type::getInt8Ty(C),    // OffloadKind
-              Type::getInt8Ty(C),    // Format
-              PointerType::getUnqual(C), // DeviceTargetSpec
-              PointerType::getUnqual(C), // CompileOptions
-              PointerType::getUnqual(C), // LinkOptions
-              PointerType::getUnqual(C), // ManifestStart
-              PointerType::getUnqual(C), // ManifestEnd
-              PointerType::getUnqual(C), // ImageStart
-              PointerType::getUnqual(C), // ImageEnd
-              getEntryPtrTy(),       // EntriesBegin
-              getEntryPtrTy(),       // EntriesEnd
-              getSyclPropSetPtrTy(), // PropertySetBegin
-              getSyclPropSetPtrTy()  // PropertySetEnd
+              Type::getInt16Ty(C), // Version
+              Type::getInt8Ty(C),  // OffloadKind
+              Type::getInt8Ty(C),  // Format
+              getPtrTy(),          // DeviceTargetSpec
+              getPtrTy(),          // CompileOptions
+              getPtrTy(),          // LinkOptions
+              getPtrTy(),          // ImageStart
+              getPtrTy(),          // ImageEnd
+              getPtrTy(),          // EntriesBegin
+              getPtrTy(),          // EntriesEnd
+              getPtrTy(),          // PropertySetBegin
+              getPtrTy()           // PropertySetEnd
           },
           "__tgt_device_image");
     }
     return SyclImageTy;
   }
 
-  PointerType *getSyclDeviceImagePtrTy() {
-    return PointerType::getUnqual(getSyclDeviceImageTy());
+  PointerType *getPtrTy() {
+    PointerType *&Ty = PtrTy;
+    Ty = Ty ? Ty : PointerType::getUnqual(C);
+    return Ty;
   }
 
   const uint16_t BinDescStructVersion = 1;
@@ -598,19 +602,15 @@ private:
     if (!SyclDescTy) {
       SyclDescTy = StructType::create(
           {
-              Type::getInt16Ty(C),       // Version
-              Type::getInt16Ty(C),       // NumDeviceImages
-              getSyclDeviceImagePtrTy(), // DeviceImages
-              getEntryPtrTy(),           // HostEntriesBegin
-              getEntryPtrTy()            // HostEntriesEnd
+              Type::getInt16Ty(C), // Version
+              Type::getInt16Ty(C), // NumDeviceImages
+              getPtrTy(),          // DeviceImages
+              getPtrTy(),          // HostEntriesBegin
+              getPtrTy()           // HostEntriesEnd
           },
           "__tgt_bin_desc");
     }
     return SyclDescTy;
-  }
-
-  PointerType *getSyclBinDescPtrTy() {
-    return PointerType::getUnqual(getSyclBinDescTy());
   }
 
   Expected<MemoryBuffer *> loadFile(llvm::StringRef Name) {
@@ -624,11 +624,10 @@ private:
   }
 
   Function *addDeclarationForNativeCPU(StringRef Name) {
-    static FunctionType *NativeCPUFuncTy = FunctionType::get(
-        Type::getVoidTy(C),
-        {PointerType::getUnqual(C), PointerType::getUnqual(C)}, false);
-    static FunctionType *NativeCPUBuiltinTy = FunctionType::get(
-        PointerType::getUnqual(C), {PointerType::getUnqual(C)}, false);
+    static FunctionType *NativeCPUFuncTy =
+        FunctionType::get(Type::getVoidTy(C), {getPtrTy(), getPtrTy()}, false);
+    static FunctionType *NativeCPUBuiltinTy =
+        FunctionType::get(getPtrTy(), {getPtrTy()}, false);
     FunctionType *FTy;
     if (Name.starts_with("__dpcpp_nativecpu"))
       FTy = NativeCPUBuiltinTy;
@@ -653,9 +652,8 @@ private:
     //   char *kernelname;
     //   unsigned char *kernel_ptr;
     // };
-    StructType *NCPUEntryT = StructType::create(
-        {PointerType::getUnqual(C), PointerType::getUnqual(C)},
-        "__nativecpu_entry");
+    StructType *NCPUEntryT =
+        StructType::create({getPtrTy(), getPtrTy()}, "__nativecpu_entry");
     SmallVector<Constant *, 5> NativeCPUEntries;
     for (line_iterator LI(*MB); !LI.is_at_eof(); ++LI) {
       auto *NewDecl = addDeclarationForNativeCPU(*LI);
@@ -667,7 +665,7 @@ private:
     // Add an empty entry that we use as end iterator
     static auto *NativeCPUEndStr =
         addStringToModule("__nativecpu_end", "__ncpu_end_str");
-    auto *NullPtr = llvm::ConstantPointerNull::get(PointerType::getUnqual(C));
+    auto *NullPtr = llvm::ConstantPointerNull::get(getPtrTy());
     NativeCPUEntries.push_back(
         ConstantStruct::get(NCPUEntryT, {NativeCPUEndStr, NullPtr}));
 
@@ -765,13 +763,13 @@ private:
   Expected<std::pair<Constant *, Constant *>>
   addSYCLOffloadEntriesToModule(StringRef EntriesFile) {
     if (EntriesFile.empty() && !MySymPropReader) {
-      auto *NullPtr = Constant::getNullValue(getEntryPtrTy());
+      auto *NullPtr = Constant::getNullValue(getPtrTy());
       return std::pair<Constant *, Constant *>(NullPtr, NullPtr);
     }
 
     auto *Zero = ConstantInt::get(getSizeTTy(), 0u);
     auto *i32Zero = ConstantInt::get(Type::getInt32Ty(C), 0u);
-    auto *NullPtr = Constant::getNullValue(PointerType::getUnqual(C));
+    auto *NullPtr = Constant::getNullValue(getPtrTy());
 
     std::vector<Constant *> EntriesInits;
     // Only the name field is used for SYCL now, others are for future OpenMP
@@ -826,7 +824,7 @@ private:
       switch (Prop.second.getType()) {
       case llvm::util::PropertyValue::UINT32: {
         // for known scalar types ValAddr is null, ValSize keeps the value
-        PropValAddr = Constant::getNullValue(PointerType::getUnqual(C));
+        PropValAddr = Constant::getNullValue(getPtrTy());
         PropValSize =
             ConstantInt::get(Type::getInt64Ty(C), Prop.second.asUint32());
         break;
@@ -892,8 +890,7 @@ private:
       PropRegistry = MySymPropReader->getPropRegistry();
     } else {
       if (PropRegistryFile.empty()) {
-        auto *NullPtr =
-            Constant::getNullValue(getSyclPropSetTy()->getPointerTo());
+        auto *NullPtr = Constant::getNullValue(getPtrTy());
         return std::pair<Constant *, Constant *>(NullPtr, NullPtr);
       }
       // load the property registry file
@@ -940,9 +937,9 @@ private:
   /// library. It is defined as follows
   ///
   /// __attribute__((visibility("hidden")))
-  /// extern __tgt_offload_entry *__start_omp_offloading_entries;
+  /// extern __tgt_offload_entry *__start_llvm_offload_entries;
   /// __attribute__((visibility("hidden")))
-  /// extern __tgt_offload_entry *__stop_omp_offloading_entries;
+  /// extern __tgt_offload_entry *__stop_llvm_offload_entries;
   ///
   /// static const char Image0[] = { <Bufs.front() contents> };
   ///  ...
@@ -952,23 +949,23 @@ private:
   ///   {
   ///     Image0,                            /*ImageStart*/
   ///     Image0 + sizeof(Image0),           /*ImageEnd*/
-  ///     __start_omp_offloading_entries,    /*EntriesBegin*/
-  ///     __stop_omp_offloading_entries      /*EntriesEnd*/
+  ///     __start_llvm_offload_entries,      /*EntriesBegin*/
+  ///     __stop_llvm_offload_entries        /*EntriesEnd*/
   ///   },
   ///   ...
   ///   {
   ///     ImageN,                            /*ImageStart*/
   ///     ImageN + sizeof(ImageN),           /*ImageEnd*/
-  ///     __start_omp_offloading_entries,    /*EntriesBegin*/
-  ///     __stop_omp_offloading_entries      /*EntriesEnd*/
+  ///     __start_llvm_offload_entries,      /*EntriesBegin*/
+  ///     __stop_llvm_offload_entries        /*EntriesEnd*/
   ///   }
   /// };
   ///
   /// static const __tgt_bin_desc BinDesc = {
   ///   sizeof(Images) / sizeof(Images[0]),  /*NumDeviceImages*/
   ///   Images,                              /*DeviceImages*/
-  ///   __start_omp_offloading_entries,      /*HostEntriesBegin*/
-  ///   __stop_omp_offloading_entries        /*HostEntriesEnd*/
+  ///   __start_llvm_offload_entries,        /*HostEntriesBegin*/
+  ///   __stop_llvm_offload_entries          /*HostEntriesEnd*/
   /// };
   ///
   /// Global variable that represents BinDesc is returned.
@@ -983,16 +980,16 @@ private:
       // Create external begin/end symbols for the offload entries table.
       auto *EntriesStart = new GlobalVariable(
           M, getEntryTy(), /*isConstant*/ true, GlobalValue::ExternalLinkage,
-          /*Initializer*/ nullptr, "__start_omp_offloading_entries");
+          /*Initializer*/ nullptr, "__start_llvm_offload_entries");
       EntriesStart->setVisibility(GlobalValue::HiddenVisibility);
       auto *EntriesStop = new GlobalVariable(
           M, getEntryTy(), /*isConstant*/ true, GlobalValue::ExternalLinkage,
-          /*Initializer*/ nullptr, "__stop_omp_offloading_entries");
+          /*Initializer*/ nullptr, "__stop_llvm_offload_entries");
       EntriesStop->setVisibility(GlobalValue::HiddenVisibility);
 
       // We assume that external begin/end symbols that we have created above
       // will be defined by the linker. But linker will do that only if linker
-      // inputs have section with "omp_offloading_entries" name which is not
+      // inputs have section with "llvm_offload_entries" name which is not
       // guaranteed. So, we just create dummy zero sized object in the offload
       // entries section to force linker to define those symbols.
       auto *DummyInit =
@@ -1000,7 +997,7 @@ private:
       auto *DummyEntry = new GlobalVariable(
           M, DummyInit->getType(), true, GlobalVariable::ExternalLinkage,
           DummyInit, "__dummy.omp_offloading.entry");
-      DummyEntry->setSection("omp_offloading_entries");
+      DummyEntry->setSection("llvm_offload_entries");
       DummyEntry->setVisibility(GlobalValue::HiddenVisibility);
 
       EntriesB = EntriesStart;
@@ -1012,12 +1009,11 @@ private:
       }
     } else {
       // Host entry table is not used in SYCL
-      EntriesB = Constant::getNullValue(getEntryPtrTy());
-      EntriesE = Constant::getNullValue(getEntryPtrTy());
+      EntriesB = Constant::getNullValue(getPtrTy());
+      EntriesE = Constant::getNullValue(getPtrTy());
     }
 
     auto *Zero = ConstantInt::get(getSizeTTy(), 0u);
-    auto *NullPtr = Constant::getNullValue(PointerType::getUnqual(C));
     Constant *ZeroZero[] = {Zero, Zero};
 
     // Create initializer for the images array.
@@ -1029,6 +1025,7 @@ private:
       if (Verbose)
         errs() << "adding image: offload kind=" << offloadKindToString(Kind)
                << Img << "\n";
+
       auto *Fver =
           ConstantInt::get(Type::getInt16Ty(C), DeviceImageStructVersion);
       auto *Fknd = ConstantInt::get(Type::getInt8Ty(C), Kind);
@@ -1041,23 +1038,9 @@ private:
       auto *Foptlink = addStringToModule(Img.LinkOpts, Twine(OffloadKindTag) +
                                                            Twine("opts.link.") +
                                                            Twine(ImgId));
-      std::pair<Constant *, Constant *> FMnf;
 
       if (MySymPropReader)
         MySymPropReader->getNextDeviceImageInitializer();
-
-      if (Img.Manif.empty()) {
-        // no manifest - zero out the fields
-        FMnf = std::make_pair(NullPtr, NullPtr);
-      } else {
-        Expected<MemoryBuffer *> MnfOrErr = loadFile(Img.Manif);
-        if (!MnfOrErr)
-          return MnfOrErr.takeError();
-        MemoryBuffer *Mnf = *MnfOrErr;
-        FMnf = addArrayToModule(
-            ArrayRef<char>(Mnf->getBufferStart(), Mnf->getBufferSize()),
-            Twine(OffloadKindTag) + Twine(ImgId) + Twine(".manifest"));
-      }
 
       Expected<std::pair<Constant *, Constant *>> PropSets =
           tformSYCLPropertySetRegistryFileToIR(Img.PropsFile);
@@ -1077,16 +1060,76 @@ private:
         Bin = addELFNotes(Bin, Img.File);
       }
       std::pair<Constant *, Constant *> Fbin;
-      if (Img.Tgt == "native_cpu") {
+      if (Triple(Img.Tgt).isNativeCPU()) {
         auto FBinOrErr = addDeclarationsForNativeCPU(Img.EntriesFile);
         if (!FBinOrErr)
           return FBinOrErr.takeError();
         Fbin = *FBinOrErr;
       } else {
-        Fbin = addDeviceImageToModule(
-            ArrayRef<char>(Bin->getBufferStart(), Bin->getBufferSize()),
-            Twine(OffloadKindTag) + Twine(ImgId) + Twine(".data"), Kind,
-            Img.Tgt);
+
+        // If '--offload-compress' option is specified and zstd is not
+        // available, throw an error.
+        if (OffloadCompressDevImgs && !llvm::compression::zstd::isAvailable()) {
+          return createStringError(
+              inconvertibleErrorCode(),
+              "'--offload-compress' is specified but the compiler is "
+              "built without zstd support.\n"
+              "If you are using a custom DPC++ build, please refer to "
+              "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
+              "GetStartedGuide.md#build-dpc-toolchain-with-device-image-"
+              "compression-support"
+              " for more information on how to build with zstd support.");
+        }
+
+        // Don't compress if the user explicitly specifies the binary image
+        // format or if the image is smaller than OffloadCompressThreshold
+        // bytes.
+        if (Kind != OffloadKind::SYCL || !OffloadCompressDevImgs ||
+            Img.Fmt != BinaryImageFormat::none ||
+            !llvm::compression::zstd::isAvailable() ||
+            static_cast<int>(Bin->getBufferSize()) < OffloadCompressThreshold) {
+          Fbin = addDeviceImageToModule(
+              ArrayRef<char>(Bin->getBufferStart(), Bin->getBufferSize()),
+              Twine(OffloadKindTag) + Twine(ImgId) + Twine(".data"), Kind,
+              Img.Tgt);
+        } else {
+
+          // Compress the image using zstd.
+          SmallVector<uint8_t, 512> CompressedBuffer;
+#if LLVM_ENABLE_EXCEPTIONS
+          try {
+#endif
+            llvm::compression::zstd::compress(
+                ArrayRef<unsigned char>(
+                    (const unsigned char *)(Bin->getBufferStart()),
+                    Bin->getBufferSize()),
+                CompressedBuffer, OffloadCompressLevel);
+#if LLVM_ENABLE_EXCEPTIONS
+          } catch (const std::exception &ex) {
+            return createStringError(inconvertibleErrorCode(),
+                                     std::string("Failed to compress the device image: \n") +
+                                     std::string(ex.what()));
+          }
+#endif
+          if (Verbose)
+            errs() << "[Compression] Original image size: "
+                   << Bin->getBufferSize() << "\n"
+                   << "[Compression] Compressed image size: "
+                   << CompressedBuffer.size() << "\n"
+                   << "[Compression] Compression level used: "
+                   << OffloadCompressLevel << "\n";
+
+          // Add the compressed image to the module.
+          Fbin = addDeviceImageToModule(
+              ArrayRef<char>((const char *)CompressedBuffer.data(),
+                             CompressedBuffer.size()),
+              Twine(OffloadKindTag) + Twine(ImgId) + Twine(".data"), Kind,
+              Img.Tgt);
+
+          // Change image format to compressed_none.
+          Ffmt = ConstantInt::get(Type::getInt8Ty(C),
+                                  BinaryImageFormat::compressed_none);
+        }
       }
 
       if (Kind == OffloadKind::SYCL) {
@@ -1097,11 +1140,11 @@ private:
         if (!EntriesOrErr)
           return EntriesOrErr.takeError();
         std::pair<Constant *, Constant *> ImageEntriesPtrs = *EntriesOrErr;
-        ImagesInits.push_back(ConstantStruct::get(
-            getSyclDeviceImageTy(), Fver, Fknd, Ffmt, Ftgt, Foptcompile,
-            Foptlink, FMnf.first, FMnf.second, Fbin.first, Fbin.second,
-            ImageEntriesPtrs.first, ImageEntriesPtrs.second,
-            PropSets.get().first, PropSets.get().second));
+        ImagesInits.push_back(
+            ConstantStruct::get(getSyclDeviceImageTy(), Fver, Fknd, Ffmt, Ftgt,
+                                Foptcompile, Foptlink, Fbin.first, Fbin.second,
+                                ImageEntriesPtrs.first, ImageEntriesPtrs.second,
+                                PropSets.get().first, PropSets.get().second));
       } else
         ImagesInits.push_back(ConstantStruct::get(
             getDeviceImageTy(), Fbin.first, Fbin.second, EntriesB, EntriesE));
@@ -1186,10 +1229,8 @@ private:
     Func->setSection(".text.startup");
 
     // Get RegFuncName function declaration.
-    auto *RegFuncTy = FunctionType::get(
-        Type::getVoidTy(C),
-        Kind == OffloadKind::SYCL ? getSyclBinDescPtrTy() : getBinDescPtrTy(),
-        /*isVarArg=*/false);
+    auto *RegFuncTy = FunctionType::get(Type::getVoidTy(C), getPtrTy(),
+                                        /*isVarArg=*/false);
     FunctionCallee RegFuncC =
         M.getOrInsertFunction(Kind == OffloadKind::SYCL ? "__sycl_register_lib"
                                                         : "__tgt_register_lib",
@@ -1217,10 +1258,8 @@ private:
     Func->setSection(".text.startup");
 
     // Get UnregFuncName function declaration.
-    auto *UnRegFuncTy = FunctionType::get(
-        Type::getVoidTy(C),
-        Kind == OffloadKind::SYCL ? getSyclBinDescPtrTy() : getBinDescPtrTy(),
-        /*isVarArg=*/false);
+    auto *UnRegFuncTy = FunctionType::get(Type::getVoidTy(C), getPtrTy(),
+                                          /*isVarArg=*/false);
     FunctionCallee UnRegFuncC = M.getOrInsertFunction(
         Kind == OffloadKind::SYCL ? "__sycl_unregister_lib"
                                   : "__tgt_unregister_lib",
@@ -1236,6 +1275,48 @@ private:
     appendToGlobalDtors(M, Func, /*Priority*/ 1);
   }
 
+  void createSyclRegisterWithAtexitUnregister(GlobalVariable *BinDesc) {
+    auto *UnregFuncTy =
+        FunctionType::get(Type::getVoidTy(C), /*isVarArg*/ false);
+    auto *UnregFunc =
+        Function::Create(UnregFuncTy, GlobalValue::InternalLinkage,
+                         "sycl.descriptor_unreg.atexit", &M);
+    UnregFunc->setSection(".text.startup");
+
+    // Declaration for __sycl_unregister_lib(void*).
+    auto *UnregTargetTy =
+        FunctionType::get(Type::getVoidTy(C), getPtrTy(), /*isVarArg=*/false);
+    FunctionCallee UnregTargetC =
+        M.getOrInsertFunction("__sycl_unregister_lib", UnregTargetTy);
+
+    IRBuilder<> UnregBuilder(BasicBlock::Create(C, "entry", UnregFunc));
+    UnregBuilder.CreateCall(UnregTargetC, BinDesc);
+    UnregBuilder.CreateRetVoid();
+
+    auto *RegFuncTy = FunctionType::get(Type::getVoidTy(C), /*isVarArg*/ false);
+    auto *RegFunc = Function::Create(RegFuncTy, GlobalValue::InternalLinkage,
+                                     "sycl.descriptor_reg", &M);
+    RegFunc->setSection(".text.startup");
+
+    auto *RegTargetTy =
+        FunctionType::get(Type::getVoidTy(C), getPtrTy(), false);
+    FunctionCallee RegTargetC =
+        M.getOrInsertFunction("__sycl_register_lib", RegTargetTy);
+
+    // `atexit` takes a `void(*)()` function pointer arg and returns an i32.
+    FunctionType *AtExitTy =
+        FunctionType::get(Type::getInt32Ty(C), getPtrTy(), false);
+    FunctionCallee AtExitC = M.getOrInsertFunction("atexit", AtExitTy);
+
+    IRBuilder<> RegBuilder(BasicBlock::Create(C, "entry", RegFunc));
+    RegBuilder.CreateCall(RegTargetC, BinDesc);
+    RegBuilder.CreateCall(AtExitC, UnregFunc);
+    RegBuilder.CreateRetVoid();
+
+    // Add this function to global destructors.
+    appendToGlobalCtors(M, RegFunc, /*Priority*/ 1);
+  }
+
 public:
   BinaryWrapper(StringRef Target, StringRef ToolName,
                 StringRef SymPropBCFiles = "")
@@ -1245,7 +1326,7 @@ public:
       MySymPropReader =
           std::make_unique<SymPropReader>(SymPropBCFiles, ToolName);
 
-    M.setTargetTriple(Target);
+    M.setTargetTriple(Triple(Target));
     // Look for llvm-objcopy in the same directory, from which
     // clang-offload-wrapper is invoked. This helps OpenMP offload
     // LIT tests.
@@ -1277,6 +1358,9 @@ public:
 
     ObjcopyPath = *ObjcopyPathOrErr;
   }
+
+  BinaryWrapper(const BinaryWrapper &BW) = delete;
+  BinaryWrapper &operator=(const BinaryWrapper &BW) = delete;
 
   ~BinaryWrapper() {
     if (TempFiles.empty())
@@ -1310,8 +1394,13 @@ public:
 
       if (EmitRegFuncs) {
         GlobalVariable *Desc = *DescOrErr;
-        createRegisterFunction(Kind, Desc);
-        createUnregisterFunction(Kind, Desc);
+        if (Kind == OffloadKind::SYCL &&
+            Triple(M.getTargetTriple()).isOSWindows()) {
+          createSyclRegisterWithAtexitUnregister(Desc);
+        } else {
+          createRegisterFunction(Kind, Desc);
+          createUnregisterFunction(Kind, Desc);
+        }
       }
     }
     return &M;
@@ -1494,6 +1583,7 @@ public:
     Args.push_back(ObjcopyPath);
     std::string Option("--add-section=.note.openmp=" + NotesTmpFileName);
     Args.push_back(Option);
+    Args.push_back("--no-verify-note-sections");
     Args.push_back(OriginalFileName);
     Args.push_back(ELFTmpFileName);
     bool ExecutionFailed = false;
@@ -1525,7 +1615,6 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &Out,
                               const BinaryWrapper::Image &Img) {
   Out << "\n{\n";
   Out << "  file     = " << Img.File << "\n";
-  Out << "  manifest = " << (Img.Manif.empty() ? "-" : Img.Manif) << "\n";
   Out << "  format   = " << formatToString(Img.Fmt) << "\n";
   Out << "  target   = " << (Img.Tgt.empty() ? "-" : Img.Tgt) << "\n";
   Out << "  compile options  = "
@@ -1681,15 +1770,11 @@ int main(int argc, const char **argv) {
   cl::ParseCommandLineOptions(
       argc, argv,
       "A tool to create a wrapper bitcode for offload target binaries.\n"
-      "Takes offload target binaries and optional manifest files as input\n"
-      "and produces bitcode file containing target binaries packaged as data\n"
-      "and initialization code which registers target binaries in the offload\n"
-      "runtime. Manifest files format and contents are not restricted and are\n"
-      "a subject of agreement between the device compiler and the native\n"
-      "runtime for that device. When present, manifest file name should\n"
-      "immediately follow the corresponding device image filename on the\n"
-      "command line. Options annotating a device binary have effect on all\n"
-      "subsequent input, until redefined.\n"
+      "Takes offload target binaries as input and produces bitcode file\n"
+      "containing target binaries packaged as data and initialization code\n"
+      "which registers target binaries in the offload runtime. Options\n"
+      "annotating a device binary have effect on all subsequent input,\n"
+      "until redefined.\n"
       "\n"
       "For example:\n"
       "  clang-offload-wrapper                   \\\n"
@@ -1702,7 +1787,6 @@ int main(int argc, const char **argv) {
       "          -entries=sym.txt                \\\n"
       "          -properties=props.txt           \\\n"
       "          a.spv                           \\\n"
-      "          a_mf.txt                        \\\n"
       "        -target=xxx                       \\\n"
       "          -format=native                  \\\n"
       "          -compile-opts=\"\"                \\\n"
@@ -1710,19 +1794,18 @@ int main(int argc, const char **argv) {
       "          -entries=\"\"                     \\\n"
       "          -properties=\"\"                  \\\n"
       "          b.bin                           \\\n"
-      "          b_mf.txt                        \\\n"
       "      -kind=openmp                        \\\n"
       "          c.bin\\n"
       "\n"
       "This command generates an x86 wrapper object (.bc) enclosing the\n"
       "following tuples describing a single device binary each:\n"
       "\n"
-      "|offload|target|data  |data |manifest|compile|entries|properties|...|\n"
-      "|  kind |      |format|     |        |options|       |          |...|\n"
-      "|-------|------|------|-----|--------|-------|-------|----------|---|\n"
-      "|sycl   |spir64|spirv |a.spv|a_mf.txt|  -g   |sym.txt|props.txt |...|\n"
-      "|sycl   |xxx   |native|b.bin|b_mf.txt|       |       |          |...|\n"
-      "|openmp |xxx   |native|c.bin|        |       |       |          |...|\n"
+      "|offload|target|data  |data |compile|entries|properties|...|\n"
+      "|  kind |      |format|     |options|       |          |...|\n"
+      "|-------|------|------|-----|-------|-------|----------|---|\n"
+      "|sycl   |spir64|spirv |a.spv|  -g   |sym.txt|props.txt |...|\n"
+      "|sycl   |xxx   |native|b.bin|       |       |          |...|\n"
+      "|openmp |xxx   |native|c.bin|       |       |          |...|\n"
       "\n"
       "|...|    link            |\n"
       "|...|    options         |\n"
@@ -1789,11 +1872,10 @@ int main(int argc, const char **argv) {
     // ID != 0 signal that a new image(s) must be added
     if (ID != 0) {
       // create an image instance using current state
-      if (CurInputGroup.size() > 2) {
-        reportError(
-            createStringError(errc::invalid_argument,
-                              "too many inputs for a single binary image, "
-                              "<binary file> <manifest file>{opt}expected"));
+      if (CurInputGroup.size() > 1) {
+        reportError(createStringError(errc::invalid_argument,
+                                      "too many inputs for a single binary "
+                                      "image, <binary file> expected"));
         return 1;
       }
       if (CurInputGroup.size() != 0) {
@@ -1812,8 +1894,7 @@ int main(int argc, const char **argv) {
 
           // iterate via records
           for (const auto &Row : T.rows()) {
-            Wr.addImage(Knd, Row.getCell(COL_CODE),
-                        Row.getCell(COL_MANIFEST, ""), Tgt, Fmt, CompileOpts,
+            Wr.addImage(Knd, Row.getCell(COL_CODE), Tgt, Fmt, CompileOpts,
                         LinkOpts, Row.getCell(COL_SYM, ""),
                         Row.getCell(COL_PROPS, ""));
           }
@@ -1824,9 +1905,8 @@ int main(int argc, const char **argv) {
             return 1;
           }
           StringRef File = CurInputGroup[0];
-          StringRef Manif = CurInputGroup.size() > 1 ? CurInputGroup[1] : "";
-          Wr.addImage(Knd, File, Manif, Tgt, Fmt, CompileOpts, LinkOpts,
-                      EntriesFile, PropsFile);
+          Wr.addImage(Knd, File, Tgt, Fmt, CompileOpts, LinkOpts, EntriesFile,
+                      PropsFile);
         }
         CurInputGroup.clear();
       }

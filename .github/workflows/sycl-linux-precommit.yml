@@ -7,12 +7,13 @@ on:
   pull_request:
     branches:
     - sycl
-    - sycl-devops-pr/**
     - sycl-rel-**
     # Do not run builds if changes are only in the following locations
+    # Note: benchmark-related paths are the same as in sycl-ur-perf-benchmarking.yml (to run there instead)
     paths-ignore:
     - '.github/ISSUE_TEMPLATE/**'
     - '.github/CODEOWNERS'
+    - 'sycl/cts_exclude_filter/**'
     - 'sycl/doc/**'
     - 'sycl/gdb/**'
     - 'clang/docs/**'
@@ -21,8 +22,21 @@ on:
     - '.github/workflows/sycl-windows-*.yml'
     - '.github/workflows/sycl-macos-*.yml'
     - '.github/workflows/sycl-nightly.yml'
+    - '.github/workflows/sycl-rel-nightly.yml'
+    - '.github/workflows/sycl-rel-nightly-launch.yml'
+    - '.github/workflows/sycl-trivy.yml'
+    - '.github/workflows/sycl-coverity.yml'
+    - '.github/workflows/sycl-weekly.yml'
     - 'devops/containers/**'
     - 'devops/actions/build_container/**'
+    - 'unified-runtime/examples/**'
+    - 'unified-runtime/scripts/**'
+    - 'unified-runtime/test/**'
+    - 'unified-runtime/third_party/**'
+    - 'unified-runtime/tools/**'
+    - 'devops/scripts/benchmarks/**'
+    - 'devops/actions/run-tests/benchmark/**'
+    - '.github/workflows/sycl-ur-perf-benchmarking.yml'
 
 concurrency:
   #  Cancel a currently running workflow from the same PR, branch or tag.
@@ -36,111 +50,238 @@ jobs:
     uses: ./.github/workflows/sycl-detect-changes.yml
 
   build:
+    name: Self build
     needs: [detect_changes]
-    if: always() && success()
+    if: success()
     uses: ./.github/workflows/sycl-linux-build.yml
     with:
       build_ref: ${{ github.sha }}
-      merge_ref: ''
       build_cache_root: "/__w/"
-      build_artifact_suffix: "default"
       build_cache_suffix: "default"
+      # Docker image has last nightly pre-installed and added to the PATH
+      build_image: "ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest"
+      cc: clang
+      cxx: clang++
       changes: ${{ needs.detect_changes.outputs.filters }}
-      build_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest-0300ac924620a51f76c4929794637b82790f12ab"
 
-  determine_arc_tests:
-    name: Decide which Arc tests to run
-    needs: [build, detect_changes]
-    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
-    runs-on: [Linux, aux-tasks]
-    timeout-minutes: 3
-    outputs:
-      arc_tests: ${{ steps.arc_tests.outputs.arc_tests }}
+      toolchain_artifact: sycl_linux_default
+      e2e_binaries_artifact: e2e_bin
+      e2e_binaries_preview_artifact: e2e_bin_preview
+      e2e_binaries_new_offload_model_artifact: e2e_bin_new_offload_model
+
+  # Build and run native cpu e2e tests separately as cannot currently
+  # build all the e2e tests
+  build_run_native_cpu_e2e_tests:
+    if: ${{ !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+    runs-on: [Linux, build]
+    needs: [build]
+    container:
+      image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
+      options: -u 1001:1001
     steps:
-      - name: Determine Arc tests
-        id: arc_tests
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: |
+            devops/
+
+      # download build artefact
+      - name: Download toolchain
+        uses: actions/download-artifact@v7
+        with:
+          name: sycl_linux_default
+      - name: Extract SYCL toolchain
+        shell: bash
         run: |
-          if [ "${{ contains(needs.detect_changes.outputs.filters, 'devigccfg') }}" == "true" ]; then
-            echo 'arc_tests="(ESIMD|InvokeSimd|Matrix)/"' >> "$GITHUB_OUTPUT"
-          elif [ "${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}" == "true" ]; then
-             echo 'arc_tests=""' >> "$GITHUB_OUTPUT"
-          elif [ "${{ contains(needs.detect_changes.outputs.filters, 'esimd') }}" == "true" ]; then
-            echo 'arc_tests="(ESIMD|InvokeSimd|Matrix)/"' >> "$GITHUB_OUTPUT"
-          else
-            echo 'arc_tests="Matrix/"' >> "$GITHUB_OUTPUT"
-          fi
-  test:
-    needs: [build, detect_changes, determine_arc_tests]
-    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+          mkdir toolchain
+          tar -xf llvm_sycl.tar.zst -C toolchain
+          rm llvm_sycl.tar.zst
+      - name: Build and run E2E tests
+        uses: ./devops/actions/run-tests/linux/e2e
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          testing_mode: full
+          target_devices: native_cpu:cpu
+          sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
+          extra_lit_opts: --param sycl_build_targets="native_cpu"
+          extra_cmake_args: -DSYCL_TEST_E2E_TARGETS="native_cpu:cpu" -DSYCL_TEST_E2E_STANDALONE=ON
+
+  # If a PR changes CUDA adapter, run the build on Ubuntu 22.04 as well.
+  # Ubuntu 22.04 container has CUDA 12.1 installed while Ubuntu 24.0 image
+  # has CUDA 12.6.1 installed.
+  # The idea is to ensure that the code works with both CUDA versions.
+  build_ubuntu2204:
+    needs: [detect_changes]
+    if: ${{ !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur_cuda_adapter') }}
+    uses: ./.github/workflows/sycl-linux-build.yml
+    with:
+      build_ref: ${{ github.sha }}
+      build_cache_root: "/__w/"
+      build_cache_suffix: "ubuntu22"
+      build_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
+      changes: ${{ needs.detect_changes.outputs.filters }}
+
+      toolchain_artifact: sycl_linux_ubuntu22
+
+  compat_read_exclude:
+    name: Read compatibility testing exclude list
+    runs-on: [Linux, aux-tasks]
+    outputs:
+      FILTER_6_2: ${{ steps.result.outputs.FILTER_6_2 }}
+      FILTER_6_3: ${{ steps.result.outputs.FILTER_6_3 }}
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        sparse-checkout: |
+          devops/
+    - name: Register cleanup after job is finished
+      uses: ./devops/actions/cleanup
+    - id: result
+      shell: bash
+      run: |
+        # Transform to format expected by `llvm-lit --filter-out "pattern1|pattern2|..."`.
+        # First, remove comments/empty lines, then join lines with "|" as separator.
+        echo FILTER_6_2="$(grep -v '^#\|^\W*$' devops/compat_ci_exclude.sycl-rel-6_2 | paste -sd '|')" >> $GITHUB_OUTPUT
+        echo FILTER_6_3="$(grep -v '^#\|^\W*$' devops/compat_ci_exclude.sycl-rel-6_3 | paste -sd '|')" >> $GITHUB_OUTPUT
+
+  E2E:
+    needs: [build, detect_changes, compat_read_exclude]
+    if: ${{ !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+    permissions:
+      contents: write
+      packages: read
     strategy:
       fail-fast: false
       matrix:
         include:
+          - name: Intel / GEN 12 Integrated
+            runner: '["Linux", "gen12"]'
+            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
           - name: NVIDIA/CUDA
             runner: '["Linux", "cuda"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
             image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
-            target_devices: ext_oneapi_cuda:gpu
+            target_devices: cuda:gpu
           - name: AMD/HIP
             runner: '["Linux", "amdgpu"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_build:latest-0300ac924620a51f76c4929794637b82790f12ab
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
-            target_devices: ext_oneapi_hip:gpu
-          - name: Intel
+            target_devices: hip:gpu
+            extra_lit_opts: -j 1
+          - name: Intel / Arc A-Series Graphics
+            runner: '["Linux", "arc"]'
+            target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu         
+            env: '{"LIT_FILTER":"Matrix/"}'
+          - name: Intel / Ponte Vecchio GPU
+            runner: '["Linux", "pvc"]'
+            target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
+          - name: Intel / Battlemage Graphics
+            runner: '["Linux", "bmg"]'
+            target_devices: level_zero_v1:gpu;level_zero_v2:gpu
+          - name: Preview Mode
             runner: '["Linux", "gen12"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
-            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
-            target_devices: ext_oneapi_level_zero:gpu;opencl:gpu;opencl:cpu
-            reset_gpu: true
-            install_drivers: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
-            extra_lit_opts: --param gpu-intel-gen12=True
-          - name: E2E tests on Intel Arc A-Series Graphics
-            runner: '["Linux", "arc"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
-            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
-            target_devices: ext_oneapi_level_zero:gpu;opencl:gpu
-            reset_gpu: true
-            install_drivers: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
-            extra_lit_opts: --param matrix-xmx8=True --param gpu-intel-dg2=True
-            env: '{"LIT_FILTER":${{ needs.determine_arc_tests.outputs.arc_tests }} }'
-          - name: E2E tests with dev igc on Intel Arc A-Series Graphics
-            runner: '["Linux", "arc"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:${{ contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') && 'latest' || 'devigc' }}
-            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
-            target_devices: ext_oneapi_level_zero:gpu;opencl:gpu
-            reset_gpu: true
-            install_drivers: >-
-              ${{ contains(needs.detect_changes.outputs.filters, 'drivers') ||
-              contains(needs.detect_changes.outputs.filters, 'devigccfg') }}
-            use_dev_igc: ${{ contains(needs.detect_changes.outputs.filters, 'devigccfg') }}
-            extra_lit_opts: --param matrix-xmx8=True --param gpu-intel-dg2=True
-            env: '{"LIT_FILTER":${{ needs.determine_arc_tests.outputs.arc_tests }} }'
+            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
+            extra_lit_opts: --param test-preview-mode=True
+            binaries_artifact: e2e_bin_preview
+          - name: Intel / ARL with L0 v2
+            runner: '["Linux", "arl"]'
+            target_devices: level_zero_v2:arch-intel_gpu_mtl_u
+            extra_lit_opts: --param test-preview-mode=True
+
+          # We're in an ABI-breaking window, so these don't make sense for now.
+          - name: ABI compatibility / sycl-rel-6_2
+            runner: '["Linux", "pvc"]'
+            image: ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_2
+            target_devices: level_zero:gpu
+            extra_lit_opts: '--param test-preview-mode=False --filter-out "${{ needs.compat_read_exclude.outputs.FILTER_6_2 }}"'
+            binaries_artifact: 'in-container'
+            skip_run: true
+          - name: ABI compatibility / sycl-rel-6_3
+            runner: '["Linux", "pvc"]'
+            image: ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_3
+            target_devices: level_zero:gpu
+            extra_lit_opts: '--param test-preview-mode=False --filter-out "${{ needs.compat_read_exclude.outputs.FILTER_6_3 }}"'
+            binaries_artifact: 'in-container'
+            skip_run: true
 
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}
-      runner: ${{ matrix. runner }}
+      runner: ${{ matrix.runner }}
       image: ${{ matrix.image }}
-      image_options: ${{ matrix.image_options }}
+      image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
       target_devices: ${{ matrix.target_devices }}
-      reset_gpu: ${{ matrix.reset_gpu }}
-      install_drivers: ${{ matrix.install_drivers }}
-      use_dev_igc: ${{ matrix.use_dev_igc }}
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
-      env: ${{ matrix.env || '{}' }}
+      repo_ref: ${{ github.sha }}
+      toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}
+      binaries_artifact: ${{ matrix.binaries_artifact || 'e2e_bin' }}
+      testing_mode: 'run-only'
 
-      ref: ${{ github.sha }}
-      merge_ref: ''
+      # Do not install drivers on AMD and CUDA runners.
+      install_igc_driver: >-
+        ${{ !contains(matrix.target_devices, 'cuda') &&
+        !contains(matrix.target_devices, 'hip') &&
+        contains(needs.detect_changes.outputs.filters, 'drivers') }}
+      skip_run: ${{ matrix.skip_run || 'false' }}
+      env: ${{ matrix.env || (contains(needs.detect_changes.outputs.filters, 'esimd') && '{}' || '{"LIT_FILTER_OUT":"ESIMD/"}') }}
 
-      sycl_toolchain_artifact: sycl_linux_default
-      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
-      sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
+  E2E-with-new-offload-model:
+    needs: [build, detect_changes, compat_read_exclude]
+    if: |
+      !cancelled() &&
+      needs.build.outputs.build_conclusion == 'success' &&
+      contains(github.event.pull_request.labels.*.name, 'new-offload-model')
+    permissions:
+      contents: write
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Intel / GEN 12 Integrated
+            runner: '["Linux", "gen12"]'
+            target_devices: opencl:cpu;opencl:gpu
+          - name: Intel / Arc A-Series Graphics
+            runner: '["Linux", "arc"]'
+            target_devices: level_zero:gpu
+          - name: Intel / Ponte Vecchio GPU
+            runner: '["Linux", "pvc"]'
+            target_devices: level_zero:gpu
+          - name: Intel / Battlemage Graphics
+            runner: '["Linux", "bmg"]'
+            target_devices: level_zero_v2:gpu
+          - name: NVIDIA/CUDA
+            runner: '["Linux", "cuda"]'
+            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
+            target_devices: cuda:gpu
+          - name: AMD/HIP
+            runner: '["Linux", "amdgpu"]'
+            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
+            target_devices: hip:gpu
+            extra_lit_opts: -j 1
+
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    with:
+      name: ${{ matrix.name }} with NewOffloadModel
+      runner: ${{ matrix.runner }}
+      image: ${{ matrix.image }}
+      image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
+      target_devices: ${{ matrix.target_devices }}
+      extra_lit_opts: ${{ matrix.extra_lit_opts }} --param enable_new_offload_model=True
+      repo_ref: ${{ github.sha }}
+      toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}
+      binaries_artifact: 'e2e_bin_new_offload_model'
+      testing_mode: 'run-only'
 
 
   test-perf:
     needs: [build, detect_changes]
+    permissions:
+      contents: write
+      packages: read
     if: |
-      always() && !cancelled()
+      !cancelled()
       && needs.build.outputs.build_conclusion == 'success'
       && (contains(github.event.pull_request.labels.*.name, 'run-perf-tests')
           || contains(needs.detect_changes.outputs.filters, 'perf-tests'))
@@ -150,39 +291,28 @@ jobs:
         include:
           - name: Intel GEN12 Graphics system
             runner: '["Linux", "gen12"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
             image_extra_opts: --device=/dev/dri
-            reset_gpu: true
           - name: Intel Arc A-Series Graphics system
             runner: '["Linux", "arc"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
             image_extra_opts: --device=/dev/dri
-            reset_gpu: true
           - name: AMD system
             runner: '["Linux", "amdgpu"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
             image_extra_opts: --device=/dev/dri --device=/dev/kfd
-            extra_cmake_args: -DHIP_PLATFORM="AMD" -DAMD_ARCH="gfx1031"
           - name: CUDA system
             runner: '["Linux", "cuda"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
             image_extra_opts: --gpus all
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: Perf tests on ${{ matrix.name }}
       runner: ${{ matrix. runner }}
-      image: ${{ matrix.image }}
       image_options: -u 1001 --privileged --cap-add SYS_ADMIN ${{ matrix.image_extra_opts }}
       target_devices: all
-      reset_gpu: ${{ matrix.reset_gpu }}
 
       env: '{"LIT_FILTER":"PerformanceTests/"}'
       extra_lit_opts: -a -j 1 --param enable-perf-tests=True
-      extra_cmake_args: ${{ matrix.extra_cmake_args }}
 
-      ref: ${{ github.sha }}
-      merge_ref: ''
+      repo_ref: ${{ github.sha }}
 
-      sycl_toolchain_artifact: sycl_linux_default
-      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
-      sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
+      toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}

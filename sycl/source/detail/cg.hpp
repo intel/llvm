@@ -12,12 +12,17 @@
 #include <sycl/detail/cg_types.hpp> // for ArgDesc, HostTask, HostKernelBase
 #include <sycl/detail/common.hpp>   // for code_location
 #include <sycl/detail/helpers.hpp>  // for context_impl
-#include <sycl/detail/pi.h>         // for pi_mem_advice, _pi_ext_command_b...
-#include <sycl/detail/pi.hpp>       // for PiImageOffset, PiImageRegion
+#include <sycl/detail/ur.hpp>       // for ur_rect_region_t, ur_rect_offset_t
 #include <sycl/event.hpp>           // for event_impl
 #include <sycl/exception_list.hpp>  // for queue_impl
-#include <sycl/kernel.hpp>          // for kernel_impl
-#include <sycl/kernel_bundle.hpp>   // for kernel_bundle_impl
+#include <sycl/ext/oneapi/experimental/async_alloc/memory_pool.hpp>
+#include <sycl/ext/oneapi/experimental/event_mode_property.hpp>
+#include <sycl/kernel.hpp>        // for kernel_impl
+#include <sycl/kernel_bundle.hpp> // for kernel_bundle_impl
+
+#include <detail/device_kernel_info.hpp>
+#include <detail/kernel_arg_desc.hpp>
+#include <detail/ndrange_desc.hpp>
 
 #include <assert.h> // for assert
 #include <memory>   // for shared_ptr, unique_ptr
@@ -45,117 +50,6 @@ using EventImplPtr = std::shared_ptr<event_impl>;
 class stream_impl;
 class queue_impl;
 class kernel_bundle_impl;
-
-// The structure represents kernel argument.
-class ArgDesc {
-public:
-  ArgDesc(sycl::detail::kernel_param_kind_t Type, void *Ptr, int Size,
-          int Index)
-      : MType(Type), MPtr(Ptr), MSize(Size), MIndex(Index) {}
-
-  sycl::detail::kernel_param_kind_t MType;
-  void *MPtr;
-  int MSize;
-  int MIndex;
-};
-
-// The structure represents NDRange - global, local sizes, global offset and
-// number of dimensions.
-class NDRDescT {
-  // The method initializes all sizes for dimensions greater than the passed one
-  // to the default values, so they will not affect execution.
-  void setNDRangeLeftover() {
-    for (int I = Dims; I < 3; ++I) {
-      GlobalSize[I] = 1;
-      LocalSize[I] = LocalSize[0] ? 1 : 0;
-      GlobalOffset[I] = 0;
-      NumWorkGroups[I] = 0;
-    }
-  }
-
-  template <int Dims> static sycl::range<3> padRange(sycl::range<Dims> Range) {
-    if constexpr (Dims == 3) {
-      return Range;
-    } else {
-      sycl::range<3> Res{0, 0, 0};
-      for (int I = 0; I < Dims; ++I)
-        Res[I] = Range[I];
-      return Res;
-    }
-  }
-
-  template <int Dims> static sycl::id<3> padId(sycl::id<Dims> Id) {
-    if constexpr (Dims == 3) {
-      return Id;
-    } else {
-      sycl::id<3> Res{0, 0, 0};
-      for (int I = 0; I < Dims; ++I)
-        Res[I] = Id[I];
-      return Res;
-    }
-  }
-
-public:
-  NDRDescT() = default;
-  NDRDescT(const NDRDescT &Desc) = default;
-  NDRDescT(NDRDescT &&Desc) = default;
-
-  NDRDescT(sycl::range<3> N, bool SetNumWorkGroups, int DimsArg)
-      : GlobalSize{SetNumWorkGroups ? sycl::range<3>{0, 0, 0} : N},
-        NumWorkGroups{SetNumWorkGroups ? N : sycl::range<3>{0, 0, 0}},
-        Dims{size_t(DimsArg)} {
-    setNDRangeLeftover();
-  }
-
-  NDRDescT(sycl::range<3> NumWorkItems, sycl::id<3> Offset, int DimsArg)
-      : GlobalSize{NumWorkItems}, GlobalOffset{Offset}, Dims{size_t(DimsArg)} {}
-
-  NDRDescT(sycl::range<3> NumWorkItems, sycl::range<3> LocalSize,
-           sycl::id<3> Offset, int DimsArg)
-      : GlobalSize{NumWorkItems}, LocalSize{LocalSize}, GlobalOffset{Offset},
-        Dims{size_t(DimsArg)} {
-    setNDRangeLeftover();
-  }
-
-  template <int Dims_>
-  NDRDescT(sycl::nd_range<Dims_> ExecutionRange, int DimsArg)
-      : NDRDescT(padRange(ExecutionRange.get_global_range()),
-                 padRange(ExecutionRange.get_local_range()),
-                 padId(ExecutionRange.get_offset()), size_t(DimsArg)) {
-    setNDRangeLeftover();
-  }
-
-  template <int Dims_>
-  NDRDescT(sycl::nd_range<Dims_> ExecutionRange)
-      : NDRDescT(ExecutionRange, Dims_) {}
-
-  template <int Dims_>
-  NDRDescT(sycl::range<Dims_> Range)
-      : NDRDescT(padRange(Range), /*SetNumWorkGroups=*/false, Dims_) {}
-
-  void setClusterDimensions(sycl::range<3> N, int Dims) {
-    if (this->Dims != size_t(Dims)) {
-      throw std::runtime_error(
-          "Dimensionality of cluster, global and local ranges must be same");
-    }
-
-    for (int I = 0; I < 3; ++I)
-      ClusterDimensions[I] = (I < Dims) ? N[I] : 1;
-  }
-
-  NDRDescT &operator=(const NDRDescT &Desc) = default;
-  NDRDescT &operator=(NDRDescT &&Desc) = default;
-
-  sycl::range<3> GlobalSize{0, 0, 0};
-  sycl::range<3> LocalSize{0, 0, 0};
-  sycl::id<3> GlobalOffset{0, 0, 0};
-  /// Number of workgroups, used to record the number of workgroups from the
-  /// simplest form of parallel_for_work_group. If set, all other fields must be
-  /// zero
-  sycl::range<3> NumWorkGroups{0, 0, 0};
-  sycl::range<3> ClusterDimensions{1, 1, 1};
-  size_t Dims = 0;
-};
 
 /// Base class for all types of command groups.
 class CG {
@@ -189,7 +83,8 @@ public:
     std::vector<detail::EventImplPtr> MEvents;
   };
 
-  CG(CGType Type, StorageInitHelper D, detail::code_location loc = {})
+  CG(CGType Type, StorageInitHelper D, detail::code_location loc = {},
+     bool IsTopCodeLoc = true)
       : MType(Type), MData(std::move(D)) {
     // Capture the user code-location from Q.submit(), Q.parallel_for()
     // etc for later use; if code location information is not available,
@@ -200,6 +95,7 @@ public:
       MFileName = loc.fileName();
     MLine = loc.lineNumber();
     MColumn = loc.columnNumber();
+    MIsTopCodeLoc = IsTopCodeLoc;
   }
 
   CG(CG &&CommandGroup) = default;
@@ -240,7 +136,8 @@ public:
   // Storage for function name and source file name
   std::string MFunctionName, MFileName;
   // Storage for line and column of code location
-  int32_t MLine, MColumn;
+  uint32_t MLine, MColumn;
+  bool MIsTopCodeLoc;
 };
 
 /// "Execute kernel" command group class.
@@ -252,41 +149,46 @@ public:
   std::shared_ptr<detail::kernel_impl> MSyclKernel;
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
   std::vector<ArgDesc> MArgs;
-  std::string MKernelName;
+  DeviceKernelInfo &MDeviceKernelInfo;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
-  sycl::detail::pi::PiKernelCacheConfig MKernelCacheConfig;
+  /// Used to implement ext_oneapi_graph dynamic_command_group. Stores the list
+  /// of command-groups that a kernel command can be updated to.
+  std::vector<std::weak_ptr<CGExecKernel>> MAlternativeKernels;
+  ur_kernel_cache_config_t MKernelCacheConfig;
   bool MKernelIsCooperative = false;
   bool MKernelUsesClusterLaunch = false;
+  size_t MKernelWorkGroupMemorySize = 0;
 
-  CGExecKernel(NDRDescT NDRDesc, std::shared_ptr<HostKernelBase> HKernel,
+  CGExecKernel(const NDRDescT &NDRDesc, std::shared_ptr<HostKernelBase> HKernel,
                std::shared_ptr<detail::kernel_impl> SyclKernel,
                std::shared_ptr<detail::kernel_bundle_impl> KernelBundle,
                CG::StorageInitHelper CGData, std::vector<ArgDesc> Args,
-               std::string KernelName,
+               DeviceKernelInfo &DeviceKernelInfo,
                std::vector<std::shared_ptr<detail::stream_impl>> Streams,
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
-               CGType Type,
-               sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig,
+               CGType Type, ur_kernel_cache_config_t KernelCacheConfig,
                bool KernelIsCooperative, bool MKernelUsesClusterLaunch,
-               detail::code_location loc = {})
-      : CG(Type, std::move(CGData), std::move(loc)),
-        MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
-        MSyclKernel(std::move(SyclKernel)),
+               size_t KernelWorkGroupMemorySize, detail::code_location loc = {})
+      : CG(Type, std::move(CGData), std::move(loc)), MNDRDesc(NDRDesc),
+        MHostKernel(std::move(HKernel)), MSyclKernel(std::move(SyclKernel)),
         MKernelBundle(std::move(KernelBundle)), MArgs(std::move(Args)),
-        MKernelName(std::move(KernelName)), MStreams(std::move(Streams)),
+        MDeviceKernelInfo(DeviceKernelInfo), MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)),
-        MKernelCacheConfig(std::move(KernelCacheConfig)),
+        MAlternativeKernels{}, MKernelCacheConfig(std::move(KernelCacheConfig)),
         MKernelIsCooperative(KernelIsCooperative),
-        MKernelUsesClusterLaunch(MKernelUsesClusterLaunch) {
+        MKernelUsesClusterLaunch(MKernelUsesClusterLaunch),
+        MKernelWorkGroupMemorySize(KernelWorkGroupMemorySize) {
     assert(getType() == CGType::Kernel && "Wrong type of exec kernel CG.");
   }
 
   CGExecKernel(const CGExecKernel &CGExec) = default;
 
-  std::vector<ArgDesc> getArguments() const { return MArgs; }
-  std::string getKernelName() const { return MKernelName; }
-  std::vector<std::shared_ptr<detail::stream_impl>> getStreams() const {
+  const std::vector<ArgDesc> &getArguments() const { return MArgs; }
+  std::string_view getKernelName() const {
+    return static_cast<std::string_view>(MDeviceKernelInfo.Name);
+  }
+  const std::vector<std::shared_ptr<detail::stream_impl>> &getStreams() const {
     return MStreams;
   }
 
@@ -296,7 +198,7 @@ public:
   }
   void clearAuxiliaryResources() override { MAuxiliaryResources.clear(); }
 
-  std::shared_ptr<detail::kernel_bundle_impl> getKernelBundle() {
+  const std::shared_ptr<detail::kernel_bundle_impl> &getKernelBundle() {
     return MKernelBundle;
   }
 
@@ -389,42 +291,51 @@ public:
 class CGPrefetchUSM : public CG {
   void *MDst;
   size_t MLength;
+  ext::oneapi::experimental::prefetch_type MPrefetchType;
 
 public:
   CGPrefetchUSM(void *DstPtr, size_t Length, CG::StorageInitHelper CGData,
+                ext::oneapi::experimental::prefetch_type PrefetchType,
                 detail::code_location loc = {})
       : CG(CGType::PrefetchUSM, std::move(CGData), std::move(loc)),
-        MDst(DstPtr), MLength(Length) {}
-  void *getDst() { return MDst; }
-  size_t getLength() { return MLength; }
+        MDst(DstPtr), MLength(Length), MPrefetchType(PrefetchType) {}
+  void *getDst() const { return MDst; }
+  size_t getLength() const { return MLength; }
+  ext::oneapi::experimental::prefetch_type getPrefetchType() const {
+    return MPrefetchType;
+  }
 };
 
 /// "Advise USM" command group class.
 class CGAdviseUSM : public CG {
   void *MDst;
   size_t MLength;
-  pi_mem_advice MAdvice;
+  ur_usm_advice_flags_t MAdvice;
 
 public:
-  CGAdviseUSM(void *DstPtr, size_t Length, pi_mem_advice Advice,
+  CGAdviseUSM(void *DstPtr, size_t Length, ur_usm_advice_flags_t Advice,
               CG::StorageInitHelper CGData, CGType Type,
               detail::code_location loc = {})
       : CG(Type, std::move(CGData), std::move(loc)), MDst(DstPtr),
         MLength(Length), MAdvice(Advice) {}
   void *getDst() { return MDst; }
   size_t getLength() { return MLength; }
-  pi_mem_advice getAdvice() { return MAdvice; }
+  ur_usm_advice_flags_t getAdvice() { return MAdvice; }
 };
 
 class CGBarrier : public CG {
 public:
   std::vector<detail::EventImplPtr> MEventsWaitWithBarrier;
+  ext::oneapi::experimental::event_mode_enum MEventMode =
+      ext::oneapi::experimental::event_mode_enum::none;
 
   CGBarrier(std::vector<detail::EventImplPtr> EventsWaitWithBarrier,
+            ext::oneapi::experimental::event_mode_enum EventMode,
             CG::StorageInitHelper CGData, CGType Type,
             detail::code_location loc = {})
       : CG(Type, std::move(CGData), std::move(loc)),
-        MEventsWaitWithBarrier(std::move(EventsWaitWithBarrier)) {}
+        MEventsWaitWithBarrier(std::move(EventsWaitWithBarrier)),
+        MEventMode(EventMode) {}
 };
 
 class CGProfilingTag : public CG {
@@ -502,29 +413,6 @@ public:
   char getValue() const { return MValue; }
 };
 
-/// "ReadWriteHostPipe" command group class.
-class CGReadWriteHostPipe : public CG {
-  std::string PipeName;
-  bool Blocking;
-  void *HostPtr;
-  size_t TypeSize;
-  bool IsReadOp;
-
-public:
-  CGReadWriteHostPipe(const std::string &Name, bool Block, void *Ptr,
-                      size_t Size, bool Read, CG::StorageInitHelper CGData,
-                      detail::code_location loc = {})
-      : CG(CGType::ReadWriteHostPipe, std::move(CGData), std::move(loc)),
-        PipeName(Name), Blocking(Block), HostPtr(Ptr), TypeSize(Size),
-        IsReadOp(Read) {}
-
-  std::string getPipeName() { return PipeName; }
-  void *getHostPtr() { return HostPtr; }
-  size_t getTypeSize() { return TypeSize; }
-  bool isBlocking() { return Blocking; }
-  bool isReadHostPipe() { return IsReadOp; }
-};
-
 /// "Copy to device_global" command group class.
 class CGCopyToDeviceGlobal : public CG {
   void *MSrc;
@@ -578,99 +466,126 @@ public:
 class CGCopyImage : public CG {
   void *MSrc;
   void *MDst;
-  sycl::detail::pi::PiMemImageDesc MSrcImageDesc;
-  sycl::detail::pi::PiMemImageDesc MDstImageDesc;
-  sycl::detail::pi::PiMemImageFormat MSrcImageFormat;
-  sycl::detail::pi::PiMemImageFormat MDstImageFormat;
-  sycl::detail::pi::PiImageCopyFlags MImageCopyFlags;
-  sycl::detail::pi::PiImageOffset MSrcOffset;
-  sycl::detail::pi::PiImageOffset MDstOffset;
-  sycl::detail::pi::PiImageRegion MCopyExtent;
+  ur_image_desc_t MSrcImageDesc;
+  ur_image_desc_t MDstImageDesc;
+  ur_image_format_t MSrcImageFormat;
+  ur_image_format_t MDstImageFormat;
+  ur_exp_image_copy_flags_t MImageCopyFlags;
+  ur_exp_image_copy_input_types_t MImageInputTypes;
+  ur_rect_offset_t MSrcOffset;
+  ur_rect_offset_t MDstOffset;
+  ur_rect_region_t MCopyExtent;
 
 public:
-  CGCopyImage(void *Src, void *Dst,
-              sycl::detail::pi::PiMemImageDesc SrcImageDesc,
-              sycl::detail::pi::PiMemImageDesc DstImageDesc,
-              sycl::detail::pi::PiMemImageFormat SrcImageFormat,
-              sycl::detail::pi::PiMemImageFormat DstImageFormat,
-              sycl::detail::pi::PiImageCopyFlags ImageCopyFlags,
-              sycl::detail::pi::PiImageOffset SrcOffset,
-              sycl::detail::pi::PiImageOffset DstOffset,
-              sycl::detail::pi::PiImageRegion CopyExtent,
-              CG::StorageInitHelper CGData, detail::code_location loc = {})
+  CGCopyImage(void *Src, void *Dst, ur_image_desc_t SrcImageDesc,
+              ur_image_desc_t DstImageDesc, ur_image_format_t SrcImageFormat,
+              ur_image_format_t DstImageFormat,
+              ur_exp_image_copy_flags_t ImageCopyFlags,
+              ur_exp_image_copy_input_types_t ImageInputTypes,
+              ur_rect_offset_t SrcOffset, ur_rect_offset_t DstOffset,
+              ur_rect_region_t CopyExtent, CG::StorageInitHelper CGData,
+              detail::code_location loc = {})
       : CG(CGType::CopyImage, std::move(CGData), std::move(loc)), MSrc(Src),
         MDst(Dst), MSrcImageDesc(SrcImageDesc), MDstImageDesc(DstImageDesc),
         MSrcImageFormat(SrcImageFormat), MDstImageFormat(DstImageFormat),
-        MImageCopyFlags(ImageCopyFlags), MSrcOffset(SrcOffset),
-        MDstOffset(DstOffset), MCopyExtent(CopyExtent) {}
+        MImageCopyFlags(ImageCopyFlags), MImageInputTypes(ImageInputTypes),
+        MSrcOffset(SrcOffset), MDstOffset(DstOffset), MCopyExtent(CopyExtent) {}
 
   void *getSrc() const { return MSrc; }
   void *getDst() const { return MDst; }
-  sycl::detail::pi::PiMemImageDesc getSrcDesc() const { return MSrcImageDesc; }
-  sycl::detail::pi::PiMemImageDesc getDstDesc() const { return MDstImageDesc; }
-  sycl::detail::pi::PiMemImageFormat getSrcFormat() const {
-    return MSrcImageFormat;
+  ur_image_desc_t getSrcDesc() const { return MSrcImageDesc; }
+  ur_image_desc_t getDstDesc() const { return MDstImageDesc; }
+  ur_image_format_t getSrcFormat() const { return MSrcImageFormat; }
+  ur_image_format_t getDstFormat() const { return MDstImageFormat; }
+  ur_exp_image_copy_flags_t getCopyFlags() const { return MImageCopyFlags; }
+  ur_exp_image_copy_input_types_t getCopyInputTypes() const {
+    return MImageInputTypes;
   }
-  sycl::detail::pi::PiMemImageFormat getDstFormat() const {
-    return MDstImageFormat;
-  }
-  sycl::detail::pi::PiImageCopyFlags getCopyFlags() const {
-    return MImageCopyFlags;
-  }
-  sycl::detail::pi::PiImageOffset getSrcOffset() const { return MSrcOffset; }
-  sycl::detail::pi::PiImageOffset getDstOffset() const { return MDstOffset; }
-  sycl::detail::pi::PiImageRegion getCopyExtent() const { return MCopyExtent; }
+  ur_rect_offset_t getSrcOffset() const { return MSrcOffset; }
+  ur_rect_offset_t getDstOffset() const { return MDstOffset; }
+  ur_rect_region_t getCopyExtent() const { return MCopyExtent; }
 };
 
 /// "Semaphore Wait" command group class.
 class CGSemaphoreWait : public CG {
-  sycl::detail::pi::PiInteropSemaphoreHandle MInteropSemaphoreHandle;
+  ur_exp_external_semaphore_handle_t MExternalSemaphore;
   std::optional<uint64_t> MWaitValue;
 
 public:
-  CGSemaphoreWait(
-      sycl::detail::pi::PiInteropSemaphoreHandle InteropSemaphoreHandle,
-      std::optional<uint64_t> WaitValue, CG::StorageInitHelper CGData,
-      detail::code_location loc = {})
+  CGSemaphoreWait(ur_exp_external_semaphore_handle_t ExternalSemaphore,
+                  std::optional<uint64_t> WaitValue,
+                  CG::StorageInitHelper CGData, detail::code_location loc = {})
       : CG(CGType::SemaphoreWait, std::move(CGData), std::move(loc)),
-        MInteropSemaphoreHandle(InteropSemaphoreHandle), MWaitValue(WaitValue) {
-  }
+        MExternalSemaphore(ExternalSemaphore), MWaitValue(WaitValue) {}
 
-  sycl::detail::pi::PiInteropSemaphoreHandle getInteropSemaphoreHandle() const {
-    return MInteropSemaphoreHandle;
+  ur_exp_external_semaphore_handle_t getExternalSemaphore() const {
+    assert(MExternalSemaphore != nullptr &&
+           "MExternalSemaphore has not been defined yet.");
+    return MExternalSemaphore;
   }
   std::optional<uint64_t> getWaitValue() const { return MWaitValue; }
 };
 
 /// "Semaphore Signal" command group class.
 class CGSemaphoreSignal : public CG {
-  sycl::detail::pi::PiInteropSemaphoreHandle MInteropSemaphoreHandle;
+  ur_exp_external_semaphore_handle_t MExternalSemaphore;
   std::optional<uint64_t> MSignalValue;
 
 public:
-  CGSemaphoreSignal(
-      sycl::detail::pi::PiInteropSemaphoreHandle InteropSemaphoreHandle,
-      std::optional<uint64_t> SignalValue, CG::StorageInitHelper CGData,
-      detail::code_location loc = {})
+  CGSemaphoreSignal(ur_exp_external_semaphore_handle_t ExternalSemaphore,
+                    std::optional<uint64_t> SignalValue,
+                    CG::StorageInitHelper CGData,
+                    detail::code_location loc = {})
       : CG(CGType::SemaphoreSignal, std::move(CGData), std::move(loc)),
-        MInteropSemaphoreHandle(InteropSemaphoreHandle),
-        MSignalValue(SignalValue) {}
+        MExternalSemaphore(ExternalSemaphore), MSignalValue(SignalValue) {}
 
-  sycl::detail::pi::PiInteropSemaphoreHandle getInteropSemaphoreHandle() const {
-    return MInteropSemaphoreHandle;
+  ur_exp_external_semaphore_handle_t getExternalSemaphore() const {
+    if (MExternalSemaphore == nullptr)
+      throw exception(make_error_code(errc::runtime),
+                      "getExternalSemaphore(): MExternalSemaphore has not been "
+                      "defined yet.");
+    return MExternalSemaphore;
   }
   std::optional<uint64_t> getSignalValue() const { return MSignalValue; }
+};
+
+/// "Async Alloc" command group class.
+class CGAsyncAlloc : public CG {
+
+  // Resulting event carried from async alloc execution.
+  ur_event_handle_t MEvent;
+
+public:
+  CGAsyncAlloc(ur_event_handle_t event, CG::StorageInitHelper CGData,
+               detail::code_location loc = {})
+      : CG(CGType::AsyncAlloc, std::move(CGData), std::move(loc)),
+        MEvent(event) {}
+
+  ur_event_handle_t getEvent() const { return MEvent; }
+};
+
+/// "Async Free" command group class.
+class CGAsyncFree : public CG {
+  void *MFreePtr;
+
+public:
+  CGAsyncFree(void *ptr, CG::StorageInitHelper CGData,
+              detail::code_location loc = {})
+      : CG(CGType::AsyncFree, std::move(CGData), std::move(loc)),
+        MFreePtr(ptr) {}
+
+  void *getPtr() const { return MFreePtr; }
 };
 
 /// "Execute command-buffer" command group class.
 class CGExecCommandBuffer : public CG {
 public:
-  sycl::detail::pi::PiExtCommandBuffer MCommandBuffer;
+  ur_exp_command_buffer_handle_t MCommandBuffer;
   std::shared_ptr<sycl::ext::oneapi::experimental::detail::exec_graph_impl>
       MExecGraph;
 
   CGExecCommandBuffer(
-      const sycl::detail::pi::PiExtCommandBuffer &CommandBuffer,
+      const ur_exp_command_buffer_handle_t &CommandBuffer,
       const std::shared_ptr<
           sycl::ext::oneapi::experimental::detail::exec_graph_impl> &ExecGraph,
       CG::StorageInitHelper CGData)
@@ -687,14 +602,10 @@ public:
   std::shared_ptr<detail::context_impl> MContext;
   std::vector<ArgDesc> MArgs;
 
-  CGHostTask(std::shared_ptr<HostTask> HostTask,
-             std::shared_ptr<detail::queue_impl> Queue,
-             std::shared_ptr<detail::context_impl> Context,
-             std::vector<ArgDesc> Args, CG::StorageInitHelper CGData,
-             CGType Type, detail::code_location loc = {})
-      : CG(Type, std::move(CGData), std::move(loc)),
-        MHostTask(std::move(HostTask)), MQueue(Queue), MContext(Context),
-        MArgs(std::move(Args)) {}
+  CGHostTask(std::shared_ptr<HostTask> HostTask, detail::queue_impl *Queue,
+             detail::context_impl *Context, std::vector<ArgDesc> Args,
+             CG::StorageInitHelper CGData, CGType Type,
+             detail::code_location loc = {});
 };
 
 } // namespace detail

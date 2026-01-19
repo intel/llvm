@@ -160,9 +160,12 @@ Value *stripToMemorySource(Value *V) {
   Value *MemoryAccess = V;
   if (auto *LI = dyn_cast<LoadInst>(MemoryAccess)) {
     Value *LoadSource = LI->getPointerOperand();
-    auto *Store = cast<StoreInst>(*llvm::find_if(
-        LoadSource->users(), [](User *U) { return isa<StoreInst>(U); }));
-    MemoryAccess = Store->getValueOperand();
+    auto Users = LoadSource->users();
+    auto I = llvm::find_if(Users, [](User *U) { return isa<StoreInst>(U); });
+    if (I != Users.end()) {
+      auto *Store = cast<StoreInst>(*I);
+      MemoryAccess = Store->getValueOperand();
+    }
   }
   return MemoryAccess->stripPointerCastsAndAliases();
 }

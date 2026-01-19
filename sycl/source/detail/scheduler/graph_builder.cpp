@@ -9,18 +9,16 @@
 #include "detail/config.hpp"
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
-#include <sstream>
-#include <sycl/feature_test.hpp>
-#if SYCL_EXT_CODEPLAY_KERNEL_FUSION
-#include <detail/jit_compiler.hpp>
-#endif
-#include <detail/graph_impl.hpp>
+#include <detail/graph/graph_impl.hpp>
+#include <detail/graph/node_impl.hpp>
 #include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
+#include <sstream>
 #include <sycl/access/access.hpp>
 #include <sycl/exception.hpp>
+#include <sycl/feature_test.hpp>
 
 #include <algorithm>
 #include <cstdlib>
@@ -54,8 +52,7 @@ static bool IsSuitableSubReq(const Requirement *Req) {
   return Req->MIsSubBuffer;
 }
 
-static bool isOnSameContext(const ContextImplPtr Context,
-                            const QueueImplPtr &Queue) {
+static bool isOnSameContext(context_impl *Context, queue_impl *Queue) {
   // Covers case for host usage (nullptr == nullptr) and existing device
   // contexts comparison.
   return Context == queue_impl::getContext(Queue);
@@ -117,12 +114,6 @@ Scheduler::GraphBuilder::GraphBuilder() {
     if (GraphPrintOpts.find("after_addHostAcc") != std::string::npos ||
         EnableAlways)
       MPrintOptionsArray[AfterAddHostAcc] = true;
-    if (GraphPrintOpts.find("after_fusionComplete") != std::string::npos ||
-        EnableAlways)
-      MPrintOptionsArray[AfterFusionComplete] = true;
-    if (GraphPrintOpts.find("after_fusionCancel") != std::string::npos ||
-        EnableAlways)
-      MPrintOptionsArray[AfterFusionCancel] = true;
   }
 }
 
@@ -143,14 +134,6 @@ static void unmarkVisitedNodes(std::vector<Command *> &Visited) {
 static void handleVisitedNodes(std::vector<Command *> &Visited) {
   for (Command *Cmd : Visited) {
     if (Cmd->MMarks.MToBeDeleted) {
-      if (Cmd->getType() == Command::FUSION &&
-          !static_cast<KernelFusionCommand *>(Cmd)->readyForDeletion()) {
-        // Fusion commands might still be needed because fusion might be
-        // aborted, but a later call to complete_fusion still needs to be able
-        // to return a valid event. Clean-up of fusion commands is therefore
-        // explicitly handled by start fusion.
-        return;
-      }
       Cmd->getEvent()->setCommand(nullptr);
       delete Cmd;
     } else
@@ -196,7 +179,7 @@ MemObjRecord *Scheduler::GraphBuilder::getMemObjRecord(SYCLMemObjI *MemObject) {
 }
 
 MemObjRecord *
-Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
+Scheduler::GraphBuilder::getOrInsertMemObjRecord(queue_impl *Queue,
                                                  const Requirement *Req) {
   SYCLMemObjI *MemObject = Req->MSYCLMemObj;
   MemObjRecord *Record = getMemObjRecord(MemObject);
@@ -224,34 +207,34 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
           cleanupCommand(Cmd);
       };
 
-  const ContextImplPtr &InteropCtxPtr = Req->MSYCLMemObj->getInteropContext();
+  context_impl *InteropCtxPtr = Req->MSYCLMemObj->getInteropContext();
   if (InteropCtxPtr) {
     // The memory object has been constructed using interoperability constructor
     // which means that there is already an allocation(cl_mem) in some context.
     // Registering this allocation in the SYCL graph.
 
-    std::vector<sycl::device> Devices =
-        InteropCtxPtr->get_info<info::context::devices>();
-    assert(Devices.size() != 0);
-    DeviceImplPtr Dev = detail::getSyclObjImpl(Devices[0]);
+    devices_range Devices = InteropCtxPtr->getDevices();
+    assert(!Devices.empty());
+    device_impl &Dev = Devices.front();
 
     // Since all the Scheduler commands require queue but we have only context
     // here, we need to create a dummy queue bound to the context and one of the
     // devices from the context.
-    QueueImplPtr InteropQueuePtr{new detail::queue_impl{
-        Dev, InteropCtxPtr, /*AsyncHandler=*/{}, /*PropertyList=*/{}}};
+    std::shared_ptr<queue_impl> InteropQueuePtr = queue_impl::create(
+        Dev, *InteropCtxPtr, async_handler{}, property_list{});
 
-    MemObject->MRecord.reset(
-        new MemObjRecord{InteropCtxPtr, LeafLimit, AllocateDependency});
+    MemObject->MRecord.reset(new MemObjRecord{InteropCtxPtr, LeafLimit,
+                                              std::move(AllocateDependency)});
     std::vector<Command *> ToEnqueue;
-    getOrCreateAllocaForReq(MemObject->MRecord.get(), Req, InteropQueuePtr,
-                            ToEnqueue);
+    getOrCreateAllocaForReq(MemObject->MRecord.get(), Req,
+                            InteropQueuePtr.get(), ToEnqueue);
     assert(ToEnqueue.empty() && "Creation of the first alloca for a record "
                                 "shouldn't lead to any enqueuing (no linked "
                                 "alloca or exceeding the leaf limit).");
   } else
     MemObject->MRecord.reset(new MemObjRecord{queue_impl::getContext(Queue),
-                                              LeafLimit, AllocateDependency});
+                                              LeafLimit,
+                                              std::move(AllocateDependency)});
 
   MMemObjs.push_back(MemObject);
   return MemObject->MRecord.get();
@@ -287,7 +270,7 @@ void Scheduler::GraphBuilder::addNodeToLeaves(
 }
 
 UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
-    MemObjRecord *Record, Requirement *Req, const QueueImplPtr &Queue,
+    MemObjRecord *Record, Requirement *Req, queue_impl *Queue,
     std::vector<Command *> &ToEnqueue) {
   auto Context = queue_impl::getContext(Queue);
   AllocaCommandBase *AllocaCmd = findAllocaForReq(Record, Req, Context);
@@ -342,10 +325,10 @@ static Command *insertMapUnmapForLinkedCmds(AllocaCommandBase *AllocaCmdSrc,
   return MapCmd;
 }
 
-Command *Scheduler::GraphBuilder::insertMemoryMove(
-    MemObjRecord *Record, Requirement *Req, const QueueImplPtr &Queue,
-    std::vector<Command *> &ToEnqueue) {
-
+Command *
+Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
+                                          Requirement *Req, queue_impl *Queue,
+                                          std::vector<Command *> &ToEnqueue) {
   AllocaCommandBase *AllocaCmdDst =
       getOrCreateAllocaForReq(Record, Req, Queue, ToEnqueue);
   if (!AllocaCmdDst)
@@ -363,15 +346,16 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(
   }
 
   AllocaCommandBase *AllocaCmdSrc =
-      findAllocaForReq(Record, Req, Record->MCurContext);
+      findAllocaForReq(Record, Req, Record->getCurContext());
   if (!AllocaCmdSrc && IsSuitableSubReq(Req)) {
     // Since no alloca command for the sub buffer requirement was found in the
     // current context, need to find a parent alloca command for it (it must be
     // there)
     auto IsSuitableAlloca = [Record](AllocaCommandBase *AllocaCmd) {
-      bool Res = isOnSameContext(Record->MCurContext, AllocaCmd->getQueue()) &&
-                 // Looking for a parent buffer alloca command
-                 AllocaCmd->getType() == Command::CommandType::ALLOCA;
+      bool Res =
+          isOnSameContext(Record->getCurContext(), AllocaCmd->getQueue()) &&
+          // Looking for a parent buffer alloca command
+          AllocaCmd->getType() == Command::CommandType::ALLOCA;
       return Res;
     };
     const auto It =
@@ -401,10 +385,9 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(
     NewCmd = insertMapUnmapForLinkedCmds(AllocaCmdSrc, AllocaCmdDst, MapMode);
     Record->MHostAccess = MapMode;
   } else {
-
     if ((Req->MAccessMode == access::mode::discard_write) ||
         (Req->MAccessMode == access::mode::discard_read_write)) {
-      Record->MCurContext = Context;
+      Record->setCurContext(Context);
       return nullptr;
     } else {
       // Full copy of buffer is needed to avoid loss of data that may be caused
@@ -426,7 +409,7 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(
   addNodeToLeaves(Record, NewCmd, access::mode::read_write, ToEnqueue);
   for (Command *Cmd : ToCleanUp)
     cleanupCommand(Cmd);
-  Record->MCurContext = Context;
+  Record->setCurContext(Context);
   return NewCmd;
 }
 
@@ -439,7 +422,8 @@ Command *Scheduler::GraphBuilder::remapMemoryObject(
   AllocaCommandBase *LinkedAllocaCmd = HostAllocaCmd->MLinkedAllocaCmd;
   assert(LinkedAllocaCmd && "Linked alloca command expected");
 
-  std::set<Command *> Deps = findDepsForReq(Record, Req, Record->MCurContext);
+  std::set<Command *> Deps =
+      findDepsForReq(Record, Req, Record->getCurContext());
 
   UnMapMemObject *UnMapCmd = new UnMapMemObject(
       LinkedAllocaCmd, *LinkedAllocaCmd->getRequirement(),
@@ -490,7 +474,7 @@ Scheduler::GraphBuilder::addCopyBack(Requirement *Req,
 
   std::set<Command *> Deps = findDepsForReq(Record, Req, nullptr);
   AllocaCommandBase *SrcAllocaCmd =
-      findAllocaForReq(Record, Req, Record->MCurContext);
+      findAllocaForReq(Record, Req, Record->getCurContext());
 
   auto MemCpyCmdUniquePtr = std::make_unique<MemCpyCommandHost>(
       *SrcAllocaCmd->getRequirement(), SrcAllocaCmd, *Req, &Req->MData,
@@ -504,6 +488,9 @@ Scheduler::GraphBuilder::addCopyBack(Requirement *Req,
 
   std::vector<Command *> ToCleanUp;
   for (Command *Dep : Deps) {
+    if (Dep->MEnqueueStatus == EnqueueResultT::SyclEnqueueFailed)
+      continue;
+
     Command *ConnCmd = MemCpyCmd->addDep(
         DepDesc{Dep, MemCpyCmd->getRequirement(), SrcAllocaCmd}, ToCleanUp);
     if (ConnCmd)
@@ -529,7 +516,7 @@ Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
     auto SYCLMemObj = static_cast<detail::SYCLMemObjT *>(Req->MSYCLMemObj);
     SYCLMemObj->handleWriteAccessorCreation();
   }
-  // Host accessor is not attached to any queue so no QueueImplPtr object to be
+  // Host accessor is not attached to any queue so no queue object to be
   // sent to getOrInsertMemObjRecord.
   MemObjRecord *Record = getOrInsertMemObjRecord(nullptr, Req);
   if (MPrintOptionsArray[BeforeAddHostAcc])
@@ -539,7 +526,7 @@ Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
   AllocaCommandBase *HostAllocaCmd =
       getOrCreateAllocaForReq(Record, Req, nullptr, ToEnqueue);
 
-  if (isOnSameContext(Record->MCurContext, HostAllocaCmd->getQueue())) {
+  if (isOnSameContext(Record->getCurContext(), HostAllocaCmd->getQueue())) {
     if (!isAccessModeAllowed(Req->MAccessMode, Record->MHostAccess)) {
       remapMemoryObject(Record, Req,
                         Req->MIsSubBuffer ? (static_cast<AllocaSubBufCommand *>(
@@ -585,10 +572,8 @@ Command *Scheduler::GraphBuilder::addCGUpdateHost(
 /// 1. New and examined commands only read -> can bypass
 /// 2. New and examined commands has non-overlapping requirements -> can bypass
 /// 3. New and examined commands have different contexts -> cannot bypass
-std::set<Command *>
-Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record,
-                                        const Requirement *Req,
-                                        const ContextImplPtr &Context) {
+std::set<Command *> Scheduler::GraphBuilder::findDepsForReq(
+    MemObjRecord *Record, const Requirement *Req, context_impl *Context) {
   std::set<Command *> RetDeps;
   std::vector<Command *> Visited;
   const bool ReadOnlyReq = Req->MAccessMode == access::mode::read;
@@ -658,7 +643,7 @@ DepDesc Scheduler::GraphBuilder::findDepForRecord(Command *Cmd,
 // The function searches for the alloca command matching context and
 // requirement.
 AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
-    MemObjRecord *Record, const Requirement *Req, const ContextImplPtr &Context,
+    MemObjRecord *Record, const Requirement *Req, context_impl *Context,
     bool AllowConst) {
   auto IsSuitableAlloca = [&Context, Req,
                            AllowConst](AllocaCommandBase *AllocaCmd) {
@@ -677,7 +662,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
   return (Record->MAllocaCommands.end() != It) ? *It : nullptr;
 }
 
-static bool checkHostUnifiedMemory(const ContextImplPtr &Ctx) {
+static bool checkHostUnifiedMemory(context_impl *Ctx) {
   if (const char *HUMConfig = SYCLConfig<SYCL_HOST_UNIFIED_MEMORY>::get()) {
     if (std::strcmp(HUMConfig, "0") == 0)
       return Ctx == nullptr;
@@ -689,11 +674,9 @@ static bool checkHostUnifiedMemory(const ContextImplPtr &Ctx) {
   if (Ctx == nullptr)
     return true;
 
-  for (const device &Device : Ctx->getDevices()) {
-    if (!Device.get_info<info::device::host_unified_memory>())
-      return false;
-  }
-  return true;
+  return all_of(Ctx->getDevices(), [](device_impl &Device) {
+    return Device.get_info<info::device::host_unified_memory>();
+  });
 }
 
 // The function searches for the alloca command matching context and
@@ -701,7 +684,7 @@ static bool checkHostUnifiedMemory(const ContextImplPtr &Ctx) {
 // Note, creation of new allocation command can lead to the current context
 // (Record->MCurContext) change.
 AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
-    MemObjRecord *Record, const Requirement *Req, const QueueImplPtr &Queue,
+    MemObjRecord *Record, const Requirement *Req, queue_impl *Queue,
     std::vector<Command *> &ToEnqueue) {
   auto Context = queue_impl::getContext(Queue);
   AllocaCommandBase *AllocaCmd =
@@ -758,7 +741,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
             Record->MAllocaCommands.push_back(HostAllocaCmd);
             Record->MWriteLeaves.push_back(HostAllocaCmd, ToEnqueue);
             ++(HostAllocaCmd->MLeafCounter);
-            Record->MCurContext = nullptr;
+            Record->setCurContext(nullptr);
           }
         }
       } else {
@@ -772,7 +755,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
           // Can setup link between cl and host allocations only
           if ((Context == nullptr) != (Record->MCurContext == nullptr)) {
             // Linked commands assume that the host allocation is reused by the
-            // plugin runtime and that can lead to unnecessary copy overhead on
+            // unified runtime and that can lead to unnecessary copy overhead on
             // devices that do not support host unified memory. Do not link the
             // allocations in this case.
             // However, if the user explicitly requests use of pinned host
@@ -782,11 +765,12 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
             bool PinnedHostMemory = MemObj->usesPinnedHostMemory();
 
             bool HostUnifiedMemoryOnNonHostDevice =
-                Queue == nullptr ? checkHostUnifiedMemory(Record->MCurContext)
-                                 : HostUnifiedMemory;
+                Queue == nullptr
+                    ? checkHostUnifiedMemory(Record->getCurContext())
+                    : HostUnifiedMemory;
             if (PinnedHostMemory || HostUnifiedMemoryOnNonHostDevice) {
               AllocaCommandBase *LinkedAllocaCmdCand = findAllocaForReq(
-                  Record, Req, Record->MCurContext, /*AllowConst=*/false);
+                  Record, Req, Record->getCurContext(), /*AllowConst=*/false);
 
               // Cannot setup link if candidate is linked already
               if (LinkedAllocaCmdCand &&
@@ -826,7 +810,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
           AllocaCmd->MIsActive = false;
         } else {
           LinkedAllocaCmd->MIsActive = false;
-          Record->MCurContext = Context;
+          Record->setCurContext(Context);
 
           std::set<Command *> Deps = findDepsForReq(Record, Req, Context);
           for (Command *Dep : Deps) {
@@ -935,110 +919,22 @@ static void combineAccessModesOfReqs(std::vector<Requirement *> &Reqs) {
   }
 }
 
-Scheduler::GraphBuildResult Scheduler::GraphBuilder::addCG(
-    std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
+Command *Scheduler::GraphBuilder::addCG(
+    std::unique_ptr<detail::CG> CommandGroup, queue_impl *Queue,
     std::vector<Command *> &ToEnqueue, bool EventNeeded,
-    sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
-    const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies) {
+    ur_exp_command_buffer_handle_t CommandBuffer,
+    const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies) {
   std::vector<Requirement *> &Reqs = CommandGroup->getRequirements();
   std::vector<detail::EventImplPtr> &Events = CommandGroup->getEvents();
 
-  auto NewCmd = std::make_unique<ExecCGCommand>(std::move(CommandGroup), Queue,
-                                                EventNeeded, CommandBuffer,
-                                                std::move(Dependencies));
+  auto NewCmd = std::make_unique<ExecCGCommand>(
+      std::move(CommandGroup), Queue, EventNeeded, CommandBuffer, Dependencies);
 
   if (!NewCmd)
     throw exception(make_error_code(errc::memory_allocation),
                     "Out of host memory");
 
-  // Only device kernel command groups can participate in fusion. Otherwise,
-  // command groups take the regular route. If they create any requirement or
-  // event dependency on any of the kernels in the fusion list, this will lead
-  // to cancellation of the fusion in the GraphProcessor.
-  auto QUniqueID = std::hash<sycl::detail::queue_impl *>()(Queue.get());
-  if (isInFusionMode(QUniqueID)) {
-    if (NewCmd->isFusable()) {
-      auto *FusionCmd = findFusionList(QUniqueID)->second.get();
-
-      bool dependsOnFusion = false;
-      for (auto Ev = Events.begin(); Ev != Events.end();) {
-        auto *EvDepCmd = static_cast<Command *>((*Ev)->getCommand());
-        if (!EvDepCmd) {
-          ++Ev;
-          continue;
-        }
-        // Event dependencies on commands part of another active fusion are
-        // handled by cancelling fusion in that other queue.
-        if (EvDepCmd->getQueue() != Queue && isPartOfActiveFusion(EvDepCmd)) {
-          printFusionWarning(
-              "Aborting fusion because of event dependency from a "
-              "different fusion");
-          cancelFusion(EvDepCmd->getQueue(), ToEnqueue);
-        }
-        // Check if this command depends on the placeholder command for the
-        // fusion itself participates in.
-        if (EvDepCmd == FusionCmd) {
-          Ev = Events.erase(Ev);
-          dependsOnFusion = true;
-        } else {
-          ++Ev;
-        }
-      }
-
-      // If this command has an explicit event dependency on the placeholder
-      // command for this fusion (because it used depends_on on the event
-      // returned by submitting another kernel to this fusion earlier), add a
-      // dependency on all the commands in the fusion list so far.
-      if (dependsOnFusion) {
-        for (auto *Cmd : FusionCmd->getFusionList()) {
-          Events.push_back(Cmd->getEvent());
-        }
-      }
-
-      // Add the kernel to the graph, but delay the enqueue of any auxiliary
-      // commands (e.g., allocations) resulting from that process by adding them
-      // to the list of auxiliary commands of the fusion command.
-      createGraphForCommand(NewCmd.get(), NewCmd->getCG(),
-                            isInteropHostTask(NewCmd.get()), Reqs, Events,
-                            Queue, FusionCmd->auxiliaryCommands());
-
-      // Set the fusion command, so we recognize when another command depends on
-      // a kernel in the fusion list.
-      FusionCmd->addToFusionList(NewCmd.get());
-      NewCmd->MFusionCmd = FusionCmd;
-      std::vector<Command *> ToCleanUp;
-      // Add an event dependency from the fusion placeholder command to the new
-      // kernel.
-      auto ConnectionCmd = FusionCmd->addDep(NewCmd->getEvent(), ToCleanUp);
-      if (ConnectionCmd) {
-        FusionCmd->auxiliaryCommands().push_back(ConnectionCmd);
-      }
-      return {NewCmd.release(), FusionCmd->getEvent(), false};
-    } else {
-      std::string s;
-      std::stringstream ss(s);
-      if (NewCmd->getCG().getType() == CGType::Kernel) {
-        ss << "Not fusing kernel with 'use_root_sync' property. Can only fuse "
-              "non-cooperative device kernels.";
-      } else {
-        ss << "Not fusing '" << NewCmd->getTypeString()
-           << "' command group. Can only fuse device kernel command groups.";
-      }
-      printFusionWarning(ss.str());
-    }
-  }
-  createGraphForCommand(NewCmd.get(), NewCmd->getCG(),
-                        isInteropHostTask(NewCmd.get()), Reqs, Events, Queue,
-                        ToEnqueue);
-  auto Event = NewCmd->getEvent();
-  return {NewCmd.release(), Event, true};
-}
-
-void Scheduler::GraphBuilder::createGraphForCommand(
-    Command *NewCmd, CG &CG, bool isInteropTask,
-    std::vector<Requirement *> &Reqs,
-    const std::vector<detail::EventImplPtr> &Events, QueueImplPtr Queue,
-    std::vector<Command *> &ToEnqueue) {
+  bool isInteropTask = isInteropHostTask(NewCmd.get());
 
   if (MPrintOptionsArray[BeforeAddCG])
     printGraphAsDot("before_addCG");
@@ -1055,8 +951,10 @@ void Scheduler::GraphBuilder::createGraphForCommand(
     bool isSameCtx = false;
 
     {
-      const QueueImplPtr &QueueForAlloca =
-          isInteropTask ? static_cast<detail::CGHostTask &>(CG).MQueue : Queue;
+      queue_impl *QueueForAlloca =
+          isInteropTask
+              ? static_cast<detail::CGHostTask &>(NewCmd->getCG()).MQueue.get()
+              : Queue;
 
       Record = getOrInsertMemObjRecord(QueueForAlloca, Req);
       markModifiedIfWrite(Record, Req);
@@ -1064,7 +962,7 @@ void Scheduler::GraphBuilder::createGraphForCommand(
       AllocaCmd =
           getOrCreateAllocaForReq(Record, Req, QueueForAlloca, ToEnqueue);
 
-      isSameCtx = isOnSameContext(Record->MCurContext, QueueForAlloca);
+      isSameCtx = isOnSameContext(Record->getCurContext(), QueueForAlloca);
     }
 
     // If there is alloca command we need to check if the latest memory is in
@@ -1085,14 +983,15 @@ void Scheduler::GraphBuilder::createGraphForCommand(
       // Cannot directly copy memory from OpenCL device to OpenCL device -
       // create two copies: device->host and host->device.
       bool NeedMemMoveToHost = false;
-      auto MemMoveTargetQueue = Queue;
+      queue_impl *MemMoveTargetQueue = Queue;
 
       if (isInteropTask) {
-        const detail::CGHostTask &HT = static_cast<detail::CGHostTask &>(CG);
+        const detail::CGHostTask &HT =
+            static_cast<detail::CGHostTask &>(NewCmd->getCG());
 
-        if (!isOnSameContext(Record->MCurContext, HT.MQueue)) {
+        if (!isOnSameContext(Record->getCurContext(), HT.MQueue.get())) {
           NeedMemMoveToHost = true;
-          MemMoveTargetQueue = HT.MQueue;
+          MemMoveTargetQueue = HT.MQueue.get();
         }
       } else if (Queue && Record->MCurContext)
         NeedMemMoveToHost = true;
@@ -1106,12 +1005,10 @@ void Scheduler::GraphBuilder::createGraphForCommand(
         findDepsForReq(Record, Req, queue_impl::getContext(Queue));
 
     for (Command *Dep : Deps) {
-      if (Dep != NewCmd) {
-        Command *ConnCmd =
-            NewCmd->addDep(DepDesc{Dep, Req, AllocaCmd}, ToCleanUp);
-        if (ConnCmd)
-          ToEnqueue.push_back(ConnCmd);
-      }
+      Command *ConnCmd =
+          NewCmd->addDep(DepDesc{Dep, Req, AllocaCmd}, ToCleanUp);
+      if (ConnCmd)
+        ToEnqueue.push_back(ConnCmd);
     }
   }
 
@@ -1124,14 +1021,11 @@ void Scheduler::GraphBuilder::createGraphForCommand(
     const Requirement *Req = Dep.MDepRequirement;
     MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
     updateLeaves({Dep.MDepCommand}, Record, Req->MAccessMode, ToCleanUp);
-    addNodeToLeaves(Record, NewCmd, Req->MAccessMode, ToEnqueue);
+    addNodeToLeaves(Record, NewCmd.get(), Req->MAccessMode, ToEnqueue);
   }
 
   // Register all the events as dependencies
-  for (detail::EventImplPtr e : Events) {
-    if (e->getCommand() && e->getCommand() == NewCmd) {
-      continue;
-    }
+  for (const detail::EventImplPtr &e : Events) {
     if (Command *ConnCmd = NewCmd->addDep(e, ToCleanUp))
       ToEnqueue.push_back(ConnCmd);
   }
@@ -1142,6 +1036,8 @@ void Scheduler::GraphBuilder::createGraphForCommand(
   for (Command *Cmd : ToCleanUp) {
     cleanupCommand(Cmd);
   }
+
+  return NewCmd.release();
 }
 
 void Scheduler::GraphBuilder::decrementLeafCountersForRecord(
@@ -1290,14 +1186,6 @@ void Scheduler::GraphBuilder::cleanupCommand(
     DepCmd->MUsers.erase(Cmd);
   }
 
-  if (Cmd->getType() == Command::FUSION &&
-      !static_cast<KernelFusionCommand *>(Cmd)->readyForDeletion()) {
-    // Fusion commands might still be needed because fusion might be aborted,
-    // but a later call to complete_fusion still needs to be able to return a
-    // valid event. Clean-up of fusion commands is therefore explicitly handled
-    // by start fusion.
-    return;
-  }
   Cmd->getEvent()->setCommand(nullptr);
   delete Cmd;
 }
@@ -1327,7 +1215,7 @@ void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {
 Command *Scheduler::GraphBuilder::connectDepEvent(
     Command *const Cmd, const EventImplPtr &DepEvent, const DepDesc &Dep,
     std::vector<Command *> &ToCleanUp) {
-  assert(Cmd->getWorkerContext() != DepEvent->getContextImpl());
+  assert(Cmd->getWorkerContext() != &DepEvent->getContextImpl());
 
   // construct Host Task type command manually and make it depend on DepEvent
   ExecCGCommand *ConnectCmd = nullptr;
@@ -1335,7 +1223,7 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
   try {
     std::shared_ptr<detail::HostTask> HT(new detail::HostTask);
     std::unique_ptr<detail::CG> ConnectCG(new detail::CGHostTask(
-        std::move(HT), /* Queue = */ Cmd->getQueue(), /* Context = */ {},
+        std::move(HT), /* Queue = */ Cmd->getQueue(), /* Context = */ nullptr,
         /* Args = */ {},
         detail::CG::StorageInitHelper(
             /* ArgsStorage = */ {}, /* AccStorage = */ {},
@@ -1355,8 +1243,7 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
     // Dismiss the result here as it's not a connection now,
     // 'cause ConnectCmd is host one
     (void)ConnectCmd->addDep(Dep, ToCleanUp);
-    assert(reinterpret_cast<Command *>(DepEvent->getCommand()) ==
-           Dep.MDepCommand);
+    assert(DepEvent->getCommand() == Dep.MDepCommand);
     // add user to Dep.MDepCommand is already performed beyond this if branch
     {
       DepDesc DepOnConnect = Dep;
@@ -1369,7 +1256,7 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
   } else {
     // It is required condition in another a path and addUser will be set in
     // addDep
-    if (Command *DepCmd = reinterpret_cast<Command *>(DepEvent->getCommand()))
+    if (Command *DepCmd = DepEvent->getCommand())
       DepCmd->addUser(ConnectCmd);
 
     std::ignore = ConnectCmd->addDep(DepEvent, ToCleanUp);
@@ -1382,309 +1269,10 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
   return ConnectCmd;
 }
 
-void Scheduler::GraphBuilder::startFusion(QueueImplPtr Queue) {
-  cleanUpCmdFusion(Queue.get());
-  auto QUniqueID = std::hash<sycl::detail::queue_impl *>()(Queue.get());
-  MFusionMap.emplace(QUniqueID, std::make_unique<KernelFusionCommand>(Queue));
-}
-
-void Scheduler::GraphBuilder::cleanUpCmdFusion(
-    sycl::detail::queue_impl *Queue) {
-  auto QUniqueID = std::hash<sycl::detail::queue_impl *>()(Queue);
-  if (isInFusionMode(QUniqueID)) {
-    throw sycl::exception{sycl::make_error_code(sycl::errc::invalid),
-                          "Queue already in fusion mode"};
-  }
-  auto OldFusionCmd = findFusionList(QUniqueID);
-  if (OldFusionCmd != MFusionMap.end()) {
-    // If fusion was used on this queue previously, the old fusion command might
-    // still be around to make sure that even after
-    // cancellation of the fusion due to synchronization, complete_fusion is
-    // still able to return a valid event.
-    OldFusionCmd->second->setFusionStatus(
-        KernelFusionCommand::FusionStatus::DELETED);
-    cleanupCommand(OldFusionCmd->second.release());
-    MFusionMap.erase(OldFusionCmd);
-  }
-}
-
-void Scheduler::GraphBuilder::removeNodeFromGraph(
-    Command *Node, std::vector<Command *> &ToEnqueue) {
-  // Remove the placeholder command as leaf of all its requirements and from the
-  // user list of all its dependencies.
-  for (auto &Dep : Node->MDeps) {
-    auto AccessMode = Dep.MDepRequirement->MAccessMode;
-    auto *Record = getMemObjRecord(Dep.MDepRequirement->MSYCLMemObj);
-
-    Node->MLeafCounter -= Record->MReadLeaves.remove(Node);
-    Node->MLeafCounter -= Record->MWriteLeaves.remove(Node);
-    // If the placeholder had a write-requirement on this record, we need to
-    // restore the previous leaves.
-    if (AccessMode != access::mode::read) {
-      for (auto PrevDep : Dep.MDepCommand->MDeps) {
-        auto *DepReq = PrevDep.MDepRequirement;
-        auto *DepRecord = getMemObjRecord(DepReq->MSYCLMemObj);
-        if (DepRecord == Record) {
-          // Need to restore this as a leaf, because we pushed it from the
-          // leaves when adding the placeholder command.
-          assert(Dep.MDepCommand);
-          addNodeToLeaves(Record, Dep.MDepCommand, DepReq->MAccessMode,
-                          ToEnqueue);
-        }
-      }
-    }
-    Dep.MDepCommand->MUsers.erase(Node);
-  }
-
-  // Clear all the dependencies to avoid cleanDepEventsThroughOneLevel, called
-  // from the destructor of the command to delete the dependencies of the
-  // command this command depends on.
-  Node->clearAllDependencies();
-}
-
-void Scheduler::GraphBuilder::cancelFusion(QueueImplPtr Queue,
-                                           std::vector<Command *> &ToEnqueue) {
-  auto QUniqueID = std::hash<sycl::detail::queue_impl *>()(Queue.get());
-  if (!isInFusionMode(QUniqueID)) {
-    return;
-  }
-  auto FusionList = findFusionList(QUniqueID);
-
-  auto *PlaceholderCmd = (*FusionList).second.get();
-
-  // Enqueue all the kernels/commands from the fusion list
-  auto FusedCmdList = PlaceholderCmd->getFusionList();
-  ToEnqueue.insert(ToEnqueue.end(), FusedCmdList.begin(), FusedCmdList.end());
-
-  // The commands establishing an event dependency between the fusion
-  // placeholder command and the individual kernels need to be enqueued.
-  ToEnqueue.insert(ToEnqueue.end(), PlaceholderCmd->auxiliaryCommands().begin(),
-                   PlaceholderCmd->auxiliaryCommands().end());
-
-  ToEnqueue.push_back(PlaceholderCmd);
-
-  if (MPrintOptionsArray[AfterFusionCancel]) {
-    printGraphAsDot("after_fusionCancel");
-  }
-
-  // Set the status for the fusion command
-  PlaceholderCmd->setFusionStatus(KernelFusionCommand::FusionStatus::CANCELLED);
-}
-
-static bool isPartOfFusion(Command *Cmd, KernelFusionCommand *Fusion) {
-  if (Cmd->getType() == Command::RUN_CG) {
-    return static_cast<ExecCGCommand *>(Cmd)->MFusionCmd == Fusion;
-  }
-  return false;
-}
-
-static bool checkForCircularDependency(Command *, bool, KernelFusionCommand *);
-
-static bool createsCircularDependency(Command *Cmd, bool PredPartOfFusion,
-                                      KernelFusionCommand *Fusion) {
-  if (isPartOfFusion(Cmd, Fusion)) {
-    // If this is part of the fusion and the predecessor also was, we can stop
-    // the traversal here. A direct dependency between two kernels in the same
-    // fusion will never form a cyclic dependency and by iterating over all
-    // commands in a fusion, we will detect any cycles originating from the
-    // current command.
-    // If the predecessor was not part of the fusion, but the current command
-    // is, we have found a potential cycle in the dependency graph.
-    return !PredPartOfFusion;
-  }
-  return checkForCircularDependency(Cmd, false, Fusion);
-}
-
-static bool checkForCircularDependency(Command *Cmd, bool IsPartOfFusion,
-                                       KernelFusionCommand *Fusion) {
-  // Check the requirement dependencies.
-  for (auto &Dep : Cmd->MDeps) {
-    auto *DepCmd = Dep.MDepCommand;
-    if (!DepCmd) {
-      continue;
-    }
-    if (createsCircularDependency(DepCmd, IsPartOfFusion, Fusion)) {
-      return true;
-    }
-  }
-  for (auto &Ev : Cmd->getPreparedDepsEvents()) {
-    auto *EvDepCmd = static_cast<Command *>(Ev->getCommand());
-    if (!EvDepCmd) {
-      continue;
-    }
-    if (createsCircularDependency(EvDepCmd, IsPartOfFusion, Fusion)) {
-      return true;
-    }
-  }
-  for (auto &Ev : Cmd->getPreparedHostDepsEvents()) {
-    auto *EvDepCmd = static_cast<Command *>(Ev->getCommand());
-    if (!EvDepCmd) {
-      continue;
-    }
-    if (createsCircularDependency(EvDepCmd, IsPartOfFusion, Fusion)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-EventImplPtr
-Scheduler::GraphBuilder::completeFusion(QueueImplPtr Queue,
-                                        std::vector<Command *> &ToEnqueue,
-                                        const property_list &PropList) {
-  auto QUniqueID = std::hash<sycl::detail::queue_impl *>()(Queue.get());
-#if SYCL_EXT_CODEPLAY_KERNEL_FUSION
-  if (!isInFusionMode(QUniqueID)) {
-    auto InactiveFusionList = findFusionList(QUniqueID);
-    if (InactiveFusionList == MFusionMap.end()) {
-      throw sycl::exception{
-          sycl::make_error_code(sycl::errc::invalid),
-          "Calling complete_fusion on a queue not in fusion mode"};
-    }
-    return InactiveFusionList->second->getEvent();
-  }
-
-  auto FusionList = findFusionList(QUniqueID);
-  auto *PlaceholderCmd = FusionList->second.get();
-  auto &CmdList = PlaceholderCmd->getFusionList();
-
-  // If there is more than one queue currently in fusion mode, we need to check
-  // if fusing the kernel would create a circular dependency. A circular
-  // dependency would arise, if a kernel in the fusion list *indirectly* depends
-  // on another kernel in the fusion list. Here, indirectly means, that the
-  // dependency is created through a third command not part of the fusion, on
-  // which this kernel depends and which in turn depends on another kernel in
-  // fusion list.
-  //
-  // Note that we only have to consider dependencies via fusion queues here:
-  // Let K1 be a kernel submitted to a queue Q1 in fusion mode. If a kernel K2
-  // is submitted to a non-fusion queue Q2 and K2 depends on K1, fusion on Q1 is
-  // cancelled automatically.
-  bool CreatesCircularDep =
-      MFusionMap.size() > 1 &&
-      std::any_of(CmdList.begin(), CmdList.end(), [&](ExecCGCommand *Cmd) {
-        return checkForCircularDependency(Cmd, true, PlaceholderCmd);
-      });
-  if (CreatesCircularDep) {
-    // If fusing would create a fused kernel, cancel the fusion.
-    printFusionWarning(
-        "Aborting fusion because it would create a circular dependency");
-    auto LastEvent = PlaceholderCmd->getEvent();
-    this->cancelFusion(Queue, ToEnqueue);
-    return LastEvent;
-  }
-
-  // Call the JIT compiler to generate a new fused kernel.
-  auto FusedCG = detail::jit_compiler::get_instance().fuseKernels(
-      Queue, CmdList, PropList);
-
-  if (!FusedCG) {
-    // If the JIT compiler returns a nullptr, JIT compilation of the fused
-    // kernel failed. In that case, simply cancel the fusion and run each kernel
-    // on its own.
-    auto LastEvent = PlaceholderCmd->getEvent();
-    this->cancelFusion(Queue, ToEnqueue);
-    return LastEvent;
-  }
-
-  // Inherit all event dependencies from the input commands in the fusion list.
-  std::vector<EventImplPtr> FusedEventDeps;
-  for (auto *Cmd : CmdList) {
-    FusedEventDeps.insert(FusedEventDeps.end(),
-                          Cmd->getPreparedDepsEvents().begin(),
-                          Cmd->getPreparedDepsEvents().end());
-    FusedEventDeps.insert(FusedEventDeps.end(),
-                          Cmd->getPreparedHostDepsEvents().begin(),
-                          Cmd->getPreparedHostDepsEvents().end());
-  }
-
-  // Remove internal explicit dependencies, i.e., explicit dependencies from one
-  // kernel in the fusion list to another kernel also in the fusion list.
-  FusedEventDeps.erase(
-      std::remove_if(FusedEventDeps.begin(), FusedEventDeps.end(),
-                     [&](EventImplPtr &E) {
-                       if (E->getCommand() == PlaceholderCmd) {
-                         return true;
-                       }
-                       if (E->getCommand() &&
-                           static_cast<Command *>(E->getCommand())->getType() ==
-                               Command::RUN_CG) {
-                         auto *RunCGCmd =
-                             static_cast<ExecCGCommand *>(E->getCommand());
-                         if (RunCGCmd->MFusionCmd == PlaceholderCmd) {
-                           return true;
-                         }
-                       }
-                       return false;
-                     }),
-      FusedEventDeps.end());
-
-  auto FusedKernelCmd = std::make_unique<ExecCGCommand>(
-      std::move(FusedCG), Queue, /*EventNeeded=*/true);
-
-  // Inherit auxiliary resources from fused command groups
-  Scheduler::getInstance().takeAuxiliaryResources(FusedKernelCmd->getEvent(),
-                                                  PlaceholderCmd->getEvent());
-  assert(PlaceholderCmd->MDeps.empty());
-  // Next, backwards iterate over all the commands in the fusion list and remove
-  // them from the graph to restore the state before starting fusion, so we can
-  // add the fused kernel to the graph in the next step.
-  // Clean up the old commands after successfully fusing them.
-  for (auto OldCmd = CmdList.rbegin(); OldCmd != CmdList.rend(); ++OldCmd) {
-    removeNodeFromGraph(*OldCmd, ToEnqueue);
-    cleanupCommand(*OldCmd, /* AllowUnsubmitted */ true);
-  }
-
-  createGraphForCommand(FusedKernelCmd.get(), FusedKernelCmd->getCG(), false,
-                        FusedKernelCmd->getCG().getRequirements(),
-                        FusedEventDeps, Queue, ToEnqueue);
-
-  ToEnqueue.push_back(FusedKernelCmd.get());
-
-  std::vector<Command *> ToCleanUp;
-  // Make the placeholder command depend on the execution of the fused kernel
-  auto *ConnectToPlaceholder =
-      PlaceholderCmd->addDep(FusedKernelCmd->getEvent(), ToCleanUp);
-  if (ConnectToPlaceholder) {
-    ToEnqueue.push_back(ConnectToPlaceholder);
-  }
-  for (Command *Cmd : ToCleanUp) {
-    cleanupCommand(Cmd);
-  }
-  ToEnqueue.push_back(PlaceholderCmd);
-
-  if (MPrintOptionsArray[AfterFusionComplete]) {
-    printGraphAsDot("after_fusionComplete");
-  }
-
-  // Set the status for the fusion command.
-  PlaceholderCmd->setFusionStatus(KernelFusionCommand::FusionStatus::COMPLETE);
-
-  return FusedKernelCmd.release()->getEvent();
-#else  // SYCL_EXT_CODEPLAY_KERNEL_FUSION
-  printFusionWarning("Kernel fusion not supported by this build");
-  (void)PropList;
-  auto FusionList = findFusionList(QUniqueID);
-  auto *PlaceholderCmd = FusionList->second.get();
-  auto LastEvent = PlaceholderCmd->getEvent();
-  this->cancelFusion(Queue, ToEnqueue);
-  return LastEvent;
-#endif // SYCL_EXT_CODEPLAY_KERNEL_FUSION
-}
-
-bool Scheduler::GraphBuilder::isInFusionMode(QueueIdT Id) {
-  auto FusionList = findFusionList(Id);
-  if (FusionList == MFusionMap.end()) {
-    return false;
-  }
-  return FusionList->second->isActive();
-}
-
 Command *Scheduler::GraphBuilder::addCommandGraphUpdate(
     ext::oneapi::experimental::detail::exec_graph_impl *Graph,
-    std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
-        Nodes,
-    const QueueImplPtr &Queue, std::vector<Requirement *> Requirements,
+    ext::oneapi::experimental::detail::nodes_range Nodes, queue_impl *Queue,
+    std::vector<Requirement *> Requirements,
     std::vector<detail::EventImplPtr> &Events,
     std::vector<Command *> &ToEnqueue) {
   auto NewCmd =
@@ -1707,7 +1295,7 @@ Command *Scheduler::GraphBuilder::addCommandGraphUpdate(
 
       AllocaCmd = getOrCreateAllocaForReq(Record, Req, Queue, ToEnqueue);
 
-      isSameCtx = isOnSameContext(Record->MCurContext, Queue);
+      isSameCtx = isOnSameContext(Record->getCurContext(), Queue);
     }
 
     if (!isSameCtx) {
@@ -1750,11 +1338,10 @@ Command *Scheduler::GraphBuilder::addCommandGraphUpdate(
 
   // Register all the events as dependencies
   for (detail::EventImplPtr e : Events) {
-    if (e->getCommand() &&
-        e->getCommand() == static_cast<Command *>(NewCmd.get())) {
+    if (e->getCommand() && e->getCommand() == NewCmd.get()) {
       continue;
     }
-    if (Command *ConnCmd = NewCmd->addDep(e, ToCleanUp))
+    if (Command *ConnCmd = NewCmd->addDep(std::move(e), ToCleanUp))
       ToEnqueue.push_back(ConnCmd);
   }
 

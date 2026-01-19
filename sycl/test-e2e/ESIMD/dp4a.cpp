@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // TODO enable on Windows
-// REQUIRES: linux && gpu-intel-dg1
+// REQUIRES: linux && arch-intel_gpu_dg1
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

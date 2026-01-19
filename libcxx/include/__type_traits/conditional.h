@@ -36,21 +36,28 @@ template <bool _Cond, class _IfRes, class _ElseRes>
 using _If _LIBCPP_NODEBUG = typename _IfImpl<_Cond>::template _Select<_IfRes, _ElseRes>;
 
 template <bool _Bp, class _If, class _Then>
-struct _LIBCPP_TEMPLATE_VIS conditional {
+struct _LIBCPP_NO_SPECIALIZATIONS conditional {
   using type _LIBCPP_NODEBUG = _If;
 };
+
+_LIBCPP_DIAGNOSTIC_PUSH
+#if __has_warning("-Winvalid-specialization")
+_LIBCPP_CLANG_DIAGNOSTIC_IGNORED("-Winvalid-specialization")
+#endif
 template <class _If, class _Then>
-struct _LIBCPP_TEMPLATE_VIS conditional<false, _If, _Then> {
+struct conditional<false, _If, _Then> {
   using type _LIBCPP_NODEBUG = _Then;
 };
-
-template <bool _Bp, class _IfRes, class _ElseRes>
-using __conditional_t _LIBCPP_NODEBUG = _If<_Bp, _IfRes, _ElseRes>;
+_LIBCPP_DIAGNOSTIC_POP
 
 #if _LIBCPP_STD_VER >= 14
 template <bool _Bp, class _IfRes, class _ElseRes>
-using conditional_t _LIBCPP_NODEBUG = __conditional_t<_Bp, _IfRes, _ElseRes>;
+using conditional_t _LIBCPP_NODEBUG = typename conditional<_Bp, _IfRes, _ElseRes>::type;
 #endif
+
+// Helper so we can use "conditional_t" in all language versions.
+template <bool _Bp, class _If, class _Then>
+using __conditional_t _LIBCPP_NODEBUG = typename conditional<_Bp, _If, _Then>::type;
 
 _LIBCPP_END_NAMESPACE_STD
 

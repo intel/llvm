@@ -1,5 +1,5 @@
 -- Merge two tables listed in merge-input.txt
-RUN: cp %S/Inputs/a{0,1}.txt .
+RUN: sh -c "cp %/S/Inputs/a[01].txt ."
 RUN: file-table-tform --merge=Two %S/Inputs/merge-input.txt -o merge-output.txt
 
 -- Verify result

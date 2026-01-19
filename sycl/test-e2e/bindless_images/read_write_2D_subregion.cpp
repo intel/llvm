@@ -1,7 +1,7 @@
-// REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_bindless_images
 
 // RUN: %{build} -o %t.out
-// RUN: %t.out
+// RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
@@ -17,7 +17,6 @@ int main() {
 
   sycl::device dev;
   sycl::queue q(dev);
-  auto ctxt = q.get_context();
 
   // declare image data
   size_t width = 32;
@@ -121,6 +120,7 @@ int main() {
     // Extension: cleanup
     sycl::ext::oneapi::experimental::destroy_image_handle(imgHandle1, q);
     sycl::ext::oneapi::experimental::destroy_image_handle(imgHandle2, q);
+    sycl::ext::oneapi::experimental::destroy_image_handle(imgHandle3, q);
   } catch (sycl::exception e) {
     std::cerr << "SYCL exception caught! : " << e.what() << "\n";
     return 1;

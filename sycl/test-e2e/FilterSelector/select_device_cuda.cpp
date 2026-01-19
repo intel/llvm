@@ -10,15 +10,17 @@
 
 #include <iostream>
 
+#include "../helpers.hpp"
 #include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 
 using namespace sycl;
 using namespace std;
 
 int main() {
-  const char *envVal = getenv("ONEAPI_DEVICE_SELECTOR");
+  std::string envVal = env::getVal("ONEAPI_DEVICE_SELECTOR");
   string forcedPIs;
-  if (envVal) {
+  if (envVal.empty()) {
     forcedPIs = envVal;
   }
 
@@ -37,14 +39,6 @@ int main() {
       device d(cpu_selector_v);
       cerr << "CPU device is found in error: " << d.is_cpu() << std::endl;
       return -1;
-    } catch (...) {
-    }
-  }
-  {
-    try {
-      device d(accelerator_selector_v);
-      cerr << "ACC device is found in error: " << d.is_accelerator()
-           << std::endl;
     } catch (...) {
     }
   }

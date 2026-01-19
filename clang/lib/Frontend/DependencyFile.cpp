@@ -10,11 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/Frontend/Utils.h"
+#include "clang/Basic/DiagnosticFrontend.h"
 #include "clang/Basic/FileManager.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Frontend/DependencyOutputOptions.h"
-#include "clang/Frontend/FrontendDiagnostic.h"
+#include "clang/Frontend/Utils.h"
 #include "clang/Lex/DirectoryLookup.h"
 #include "clang/Lex/ModuleMap.h"
 #include "clang/Lex/PPCallbacks.h"
@@ -73,6 +73,17 @@ struct DepCollectorPPCallbacks : public PPCallbacks {
                                     /*IsSystem*/ false,
                                     /*IsModuleFile*/ false,
                                     /*IsMissing*/ false);
+  }
+
+  bool EmbedFileNotFound(StringRef FileName) override {
+    DepCollector.maybeAddDependency(
+        llvm::sys::path::remove_leading_dotslash(FileName),
+        /*FromModule=*/false,
+        /*IsSystem=*/false,
+        /*IsModuleFile=*/false,
+        /*IsMissing=*/true);
+    // Return true to silence the file not found diagnostic.
+    return true;
   }
 
   void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
@@ -255,11 +266,10 @@ bool DependencyFileGenerator::sawDependency(StringRef Filename, bool FromModule,
   if (isSpecialFilename(Filename))
     return false;
 
-  if (DependencyFilter.size() &&
-      DependencyFilter.compare(0, DependencyFilter.size(), Filename.data(),
-                               DependencyFilter.size()) == 0)
-    // Remove dependencies that are prefixed by the Filter string.
-    return false;
+  // Remove dependencies that are prefixed by the Filter string.
+  for (const std::string &FD : DependencyFilter)
+    if (FD.compare(0, FD.size(), Filename.data(), FD.size()) == 0)
+      return false;
 
   if (IncludeSystemHeaders)
     return true;

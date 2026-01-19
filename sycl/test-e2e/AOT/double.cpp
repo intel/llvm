@@ -1,14 +1,20 @@
 // This test ensures that a program that has a kernel
 // using fp64 can be compiled AOT.
 
-// REQUIRES: ocloc
+// REQUIRES: ocloc, opencl-aot, any-device-is-cpu
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_tgllp -o %t.tgllp.out %s
 
-// ocloc on windows does not have support for PVC/CFL, so this command will
+// CPU AOT targets host isa, so we compile on the run system instead.
+// RUN: %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -o %t.x86.out %s
+// RUN: %if cpu %{ %{run} %t.x86.out %}
+
+// ocloc on windows does not have support for PVC, so this command will
 // result in an error when on windows. (In general, there is no support
-// for pvc/cfl on windows.)
-// RUN: %if !windows %{ %clangxx -fsycl -fsycl-targets=intel_gpu_cfl -o %t.cfl.out %s %}
+// for pvc on windows.)
 // RUN: %if !windows %{ %clangxx -fsycl -fsycl-targets=intel_gpu_pvc -o %t.pvc.out %s %}
+
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
 
 #include <sycl/detail/core.hpp>
 

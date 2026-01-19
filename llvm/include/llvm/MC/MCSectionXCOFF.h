@@ -31,6 +31,7 @@ namespace llvm {
 //    implemented yet.
 class MCSectionXCOFF final : public MCSection {
   friend class MCContext;
+  friend class MCAsmInfoXCOFF;
 
   std::optional<XCOFF::CsectProperties> CsectProp;
   MCSymbolXCOFF *const QualName;
@@ -41,11 +42,14 @@ class MCSectionXCOFF final : public MCSection {
   static constexpr unsigned DefaultAlignVal = 4;
   static constexpr unsigned DefaultTextAlignVal = 32;
 
+  // XTY_CM sections are virtual except for toc-data symbols.
   MCSectionXCOFF(StringRef Name, XCOFF::StorageMappingClass SMC,
                  XCOFF::SymbolType ST, SectionKind K, MCSymbolXCOFF *QualName,
                  MCSymbol *Begin, StringRef SymbolTableName,
                  bool MultiSymbolsAllowed)
-      : MCSection(SV_XCOFF, Name, K.isText(), Begin),
+      : MCSection(Name, K.isText(),
+                  /*IsVirtual=*/ST == XCOFF::XTY_CM && SMC != XCOFF::XMC_TD,
+                  Begin),
         CsectProp(XCOFF::CsectProperties(SMC, ST)), QualName(QualName),
         SymbolTableName(SymbolTableName), DwarfSubtypeFlags(std::nullopt),
         MultiSymbolsAllowed(MultiSymbolsAllowed), Kind(K) {
@@ -69,12 +73,14 @@ class MCSectionXCOFF final : public MCSection {
     }
   }
 
+  // DWARF sections are never virtual.
   MCSectionXCOFF(StringRef Name, SectionKind K, MCSymbolXCOFF *QualName,
                  XCOFF::DwarfSectionSubtypeFlags DwarfSubtypeFlags,
                  MCSymbol *Begin, StringRef SymbolTableName,
                  bool MultiSymbolsAllowed)
-      : MCSection(SV_XCOFF, Name, K.isText(), Begin), QualName(QualName),
-        SymbolTableName(SymbolTableName), DwarfSubtypeFlags(DwarfSubtypeFlags),
+      : MCSection(Name, K.isText(), /*IsVirtual=*/false, Begin),
+        QualName(QualName), SymbolTableName(SymbolTableName),
+        DwarfSubtypeFlags(DwarfSubtypeFlags),
         MultiSymbolsAllowed(MultiSymbolsAllowed), Kind(K) {
     assert(QualName != nullptr && "QualName is needed.");
 
@@ -89,10 +95,6 @@ class MCSectionXCOFF final : public MCSection {
 
 public:
   ~MCSectionXCOFF();
-
-  static bool classof(const MCSection *S) {
-    return S->getVariant() == SV_XCOFF;
-  }
 
   XCOFF::StorageMappingClass getMappingClass() const {
     assert(isCsect() && "Only csect section has mapping class property!");
@@ -110,11 +112,6 @@ public:
   }
   MCSymbolXCOFF *getQualNameSymbol() const { return QualName; }
 
-  void printSwitchToSection(const MCAsmInfo &MAI, const Triple &T,
-                            raw_ostream &OS,
-                            uint32_t Subsection) const override;
-  bool useCodeAlign() const override;
-  bool isVirtualSection() const override;
   StringRef getSymbolTableName() const { return SymbolTableName; }
   void setSymbolTableName(StringRef STN) { SymbolTableName = STN; }
   bool isMultiSymbolsAllowed() const { return MultiSymbolsAllowed; }

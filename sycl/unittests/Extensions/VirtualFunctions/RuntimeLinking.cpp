@@ -1,9 +1,11 @@
+#include "sycl/platform.hpp"
+#include "ur_mock_helpers.hpp"
 #include <sycl/sycl.hpp>
 
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
 #include <helpers/RuntimeLinkingCommon.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
@@ -44,11 +46,11 @@ KERNEL_INFO(KernelG)
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::PiImage
+static sycl::unittest::MockDeviceImage
 generateImage(std::initializer_list<std::string> KernelNames,
               const std::string &VFSets, bool UsesVFSets, unsigned char Magic) {
-  sycl::unittest::PiPropertySet PropSet;
-  sycl::unittest::PiArray<sycl::unittest::PiProperty> Props;
+  sycl::unittest::MockPropertySet PropSet;
+  std::vector<sycl::unittest::MockProperty> Props;
   uint64_t PropSize = VFSets.size();
   std::vector<char> Storage(/* bytes for size */ 8 + PropSize +
                             /* null terminator */ 1);
@@ -59,23 +61,22 @@ generateImage(std::initializer_list<std::string> KernelNames,
   Storage.back() = '\0';
   const std::string PropName =
       UsesVFSets ? "uses-virtual-functions-set" : "virtual-functions-set";
-  sycl::unittest::PiProperty Prop(PropName, Storage,
-                                  PI_PROPERTY_TYPE_BYTE_ARRAY);
+  sycl::unittest::MockProperty Prop(PropName, Storage,
+                                    SYCL_PROPERTY_TYPE_BYTE_ARRAY);
 
   Props.push_back(Prop);
-  PropSet.insert(__SYCL_PI_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS,
-                 std::move(Props));
+  PropSet.insert(__SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS, std::move(Props));
 
   std::vector<unsigned char> Bin{Magic};
 
-  sycl::unittest::PiArray<sycl::unittest::PiOffloadEntry> Entries =
+  std::vector<sycl::unittest::MockOffloadEntry> Entries =
       sycl::unittest::makeEmptyKernels(KernelNames);
 
-  sycl::unittest::PiImage Img{
-      PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-      __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-      "",                                     // Compile options
-      "",                                     // Link options
+  sycl::unittest::MockDeviceImage Img{
+      SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
+      __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+      "",                                  // Compile options
+      "",                                  // Link options
       std::move(Bin),
       std::move(Entries),
       std::move(PropSet)};
@@ -102,7 +103,7 @@ static constexpr unsigned PROGRAM_F1 = 53;
 // Device images with no entires are ignored by SYCL RT during registration.
 // Therefore, we have to provide some kernel names to make the test work, even
 // if we don't really have them/use them.
-static sycl::unittest::PiImage Imgs[] = {
+static sycl::unittest::MockDeviceImage Imgs[] = {
     generateImage({"KernelA"}, "set-a", /* uses vf set */ true, PROGRAM_A),
     generateImage({"DummyKernel0"}, "set-a", /* provides vf set */ false,
                   PROGRAM_A0),
@@ -130,12 +131,13 @@ static sycl::unittest::PiImage Imgs[] = {
     generateImage({"KernelG"}, "set-f", /* uses vf set */ true, PROGRAM_F1)};
 
 // Registers mock devices images in the SYCL RT
-static sycl::unittest::PiImageArray<15> ImgArray{Imgs};
+static sycl::unittest::MockDeviceImageArray<15> ImgArray{Imgs};
 
 TEST(VirtualFunctions, SingleKernelUsesSingleVFSet) {
-  auto Mock = setupRuntimeLinkingMock();
+  sycl::unittest::UrMock<> Mock;
+  setupRuntimeLinkingMock();
 
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::platform Plt = sycl::platform();
   sycl::queue Q(Plt.get_devices()[0]);
 
   CapturedLinkingData.clear();
@@ -144,9 +146,9 @@ TEST(VirtualFunctions, SingleKernelUsesSingleVFSet) {
   Q.single_task<VirtualFunctionsTest::KernelA>([=]() {});
   // When we submit this kernel, we expect that two programs were created (one
   // for a kernel and another providing virtual functions set for it).
-  ASSERT_EQ(CapturedLinkingData.NumOfPiProgramCreateCalls, 2u);
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramCreateCalls, 2u);
   // Both programs should be linked together.
-  ASSERT_EQ(CapturedLinkingData.NumOfPiProgramLinkCalls, 1u);
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramLinkCalls, 1u);
   ASSERT_TRUE(
       CapturedLinkingData.LinkedProgramsContains({PROGRAM_A, PROGRAM_A0}));
   // And the linked program should be used to create a kernel.
@@ -155,9 +157,10 @@ TEST(VirtualFunctions, SingleKernelUsesSingleVFSet) {
 }
 
 TEST(VirtualFunctions, SingleKernelUsesSingleVFSetProvidedTwice) {
-  auto Mock = setupRuntimeLinkingMock();
+  sycl::unittest::UrMock<> Mock;
+  setupRuntimeLinkingMock();
 
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::platform Plt = sycl::platform();
   sycl::queue Q(Plt.get_devices()[0]);
 
   CapturedLinkingData.clear();
@@ -167,9 +170,9 @@ TEST(VirtualFunctions, SingleKernelUsesSingleVFSetProvidedTwice) {
   Q.single_task<VirtualFunctionsTest::KernelB>([=]() {});
   // When we submit this kernel, we expect that three programs were created (one
   // for a kernel and another two providing virtual functions set for it).
-  ASSERT_EQ(CapturedLinkingData.NumOfPiProgramCreateCalls, 3u);
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramCreateCalls, 3u);
   // Both programs should be linked together.
-  ASSERT_EQ(CapturedLinkingData.NumOfPiProgramLinkCalls, 1u);
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramLinkCalls, 1u);
   ASSERT_TRUE(CapturedLinkingData.LinkedProgramsContains(
       {PROGRAM_B, PROGRAM_B0, PROGRAM_B1}));
   // And the linked program should be used to create a kernel.
@@ -178,9 +181,10 @@ TEST(VirtualFunctions, SingleKernelUsesSingleVFSetProvidedTwice) {
 }
 
 TEST(VirtualFunctions, SingleKernelUsesDifferentVFSets) {
-  auto Mock = setupRuntimeLinkingMock();
+  sycl::unittest::UrMock<> Mock;
+  setupRuntimeLinkingMock();
 
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::platform Plt = sycl::platform();
   sycl::queue Q(Plt.get_devices()[0]);
 
   CapturedLinkingData.clear();
@@ -190,9 +194,9 @@ TEST(VirtualFunctions, SingleKernelUsesDifferentVFSets) {
   Q.single_task<VirtualFunctionsTest::KernelC>([=]() {});
   // When we submit this kernel, we expect that three programs were created (one
   // for a kernel and another two providing virtual functions set for it).
-  ASSERT_EQ(CapturedLinkingData.NumOfPiProgramCreateCalls, 3u);
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramCreateCalls, 3u);
   // Both programs should be linked together.
-  ASSERT_EQ(CapturedLinkingData.NumOfPiProgramLinkCalls, 1u);
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramLinkCalls, 1u);
   ASSERT_TRUE(CapturedLinkingData.LinkedProgramsContains(
       {PROGRAM_C, PROGRAM_C0, PROGRAM_C1}));
   // And the linked program should be used to create a kernel.
@@ -201,9 +205,10 @@ TEST(VirtualFunctions, SingleKernelUsesDifferentVFSets) {
 }
 
 TEST(VirtualFunctions, RecursiveSearchOfDependentDeviceImages) {
-  auto Mock = setupRuntimeLinkingMock();
+  sycl::unittest::UrMock<> Mock;
+  setupRuntimeLinkingMock();
 
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::platform Plt = sycl::platform();
   sycl::queue Q(Plt.get_devices()[0]);
 
   CapturedLinkingData.clear();
@@ -214,9 +219,9 @@ TEST(VirtualFunctions, RecursiveSearchOfDependentDeviceImages) {
   // When we submit this kernel, we expect that four programs were created (one
   // for KernelD  and another providing "set-d", as well as one for KernelE and
   // another providing "set-e").
-  ASSERT_EQ(CapturedLinkingData.NumOfPiProgramCreateCalls, 4u);
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramCreateCalls, 4u);
   // Both programs should be linked together.
-  ASSERT_EQ(CapturedLinkingData.NumOfPiProgramLinkCalls, 1u);
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramLinkCalls, 1u);
   ASSERT_TRUE(CapturedLinkingData.LinkedProgramsContains(
       {PROGRAM_D, PROGRAM_D0, PROGRAM_E, PROGRAM_E0}));
   // And the linked program should be used to create a kernel.
@@ -225,9 +230,10 @@ TEST(VirtualFunctions, RecursiveSearchOfDependentDeviceImages) {
 }
 
 TEST(VirtualFunctions, TwoKernelsShareTheSameSet) {
-  auto Mock = setupRuntimeLinkingMock();
+  sycl::unittest::UrMock<> Mock;
+  setupRuntimeLinkingMock();
 
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::platform Plt = sycl::platform();
   sycl::queue Q(Plt.get_devices()[0]);
 
   CapturedLinkingData.clear();
@@ -236,9 +242,9 @@ TEST(VirtualFunctions, TwoKernelsShareTheSameSet) {
   Q.single_task<VirtualFunctionsTest::KernelF>([=]() {});
   // When we submit this kernel, we expect that three programs were created (one
   // for KernelF, another providing "set-f" and one more for KernelG)
-  ASSERT_EQ(CapturedLinkingData.NumOfPiProgramCreateCalls, 3u);
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramCreateCalls, 3u);
   // Both programs should be linked together.
-  ASSERT_EQ(CapturedLinkingData.NumOfPiProgramLinkCalls, 1u);
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramLinkCalls, 1u);
   ASSERT_TRUE(CapturedLinkingData.LinkedProgramsContains(
       {PROGRAM_F, PROGRAM_F0, PROGRAM_F1}));
   // And the linked program should be used to create a kernel.
@@ -250,8 +256,8 @@ TEST(VirtualFunctions, TwoKernelsShareTheSameSet) {
   // When we submit a second kernel, we expect that no new programs will be
   // created and we will simply use previously linked program for that kernel.
   Q.single_task<VirtualFunctionsTest::KernelG>([=]() {});
-  ASSERT_EQ(CapturedLinkingData.NumOfPiProgramCreateCalls, 0u);
-  ASSERT_EQ(CapturedLinkingData.NumOfPiProgramLinkCalls, 0u);
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramCreateCalls, 0u);
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramLinkCalls, 0u);
   ASSERT_EQ(CapturedLinkingData.ProgramUsedToCreateKernel,
             PROGRAM_F * PROGRAM_F0 * PROGRAM_F1);
 }

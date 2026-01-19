@@ -34,7 +34,7 @@ class Command;
 class MockCommand : public sycl::detail::Command {
 public:
   MockCommand(
-      sycl::detail::QueueImplPtr Queue, sycl::detail::Requirement Req,
+      sycl::detail::queue_impl *Queue, sycl::detail::Requirement Req,
       sycl::detail::Command::CommandType Type = sycl::detail::Command::RUN_CG)
       : Command{Type, Queue}, MRequirement{std::move(Req)} {
     using namespace testing;
@@ -44,7 +44,7 @@ public:
   }
 
   MockCommand(
-      sycl::detail::QueueImplPtr Queue,
+      sycl::detail::queue_impl *Queue,
       sycl::detail::Command::CommandType Type = sycl::detail::Command::RUN_CG)
       : Command{Type, Queue}, MRequirement{std::move(getMockRequirement())} {
     using namespace testing;
@@ -60,7 +60,7 @@ public:
     return &MRequirement;
   };
 
-  cl_int enqueueImp() override { return MRetVal; }
+  ur_result_t enqueueImp() override { return MRetVal; }
 
   MOCK_METHOD3(enqueue,
                bool(sycl::detail::EnqueueResultT &, sycl::detail::BlockingT,
@@ -71,12 +71,12 @@ public:
     return sycl::detail::Command::enqueue(EnqueueResult, Blocking, ToCleanUp);
   }
 
-  cl_int MRetVal = CL_SUCCESS;
+  ur_result_t MRetVal = UR_RESULT_SUCCESS;
 
   void waitForEventsCall(
-      std::shared_ptr<sycl::detail::queue_impl> Queue,
+      sycl::detail::queue_impl *Queue,
       std::vector<std::shared_ptr<sycl::detail::event_impl>> &RawEvents,
-      pi_event &Event) {
+      ur_event_handle_t &Event) {
     Command::waitForEvents(Queue, RawEvents, Event);
   }
 
@@ -88,7 +88,7 @@ protected:
 
 class MockCommandWithCallback : public MockCommand {
 public:
-  MockCommandWithCallback(sycl::detail::QueueImplPtr Queue,
+  MockCommandWithCallback(sycl::detail::queue_impl *Queue,
                           sycl::detail::Requirement Req,
                           std::function<void()> Callback)
       : MockCommand(Queue, Req), MCallback(std::move(Callback)) {}
@@ -108,7 +108,7 @@ public:
   using sycl::detail::Scheduler::MDeferredMemObjRelease;
 
   sycl::detail::MemObjRecord *
-  getOrInsertMemObjRecord(const sycl::detail::QueueImplPtr &Queue,
+  getOrInsertMemObjRecord(sycl::detail::queue_impl *Queue,
                           sycl::detail::Requirement *Req) {
     return MGraphBuilder.getOrInsertMemObjRecord(Queue, Req);
   }
@@ -152,7 +152,7 @@ public:
   sycl::detail::AllocaCommandBase *
   getOrCreateAllocaForReq(sycl::detail::MemObjRecord *Record,
                           const sycl::detail::Requirement *Req,
-                          sycl::detail::QueueImplPtr Queue,
+                          sycl::detail::queue_impl *Queue,
                           std::vector<sycl::detail::Command *> &ToEnqueue) {
     return MGraphBuilder.getOrCreateAllocaForReq(Record, Req, Queue, ToEnqueue);
   }
@@ -166,7 +166,7 @@ public:
   sycl::detail::Command *
   insertMemoryMove(sycl::detail::MemObjRecord *Record,
                    sycl::detail::Requirement *Req,
-                   const sycl::detail::QueueImplPtr &Queue,
+                   sycl::detail::queue_impl *Queue,
                    std::vector<sycl::detail::Command *> &ToEnqueue) {
     return MGraphBuilder.insertMemoryMove(Record, Req, Queue, ToEnqueue);
   }
@@ -180,7 +180,7 @@ public:
   sycl::detail::UpdateHostRequirementCommand *
   insertUpdateHostReqCmd(sycl::detail::MemObjRecord *Record,
                          sycl::detail::Requirement *Req,
-                         const sycl::detail::QueueImplPtr &Queue,
+                         sycl::detail::queue_impl *Queue,
                          std::vector<sycl::detail::Command *> &ToEnqueue) {
     return MGraphBuilder.insertUpdateHostReqCmd(Record, Req, Queue, ToEnqueue);
   }
@@ -194,17 +194,11 @@ public:
   }
 
   sycl::detail::Command *addCG(std::unique_ptr<sycl::detail::CG> CommandGroup,
-                               sycl::detail::QueueImplPtr Queue,
+                               sycl::detail::queue_impl *Queue,
                                std::vector<sycl::detail::Command *> &ToEnqueue,
                                bool EventNeeded) {
-    return MGraphBuilder
-        .addCG(std::move(CommandGroup), Queue, ToEnqueue, EventNeeded)
-        .NewCmd;
-  }
-
-  void cancelFusion(sycl::detail::QueueImplPtr Queue,
-                    std::vector<sycl::detail::Command *> &ToEnqueue) {
-    MGraphBuilder.cancelFusion(Queue, ToEnqueue);
+    return MGraphBuilder.addCG(std::move(CommandGroup), Queue, ToEnqueue,
+                               EventNeeded);
   }
 };
 
@@ -217,7 +211,7 @@ sycl::detail::Requirement getMockRequirement(const MemObjT &MemObj) {
           /*AccessRange*/ {0, 0, 0},
           /*MemoryRange*/ {0, 0, 0},
           /*AccessMode*/ sycl::access::mode::read_write,
-          /*SYCLMemObj*/ sycl::detail::getSyclObjImpl(MemObj).get(),
+          /*SYCLMemObj*/ &*sycl::detail::getSyclObjImpl(MemObj),
           /*Dims*/ 0,
           /*ElementSize*/ 0,
           /*Offset*/ size_t(0)};
@@ -225,16 +219,18 @@ sycl::detail::Requirement getMockRequirement(const MemObjT &MemObj) {
 
 class MockHandler : public sycl::handler {
 public:
-  MockHandler(std::shared_ptr<sycl::detail::queue_impl> Queue,
-              bool CallerNeedsEvent)
-      : sycl::handler(Queue, CallerNeedsEvent) {}
+  MockHandler(sycl::detail::queue_impl &Queue, bool CallerNeedsEvent)
+      : sycl::handler(std::make_unique<sycl::detail::handler_impl>(
+            Queue, CallerNeedsEvent)) {}
   // Methods
   using sycl::handler::addReduction;
   using sycl::handler::getType;
   using sycl::handler::impl;
   using sycl::handler::setNDRangeDescriptor;
 
-  sycl::detail::NDRDescT &getNDRDesc() { return impl->MNDRDesc; }
+  sycl::detail::NDRDescT &getNDRDesc() {
+    return impl->MKernelData.getNDRDesc();
+  }
   sycl::detail::code_location &getCodeLoc() { return MCodeLoc; }
   std::vector<std::shared_ptr<sycl::detail::stream_impl>> &getStreamStorage() {
     return MStreamStorage;
@@ -257,13 +253,15 @@ public:
   std::vector<sycl::detail::EventImplPtr> &getEvents() {
     return impl->CGData.MEvents;
   }
-  std::vector<sycl::detail::ArgDesc> &getArgs() { return impl->MArgs; }
-  std::string getKernelName() { return MKernelName.c_str(); }
+  std::vector<sycl::detail::ArgDesc> &getArgs() {
+    return impl->MKernelData.getArgs();
+  }
+  std::string_view getKernelName() { return impl->MKernelData.getKernelName(); }
   std::shared_ptr<sycl::detail::kernel_impl> &getKernel() { return MKernel; }
   std::shared_ptr<sycl::detail::HostTask> &getHostTask() {
     return impl->MHostTask;
   }
-  std::shared_ptr<sycl::detail::queue_impl> &getQueue() { return MQueue; }
+  sycl::detail::queue_impl *getQueue() { return impl->get_queue_or_null(); }
 
   void setType(sycl::detail::CGType Type) { impl->MCGType = Type; }
 
@@ -292,7 +290,7 @@ public:
 
 class MockHandlerCustomFinalize : public MockHandler {
 public:
-  MockHandlerCustomFinalize(std::shared_ptr<sycl::detail::queue_impl> Queue,
+  MockHandlerCustomFinalize(sycl::detail::queue_impl &Queue,
                             bool CallerNeedsEvent)
       : MockHandler(Queue, CallerNeedsEvent) {}
 
@@ -306,14 +304,16 @@ public:
       CommandGroup.reset(new sycl::detail::CGExecKernel(
           getNDRDesc(), std::move(getHostKernel()), getKernel(),
           std::move(impl->MKernelBundle), std::move(CGData), getArgs(),
-          getKernelName(), getStreamStorage(), impl->MAuxiliaryResources,
-          getType(), {}, impl->MKernelIsCooperative,
-          impl->MKernelUsesClusterLaunch, getCodeLoc()));
+          *impl->MKernelData.getDeviceKernelInfoPtr(), getStreamStorage(),
+          impl->MAuxiliaryResources, getType(), {},
+          impl->MKernelData.isCooperative(),
+          impl->MKernelData.usesClusterLaunch(),
+          impl->MKernelData.getKernelWorkGroupMemorySize(), getCodeLoc()));
       break;
     }
     case sycl::detail::CGType::CodeplayHostTask: {
       CommandGroup.reset(new sycl::detail::CGHostTask(
-          std::move(getHostTask()), getQueue(), getQueue()->getContextImplPtr(),
+          std::move(getHostTask()), getQueue(), &getQueue()->getContextImpl(),
           getArgs(), std::move(CGData), getType(), getCodeLoc()));
       break;
     }

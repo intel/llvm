@@ -14,11 +14,11 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/fwd/accessor.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/is_device_copyable.hpp>
 #include <sycl/detail/owner_less_base.hpp>
-#include <sycl/detail/pi.h> // for pi_native_handle and PI_ERROR_INVAL
 #include <sycl/detail/property_helper.hpp>
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/detail/sycl_mem_obj_allocator.hpp>
@@ -26,6 +26,7 @@
 #include <sycl/id.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
+#include <ur_api.h> // for ur_native_handle_t
 
 #include <cstddef>     // for size_t, nullptr_t
 #include <functional>  // for function
@@ -51,9 +52,6 @@ template <int dimensions> class range;
 template <typename DataT>
 using buffer_allocator = detail::sycl_memory_object_allocator<DataT>;
 
-template <typename DataT, int Dimensions, access::mode AccessMode>
-class host_accessor;
-
 template <typename T, int Dimensions, typename AllocatorT, typename Enable>
 class buffer;
 
@@ -62,12 +60,22 @@ template <typename SYCLObjT> class weak_object;
 } // namespace ext::oneapi
 
 namespace detail {
+// XPTI helpers for creating array from a range.
+inline std::array<size_t, 3> rangeToArray(const range<3> &r) {
+  return {r[0], r[1], r[2]};
+}
+inline std::array<size_t, 3> rangeToArray(const range<2> &r) {
+  return {r[0], r[1], 0};
+}
+inline std::array<size_t, 3> rangeToArray(const range<1> &r) {
+  return {r[0], 0, 0};
+}
 
 class buffer_impl;
 
 template <typename T, int Dimensions, typename AllocatorT>
 buffer<T, Dimensions, AllocatorT, void>
-make_buffer_helper(pi_native_handle Handle, const context &Ctx,
+make_buffer_helper(ur_native_handle_t Handle, const context &Ctx,
                    const event &Evt, bool OwnNativeHandle = true) {
   return buffer<T, Dimensions, AllocatorT, void>(Handle, Ctx, OwnNativeHandle,
                                                  Evt);
@@ -85,6 +93,8 @@ struct BufferInterop;
 
 // The non-template base for the sycl::buffer class
 class __SYCL_EXPORT buffer_plain {
+  friend sycl::detail::ImplUtils;
+
 protected:
   buffer_plain(size_t SizeInBytes, size_t, const property_list &Props,
                std::unique_ptr<detail::SYCLMemObjAllocator> Allocator);
@@ -111,7 +121,7 @@ protected:
                std::unique_ptr<detail::SYCLMemObjAllocator> Allocator,
                bool IsConstPtr);
 
-  buffer_plain(pi_native_handle MemObject, const context &SyclContext,
+  buffer_plain(ur_native_handle_t MemObject, const context &SyclContext,
                std::unique_ptr<detail::SYCLMemObjAllocator> Allocator,
                bool OwnNativeHandle, const event &AvailableEvent);
 
@@ -138,13 +148,9 @@ protected:
     return getPropList().template get_property<propertyT>();
   }
 
-  std::vector<pi_native_handle> getNativeVector(backend BackendName) const;
+  std::vector<ur_native_handle_t> getNativeVector(backend BackendName) const;
 
   const std::unique_ptr<SYCLMemObjAllocator> &get_allocator_internal() const;
-
-  void deleteAccProps(const sycl::detail::PropWithDataKind &Kind);
-
-  void addOrReplaceAccessorProperties(const property_list &PropertyList);
 
   size_t getSize() const;
 
@@ -722,9 +728,6 @@ protected:
   }
 
 private:
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
   template <typename A, int dims, typename C, typename Enable>
   friend class buffer;
   template <typename DataT, int dims, access::mode mode, access::target target,
@@ -732,7 +735,7 @@ private:
   friend class accessor;
   template <typename HT, int HDims, typename HAllocT>
   friend buffer<HT, HDims, HAllocT, void>
-  detail::make_buffer_helper(pi_native_handle, const context &, const event &,
+  detail::make_buffer_helper(ur_native_handle_t, const context &, const event &,
                              bool);
   template <typename SYCLObjT> friend class ext::oneapi::weak_object;
 
@@ -747,7 +750,7 @@ private:
 
   // Interop constructor
   template <int N = dimensions, typename = EnableIfOneDimension<N>>
-  buffer(pi_native_handle MemObject, const context &SyclContext,
+  buffer(ur_native_handle_t MemObject, const context &SyclContext,
          bool OwnNativeHandle, const event &AvailableEvent,
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(MemObject, SyclContext,
@@ -760,14 +763,6 @@ private:
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), &MemObject, (const void *)typeid(T).name(),
         dimensions, sizeof(T), detail::rangeToArray(Range).data());
-  }
-
-  void addOrReplaceAccessorProperties(const property_list &PropertyList) {
-    buffer_plain::addOrReplaceAccessorProperties(PropertyList);
-  }
-
-  void deleteAccProps(const sycl::detail::PropWithDataKind &Kind) {
-    buffer_plain::deleteAccProps(Kind);
   }
 
   // Reinterpret contructor
@@ -863,12 +858,7 @@ buffer(const T *, const range<dimensions> &,
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
 template <typename T, int dimensions, typename AllocatorT>
-struct hash<sycl::buffer<T, dimensions, AllocatorT>> {
-  size_t operator()(const sycl::buffer<T, dimensions, AllocatorT> &b) const {
-    return hash<std::shared_ptr<sycl::detail::buffer_impl>>()(
-        sycl::detail::getSyclObjImpl(b));
-  }
-};
-} // namespace std
+struct std::hash<sycl::buffer<T, dimensions, AllocatorT>>
+    : public sycl::detail::sycl_obj_hash<
+          sycl::buffer<T, dimensions, AllocatorT>> {};

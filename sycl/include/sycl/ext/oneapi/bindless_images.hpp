@@ -8,12 +8,12 @@
 
 #pragma once
 
+#include <sycl/aspects.hpp>
 #include <sycl/context.hpp>                               // for context
 #include <sycl/detail/export.hpp>                         // for __SYCL_EXPORT
-#include <sycl/detail/pi.h>                               // for pi_uint64
 #include <sycl/device.hpp>                                // for device
 #include <sycl/ext/oneapi/bindless_images_descriptor.hpp> // for image_desc...
-#include <sycl/ext/oneapi/bindless_images_interop.hpp>    // for interop_me...
+#include <sycl/ext/oneapi/bindless_images_interop.hpp>    // for external_m...
 #include <sycl/ext/oneapi/bindless_images_memory.hpp>     // for image_mem_...
 #include <sycl/ext/oneapi/bindless_images_sampler.hpp>    // for bindless_i...
 #include <sycl/image.hpp>                                 // for image_chan...
@@ -34,9 +34,9 @@ namespace ext::oneapi::experimental {
 
 /// Opaque unsampled image handle type.
 struct unsampled_image_handle {
-  using raw_image_handle_type = pi_uint64;
+  using raw_image_handle_type = uint64_t;
 
-  unsampled_image_handle() : raw_handle(~0) {}
+  unsampled_image_handle() : raw_handle(0) {}
 
   unsampled_image_handle(raw_image_handle_type raw_image_handle)
       : raw_handle(raw_image_handle) {}
@@ -46,9 +46,9 @@ struct unsampled_image_handle {
 
 /// Opaque sampled image handle type.
 struct sampled_image_handle {
-  using raw_image_handle_type = pi_uint64;
+  using raw_image_handle_type = uint64_t;
 
-  sampled_image_handle() : raw_handle(~0) {}
+  sampled_image_handle() : raw_handle(0) {}
 
   sampled_image_handle(raw_image_handle_type handle) : raw_handle(handle) {}
 
@@ -125,151 +125,223 @@ get_mip_level_mem_handle(const image_mem_handle mipMem, unsigned int level,
                          const sycl::queue &syclQueue);
 
 /**
- *  @brief   Import external memory taking an external memory handle (the type
- *           of which is dependent on the OS & external API) and return an
- *           interop memory handle
+ *  @brief   Import external memory taking an external memory descriptor (the
+ *           type of which is dependent on the OS & external API) and return an
+ *           imported external memory object
  *
- *  @tparam  ExternalMemHandleType Handle type describing external memory handle
- *  @param   externalMem External memory descriptor
- *  @param   syclDevice The device in which we create our interop memory
- *  @param   syclContext The context in which we create our interop memory
- *           handle
- *  @return  Interop memory handle to the external memory
+ *  @tparam  ResourceType Resource type differentiating external resource types
+ *  @param   externalMemDesc External memory descriptor
+ *  @param   syclDevice The device in which we create our external memory
+ *  @param   syclContext The context in which we create our external memory
+ *  @return  Imported opaque external memory
  */
-template <typename ExternalMemHandleType>
-__SYCL_EXPORT interop_mem_handle import_external_memory(
-    external_mem_descriptor<ExternalMemHandleType> externalMem,
+template <typename ResourceType>
+__SYCL_EXPORT external_mem import_external_memory(
+    external_mem_descriptor<ResourceType> externalMemDesc,
     const sycl::device &syclDevice, const sycl::context &syclContext);
 
 /**
- *  @brief   Import external memory taking an external memory handle (the type
- *           of which is dependent on the OS & external API) and return an
- *           interop memory handle
+ *  @brief   Import external memory taking an external memory descriptor (the
+ *           type of which is dependent on the OS & external API) and return an
+ *           imported external memory object
  *
- *  @tparam  ExternalMemHandleType Handle type describing external memory handle
- *  @param   externalMem External memory descriptor
- *  @param   syclQueue The queue in which we create our interop memory
- *           handle
- *  @return  Interop memory handle to the external memory
+ *  @tparam  ResourceType Resource type differentiating external resource types
+ *  @param   externalMemDesc External memory descriptor
+ *  @param   syclQueue The queue in which we create our external memory
+ *  @return  Imported opaque external memory
  */
-template <typename ExternalMemHandleType>
-__SYCL_EXPORT interop_mem_handle import_external_memory(
-    external_mem_descriptor<ExternalMemHandleType> externalMem,
-    const sycl::queue &syclQueue);
+template <typename ResourceType>
+__SYCL_EXPORT external_mem
+import_external_memory(external_mem_descriptor<ResourceType> externalMemDesc,
+                       const sycl::queue &syclQueue);
 
 /**
- *  @brief   Maps an interop memory handle to an image memory handle (which may
+ *  @brief   Maps an external memory object to an image memory handle (which may
  *           have a device optimized memory layout)
  *
- *  @param   memHandle   Interop memory handle
+ *  @param   extMem      External memory object
  *  @param   desc        The image descriptor
- *  @param   syclDevice The device in which we create our image memory handle
+ *  @param   syclDevice  The device in which we create our image memory handle
  *  @param   syclContext The conext in which we create our image memory handle
  *  @return  Memory handle to externally allocated memory on the device
  */
 __SYCL_EXPORT
-image_mem_handle map_external_image_memory(interop_mem_handle memHandle,
+image_mem_handle map_external_image_memory(external_mem extMem,
                                            const image_descriptor &desc,
                                            const sycl::device &syclDevice,
                                            const sycl::context &syclContext);
 
 /**
- *  @brief   Maps an interop memory handle to an image memory handle (which may
+ *  @brief   Maps an external memory object to an image memory handle (which may
  *           have a device optimized memory layout)
  *
- *  @param   memHandle   Interop memory handle
+ *  @param   extMem      External memory object
  *  @param   desc        The image descriptor
  *  @param   syclQueue   The queue in which we create our image memory handle
  *  @return  Memory handle to externally allocated memory on the device
  */
 __SYCL_EXPORT
-image_mem_handle map_external_image_memory(interop_mem_handle memHandle,
+image_mem_handle map_external_image_memory(external_mem extMem,
                                            const image_descriptor &desc,
                                            const sycl::queue &syclQueue);
 
 /**
- *  @brief   Import external semaphore taking an external semaphore handle (the
- *           type of which is dependent on the OS & external API)
+ *  @brief   Maps an external memory object to a memory region described by the
+ *           returned void *
  *
- *  @tparam  ExternalSemaphoreHandleType Handle type describing external
- *           semaphore handle
- *  @param   externalSemaphoreDesc External semaphore descriptor
- *  @param   syclDevice The device in which we create our interop semaphore
- *           handle
- *  @param   syclContext The context in which we create our interop semaphore
- *           handle
- *  @return  Interop semaphore handle to the external semaphore
+ *  @param   extMem      External memory object
+ *  @param   offset      Offset of memory region to map
+ *  @param   size        Size of memory region to map
+ *  @param   syclDevice  The device in which we create our image memory handle
+ *  @param   syclContext The context in which we create our image memory handle
+ *  @return  Memory handle to externally allocated memory on the device
  */
-template <typename ExternalSemaphoreHandleType>
-__SYCL_EXPORT interop_semaphore_handle import_external_semaphore(
-    external_semaphore_descriptor<ExternalSemaphoreHandleType>
-        externalSemaphoreDesc,
+__SYCL_EXPORT
+void *map_external_linear_memory(external_mem extMem, uint64_t offset,
+                                 uint64_t size, const sycl::device &syclDevice,
+                                 const sycl::context &syclContext);
+
+/**
+ *  @brief   Maps an external memory object to a memory region described by the
+ *           returned void *
+ *
+ *  @param   extMem      External memory object
+ *  @param   offset      Offset of memory region to map
+ *  @param   size        Size of memory region to map
+ *  @param   syclQueue   The queue in which we create our image memory handle
+ *  @return  Memory handle to externally allocated memory on the device
+ */
+__SYCL_EXPORT
+void *map_external_linear_memory(external_mem extMem, uint64_t offset,
+                                 uint64_t size, const sycl::queue &syclQueue);
+
+/**
+ *  @brief   Import external semaphore taking an external semaphore descriptor
+ *           (the type of which is dependent on the OS & external API)
+ *
+ *  @tparam  ResourceType Resource type differentiating external resource types
+ *  @param   externalSemaphoreDesc External semaphore descriptor
+ *  @param   syclDevice The device in which we create our external semaphore
+ *  @param   syclContext The context in which we create our external semaphore
+ *  @return  Imported opaque external semaphore
+ */
+template <typename ResourceType>
+__SYCL_EXPORT external_semaphore import_external_semaphore(
+    external_semaphore_descriptor<ResourceType> externalSemaphoreDesc,
     const sycl::device &syclDevice, const sycl::context &syclContext);
 
 /**
- *  @brief   Import external semaphore taking an external semaphore handle (the
- *           type of which is dependent on the OS & external API)
+ *  @brief   Import external semaphore taking an external semaphore descriptor
+ *           (the type of which is dependent on the OS & external API)
  *
- *  @tparam  ExternalSemaphoreHandleType Handle type describing external
- *           semaphore handle
+ *  @tparam  ResourceType Resource type differentiating external resource types
  *  @param   externalSemaphoreDesc External semaphore descriptor
- *  @param   syclQueue The queue in which we create our interop semaphore
- *           handle
- *  @return  Interop semaphore handle to the external semaphore
+ *  @param   syclQueue The queue in which we create our external semaphore
+ *  @return  Imported opaque external semaphore
  */
-template <typename ExternalSemaphoreHandleType>
-__SYCL_EXPORT interop_semaphore_handle import_external_semaphore(
-    external_semaphore_descriptor<ExternalSemaphoreHandleType>
-        externalSemaphoreDesc,
+template <typename ResourceType>
+__SYCL_EXPORT external_semaphore import_external_semaphore(
+    external_semaphore_descriptor<ResourceType> externalSemaphoreDesc,
     const sycl::queue &syclQueue);
 
 /**
  *  @brief   Release the external semaphore
  *
- *  @param   semaphoreHandle The interop semaphore handle to destroy
- *  @param   syclDevice The device in which the interop semaphore handle was
- *           created
- *  @param   syclContext The context in which the interop semaphore handle was
- *           created
+ *  @param   extSemaphore The external semaphore to destroy
+ *  @param   syclDevice   The device in which the external semaphore was created
+ *  @param   syclContext  The context in which the external semaphore was
+ *                        created
  */
-__SYCL_EXPORT void
-release_external_semaphore(interop_semaphore_handle semaphoreHandle,
-                           const sycl::device &syclDevice,
-                           const sycl::context &syclContext);
+__SYCL_EXPORT void release_external_semaphore(external_semaphore extSemaphore,
+                                              const sycl::device &syclDevice,
+                                              const sycl::context &syclContext);
 
 /**
  *  @brief   Release the external semaphore
  *
- *  @param   semaphoreHandle The interop semaphore handle to destroy
- *  @param   syclQueue The queue in which the interop semaphore handle was
- *           created
+ *  @param   extSemaphore The external semaphore to destroy
+ *  @param   syclQueue The queue in which the external semaphore was created
  */
-__SYCL_EXPORT void
-release_external_semaphore(interop_semaphore_handle semaphoreHandle,
-                           const sycl::queue &syclQueue);
+__SYCL_EXPORT void release_external_semaphore(external_semaphore extSemaphore,
+                                              const sycl::queue &syclQueue);
 
 /**
  *  @brief   Release external memory
  *
- *  @param   interopHandle The interop memory handle to release
- *  @param   syclDevice The device in which the interop memory handle was
- * created
- *  @param   syclContext The context in which the interop memory handle was
- * created
+ *  @param   externalMem The external memory to release
+ *  @param   syclDevice  The device in which the external memory was created
+ *  @param   syclContext The context in which the external memory was created
  */
-__SYCL_EXPORT void release_external_memory(interop_mem_handle interopHandle,
+__SYCL_EXPORT void release_external_memory(external_mem externalMem,
                                            const sycl::device &syclDevice,
                                            const sycl::context &syclContext);
 
 /**
  *  @brief   Release external memory
  *
- *  @param   interopHandle The interop memory handle to release
- *  @param   syclQueue The queue in which the interop memory handle was
- * created
+ *  @param   externalMem The external memory to release
+ *  @param   syclQueue   The queue in which the external memory was created
  */
-__SYCL_EXPORT void release_external_memory(interop_mem_handle interopHandle,
+__SYCL_EXPORT void release_external_memory(external_mem externalMem,
                                            const sycl::queue &syclQueue);
+
+/**
+ *  @brief   Unmap external linear memory region
+ *
+ *  @param   mappedLinearMem Pointer to the mapped linear memory region to unmap
+ *  @param   syclDevice  The device in which the external memory was created
+ *  @param   syclContext The context in which the external memory was created
+ */
+__SYCL_EXPORT void
+unmap_external_linear_memory(void *mappedLinearMem,
+                             const sycl::device &syclDevice,
+                             const sycl::context &syclContext);
+
+/**
+ *  @brief   Unmap external linear memory region
+ *
+ *  @param   mappedLinearMem Pointer to the mapped linear memory region to unmap
+ *  @param   syclQueue The queue in which the external memory was created
+ */
+inline void unmap_external_linear_memory(void *mappedLinearMem,
+                                         const sycl::queue &syclQueue) {
+  unmap_external_linear_memory(mappedLinearMem, syclQueue.get_device(),
+                               syclQueue.get_context());
+}
+
+/**
+ *  @brief   Unmap external image memory
+ *
+ *  @param   mappedImageMem Handle to the mapped image memory to unmap
+ *  @param   syclDevice  The device in which the external memory was created
+ *  @param   syclContext The context in which the external memory was created
+ */
+__SYCL_EXPORT void unmap_external_image_memory(
+    image_mem_handle mappedImageMem, image_type imageType,
+    const sycl::device &syclDevice, const sycl::context &syclContext);
+
+/**
+ *  @brief   Unmap external image memory
+ *
+ *  @param   mappedImageMem Handle to the mapped image memory to unmap
+ *  @param   syclQueue The queue in which the external memory was created
+ */
+inline void unmap_external_image_memory(image_mem_handle mappedImageMem,
+                                        image_type imageType,
+                                        const sycl::queue &syclQueue) {
+  unmap_external_image_memory(mappedImageMem, imageType, syclQueue.get_device(),
+                              syclQueue.get_context());
+}
+
+/**
+ * @brief  Check if the device supports importing a handle of a specific type
+ * @param  externMemHandleType Type of external memory handle
+ * @param  syclDevice The device where we want to import memory
+ * @return true if the device supports importing the specified handle type
+ */
+__SYCL_EXPORT bool
+supports_importing_handle_type(external_mem_handle_type externMemHandleType,
+                               const sycl::device &syclDevice);
 
 /**
  *  @brief   Create an image and return the device image handle
@@ -579,6 +651,89 @@ __SYCL_EXPORT unsigned int
 get_image_num_channels(const image_mem_handle memHandle,
                        const sycl::queue &syclQueue);
 
+/**
+ *  @brief   Returns a vector of image-backing memory types supported by the
+ *           device for a given `image_descriptor`. If the returned vector is
+ *           empty, it indicates that the device does not support allocating or
+ *           creating images with the properties described in the
+ *           `image_descriptor`.
+ *
+ *  @param   imageDescriptor Properties of the image we want to query support
+ *                           for.
+ *  @param   syclDevice The device in which we created our image memory handle
+ *  @param   syclContext The context in which we created our image memory handle
+ *  @return  List of supported image-backing memory types
+ */
+__SYCL_EXPORT std::vector<image_memory_handle_type>
+get_image_memory_support(const image_descriptor &imageDescriptor,
+                         const sycl::device &syclDevice,
+                         const sycl::context &syclContext);
+
+/**
+ *  @brief   Returns a vector of image-backing memory types supported by the
+ *           device for a given `image_descriptor`. If the returned vector is
+ *           empty, it indicates that the device does not support allocating or
+ *           creating images with the properties described in the
+ *           `image_descriptor`.
+ *
+ *  @param   imageDescriptor Properties of the image we want to query support
+ *                           for.
+ *  @param   syclQueue The device/context association for which we want to query
+ *                     image memory support.
+ *  @return  List of supported image-backing memory types
+ */
+__SYCL_EXPORT std::vector<image_memory_handle_type>
+get_image_memory_support(const image_descriptor &imageDescriptor,
+                         const sycl::queue &syclQueue);
+
+/**
+ *  @brief   Returns `true` if the device supports creation of images of the
+ *           ImageHandleType, given the combination of `image_descriptor` and
+ *           `image_memory_handle_type`.
+ *
+ *  @tparam  ImageHandleType Either `sampled_image_handle` or
+ *           `unsampled_image_handle`.
+ *  @param   imageDescriptor Properties of the image we want to query support
+ *                           for.
+ *  @param   imageMemoryHandleType Image memory handle type we want to query
+ *                                 support for.
+ *  @param   syclDevice The device in which we want to query image handle
+ *                      support
+ *  @param   syclContext The context in which we want to query image handle
+ *                      support
+ *  @return  Boolean indicating support for image creation with the specified
+ *           parameter.
+ */
+
+template <typename ImageHandleType>
+__SYCL_EXPORT bool
+is_image_handle_supported(const image_descriptor &imageDescriptor,
+                          image_memory_handle_type imageMemoryHandleType,
+                          const sycl::device &syclDevice,
+                          const sycl::context &syclContext);
+
+/**
+ *  @brief   Returns `true` if the device supports creation of images of the
+ *           ImageHandleType, given the combination of `image_descriptor` and
+ *           `image_memory_handle_type`.
+ *
+ *  @tparam  ImageHandleType Either `sampled_image_handle` or
+ *           `unsampled_image_handle`
+ *  @param   imageDescriptor Properties of the image we want to query support
+ *                           for.
+ *  @param   imageMemoryHandleType Image memory handle type we want to query
+ *                                 support for.
+ *  @param   syclQueue The device/context association for which we want to query
+ *                     image handle support.
+ *  @return  Boolean indicating support for image creation with the specified
+ *           parameter.
+ */
+template <typename ImageHandleType>
+__SYCL_EXPORT bool
+is_image_handle_supported(const image_descriptor &imageDescriptor,
+                          image_memory_handle_type imageMemoryHandleType,
+                          const sycl::queue &syclQueue);
+
 namespace detail {
 
 // is sycl::vec
@@ -881,19 +1036,48 @@ DataT fetch_image(const sampled_image_handle &imageHandle [[maybe_unused]],
                 "HintT must always be a recognized standard type");
 
 #ifdef __SYCL_DEVICE_ONLY__
+  // Convert the raw handle to an image and use FETCH_UNSAMPLED_IMAGE since
+  // fetch_image should not use the sampler
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    return FETCH_SAMPLED_IMAGE(
+    return FETCH_UNSAMPLED_IMAGE(
         DataT,
-        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
+        CONVERT_HANDLE_TO_IMAGE(imageHandle.raw_handle,
+                                detail::OCLImageTyRead<coordSize>),
         coords);
   } else {
-    return sycl::bit_cast<DataT>(FETCH_SAMPLED_IMAGE(
+    return sycl::bit_cast<DataT>(FETCH_UNSAMPLED_IMAGE(
         HintT,
-        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
+        CONVERT_HANDLE_TO_IMAGE(imageHandle.raw_handle,
+                                detail::OCLImageTyRead<coordSize>),
         coords));
   }
 #else
   assert(false); // Bindless images not yet implemented on host.
+#endif
+}
+
+template <typename DataT>
+#ifdef __SYCL_DEVICE_ONLY__
+[[__sycl_detail__::__uses_aspects__(
+    sycl::aspect::ext_oneapi_bindless_images_gather)]]
+#endif
+std::enable_if_t<std::is_same_v<DataT, float4> || std::is_same_v<DataT, int4> ||
+                     std::is_same_v<DataT, uint4>,
+                 DataT> gather_image(const sampled_image_handle &imageHandle
+                                     [[maybe_unused]],
+                                     const float2 &coords [[maybe_unused]],
+                                     const unsigned i [[maybe_unused]]) {
+#if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__NVPTX__)
+  return __invoke__SampledImageGather<DataT>(
+      CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, float2::size()),
+      coords, i);
+#else
+  return {0, 0, 0, 0};
+#endif
+#else
+  throw exception{make_error_code(errc::feature_not_supported),
+                  "gather_image is not supported on the host"};
 #endif
 }
 
@@ -1356,7 +1540,7 @@ inline event queue::ext_oneapi_copy(
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return submit(
       [&](handler &CGH) { CGH.ext_oneapi_copy(Src, Dest, DestImgDesc); },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1370,7 +1554,7 @@ inline event queue::ext_oneapi_copy(
         CGH.ext_oneapi_copy(Src, SrcOffset, SrcExtent, Dest, DestOffset,
                             DestImgDesc, CopyExtent);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1383,7 +1567,7 @@ inline event queue::ext_oneapi_copy(
         CGH.depends_on(DepEvent);
         CGH.ext_oneapi_copy(Src, Dest, DestImgDesc);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1399,7 +1583,7 @@ inline event queue::ext_oneapi_copy(
         CGH.ext_oneapi_copy(Src, SrcOffset, SrcExtent, Dest, DestOffset,
                             DestImgDesc, CopyExtent);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1412,7 +1596,7 @@ inline event queue::ext_oneapi_copy(
         CGH.depends_on(DepEvents);
         CGH.ext_oneapi_copy(Src, Dest, DestImgDesc);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1428,7 +1612,7 @@ inline event queue::ext_oneapi_copy(
         CGH.ext_oneapi_copy(Src, SrcOffset, SrcExtent, Dest, DestOffset,
                             DestImgDesc, CopyExtent);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1438,7 +1622,7 @@ inline event queue::ext_oneapi_copy(
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return submit(
       [&](handler &CGH) { CGH.ext_oneapi_copy(Src, Dest, SrcImgDesc); },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1453,7 +1637,7 @@ inline event queue::ext_oneapi_copy(
         CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
                             DestExtent, CopyExtent);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1466,7 +1650,7 @@ inline event queue::ext_oneapi_copy(
         CGH.depends_on(DepEvent);
         CGH.ext_oneapi_copy(Src, Dest, SrcImgDesc);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1483,7 +1667,7 @@ inline event queue::ext_oneapi_copy(
         CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
                             DestExtent, CopyExtent);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1496,7 +1680,7 @@ inline event queue::ext_oneapi_copy(
         CGH.depends_on(DepEvents);
         CGH.ext_oneapi_copy(Src, Dest, SrcImgDesc);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1513,7 +1697,7 @@ inline event queue::ext_oneapi_copy(
         CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
                             DestExtent, CopyExtent);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1525,7 +1709,7 @@ inline event queue::ext_oneapi_copy(
       [&](handler &CGH) {
         CGH.ext_oneapi_copy(Src, Dest, DeviceImgDesc, DeviceRowPitch);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1540,7 +1724,7 @@ inline event queue::ext_oneapi_copy(
         CGH.ext_oneapi_copy(Src, SrcOffset, Dest, DestOffset, DeviceImgDesc,
                             DeviceRowPitch, HostExtent, CopyExtent);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1554,46 +1738,7 @@ inline event queue::ext_oneapi_copy(
         CGH.depends_on(DepEvent);
         CGH.ext_oneapi_copy(Src, Dest, DeviceImgDesc, DeviceRowPitch);
       },
-      CodeLoc);
-}
-
-inline event queue::ext_oneapi_copy(
-    const ext::oneapi::experimental::image_mem_handle Src,
-    ext::oneapi::experimental::image_mem_handle Dest,
-    const ext::oneapi::experimental::image_descriptor &ImageDesc,
-    event DepEvent, const detail::code_location &CodeLoc) {
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return submit(
-      [&](handler &CGH) {
-        CGH.depends_on(DepEvent);
-        CGH.ext_oneapi_copy(Src, Dest, ImageDesc);
-      },
-      CodeLoc);
-}
-
-inline event queue::ext_oneapi_copy(
-    const ext::oneapi::experimental::image_mem_handle Src,
-    ext::oneapi::experimental::image_mem_handle Dest,
-    const ext::oneapi::experimental::image_descriptor &ImageDesc,
-    const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return submit(
-      [&](handler &CGH) {
-        CGH.depends_on(DepEvents);
-        CGH.ext_oneapi_copy(Src, Dest, ImageDesc);
-      },
-      CodeLoc);
-}
-
-inline event queue::ext_oneapi_copy(
-    const ext::oneapi::experimental::image_mem_handle Src,
-    ext::oneapi::experimental::image_mem_handle Dest,
-    const ext::oneapi::experimental::image_descriptor &ImageDesc,
-    const detail::code_location &CodeLoc) {
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return submit(
-      [&](handler &CGH) { CGH.ext_oneapi_copy(Src, Dest, ImageDesc); },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1609,7 +1754,7 @@ inline event queue::ext_oneapi_copy(
         CGH.ext_oneapi_copy(Src, SrcOffset, Dest, DestOffset, DeviceImgDesc,
                             DeviceRowPitch, HostExtent, CopyExtent);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1623,7 +1768,7 @@ inline event queue::ext_oneapi_copy(
         CGH.depends_on(DepEvents);
         CGH.ext_oneapi_copy(Src, Dest, DeviceImgDesc, DeviceRowPitch);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1639,11 +1784,396 @@ inline event queue::ext_oneapi_copy(
         CGH.ext_oneapi_copy(Src, SrcOffset, Dest, DestOffset, DeviceImgDesc,
                             DeviceRowPitch, HostExtent, CopyExtent);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    event DepEvent, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvent);
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, Dest, DestImgDesc);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    sycl::range<3> CopyExtent, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
+                            DestImgDesc, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, Dest, DestImgDesc);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    sycl::range<3> CopyExtent, event DepEvent,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvent);
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
+                            DestImgDesc, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, Dest, DestImgDesc);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
+                            DestImgDesc, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, Dest, DestImgDesc, DestRowPitch);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+    sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, sycl::range<3> CopyExtent,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
+                            DestImgDesc, DestRowPitch, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, event DepEvent, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvent);
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, Dest, DestImgDesc, DestRowPitch);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+    sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, sycl::range<3> CopyExtent, event DepEvent,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvent);
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
+                            DestImgDesc, DestRowPitch, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, const std::vector<event> &DepEvents,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, Dest, DestImgDesc, DestRowPitch);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+    sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, sycl::range<3> CopyExtent,
+    const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
+                            DestImgDesc, DestRowPitch, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, SrcRowPitch, Dest, DestImgDesc);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+    sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    sycl::range<3> CopyExtent, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, SrcRowPitch, Dest,
+                            DestOffset, DestImgDesc, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    event DepEvent, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvent);
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, SrcRowPitch, Dest, DestImgDesc);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+    sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    sycl::range<3> CopyExtent, event DepEvent,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvent);
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, SrcRowPitch, Dest,
+                            DestOffset, DestImgDesc, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, SrcRowPitch, Dest, DestImgDesc);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+    sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, SrcRowPitch, Dest,
+                            DestOffset, DestImgDesc, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, SrcRowPitch, Dest, DestImgDesc,
+                            DestRowPitch);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, void *Dest, sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, sycl::range<3> CopyExtent,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, SrcRowPitch, Dest,
+                            DestOffset, DestImgDesc, DestRowPitch, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, event DepEvent, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvent);
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, SrcRowPitch, Dest, DestImgDesc,
+                            DestRowPitch);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, void *Dest, sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, sycl::range<3> CopyExtent, event DepEvent,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvent);
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, SrcRowPitch, Dest,
+                            DestOffset, DestImgDesc, DestRowPitch, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, const std::vector<event> &DepEvents,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, SrcRowPitch, Dest, DestImgDesc,
+                            DestRowPitch);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, void *Dest, sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, sycl::range<3> CopyExtent,
+    const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, SrcRowPitch, Dest,
+                            DestOffset, DestImgDesc, DestRowPitch, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_wait_external_semaphore(
-    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+    sycl::ext::oneapi::experimental::external_semaphore SemaphoreHandle,
     event DepEvent, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return submit(
@@ -1651,11 +2181,11 @@ inline event queue::ext_oneapi_wait_external_semaphore(
         CGH.depends_on(DepEvent);
         CGH.ext_oneapi_wait_external_semaphore(SemaphoreHandle);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_wait_external_semaphore(
-    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+    sycl::ext::oneapi::experimental::external_semaphore SemaphoreHandle,
     const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return submit(
@@ -1663,22 +2193,22 @@ inline event queue::ext_oneapi_wait_external_semaphore(
         CGH.depends_on(DepEvents);
         CGH.ext_oneapi_wait_external_semaphore(SemaphoreHandle);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_wait_external_semaphore(
-    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+    sycl::ext::oneapi::experimental::external_semaphore SemaphoreHandle,
     uint64_t WaitValue, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return submit(
       [&](handler &CGH) {
         CGH.ext_oneapi_wait_external_semaphore(SemaphoreHandle, WaitValue);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_wait_external_semaphore(
-    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+    sycl::ext::oneapi::experimental::external_semaphore SemaphoreHandle,
     uint64_t WaitValue, event DepEvent, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return submit(
@@ -1686,11 +2216,11 @@ inline event queue::ext_oneapi_wait_external_semaphore(
         CGH.depends_on(DepEvent);
         CGH.ext_oneapi_wait_external_semaphore(SemaphoreHandle, WaitValue);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_wait_external_semaphore(
-    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+    sycl::ext::oneapi::experimental::external_semaphore SemaphoreHandle,
     uint64_t WaitValue, const std::vector<event> &DepEvents,
     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
@@ -1699,22 +2229,22 @@ inline event queue::ext_oneapi_wait_external_semaphore(
         CGH.depends_on(DepEvents);
         CGH.ext_oneapi_wait_external_semaphore(SemaphoreHandle, WaitValue);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_signal_external_semaphore(
-    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+    sycl::ext::oneapi::experimental::external_semaphore SemaphoreHandle,
     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return submit(
       [&](handler &CGH) {
         CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_signal_external_semaphore(
-    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+    sycl::ext::oneapi::experimental::external_semaphore SemaphoreHandle,
     event DepEvent, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return submit(
@@ -1722,11 +2252,11 @@ inline event queue::ext_oneapi_signal_external_semaphore(
         CGH.depends_on(DepEvent);
         CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_signal_external_semaphore(
-    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+    sycl::ext::oneapi::experimental::external_semaphore SemaphoreHandle,
     const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return submit(
@@ -1734,22 +2264,22 @@ inline event queue::ext_oneapi_signal_external_semaphore(
         CGH.depends_on(DepEvents);
         CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_signal_external_semaphore(
-    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+    sycl::ext::oneapi::experimental::external_semaphore SemaphoreHandle,
     uint64_t SignalValue, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return submit(
       [&](handler &CGH) {
         CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle, SignalValue);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_signal_external_semaphore(
-    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+    sycl::ext::oneapi::experimental::external_semaphore SemaphoreHandle,
     uint64_t SignalValue, event DepEvent,
     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
@@ -1758,11 +2288,11 @@ inline event queue::ext_oneapi_signal_external_semaphore(
         CGH.depends_on(DepEvent);
         CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle, SignalValue);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_signal_external_semaphore(
-    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+    sycl::ext::oneapi::experimental::external_semaphore SemaphoreHandle,
     uint64_t SignalValue, const std::vector<event> &DepEvents,
     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
@@ -1771,7 +2301,7 @@ inline event queue::ext_oneapi_signal_external_semaphore(
         CGH.depends_on(DepEvents);
         CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle, SignalValue);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 } // namespace _V1

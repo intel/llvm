@@ -6,14 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-// XFAIL: stdlib=system && target={{.+}}-apple-macosx10.{{9|10|11|12|13|14}}
-
 // <istream>
 
 // basic_istream<charT,traits>& read(char_type* s, streamsize n);
 
 #include <istream>
 #include <cassert>
+#include <streambuf>
+
 #include "test_macros.h"
 
 template <class CharT>

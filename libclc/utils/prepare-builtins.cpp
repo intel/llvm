@@ -1,9 +1,13 @@
-#if HAVE_LLVM > 0x0390
+//===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
-#else
-#include "llvm/Bitcode/ReaderWriter.h"
-#endif
 
 #include "llvm/Config/llvm-config.h"
 #include "llvm/IR/AttributeMask.h"
@@ -55,12 +59,8 @@ int main(int argc, char **argv) {
       std::unique_ptr<MemoryBuffer> &BufferPtr = BufferOrErr.get();
       SMDiagnostic Err;
       std::unique_ptr<llvm::Module> MPtr =
-#if HAVE_LLVM > 0x0390
           ExitOnErr(Expected<std::unique_ptr<llvm::Module>>(
               parseIR(BufferPtr.get()->getMemBufferRef(), Err, Context)));
-#else
-          parseIR(BufferPtr.get()->getMemBufferRef(), Err, Context);
-#endif
       M = MPtr.release();
     }
   }
@@ -81,16 +81,32 @@ int main(int argc, char **argv) {
   if (NamedMDNode *OCLVersion = M->getNamedMetadata("opencl.ocl.version"))
       M->eraseNamedMetadata(OCLVersion);
 
+  SmallVector<Metadata *, 2> BannedFlags;
   // wchar_size flag can cause a mismatch between libclc libraries and
   // modules using them. Since wchar is not used by libclc we drop the flag
-  if (M->getModuleFlag("wchar_size")) {
+  if (Metadata *F = M->getModuleFlag("wchar_size")) {
+    BannedFlags.push_back(F);
+  }
+
+  // amdhsa_code_object_version will be provided by the kernel module and may
+  // be changed by a command line flag.
+  if (Metadata *F = M->getModuleFlag("amdhsa_code_object_version")) {
+    BannedFlags.push_back(F);
+  }
+
+  // Re-write module flags but skip banned flags
+  if (!BannedFlags.empty()) {
     SmallVector<Module::ModuleFlagEntry, 4> ModuleFlags;
     M->getModuleFlagsMetadata(ModuleFlags);
     M->getModuleFlagsMetadata()->clearOperands();
-    for (const Module::ModuleFlagEntry ModuleFlag : ModuleFlags)
-      if (ModuleFlag.Key->getString() != "wchar_size")
-        M->addModuleFlag(ModuleFlag.Behavior, ModuleFlag.Key->getString(),
-                         ModuleFlag.Val);
+    for (const Module::ModuleFlagEntry ModuleFlag : ModuleFlags) {
+      if (BannedFlags.end() !=
+          std::find(BannedFlags.begin(), BannedFlags.end(), ModuleFlag.Val)) {
+        continue;
+      }
+      M->addModuleFlag(ModuleFlag.Behavior, ModuleFlag.Key->getString(),
+                       ModuleFlag.Val);
+    }
   }
 
   // Set linkage of every external definition to linkonce_odr.
@@ -116,7 +132,12 @@ int main(int argc, char **argv) {
   // functions were inlined prior to incompatible functions pass. Now that the
   // inliner runs later in the pipeline we have to remove all of the target
   // features, so libclc functions will not be earmarked for deletion.
-  if (M->getTargetTriple().find("amdgcn") != std::string::npos) {
+  //
+  // NativeCPU uses the same builtins for multiple host targets and should
+  // likewise not have features that limit the builtins to any particular
+  // target.
+  if (M->getTargetTriple().str().find("amdgcn") != std::string::npos ||
+      M->getTargetTriple().isNativeCPU()) {
     AttributeMask AM;
     AM.addAttribute("target-features");
     AM.addAttribute("target-cpu");
@@ -125,13 +146,8 @@ int main(int argc, char **argv) {
   }
 
   std::error_code EC;
-#if HAVE_LLVM >= 0x0600
   std::unique_ptr<ToolOutputFile> Out(
       new ToolOutputFile(OutputFilename, EC, sys::fs::OF_None));
-#else
-  std::unique_ptr<tool_output_file> Out(
-      new tool_output_file(OutputFilename, EC, sys::fs::OF_None));
-#endif
   if (EC) {
     errs() << EC.message() << '\n';
     exit(1);
@@ -140,11 +156,7 @@ int main(int argc, char **argv) {
   if (TextualOut)
     M->print(Out->os(), nullptr, true);
   else
-#if HAVE_LLVM >= 0x0700
     WriteBitcodeToFile(*M, Out->os());
-#else
-    WriteBitcodeToFile(M, Out->os());
-#endif
 
   // Declare success.
   Out->keep();

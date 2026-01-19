@@ -13,8 +13,12 @@
 ;;                  ^(){});
 ;; }
 ; RUN: llvm-as < %s > %t.bc
-; RUN: llvm-spirv %t.bc -o - -spirv-text | FileCheck %s --check-prefix=CHECK-SPIRV
+; RUN: llvm-spirv %t.bc -o - -spirv-text | FileCheck %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-TYPED-PTR
 ; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: spirv-val %t.spv
+
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_untyped_pointers %t.bc -o - -spirv-text | FileCheck %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-UNTYPED-PTR
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_untyped_pointers %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
@@ -29,8 +33,10 @@ target triple = "spir64-unknown-unknown"
 ; CHECK-SPIRV: Name [[Block:[0-9]+]] "__block_literal_global"
 ; CHECK-SPIRV: TypeInt [[Int8:[0-9]+]] 8
 ; CHECK-SPIRV: TypeVoid [[Void:[0-9]+]]
-; CHECK-SPIRV: TypePointer [[Int8PtrGen:[0-9]+]] 8 [[Int8]]
-; CHECK-SPIRV: Variable {{[0-9]+}} [[Block:[0-9]+]]
+; CHECK-SPIRV-TYPED-PTR: TypePointer [[Int8PtrGen:[0-9]+]] 8 [[Int8]]
+; CHECK-SPIRV-UNTYPED-PTR: TypeUntypedPointerKHR [[Int8PtrGen:[0-9]+]] 8
+; CHECK-SPIRV-TYPED-PTR: Variable {{[0-9]+}} [[Block:[0-9]+]]
+; CHECK-SPIRV-UNTYPED-PTR: UntypedVariableKHR {{[0-9]+}} [[Block:[0-9]+]]
 
 ; Function Attrs: convergent nounwind
 define spir_kernel void @test_enqueue_empty() #0 !kernel_arg_addr_space !0 !kernel_arg_access_qual !0 !kernel_arg_type !0 !kernel_arg_base_type !0 !kernel_arg_type_qual !0 {

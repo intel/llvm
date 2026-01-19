@@ -17,16 +17,12 @@ define dso_local spir_func void @esimd_simt() #1 !sycl_explicit_simd !0 {
   ret void
 }
 
-define dso_local spir_func void @sycl() #0 {
-; CHECK: spir_func void @sycl() #[[#ESIMDAttr]]
-  ret void
-}
 ; CHECK-ESIMD-SPLIT: attributes #[[#ESIMDAttr]] =
 ; CHECK-ESIMD-SPLIT-NOT: optnone
 ; CHECK-NO-ESIMD-SPLIT: attributes #[[#ESIMDAttr]] = {{{.*}}optnone{{.*}}}
 ; CHECK: attributes #[[#ESIMDSIMTAttr]] = {{{.*}}optnone
 ; CHECK-SAME: "CMGenxSIMT"
 ; CHECK-SAME: }
-attributes #0 = { noinline optnone convergent }
-attributes #1 = { noinline optnone convergent "CMGenxSIMT"}
+attributes #0 = { noinline optnone convergent "sycl-module-id"="a.cpp" }
+attributes #1 = { noinline optnone convergent "CMGenxSIMT" "sycl-module-id"="a.cpp" }
 !0 = !{}

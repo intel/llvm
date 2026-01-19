@@ -54,7 +54,7 @@ buffer_plain::buffer_plain(
 }
 
 buffer_plain::buffer_plain(
-    pi_native_handle MemObject, const context &SyclContext,
+    ur_native_handle_t MemObject, const context &SyclContext,
     std::unique_ptr<detail::SYCLMemObjAllocator> Allocator,
     bool OwnNativeHandle, const event &AvailableEvent) {
   impl = std::make_shared<detail::buffer_impl>(MemObject, SyclContext,
@@ -82,7 +82,7 @@ void buffer_plain::set_write_back(bool NeedWriteBack) {
   impl->set_write_back(NeedWriteBack);
 }
 
-std::vector<pi_native_handle>
+std::vector<ur_native_handle_t>
 buffer_plain::getNativeVector(backend BackendName) const {
   return impl->getNativeVector(BackendName);
 }
@@ -90,15 +90,6 @@ buffer_plain::getNativeVector(backend BackendName) const {
 const std::unique_ptr<SYCLMemObjAllocator> &
 buffer_plain::get_allocator_internal() const {
   return impl->get_allocator_internal();
-}
-
-void buffer_plain::deleteAccProps(const sycl::detail::PropWithDataKind &Kind) {
-  impl->deleteAccessorProperty(Kind);
-}
-
-void buffer_plain::addOrReplaceAccessorProperties(
-    const property_list &PropertyList) {
-  impl->addOrReplaceAccessorProperties(PropertyList);
 }
 
 size_t buffer_plain::getSize() const { return impl->getSizeInBytes(); }

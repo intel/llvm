@@ -1,5 +1,4 @@
-; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: llvm-spirv %s -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
@@ -44,14 +43,14 @@ entry:
 ; CHECK-LLVM: #dbg_value(
 ; CHECK-LLVM-SAME:   <4 x i8> <
 ; CHECK-LLVM-SAME:   i8 add (
-; CHECK-LLVM-SAME:     i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 65793, i32 65793> to <8 x i8>), i32 0),
-; CHECK-LLVM-SAME:     i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 131586, i32 131586> to <8 x i8>), i32 0)),
+; CHECK-LLVM-SAME:     i8 extractelement (<8 x i8> bitcast (<2 x i32> splat (i32 65793) to <8 x i8>), i32 0),
+; CHECK-LLVM-SAME:     i8 extractelement (<8 x i8> bitcast (<2 x i32> splat (i32 131586) to <8 x i8>), i32 0)),
 ; CHECK-LLVM-SAME:   i8 add (
-; CHECK-LLVM-SAME:     i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 65793, i32 65793> to <8 x i8>), i32 1),
-; CHECK-LLVM-SAME:     i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 131586, i32 131586> to <8 x i8>), i32 1)),
+; CHECK-LLVM-SAME:     i8 extractelement (<8 x i8> bitcast (<2 x i32> splat (i32 65793) to <8 x i8>), i32 1),
+; CHECK-LLVM-SAME:     i8 extractelement (<8 x i8> bitcast (<2 x i32> splat (i32 131586) to <8 x i8>), i32 1)),
 ; CHECK-LLVM-SAME:   i8 add (
-; CHECK-LLVM-SAME:     i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 65793, i32 65793> to <8 x i8>), i32 2),
-; CHECK-LLVM-SAME:     i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 131586, i32 131586> to <8 x i8>), i32 2)),
+; CHECK-LLVM-SAME:     i8 extractelement (<8 x i8> bitcast (<2 x i32> splat (i32 65793) to <8 x i8>), i32 2),
+; CHECK-LLVM-SAME:     i8 extractelement (<8 x i8> bitcast (<2 x i32> splat (i32 131586) to <8 x i8>), i32 2)),
 ; CHECK-LLVM-SAME:   i8 undef>,
 ; CHECK-LLVM-SAME:   ![[#]], !DIExpression(), ![[#]])
   call void @llvm.dbg.value(

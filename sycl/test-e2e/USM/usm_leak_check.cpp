@@ -1,6 +1,9 @@
 // REQUIRES: level_zero
+//
+// UNSUPPORTED: windows && level_zero_v2_adapter
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20852
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 
 // RUN: %{l0_leak_check} %{run} %t.out u 2>&1 | FileCheck %s --implicit-check-not=LEAK
 // RUN: %{l0_leak_check} %{run} %t.out s 2>&1 | FileCheck %s --implicit-check-not=LEAK
@@ -36,10 +39,8 @@ template <typename T, size_t N> void sycl_buffer(queue &Q) {
     accessor accB{bufferB, cgh, read_only};
     accessor accC{bufferC, cgh, write_only};
 
-    cgh.parallel_for<class K<T>>(numElems,
-		[=](id<1> wiID) {
-      accC[wiID] = accA[wiID] + accB[wiID];
-    });
+    cgh.parallel_for<class K<T>>(
+        numElems, [=](id<1> wiID) { accC[wiID] = accA[wiID] + accB[wiID]; });
   });
 }
 

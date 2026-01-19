@@ -1,10 +1,9 @@
-// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out \
+// RUN: %{build} -Wno-error=unused-command-line-argument -fsycl-device-code-split=per_kernel -o %t.out \
 // RUN: -fsycl-dead-args-optimization
 // RUN: %{run} %t.out
-//
-// XFAIL: hip_nvidia
 
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 class Kern1;
 class Kern2;
@@ -27,7 +26,7 @@ int main() {
 
     Q.submit([&](sycl::handler &Cgh) {
       auto Acc = Buf.get_access<sycl::access::mode::read_write>(Cgh);
-      Cgh.single_task<Kern1>(Krn, [=]() { Acc[0] = 1; });
+      Cgh.single_task<Kern1>([=]() { Acc[0] = 1; });
     });
   }
   assert(Data == 1);
@@ -46,7 +45,7 @@ int main() {
 
     Q.submit([&](sycl::handler &Cgh) {
       auto Acc = Buf.get_access<sycl::access::mode::read_write>(Cgh);
-      Cgh.single_task<Kern2>(Krn, [=]() { Acc[0] = 2; });
+      Cgh.single_task<Kern2>([=]() { Acc[0] = 2; });
     });
   }
   assert(Data == 2);
@@ -65,7 +64,7 @@ int main() {
 
     Q.submit([&](sycl::handler &Cgh) {
       auto Acc = Buf.get_access<sycl::access::mode::read_write>(Cgh);
-      Cgh.single_task<Kern3>(Krn, [=]() { Acc[0] = 3; });
+      Cgh.single_task<Kern3>([=]() { Acc[0] = 3; });
     });
   }
   assert(Data == 3);

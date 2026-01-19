@@ -415,6 +415,11 @@ bool processInvokeSimdCall(CallInst *InvokeSimd,
     CallInst *TheTformedCall = cast<CallInst>(VMap[TheCall]);
     TheTformedCall->setCalledFunction(SimdF);
     fixFunctionName(NewHelper);
+    // When we will do ESIMD split, that helper will be moved into ESIMD module
+    // where it has no uses. To prevent it being internalized and killed by DCE
+    // during post-split cleanup, we need to add this attribtue and set proper
+    // linkage.
+    NewHelper->addFnAttr("referenced-indirectly");
   }
 
   // 3. Clone and transform __builtin_invoke_simd call:
@@ -456,8 +461,8 @@ bool processInvokeSimdCall(CallInst *InvokeSimd,
     NewInvokeSimdArgs.push_back(NewHelper);
     auto ThirdArg = std::next(InvokeSimd->arg_begin(), 2);
     NewInvokeSimdArgs.append(ThirdArg, InvokeSimd->arg_end());
-    CallInst *NewInvokeSimd =
-        CallInst::Create(NewInvokeSimdF, NewInvokeSimdArgs, "", InvokeSimd);
+    CallInst *NewInvokeSimd = CallInst::Create(
+        NewInvokeSimdF, NewInvokeSimdArgs, "", InvokeSimd->getIterator());
     // - transfer flags, attributes (with shrinking), calling convention:
     NewInvokeSimd->copyIRFlags(InvokeSimd);
     NewInvokeSimd->setCallingConv(InvokeSimd->getCallingConv());

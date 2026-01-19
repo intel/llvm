@@ -2,9 +2,6 @@
 // RUN: %{build} %level_zero_options -o %t.ze.out
 // RUN: %{run} %t.ze.out
 
-// Temporarily disable on L0 due to fails in CI
-// UNSUPPORTED: level_zero
-
 #include <level_zero/ze_api.h>
 
 #include <sycl/detail/core.hpp>
@@ -15,6 +12,15 @@ constexpr auto BE = sycl::backend::ext_oneapi_level_zero;
 class TestKernel;
 
 int main() {
+  // Initializing Level Zero driver is required if this test is linked
+  // statically with Level Zero loader, otherwise the driver will not be
+  // initialized.
+  ze_result_t result = zeInit(ZE_INIT_FLAG_GPU_ONLY);
+  if (result != ZE_RESULT_SUCCESS) {
+    std::cout << "zeInit failed with error code: " << result << std::endl;
+    return 1;
+  }
+
   sycl::queue Q;
 
   if (0) {

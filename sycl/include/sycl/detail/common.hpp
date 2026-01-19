@@ -10,12 +10,11 @@
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
-#include <sycl/detail/pi.h>                   // for pi_int32
 
-#include <array>       // for array
-#include <cassert>     // for assert
-#include <cstddef>     // for size_t
-#include <string>      // for allocator, operator+
+#include <array>   // for array
+#include <cassert> // for assert
+#include <cstddef> // for size_t
+#include <cstdint>
 #include <type_traits> // for enable_if_t
 #include <utility>     // for index_sequence, make_i...
 
@@ -67,8 +66,8 @@ struct code_location {
   static constexpr code_location
   current(const char *fileName = __CODELOC_FILE_NAME,
           const char *funcName = __CODELOC_FUNCTION,
-          unsigned long lineNo = __CODELOC_LINE,
-          unsigned long columnNo = __CODELOC_COLUMN) noexcept {
+          uint32_t lineNo = __CODELOC_LINE,
+          uint32_t columnNo = __CODELOC_COLUMN) noexcept {
     return code_location(fileName, funcName, lineNo, columnNo);
   }
 
@@ -77,23 +76,28 @@ struct code_location {
 #undef __CODELOC_LINE
 #undef __CODELOC_COLUMN
 
-  constexpr code_location(const char *file, const char *func, int line,
-                          int col) noexcept
+  constexpr code_location(const char *file, const char *func, uint32_t line,
+                          uint32_t col) noexcept
       : MFileName(file), MFunctionName(func), MLineNo(line), MColumnNo(col) {}
 
   constexpr code_location() noexcept
-      : MFileName(nullptr), MFunctionName(nullptr), MLineNo(0), MColumnNo(0) {}
+      : MFileName(nullptr), MFunctionName(nullptr), MLineNo(0u), MColumnNo(0u) {
+  }
 
-  constexpr unsigned long lineNumber() const noexcept { return MLineNo; }
-  constexpr unsigned long columnNumber() const noexcept { return MColumnNo; }
+  constexpr uint32_t lineNumber() const noexcept {
+    return static_cast<uint32_t>(MLineNo);
+  }
+  constexpr uint32_t columnNumber() const noexcept {
+    return static_cast<uint32_t>(MColumnNo);
+  }
   constexpr const char *fileName() const noexcept { return MFileName; }
   constexpr const char *functionName() const noexcept { return MFunctionName; }
 
 private:
   const char *MFileName;
   const char *MFunctionName;
-  unsigned long MLineNo;
-  unsigned long MColumnNo;
+  uint32_t MLineNo;
+  uint32_t MColumnNo;
 };
 
 /// @brief Data type that manages the code_location information in TLS
@@ -135,14 +139,24 @@ public:
   /// @brief Iniitializes TLS with CodeLoc if a TLS entry not present
   /// @param CodeLoc The code location information to set up the TLS slot with.
   tls_code_loc_t(const detail::code_location &CodeLoc);
+
+  // Used to maintain global state (GCodeLocTLS), so we do not want to copy
+  tls_code_loc_t(const tls_code_loc_t &) = delete;
+  tls_code_loc_t &operator=(const tls_code_loc_t &) = delete;
+
   /// If the code location is set up by this instance, reset it.
   ~tls_code_loc_t();
   /// @brief  Query the information in the TLS slot
   /// @return The code location information saved in the TLS slot. If not TLS
   /// entry has been set up, a default coe location is returned.
   const detail::code_location &query();
+  /// @brief Returns true if the TLS slot was cleared when this object was
+  /// constructed.
+  bool isToplevel() const { return !MLocalScope; }
 
 private:
+  // Cache the TLS location to decrease amount of TLS accesses.
+  detail::code_location &CodeLocTLSRef;
   // The flag that is used to determine if the object is in a local scope or in
   // the top level scope.
   bool MLocalScope = true;
@@ -158,14 +172,6 @@ private:
 #else
 #define __SYCL_ASSERT(x) assert(x)
 #endif // #ifdef __SYCL_DEVICE_ONLY__
-
-#define __SYCL_PI_ERROR_REPORT                                                 \
-  "Native API failed. " /*__FILE__*/                                           \
-  /* TODO: replace __FILE__ to report only relative path*/                     \
-  /* ":" __SYCL_STRINGIFY(__LINE__) ": " */                                    \
-                          "Native API returns: "
-
-#include <sycl/exception.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -288,12 +294,6 @@ size_t getLinearIndex(const T<Dims> &Index, const U<Dims> &Range) {
   return LinearIndex;
 }
 
-template <typename T> struct InlineVariableHelper {
-  static constexpr T value{};
-};
-
-template <typename T> constexpr T InlineVariableHelper<T>::value;
-
 // The function extends or truncates number of dimensions of objects of id
 // or ranges classes. When extending the new values are filled with
 // DefaultValue, truncation just removes extra values.
@@ -347,19 +347,6 @@ struct ArrayCreator<DataT, FlattenF> {
   static constexpr auto Create() { return std::array<DataT, 0>{}; }
 };
 
-// Helper function for creating an arbitrary sized array with the same value
-// repeating.
-template <typename T, size_t... Is>
-static constexpr std::array<T, sizeof...(Is)>
-RepeatValueHelper(const T &Arg, std::index_sequence<Is...>) {
-  auto ReturnArg = [&](size_t) { return Arg; };
-  return {ReturnArg(Is)...};
-}
-template <size_t N, typename T>
-static constexpr std::array<T, N> RepeatValue(const T &Arg) {
-  return RepeatValueHelper(Arg, std::make_index_sequence<N>());
-}
-
 // to output exceptions caught in ~destructors
 #ifndef NDEBUG
 #define __SYCL_REPORT_EXCEPTION_TO_STREAM(str, e)                              \
@@ -368,8 +355,13 @@ static constexpr std::array<T, N> RepeatValue(const T &Arg) {
     assert(false);                                                             \
   }
 #else
-#define __SYCL_REPORT_EXCEPTION_TO_STREAM(str, e)
+#define __SYCL_REPORT_EXCEPTION_TO_STREAM(str, e) (void)e;
 #endif
+
+// Tag to help create CTAD definition to avoid ctad-maybe-unsupported warning
+// in GCC when relying on default deductions on non-template ctors in template
+// classes.
+struct AllowCTADTag;
 
 } // namespace detail
 } // namespace _V1

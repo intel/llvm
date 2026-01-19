@@ -49,7 +49,7 @@
 ; CHECK-LLVM-NOT: load <3 x i64>
 ; CHECK-LLVM-OCL:  %[[Id0:[0-9]+]] = call spir_func i64 @_Z13get_global_idj(i32 0) #1
 ; CHECK-LLVM-SPV:  %[[Id0:[0-9]+]] = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 0) #1
-; CHECK-LLVM:  %[[FirstVec:[0-9]+]] = insertelement <3 x i64> undef, i64 %[[Id0]], i32 0
+; CHECK-LLVM:  %[[FirstVec:[0-9]+]] = insertelement <3 x i64> poison, i64 %[[Id0]], i32 0
 ; CHECK-LLVM-OCL:  %[[Id1:[0-9]+]] = call spir_func i64 @_Z13get_global_idj(i32 1) #1
 ; CHECK-LLVM-SPV:  %[[Id1:[0-9]+]] = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 1) #1
 ; CHECK-LLVM:  %[[SecondVec:[0-9]+]] = insertelement <3 x i64> %[[FirstVec]], i64 %[[Id1]], i32 1
@@ -64,7 +64,7 @@
 ; CHECK-LLVM-NOT: load <3 x i64>
 ; CHECK-LLVM-OCL:  %[[GOffset0:[0-9]+]] = call spir_func i64 @_Z17get_global_offsetj(i32 0) #1
 ; CHECK-LLVM-SPV:  %[[GOffset0:[0-9]+]] = call spir_func i64 @_Z25__spirv_BuiltInGlobalSizei(i32 0) #1
-; CHECK-LLVM:  %[[FirstVec2:[0-9]+]] = insertelement <3 x i64> undef, i64 %[[GOffset0]], i32 0
+; CHECK-LLVM:  %[[FirstVec2:[0-9]+]] = insertelement <3 x i64> poison, i64 %[[GOffset0]], i32 0
 ; CHECK-LLVM-OCL:  %[[GOffset1:[0-9]+]] = call spir_func i64 @_Z17get_global_offsetj(i32 1) #1
 ; CHECK-LLVM-SPV:  %[[GOffset1:[0-9]+]] = call spir_func i64 @_Z25__spirv_BuiltInGlobalSizei(i32 1) #1
 ; CHECK-LLVM:  %[[SecondVec2:[0-9]+]] = insertelement <3 x i64> %[[FirstVec2]], i64 %[[GOffset1]], i32 1

@@ -90,6 +90,11 @@ public:
   std::string transTypeToOCLTypeName(SPIRVType *BT, bool IsSigned = true);
   std::vector<Type *> transTypeVector(const std::vector<SPIRVType *> &,
                                       bool UseTypedPointerTypes = false);
+  // Build a typed LLVM pointer type for a SPIR-V untyped pointer operand by
+  // inferring an element LLVM type from the operand's SPIR-V value or from
+  // translated LLVM value. Returns nullptr if no element type can be found.
+  // This is needed to preserve correct mangling for builtins.
+  Type *getTypedPtrFromUntypedOperand(SPIRVValue *Op, Type *RetTy);
   bool translate();
   bool transAddressingModel();
 
@@ -103,7 +108,8 @@ public:
   void transAuxDataInst(SPIRVExtInst *BC);
   std::vector<Value *> transValue(const std::vector<SPIRVValue *> &,
                                   Function *F, BasicBlock *);
-  Function *transFunction(SPIRVFunction *F);
+  Function *transFunction(SPIRVFunction *F, unsigned AS = SPIRAS_Private);
+  void transFunctionAttrs(SPIRVFunction *BF, Function *F);
   Value *transBlockInvoke(SPIRVValue *Invoke, BasicBlock *BB);
   Instruction *transWGSizeQueryBI(SPIRVInstruction *BI, BasicBlock *BB);
   Instruction *transSGSizeQueryBI(SPIRVInstruction *BI, BasicBlock *BB);
@@ -214,6 +220,13 @@ private:
 
   bool isDirectlyTranslatedToOCL(Op OpCode) const;
   MDString *transOCLKernelArgTypeName(SPIRVFunctionParameter *);
+
+  // Attempt to translate Id as a (specialization) constant.
+  std::optional<uint64_t> transIdAsConstant(SPIRVId Id);
+
+  // Return the value of an Alignment or AlignmentId decoration for V.
+  std::optional<uint64_t> getAlignment(SPIRVValue *V);
+
   Value *mapFunction(SPIRVFunction *BF, Function *F);
   Value *getTranslatedValue(SPIRVValue *BV);
   IntrinsicInst *getLifetimeStartIntrinsic(Instruction *I);
@@ -251,7 +264,7 @@ private:
 
   void transUserSemantic(SPIRV::SPIRVFunction *Fun);
   void transGlobalAnnotations();
-  void transGlobalCtorDtors(SPIRVVariable *BV);
+  void transGlobalCtorDtors(SPIRVVariableBase *BV);
   void createCXXStructor(const char *ListName,
                          SmallVectorImpl<Function *> &Funcs);
   void transIntelFPGADecorations(SPIRVValue *BV, Value *V);

@@ -53,8 +53,8 @@ int main() {
 // CHECK: %[[LOCAL_OBJECT:[a-zA-Z0-9_.]+]] = addrspacecast ptr %[[LOCAL_OBJECTA]] to ptr addrspace(4)
 
 // Check for Array init loop
-// CHECK: %[[LAMBDA_PTR:.+]] = getelementptr inbounds %class{{.*}}.anon, ptr addrspace(4) %[[LOCAL_OBJECT]], i32 0, i32 0
-// CHECK: %[[WRAPPER_PTR:.+]] = getelementptr inbounds %struct{{.*}}.__wrapper_class, ptr addrspace(4) %[[ARR_ARG]].ascast, i32 0, i32 0
+// CHECK: %[[LAMBDA_PTR:.+]] = getelementptr inbounds nuw %class{{.*}}.anon, ptr addrspace(4) %[[LOCAL_OBJECT]], i32 0, i32 0
+// CHECK: %[[WRAPPER_PTR:.+]] = getelementptr inbounds nuw %struct{{.*}}.__wrapper_class, ptr addrspace(4) %[[ARR_ARG]].ascast, i32 0, i32 0
 // CHECK: %[[ARRAY_BEGIN:.+]] = getelementptr inbounds [2 x i32], ptr addrspace(4) %[[LAMBDA_PTR]], i64 0, i64 0
 // CHECK: br label %[[ARRAYINITBODY:.+]]
 
@@ -62,7 +62,7 @@ int main() {
 // CHECK: [[ARRAYINITBODY]]:
 // CHECK: %[[ARRAYINDEX:.+]] = phi i64 [ 0, %{{.*}} ], [ %[[NEXTINDEX:.+]], %[[ARRAYINITBODY]] ]
 // CHECK: %[[TARG_ARRAY_ELEM:.+]] = getelementptr inbounds i32, ptr addrspace(4) %[[ARRAY_BEGIN]], i64 %[[ARRAYINDEX]]
-// CHECK: %[[SRC_ELEM:.+]] = getelementptr inbounds [2 x i32], ptr addrspace(4) %[[WRAPPER_PTR]], i64 0, i64 %[[ARRAYINDEX]]
+// CHECK: %[[SRC_ELEM:.+]] = getelementptr inbounds nuw [2 x i32], ptr addrspace(4) %[[WRAPPER_PTR]], i64 0, i64 %[[ARRAYINDEX]]
 // CHECK: %[[SRC_VAL:.+]] = load i32, ptr addrspace(4) %[[SRC_ELEM]]
 // CHECK: store i32 %[[SRC_VAL]], ptr addrspace(4) %[[TARG_ARRAY_ELEM]]
 // CHECK: %[[NEXTINDEX]] = add nuw i64 %[[ARRAYINDEX]], 1
@@ -78,8 +78,8 @@ int main() {
 // CHECK: %[[LOCAL_OBJECT:[a-zA-Z0-9_.]+]] = addrspacecast ptr %[[LOCAL_OBJECTA]] to ptr addrspace(4)
 
 // Check for Array init loop
-// CHECK: %[[LAMBDA_PTR:.+]] = getelementptr inbounds %class{{.*}}.anon{{.*}}, ptr addrspace(4) %[[LOCAL_OBJECT]], i32 0, i32 0
-// CHECK: %[[WRAPPER_PTR:.+]] = getelementptr inbounds %struct{{.*}}.__wrapper_class{{.*}}, ptr addrspace(4) %[[ARR_ARG]].ascast, i32 0, i32 0
+// CHECK: %[[LAMBDA_PTR:.+]] = getelementptr inbounds nuw %class{{.*}}.anon{{.*}}, ptr addrspace(4) %[[LOCAL_OBJECT]], i32 0, i32 0
+// CHECK: %[[WRAPPER_PTR:.+]] = getelementptr inbounds nuw %struct{{.*}}.__wrapper_class{{.*}}, ptr addrspace(4) %[[ARR_ARG]].ascast, i32 0, i32 0
 // CHECK: %[[ARRAY_BEGIN:.+]] = getelementptr inbounds [2 x %struct{{.*}}.foo], ptr addrspace(4) %[[LAMBDA_PTR]], i64 0, i64 0
 // CHECK: br label %[[ARRAYINITBODY:.+]]
 
@@ -87,7 +87,7 @@ int main() {
 // CHECK: [[ARRAYINITBODY]]:
 // CHECK: %[[ARRAYINDEX:.+]] = phi i64 [ 0, %{{.*}} ], [ %[[NEXTINDEX:.+]], %[[ARRAYINITBODY]] ]
 // CHECK: %[[TARG_ARRAY_ELEM:.+]] = getelementptr inbounds %struct{{.*}}.foo, ptr addrspace(4) %[[ARRAY_BEGIN]], i64 %[[ARRAYINDEX]]
-// CHECK: %[[SRC_ELEM:.+]] = getelementptr inbounds [2 x %struct{{.*}}.foo], ptr addrspace(4) %[[WRAPPER_PTR]], i64 0, i64 %[[ARRAYINDEX]]
+// CHECK: %[[SRC_ELEM:.+]] = getelementptr inbounds nuw [2 x %struct{{.*}}.foo], ptr addrspace(4) %[[WRAPPER_PTR]], i64 0, i64 %[[ARRAYINDEX]]
 // call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 4 %[[TARG_ARRAY_ELEM]], ptr addrspace(4) align %[[SRC_ELEM]], i64 24, i1 false)
 // CHECK: %[[NEXTINDEX]] = add nuw i64 %[[ARRAYINDEX]], 1
 // CHECK: %[[ISDONE:.+]] = icmp eq i64 %[[NEXTINDEX]], 2
@@ -102,8 +102,8 @@ int main() {
 // CHECK: %[[LOCAL_OBJECT:[a-zA-Z0-9_.]+]] = addrspacecast ptr %[[LOCAL_OBJECTA]] to ptr addrspace(4)
 
 // Check for Array init loop
-// CHECK: %[[LAMBDA_PTR:.+]] = getelementptr inbounds %class{{.*}}.anon{{.*}}, ptr addrspace(4) %[[LOCAL_OBJECT]], i32 0, i32 0
-// CHECK: %[[WRAPPER_PTR:.+]] = getelementptr inbounds %struct{{.*}}.__wrapper_class{{.*}}, ptr addrspace(4) %[[ARR_ARG]].ascast, i32 0, i32 0
+// CHECK: %[[LAMBDA_PTR:.+]] = getelementptr inbounds nuw %class{{.*}}.anon{{.*}}, ptr addrspace(4) %[[LOCAL_OBJECT]], i32 0, i32 0
+// CHECK: %[[WRAPPER_PTR:.+]] = getelementptr inbounds nuw %struct{{.*}}.__wrapper_class{{.*}}, ptr addrspace(4) %[[ARR_ARG]].ascast, i32 0, i32 0
 // CHECK: %[[ARRAY_BEGIN:.+]] = getelementptr inbounds [2 x [1 x i32]], ptr addrspace(4) %[[LAMBDA_PTR]], i64 0, i64 0
 // CHECK: br label %[[ARRAYINITBODY:.+]]
 
@@ -111,7 +111,7 @@ int main() {
 // CHECK: [[ARRAYINITBODY]]:
 // CHECK: %[[ARRAYINDEX:.+]] = phi i64 [ 0, %{{.*}} ], [ %[[NEXTINDEX:.+]], %[[ARRAYINITEND:.+]] ]
 // CHECK: %[[TARG_OUTER_ELEM:.+]] = getelementptr inbounds [1 x i32], ptr addrspace(4) %[[ARRAY_BEGIN]], i64 %[[ARRAYINDEX]]
-// CHECK: %[[SRC_OUTER_ELEM:.+]] = getelementptr inbounds [2 x [1 x i32]], ptr addrspace(4) %[[WRAPPER_PTR]], i64 0, i64 %[[ARRAYINDEX]]
+// CHECK: %[[SRC_OUTER_ELEM:.+]] = getelementptr inbounds nuw [2 x [1 x i32]], ptr addrspace(4) %[[WRAPPER_PTR]], i64 0, i64 %[[ARRAYINDEX]]
 // CHECK: %[[ARRAY_BEGIN_INNER:.+]] = getelementptr inbounds [1 x i32], ptr addrspace(4) %[[TARG_OUTER_ELEM]], i64 0, i64 0
 // CHECK: br label %[[ARRAYINITBODY_INNER:.+]]
 
@@ -119,7 +119,7 @@ int main() {
 // CHECK: [[ARRAYINITBODY_INNER]]:
 // CHECK: %[[ARRAYINDEX_INNER:.+]] = phi i64 [ 0, %{{.*}} ], [ %[[NEXTINDEX_INNER:.+]], %[[ARRAYINITBODY_INNER:.+]] ]
 // CHECK: %[[TARG_INNER_ELEM:.+]] = getelementptr inbounds i32, ptr addrspace(4) %[[ARRAY_BEGIN_INNER]], i64 %[[ARRAYINDEX_INNER]]
-// CHECK: %[[SRC_INNER_ELEM:.+]] = getelementptr inbounds [1 x i32], ptr addrspace(4) %[[SRC_OUTER_ELEM]], i64 0, i64 %[[ARRAYINDEX_INNER]]
+// CHECK: %[[SRC_INNER_ELEM:.+]] = getelementptr inbounds nuw [1 x i32], ptr addrspace(4) %[[SRC_OUTER_ELEM]], i64 0, i64 %[[ARRAYINDEX_INNER]]
 // CHECK: %[[SRC_LOAD:.+]] = load i32, ptr addrspace(4) %[[SRC_INNER_ELEM]]
 // CHECK: store i32 %[[SRC_LOAD]], ptr addrspace(4) %[[TARG_INNER_ELEM]]
 // CHECK: %[[NEXTINDEX_INNER]] = add nuw i64 %[[ARRAYINDEX_INNER]], 1

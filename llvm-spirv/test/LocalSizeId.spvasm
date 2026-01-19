@@ -1,0 +1,27 @@
+; REQUIRES: spirv-as
+
+; RUN: spirv-as %s --target-env spv1.2 -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r -o %t.rev.bc %t.spv
+; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s
+
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability Kernel
+               OpMemoryModel Physical64 OpenCL
+               OpEntryPoint Kernel %fn "testLocalSizeId"
+               OpExecutionModeId %fn LocalSizeId %uint_64 %uint_1 %uint_1sco
+       %void = OpTypeVoid
+       %uint = OpTypeInt 32 0
+     %uint_1 = OpConstant %uint 1
+    %uint_64 = OpConstant %uint 64
+  %uint_1sco = OpSpecConstantOp %uint UDiv %uint_64 %uint_64
+       %fnTy = OpTypeFunction %void
+
+; CHECK: define spir_kernel void @testLocalSizeId() {{.*}} !reqd_work_group_size ![[MD:[0-9]+]]
+; CHECK: ![[MD]] = !{i32 64, i32 1, i32 1}
+
+         %fn = OpFunction %void None %fnTy
+      %entry = OpLabel
+               OpReturn
+               OpFunctionEnd

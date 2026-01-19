@@ -31,7 +31,7 @@
 #include <sycl/access/access.hpp>
 #include <sycl/detail/generic_type_traits.hpp>
 
-#include <CL/__spirv/spirv_ops.hpp>
+#include <sycl/__spirv/spirv_ops.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -101,6 +101,22 @@ static RetType __invoke__SampledImageFetch(ImageT Img, CoordT Coords) {
   return sycl::detail::convertFromOpenCLTypeFor<RetType>(
       __spirv_SampledImageFetch<TempRetT, ImageT, decltype(TmpCoords)>(
           Img, TmpCoords));
+}
+
+template <typename RetType, typename ImageT, typename CoordT>
+static std::enable_if_t<std::is_same_v<RetType, sycl::vec<float, 4>> ||
+                            std::is_same_v<RetType, sycl::vec<int, 4>> ||
+                            std::is_same_v<RetType, sycl::vec<unsigned int, 4>>,
+                        RetType>
+__invoke__SampledImageGather(ImageT Img, CoordT Coords, unsigned Component) {
+
+  // Convert from sycl types to builtin types to get correct function mangling.
+  using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
+  auto TmpCoords = sycl::detail::convertToOpenCLType(Coords);
+
+  return sycl::detail::convertFromOpenCLTypeFor<RetType>(
+      __spirv_SampledImageGather<TempRetT, ImageT, decltype(TmpCoords)>(
+          Img, TmpCoords, Component));
 }
 
 template <typename RetType, typename ImageT, typename CoordT>

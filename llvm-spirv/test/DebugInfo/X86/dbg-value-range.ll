@@ -16,7 +16,7 @@ target triple = "spir64-unknown-unknown"
 
 %struct.a = type { i32 }
 
-define i32 @bar(ptr nocapture %b) nounwind ssp !dbg !0 {
+define i32 @bar(ptr captures(none) %b) nounwind ssp !dbg !0 {
 entry:
   tail call void @llvm.dbg.value(metadata ptr %b, metadata !6, metadata !DIExpression()), !dbg !13
   %tmp2 = load i32, ptr %b, align 4, !dbg !14
@@ -63,9 +63,9 @@ declare void @llvm.dbg.value(metadata, metadata, metadata) nounwind readnone
 ;CHECK-NEXT: [[CLOBBER:Ltmp[0-9]*]]
 
 ;CHECK:Ldebug_loc0:
-;CHECK-NEXT: .set Lset{{.*}},
+;CHECK-NEXT: Lset{{.*}} =
 ;CHECK-NEXT:	.quad
-;CHECK-NEXT: .set [[CLOBBER_OFF:Lset.*]], [[CLOBBER]]-{{.*}}
+;CHECK-NEXT: [[CLOBBER_OFF:Lset.*]] = [[CLOBBER]]-{{.*}}
 ;CHECK-NEXT:	.quad	[[CLOBBER_OFF]]
 ;CHECK-NEXT:  .short 1 ## Loc expr size
 ;CHECK-NEXT:	.byte	85 ## DW_OP_reg

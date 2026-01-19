@@ -23,6 +23,10 @@ inline namespace _V1 {
 namespace ext::oneapi {
 template <typename... PropsT> class accessor_property_list;
 } // namespace ext::oneapi
+namespace detail {
+class PropertyValidator;
+class SYCLMemObjT;
+} // namespace detail
 
 /// Objects of the property_list class are containers for the SYCL properties
 ///
@@ -55,13 +59,6 @@ public:
     return has_property_helper<PropT>();
   }
 
-  void add_or_replace_accessor_properties(const property_list &PropertyList) {
-    add_or_replace_accessor_properties_helper(PropertyList.MPropsWithData);
-  }
-  void delete_accessor_property(const sycl::detail::PropWithDataKind &Kind) {
-    delete_accessor_property_helper(Kind);
-  }
-
   template <typename... T> operator ext::oneapi::accessor_property_list<T...>();
 
 private:
@@ -72,7 +69,21 @@ private:
 
   template <typename... PropsT>
   friend class ext::oneapi::accessor_property_list;
+  friend class detail::PropertyValidator;
+  friend class detail::SYCLMemObjT;
 };
+
+namespace detail {
+class PropertyValidator {
+public:
+  static void checkPropsAndThrow(const property_list &PropList,
+                                 std::function<bool(int)> FunctionForDataless,
+                                 std::function<bool(int)> FunctionForData) {
+    PropList.checkPropsAndThrow(std::move(FunctionForDataless),
+                                std::move(FunctionForData));
+  }
+};
+} // namespace detail
 
 } // namespace _V1
 } // namespace sycl

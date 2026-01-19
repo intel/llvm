@@ -106,8 +106,7 @@
 ; (!"llvm.loop.ivdep.*" <-> LoopControlDependency*Mask)
 ; into a separate test file
 
-; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -spirv-ext=+all -o %t.spv
+; RUN: llvm-spirv %s -spirv-ext=+SPV_INTEL_fpga_loop_controls,+SPV_INTEL_unstructured_loop_controls -o %t.spv
 ; RUN: llvm-spirv %t.spv --to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
@@ -137,7 +136,7 @@ entry:
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #1
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr captures(none)) #1
 
 ; Function Attrs: inlinehint nounwind
 define internal spir_func void @"_ZZ4mainENK3$_0clEv"(ptr addrspace(4) %this) #2 align 2 {
@@ -150,7 +149,7 @@ entry:
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr captures(none)) #1
 
 ; Function Attrs: nounwind
 define dso_local spir_func void @_Z3foov() #3 {

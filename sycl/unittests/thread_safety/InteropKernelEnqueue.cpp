@@ -9,10 +9,11 @@
 #include <cstddef>
 #include <gtest/gtest.h>
 #include <helpers/KernelInteropCommon.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
 #include "ThreadUtils.h"
+#include "ur_mock_helpers.hpp"
 
 namespace {
 using namespace sycl;
@@ -21,30 +22,40 @@ constexpr std::size_t NArgs = 16;
 constexpr std::size_t ThreadCount = 4;
 constexpr std::size_t LaunchCount = 8;
 
-pi_uint32 LastArgSet = -1;
+uint32_t LastArgSet = -1;
 std::size_t LastThread = -1;
-pi_result redefined_piKernelSetArg(pi_kernel kernel, pi_uint32 arg_index,
-                                   size_t arg_size, const void *arg_value) {
-  EXPECT_EQ((LastArgSet + 1) % NArgs, arg_index);
-  LastArgSet = arg_index;
-  std::size_t ArgValue = *static_cast<const std::size_t *>(arg_value);
-  if (arg_index == 0)
-    LastThread = ArgValue;
-  else
-    EXPECT_EQ(LastThread, ArgValue);
-  return PI_SUCCESS;
+ur_result_t redefined_urEnqueueKernelLaunchWithArgsExp(void *pParams) {
+  auto params =
+      *static_cast<ur_enqueue_kernel_launch_with_args_exp_params_t *>(pParams);
+  auto Args = *params.ppArgs;
+  for (uint32_t i = 0; i < *params.pnumArgs; i++) {
+    if (Args[i].type != UR_EXP_KERNEL_ARG_TYPE_VALUE) {
+      continue;
+    }
+    auto ArgIndex = Args[i].index;
+    EXPECT_EQ((LastArgSet + 1) % NArgs, ArgIndex);
+    LastArgSet = ArgIndex;
+    std::size_t ArgValue =
+        *static_cast<const std::size_t *>(Args[i].value.pointer);
+    if (ArgIndex == 0)
+      LastThread = ArgValue;
+    else
+      EXPECT_EQ(LastThread, ArgValue);
+  }
+  return UR_RESULT_SUCCESS;
 }
 
 TEST(KernelEnqueue, InteropKernel) {
-  unittest::PiMock Mock;
+  unittest::UrMock<> Mock;
   redefineMockForKernelInterop(Mock);
-  Mock.redefine<sycl::detail::PiApiKind::piKernelSetArg>(
-      redefined_piKernelSetArg);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
 
-  platform Plt = Mock.getPlatform();
+  platform Plt = sycl::platform();
   queue Q;
 
-  DummyHandleT Handle;
+  ur_native_handle_t Handle = mock::createDummyHandle<ur_native_handle_t>();
   auto KernelCL = reinterpret_cast<typename sycl::backend_traits<
       sycl::backend::opencl>::template input_type<sycl::kernel>>(&Handle);
   auto Kernel =

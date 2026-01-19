@@ -54,13 +54,16 @@
 
 #pragma once
 
-#include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
-#include <sycl/exception.hpp>                  // for errc
+#include <sycl/detail/generic_type_traits.hpp>
 
-#include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
+#include <sycl/detail/memcpy.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp>
+#include <sycl/half_type.hpp>
+#include <sycl/vector.hpp>
 
 #ifndef __SYCL_DEVICE_ONLY__
-#include <cfenv> // for fesetround, fegetround
+#include <cfenv>
+#include <sycl/exception.hpp>
 #endif
 
 #include <type_traits>
@@ -152,8 +155,6 @@ __imf_ushort_as_bfloat16(unsigned short x);
 #endif // __SYCL_DEVICE_ONLY__ && (defined(__SPIR__) || defined(__SPIRV__))
 
 namespace sycl {
-
-enum class rounding_mode { automatic = 0, rte = 1, rtz = 2, rtp = 3, rtn = 4 };
 
 inline namespace _V1 {
 #ifndef __SYCL_DEVICE_ONLY__
@@ -387,94 +388,94 @@ using enable_if_to_int_vector_t =
                                      RoundingModeCondition, RoundingMode>::type;
 
 // signed to signed, unsigned to unsigned conversions
-#define __SYCL_SCALAR_INT_INT_CONVERT(Op, DestType)                            \
+#define __SYCL_SCALAR_INT_INT_CONVERT(Op, DestType, SPVType)                   \
   template <typename From, typename To, int VecSize, typename Enable>          \
   enable_if_to_int_scalar_t<sycl::opencl::cl_##DestType, Enable, VecSize, To>  \
       Op##Convert(From value) {                                                \
-    return __spirv_##Op##Convert_R##DestType(value);                           \
+    return __spirv_##Op##Convert_R##SPVType(value);                            \
   }
 
-#define __SYCL_VECTOR_INT_INT_CONVERT(Op, N, DestType)                         \
+#define __SYCL_VECTOR_INT_INT_CONVERT(Op, N, DestType, SPVType)                \
   template <typename From, typename To, int VecSize, typename Enable>          \
   enable_if_to_int_vector_t<sycl::opencl::cl_##DestType, Enable, N, VecSize,   \
                             To>                                                \
       Op##Convert(From value) {                                                \
-    return __spirv_##Op##Convert_R##DestType##N(value);                        \
+    return __spirv_##Op##Convert_R##SPVType##N(value);                         \
   }
 
-#define __SYCL_INT_INT_CONVERT(Op, DestType)                                   \
-  __SYCL_SCALAR_INT_INT_CONVERT(Op, DestType)                                  \
-  __SYCL_VECTOR_INT_INT_CONVERT(Op, 2, DestType)                               \
-  __SYCL_VECTOR_INT_INT_CONVERT(Op, 3, DestType)                               \
-  __SYCL_VECTOR_INT_INT_CONVERT(Op, 4, DestType)                               \
-  __SYCL_VECTOR_INT_INT_CONVERT(Op, 8, DestType)                               \
-  __SYCL_VECTOR_INT_INT_CONVERT(Op, 16, DestType)
+#define __SYCL_INT_INT_CONVERT(Op, DestType, SPVType)                          \
+  __SYCL_SCALAR_INT_INT_CONVERT(Op, DestType, SPVType)                         \
+  __SYCL_VECTOR_INT_INT_CONVERT(Op, 2, DestType, SPVType)                      \
+  __SYCL_VECTOR_INT_INT_CONVERT(Op, 3, DestType, SPVType)                      \
+  __SYCL_VECTOR_INT_INT_CONVERT(Op, 4, DestType, SPVType)                      \
+  __SYCL_VECTOR_INT_INT_CONVERT(Op, 8, DestType, SPVType)                      \
+  __SYCL_VECTOR_INT_INT_CONVERT(Op, 16, DestType, SPVType)
 
-__SYCL_INT_INT_CONVERT(S, char)
-__SYCL_INT_INT_CONVERT(S, short)
-__SYCL_INT_INT_CONVERT(S, int)
-__SYCL_INT_INT_CONVERT(S, long)
+__SYCL_INT_INT_CONVERT(S, char, schar)
+__SYCL_INT_INT_CONVERT(S, short, short)
+__SYCL_INT_INT_CONVERT(S, int, int)
+__SYCL_INT_INT_CONVERT(S, long, long)
 
-__SYCL_INT_INT_CONVERT(U, uchar)
-__SYCL_INT_INT_CONVERT(U, ushort)
-__SYCL_INT_INT_CONVERT(U, uint)
-__SYCL_INT_INT_CONVERT(U, ulong)
+__SYCL_INT_INT_CONVERT(U, uchar, uchar)
+__SYCL_INT_INT_CONVERT(U, ushort, ushort)
+__SYCL_INT_INT_CONVERT(U, uint, uint)
+__SYCL_INT_INT_CONVERT(U, ulong, ulong)
 
 #undef __SYCL_SCALAR_INT_INT_CONVERT
 #undef __SYCL_VECTOR_INT_INT_CONVERT
 #undef __SYCL_INT_INT_CONVERT
 
 // float to signed, float to unsigned conversion
-#define __SYCL_SCALAR_FLOAT_INT_CONVERT(Op, DestType, RoundingMode,            \
+#define __SYCL_SCALAR_FLOAT_INT_CONVERT(Op, DestType, SPVType, RoundingMode,   \
                                         RoundingModeCondition)                 \
   template <typename From, typename To, int VecSize, typename Enable,          \
             sycl::rounding_mode RM>                                            \
   enable_if_to_int_scalar_t<sycl::opencl::cl_##DestType, Enable, VecSize, To,  \
                             RoundingModeCondition, RM>                         \
       Convert##Op(From Value) {                                                \
-    return __spirv_Convert##Op##_R##DestType##_##RoundingMode(Value);          \
+    return __spirv_Convert##Op##_R##SPVType##_##RoundingMode(Value);           \
   }
 
-#define __SYCL_VECTOR_FLOAT_INT_CONVERT(Op, N, DestType, RoundingMode,         \
-                                        RoundingModeCondition)                 \
+#define __SYCL_VECTOR_FLOAT_INT_CONVERT(Op, N, DestType, SPVType,              \
+                                        RoundingMode, RoundingModeCondition)   \
   template <typename From, typename To, int VecSize, typename Enable,          \
             sycl::rounding_mode RM>                                            \
   enable_if_to_int_vector_t<sycl::opencl::cl_##DestType, Enable, N, VecSize,   \
                             To, RoundingModeCondition, RM>                     \
       Convert##Op(From Value) {                                                \
-    return __spirv_Convert##Op##_R##DestType##N##_##RoundingMode(Value);       \
+    return __spirv_Convert##Op##_R##SPVType##N##_##RoundingMode(Value);        \
   }
 
-#define __SYCL_FLOAT_INT_CONVERT(Op, DestType, RoundingMode,                   \
+#define __SYCL_FLOAT_INT_CONVERT(Op, DestType, SPVType, RoundingMode,          \
                                  RoundingModeCondition)                        \
-  __SYCL_SCALAR_FLOAT_INT_CONVERT(Op, DestType, RoundingMode,                  \
+  __SYCL_SCALAR_FLOAT_INT_CONVERT(Op, DestType, SPVType, RoundingMode,         \
                                   RoundingModeCondition)                       \
-  __SYCL_VECTOR_FLOAT_INT_CONVERT(Op, 2, DestType, RoundingMode,               \
+  __SYCL_VECTOR_FLOAT_INT_CONVERT(Op, 2, DestType, SPVType, RoundingMode,      \
                                   RoundingModeCondition)                       \
-  __SYCL_VECTOR_FLOAT_INT_CONVERT(Op, 3, DestType, RoundingMode,               \
+  __SYCL_VECTOR_FLOAT_INT_CONVERT(Op, 3, DestType, SPVType, RoundingMode,      \
                                   RoundingModeCondition)                       \
-  __SYCL_VECTOR_FLOAT_INT_CONVERT(Op, 4, DestType, RoundingMode,               \
+  __SYCL_VECTOR_FLOAT_INT_CONVERT(Op, 4, DestType, SPVType, RoundingMode,      \
                                   RoundingModeCondition)                       \
-  __SYCL_VECTOR_FLOAT_INT_CONVERT(Op, 8, DestType, RoundingMode,               \
+  __SYCL_VECTOR_FLOAT_INT_CONVERT(Op, 8, DestType, SPVType, RoundingMode,      \
                                   RoundingModeCondition)                       \
-  __SYCL_VECTOR_FLOAT_INT_CONVERT(Op, 16, DestType, RoundingMode,              \
+  __SYCL_VECTOR_FLOAT_INT_CONVERT(Op, 16, DestType, SPVType, RoundingMode,     \
                                   RoundingModeCondition)
 
-#define __SYCL_FLOAT_INT_CONVERT_FOR_TYPE(Op, DestType)                        \
-  __SYCL_FLOAT_INT_CONVERT(Op, DestType, rte, RteOrAutomatic)                  \
-  __SYCL_FLOAT_INT_CONVERT(Op, DestType, rtz, Rtz)                             \
-  __SYCL_FLOAT_INT_CONVERT(Op, DestType, rtp, Rtp)                             \
-  __SYCL_FLOAT_INT_CONVERT(Op, DestType, rtn, Rtn)
+#define __SYCL_FLOAT_INT_CONVERT_FOR_TYPE(Op, DestType, SPVType)               \
+  __SYCL_FLOAT_INT_CONVERT(Op, DestType, SPVType, rte, RteOrAutomatic)         \
+  __SYCL_FLOAT_INT_CONVERT(Op, DestType, SPVType, rtz, Rtz)                    \
+  __SYCL_FLOAT_INT_CONVERT(Op, DestType, SPVType, rtp, Rtp)                    \
+  __SYCL_FLOAT_INT_CONVERT(Op, DestType, SPVType, rtn, Rtn)
 
-__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToS, char)
-__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToS, short)
-__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToS, int)
-__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToS, long)
+__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToS, char, schar)
+__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToS, short, short)
+__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToS, int, int)
+__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToS, long, long)
 
-__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToU, uchar)
-__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToU, ushort)
-__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToU, uint)
-__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToU, ulong)
+__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToU, uchar, uchar)
+__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToU, ushort, ushort)
+__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToU, uint, uint)
+__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToU, ulong, ulong)
 
 #undef __SYCL_SCALAR_FLOAT_INT_CONVERT
 #undef __SYCL_VECTOR_FLOAT_INT_CONVERT
@@ -805,13 +806,9 @@ NativeToT ConvertToBF16(NativeFromT val) {
 /// conversion kind. It is expected to be \c DataT template argument of a vector
 /// we are trying to convert \a to
 /// \tparam NativeFromT \b scalar or \b vector internal type corresponding to
-/// \c FromT, which is used to hold vector data. It is expected to be
-/// vec<FromT, VecSize>::vector_t of a vector we are trying to convert \a from
-/// if VecSize > 1, or result of detail::ConvertToOpenCLType_t<FromT>
+/// \c FromT, which is used to hold vector data.
 /// \tparam NativeToT \b scalar or \b vector internal type corresponding to
-/// \c ToT, which is used to hold vector data. It is expected to be
-/// vec<ToT, VecSize>::vector_t of a vector we are trying to convert \a from
-/// if VecSize > 1, or result of detail::ConvertToOpenCLType_t<ToT>
+/// \c ToT
 ///
 /// \note Each pair of types FromT, ToT and NativeFromT, NativeToT can't contain
 /// the same type, because there are no no-op convert instructions in SPIR-V.
@@ -870,6 +867,120 @@ auto ConvertImpl(std::byte val) {
 }
 #endif
 
+// We interpret bool as int8_t, std::byte as uint8_t for conversion to other
+// types.
+template <typename T>
+using ConvertBoolAndByteT =
+    typename detail::map_type<T,
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+                              std::byte, /*->*/ std::uint8_t, //
+#endif
+                              bool, /*->*/ std::uint8_t, //
+                              T, /*->*/ T                //
+                              >::type;
 } // namespace detail
+
+template <typename DataT, int NumElements>
+template <typename convertT, rounding_mode roundingMode>
+vec<convertT, NumElements> vec<DataT, NumElements>::convert() const {
+#if !__SYCL_USE_LIBSYCL8_VEC_IMPL
+  auto getValue = [this](int Index) {
+    using RetType = typename std::conditional_t<
+        detail::is_byte_v<DataT>, int8_t,
+#ifdef __SYCL_DEVICE_ONLY__
+        typename detail::map_type<
+            DataT,
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+            std::byte, /*->*/ std::uint8_t, //
+#endif
+            bool, /*->*/ std::uint8_t,                            //
+            sycl::half, /*->*/ sycl::detail::half_impl::StorageT, //
+            sycl::ext::oneapi::bfloat16, /*->*/ uint16_t,         //
+            char, /*->*/ detail::ConvertToOpenCLType_t<char>,     //
+            DataT, /*->*/ DataT                                   //
+            >::type
+#else
+        DataT
+#endif
+        >;
+
+#ifdef __SYCL_DEVICE_ONLY__
+    if constexpr (std::is_same_v<DataT, sycl::ext::oneapi::bfloat16>)
+      return sycl::bit_cast<RetType>(this->m_Data[Index]);
+    else
+#endif
+      return static_cast<RetType>(this->m_Data[Index]);
+  };
+#endif
+  using T = detail::ConvertBoolAndByteT<DataT>;
+  using R = detail::ConvertBoolAndByteT<convertT>;
+  using bfloat16 = sycl::ext::oneapi::bfloat16;
+  static_assert(std::is_integral_v<R> || detail::is_floating_point<R>::value ||
+                    std::is_same_v<R, bfloat16>,
+                "Unsupported convertT");
+
+  using OpenCLT = detail::ConvertToOpenCLType_t<T>;
+  using OpenCLR = detail::ConvertToOpenCLType_t<R>;
+  vec<convertT, NumElements> Result;
+
+  // convertImpl can't be called with the same From and To types and therefore
+  // we need some special processing in a few cases.
+  if constexpr (std::is_same_v<DataT, convertT>) {
+    return *this;
+  } else if constexpr (std::is_same_v<OpenCLT, OpenCLR> ||
+                       std::is_same_v<T, R>) {
+    for (size_t I = 0; I < NumElements; ++I)
+      Result[I] = static_cast<convertT>(getValue(I));
+    return Result;
+  } else {
+
+#ifdef __SYCL_DEVICE_ONLY__
+    using OpenCLVecT = OpenCLT __attribute__((ext_vector_type(NumElements)));
+    using OpenCLVecR = OpenCLR __attribute__((ext_vector_type(NumElements)));
+
+    // Whole vector conversion can only be done, if:
+    constexpr bool canUseNativeVectorConvert =
+#ifdef __NVPTX__
+        //  TODO: Likely unnecessary as
+        //  https://github.com/intel/llvm/issues/11840 has been closed
+        //  already.
+        false &&
+#endif
+        NumElements > 1 &&
+        // - it is not a signed to unsigned (or vice versa) conversion
+        //   see comments within 'convertImpl' for more details;
+        !detail::is_sint_to_from_uint<T, R>::value &&
+        // - destination type is not bool. bool is stored as integer under the
+        //   hood and therefore conversion to bool looks like conversion
+        //   between two integer types. Since bit pattern for true and false
+        //   is not defined, there is no guarantee that integer conversion
+        //   yields right results here;
+        !std::is_same_v<convertT, bool>;
+
+    if constexpr (canUseNativeVectorConvert) {
+      auto val =
+          detail::convertImpl<T, R, roundingMode, NumElements, OpenCLVecT,
+                              OpenCLVecR>(bit_cast<OpenCLVecT>(*this));
+      sycl::detail::memcpy_no_adl(&Result.m_Data, &val, sizeof(Result));
+    } else
+#endif // __SYCL_DEVICE_ONLY__
+    {
+      // Otherwise, we fallback to per-element conversion:
+      for (size_t I = 0; I < NumElements; ++I) {
+        auto val = detail::convertImpl<T, R, roundingMode, 1, OpenCLT, OpenCLR>(
+            getValue(I));
+#ifdef __SYCL_DEVICE_ONLY__
+        // On device, we interpret BF16 as uint16.
+        if constexpr (std::is_same_v<convertT, bfloat16>)
+          Result[I] = sycl::bit_cast<convertT>(val);
+        else
+#endif
+          Result[I] = static_cast<convertT>(val);
+      }
+    }
+  }
+  return Result;
+}
+
 } // namespace _V1
 } // namespace sycl

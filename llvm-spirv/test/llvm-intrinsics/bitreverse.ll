@@ -111,7 +111,7 @@ target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:2
 target triple = "spir-unknown-unknown"
 
 ; Function Attrs: convergent nounwind writeonly
-define spir_kernel void @testBitRev(i8 %a, i16 %b, i32 %c, i64 %d, ptr addrspace(1) nocapture %res) {
+define spir_kernel void @testBitRev(i8 %a, i16 %b, i32 %c, i64 %d, ptr addrspace(1) captures(none) %res) {
 entry:
   %call8 = call i8 @llvm.bitreverse.i8(i8 %a)
   store i8 %call8, ptr addrspace(1) %res, align 2, !tbaa !7
@@ -128,7 +128,7 @@ entry:
   ret void
 }
 
-define spir_kernel void @testBitRevV2(<2 x i8> %a, <2 x i16> %b, <2 x i32> %c, <2 x i64> %d, ptr addrspace(1) nocapture %res) {
+define spir_kernel void @testBitRevV2(<2 x i8> %a, <2 x i16> %b, <2 x i32> %c, <2 x i64> %d, ptr addrspace(1) captures(none) %res) {
 entry:
   %call8 = call <2 x i8> @llvm.bitreverse.v2i8(<2 x i8> %a)
   store <2 x i8> %call8, ptr addrspace(1) %res, align 2, !tbaa !7
@@ -145,7 +145,7 @@ entry:
   ret void
 }
 
-define spir_kernel void @testBitRevV3(<3 x i8> %a, <3 x i16> %b, <3 x i32> %c, <3 x i64> %d, ptr addrspace(1) nocapture %res) {
+define spir_kernel void @testBitRevV3(<3 x i8> %a, <3 x i16> %b, <3 x i32> %c, <3 x i64> %d, ptr addrspace(1) captures(none) %res) {
 entry:
   %call8 = call <3 x i8> @llvm.bitreverse.v3i8(<3 x i8> %a)
   store <3 x i8> %call8, ptr addrspace(1) %res, align 2, !tbaa !7
@@ -162,7 +162,7 @@ entry:
   ret void
 }
 
-define spir_kernel void @testBitRevV4(<4 x i8> %a, <4 x i16> %b, <4 x i32> %c, <4 x i64> %d, ptr addrspace(1) nocapture %res) {
+define spir_kernel void @testBitRevV4(<4 x i8> %a, <4 x i16> %b, <4 x i32> %c, <4 x i64> %d, ptr addrspace(1) captures(none) %res) {
 entry:
   %call8 = call <4 x i8> @llvm.bitreverse.v4i8(<4 x i8> %a)
   store <4 x i8> %call8, ptr addrspace(1) %res, align 2, !tbaa !7
@@ -179,7 +179,7 @@ entry:
   ret void
 }
 
-define spir_kernel void @testBitRevV8(<8 x i8> %a, <8 x i16> %b, <8 x i32> %c, <8 x i64> %d, ptr addrspace(1) nocapture %res) {
+define spir_kernel void @testBitRevV8(<8 x i8> %a, <8 x i16> %b, <8 x i32> %c, <8 x i64> %d, ptr addrspace(1) captures(none) %res) {
 entry:
   %call8 = call <8 x i8> @llvm.bitreverse.v8i8(<8 x i8> %a)
   store <8 x i8> %call8, ptr addrspace(1) %res, align 2, !tbaa !7
@@ -196,7 +196,7 @@ entry:
   ret void
 }
 
-define spir_kernel void @testBitRevV16(<16 x i8> %a, <16 x i16> %b, <16 x i32> %c, <16 x i64> %d, ptr addrspace(1) nocapture %res) {
+define spir_kernel void @testBitRevV16(<16 x i8> %a, <16 x i16> %b, <16 x i32> %c, <16 x i64> %d, ptr addrspace(1) captures(none) %res) {
 entry:
   %call8 = call <16 x i8> @llvm.bitreverse.v16i8(<16 x i8> %a)
   store <16 x i8> %call8, ptr addrspace(1) %res, align 2, !tbaa !7

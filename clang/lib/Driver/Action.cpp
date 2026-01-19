@@ -27,8 +27,8 @@ const char *Action::getClassName(ActionClass AC) {
   case PrecompileJobClass: return "precompiler";
   case ExtractAPIJobClass:
     return "api-extractor";
-  case AnalyzeJobClass: return "analyzer";
-  case MigrateJobClass: return "migrator";
+  case AnalyzeJobClass:
+    return "analyzer";
   case CompileJobClass: return "compiler";
   case BackendJobClass: return "backend";
   case AssembleJobClass: return "assembler";
@@ -45,7 +45,9 @@ const char *Action::getClassName(ActionClass AC) {
   case OffloadWrapperJobClass:
     return "clang-offload-wrapper";
   case OffloadPackagerJobClass:
-    return "clang-offload-packager";
+    return "llvm-offload-binary";
+  case OffloadPackagerExtractJobClass:
+    return "llvm-offload-binary-extract";
   case OffloadDepsJobClass:
     return "clang-offload-deps";
   case SPIRVTranslatorJobClass:
@@ -68,6 +70,10 @@ const char *Action::getClassName(ActionClass AC) {
     return "spirv-to-ir-wrapper";
   case BinaryAnalyzeJobClass:
     return "binary-analyzer";
+  case BinaryTranslatorJobClass:
+    return "binary-translator";
+  case ObjcopyJobClass:
+    return "objcopy";
   }
 
   llvm_unreachable("invalid class");
@@ -83,6 +89,15 @@ void Action::propagateDeviceOffloadInfo(OffloadKind OKind, const char *OArch,
     return;
   // Deps job uses the host kinds.
   if (Kind == OffloadDepsJobClass)
+    return;
+  // Packaging actions can use host kinds for preprocessing.  When packaging
+  // preprocessed files, these packaged files will contain both host and device
+  // files, where the host side does not have any device info to propagate.
+  bool hasPreprocessJob =
+      std::any_of(Inputs.begin(), Inputs.end(), [](const Action *A) {
+        return A->getKind() == PreprocessJobClass;
+      });
+  if (Kind == OffloadPackagerJobClass && hasPreprocessJob)
     return;
 
   assert((OffloadingDeviceKind == OKind || OffloadingDeviceKind == OFK_None) &&
@@ -394,11 +409,6 @@ void AnalyzeJobAction::anchor() {}
 AnalyzeJobAction::AnalyzeJobAction(Action *Input, types::ID OutputType)
     : JobAction(AnalyzeJobClass, Input, OutputType) {}
 
-void MigrateJobAction::anchor() {}
-
-MigrateJobAction::MigrateJobAction(Action *Input, types::ID OutputType)
-    : JobAction(MigrateJobClass, Input, OutputType) {}
-
 void CompileJobAction::anchor() {}
 
 CompileJobAction::CompileJobAction(Action *Input, types::ID OutputType)
@@ -487,6 +497,12 @@ void OffloadPackagerJobAction::anchor() {}
 OffloadPackagerJobAction::OffloadPackagerJobAction(ActionList &Inputs,
                                                    types::ID Type)
     : JobAction(OffloadPackagerJobClass, Inputs, Type) {}
+
+void OffloadPackagerExtractJobAction::anchor() {}
+
+OffloadPackagerExtractJobAction::OffloadPackagerExtractJobAction(
+    ActionList &Inputs, types::ID Type)
+    : JobAction(OffloadPackagerExtractJobClass, Inputs, Type) {}
 
 void OffloadDepsJobAction::anchor() {}
 
@@ -607,3 +623,14 @@ void BinaryAnalyzeJobAction::anchor() {}
 
 BinaryAnalyzeJobAction::BinaryAnalyzeJobAction(Action *Input, types::ID Type)
     : JobAction(BinaryAnalyzeJobClass, Input, Type) {}
+
+void BinaryTranslatorJobAction::anchor() {}
+
+BinaryTranslatorJobAction::BinaryTranslatorJobAction(Action *Input,
+                                                     types::ID Type)
+    : JobAction(BinaryTranslatorJobClass, Input, Type) {}
+
+void ObjcopyJobAction::anchor() {}
+
+ObjcopyJobAction::ObjcopyJobAction(Action *Input, types::ID Type)
+    : JobAction(ObjcopyJobClass, Input, Type) {}

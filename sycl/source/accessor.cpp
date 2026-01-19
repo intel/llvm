@@ -14,13 +14,30 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-device getDeviceFromHandler(handler &cgh) {
-  assert((cgh.MQueue || getSyclObjImpl(cgh)->MGraph) &&
-         "One of MQueue or MGraph should be nonnull!");
-  if (cgh.MQueue)
-    return cgh.MQueue->get_device();
+// property::no_init is supported now for
+// accessor
+// host_accessor
+// unsampled_image_accessor
+// host_unsampled_image_accessor
 
-  return getSyclObjImpl(cgh)->MGraph->getDevice();
+static void verifyAccessorProps(const property_list &Props) {
+  auto CheckDataLessProperties = [](int PropertyKind) {
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
+  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
+    return true;
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
+    switch (PropertyKind) {
+#include <sycl/properties/runtime_accessor_properties.def>
+    default:
+      return false;
+    }
+  };
+  // When new properties with data are added - please implement the second
+  // function with props include.
+  // Absence of any properties causes warning (+error) now.
+  auto NoAllowedPropertiesCheck = [](int) { return false; };
+  detail::PropertyValidator::checkPropsAndThrow(Props, CheckDataLessProperties,
+                                                NoAllowedPropertiesCheck);
 }
 
 AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
@@ -29,10 +46,11 @@ AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
                                    int Dims, int ElemSize, size_t OffsetInBytes,
                                    bool IsSubBuffer,
                                    const property_list &PropertyList) {
-  impl = std::shared_ptr<AccessorImplHost>(
-      new AccessorImplHost(Offset, AccessRange, MemoryRange, AccessMode,
-                           (detail::SYCLMemObjI *)SYCLMemObject, Dims, ElemSize,
-                           false, OffsetInBytes, IsSubBuffer, PropertyList));
+  verifyAccessorProps(PropertyList);
+  impl = std::make_shared<AccessorImplHost>(
+      Offset, AccessRange, MemoryRange, AccessMode,
+      (detail::SYCLMemObjI *)SYCLMemObject, Dims, ElemSize, false,
+      OffsetInBytes, IsSubBuffer, PropertyList);
 }
 
 AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
@@ -41,6 +59,7 @@ AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
                                    int Dims, int ElemSize, bool IsPlaceH,
                                    size_t OffsetInBytes, bool IsSubBuffer,
                                    const property_list &PropertyList) {
+  verifyAccessorProps(PropertyList);
   impl = std::shared_ptr<AccessorImplHost>(
       new AccessorImplHost(Offset, AccessRange, MemoryRange, AccessMode,
                            (detail::SYCLMemObjI *)SYCLMemObject, Dims, ElemSize,
@@ -82,6 +101,7 @@ bool AccessorBaseHost::isMemoryObjectUsedByGraph() const {
 LocalAccessorBaseHost::LocalAccessorBaseHost(
     sycl::range<3> Size, int Dims, int ElemSize,
     const property_list &PropertyList) {
+  verifyAccessorProps(PropertyList);
   impl = std::shared_ptr<LocalAccessorImplHost>(
       new LocalAccessorImplHost(Size, Dims, ElemSize, PropertyList));
 }
@@ -90,19 +110,14 @@ const sycl::range<3> &LocalAccessorBaseHost::getSize() const {
   return impl->MSize;
 }
 void *LocalAccessorBaseHost::getPtr() {
-  // Const cast this in order to call the const getPtr.
-  return const_cast<const LocalAccessorBaseHost *>(this)->getPtr();
+  // Must not be/isn't called, user-facing APIs do error-checking.
+  std::abort();
+  return nullptr;
 }
 void *LocalAccessorBaseHost::getPtr() const {
-  char *ptr = impl->MMem.data();
-
-  // Align the pointer to MElemSize.
-  size_t val = reinterpret_cast<size_t>(ptr);
-  if (val % impl->MElemSize != 0) {
-    ptr += impl->MElemSize - val % impl->MElemSize;
-  }
-
-  return ptr;
+  // Must not be/isn't called, user-facing APIs do error-checking.
+  std::abort();
+  return nullptr;
 }
 const property_list &LocalAccessorBaseHost::getPropList() const {
   return impl->MPropertyList;
@@ -115,6 +130,7 @@ UnsampledImageAccessorBaseHost::UnsampledImageAccessorBaseHost(
     sycl::range<3> Size, access_mode AccessMode, void *SYCLMemObject, int Dims,
     int ElemSize, id<3> Pitch, image_channel_type ChannelType,
     image_channel_order ChannelOrder, const property_list &PropertyList) {
+  verifyAccessorProps(PropertyList);
   impl = std::make_shared<UnsampledImageAccessorImplHost>(
       Size, AccessMode, (detail::SYCLMemObjI *)SYCLMemObject, Dims, ElemSize,
       Pitch, ChannelType, ChannelOrder, PropertyList);
@@ -152,6 +168,11 @@ SampledImageAccessorBaseHost::SampledImageAccessorBaseHost(
     id<3> Pitch, image_channel_type ChannelType,
     image_channel_order ChannelOrder, image_sampler Sampler,
     const property_list &PropertyList) {
+  {
+    auto NoAllowedPropertiesCheck = [](int) { return false; };
+    detail::PropertyValidator::checkPropsAndThrow(
+        PropertyList, NoAllowedPropertiesCheck, NoAllowedPropertiesCheck);
+  }
   impl = std::make_shared<SampledImageAccessorImplHost>(
       Size, (detail::SYCLMemObjI *)SYCLMemObject, Dims, ElemSize, Pitch,
       ChannelType, ChannelOrder, Sampler, PropertyList);

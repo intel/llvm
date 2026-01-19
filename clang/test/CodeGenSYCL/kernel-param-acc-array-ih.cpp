@@ -14,8 +14,11 @@
 
 // CHECK: static constexpr
 // CHECK-NEXT: const char* const kernel_names[] = {
-// CHECK-NEXT:   "_ZTSZ4mainE8kernel_A"
+// CHECK-NEXT:   "_ZTSZ4mainE8kernel_A",
+// CHECK-NEXT:   ""
 // CHECK-NEXT: };
+
+// CHECK: static constexpr unsigned kernel_args_sizes[] = {2, 4294967295,
 
 // CHECK: static constexpr
 // CHECK-NEXT: const kernel_param_desc_t kernel_signatures[] = {

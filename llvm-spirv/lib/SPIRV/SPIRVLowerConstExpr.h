@@ -17,6 +17,10 @@
 
 #include "llvm/IR/PassManager.h"
 
+namespace llvm {
+class LLVMContext;
+} // namespace llvm
+
 namespace SPIRV {
 
 class SPIRVLowerConstExprBase {

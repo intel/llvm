@@ -7,10 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: arch-intel_gpu_pvc
+// UNSUPPORTED: arch-intel_gpu_pvc
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16598
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-//
 // Test checks support of named barrier in a loop in ESIMD kernel.
 // First iteration has 1 barrier and 1 producer, second - 2 barriers and 2
 // producers. Producer stores data to SLM, then all threads read SLM and store

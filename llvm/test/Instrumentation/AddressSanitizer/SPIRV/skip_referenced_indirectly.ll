@@ -1,4 +1,4 @@
-; RUN: opt < %s -passes=asan -asan-instrumentation-with-call-threshold=0 | FileCheck %s
+; RUN: opt < %s -passes=asan -asan-instrumentation-with-call-threshold=0 -S | FileCheck %s
 
 ; Check referenced-indirectly function isn't instrumented.
 
@@ -9,6 +9,7 @@ target triple = "spir64-unknown-unknown"
 @_ZTV8Derived1 = linkonce_odr addrspace(1) constant %structtype { [3 x ptr addrspace(4)] [ptr addrspace(4) null, ptr addrspace(4) null, ptr addrspace(4) addrspacecast (ptr @_ZN8Derived17displayEv to ptr addrspace(4))] }, align 8, !spirv.Decorations !0
 
 define linkonce_odr spir_func i32 @_ZN8Derived17displayEv(ptr addrspace(4) align 8 %this) sanitize_address "referenced-indirectly" {
+; CHECK: @_ZN8Derived17displayEv{{.*}}#1
 entry:
 ; CHECK-NOT: call void @__asan_load
 
@@ -16,6 +17,8 @@ entry:
   %1 = load i32, ptr addrspace(4) %base_data, align 8
   ret i32 %1
 }
+
+; CHECK: #1 {{.*}} disable_sanitizer_instrumentation
 
 !0 = !{!1, !2, !3}
 !1 = !{i32 22}

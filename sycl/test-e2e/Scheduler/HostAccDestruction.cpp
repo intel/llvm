@@ -1,8 +1,5 @@
-// RUN: %{build} -fsycl-dead-args-optimization -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
-
-// Windows doesn't yet have full shutdown().
-// UNSUPPORTED: ze_debug && windows
+// RUN: %{build} -Wno-error=unused-command-line-argument -fsycl-dead-args-optimization -o %t.out
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 
 //==---------------------- HostAccDestruction.cpp --------------------------==//
 //
@@ -35,5 +32,5 @@ int main() {
 }
 
 // CHECK:host acc destructor call
-// CHECK:---> piEnqueueKernelLaunch(
+// CHECK: <--- urEnqueueKernelLaunchWithArgsExp
 // CHECK:end of scope

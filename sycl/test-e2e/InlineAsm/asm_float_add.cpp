@@ -1,5 +1,4 @@
-// UNSUPPORTED: cuda, hip
-// REQUIRES: gpu,linux,sg-16
+// REQUIRES: sg-16
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

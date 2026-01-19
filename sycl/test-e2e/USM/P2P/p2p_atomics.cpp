@@ -1,5 +1,5 @@
 // REQUIRES: cuda || hip || level_zero
-// RUN:  %{build} %if any-device-is-cuda %{ -Xsycl-target-backend --cuda-gpu-arch=sm_61 %} -o %t.out
+// RUN:  %{build} %if target-nvidia %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_61 %} -o %t.out
 // RUN:  %{run} %t.out
 
 #include <cassert>
@@ -9,6 +9,7 @@
 #include <sycl/detail/core.hpp>
 
 #include <sycl/atomic_ref.hpp>
+#include <sycl/platform.hpp>
 #include <sycl/usm.hpp>
 
 using namespace sycl;
@@ -50,15 +51,15 @@ int main() {
     h_sum += value;
   }
 
-  int *d_sum = malloc_shared<int>(1, Queues[0]);
+  int *d_sum = malloc_device<int>(1, Queues[0]);
   int *d_in = malloc_device<int>(N, Queues[0]);
 
+  Queues[0].single_task([=]() { *d_sum = 0; });
   Queues[0].memcpy(d_in, &input[0], N * sizeof(int));
   Queues[0].wait();
 
   range global_range{N};
 
-  *d_sum = 0.;
   Queues[1].submit([&](handler &h) {
     h.parallel_for<class peer_atomic>(global_range, [=](id<1> i) {
       sycl::atomic_ref<int, sycl::memory_order::relaxed,
@@ -68,7 +69,10 @@ int main() {
   });
   Queues[1].wait();
 
-  assert(*d_sum == h_sum);
+  int result = 0;
+  Queues[0].memcpy(&result, d_sum, sizeof(int)).wait();
+
+  assert(result == h_sum);
 
   free(d_sum, Queues[0]);
   free(d_in, Queues[0]);

@@ -38,11 +38,6 @@ template <size_t N> bool AllTrue(sycl::marray<bool, N> M) {
          AllTrue((LHS OP RHS[0]) == (LHS OP RHS)) &&                           \
          AllTrue((LHS[0] OP RHS[0]) == (LHS OP RHS)));
 
-struct NotDefaultConstructible {
-  NotDefaultConstructible() = delete;
-  constexpr NotDefaultConstructible(int){};
-};
-
 template <typename T> void CheckBinOps() {
   sycl::marray<T, 3> ref_arr0{T(0)};
   sycl::marray<T, 3> ref_arr1{T(1)};
@@ -134,15 +129,11 @@ int main() {
   CHECK_ALIAS(mfloat, float)
   CHECK_ALIAS(mdouble, double)
 
-  mint3 t000;
   mint3 t222{2};
   mint3 t123{1, 2, 3};
   mint3 tcpy{t123};
   mint3 t___;
   sycl::marray<bool, 3> b___;
-
-  // test default ctor
-  assert(t000[0] == 0 && t000[1] == 0 && t000[2] == 0);
 
   // test constant ctor
   assert(t222[0] == 2 && t222[1] == 2 && t222[2] == 2);
@@ -206,7 +197,7 @@ int main() {
   CheckBinOps<double>();
 
   // check copyability
-  constexpr sycl::marray<double, 5> ma;
+  constexpr sycl::marray<double, 5> ma(54.0);
   constexpr sycl::marray<double, 5> mb(ma);
   constexpr sycl::marray<double, 5> mc = ma;
 
@@ -223,7 +214,6 @@ int main() {
   CheckConstexprVariadicCtors<sycl::half>();
   CheckConstexprVariadicCtors<float>();
   CheckConstexprVariadicCtors<double>();
-  CheckConstexprVariadicCtors<NotDefaultConstructible>();
 
   // check trivially copyability
   struct Copyable {

@@ -9,6 +9,9 @@
 // UNSUPPORTED: x86_64-pc-linux-gnu-oldDriver
 // UNSUPPORTED: nvptx64-nvidia-cuda-oldDriver
 
+// FIXME: https://github.com/llvm/llvm-project/issues/161265
+// UNSUPPORTED: gpu
+
 #include <algorithm>
 #include <cstdlib>
 #include <iostream>

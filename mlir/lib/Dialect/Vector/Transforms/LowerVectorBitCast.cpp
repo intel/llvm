@@ -11,12 +11,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/UB/IR/UBOps.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Dialect/Vector/Transforms/LoweringPatterns.h"
 #include "mlir/Dialect/Vector/Utils/VectorUtils.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
-#include "mlir/Support/LogicalResult.h"
 
 #define DEBUG_TYPE "vector-bitcast-lowering"
 
@@ -33,7 +33,7 @@ namespace {
 ///
 /// Would be unrolled to:
 ///
-/// %result = arith.constant dense<0> : vector<1x2x3x8xi32>
+/// %result = ub.poison : vector<1x2x3x8xi32>
 /// %0 = vector.extract %a[0, 0, 0]                 ─┐
 ///        : vector<4xi64> from vector<1x2x3x4xi64>  |
 /// %1 = vector.bitcast %0                           | - Repeated 6x for
@@ -64,15 +64,14 @@ public:
         VectorType::get(shape, resultType.getElementType(), scalableDims);
 
     Location loc = op.getLoc();
-    Value result = rewriter.create<arith::ConstantOp>(
-        loc, resultType, rewriter.getZeroAttr(resultType));
+    Value result = ub::PoisonOp::create(rewriter, loc, resultType);
     for (auto position : *unrollIterator) {
       Value extract =
-          rewriter.create<vector::ExtractOp>(loc, op.getSource(), position);
+          vector::ExtractOp::create(rewriter, loc, op.getSource(), position);
       Value bitcast =
-          rewriter.create<vector::BitCastOp>(loc, bitcastResType, extract);
+          vector::BitCastOp::create(rewriter, loc, bitcastResType, extract);
       result =
-          rewriter.create<vector::InsertOp>(loc, bitcast, result, position);
+          vector::InsertOp::create(rewriter, loc, bitcast, result, position);
     }
 
     rewriter.replaceOp(op, result);

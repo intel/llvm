@@ -8,21 +8,19 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_types.hpp> // for MemorySemanticsMask
+#include <sycl/__spirv/spirv_types.hpp> // for MemorySemanticsMask
 #include <sycl/access/access.hpp>     // for fence_space
 #include <sycl/detail/export.hpp>     // for __SYCL_EXPORT
 #include <sycl/memory_enums.hpp>      // for memory_order
 
 #ifdef __SYCL_DEVICE_ONLY__
-#include <CL/__spirv/spirv_vars.hpp>
+#include <sycl/__spirv/spirv_vars.hpp>
 #endif
 
 #include <cstddef>     // for size_t
-#include <memory>      // for shared_ptr
 #include <stdint.h>    // for uint32_t
 #include <type_traits> // for enable_if_t, integral_constant
 #include <utility>     // for forward, integer_sequence, mak...
-#include <vector>      // for vector
 
 namespace sycl {
 inline namespace _V1 {
@@ -38,14 +36,6 @@ template <typename Type, std::size_t NumElements> class marray;
 enum class memory_order;
 
 namespace detail {
-
-class buffer_impl;
-class context_impl;
-__SYCL_EXPORT void waitEvents(std::vector<sycl::event> DepEvents);
-
-__SYCL_EXPORT void
-markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl);
-
 template <typename T> T *declptr() { return static_cast<T *>(nullptr); }
 
 // Function to get or store id, item, nd_item, group for the host implementation
@@ -123,48 +113,52 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
 
   template <int N>
-  using is_valid_dimensions = std::integral_constant<bool, (N > 0) && (N < 4)>;
+  static inline constexpr bool is_valid_dimensions = (N > 0) && (N < 4);
 
   template <int Dims> static const id<Dims> getElement(id<Dims> *) {
-    static_assert(is_valid_dimensions<Dims>::value, "invalid dimensions");
-    return __spirv::initGlobalInvocationId<Dims, id<Dims>>();
+    static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
+    return __spirv::initBuiltInGlobalInvocationId<Dims, id<Dims>>();
   }
 
   template <int Dims> static const group<Dims> getElement(group<Dims> *) {
-    static_assert(is_valid_dimensions<Dims>::value, "invalid dimensions");
-    range<Dims> GlobalSize{__spirv::initGlobalSize<Dims, range<Dims>>()};
-    range<Dims> LocalSize{__spirv::initWorkgroupSize<Dims, range<Dims>>()};
-    range<Dims> GroupRange{__spirv::initNumWorkgroups<Dims, range<Dims>>()};
-    id<Dims> GroupId{__spirv::initWorkgroupId<Dims, id<Dims>>()};
+    static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
+    range<Dims> GlobalSize{__spirv::initBuiltInGlobalSize<Dims, range<Dims>>()};
+    range<Dims> LocalSize{
+        __spirv::initBuiltInWorkgroupSize<Dims, range<Dims>>()};
+    range<Dims> GroupRange{
+        __spirv::initBuiltInNumWorkgroups<Dims, range<Dims>>()};
+    id<Dims> GroupId{__spirv::initBuiltInWorkgroupId<Dims, id<Dims>>()};
     return createGroup<Dims>(GlobalSize, LocalSize, GroupRange, GroupId);
   }
 
   template <int Dims, bool WithOffset>
   static std::enable_if_t<WithOffset, const item<Dims, WithOffset>> getItem() {
-    static_assert(is_valid_dimensions<Dims>::value, "invalid dimensions");
-    id<Dims> GlobalId{__spirv::initGlobalInvocationId<Dims, id<Dims>>()};
-    range<Dims> GlobalSize{__spirv::initGlobalSize<Dims, range<Dims>>()};
-    id<Dims> GlobalOffset{__spirv::initGlobalOffset<Dims, id<Dims>>()};
+    static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
+    id<Dims> GlobalId{__spirv::initBuiltInGlobalInvocationId<Dims, id<Dims>>()};
+    range<Dims> GlobalSize{__spirv::initBuiltInGlobalSize<Dims, range<Dims>>()};
+    id<Dims> GlobalOffset{__spirv::initBuiltInGlobalOffset<Dims, id<Dims>>()};
     return createItem<Dims, true>(GlobalSize, GlobalId, GlobalOffset);
   }
 
   template <int Dims, bool WithOffset>
   static std::enable_if_t<!WithOffset, const item<Dims, WithOffset>> getItem() {
-    static_assert(is_valid_dimensions<Dims>::value, "invalid dimensions");
-    id<Dims> GlobalId{__spirv::initGlobalInvocationId<Dims, id<Dims>>()};
-    range<Dims> GlobalSize{__spirv::initGlobalSize<Dims, range<Dims>>()};
+    static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
+    id<Dims> GlobalId{__spirv::initBuiltInGlobalInvocationId<Dims, id<Dims>>()};
+    range<Dims> GlobalSize{__spirv::initBuiltInGlobalSize<Dims, range<Dims>>()};
     return createItem<Dims, false>(GlobalSize, GlobalId);
   }
 
   template <int Dims> static const nd_item<Dims> getElement(nd_item<Dims> *) {
-    static_assert(is_valid_dimensions<Dims>::value, "invalid dimensions");
-    range<Dims> GlobalSize{__spirv::initGlobalSize<Dims, range<Dims>>()};
-    range<Dims> LocalSize{__spirv::initWorkgroupSize<Dims, range<Dims>>()};
-    range<Dims> GroupRange{__spirv::initNumWorkgroups<Dims, range<Dims>>()};
-    id<Dims> GroupId{__spirv::initWorkgroupId<Dims, id<Dims>>()};
-    id<Dims> GlobalId{__spirv::initGlobalInvocationId<Dims, id<Dims>>()};
-    id<Dims> LocalId{__spirv::initLocalInvocationId<Dims, id<Dims>>()};
-    id<Dims> GlobalOffset{__spirv::initGlobalOffset<Dims, id<Dims>>()};
+    static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
+    range<Dims> GlobalSize{__spirv::initBuiltInGlobalSize<Dims, range<Dims>>()};
+    range<Dims> LocalSize{
+        __spirv::initBuiltInWorkgroupSize<Dims, range<Dims>>()};
+    range<Dims> GroupRange{
+        __spirv::initBuiltInNumWorkgroups<Dims, range<Dims>>()};
+    id<Dims> GroupId{__spirv::initBuiltInWorkgroupId<Dims, id<Dims>>()};
+    id<Dims> GlobalId{__spirv::initBuiltInGlobalInvocationId<Dims, id<Dims>>()};
+    id<Dims> LocalId{__spirv::initBuiltInLocalInvocationId<Dims, id<Dims>>()};
+    id<Dims> GlobalOffset{__spirv::initBuiltInGlobalOffset<Dims, id<Dims>>()};
     group<Dims> Group =
         createGroup<Dims>(GlobalSize, LocalSize, GroupRange, GroupId);
     item<Dims, true> GlobalItem =
@@ -239,11 +233,11 @@ getSPIRVMemorySemanticsMask(const access::fence_space AccessSpace,
 
 // To ensure loop unrolling is done when processing dimensions.
 template <size_t... Inds, class F>
-void loop_impl(std::integer_sequence<size_t, Inds...>, F &&f) {
+constexpr void loop_impl(std::integer_sequence<size_t, Inds...>, F &&f) {
   (f(std::integral_constant<size_t, Inds>{}), ...);
 }
 
-template <size_t count, class F> void loop(F &&f) {
+template <size_t count, class F> constexpr void loop(F &&f) {
   loop_impl(std::make_index_sequence<count>{}, std::forward<F>(f));
 }
 inline constexpr bool is_power_of_two(int x) { return (x & (x - 1)) == 0; }

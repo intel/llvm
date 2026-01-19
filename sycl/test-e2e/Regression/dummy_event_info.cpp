@@ -19,9 +19,13 @@ int main() {
   assert(e.get_info<info::event::command_execution_status>() ==
          info::event_command_status::complete);
   assert(e.get_info<info::event::reference_count>() == 0);
-  assert(e.get_profiling_info<sycl::info::event_profiling::command_submit>() ==
-         0);
-  assert(e.get_profiling_info<sycl::info::event_profiling::command_start>() ==
-         0);
-  assert(e.get_profiling_info<sycl::info::event_profiling::command_end>() == 0);
+  auto submit_time =
+      e.get_profiling_info<sycl::info::event_profiling::command_submit>();
+  auto start_time =
+      e.get_profiling_info<sycl::info::event_profiling::command_start>();
+  auto end_time =
+      e.get_profiling_info<sycl::info::event_profiling::command_end>();
+
+  assert(submit_time == start_time);
+  assert(start_time == end_time);
 }

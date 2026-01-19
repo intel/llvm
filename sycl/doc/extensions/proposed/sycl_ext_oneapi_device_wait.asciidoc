@@ -1,0 +1,198 @@
+= sycl_ext_oneapi_device_wait
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2025 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 10 specification.
+All references below to the "core SYCL specification" or to section numbers in
+the SYCL specification refer to that revision.
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.
+Interfaces defined in this specification may not be implemented yet or may be in
+a preliminary state.
+The specification itself may also change in incompatible ways before it is
+finalized.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+
+== Overview
+
+This extension adds a way for the host to wait for all commands submitted to a
+device to complete.
+This functionality is similar to the CUDA API `cudaDeviceSynchronize`.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_DEVICE_WAIT` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== New aspect
+
+This extension adds the following aspect.
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  // ...
+  ext_oneapi_device_wait
+};
+
+} // namespace sycl
+----
+
+'''
+
+[source,c++]
+----
+ext_oneapi_device_wait
+----
+
+Indicates that the device supports the member functions described below.
+
+'''
+
+=== New member functions for the device class
+
+This extension adds the following member functions to the `device` class.
+
+[source,c++]
+----
+namespace sycl {
+
+class device {
+  // ...
+  void ext_oneapi_wait();
+  void ext_oneapi_wait_and_throw();
+  void ext_oneapi_throw_asynchronous();
+};
+
+} // namespace sycl
+----
+
+'''
+
+[source,c++]
+----
+void ext_oneapi_wait();
+----
+
+_Effects:_ Blocks the calling thread until all commands previously submitted to
+any queue on this device have completed.
+
+_Throws:_ A synchronous `exception` with the `errc::feature_not_supported`
+error code if the device does not have `aspect::ext_oneapi_device_wait`.
+
+'''
+
+[source,c++]
+----
+void ext_oneapi_wait_and_throw();
+----
+
+_Effects:_ Blocks the calling thread until all commands previously submitted to
+any queue on this device have completed.
+
+At least all unconsumed asynchronous errors held by any queue (or its associated
+context) on this device are passed to the appropriate async_handler as described
+in section 4.13.1.3 "Priorities of async handlers" of the core SYCL
+specification.
+
+_Throws:_ A synchronous `exception` with the `errc::feature_not_supported`
+error code if the device does not have `aspect::ext_oneapi_device_wait`.
+
+'''
+
+[source,c++]
+----
+void ext_oneapi_throw_asynchronous();
+----
+
+_Effects:_ Checks to see if any unconsumed asynchronous errors have been
+produced by any queue (or its associated context) on this device.
+If so, they are passed to the appropriate async_handler as described in section
+4.13.1.3 "Priorities of async handlers" of the core SYCL specification.
+
+'''
+
+
+== Implementation notes
+
+Note that these functions wait for "commands", which includes host tasks and
+memory copy operations.
+The implementation and the tests should cover these cases too.
+
+
+== Issues
+
+* The API described above is implementable on Level Zero.
+  If we are being pedantic, we cannot easily implement this API on CUDA because
+  `cudaDeviceSynchronize` waits only for tasks that were submitted to the device
+  using the current context.
+  (The current context can only be changed from the CUDA driver API.)
+  We cannot implement that semantic on Level Zero because Level Zero provides
+  only a function that waits for all tasks on the device (from all contexts).
+  If we wanted to support this extension on CUDA in the future, one option would
+  be to expose the difference to users.
+  In that case, we'd add an additional aspect and additional APIs that take a
+  context.
+  CUDA would support the APIs that take a context and Level Zero would support
+  the APIs that do not.

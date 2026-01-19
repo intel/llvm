@@ -12,7 +12,6 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception_list.hpp>
-#include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/queue.hpp>
 
@@ -31,22 +30,22 @@ queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
 
   const device &SyclDevice = *std::max_element(Devs.begin(), Devs.end(), Comp);
 
-  impl = std::make_shared<detail::queue_impl>(
-      detail::getSyclObjImpl(SyclDevice), detail::getSyclObjImpl(SyclContext),
-      AsyncHandler, PropList);
+  impl = detail::queue_impl::create(*detail::getSyclObjImpl(SyclDevice),
+                                    *detail::getSyclObjImpl(SyclContext),
+                                    AsyncHandler, PropList);
 }
 
 queue::queue(const context &SyclContext, const device &SyclDevice,
              const async_handler &AsyncHandler, const property_list &PropList) {
-  impl = std::make_shared<detail::queue_impl>(
-      detail::getSyclObjImpl(SyclDevice), detail::getSyclObjImpl(SyclContext),
-      AsyncHandler, PropList);
+  impl = detail::queue_impl::create(*detail::getSyclObjImpl(SyclDevice),
+                                    *detail::getSyclObjImpl(SyclContext),
+                                    AsyncHandler, PropList);
 }
 
 queue::queue(const device &SyclDevice, const async_handler &AsyncHandler,
              const property_list &PropList) {
-  impl = std::make_shared<detail::queue_impl>(
-      detail::getSyclObjImpl(SyclDevice), AsyncHandler, PropList);
+  impl = detail::queue_impl::create(*detail::getSyclObjImpl(SyclDevice),
+                                    AsyncHandler, PropList);
 }
 
 queue::queue(const context &SyclContext, const device_selector &deviceSelector,
@@ -64,9 +63,10 @@ queue::queue(const context &SyclContext, const device &SyclDevice,
 queue::queue(cl_command_queue clQueue, const context &SyclContext,
              const async_handler &AsyncHandler) {
   const property_list PropList{};
-  impl = std::make_shared<detail::queue_impl>(
-      reinterpret_cast<sycl::detail::pi::PiQueue>(clQueue),
-      detail::getSyclObjImpl(SyclContext), AsyncHandler, PropList);
+  impl = detail::queue_impl::create(
+      // TODO(pi2ur): Don't cast straight from cl_command_queue
+      reinterpret_cast<ur_queue_handle_t>(clQueue),
+      *detail::getSyclObjImpl(SyclContext), AsyncHandler, PropList);
 }
 
 cl_command_queue queue::get() const { return impl->get(); }
@@ -76,7 +76,7 @@ context queue::get_context() const { return impl->get_context(); }
 device queue::get_device() const { return impl->get_device(); }
 
 ext::oneapi::experimental::queue_state queue::ext_oneapi_get_state() const {
-  return impl->getCommandGraph()
+  return impl->hasCommandGraph()
              ? ext::oneapi::experimental::queue_state::recording
              : ext::oneapi::experimental::queue_state::executing;
 }
@@ -92,7 +92,8 @@ queue::ext_oneapi_get_graph() const {
 
   return sycl::detail::createSyclObjFromImpl<
       ext::oneapi::experimental::command_graph<
-          ext::oneapi::experimental::graph_state::modifiable>>(Graph);
+          ext::oneapi::experimental::graph_state::modifiable>>(
+      std::move(Graph));
 }
 
 void queue::throw_asynchronous() { impl->throw_asynchronous(); }
@@ -100,13 +101,13 @@ void queue::throw_asynchronous() { impl->throw_asynchronous(); }
 event queue::memset(void *Ptr, int Value, size_t Count,
                     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->memset(impl, Ptr, Value, Count, {}, /*CallerNeedsEvent=*/true);
+  return impl->memset(Ptr, Value, Count, {}, /*CallerNeedsEvent=*/true);
 }
 
 event queue::memset(void *Ptr, int Value, size_t Count, event DepEvent,
                     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->memset(impl, Ptr, Value, Count, {DepEvent},
+  return impl->memset(Ptr, Value, Count, {DepEvent},
                       /*CallerNeedsEvent=*/true);
 }
 
@@ -114,43 +115,44 @@ event queue::memset(void *Ptr, int Value, size_t Count,
                     const std::vector<event> &DepEvents,
                     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->memset(impl, Ptr, Value, Count, DepEvents,
+  return impl->memset(Ptr, Value, Count, DepEvents,
                       /*CallerNeedsEvent=*/true);
 }
 
 event queue::memcpy(void *Dest, const void *Src, size_t Count,
                     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->memcpy(impl, Dest, Src, Count, {}, /*CallerNeedsEvent=*/true,
-                      CodeLoc);
+  return impl->memcpy(Dest, Src, Count, {}, /*CallerNeedsEvent=*/true,
+                      TlsCodeLocCapture.query());
 }
 
 event queue::memcpy(void *Dest, const void *Src, size_t Count, event DepEvent,
                     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->memcpy(impl, Dest, Src, Count, {DepEvent},
-                      /*CallerNeedsEvent=*/true, CodeLoc);
+  return impl->memcpy(Dest, Src, Count, {DepEvent},
+                      /*CallerNeedsEvent=*/true, TlsCodeLocCapture.query());
 }
 
 event queue::memcpy(void *Dest, const void *Src, size_t Count,
                     const std::vector<event> &DepEvents,
                     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->memcpy(impl, Dest, Src, Count, DepEvents,
-                      /*CallerNeedsEvent=*/true, CodeLoc);
+  return impl->memcpy(Dest, Src, Count, DepEvents,
+                      /*CallerNeedsEvent=*/true, TlsCodeLocCapture.query());
 }
 
 event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                         const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), {},
+  return impl->mem_advise(Ptr, Length, ur_usm_advice_flags_t(Advice), {},
                           /*CallerNeedsEvent=*/true);
 }
 
 event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                         event DepEvent, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), {DepEvent},
+  return impl->mem_advise(Ptr, Length, ur_usm_advice_flags_t(Advice),
+                          {DepEvent},
                           /*CallerNeedsEvent=*/true);
 }
 
@@ -158,36 +160,22 @@ event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                         const std::vector<event> &DepEvents,
                         const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), DepEvents,
+  return impl->mem_advise(Ptr, Length, ur_usm_advice_flags_t(Advice), DepEvents,
                           /*CallerNeedsEvent=*/true);
 }
 
-event queue::submit_impl(std::function<void(handler &)> CGH,
-                         const detail::code_location &CodeLoc) {
-  return impl->submit(CGH, impl, CodeLoc);
+event queue::submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
+                                    const detail::SubmissionInfo &SubmitInfo,
+                                    const detail::code_location &CodeLoc,
+                                    bool IsTopCodeLoc) const {
+  return impl->submit_with_event(CGH, SubmitInfo, CodeLoc, IsTopCodeLoc);
 }
 
-event queue::submit_impl(std::function<void(handler &)> CGH, queue SecondQueue,
-                         const detail::code_location &CodeLoc) {
-  return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc);
-}
-
-void queue::submit_without_event_impl(std::function<void(handler &)> CGH,
-                                      const detail::code_location &CodeLoc) {
-  return impl->submit_without_event(CGH, impl, CodeLoc);
-}
-
-event queue::submit_impl_and_postprocess(
-    std::function<void(handler &)> CGH, const detail::code_location &CodeLoc,
-    const SubmitPostProcessF &PostProcess) {
-  return impl->submit(CGH, impl, CodeLoc, &PostProcess);
-}
-
-event queue::submit_impl_and_postprocess(
-    std::function<void(handler &)> CGH, queue SecondQueue,
-    const detail::code_location &CodeLoc,
-    const SubmitPostProcessF &PostProcess) {
-  return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc, &PostProcess);
+void queue::submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
+                                      const detail::SubmissionInfo &SubmitInfo,
+                                      const detail::code_location &CodeLoc,
+                                      bool IsTopCodeLoc) const {
+  impl->submit_without_event(CGH, SubmitInfo, CodeLoc, IsTopCodeLoc);
 }
 
 void queue::wait_proxy(const detail::code_location &CodeLoc) {
@@ -198,18 +186,6 @@ void queue::wait_and_throw_proxy(const detail::code_location &CodeLoc) {
   impl->wait_and_throw(CodeLoc);
 }
 
-static event
-getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
-  // This function should not be called when a queue is recording to a graph,
-  // as a graph can record from multiple queues and we cannot guarantee the
-  // last node added by an in-order queue will be the last node added to the
-  // graph.
-  assert(!QueueImpl->getCommandGraph() &&
-         "Should not be called in on graph recording.");
-
-  return QueueImpl->getLastEvent();
-}
-
 /// Prevents any commands submitted afterward to this queue from executing
 /// until all commands previously submitted to this queue have entered the
 /// complete state.
@@ -218,15 +194,7 @@ getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
 /// \return a SYCL event object, which corresponds to the queue the command
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
-  if (is_in_order() && !impl->getCommandGraph() && !impl->MDiscardEvents &&
-      !impl->MIsProfilingEnabled) {
-    event InOrderLastEvent = getBarrierEventForInorderQueueHelper(impl);
-    // If the last event was discarded, fall back to enqueuing a barrier.
-    if (!detail::getSyclObjImpl(InOrderLastEvent)->isDiscarded())
-      return InOrderLastEvent;
-  }
-
-  return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(); }, CodeLoc);
+  return ext_oneapi_submit_barrier(std::vector<event>{}, CodeLoc);
 }
 
 /// Prevents any commands submitted afterward to this queue from executing
@@ -240,21 +208,21 @@ event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
                                        const detail::code_location &CodeLoc) {
+
+  // If waitlist contains only empty, default constructed events, ignore
+  // them.
   bool AllEventsEmptyOrNop = std::all_of(
       begin(WaitList), end(WaitList), [&](const event &Event) -> bool {
-        auto EventImpl = detail::getSyclObjImpl(Event);
-        return EventImpl->isDefaultConstructed() || EventImpl->isNOP();
+        detail::event_impl &EventImpl = *detail::getSyclObjImpl(Event);
+        return (EventImpl.isDefaultConstructed() || EventImpl.isNOP()) &&
+               !EventImpl.hasCommandGraph();
       });
-  if (is_in_order() && !impl->getCommandGraph() && !impl->MDiscardEvents &&
-      !impl->MIsProfilingEnabled && AllEventsEmptyOrNop) {
-    event InOrderLastEvent = getBarrierEventForInorderQueueHelper(impl);
-    // If the last event was discarded, fall back to enqueuing a barrier.
-    if (!detail::getSyclObjImpl(InOrderLastEvent)->isDiscarded())
-      return InOrderLastEvent;
-  }
 
-  return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); },
-                CodeLoc);
+  if (WaitList.empty() || AllEventsEmptyOrNop)
+    return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(); }, CodeLoc);
+  else
+    return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); },
+                  CodeLoc);
 }
 
 template <typename Param>
@@ -276,25 +244,19 @@ queue::get_backend_info() const {
   return impl->get_backend_info<Param>();
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, Picode)              \
-  template __SYCL_EXPORT ReturnT                                               \
-  queue::get_backend_info<info::DescType::Desc>() const;
-
-#include <sycl/info/sycl_backend_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-
 bool queue::is_in_order() const {
   return has_property<property::queue::in_order>();
 }
 
 backend queue::get_backend() const noexcept { return getImplBackend(impl); }
 
-bool queue::ext_oneapi_empty() const { return impl->ext_oneapi_empty(); }
+bool queue::ext_oneapi_empty() const { return impl->queue_empty(); }
+
+bool queue::khr_empty() const { return impl->queue_empty(); }
 
 void queue::ext_oneapi_prod() { impl->flush(); }
 
-pi_native_handle queue::getNative(int32_t &NativeHandleDesc) const {
+ur_native_handle_t queue::getNative(int32_t &NativeHandleDesc) const {
   return impl->getNative(NativeHandleDesc);
 }
 
@@ -302,40 +264,26 @@ event queue::memcpyToDeviceGlobal(void *DeviceGlobalPtr, const void *Src,
                                   bool IsDeviceImageScope, size_t NumBytes,
                                   size_t Offset,
                                   const std::vector<event> &DepEvents) {
-  return impl->memcpyToDeviceGlobal(impl, DeviceGlobalPtr, Src,
-                                    IsDeviceImageScope, NumBytes, Offset,
-                                    DepEvents, /*CallerNeedsEvent=*/true);
+  return impl->memcpyToDeviceGlobal(DeviceGlobalPtr, Src, IsDeviceImageScope,
+                                    NumBytes, Offset, DepEvents,
+                                    /*CallerNeedsEvent=*/true);
 }
 
 event queue::memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
                                     bool IsDeviceImageScope, size_t NumBytes,
                                     size_t Offset,
                                     const std::vector<event> &DepEvents) {
-  return impl->memcpyFromDeviceGlobal(impl, Dest, DeviceGlobalPtr,
-                                      IsDeviceImageScope, NumBytes, Offset,
-                                      DepEvents, /*CallerNeedsEvent=*/true);
+  return impl->memcpyFromDeviceGlobal(Dest, DeviceGlobalPtr, IsDeviceImageScope,
+                                      NumBytes, Offset, DepEvents,
+                                      /*CallerNeedsEvent=*/true);
 }
 
-bool queue::device_has(aspect Aspect) const {
-  // avoid creating sycl object from impl
-  return impl->getDeviceImplPtr()->has(Aspect);
-}
-
-bool queue::ext_codeplay_supports_fusion() const {
-  return has_property<
-      ext::codeplay::experimental::property::queue::enable_fusion>();
-}
-
-event queue::ext_oneapi_get_last_event() const {
+sycl::detail::optional<event> queue::ext_oneapi_get_last_event_impl() const {
   if (!is_in_order())
     throw sycl::exception(
         make_error_code(errc::invalid),
         "ext_oneapi_get_last_event() can only be called on in-order queues.");
-  if (impl->MDiscardEvents)
-    throw sycl::exception(
-        make_error_code(errc::invalid),
-        "ext_oneapi_get_last_event() cannot be called on queues with the "
-        "ext::oneapi::property::queue::discard_events property.");
+
   return impl->getLastEvent();
 }
 
@@ -344,15 +292,56 @@ void queue::ext_oneapi_set_external_event(const event &external_event) {
     throw sycl::exception(make_error_code(errc::invalid),
                           "ext_oneapi_set_external_event() can only be called "
                           "on in-order queues.");
-  if (impl->MDiscardEvents)
-    throw sycl::exception(
-        make_error_code(errc::invalid),
-        "ext_oneapi_set_external_event() cannot be called on queues with the "
-        "ext::oneapi::property::queue::discard_events property.");
   return impl->setExternalEvent(external_event);
 }
 
 const property_list &queue::getPropList() const { return impl->getPropList(); }
+
+event submit_kernel_direct_with_event_impl(
+    const queue &Queue, const detail::nd_range_view &RangeView,
+    detail::HostKernelRefBase &HostKernel,
+    detail::DeviceKernelInfo *DeviceKernelInfo,
+    sycl::span<const event> DepEvents,
+    const detail::KernelPropertyHolderStructTy &Props,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+  return getSyclObjImpl(Queue)->submit_kernel_direct_with_event(
+      RangeView, HostKernel, DeviceKernelInfo, DepEvents, Props, CodeLoc,
+      IsTopCodeLoc);
+}
+
+void submit_kernel_direct_without_event_impl(
+    const queue &Queue, const detail::nd_range_view &RangeView,
+    detail::HostKernelRefBase &HostKernel,
+    detail::DeviceKernelInfo *DeviceKernelInfo,
+    sycl::span<const event> DepEvents,
+    const detail::KernelPropertyHolderStructTy &Props,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+  getSyclObjImpl(Queue)->submit_kernel_direct_without_event(
+      RangeView, HostKernel, DeviceKernelInfo, DepEvents, Props, CodeLoc,
+      IsTopCodeLoc);
+}
+
+event submit_graph_direct_with_event_impl(
+    const queue &Queue,
+    ext::oneapi::experimental::command_graph<
+        ext::oneapi::experimental::graph_state::executable> &G,
+    sycl::span<const event> DepEvents, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return getSyclObjImpl(Queue)->submit_graph_direct_with_event(
+      getSyclObjImpl(G), DepEvents, TlsCodeLocCapture.query(),
+      TlsCodeLocCapture.isToplevel());
+}
+
+void submit_graph_direct_without_event_impl(
+    const queue &Queue,
+    ext::oneapi::experimental::command_graph<
+        ext::oneapi::experimental::graph_state::executable> &G,
+    sycl::span<const event> DepEvents, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  getSyclObjImpl(Queue)->submit_graph_direct_without_event(
+      getSyclObjImpl(G), DepEvents, TlsCodeLocCapture.query(),
+      TlsCodeLocCapture.isToplevel());
+}
 
 } // namespace _V1
 } // namespace sycl

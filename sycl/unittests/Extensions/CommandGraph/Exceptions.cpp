@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <helpers/TestKernel.hpp>
 
 #include "Common.hpp"
 
@@ -213,6 +214,42 @@ void addImagesCopies(experimental::detail::modifiable_command_graph &G,
   }
   ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
 }
+
+/// Tries to add nodes including asynchronous allocation instructions to the
+/// graph G. It tests that an invalid exception has been thrown since the
+/// sycl_ext_oneapi_async_alloc can not be used along with SYCL Graph.
+///
+/// @param G Modifiable graph to add commands to.
+/// @param Q Queue to submit nodes to.
+/// @param Size Size in bytes to allocate.
+/// @param Ptr Generic pointer to allocated memory.
+template <OperationPath PathKind, usm::alloc AllocKind>
+void addAsyncAlloc(experimental::detail::modifiable_command_graph &G, queue &Q,
+                   size_t Size, [[maybe_unused]] void *Ptr) {
+  // simple alloc
+  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    if constexpr (PathKind == OperationPath::RecordReplay) {
+      Q.submit([&](handler &CGH) {
+        Ptr =
+            sycl::ext::oneapi::experimental::async_malloc(CGH, AllocKind, Size);
+      });
+    }
+    if constexpr (PathKind == OperationPath::Shortcut) {
+      Ptr = sycl::ext::oneapi::experimental::async_malloc(Q, AllocKind, Size);
+    }
+    if constexpr (PathKind == OperationPath::Explicit) {
+      G.add([&](handler &CGH) {
+        Ptr =
+            sycl::ext::oneapi::experimental::async_malloc(CGH, AllocKind, Size);
+      });
+    }
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+
+  ASSERT_EQ(ExceptionCode, sycl::errc::feature_not_supported);
+}
 } // anonymous namespace
 
 TEST_F(CommandGraphTest, ExplicitBarrierException) {
@@ -245,11 +282,11 @@ TEST_F(CommandGraphTest, ExplicitBarrierDependencyException) {
   Graph2.begin_recording({Queue});
 
   auto Node = Queue.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   Graph2.end_recording();
 
   auto Event = Queue.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
   Graph.begin_recording(Queue);
 
@@ -270,48 +307,6 @@ TEST_F(CommandGraphTest, ExplicitBarrierDependencyException) {
   ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
 
   Graph2.end_recording();
-}
-
-TEST_F(CommandGraphTest, FusionExtensionExceptionCheck) {
-  device D;
-  if (!D.get_info<
-          ext::codeplay::experimental::info::device::supports_fusion>()) {
-    // Skip this test if the device does not support fusion. Otherwise, the
-    // queue construction in the next step would fail.
-    GTEST_SKIP();
-  }
-
-  queue Q{D, ext::codeplay::experimental::property::queue::enable_fusion{}};
-
-  experimental::command_graph<experimental::graph_state::modifiable> Graph{
-      Q.get_context(), Q.get_device()};
-
-  ext::codeplay::experimental::fusion_wrapper fw{Q};
-
-  // Test: Start fusion on a queue that is in recording mode
-  Graph.begin_recording(Q);
-
-  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    fw.start_fusion();
-  } catch (exception &Exception) {
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
-
-  Graph.end_recording(Q);
-
-  // Test: begin recording a queue in fusion mode
-
-  fw.start_fusion();
-
-  ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    Graph.begin_recording(Q);
-  } catch (exception &Exception) {
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
 }
 
 TEST_F(CommandGraphTest, Memcpy2DExceptionCheck) {
@@ -352,9 +347,29 @@ TEST_F(CommandGraphTest, Reductions) {
       {
         try {
           Graph.add([&](handler &CGH) {
-            CGH.parallel_for<class CustomTestKernel>(
+            CGH.parallel_for<TestKernel>(
                 range<1>{1}, reduction(&ReduVar, int{0}, sycl::plus<>()),
                 [=](item<1> idx, auto &Sum) {});
+          });
+        } catch (const sycl::exception &e) {
+          ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
+          throw;
+        }
+      },
+      sycl::exception);
+}
+
+// Test that using sycl streams in a graph node will throw
+TEST_F(CommandGraphTest, Streams) {
+  ASSERT_THROW(
+      {
+        size_t WorkItems = 16;
+        try {
+          Graph.add([&](handler &CGH) {
+            sycl::stream Out(WorkItems * 16, 16, CGH);
+            CGH.parallel_for<TestKernelWithStream>(
+                range<1>(WorkItems),
+                [=](item<1> id) { Out << id.get_linear_id() << sycl::endl; });
           });
         } catch (const sycl::exception &e) {
           ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
@@ -402,25 +417,12 @@ TEST_F(CommandGraphTest, BindlessExceptionCheck) {
   sycl::free(ImgMemUSM, Ctxt);
 }
 
-// ext_codeplay_enqueue_native_command isn't supported with SYCL graphs
-TEST_F(CommandGraphTest, EnqueueCustomCommandCheck) {
-  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    Graph.add([&](sycl::handler &CGH) {
-      CGH.ext_codeplay_enqueue_native_command([=](sycl::interop_handle IH) {});
-    });
-  } catch (exception &Exception) {
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
-}
-
 TEST_F(CommandGraphTest, MakeEdgeErrors) {
   // Set up some nodes in the graph
   auto NodeA = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto NodeB = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
   // Test error on calling make_edge when a queue is recording to the graph
   Graph.begin_recording(Queue);
@@ -453,7 +455,7 @@ TEST_F(CommandGraphTest, MakeEdgeErrors) {
   experimental::command_graph<experimental::graph_state::modifiable> GraphOther{
       Queue.get_context(), Queue.get_device()};
   auto NodeOther = GraphOther.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
   ASSERT_THROW(
       {
@@ -480,20 +482,20 @@ TEST_F(CommandGraphTest, MakeEdgeErrors) {
   // state.
 
   auto CheckGraphStructure = [&]() {
-    auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
-    auto NodeAImpl = sycl::detail::getSyclObjImpl(NodeA);
-    auto NodeBImpl = sycl::detail::getSyclObjImpl(NodeB);
+    experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
+    experimental::detail::node_impl &NodeAImpl = *getSyclObjImpl(NodeA);
+    experimental::detail::node_impl &NodeBImpl = *getSyclObjImpl(NodeB);
 
-    ASSERT_EQ(GraphImpl->MRoots.size(), 1lu);
-    ASSERT_EQ((*GraphImpl->MRoots.begin()).lock(), NodeAImpl);
+    ASSERT_EQ(GraphImpl.MRoots.size(), 1lu);
+    ASSERT_EQ(*GraphImpl.MRoots.begin(), &NodeAImpl);
 
-    ASSERT_EQ(NodeAImpl->MSuccessors.size(), 1lu);
-    ASSERT_EQ(NodeAImpl->MPredecessors.size(), 0lu);
-    ASSERT_EQ(NodeAImpl->MSuccessors.front().lock(), NodeBImpl);
+    ASSERT_EQ(NodeAImpl.MSuccessors.size(), 1lu);
+    ASSERT_EQ(NodeAImpl.MPredecessors.size(), 0lu);
+    ASSERT_EQ(NodeAImpl.MSuccessors.front(), &NodeBImpl);
 
-    ASSERT_EQ(NodeBImpl->MSuccessors.size(), 0lu);
-    ASSERT_EQ(NodeBImpl->MPredecessors.size(), 1lu);
-    ASSERT_EQ(NodeBImpl->MPredecessors.front().lock(), NodeAImpl);
+    ASSERT_EQ(NodeBImpl.MSuccessors.size(), 0lu);
+    ASSERT_EQ(NodeBImpl.MPredecessors.size(), 1lu);
+    ASSERT_EQ(NodeBImpl.MPredecessors.front(), &NodeAImpl);
   };
   // Make a normal edge
   ASSERT_NO_THROW(Graph.make_edge(NodeA, NodeB));
@@ -576,9 +578,9 @@ TEST_F(CommandGraphTest, InvalidHostAccessor) {
 TEST_F(CommandGraphTest, ProfilingException) {
   Graph.begin_recording(Queue);
   auto Event1 = Queue.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto Event2 = Queue.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   Graph.end_recording(Queue);
 
   try {
@@ -595,7 +597,7 @@ TEST_F(CommandGraphTest, ProfilingException) {
 TEST_F(CommandGraphTest, ProfilingExceptionProperty) {
   Graph.begin_recording(Queue);
   auto Event1 = Queue.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   Graph.end_recording(Queue);
 
   // Checks exception thrown if profiling is requested while profiling has
@@ -630,9 +632,9 @@ TEST_F(CommandGraphTest, ClusterLaunchException) {
   try {
     Graph.begin_recording(Queue);
     auto Event1 = Queue.submit([&](sycl::handler &cgh) {
-      cgh.parallel_for<TestKernel<>>(sycl::nd_range<1>({4096}, {32}),
-                                     cluster_launch_property,
-                                     [&](sycl::nd_item<1> it) {});
+      cgh.parallel_for<TestKernel>(sycl::nd_range<1>({4096}, {32}),
+                                   cluster_launch_property,
+                                   [&](sycl::nd_item<1> it) {});
     });
     Queue.wait();
     Graph.end_recording(Queue);
@@ -640,4 +642,287 @@ TEST_F(CommandGraphTest, ClusterLaunchException) {
     ExceptionCode = Exception.code();
   }
   ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
+}
+
+// Submits a command to a queue that has a dependency to a graph event
+// associated with a different context.
+TEST_F(CommandGraphTest, TransitiveRecordingWrongContext) {
+
+  device Dev;
+  context Ctx{Dev};
+  context Ctx2{Dev};
+  queue Q1{Ctx, Dev};
+  queue Q2{Ctx2, Dev};
+
+  ext::oneapi::experimental::command_graph Graph{Q1.get_context(),
+                                                 Q1.get_device()};
+  Graph.begin_recording(Q1);
+
+  auto GraphEvent1 =
+      Q1.submit([&](handler &CGH) { CGH.single_task<TestKernel>([=] {}); });
+
+  ASSERT_THROW(Q2.submit([&](handler &CGH) {
+    CGH.depends_on(GraphEvent1);
+    CGH.single_task<TestKernel>([=] {});
+  }),
+               sycl::exception);
+}
+
+// Submits a command to a queue that has a dependency to a graph event
+// associated with a different device.
+TEST_F(CommandGraphTest, TransitiveRecordingWrongDevice) {
+
+  auto devices = device::get_devices();
+
+  // Test needs at least 2 devices available.
+  if (devices.size() < 2) {
+    GTEST_SKIP();
+  }
+
+  device &Dev1 = devices[0];
+  device &Dev2 = devices[1];
+  context Ctx{{Dev1, Dev2}};
+  queue Q1{Ctx, Dev1};
+  queue Q2{Ctx, Dev2};
+
+  ext::oneapi::experimental::command_graph Graph{Q1.get_context(),
+                                                 Q1.get_device()};
+  Graph.begin_recording(Q1);
+
+  auto GraphEvent1 =
+      Q1.submit([&](handler &CGH) { CGH.single_task<TestKernel>([=] {}); });
+
+  ASSERT_THROW(Q2.submit([&](handler &CGH) {
+    CGH.depends_on(GraphEvent1);
+    CGH.single_task<TestKernel>([=] {});
+  }),
+               sycl::exception);
+}
+
+// Submits a command to a queue that has a dependency to a different graph.
+TEST_F(CommandGraphTest, RecordingWrongGraphDep) {
+  device Dev;
+  context Ctx{{Dev}};
+  queue Q1{Ctx, Dev};
+  queue Q2{Ctx, Dev};
+
+  ext::oneapi::experimental::command_graph Graph1{Q1.get_context(),
+                                                  Q1.get_device()};
+
+  ext::oneapi::experimental::command_graph Graph2{Q1.get_context(),
+                                                  Q1.get_device()};
+
+  Graph1.begin_recording(Q1);
+  Graph2.begin_recording(Q2);
+
+  auto GraphEvent1 =
+      Q1.submit([&](handler &CGH) { CGH.single_task<TestKernel>([=] {}); });
+
+  ASSERT_THROW(Q2.submit([&](handler &CGH) {
+    CGH.depends_on(GraphEvent1);
+    CGH.single_task<TestKernel>([=] {});
+  }),
+               sycl::exception);
+}
+
+// Error when a dynamic command-group is used with a graph belonging to a
+// different graph.
+TEST_F(CommandGraphTest, DynamicCommandGroupWrongGraph) {
+  experimental::command_graph Graph1{Queue.get_context(), Queue.get_device()};
+  experimental::command_graph Graph2{Queue.get_context(), Queue.get_device()};
+  auto CGF = [&](sycl::handler &CGH) { CGH.single_task<TestKernel>([]() {}); };
+
+  experimental::dynamic_command_group DynCG(Graph2, {CGF});
+  ASSERT_THROW(Graph1.add(DynCG), sycl::exception);
+}
+
+// Error when a non-kernel command-group is included in a dynamic command-group
+TEST_F(CommandGraphTest, DynamicCommandGroupNotKernel) {
+  int *Ptr = malloc_device<int>(1, Queue);
+  auto CGF = [&](sycl::handler &CGH) { CGH.memset(Ptr, 1, 0); };
+
+  experimental::command_graph Graph{Queue};
+  ASSERT_THROW(experimental::dynamic_command_group DynCG(Graph, {CGF}),
+               sycl::exception);
+  sycl::free(Ptr, Queue);
+}
+
+// Error if edges are not the same for all command-groups in dynamic command
+// group, test using graph limited events to create edges
+TEST_F(CommandGraphTest, DynamicCommandGroupMismatchEventEdges) {
+  size_t N = 32;
+  int *PtrA = malloc_device<int>(N, Queue);
+  int *PtrB = malloc_device<int>(N, Queue);
+
+  experimental::command_graph Graph{Queue.get_context(), Queue.get_device()};
+
+  Graph.begin_recording(Queue);
+
+  auto EventA = Queue.submit([&](handler &CGH) {
+    CGH.parallel_for<TestKernelWithPtr>(
+        N, [=](item<1> Item) { PtrA[Item.get_id()] = 1; });
+  });
+
+  auto EventB = Queue.submit([&](handler &CGH) {
+    CGH.parallel_for<TestKernelWithPtr>(
+        N, [=](item<1> Item) { PtrB[Item.get_id()] = 4; });
+  });
+
+  Graph.end_recording();
+
+  auto CGFA = [&](handler &CGH) {
+    CGH.depends_on(EventA);
+    CGH.parallel_for<TestKernelWithPtr>(
+        N, [=](item<1> Item) { PtrA[Item.get_id()] += 2; });
+  };
+
+  auto CGFB = [&](handler &CGH) {
+    CGH.depends_on(EventB);
+    CGH.parallel_for<TestKernelWithPtr>(
+        N, [=](item<1> Item) { PtrB[Item.get_id()] += 0xA; });
+  };
+
+  experimental::dynamic_command_group DynCG(Graph, {CGFA, CGFB});
+  ASSERT_THROW(Graph.add(DynCG), sycl::exception);
+
+  sycl::free(PtrA, Queue);
+  sycl::free(PtrB, Queue);
+}
+
+// Test that an exception is thrown when a graph isn't created with buffer
+// property, but buffers are used.
+TEST_F(CommandGraphTest, DynamicCommandGroupBufferThrows) {
+  size_t N = 32;
+  std::vector<int> HostData(N, 0);
+  buffer Buf{HostData};
+  Buf.set_write_back(false);
+
+  experimental::command_graph Graph{Queue.get_context(), Queue.get_device()};
+
+  auto CGFA = [&](handler &CGH) {
+    auto Acc = Buf.get_access<access::mode::write>(CGH);
+    CGH.parallel_for<TestKernelWithAcc>(
+        N, [=](item<1> Item) { Acc[Item.get_id()] = 2; });
+  };
+
+  auto CGFB = [&](handler &CGH) {
+    auto Acc = Buf.get_access<access::mode::write>(CGH);
+    CGH.parallel_for<TestKernelWithAcc>(
+        N, [=](item<1> Item) { Acc[Item.get_id()] = 0xA; });
+  };
+
+  experimental::dynamic_command_group DynCG(Graph, {CGFA, CGFB});
+  ASSERT_THROW(Graph.add(DynCG), sycl::exception);
+}
+
+// Test and exception is thrown when using a host-accessor to a buffer
+// used in a non active CGF node in the graph.
+TEST_F(CommandGraphTest, DynamicCommandGroupBufferHostAccThrows) {
+  size_t N = 32;
+  std::vector<int> HostData(N, 0);
+  buffer Buf{HostData};
+  Buf.set_write_back(false);
+
+  int *Ptr = malloc_device<int>(N, Queue);
+
+  {
+    ext::oneapi::experimental::command_graph Graph{
+        Queue.get_context(),
+        Queue.get_device(),
+        {experimental::property::graph::assume_buffer_outlives_graph{}}};
+
+    auto CGFA = [&](handler &CGH) {
+      CGH.parallel_for<TestKernelWithPtr>(
+          N, [=](item<1> Item) { Ptr[Item.get_id()] = 2; });
+    };
+
+    auto CGFB = [&](handler &CGH) {
+      auto Acc = Buf.get_access<access::mode::write>(CGH);
+      CGH.parallel_for<TestKernelWithAcc>(
+          N, [=](item<1> Item) { Acc[Item.get_id()] = 0xA; });
+    };
+
+    experimental::dynamic_command_group DynCG(Graph, {CGFA, CGFB});
+    ASSERT_NO_THROW(Graph.add(DynCG));
+
+    ASSERT_THROW({ host_accessor HostAcc{Buf}; }, sycl::exception);
+  }
+
+  sycl::free(Ptr, Queue);
+}
+
+// Error if edges are not the same for all command-groups in dynamic command
+// group, test using accessors to create edges
+TEST_F(CommandGraphTest, DynamicCommandGroupMismatchAccessorEdges) {
+  size_t N = 32;
+  std::vector<int> HostData(N, 0);
+  buffer BufA{HostData};
+  buffer BufB{HostData};
+  BufA.set_write_back(false);
+  BufB.set_write_back(false);
+
+  experimental::command_graph Graph{
+      Queue.get_context(),
+      Queue.get_device(),
+      {experimental::property::graph::assume_buffer_outlives_graph{}}};
+
+  Graph.begin_recording(Queue);
+
+  Queue.submit([&](handler &CGH) {
+    auto AccA = BufA.get_access<access::mode::write>(CGH);
+    CGH.parallel_for<TestKernelWithAcc>(
+        N, [=](item<1> Item) { AccA[Item.get_id()] = 1; });
+  });
+
+  Queue.submit([&](handler &CGH) {
+    auto AccB = BufB.get_access<access::mode::write>(CGH);
+    CGH.parallel_for<TestKernelWithAcc>(
+        N, [=](item<1> Item) { AccB[Item.get_id()] = 4; });
+  });
+
+  Graph.end_recording();
+
+  auto CGFA = [&](handler &CGH) {
+    auto AccA = BufA.get_access<access::mode::read_write>(CGH);
+    CGH.parallel_for<TestKernelWithAcc>(
+        N, [=](item<1> Item) { AccA[Item.get_id()] += 2; });
+  };
+
+  auto CGFB = [&](handler &CGH) {
+    auto AccB = BufB.get_access<access::mode::read_write>(CGH);
+    CGH.parallel_for<TestKernelWithAcc>(
+        N, [=](item<1> Item) { AccB[Item.get_id()] += 0xA; });
+  };
+
+  experimental::dynamic_command_group DynCG(Graph, {CGFA, CGFB});
+  ASSERT_THROW(Graph.add(DynCG), sycl::exception);
+}
+
+// host and shared allocations are not currently supported by graphs, checks for
+// correct exception behaviour.
+TEST_F(CommandGraphTest, AsyncAllocKindExceptionCheck) {
+  auto Context = Queue.get_context();
+
+  void *Ptr1 = nullptr;
+  void *Ptr2 = nullptr;
+
+  Graph.begin_recording(Queue);
+
+  addAsyncAlloc<OperationPath::RecordReplay, usm::alloc::host>(Graph, Queue,
+                                                               1024, Ptr1);
+  addAsyncAlloc<OperationPath::RecordReplay, usm::alloc::shared>(Graph, Queue,
+                                                                 1024, Ptr1);
+  addAsyncAlloc<OperationPath::Shortcut, usm::alloc::host>(Graph, Queue, 1024,
+                                                           Ptr2);
+  addAsyncAlloc<OperationPath::Shortcut, usm::alloc::shared>(Graph, Queue, 1024,
+                                                             Ptr2);
+
+  Graph.end_recording();
+
+  void *Ptr3 = nullptr;
+  void *Ptr4 = nullptr;
+  addAsyncAlloc<OperationPath::Explicit, usm::alloc::host>(Graph, Queue, 1024,
+                                                           Ptr3);
+  addAsyncAlloc<OperationPath::Explicit, usm::alloc::shared>(Graph, Queue, 1024,
+                                                             Ptr4);
 }

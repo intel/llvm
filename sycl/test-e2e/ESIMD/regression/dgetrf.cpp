@@ -5,8 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// RUN: %{build} -I%S/.. -o %t.out
+// RUN: %{build} -Wno-error=format -I%S/.. -o %t.out
 // RUN: %{run} %t.out 3 2 1
+//
+// UNSUPPORTED: run-mode
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20589
 //
 // This test checks the correctness of ESIMD program for batched LU
 // decomposition without pivoting. The program contains multiple branches

@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/adapter_impl.hpp>
 #include <detail/platform_impl.hpp>
-#include <detail/plugin.hpp>
 #include <detail/queue_impl.hpp>
-#include <sycl/backend.hpp>
-#include <sycl/sycl.hpp>
+#include <detail/ur.hpp>
+#include <sycl/backend_types.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -18,16 +18,15 @@ namespace ext::oneapi::level_zero::detail {
 using namespace sycl::detail;
 
 __SYCL_EXPORT device make_device(const platform &Platform,
-                                 pi_native_handle NativeHandle) {
-  const auto &Plugin = pi::getPlugin<backend::ext_oneapi_level_zero>();
-  const auto &PlatformImpl = getSyclObjImpl(Platform);
-  // Create PI device first.
-  pi::PiDevice PiDevice;
-  Plugin->call<PiApiKind::piextDeviceCreateWithNativeHandle>(
-      NativeHandle, PlatformImpl->getHandleRef(), &PiDevice);
+                                 ur_native_handle_t NativeHandle) {
+  adapter_impl &Adapter = ur::getAdapter<backend::ext_oneapi_level_zero>();
+  // Create UR device first.
+  ur_device_handle_t UrDevice;
+  Adapter.call<UrApiKind::urDeviceCreateWithNativeHandle>(
+      NativeHandle, Adapter.getUrAdapter(), nullptr, &UrDevice);
 
   return detail::createSyclObjFromImpl<device>(
-      PlatformImpl->getOrMakeDeviceImpl(PiDevice, PlatformImpl));
+      getSyclObjImpl(Platform)->getOrMakeDeviceImpl(UrDevice));
 }
 
 } // namespace ext::oneapi::level_zero::detail

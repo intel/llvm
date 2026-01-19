@@ -87,18 +87,6 @@ __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<T, N> __esimd_dpasw_nosrc0(
     __ESIMD_DNS::vector_type_t<T1, N1> src1,
     __ESIMD_DNS::vector_type_t<T2, N2> src2) __ESIMD_INTRIN_END;
 
-template <typename T, int N>
-__ESIMD_INTRIN std::pair<__ESIMD_DNS::vector_type_t<T, N>,
-                         __ESIMD_DNS::vector_type_t<T, N>>
-__esimd_addc(__ESIMD_DNS::vector_type_t<T, N> src0,
-             __ESIMD_DNS::vector_type_t<T, N> src1) __ESIMD_INTRIN_END;
-
-template <typename T, int N>
-__ESIMD_INTRIN std::pair<__ESIMD_DNS::vector_type_t<T, N>,
-                         __ESIMD_DNS::vector_type_t<T, N>>
-__esimd_subb(__ESIMD_DNS::vector_type_t<T, N> src0,
-             __ESIMD_DNS::vector_type_t<T, N> src1) __ESIMD_INTRIN_END;
-
 template <uint8_t FuncControl, typename T, int N>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
     __esimd_bfn(__ESIMD_raw_vec_t(T, N) src0, __ESIMD_raw_vec_t(T, N) src1,
@@ -112,19 +100,14 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(sycl::half, N)
 
 template <typename T, int N>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
-    __spirv_ocl_fma(__ESIMD_raw_vec_t(T, N) a, __ESIMD_raw_vec_t(T, N) b,
-                    __ESIMD_raw_vec_t(T, N) c) __ESIMD_INTRIN_END;
-template <typename T, int N>
-__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
-    __spirv_ocl_popcount(__ESIMD_raw_vec_t(T, N) src0) __ESIMD_INTRIN_END;
+    __esimd_fmadd(__ESIMD_raw_vec_t(T, N) a, __ESIMD_raw_vec_t(T, N) b,
+                  __ESIMD_raw_vec_t(T, N) c) __ESIMD_INTRIN_END;
 
+template <typename T> extern __DPCPP_SYCL_EXTERNAL T __spirv_FRem(T);
 template <typename T, int N>
-__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
-    __spirv_ocl_ctz(__ESIMD_raw_vec_t(T, N) src0) __ESIMD_INTRIN_END;
-
-template <typename T, int N>
-__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
-    __spirv_ocl_clz(__ESIMD_raw_vec_t(T, N) src0) __ESIMD_INTRIN_END;
+extern __DPCPP_SYCL_EXTERNAL __ESIMD_raw_vec_t(T, N)
+    __spirv_FRem(__ESIMD_raw_vec_t(T, N) src0,
+                 __ESIMD_raw_vec_t(T, N) src1) __ESIMD_INTRIN_END;
 
 #undef __ESIMD_raw_vec_t
 #undef __ESIMD_cpp_vec_t

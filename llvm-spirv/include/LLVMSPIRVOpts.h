@@ -47,6 +47,7 @@
 #include <map>
 #include <optional>
 #include <unordered_map>
+#include <vector>
 
 namespace llvm {
 class IntrinsicInst;
@@ -149,6 +150,9 @@ public:
       ExtStatusMap[Extension] = Allow;
   }
 
+  std::vector<std::string>
+  getAllowedSPIRVExtensionNames(std::function<bool(ExtensionID)> &Filter) const;
+
   VersionNumber getMaxVersion() const { return MaxVersion; }
 
   bool isGenArgNameMDEnabled() const { return GenKernelArgNameMD; }
@@ -233,10 +237,67 @@ public:
     PreserveOCLKernelArgTypeMetadataThroughString = Value;
   }
 
+  bool shouldEmitFunctionPtrAddrSpace() const noexcept {
+    return EmitFunctionPtrAddrSpace;
+  }
+
+  void setEmitFunctionPtrAddrSpace(bool Value) noexcept {
+    EmitFunctionPtrAddrSpace = Value;
+  }
+
   void setBuiltinFormat(BuiltinFormat Value) noexcept {
     SPIRVBuiltinFormat = Value;
   }
   BuiltinFormat getBuiltinFormat() const noexcept { return SPIRVBuiltinFormat; }
+
+  void setUseLLVMTarget(bool Flag) noexcept { UseLLVMTarget = Flag; }
+  bool getUseLLVMTarget() const noexcept { return UseLLVMTarget; }
+
+  void setFnVarCategory(uint32_t Category) noexcept {
+    FnVarCategory = Category;
+  }
+  std::optional<uint32_t> getFnVarCategory() const noexcept {
+    return FnVarCategory;
+  }
+
+  void setFnVarFamily(uint32_t Family) noexcept { FnVarFamily = Family; }
+  std::optional<uint32_t> getFnVarFamily() const noexcept {
+    return FnVarFamily;
+  }
+
+  void setFnVarArch(uint32_t Arch) noexcept { FnVarArch = Arch; }
+  std::optional<uint32_t> getFnVarArch() const noexcept { return FnVarArch; }
+
+  void setFnVarTarget(uint32_t Target) noexcept { FnVarTarget = Target; }
+  std::optional<uint32_t> getFnVarTarget() const noexcept {
+    return FnVarTarget;
+  }
+
+  void setFnVarFeatures(std::vector<uint32_t> Features) noexcept {
+    FnVarFeatures = std::move(Features);
+  }
+  std::vector<uint32_t> getFnVarFeatures() const noexcept {
+    return FnVarFeatures;
+  }
+
+  void setFnVarCapabilities(std::vector<uint32_t> Capabilities) noexcept {
+    FnVarCapabilities = std::move(Capabilities);
+  }
+  std::vector<uint32_t> getFnVarCapabilities() const noexcept {
+    return FnVarCapabilities;
+  }
+
+  void setFnVarSpecEnable(bool Val) noexcept { FnVarSpecEnable = Val; }
+  bool getFnVarSpecEnable() const noexcept { return FnVarSpecEnable; }
+
+  void setFnVarSpvOut(std::string Val) noexcept {
+    FnVarSpvOut = std::move(Val);
+  }
+  std::string getFnVarSpvOut() const noexcept { return FnVarSpvOut; }
+
+  // Check that options passed to --fnvar-xxx flags make sense. Return true on
+  // success, false on failure.
+  bool validateFnVarOpts() const;
 
 private:
   // Common translation options
@@ -281,9 +342,25 @@ private:
   // kernel_arg_type_qual metadata through OpString
   bool PreserveOCLKernelArgTypeMetadataThroughString = false;
 
+  // Controls if CodeSectionINTEL can be emitted and consumed with a dedicated
+  // address space
+  bool EmitFunctionPtrAddrSpace = false;
+
   bool PreserveAuxData = false;
 
+  std::optional<uint32_t> FnVarCategory = std::nullopt;
+  std::optional<uint32_t> FnVarFamily = std::nullopt;
+  std::optional<uint32_t> FnVarArch = std::nullopt;
+  std::optional<uint32_t> FnVarTarget = std::nullopt;
+  std::vector<uint32_t> FnVarFeatures = {};
+  std::vector<uint32_t> FnVarCapabilities = {};
+  std::string FnVarSpvOut = "";
+  bool FnVarSpecEnable = false;
+
   BuiltinFormat SPIRVBuiltinFormat = BuiltinFormat::Function;
+
+  // Convert LLVM to SPIR-V using the LLVM SPIR-V Backend target
+  bool UseLLVMTarget = false;
 };
 
 } // namespace SPIRV

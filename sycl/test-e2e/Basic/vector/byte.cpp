@@ -1,8 +1,8 @@
-// RUN: %{build} -std=c++17 -o %t.out
+// RUN: %{build} %cxx_std_optionc++17 -o %t.out
 // RUN: %{run} %t.out
 
-// RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -std=c++17 -o %t2.out %}
-// RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
+// RUN: %{build} -D__SYCL_USE_LIBSYCL8_VEC_IMPL=1 %cxx_std_optionc++17 -o %t2.out
+// RUN: %{run} %t2.out
 
 //==---------- vector_byte.cpp - SYCL vec<> for std::byte test -------------==//
 //
@@ -13,7 +13,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/detail/core.hpp>
-#include <sycl/types.hpp>
+#include <sycl/detail/vector_convert.hpp>
+#include <sycl/vector.hpp>
 
 #include <cstddef> // std::byte
 #include <tuple>   // std::ignore
@@ -179,6 +180,7 @@ int main() {
       assert(SwizByte2Neg[0] == ~SwizByte2B[0]);
     }
 
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
     {
       // std::byte is not an arithmetic type and it only supports the following
       // overloads of >> and << operators.
@@ -206,6 +208,7 @@ int main() {
       assert(SwizShiftRight[0] == SwizByte2Shift[0] >> 3 &&
              SwizShiftLeft[1] == SwizByte2Shift[1] << 3);
     }
+#endif
   }
 
   return 0;

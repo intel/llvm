@@ -57,7 +57,8 @@ bool test(sycl::queue Q, int IArg = 128) {
 int main() {
   queue Q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
   auto Dev = Q.get_device();
-  std::cout << "Running on " << Dev.get_info<info::device::name>() << std::endl;
+  std::cout << "Running on " << Dev.get_info<sycl::info::device::name>()
+            << std::endl;
 
   bool Passed = true;
   Passed &= test(Q);

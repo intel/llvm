@@ -62,6 +62,11 @@ to the stem:
       )"),
                  cl::cat(ClangOffloadExtractCategory));
 
+static cl::opt<bool>
+    Quiet("q", cl::init(false),
+          cl::desc(R"(Do not print the names of generated files)"),
+          cl::cat(ClangOffloadExtractCategory));
+
 // Create an alias for the deprecated option, so legacy use still works
 static cl::alias FileNameStemAlias(
     "output", cl::desc("Deprecated option, replaced by option '--stem'"),
@@ -100,7 +105,7 @@ int main(int argc, const char **argv) {
 A utility to extract all the target images from a
 linked fat binary, and store them in separate files.
 )",
-                              nullptr, nullptr, true);
+                              nullptr, nullptr, nullptr, true);
 
   // Read input file. It should have one of the supported object file
   // formats:
@@ -262,8 +267,10 @@ linked fat binary, and store them in separate files.
     OffloadName.erase(0, OffloadPrefix.length());
 
     // Tell user that we are saving an image.
-    outs() << "Section '" + OffloadName + "': Image " << ImgCnt++
-           << "'-> File '" + FileName + "'\n";
+    if (!Quiet) {
+      outs() << "Section '" + OffloadName + "': Image " << ImgCnt++
+             << "'-> File '" + FileName + "'\n";
+    }
 
     // Write image data to the output
     std::error_code EC;

@@ -24,10 +24,6 @@ class PassRegistry;
 /// with an offset parameter which will be threaded through from the kernel
 /// entry point.
 class GlobalOffsetPass : public PassInfoMixin<GlobalOffsetPass> {
-private:
-  using KernelPayload = TargetHelpers::KernelPayload;
-  using ArchType = TargetHelpers::ArchType;
-
 public:
   explicit GlobalOffsetPass() {}
 
@@ -35,13 +31,26 @@ public:
   static StringRef getPassName() { return "Add implicit SYCL global offset"; }
 
 private:
+  /// In order to correctly update the debug info (if present) we have to
+  /// populate the global value-to-value map with all original-to-cloned
+  /// function. To achieve that traverse the call stack and create all the
+  /// clones (without providing the body).
+  ///
+  /// \param KCache Kernel bookkeeping helper.
+  /// \param ImplicitOffsetIntrinsic Implicit offset intrinsic, provides a
+  /// starting point in search for all the functions that need to be clone.
+  void createClonesAndPopulateVMap(const TargetHelpers::KernelCache &KCache,
+                                   Function *ImplicitOffsetIntrinsic);
+
   /// After the execution of this function, the module to which the kernel
   /// `Func` belongs, contains both the original function and its clone with the
   /// signature extended with the implicit offset parameter and `_with_offset`
   /// appended to the name.
   ///
   /// \param Func Kernel to be processed.
-  void processKernelEntryPoint(Function *Func);
+  /// \param KCache Kernel bookkeeping helper.
+  void processKernelEntryPoint(Function *Func,
+                               TargetHelpers::KernelCache &KCache);
 
   /// For a function containing a call instruction to the implicit offset
   /// intrinsic, or another function which eventually calls the intrinsic,
@@ -64,8 +73,10 @@ private:
   /// `nullptr`) - this is used to know whether calls to it inside clones need
   /// to have the implicit parameter added to it or be replaced with the
   /// implicit  parameter.
+  /// \param KCache Kernel bookkeeping helper.
   void addImplicitParameterToCallers(Module &M, Value *Callee,
-                                     Function *CalleeWithImplicitParam);
+                                     Function *CalleeWithImplicitParam,
+                                     TargetHelpers::KernelCache &KCache);
 
   /// For a given function `Func` create a clone and extend its signature to
   /// contain an implicit offset argument.
@@ -89,18 +100,6 @@ private:
                               Type *ImplicitArgumentType = nullptr,
                               bool KeepOriginal = false, bool IsKernel = false);
 
-  /// Create a mapping of kernel entry points to their metadata nodes. While
-  /// iterating over kernels make sure that a given kernel entry point has no
-  /// llvm uses.
-  ///
-  /// \param KernelPayloads A collection of kernel functions present in a
-  /// module `M`.
-  ///
-  /// \returns A map of kernel functions to corresponding metadata nodes.
-  DenseMap<Function *, MDNode *>
-  generateKernelMDNodeMap(Module &M,
-                          SmallVectorImpl<KernelPayload> &KernelPayloads);
-
 private:
   /// Keep track of all cloned offset functions to avoid processing them.
   llvm::SmallPtrSet<Function *, 8> Clones;
@@ -109,14 +108,14 @@ private:
   /// Keep track of which non-offset functions have been processed to avoid
   /// processing twice.
   llvm::DenseMap<Function *, Value *> ProcessedFunctions;
-  /// Keep a map of all entry point functions with metadata.
-  llvm::DenseMap<Function *, MDNode *> EntryPointMetadata;
   /// A type of implicit argument added to the kernel signature.
   llvm::Type *KernelImplicitArgumentType = nullptr;
   /// A type used for the alloca holding the values of global offsets.
   llvm::Type *ImplicitOffsetPtrType = nullptr;
+  /// Track newly created DISUbprograms (that are attached to cloned
+  /// functions), for ease of mapping, use the old function's name as the key.
+  llvm::DenseMap<StringRef, DISubprogram *> DISubprogramMap;
 
-  ArchType AT;
   unsigned TargetAS = 0;
 };
 

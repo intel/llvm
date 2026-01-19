@@ -5,18 +5,17 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: matrix-tf32
+// REQUIRES: target-spir
+
+// REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include "../common.hpp"
-
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental::matrix;
+#include "common.hpp"
 
 #define SG_SZ 32
 constexpr size_t TN = 16;
 
-#include "../joint_matrix_tf32_impl.hpp"
+#include "joint_matrix_tf32_impl.hpp"

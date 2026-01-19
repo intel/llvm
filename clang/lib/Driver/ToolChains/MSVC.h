@@ -9,10 +9,11 @@
 #ifndef LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_MSVC_H
 #define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_MSVC_H
 
-#include "AMDGPU.h"
-#include "Cuda.h"
-#include "LazyDetector.h"
 #include "clang/Driver/Compilation.h"
+#include "clang/Driver/CudaInstallationDetector.h"
+#include "clang/Driver/LazyDetector.h"
+#include "clang/Driver/RocmInstallationDetector.h"
+#include "clang/Driver/SyclInstallationDetector.h"
 #include "clang/Driver/Tool.h"
 #include "clang/Driver/ToolChain.h"
 #include "llvm/Frontend/Debug/Options.h"
@@ -35,12 +36,6 @@ public:
                     const InputInfo &Output, const InputInfoList &Inputs,
                     const llvm::opt::ArgList &TCArgs,
                     const char *LinkingOutput) const override;
-
-private:
-  void constructMSVCLibCommand(Compilation &C, const JobAction &JA,
-                               const InputInfo &Output,
-                               const InputInfoList &InputFiles,
-                               const llvm::opt::ArgList &Args) const;
 };
 } // end namespace visualstudio
 
@@ -106,6 +101,9 @@ public:
   void AddHIPRuntimeLibArgs(const llvm::opt::ArgList &Args,
                             llvm::opt::ArgStringList &CmdArgs) const override;
 
+  void addSYCLIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+                          llvm::opt::ArgStringList &CC1Args) const override;
+
   bool getWindowsSDKLibraryPath(
       const llvm::opt::ArgList &Args, std::string &path) const;
   bool getUniversalCRTLibraryPath(const llvm::opt::ArgList &Args,
@@ -144,6 +142,7 @@ private:
   llvm::ToolsetLayout VSLayout = llvm::ToolsetLayout::OlderVS;
   LazyDetector<CudaInstallationDetector> CudaInstallation;
   LazyDetector<RocmInstallationDetector> RocmInstallation;
+  LazyDetector<SYCLInstallationDetector> SYCLInstallation;
 };
 
 } // end namespace toolchains

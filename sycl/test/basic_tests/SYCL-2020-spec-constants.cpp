@@ -37,7 +37,7 @@ constexpr sycl::specialization_id<uint64_t> uint64_id(81);
 // constexpr sycl::specialization_id<half> half_id(9.0);
 constexpr sycl::specialization_id<float> float_id(710.0);
 constexpr sycl::specialization_id<double> double_id(11.0);
-constexpr sycl::marray<double, 5> ma;
+constexpr sycl::marray<double, 5> ma(33.0);
 constexpr sycl::specialization_id<sycl::marray<double, 5>> marray_id5(151.0);
 constexpr sycl::specialization_id<sycl::marray<double, 1>> marray_id1(116.0);
 constexpr sycl::specialization_id<sycl::marray<double, 5>> marray_id_def(ma);

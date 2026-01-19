@@ -1,8 +1,9 @@
 // REQUIRES: level_zero
 // RUN: %{build} -o %t.out
 
-// https://github.com/intel/llvm/issues/12397
-// UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED: level_zero_v2_adapter
+// UNSUPPORTED-INTENDED: memory allocation logs are not emitted in
+// level_zero_v2_adapter
 
 // Allocate 2 items of 2MB. Free 2. Allocate 3 more of 2MB.
 
@@ -87,13 +88,6 @@ int main(int argc, char *argv[]) {
   device D = Q.get_device();
   context C = Q.get_context();
 
-  const char *devType = D.is_cpu() ? "CPU" : "GPU";
-  std::string pluginName =
-      D.get_platform().get_info<sycl::info::platform::name>();
-  std::cout << "Running on device " << devType << " ("
-            << D.get_info<sycl::info::device::name>() << ") " << pluginName
-            << " plugin\n";
-
   if (*argv[1] == 'h') {
     std::cerr << "Test zeMemAllocHost\n";
     test_host(C);
@@ -109,35 +103,35 @@ int main(int argc, char *argv[]) {
 }
 
 // CHECK-NOPOOL: Test [[API:zeMemAllocHost|zeMemAllocDevice|zeMemAllocShared]]
-// CHECK-NOPOOL-NEXT:  ZE ---> zeDeviceGetMemoryAccessProperties
-// CHECK-NOPOOL-NEXT:  ZE ---> [[API]](
-// CHECK-NOPOOL-NEXT:  ZE ---> [[API]](
-// CHECK-NOPOOL-NEXT:  ZE ---> zeMemFree
-// CHECK-NOPOOL-NEXT:  ZE ---> zeMemFree
-// CHECK-NOPOOL-NEXT:  ZE ---> [[API]](
-// CHECK-NOPOOL-NEXT:  ZE ---> [[API]](
-// CHECK-NOPOOL-NEXT:  ZE ---> [[API]](
+// CHECK-NOPOOL-NEXT:  zeDeviceGetMemoryAccessProperties
+// CHECK-NOPOOL-NEXT:  [[API]](
+// CHECK-NOPOOL-NEXT:  [[API]](
+// CHECK-NOPOOL:  zeMemFree
+// CHECK-NOPOOL:  zeMemFree
+// CHECK-NOPOOL-NEXT:  [[API]](
+// CHECK-NOPOOL-NEXT:  [[API]](
+// CHECK-NOPOOL-NEXT:  [[API]](
 
 // CHECK-12345: Test [[API:zeMemAllocHost|zeMemAllocDevice|zeMemAllocShared]]
-// CHECK-12345-NEXT:  ZE ---> zeDeviceGetMemoryAccessProperties
-// CHECK-12345-NEXT:  ZE ---> [[API]](
-// CHECK-12345-NEXT:  ZE ---> [[API]](
-// CHECK-12345-NEXT:  ZE ---> zeMemFree
-// CHECK-12345-NEXT:  ZE ---> zeMemFree
-// CHECK-12345-NEXT:  ZE ---> [[API]](
-// CHECK-12345-NEXT:  ZE ---> [[API]](
-// CHECK-12345-NEXT:  ZE ---> [[API]](
+// CHECK-12345-NEXT:  zeDeviceGetMemoryAccessProperties
+// CHECK-12345-NEXT:  [[API]](
+// CHECK-12345-NEXT:  [[API]](
+// CHECK-12345:  zeMemFree
+// CHECK-12345:  zeMemFree
+// CHECK-12345-NEXT:  [[API]](
+// CHECK-12345-NEXT:  [[API]](
+// CHECK-12345-NEXT:  [[API]](
 
 // CHECK-1245: Test [[API:zeMemAllocHost|zeMemAllocDevice|zeMemAllocShared]]
-// CHECK-1245-NEXT:  ZE ---> zeDeviceGetMemoryAccessProperties
-// CHECK-1245-NEXT:  ZE ---> [[API]](
-// CHECK-1245-NEXT:  ZE ---> [[API]](
-// CHECK-1245-NEXT:  ZE ---> zeMemFree
-// CHECK-1245-NEXT:  ZE ---> [[API]](
-// CHECK-1245-NEXT:  ZE ---> [[API]](
+// CHECK-1245-NEXT:  zeDeviceGetMemoryAccessProperties
+// CHECK-1245-NEXT:  [[API]](
+// CHECK-1245-NEXT:  [[API]](
+// CHECK-1245:  zeMemFree
+// CHECK-1245-NEXT:  [[API]](
+// CHECK-1245-NEXT:  [[API]](
 
 // CHECK-15: Test [[API:zeMemAllocHost|zeMemAllocDevice|zeMemAllocShared]]
-// CHECK-15-NEXT:  ZE ---> zeDeviceGetMemoryAccessProperties
-// CHECK-15-NEXT:  ZE ---> [[API]](
-// CHECK-15-NEXT:  ZE ---> [[API]](
-// CHECK-15-NEXT:  ZE ---> zeMemFree
+// CHECK-15-NEXT:  zeDeviceGetMemoryAccessProperties
+// CHECK-15-NEXT:  [[API]](
+// CHECK-15-NEXT:  [[API]](
+// CHECK-15:  zeMemFree

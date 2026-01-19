@@ -18,16 +18,16 @@
 
 ; CHECK-LLVM: define spir_func void @foo() #0 !dbg ![[#Func1:]] {
 ; CHECK-LLVM: entry:
-; CHECK-LLVM:   %puts = call spir_func i32 @puts(ptr addrspace(1) nocapture @str) #0, !dbg ![[#Puts1Loc:]]
+; CHECK-LLVM:   %puts = call spir_func i32 @puts(ptr addrspace(1) captures(none) @str) #0, !dbg ![[#Puts1Loc:]]
 ; CHECK-LLVM:   ret void, !dbg ![[#Ret1:]]
 ; CHECK-LLVM: }
 
-; CHECK-LLVM: define spir_func i32 @main(i32 %argc, ptr nocapture %argv) #0 !dbg ![[#Func2:]] {
+; CHECK-LLVM: define spir_func i32 @main(i32 %argc, ptr captures(none) %argv) #0 !dbg ![[#Func2:]] {
 ; CHECK-LLVM: entry:
 ; CHECK-LLVM:   #dbg_value(i32 %argc, ![[#Fun2Param1:]], !DIExpression(), ![[#Fun2Param1Loc:]])
 ; CHECK-LLVM:   #dbg_value(ptr %argv, ![[#Fun2Param2:]], !DIExpression(DW_OP_deref, DW_OP_deref), ![[#Fun2Param2Loc:]])
 ; CHECK-LLVM:   %0 = bitcast ptr addrspace(1) @str1 to ptr addrspace(1), !dbg ![[#Puts2Loc:]]
-; CHECK-LLVM:   %puts = call spir_func i32 @puts(ptr addrspace(1) nocapture %0) #0, !dbg ![[#Puts2Loc]]
+; CHECK-LLVM:   %puts = call spir_func i32 @puts(ptr addrspace(1) captures(none) %0) #0, !dbg ![[#Puts2Loc]]
 ; CHECK-LLVM:   call spir_func void @foo() #0, !dbg ![[#CallFoo:]]
 ; CHECK-LLVM:   ret i32 0, !dbg ![[#Ret2:]]
 ; CHECK-LLVM: }
@@ -74,9 +74,9 @@ entry:
   ret void, !dbg !25
 }
 
-declare i32 @puts(ptr addrspace(1) nocapture) nounwind
+declare i32 @puts(ptr addrspace(1) captures(none)) nounwind
 
-define i32 @main(i32 %argc, ptr nocapture %argv) nounwind !dbg !12 {
+define i32 @main(i32 %argc, ptr captures(none) %argv) nounwind !dbg !12 {
 entry:
   tail call void @llvm.dbg.value(metadata i32 %argc, metadata !21, metadata !DIExpression()), !dbg !26
   ; Avoid talking about the pointer size in debug info because that's target dependent

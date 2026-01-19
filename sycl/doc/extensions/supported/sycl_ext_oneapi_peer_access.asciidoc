@@ -36,7 +36,7 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 7 specification.  All
+This extension is written against the SYCL 2020 revision 9 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
@@ -47,8 +47,10 @@ This extension is implemented and fully supported by DPC++.
 == Backend support status
 
 This extension is currently implemented in DPC++ for all GPU devices and
-backends, however, only the CUDA backend allows peer to peer memory access.
-Other backends report false from the `ext_oneapi_can_access_peer` query.
+backends; however, only the CUDA, HIP and Level Zero backends allows peer to
+peer memory access. Other backends report false from the
+`ext_oneapi_can_access_peer` query. Peer-Peer memory access is only possible
+between two devices from the same backend.
 
 == Overview
 
@@ -143,7 +145,7 @@ If the query returns false, attempting to concurrently access or atomically
 modify USM device memory located on the `peer` device results in undefined 
 behavior.
 
-|void enable_peer_access(const device &peer)
+|void ext_oneapi_enable_peer_access(const device &peer)
 |Enables this device to access USM device allocations located on the peer
 device. This does not permit the peer device to access this device's memory.
 Once this access is enabled, SYCL kernel functions and the explicit memory
@@ -155,7 +157,7 @@ If this device does not support peer access (as defined by
 throws an exception with the `errc::invalid` error code.
 
 
-|void disable_peer_access(const device &peer)
+|void ext_oneapi_disable_peer_access(const device &peer)
 |Disables access to the peer device's memory from this device. If peer access
 is not enabled, throws an `exception` with the `errc::invalid` error code.
 

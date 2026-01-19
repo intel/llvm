@@ -5,10 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#pragma once
+
+#include <sycl/detail/string.hpp>
 
 #include <string>
-
-#pragma once
 
 namespace sycl {
 inline namespace _V1 {
@@ -16,34 +17,43 @@ namespace detail {
 
 // This class and detail::string class are intended to support
 // different ABIs between libsycl and the user program.
-// This class is not inteded to replace std::string_view for general purpose
+// This class is not intended to replace std::string_view for general purpose
 // usage.
+
 class string_view {
   const char *str = nullptr;
+  size_t len = 0;
 
 public:
-  string_view() noexcept = default;
-  string_view(const string_view &strn) noexcept = default;
-  string_view(string_view &&strn) noexcept = default;
-  string_view(std::string_view strn) noexcept : str(strn.data()) {}
+  constexpr string_view() noexcept = default;
+  constexpr string_view(const string_view &strn) noexcept = default;
+  constexpr string_view(string_view &&strn) noexcept = default;
+  constexpr string_view(std::string_view strn) noexcept
+      : str(strn.data()), len(strn.size()) {}
+  string_view(const sycl::detail::string &strn) noexcept
+      : str(strn.c_str()), len(strlen(strn.c_str())) {}
 
-  string_view &operator=(string_view &&strn) noexcept = default;
+  constexpr string_view &operator=(string_view &&strn) noexcept = default;
   string_view &operator=(const string_view &strn) noexcept = default;
 
-  string_view &operator=(std::string_view strn) noexcept {
+  constexpr string_view &operator=(std::string_view strn) noexcept {
     str = strn.data();
+    len = strn.size();
     return *this;
   }
 
-  const char *data() const noexcept { return str; }
-
-  friend bool operator==(const string_view &lhs,
-                         std::string_view rhs) noexcept {
-    return rhs == lhs.data();
+  string_view &operator=(const sycl::detail::string &strn) noexcept {
+    str = strn.c_str();
+    len = strlen(strn.c_str());
+    return *this;
   }
-  friend bool operator==(std::string_view lhs,
-                         const string_view &rhs) noexcept {
-    return lhs == rhs.data();
+
+  constexpr const char *data() const noexcept { return str ? str : ""; }
+
+  constexpr operator std::string_view() const noexcept {
+    if (str == nullptr)
+      return std::string_view{};
+    return std::string_view(str, len);
   }
 };
 

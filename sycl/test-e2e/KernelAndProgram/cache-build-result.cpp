@@ -1,5 +1,14 @@
-// for CUDA and HIP the failure happens at compile time, not during runtime
-// UNSUPPORTED: cuda || hip || ze_debug
+// UNSUPPORTED: target-nvidia || target-amd
+// UNSUPPORTED-INTENDED: The test looks for an exception thrown during the
+// compilation of the kernel, but for CUDA the failure is not thrown, but comes
+// from ptxas that crashes clang. The JIT part is not relevant, because the
+// flow is such that the AOT compilation still happens, it’s just that if we
+// request JIT, it will do the thing again at the run time.
+//
+// UNSUPPORTED: ze_debug
+//
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
 
 // RUN: %{build} -DSYCL_DISABLE_FALLBACK_ASSERT=1 -o %t.out
 // RUN: %{build} -DSYCL_DISABLE_FALLBACK_ASSERT=1 -DGPU -o %t_gpu.out
@@ -41,7 +50,7 @@ void test() {
       } else {
         // Exception constantly adds info on its error code in the message
         assert(Msg.find_first_of(e.what()) == 0 &&
-               "PI_ERROR_BUILD_PROGRAM_FAILURE");
+               "UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE");
       }
     } catch (...) {
       assert(false && "Caught exception was not a compilation error");

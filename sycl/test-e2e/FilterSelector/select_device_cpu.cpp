@@ -10,22 +10,25 @@
 
 #include <iostream>
 
+#include "../helpers.hpp"
 #include <sycl/ext/oneapi/filter_selector.hpp>
+#include <sycl/platform.hpp>
 
 using namespace sycl;
 using namespace std;
 
 int main() {
-  const char *envVal = std::getenv("ONEAPI_DEVICE_SELECTOR");
+  std::string envVal = env::getVal("ONEAPI_DEVICE_SELECTOR");
   std::string forcedPIs;
-  if (envVal) {
+  if (envVal.empty()) {
     forcedPIs = envVal;
   }
   {
     device d(default_selector_v);
     string name = d.get_platform().get_info<info::platform::name>();
-    assert(name.find("OpenCL") != string::npos &&
-           "default_selector failed to find cpu device");
+    assert((name.find("OpenCL") != string::npos) ||
+           (name.find("NATIVE_CPU") != string::npos) &&
+               "default_selector failed to find cpu device");
   }
   {
     try {
@@ -36,15 +39,8 @@ int main() {
     } catch (...) {
     }
   }
-  { device d(cpu_selector_v); }
   {
-    try {
-      device d(accelerator_selector_v);
-      std::cerr << "ACC device is found in error: " << d.is_accelerator()
-                << std::endl;
-      return -1;
-    } catch (...) {
-    }
+    device d(cpu_selector_v);
   }
 
   return 0;

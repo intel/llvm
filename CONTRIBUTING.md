@@ -33,8 +33,9 @@ To contribute:
     [clang-tidy](https://clang.llvm.org/extra/clang-tidy/) tools can be
     integrated into your workflow to ensure formatting and stylistic
     compliance of your changes. To avoid code formatting misalignment with
-    GitHub Actions check we recommend using 10 version of clang-format tool
-    (default version on Ubuntu 22.04).
+    the GitHub Actions check we recommend using the same version of clang-format
+    as used in the CI. See [.github/workflows/pr-code-format.yml](https://github.com/intel/llvm/blob/sycl/.github/workflows/pr-code-format.yml)
+    for the current version.
   - Use
 
     ```bash
@@ -58,7 +59,7 @@ To contribute:
   - [The seven rules of a great Git commit message](https://cbea.ms/git-commit)
     are recommended read and follow.
 - To a reasonable extent, title tags can be used to signify the component
-  changed, e.g.: `[PI]`, `[CUDA]`, `[Doc]`.
+  changed, e.g.: `[UR]`, `[CUDA]`, `[Doc]`.
 - Create a pull request (PR) for your changes following
   [Creating a pull request instructions](https://help.github.com/articles/creating-a-pull-request/).
   - Make sure PR has a good description explaining all of the changes made,

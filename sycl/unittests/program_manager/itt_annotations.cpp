@@ -5,13 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
-#define SYCL2020_DISABLE_DEPRECATION_WARNINGS
-
 #include <detail/config.hpp>
 #include <detail/program_manager/program_manager.hpp>
-#include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/ScopedEnvVar.hpp>
+#include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
 #include <gtest/gtest.h>
@@ -20,53 +17,33 @@
 
 #include <helpers/TestKernel.hpp>
 
-// Same as defined in config.def
-static constexpr auto ITTProfileEnvVarName = "INTEL_ENABLE_OFFLOAD_ANNOTATIONS";
-
-static void set_env(const char *name, const char *value) {
-#ifdef _WIN32
-  (void)_putenv_s(name, value);
-#else
-  (void)setenv(name, value, /*overwrite*/ 1);
-#endif
-}
-
-static void unset_env(const char *name) {
-#ifdef _WIN32
-  (void)_putenv_s(name, "");
-#else
-  unsetenv(name);
-#endif
-}
+using namespace sycl::unittest;
 
 bool HasITTEnabled = false;
 
-static pi_result
-redefinedProgramSetSpecializationConstant(pi_program prog, pi_uint32 spec_id,
-                                          size_t spec_size,
-                                          const void *spec_value) {
-  if (spec_id == sycl::detail::ITTSpecConstId)
-    HasITTEnabled = true;
+static ur_result_t redefinedProgramSetSpecializationConstants(void *pParams) {
+  auto params =
+      *static_cast<ur_program_set_specialization_constants_params_t *>(pParams);
+  for (uint32_t SpecConstIndex = 0; SpecConstIndex < *params.pcount;
+       SpecConstIndex++) {
+    if ((*params.ppSpecConstants)[SpecConstIndex].id ==
+        sycl::detail::ITTSpecConstId)
+      HasITTEnabled = true;
+  }
 
-  return PI_SUCCESS;
-}
-
-static void reset() {
-  using namespace sycl::detail;
-  HasITTEnabled = false;
-  SYCLConfig<INTEL_ENABLE_OFFLOAD_ANNOTATIONS>::reset();
+  return UR_RESULT_SUCCESS;
 }
 
 TEST(ITTNotify, UseKernelBundle) {
-  set_env(ITTProfileEnvVarName, "1");
+  ScopedEnvVar Var("INTEL_ENABLE_OFFLOAD_ANNOTATIONS", "1",
+                   SYCLConfig<INTEL_ENABLE_OFFLOAD_ANNOTATIONS>::reset);
+  HasITTEnabled = false;
 
-  reset();
-
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<
-      sycl::detail::PiApiKind::piextProgramSetSpecializationConstant>(
-      redefinedProgramSetSpecializationConstant);
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  mock::getCallbacks().set_before_callback(
+      "urProgramSetSpecializationConstants",
+      &redefinedProgramSetSpecializationConstants);
 
   const sycl::device Dev = Plt.get_devices()[0];
 
@@ -79,22 +56,21 @@ TEST(ITTNotify, UseKernelBundle) {
   auto ExecBundle = sycl::build(KernelBundle);
   Queue.submit([&](sycl::handler &CGH) {
     CGH.use_kernel_bundle(ExecBundle);
-    CGH.single_task<TestKernel<>>([] {}); // Actual kernel does not matter
+    CGH.single_task<TestKernel>([] {}); // Actual kernel does not matter
   });
 
   EXPECT_EQ(HasITTEnabled, true);
 }
 
 TEST(ITTNotify, VarNotSet) {
-  unset_env(ITTProfileEnvVarName);
-
-  reset();
-
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<
-      sycl::detail::PiApiKind::piextProgramSetSpecializationConstant>(
-      redefinedProgramSetSpecializationConstant);
+  ScopedEnvVar Var("INTEL_ENABLE_OFFLOAD_ANNOTATIONS", nullptr,
+                   SYCLConfig<INTEL_ENABLE_OFFLOAD_ANNOTATIONS>::reset);
+  HasITTEnabled = false;
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  mock::getCallbacks().set_before_callback(
+      "urProgramSetSpecializationConstants",
+      &redefinedProgramSetSpecializationConstants);
 
   const sycl::device Dev = Plt.get_devices()[0];
 
@@ -107,7 +83,7 @@ TEST(ITTNotify, VarNotSet) {
   auto ExecBundle = sycl::build(KernelBundle);
   Queue.submit([&](sycl::handler &CGH) {
     CGH.use_kernel_bundle(ExecBundle);
-    CGH.single_task<TestKernel<>>([] {}); // Actual kernel does not matter
+    CGH.single_task<TestKernel>([] {}); // Actual kernel does not matter
   });
 
   EXPECT_EQ(HasITTEnabled, false);

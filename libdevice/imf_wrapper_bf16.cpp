@@ -7,9 +7,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "imf_bf16.hpp"
+#include "device.h"
 
 #ifdef __LIBDEVICE_IMF_ENABLED__
+
+#include "imf_bf16.hpp"
 
 DEVICE_EXTERN_C_INLINE
 float __devicelib_imf_bfloat162float(_iml_bf16_internal);
@@ -568,5 +570,13 @@ _iml_bf16_internal __devicelib_imf_truncbf16(_iml_bf16_internal);
 DEVICE_EXTERN_C_INLINE
 _iml_bf16_internal __imf_truncbf16(_iml_bf16_internal a) {
   return __devicelib_imf_truncbf16(a);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_fsigmbf16(_iml_bf16_internal x);
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __imf_fsigmbf16(_iml_bf16_internal x) {
+  return __devicelib_imf_fsigmbf16(x);
 }
 #endif // __LIBDEVICE_IMF_ENABLED__

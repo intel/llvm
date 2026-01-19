@@ -1,8 +1,11 @@
 // REQUIRES: aspect-ext_oneapi_srgb, aspect-ext_intel_legacy_image
-// https://github.com/intel/llvm/issues/14387
 // XFAIL: gpu-intel-dg2
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/14387
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
+
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/160589
 
 #include <iostream>
 #include <sycl/accessor_image.hpp>

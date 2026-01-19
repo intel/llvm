@@ -31,7 +31,7 @@ attributes #0 = { "sycl-module-id"="a.cpp" }
 attributes #1 = { "sycl-module-id"="b.cpp" }
 
 ; CHECK-IR1: define dso_local spir_func void @externalDeviceFunc()
-; CHECK-IR0: define dso_local spir_func void @externalDeviceFunc()
+; CHECK-IR0: define {{.*}} void @externalDeviceFunc()
 ; CHECK-IR0: define dso_local spir_kernel void @kernel1()
 
 ; CHECK-SYM1: externalDeviceFunc

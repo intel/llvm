@@ -1,0 +1,52 @@
+#
+# Copyright (C) 2023 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime Experimental APIs for dynamic linking"
+ordinal: "99"
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+typed_etors: true
+desc: "Extension enums for $x_device_info_t to support dynamic linking."
+name: $x_device_info_t
+etors:
+    - name: DYNAMIC_LINK_SUPPORT_EXP
+      value: "0x6003"
+      desc: "[$x_bool_t] Returns true if the device supports the dynamic linking experimental feature."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Creates dynamic links between exported and imported symbols in one or more programs."
+class: $xProgram
+name: DynamicLinkExp
+decl: static
+ordinal: "2"
+details:
+    - "The application may call this function from simultaneous threads."
+    - "Following a successful call to this entry point the programs in `phPrograms` will have all external symbols resolved and kernels inside these programs would be ready for use."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context instance."
+    - type: uint32_t
+      name: count
+      desc: "[in] number of program handles in `phPrograms`."
+    - type: const $x_program_handle_t*
+      name: phPrograms
+      desc: "[in][range(0, count)] pointer to array of program handles."
+returns:
+    - $X_RESULT_ERROR_INVALID_PROGRAM:
+      - "If one of the programs in `phPrograms` isn't a valid program object."
+    - $X_RESULT_ERROR_INVALID_SIZE:
+      - "`count == 0`"
+    - $X_RESULT_ERROR_PROGRAM_LINK_FAILURE:
+      - "If an error occurred while linking `phPrograms`."
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+      - "If the adapter has no means to support the operation."

@@ -5,8 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// This test verifies effect of the register_alloc_mode kernel property
-// API call in device code:
+// This test verifies effect of the "grf_size<num>" and "grf_size_automatic"
+// kernel properties API call in device code:
 // - ESIMD/SYCL splitting happens as usual
 // - ESIMD module is further split into callgraphs for entry points for
 //   each value
@@ -14,23 +14,15 @@
 //   compiler option
 
 // REQUIRES: arch-intel_gpu_pvc
-//             invokes 'piProgramBuild'/'piKernelCreate'
-// RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
-// RUN: %{build} -DUSE_NEW_API=1 -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
-// RUN: %{build} -DUSE_AUTO -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-NO-VAR
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
+//             invokes 'urProgramBuild'/'urKernelCreate'
+// RUN: %{build} -o %t2.out
+// RUN: env SYCL_UR_TRACE=2 %{run} %t2.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t2.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
+// RUN: %{build} -DUSE_AUTO -o %t3.out
+// RUN: env SYCL_UR_TRACE=2 %{run} %t3.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t3.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
 #include "esimd_test_utils.hpp"
-
-#if defined(USE_NEW_API) || defined(USE_AUTO)
 #include <sycl/ext/intel/experimental/grf_size_properties.hpp>
-#else
-#include <sycl/detail/kernel_properties.hpp>
-#endif
 
 using namespace sycl;
 using namespace sycl::detail;
@@ -119,11 +111,8 @@ int main(void) {
     buffer<float, 1> bufa(A.data(), range<1>(Size));
 #ifdef USE_AUTO
     sycl::ext::oneapi::experimental::properties prop{grf_size_automatic};
-#elif defined(USE_NEW_API)
-    sycl::ext::oneapi::experimental::properties prop{grf_size<256>};
 #else
-    sycl::ext::oneapi::experimental::properties prop{
-        register_alloc_mode<register_alloc_mode_enum::large>};
+    sycl::ext::oneapi::experimental::properties prop{grf_size<256>};
 #endif
     auto e = q.submit([&](handler &cgh) {
       auto PA = bufa.get_access<access::mode::read_write>(cgh);
@@ -154,35 +143,24 @@ int main(void) {
 
 // Regular SYCL kernel is compiled without -vc-codegen option
 
-// CHECK-LABEL: ---> piProgramBuild(
-// CHECK-NOT: -vc-codegen
-// CHECK-WITH-VAR: -g
-// CHECK-NOT: -vc-codegen
-// CHECK: ) ---> pi_result : PI_SUCCESS
-// CHECK-LABEL: ---> piKernelCreate(
-// CHECK: <const char *>: {{.*}}SyclKernel
-// CHECK: ) ---> pi_result : PI_SUCCESS
+// CHECK-NOT: <--- urProgramBuild{{.*}}-vc-codegen
+// CHECK-WITH-VAR: <--- urProgramBuild{{.*}}-g
+// CHECK: <--- urKernelCreate({{.*}}{{.*}}SyclKernel
 
 // For ESIMD kernels, -vc-codegen option is always preserved,
 // regardless of SYCL_PROGRAM_COMPILE_OPTIONS value.
 
-// CHECK-LABEL: ---> piProgramBuild(
-// CHECK-NO-VAR: -vc-codegen -disable-finalizer-msg
+// CHECK-NO-VAR-LABEL: -vc-codegen -disable-finalizer-msg
 // CHECK-WITH-VAR: -g -vc-codegen -disable-finalizer-msg
-// CHECK: ) ---> pi_result : PI_SUCCESS
-// CHECK-LABEL: ---> piKernelCreate(
-// CHECK: <const char *>: {{.*}}EsimdKernel
-// CHECK: ) ---> pi_result : PI_SUCCESS
+// CHECK-LABEL: <--- urKernelCreate({{.*}}EsimdKernel{{.*}}-> UR_RESULT_SUCCESS
 
 // Kernels requesting GRF are grouped into separate module and compiled
 // with the respective option regardless of SYCL_PROGRAM_COMPILE_OPTIONS value.
 
-// CHECK-LABEL: ---> piProgramBuild(
 // CHECK-NO-VAR: -vc-codegen -disable-finalizer-msg -doubleGRF
 // CHECK-WITH-VAR: -g -vc-codegen -disable-finalizer-msg -doubleGRF
 // CHECK-AUTO-NO-VAR: -vc-codegen -disable-finalizer-msg -ze-intel-enable-auto-large-GRF-mode
 // CHECK-AUTO-WITH-VAR: -g -vc-codegen -disable-finalizer-msg -ze-intel-enable-auto-large-GRF-mode
-// CHECK: ) ---> pi_result : PI_SUCCESS
-// CHECK-LABEL: ---> piKernelCreate(
-// CHECK: <const char *>: {{.*}}EsimdKernelSpecifiedGRF
-// CHECK: ) ---> pi_result : PI_SUCCESS
+// CHECK-LABEL: <--- urKernelCreate(
+// CHECK-SAME: EsimdKernelSpecifiedGRF
+// CHECK-SAME: -> UR_RESULT_SUCCESS

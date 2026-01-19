@@ -130,12 +130,13 @@ enum class lsc_subopcode : uint8_t {
   read_state_info = 0x1e,
   fence = 0x1f,
 };
-// The regexp for ESIMD intrinsics:
-// /^_Z(\d+)__esimd_\w+/
-static constexpr char ESIMD_INTRIN_PREF0[] = "_Z";
-static constexpr char ESIMD_INTRIN_PREF1[] = "__esimd_";
 static constexpr char ESIMD_INSERTED_VSTORE_FUNC_NAME[] = "_Z14__esimd_vstorev";
-static constexpr char SPIRV_INTRIN_PREF[] = "__spirv_BuiltIn";
+static constexpr char SPIRV_BuiltInSubgroupLocalInvocationId[] =
+    "_Z40__spirv_BuiltInSubgroupLocalInvocationIdv";
+static constexpr char SPIRV_BuiltInSubgroupSizev[] =
+    "_Z27__spirv_BuiltInSubgroupSizev";
+static constexpr char SPIRV_BuiltInSubgroupMaxSizev[] =
+    "_Z30__spirv_BuiltInSubgroupMaxSizev";
 struct ESIMDIntrinDesc {
   // Denotes argument translation rule kind.
   enum GenXArgRuleKind {
@@ -592,6 +593,21 @@ public:
          {"lsc.xatomic.stateless",
           {ai1(0), t8(1), t8(2), t8(3), t16(4), t32(5), t8(6), t8(7), t8(8),
            c8(0), a(1), a(2), a(3), c32(0), u(-1)}}},
+        {"lsc_load2d_descriptor",
+         {"lsc.load.2d.ugm.desc",
+          {ai1(0), a(3), t8(1), t16(2), t16(3), a(1), t32(4), t32(5), a(2)}}},
+        {"lsc_load2d_descriptor_transpose",
+         {"lsc.load.2d.ugm.desc.transpose",
+          {ai1(0), a(3), t8(1), t16(2), t16(3), a(1), t32(4), t32(5), a(2)}}},
+        {"lsc_load2d_descriptor_transform",
+         {"lsc.load.2d.ugm.desc.vnni",
+          {ai1(0), a(3), t8(1), t16(2), t16(3), a(1), t32(4), t32(5), a(2)}}},
+        {"lsc_prefetch_descriptor",
+         {"lsc.prefetch.2d.ugm.desc",
+          {ai1(0), a(3), t8(1), t16(2), t16(3), a(1), t32(4), t32(5), a(2)}}},
+        {"lsc_store_descriptor",
+         {"lsc.store.2d.ugm.desc",
+          {ai1(0), a(3), t8(1), t16(2), t16(3), a(1), t32(4), t32(5), a(2)}}},
         {"lsc_fence", {"lsc.fence", {ai1(0), t8(0), t8(1), t8(2)}}},
         {"sat", {"sat", {a(0)}}},
         {"fptoui_sat", {"fptoui.sat", {a(0)}}},
@@ -797,7 +813,7 @@ static APInt parseTemplateArg(id::FunctionEncoding *FE, unsigned int N,
       // Overwrite Ty with IntegerLiteral's size
       Ty = parsePrimitiveTypeString(StringRef(&*TyStr.begin(), TyStr.size()),
                                     Ctx);
-    Val = ValL->getValue();
+    Val = ValL->value();
     break;
   }
   case id::Node::KBoolExpr: {
@@ -1228,10 +1244,25 @@ static Instruction *addCastInstIfNeeded(Instruction *OldI, Instruction *NewI,
   if (OITy != NITy) {
     auto CastOpcode = CastInst::getCastOpcode(NewI, false, OITy, false);
     NewI = CastInst::Create(CastOpcode, NewI, OITy,
-                            NewI->getName() + ".cast.ty", OldI);
+                            NewI->getName() + ".cast.ty", OldI->getIterator());
     NewI->setDebugLoc(OldI->getDebugLoc());
   }
   return NewI;
+}
+
+// Translates the following intrinsics:
+//   %res = call float @llvm.fmuladd.f32(float %a, float %b, float %c)
+//   %res = call double @llvm.fmuladd.f64(double %a, double %b, double %c)
+// To
+//   %mul = fmul <type> %a, <type> %b
+//   %res = fadd <type> %mul, <type> %c
+// TODO: Remove when newer GPU driver is used in CI.
+void translateFmuladd(CallInst *CI) {
+  assert(CI->getIntrinsicID() == Intrinsic::fmuladd);
+  IRBuilder<> Bld(CI);
+  auto *Mul = Bld.CreateFMul(CI->getOperand(0), CI->getOperand(1));
+  auto *Res = Bld.CreateFAdd(Mul, CI->getOperand(2));
+  CI->replaceAllUsesWith(Res);
 }
 
 // Translates an LLVM intrinsic to a form, digestable by the BE.
@@ -1245,29 +1276,32 @@ bool translateLLVMIntrinsic(CallInst *CI) {
     // no translation - it will be simply removed.
     // TODO: make use of 'assume' info in the BE
     break;
+  case Intrinsic::fmuladd:
+    translateFmuladd(CI);
+    break;
   default:
     return false; // "intrinsic wasn't translated, keep the original call"
   }
   return true; // "intrinsic has been translated, erase the original call"
 }
 
-/// Replaces the load \p LI of SPIRV global with a compile time known constant
+/// Replaces SPIRV workitem built-in call with a compile time known constant
 /// when possible. The replaced instructions are stored into the given
 /// container \p InstsToErase.
 static void
-translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
-                         SmallVectorImpl<Instruction *> &InstsToErase) {
+translateWorkItemBuiltInUse(CallInst *CI, StringRef SpirvBuiltInName,
+                            SmallVectorImpl<Instruction *> &InstsToErase) {
   Value *NewInst = nullptr;
-  if (SpirvGlobalName == "SubgroupLocalInvocationId") {
-    NewInst = llvm::Constant::getNullValue(LI->getType());
-  } else if (SpirvGlobalName == "SubgroupSize" ||
-             SpirvGlobalName == "SubgroupMaxSize") {
-    NewInst = llvm::Constant::getIntegerValue(LI->getType(),
+  if (SpirvBuiltInName == SPIRV_BuiltInSubgroupLocalInvocationId) {
+    NewInst = llvm::Constant::getNullValue(CI->getType());
+  } else if (SpirvBuiltInName == SPIRV_BuiltInSubgroupSizev ||
+             SpirvBuiltInName == SPIRV_BuiltInSubgroupMaxSizev) {
+    NewInst = llvm::Constant::getIntegerValue(CI->getType(),
                                               llvm::APInt(32, 1, true));
   }
   if (NewInst) {
-    LI->replaceAllUsesWith(NewInst);
-    InstsToErase.push_back(LI);
+    CI->replaceAllUsesWith(NewInst);
+    InstsToErase.push_back(CI);
   }
 }
 
@@ -1540,14 +1574,15 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
   CallInst *NewCI = IntrinsicInst::Create(
       NewFDecl, GenXArgs,
       NewFDecl->getReturnType()->isVoidTy() ? "" : CI.getName() + ".esimd",
-      &CI);
+      CI.getIterator());
   NewCI->setDebugLoc(CI.getDebugLoc());
   if (DoesFunctionReturnStructure) {
     IRBuilder<> Builder(&CI);
 
     NewInst = Builder.CreateStore(
-        NewCI, Builder.CreateBitCast(CastInstruction->getPointerOperand(),
-                                     NewCI->getType()->getPointerTo()));
+        NewCI, Builder.CreateBitCast(
+                   CastInstruction->getPointerOperand(),
+                   llvm::PointerType::getUnqual(NewCI->getContext())));
   } else {
     NewInst = addCastInstIfNeeded(&CI, NewCI);
   }
@@ -2072,6 +2107,19 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Module &M,
     MPM.run(M, MAM);
   }
 
+  SmallVector<Instruction *, 8> ToErase;
+  for (Function &F : M) {
+    if (F.getName() != SPIRV_BuiltInSubgroupLocalInvocationId &&
+        F.getName() != SPIRV_BuiltInSubgroupSizev &&
+        F.getName() != SPIRV_BuiltInSubgroupMaxSizev)
+      continue;
+
+    for (User *U : F.users())
+      translateWorkItemBuiltInUse(cast<CallInst>(U), F.getName(), ToErase);
+  }
+  for (auto *CI : ToErase)
+    CI->eraseFromParent();
+
   generateKernelMetadata(M);
   // This function needs to run after generateKernelMetadata, as it
   // uses the generated metadata:
@@ -2137,12 +2185,11 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
       }
       StringRef Name = Callee->getName();
 
-      // See if the Name represents an ESIMD intrinsic and demangle only if it
-      // does.
-      if (!Name.consume_front(ESIMD_INTRIN_PREF0) && !isDevicelibFunction(Name))
+      if (!isDevicelibFunction(Name))
+        Name = stripMangling(Name);
+
+      if (Name.empty())
         continue;
-      // now skip the digits
-      Name = Name.drop_while([](char C) { return std::isdigit(C); });
 
       // process ESIMD builtins that go through special handling instead of
       // the translation procedure
@@ -2225,37 +2272,6 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
         continue;
       // this is ESIMD intrinsic - record for later translation
       ESIMDIntrCalls.push_back(CI);
-    }
-
-    // Translate loads from SPIRV builtin globals into GenX intrinsics
-    auto *LI = dyn_cast<LoadInst>(&I);
-    if (LI) {
-      Value *LoadPtrOp = LI->getPointerOperand();
-      Value *SpirvGlobal = nullptr;
-      // Look through constant expressions to find SPIRV builtin globals
-      // It may come with or without cast.
-      auto *CE = dyn_cast<ConstantExpr>(LoadPtrOp);
-      auto *GEPCE = dyn_cast<GetElementPtrConstantExpr>(LoadPtrOp);
-      if (GEPCE) {
-        SpirvGlobal = GEPCE->getOperand(0);
-      } else if (CE) {
-        assert(CE->isCast() && "ConstExpr should be a cast");
-        SpirvGlobal = CE->getOperand(0);
-      } else {
-        SpirvGlobal = LoadPtrOp;
-      }
-
-      if (!isa<GlobalVariable>(SpirvGlobal) ||
-          !SpirvGlobal->getName().starts_with(SPIRV_INTRIN_PREF))
-        continue;
-
-      auto PrefLen = StringRef(SPIRV_INTRIN_PREF).size();
-
-      // Translate all uses of the load instruction from SPIRV builtin global.
-      // Replaces the original global load and it is uses and stores the old
-      // instructions to ToErase.
-      translateSpirvGlobalUses(LI, SpirvGlobal->getName().drop_front(PrefLen),
-                               ToErase);
     }
   }
   // Now demangle and translate found ESIMD intrinsic calls

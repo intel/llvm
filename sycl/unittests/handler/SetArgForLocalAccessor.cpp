@@ -6,9 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "ur_mock_helpers.hpp"
 #include <gtest/gtest.h>
 #include <helpers/KernelInteropCommon.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <sycl/sycl.hpp>
 
@@ -20,23 +21,30 @@ namespace {
 
 size_t LocalBufferArgSize = 0;
 
-pi_result redefined_piKernelSetArg(pi_kernel kernel, pi_uint32 arg_index,
-                                   size_t arg_size, const void *arg_value) {
-  LocalBufferArgSize = arg_size;
+ur_result_t redefined_urEnqueueKernelLaunchWithArgsExp(void *pParams) {
+  auto params =
+      *static_cast<ur_enqueue_kernel_launch_with_args_exp_params_t *>(pParams);
+  auto Args = *params.ppArgs;
+  for (uint32_t i = 0; i < *params.pnumArgs; i++) {
+    if (Args[i].type == UR_EXP_KERNEL_ARG_TYPE_LOCAL) {
+      LocalBufferArgSize = Args[i].size;
+    }
+  }
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 TEST(HandlerSetArg, LocalAccessor) {
-  sycl::unittest::PiMock Mock;
+  sycl::unittest::UrMock<> Mock;
   redefineMockForKernelInterop(Mock);
-  Mock.redefine<sycl::detail::PiApiKind::piKernelSetArg>(
-      redefined_piKernelSetArg);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
 
   constexpr size_t Size = 128;
   sycl::queue Q;
 
-  DummyHandleT handle;
+  ur_native_handle_t handle = mock::createDummyHandle<ur_native_handle_t>();
   auto KernelCL = reinterpret_cast<typename sycl::backend_traits<
       sycl::backend::opencl>::template input_type<sycl::kernel>>(&handle);
   auto Kernel =

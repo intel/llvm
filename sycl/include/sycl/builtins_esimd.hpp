@@ -8,11 +8,10 @@
 
 #pragma once
 
-#include <sycl/detail/boolean.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/generic_type_traits.hpp>
 #include <sycl/ext/intel/esimd/detail/math_intrin.hpp>
-#include <sycl/types.hpp>
+#include <sycl/vector.hpp>
 
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/

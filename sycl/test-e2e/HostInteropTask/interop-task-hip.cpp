@@ -1,11 +1,10 @@
-// FIXME: the rocm include path and link path are highly platform dependent,
-// we should set this with some variable instead.
-// RUN: %{build} -o %t.out -I/opt/rocm/include -L/opt/rocm/lib -lamdhip64
+// RUN: %{build} -Wno-error=deprecated-pragma -Wno-error=deprecated-declarations -o %t.out %hip_options
 // RUN: %{run} %t.out
-// REQUIRES: hip
+// REQUIRES: target-amd
 
 #include <iostream>
 #include <sycl/backend.hpp>
+#include <sycl/detail/backend_traits_hip.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/interop_handle.hpp>
 

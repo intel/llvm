@@ -29,12 +29,16 @@
 #include <../include/complex>
 #endif
 
+#if defined(__NVPTX__) || defined(__AMDGCN__)
+#include "__sycl_complex_impl.hpp"
+#endif
+
 // Now that we have std::complex available, implement SYCL functionality related
 // to it.
 
 #include <type_traits>
 
-#include <CL/__spirv/spirv_ops.hpp> // for __SYCL_CONVERGENT__
+#include <sycl/__spirv/spirv_ops.hpp> // for __SYCL_CONVERGENT__
 #include <sycl/half_type.hpp>       // for half
 
 // We provide std::complex specializations here for the following:

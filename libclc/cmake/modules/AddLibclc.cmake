@@ -12,8 +12,8 @@
 # * DEPENDENCIES <string> ...
 #     List of extra dependencies to inject
 #
-# Depends on the libclc::clang and libclc::llvm-as targets for compiling and
-# assembling, respectively.
+# Depends on the clang, llvm-as, and llvm-link targets for compiling,
+# assembling, and linking, respectively.
 function(compile_to_bc)
   cmake_parse_arguments(ARG
     ""
@@ -26,17 +26,21 @@ function(compile_to_bc)
   # board causes too many changes to the resulting bytecode library. This needs
   # investigation. It's still required for the preprocessor step, though.
   set( XCL_OPT )
-  # If this is an LLVM IR file (identified soley by its file suffix),
+  # If this is an LLVM IR file (identified solely by its file suffix),
   # pre-process it with clang to a temp file, then assemble that to bytecode.
   set( TMP_SUFFIX )
   get_filename_component( FILE_EXT ${ARG_INPUT} EXT )
   if( NOT ${FILE_EXT} STREQUAL ".ll" )
     # Pass '-c' when not running the preprocessor
     set( PP_OPTS -c )
+    set( EXTRA_OPTS ${ARG_EXTRA_OPTS} )
   else()
     set( PP_OPTS -E;-P )
     set( TMP_SUFFIX .tmp )
     set( XCL_OPT -x;cl )
+    string( REPLACE "-Xclang;-fdeclare-opencl-builtins;-Xclang;-finclude-default-header"
+      "" EXTRA_OPTS "${ARG_EXTRA_OPTS}"
+    )
   endif()
 
 
@@ -51,10 +55,10 @@ function(compile_to_bc)
 
   add_custom_command(
     OUTPUT ${ARG_OUTPUT}${TMP_SUFFIX}
-    COMMAND libclc::clang
+    COMMAND ${clang_exe}
       ${TARGET_ARG}
       ${PP_OPTS}
-      ${ARG_EXTRA_OPTS}
+      ${EXTRA_OPTS}
       -MD -MF ${ARG_OUTPUT}.d -MT ${ARG_OUTPUT}${TMP_SUFFIX}
       # LLVM 13 enables standard includes by default - we don't want
       # those when pre-processing IR. We disable it unconditionally.
@@ -64,7 +68,7 @@ function(compile_to_bc)
       ${XCL_OPT}
       ${ARG_INPUT}
     DEPENDS
-      libclc::clang
+      ${clang_target}
       ${ARG_INPUT}
       ${ARG_DEPENDENCIES}
     DEPFILE ${ARG_OUTPUT}.d
@@ -73,8 +77,8 @@ function(compile_to_bc)
   if( ${FILE_EXT} STREQUAL ".ll" )
     add_custom_command(
       OUTPUT ${ARG_OUTPUT}
-      COMMAND libclc::llvm-as -o ${ARG_OUTPUT} ${ARG_OUTPUT}${TMP_SUFFIX}
-      DEPENDS libclc::llvm-as ${ARG_OUTPUT}${TMP_SUFFIX}
+      COMMAND ${llvm-as_exe} -o ${ARG_OUTPUT} ${ARG_OUTPUT}${TMP_SUFFIX}
+      DEPENDS ${llvm-as_target} ${ARG_OUTPUT}${TMP_SUFFIX}
     )
   endif()
 endfunction()
@@ -82,6 +86,8 @@ endfunction()
 # Links together one or more bytecode files
 #
 # Arguments:
+# * INTERNALIZE
+#     Set if -internalize flag should be passed when linking
 # * TARGET <string>
 #     Custom target to create
 # * INPUT <string> ...
@@ -90,35 +96,89 @@ endfunction()
 #     List of extra dependencies to inject
 function(link_bc)
   cmake_parse_arguments(ARG
-    ""
+    "INTERNALIZE"
     "TARGET"
     "INPUTS;DEPENDENCIES"
     ${ARGN}
   )
 
-  set( LINK_INPUT_ARG ${ARG_INPUTS} )
+  if( ARG_INTERNALIZE )
+    set( inputs_with_flag ${ARG_INPUTS} )
+  else()
+    # Add the --override flag for non-generic bitcode files so that their
+    # symbols can override definitions in generic bitcode files.
+    set( inputs_with_flag )
+    foreach( file IN LISTS ARG_INPUTS )
+      string( FIND ${file} "/generic/" is_generic )
+      if( is_generic LESS 0 )
+        list( APPEND inputs_with_flag "--override" )
+      endif()
+      list( APPEND inputs_with_flag ${file} )
+    endforeach()
+  endif()
+
   if( WIN32 OR CYGWIN )
     # Create a response file in case the number of inputs exceeds command-line
     # character limits on certain platforms.
     file( TO_CMAKE_PATH ${LIBCLC_ARCH_OBJFILE_DIR}/${ARG_TARGET}.rsp RSP_FILE )
     # Turn it into a space-separate list of input files
-    list( JOIN ARG_INPUTS " " RSP_INPUT )
-    file( WRITE ${RSP_FILE} ${RSP_INPUT} )
+    list( JOIN inputs_with_flag " " RSP_INPUT )
+    file( GENERATE OUTPUT ${RSP_FILE} CONTENT ${RSP_INPUT} )
     # Ensure that if this file is removed, we re-run CMake
     set_property( DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
       ${RSP_FILE}
     )
     set( LINK_INPUT_ARG "@${RSP_FILE}" )
+  else()
+    set( LINK_INPUT_ARG ${inputs_with_flag} )
+  endif()
+
+  if( ARG_INTERNALIZE )
+    set( link_flags --internalize --only-needed )
   endif()
 
   add_custom_command(
-    OUTPUT ${ARG_TARGET}.bc
-    COMMAND libclc::llvm-link -o ${ARG_TARGET}.bc ${LINK_INPUT_ARG}
-    DEPENDS libclc::llvm-link ${ARG_DEPENDENCIES} ${ARG_INPUTS} ${RSP_FILE}
+    OUTPUT ${LIBCLC_ARCH_OBJFILE_DIR}/${ARG_TARGET}.bc
+    COMMAND ${llvm-link_exe} ${link_flags} -o ${LIBCLC_ARCH_OBJFILE_DIR}/${ARG_TARGET}.bc ${LINK_INPUT_ARG}
+    DEPENDS ${llvm-link_target} ${ARG_DEPENDENCIES} ${ARG_INPUTS} ${RSP_FILE}
   )
 
-  add_custom_target( ${ARG_TARGET} ALL DEPENDS ${ARG_TARGET}.bc )
-  set_target_properties( ${ARG_TARGET} PROPERTIES TARGET_FILE ${ARG_TARGET}.bc )
+  add_custom_target( ${ARG_TARGET} ALL DEPENDS ${LIBCLC_ARCH_OBJFILE_DIR}/${ARG_TARGET}.bc )
+  set_target_properties( ${ARG_TARGET} PROPERTIES
+    TARGET_FILE ${LIBCLC_ARCH_OBJFILE_DIR}/${ARG_TARGET}.bc
+    FOLDER "libclc/Device IR/Linking"
+  )
+endfunction()
+
+# Create a custom target for each bitcode file, which is the output of a custom
+# command. This is required for parallel compilation of the custom commands that
+# generate the bitcode files when using the CMake MSVC generator on Windows.
+#
+# Arguments:
+#  * compile_tgts
+#      Output list of compile targets
+#  * ARCH_SUFFIX <string>
+#      libclc architecture/triple suffix
+#  * FILES <string> ...
+#     List of bitcode files
+function(create_compile_targets compile_tgts)
+  cmake_parse_arguments( ARG "" "ARCH_SUFFIX" "FILES" ${ARGN} )
+
+  if( NOT ARG_ARCH_SUFFIX OR NOT ARG_FILES )
+    message( FATAL_ERROR "Must provide ARCH_SUFFIX, and FILES" )
+  endif()
+
+  set( tgts )
+  foreach( file IN LISTS ARG_FILES )
+    cmake_path( GET file STEM stem )
+    cmake_path( GET file PARENT_PATH parent_path )
+    cmake_path( GET parent_path STEM parent_path_stem )
+    set( tgt compile-${ARG_ARCH_SUFFIX}-${parent_path_stem}-${stem} )
+    add_custom_target( ${tgt} DEPENDS ${file} )
+    list( APPEND tgts ${tgt} )
+  endforeach()
+
+  set( compile_tgts ${tgts} PARENT_SCOPE )
 endfunction()
 
 # Decomposes and returns variables based on a libclc triple and architecture
@@ -153,11 +213,13 @@ function(get_libclc_device_info)
   list( GET TRIPLE 0 ARCH )
 
   # Some targets don't have a specific device architecture to target
-  if( ARG_DEVICE STREQUAL none OR ARCH STREQUAL spirv OR ARCH STREQUAL spirv64 )
+  if( ARG_DEVICE STREQUAL none
+      OR ((ARCH STREQUAL spirv OR ARCH STREQUAL spirv64)
+          AND NOT LIBCLC_USE_SPIRV_BACKEND) )
     if( ARCH STREQUAL amdgcn )
       # AMDGCN needs libclc to be compiled to high bc version since all atomic
       # clang builtins need to be accessible
-      set( cpu gfx940)
+      set( cpu gfx942 )
     else()
       set( cpu )
     endif()
@@ -177,7 +239,11 @@ function(get_libclc_device_info)
 
   # Some libclc targets are not real clang triples: return their canonical
   # triples.
-  if( ARCH STREQUAL spirv OR ARCH STREQUAL clspv )
+  if( ARCH STREQUAL spirv AND LIBCLC_USE_SPIRV_BACKEND )
+    set( ARG_TRIPLE "spirv32--" )
+  elseif( ARCH STREQUAL spirv64 AND LIBCLC_USE_SPIRV_BACKEND )
+    set( ARG_TRIPLE "spirv64--" )
+  elseif( ARCH STREQUAL spirv OR ARCH STREQUAL clspv )
     set( ARG_TRIPLE "spir--" )
   elseif( ARCH STREQUAL spirv64 OR ARCH STREQUAL clspv64 )
     set( ARG_TRIPLE "spir64--" )
@@ -188,157 +254,279 @@ function(get_libclc_device_info)
   endif()
 endfunction()
 
-function(add_libclc_alias alias target)
-  cmake_parse_arguments(ARG "" "" PARENT_TARGET "" ${ARGN})
+# Install libclc artifacts.
+#
+# Arguments:
+#  * COMPONENT <string>
+#      Installation component name.
+#  * FILES <string> ...
+#      List of libclc artifact files to be installed.
+function(libclc_install)
+  cmake_parse_arguments(ARG "" "COMPONENT" "FILES" ${ARGN})
 
-  if(CMAKE_HOST_UNIX AND NOT CMAKE_SYSTEM_NAME STREQUAL Windows)
-    set(LIBCLC_LINK_OR_COPY create_symlink)
-  else()
-    set(LIBCLC_LINK_OR_COPY copy)
+  if( NOT ARG_FILES )
+    message( FATAL_ERROR "Must provide FILES" )
   endif()
 
-  add_custom_command(
-      OUTPUT ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${alias_suffix}
-      COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
-      COMMAND ${CMAKE_COMMAND} -E
-        ${LIBCLC_LINK_OR_COPY} ${target}.bc
-        ${alias_suffix}
-      WORKING_DIRECTORY
-        ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
-      DEPENDS "prepare-${target}"
-    )
-  add_custom_target( alias-${alias_suffix} ALL
-    DEPENDS "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${alias_suffix}" )
-  add_dependencies(${ARG_PARENT_TARGET} alias-${alias_suffix})
+  if( NOT CMAKE_CFG_INTDIR STREQUAL "." )
+    # Replace CMAKE_CFG_INTDIR with CMAKE_INSTALL_CONFIG_NAME for multiple-
+    # configuration generators.
+    string( REPLACE ${CMAKE_CFG_INTDIR} "\$\{CMAKE_INSTALL_CONFIG_NAME\}"
+            files ${ARG_FILES} )
+  else()
+    set( files ${ARG_FILES} )
+  endif()
 
-  install( FILES ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${alias_suffix}
-           DESTINATION ${CMAKE_INSTALL_DATADIR}/clc )
+  install(
+    FILES ${files}
+    DESTINATION ${LIBCLC_INSTALL_DIR}
+    COMPONENT ${ARG_COMPONENT}
+  )
+endfunction()
 
-endfunction(add_libclc_alias alias target)
-
-# add_libclc_builtin_set(arch_suffix
-#   TRIPLE string
-#     Triple used to compile
-#   TARGET_ENV string
-#     "clc" or "libspirv"
-#   FILES string ...
-#     List of file that should be built for this library
-#   ALIASES string ...
-#     List of alises
-#   COMPILE_OPT
-#     Compilation options
-#   LIB_DEP
-#     Library to include to the builtin set
-#   )
-macro(add_libclc_builtin_set arch_suffix)
+# Compiles a list of library source files (provided by LIB_FILES/GEN_FILES) and
+# compiles them to LLVM bytecode (or SPIR-V), links them together and optimizes
+# them.
+#
+# For bytecode libraries, a list of ALIASES may optionally be provided to
+# produce additional symlinks.
+#
+# Arguments:
+#  * ARCH <string>
+#      libclc architecture being built
+#  * ARCH_SUFFIX <string>
+#      libclc architecture/triple suffix
+#  * TRIPLE <string>
+#      Triple used to compile
+#  * PARENT_TARGET <string>
+#      Target into which to group the target builtins
+#
+# Optional Arguments:
+# * CLC_INTERNAL
+#     Pass if compiling the internal CLC builtin libraries, which are not
+#     optimized and do not have aliases created.
+#  * LIB_FILES <string> ...
+#      List of files that should be built for this library
+#  * GEN_FILES <string> ...
+#      List of generated files (in build dir) that should be built for this library
+#  * COMPILE_FLAGS <string> ...
+#      Compilation options (for clang)
+#  * OPT_FLAGS <string> ...
+#      Optimization options (for opt)
+#  * REMANGLE <string>
+#      Bool string indicating whether remangler will be run
+#  * ALIASES <string> ...
+#      List of aliases
+#  * INTERNAL_LINK_DEPENDENCIES <target> ...
+#      A list of extra bytecode file's targets. The bitcode files will be linked
+#      into the builtin library. Symbols from these link dependencies will be
+#      internalized during linking.
+function(add_libclc_builtin_set)
   cmake_parse_arguments(ARG
-    ""
-    "TRIPLE;TARGET_ENV;LIB_DEP;PARENT_TARGET"
-    "GEN_FILES;FILES;ALIASES;GENERATE_TARGET;COMPILE_OPT;OPT_FLAGS"
-    ${ARGN})
-
-  string( TOUPPER "CLC_${ARCH}" CLC_TARGET_DEFINE )
-
-  list( APPEND ARG_COMPILE_OPT
-    -D__CLC_INTERNAL
-    -D${CLC_TARGET_DEFINE}
-    -I${PROJECT_SOURCE_DIR}/generic/include
-    # FIXME: Fix libclc to not require disabling this noisy warning
-    -Wno-bitwise-conditional-parentheses
+    "CLC_INTERNAL"
+    "ARCH;TRIPLE;ARCH_SUFFIX;REMANGLE;PARENT_TARGET"
+    "LIB_FILES;GEN_FILES;COMPILE_FLAGS;OPT_FLAGS;ALIASES;INTERNAL_LINK_DEPENDENCIES"
+    ${ARGN}
   )
 
-  set( bytecode_files "" )
-  foreach( file IN LISTS ARG_GEN_FILES ARG_FILES )
+  if( NOT ARG_ARCH OR NOT ARG_ARCH_SUFFIX OR NOT ARG_TRIPLE )
+    message( FATAL_ERROR "Must provide ARCH, ARCH_SUFFIX, and TRIPLE" )
+  endif()
+
+  set( bytecode_files )
+  set( bytecode_ir_files )
+  foreach( file IN LISTS ARG_GEN_FILES ARG_LIB_FILES )
     # We need to take each file and produce an absolute input file, as well
     # as a unique architecture-specific output file. We deal with a mix of
     # different input files, which makes this trickier.
+    set( input_file_dep )
     if( ${file} IN_LIST ARG_GEN_FILES )
       # Generated files are given just as file names, which we must make
       # absolute to the binary directory.
       set( input_file ${CMAKE_CURRENT_BINARY_DIR}/${file} )
       set( output_file "${LIBCLC_ARCH_OBJFILE_DIR}/${file}.bc" )
+      # If a target exists that generates this file, add that as a dependency
+      # of the custom command.
+      if( TARGET generate-${file} )
+        set( input_file_dep generate-${file} )
+      endif()
     else()
       # Other files are originally relative to each SOURCE file, which are
       # then make relative to the libclc root directory. We must normalize
       # the path (e.g., ironing out any ".."), then make it relative to the
       # root directory again, and use that relative path component for the
       # binary path.
-      get_filename_component( abs_path ${file} ABSOLUTE BASE_DIR ${PROJECT_SOURCE_DIR} )
-      file( RELATIVE_PATH root_rel_path ${PROJECT_SOURCE_DIR} ${abs_path} )
-      set( input_file ${PROJECT_SOURCE_DIR}/${file} )
+      get_filename_component( abs_path ${file} ABSOLUTE BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR} )
+      file( RELATIVE_PATH root_rel_path ${CMAKE_CURRENT_SOURCE_DIR} ${abs_path} )
+      set( input_file ${CMAKE_CURRENT_SOURCE_DIR}/${file} )
       set( output_file "${LIBCLC_ARCH_OBJFILE_DIR}/${root_rel_path}.bc" )
     endif()
 
     get_filename_component( file_dir ${file} DIRECTORY )
 
+    set( file_specific_compile_options )
+    get_source_file_property( compile_opts ${file} COMPILE_OPTIONS)
+    if( compile_opts )
+      set( file_specific_compile_options "${compile_opts}" )
+    endif()
+
     compile_to_bc(
       TRIPLE ${ARG_TRIPLE}
       INPUT ${input_file}
       OUTPUT ${output_file}
-      EXTRA_OPTS -fno-builtin -nostdlib
-          "${ARG_COMPILE_OPT}" -I${PROJECT_SOURCE_DIR}/${file_dir}
-      DEPENDENCIES generate_convert.cl clspv-generate_convert.cl
+      EXTRA_OPTS -nostdlib "${ARG_COMPILE_FLAGS}"
+        "${file_specific_compile_options}"
+        -I${CMAKE_CURRENT_SOURCE_DIR}/${file_dir}
+      DEPENDENCIES ${input_file_dep}
     )
-    list(APPEND bytecode_files ${output_file})
+
+    # Collect all files originating in LLVM IR separately
+    get_filename_component( file_ext ${file} EXT )
+    if( ${file_ext} STREQUAL ".ll" )
+      list( APPEND bytecode_ir_files ${output_file} )
+    else()
+      list( APPEND bytecode_files ${output_file} )
+    endif()
   endforeach()
 
-  set( builtins_comp_lib_tgt builtins.comp.${arch_suffix} )
-  add_custom_target( ${builtins_comp_lib_tgt}
-    DEPENDS ${bytecode_files}
-  )
+  set( builtins_comp_lib_tgt builtins.comp.${ARG_ARCH_SUFFIX} )
+  if ( CMAKE_GENERATOR MATCHES "Visual Studio" )
+    # Don't put commands in one custom target to avoid serialized compilation.
+    create_compile_targets( compile_tgts
+      ARCH_SUFFIX ${ARG_ARCH_SUFFIX}
+      FILES ${bytecode_files}
+    )
+    add_custom_target( ${builtins_comp_lib_tgt} DEPENDS ${bytecode_ir_files} )
+    add_dependencies( ${builtins_comp_lib_tgt} ${compile_tgts} )
+  else()
+    add_custom_target( ${builtins_comp_lib_tgt}
+      DEPENDS ${bytecode_files} ${bytecode_ir_files}
+    )
+  endif()
+  set_target_properties( ${builtins_comp_lib_tgt} PROPERTIES FOLDER "libclc/Device IR/Comp" )
 
-  set( builtins_link_lib_tgt builtins.link.${arch_suffix} )
-  link_bc(
-    TARGET ${builtins_link_lib_tgt}
-    INPUTS ${bytecode_files}
-    DEPENDENCIES ${builtins_comp_lib_tgt}
-  )
+  # Prepend all LLVM IR files to the list so they are linked into the final
+  # bytecode modules first. This helps to suppress unnecessary warnings
+  # regarding different data layouts while linking. Any LLVM IR files without a
+  # data layout will (silently) be given the first data layout the linking
+  # process comes across.
+  list( PREPEND bytecode_files ${bytecode_ir_files} )
+
+  if( NOT bytecode_files )
+    message(FATAL_ERROR "Cannot create an empty builtins library for ${ARG_ARCH_SUFFIX}")
+  endif()
+
+  set( builtins_link_lib_tgt builtins.link.${ARG_ARCH_SUFFIX} )
+
+  if( NOT ARG_INTERNAL_LINK_DEPENDENCIES )
+    link_bc(
+      TARGET ${builtins_link_lib_tgt}
+      INPUTS ${bytecode_files}
+      DEPENDENCIES ${builtins_comp_lib_tgt}
+    )
+  else()
+    # If we have libraries to link while internalizing their symbols, we need
+    # two separate link steps; the --internalize flag applies to all link
+    # inputs but the first.
+    set( builtins_link_lib_tmp_tgt builtins.link.pre-deps.${ARG_ARCH_SUFFIX} )
+    link_bc(
+      TARGET ${builtins_link_lib_tmp_tgt}
+      INPUTS ${bytecode_files}
+      DEPENDENCIES ${builtins_comp_lib_tgt}
+    )
+    set( internal_link_depend_files )
+    foreach( tgt ${ARG_INTERNAL_LINK_DEPENDENCIES} )
+      list( APPEND internal_link_depend_files $<TARGET_PROPERTY:${tgt},TARGET_FILE> )
+    endforeach()
+    link_bc(
+      INTERNALIZE
+      TARGET ${builtins_link_lib_tgt}
+      INPUTS $<TARGET_PROPERTY:${builtins_link_lib_tmp_tgt},TARGET_FILE>
+        ${internal_link_depend_files}
+      DEPENDENCIES ${builtins_link_lib_tmp_tgt} ${ARG_INTERNAL_LINK_DEPENDENCIES}
+    )
+  endif()
+
+  # For the CLC internal builtins, exit here - we only optimize the targets'
+  # entry points once we've linked the CLC buitins into them
+  if( ARG_CLC_INTERNAL )
+    return()
+  endif()
 
   set( builtins_link_lib $<TARGET_PROPERTY:${builtins_link_lib_tgt},TARGET_FILE> )
 
-  set( builtins_opt_lib_tgt builtins.opt.${arch_suffix} )
+  # For SPIR-V targets we diverage at this point and generate SPIR-V using the
+  # llvm-spirv tool.
+  if( ARG_ARCH STREQUAL spirv OR ARG_ARCH STREQUAL spirv64 )
+    set( obj_suffix ${ARG_ARCH_SUFFIX}.spv )
+    set( libclc_builtins_lib ${LIBCLC_OUTPUT_LIBRARY_DIR}/${obj_suffix} )
+    if ( LIBCLC_USE_SPIRV_BACKEND )
+      add_custom_command( OUTPUT ${libclc_builtins_lib}
+        COMMAND ${clang_exe} --target=${ARG_TRIPLE} -x ir -o ${libclc_builtins_lib} ${builtins_link_lib}
+        DEPENDS ${clang_target} ${builtins_link_lib} ${builtins_link_lib_tgt}
+      )
+    else()
+      add_custom_command( OUTPUT ${libclc_builtins_lib}
+        COMMAND ${llvm-spirv_exe} ${spvflags} -o ${libclc_builtins_lib} ${builtins_link_lib}
+        DEPENDS ${llvm-spirv_target} ${builtins_link_lib} ${builtins_link_lib_tgt}
+      )
+    endif()
+  else()
+    # Non-SPIR-V targets add an extra step to optimize the bytecode
+    set( builtins_opt_lib_tgt builtins.opt.${ARG_ARCH_SUFFIX} )
 
-  # Add opt target
-  add_custom_command( OUTPUT ${builtins_opt_lib_tgt}.bc
-    COMMAND libclc::opt ${ARG_OPT_FLAGS} -o ${builtins_opt_lib_tgt}.bc
-      ${builtins_link_lib}
-    DEPENDS libclc::opt ${builtins_link_lib} ${builtins_link_lib_tgt}
-  )
-  add_custom_target( ${builtins_opt_lib_tgt}
-    ALL DEPENDS ${builtins_opt_lib_tgt}.bc
-  )
-  set_target_properties( ${builtins_opt_lib_tgt}
-    PROPERTIES TARGET_FILE ${builtins_opt_lib_tgt}.bc
+    add_custom_command( OUTPUT ${LIBCLC_ARCH_OBJFILE_DIR}/${builtins_opt_lib_tgt}.bc
+      COMMAND ${opt_exe} ${ARG_OPT_FLAGS} -o ${LIBCLC_ARCH_OBJFILE_DIR}/${builtins_opt_lib_tgt}.bc
+        ${builtins_link_lib}
+      DEPENDS ${opt_target} ${builtins_link_lib} ${builtins_link_lib_tgt}
+    )
+    add_custom_target( ${builtins_opt_lib_tgt}
+      ALL DEPENDS ${LIBCLC_ARCH_OBJFILE_DIR}/${builtins_opt_lib_tgt}.bc
+    )
+    set_target_properties( ${builtins_opt_lib_tgt} PROPERTIES
+      TARGET_FILE ${LIBCLC_ARCH_OBJFILE_DIR}/${builtins_opt_lib_tgt}.bc
+      FOLDER "libclc/Device IR/Opt"
+    )
+
+    set( builtins_opt_lib $<TARGET_PROPERTY:${builtins_opt_lib_tgt},TARGET_FILE> )
+
+    set( obj_suffix ${ARG_ARCH_SUFFIX}.bc )
+    set( libclc_builtins_lib ${LIBCLC_OUTPUT_LIBRARY_DIR}/${obj_suffix} )
+    add_custom_command( OUTPUT ${libclc_builtins_lib}
+      COMMAND ${prepare_builtins_exe} -o ${libclc_builtins_lib} ${builtins_opt_lib}
+      DEPENDS ${builtins_opt_lib} ${builtins_opt_lib_tgt} ${prepare_builtins_target}
+    )
+  endif()
+
+  # Add a 'prepare' target
+  add_custom_target( prepare-${obj_suffix} ALL DEPENDS ${libclc_builtins_lib} )
+  set_target_properties( "prepare-${obj_suffix}" PROPERTIES
+    TARGET_FILE ${libclc_builtins_lib}
+    FOLDER "libclc/Device IR/Prepare"
   )
 
-  set( builtins_opt_lib $<TARGET_PROPERTY:${builtins_opt_lib_tgt},TARGET_FILE> )
-
-  # Add prepare target
-  set( obj_suffix ${arch_suffix}.bc )
-  add_custom_command( OUTPUT ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
-    COMMAND prepare_builtins -o ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
-      ${builtins_opt_lib}
-    DEPENDS ${builtins_opt_lib} ${builtins_opt_lib_tgt} prepare_builtins )
-  add_custom_target( prepare-${obj_suffix} ALL
-    DEPENDS ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
-  )
-  set_target_properties( prepare-${obj_suffix}
-    PROPERTIES TARGET_FILE ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
-  )
-
+  # Also add a 'prepare' target for the triple. Since a triple may have
+  # multiple devices, ensure we only try to create the triple target once. The
+  # triple's target will build all of the bytecode for its constituent devices.
+  if( NOT TARGET prepare-${ARG_TRIPLE} )
+    add_custom_target( prepare-${ARG_TRIPLE} ALL )
+  endif()
+  add_dependencies( prepare-${ARG_TRIPLE} prepare-${obj_suffix} )
   # Add dependency to top-level pseudo target to ease making other
   # targets dependent on libclc.
-  add_dependencies(${ARG_PARENT_TARGET} prepare-${obj_suffix})
-  set( builtins_lib $<TARGET_PROPERTY:prepare-${obj_suffix},TARGET_FILE> )
+  add_dependencies( ${ARG_PARENT_TARGET} prepare-${ARG_TRIPLE} )
 
-  install( FILES ${builtins_lib} DESTINATION ${CMAKE_INSTALL_DATADIR}/clc )
+  libclc_install( COMPONENT ${ARG_PARENT_TARGET} FILES ${libclc_builtins_lib} )
+
+  # SPIR-V targets can exit early here
+  if( ARG_ARCH STREQUAL spirv OR ARG_ARCH STREQUAL spirv64 )
+    return()
+  endif()
 
   # Generate remangled variants if requested
-  if( LIBCLC_GENERATE_REMANGLED_VARIANTS )
-    set( dummy_in ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/libclc_dummy_in.cc )
+  if( ARG_REMANGLE )
+    set( dummy_in ${LIBCLC_OUTPUT_LIBRARY_DIR}/libclc_dummy_in.cc )
     add_custom_command( OUTPUT ${dummy_in}
-      COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
       COMMAND ${CMAKE_COMMAND} -E touch ${dummy_in}
     )
     set(long_widths l32 l64)
@@ -354,30 +542,28 @@ macro(add_libclc_builtin_set arch_suffix)
     foreach(long_width ${long_widths})
       foreach(signedness ${char_signedness})
         # Remangle
-        set( builtins_remangle_path
-            "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}" )
+        set( remangled_filename remangled-${long_width}-${signedness}_char.${obj_suffix_mangled} )
+        set( builtins_remangle_path "${LIBCLC_OUTPUT_LIBRARY_DIR}/${remangled_filename}" )
         add_custom_command( OUTPUT "${builtins_remangle_path}"
-          COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
-          COMMAND libclc::libclc-remangler
+          COMMAND ${libclc-remangler_exe}
           -o "${builtins_remangle_path}"
+          --triple=${ARG_TRIPLE}
           --long-width=${long_width}
           --char-signedness=${signedness}
-          --input-ir=${builtins_lib}
+          --input-ir=${libclc_builtins_lib}
           ${dummy_in}
-          DEPENDS ${builtins_lib} libclc::libclc-remangler ${dummy_in})
-        add_custom_target( "remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}" ALL
-          DEPENDS "${builtins_remangle_path}" "${dummy_in}")
-        set_target_properties("remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}"
-          PROPERTIES TARGET_FILE "${builtins_remangle_path}")
+          DEPENDS prepare-${obj_suffix} ${libclc_builtins_lib} ${libclc-remangler_target} ${dummy_in})
+        add_custom_target( ${remangled_filename} ALL
+          DEPENDS "${builtins_remangle_path}" "${dummy_in}" )
+        set_target_properties( ${remangled_filename}
+          PROPERTIES TARGET_FILE "${builtins_remangle_path}" )
 
         # Add dependency to top-level pseudo target to ease making other
         # targets dependent on libclc.
-        add_dependencies(${ARG_PARENT_TARGET} "remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}")
+        add_dependencies( ${ARG_PARENT_TARGET} ${remangled_filename} )
 
         # Keep remangled variants
-        install(
-          FILES ${builtins_remangle_path}
-          DESTINATION ${CMAKE_INSTALL_DATADIR}/clc )
+        libclc_install( COMPONENT ${ARG_PARENT_TARGET} FILES ${builtins_remangle_path} )
       endforeach()
     endforeach()
 
@@ -387,85 +573,123 @@ macro(add_libclc_builtin_set arch_suffix)
     # dependency against check-libclc.
     set(libclc-remangler-tests)
     set(libclc-remangler-test-no 0)
-    foreach(target-ir ${builtins_opt_lib} ${builtins_link_lib} ${builtins_lib})
+    foreach(target-ir ${builtins_opt_lib} ${builtins_link_lib} ${libclc_builtins_lib})
       math(EXPR libclc-remangler-test-no "${libclc-remangler-test-no}+1")
       set(current-test "libclc-remangler-test-${obj_suffix}-${libclc-remangler-test-no}")
       add_custom_target(${current-test}
-        COMMAND libclc::libclc-remangler
+        COMMAND ${libclc-remangler_exe}
         --long-width=l32
         --char-signedness=signed
         --input-ir=${target-ir}
         ${dummy_in} -t -o -
-        DEPENDS ${builtins_lib} "${dummy_in}" libclc::libclc-remangler)
+        DEPENDS ${libclc_builtins_lib} "${dummy_in}" ${libclc-remangler_target})
       list(APPEND libclc-remangler-tests ${current-test})
     endforeach()
   endif()
 
-  # nvptx-- targets don't include workitem builtins
-  if( NOT ${t} MATCHES ".*ptx.*--$" )
-    add_test( NAME external-calls-${obj_suffix}
-      COMMAND ./check_external_calls.sh ${builtins-lib}
-      WORKING_DIRECTORY ${LIBCLC_LIBRARY_OUTPUT_INTDIR} )
-    set_tests_properties( external-calls-${obj_suffix}
-      PROPERTIES ENVIRONMENT "LLVM_CONFIG=${LLVM_CONFIG}" )
+  # Add a test for whether or not the libraries contain unresolved functions
+  # which would usually indicate a build problem. Note that we don't perform
+  # this test for all libclc targets:
+  # * nvptx-- targets don't include workitem builtins
+  # * clspv targets don't include all OpenCL builtins
+  if( NOT ARG_ARCH MATCHES "^(nvptx|clspv)(64)?$" )
+    add_test( NAME external-funcs-${obj_suffix}
+      COMMAND ./check_external_funcs.sh ${libclc_builtins_lib} ${LLVM_TOOLS_BINARY_DIR}
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} )
   endif()
 
-  foreach( a ${$ARG_ALIASES} )
-    set( alias_suffix "${ARG_TARGET_ENV}-${a}-${ARG_TRIPLE}.bc" )
-    add_libclc_alias( ${alias_suffix}
-      ${arch_suffix}
-      PARENT_TARGET ${ARG_PARENT_TARGET})
+  foreach( a IN LISTS ARG_ALIASES )
+    if(CMAKE_HOST_UNIX OR LLVM_USE_SYMLINKS)
+      cmake_path(RELATIVE_PATH libclc_builtins_lib
+        BASE_DIRECTORY ${LIBCLC_OUTPUT_LIBRARY_DIR}
+        OUTPUT_VARIABLE LIBCLC_LINK_OR_COPY_SOURCE)
+      set(LIBCLC_LINK_OR_COPY create_symlink)
+    else()
+      set(LIBCLC_LINK_OR_COPY_SOURCE ${libclc_builtins_lib})
+      set(LIBCLC_LINK_OR_COPY copy)
+    endif()
+
+    set( alias_suffix "${a}-${ARG_TRIPLE}.bc" )
+    add_custom_command(
+      OUTPUT ${LIBCLC_OUTPUT_LIBRARY_DIR}/${alias_suffix}
+      COMMAND ${CMAKE_COMMAND} -E ${LIBCLC_LINK_OR_COPY} ${LIBCLC_LINK_OR_COPY_SOURCE} ${LIBCLC_OUTPUT_LIBRARY_DIR}/${alias_suffix}
+      DEPENDS prepare-${obj_suffix}
+    )
+    add_custom_target( alias-${alias_suffix} ALL
+      DEPENDS ${LIBCLC_OUTPUT_LIBRARY_DIR}/${alias_suffix}
+    )
+    add_dependencies( ${ARG_PARENT_TARGET} alias-${alias_suffix} )
+    set_target_properties( alias-${alias_suffix}
+      PROPERTIES FOLDER "libclc/Device IR/Aliases"
+    )
+    libclc_install( COMPONENT ${ARG_PARENT_TARGET}
+      FILES ${LIBCLC_OUTPUT_LIBRARY_DIR}/${alias_suffix}
+    )
   endforeach( a )
+endfunction(add_libclc_builtin_set)
 
-endmacro(add_libclc_builtin_set arch_suffix)
-
-function(libclc_configure_lib_source OUT_LIST OUT_GEN_LIST)
+# Produces a list of libclc source files by walking over SOURCES files in a
+# given directory. Outputs the list of files in LIB_FILE_LIST.
+#
+# LIB_FILE_LIST may be pre-populated and is appended to.
+#
+# Arguments:
+# * LIB_ROOT_DIR <string>
+#     Root directory containing target's lib files, relative to libclc root
+#     directory. If not provided, is set to '.'.
+# * DIRS <string> ...
+#     List of directories under LIB_ROOT_DIR to walk over searching for SOURCES
+#     files. Directories earlier in the list have lower priority than
+#     subsequent ones.
+function(libclc_configure_lib_source LIB_FILE_LIST)
   cmake_parse_arguments(ARG
     ""
-    "LIB_DIR"
-    "DIRS;DEPS"
-    ${ARGN})
+    "LIB_ROOT_DIR"
+    "DIRS"
+    ${ARGN}
+  )
+
+  if( NOT ARG_LIB_ROOT_DIR )
+    set(ARG_LIB_ROOT_DIR  ".")
+  endif()
 
   # Enumerate SOURCES* files
   set( source_list )
-  foreach( l ${ARG_DIRS} )
+  foreach( l IN LISTS ARG_DIRS )
     foreach( s "SOURCES" "SOURCES_${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}" )
-      file( TO_CMAKE_PATH ${l}/${ARG_LIB_DIR}/${s} file_loc )
-      file( TO_CMAKE_PATH ${PROJECT_SOURCE_DIR}/${file_loc} loc )
-      # Prepend the location to give higher priority to
-      # specialized implementation
+      file( TO_CMAKE_PATH ${ARG_LIB_ROOT_DIR}/lib/${l}/${s} file_loc )
+      file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/${file_loc} loc )
+      # Prepend the location to give higher priority to the specialized
+      # implementation
       if( EXISTS ${loc} )
-        set( source_list ${file_loc} ${source_list} )
+        list( PREPEND source_list ${file_loc} )
       endif()
     endforeach()
   endforeach()
 
   ## Add the generated convert files here to prevent adding the ones listed in
   ## SOURCES
-  set( objects ${ARG_DEPS} )   # A "set" of already-added input files
-  set( rel_files )             # Source directory input files, relative to the root dir
-  set( gen_files ${ARG_DEPS} ) # Generated binary input files, relative to the binary dir
-
-  if( NOT ENABLE_RUNTIME_SUBNORMAL )
-    if( EXISTS generic/${ARG_LIB_DIR}/subnormal_use_default.ll )
-      list( APPEND rel_files generic/${ARG_LIB_DIR}/subnormal_use_default.ll )
-    endif()
-  endif()
+  set( rel_files ${${LIB_FILE_LIST}} ) # Source directory input files, relative to the root dir
+  # A "set" of already-added input files
+  set( objects )
+  foreach( f ${${LIB_FILE_LIST}} )
+    get_filename_component( name ${f} NAME )
+    list( APPEND objects ${name} )
+  endforeach()
 
   foreach( l ${source_list} )
     file( READ ${l} file_list )
     string( REPLACE "\n" ";" file_list ${file_list} )
     get_filename_component( dir ${l} DIRECTORY )
     foreach( f ${file_list} )
+      get_filename_component( name ${f} NAME )
       # Only add each file once, so that targets can 'specialize' builtins
-      if( NOT ${f} IN_LIST objects )
-        list( APPEND objects ${f} )
+      if( NOT ${name} IN_LIST objects )
+        list( APPEND objects ${name} )
         list( APPEND rel_files ${dir}/${f} )
       endif()
     endforeach()
   endforeach()
 
-  set( ${OUT_LIST} ${rel_files} PARENT_SCOPE )
-  set( ${OUT_GEN_LIST} ${gen_files} PARENT_SCOPE )
-
-endfunction(libclc_configure_lib_source OUT_LIST OUT_GEN_LIST)
+  set( ${LIB_FILE_LIST} ${rel_files} PARENT_SCOPE )
+endfunction(libclc_configure_lib_source LIB_FILE_LIST)

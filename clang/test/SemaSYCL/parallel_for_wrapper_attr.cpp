@@ -6,7 +6,7 @@ template <typename T> class Fobj {
 public:
   Fobj() {}
   void operator()() const {
-    auto L0 = []() [[intel::reqd_sub_group_size(4)]]{};
+    auto L0 = []() [[sycl::reqd_sub_group_size(4)]]{};
     L0();
   }
 };

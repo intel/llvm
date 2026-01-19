@@ -1,0 +1,5 @@
+misconfigurations:
+  - id: AVD-DS-0001
+    statement: "We use our own containers, no uncontrolled behavior is expected when the image is updated"
+  - id: AVD-DS-0026
+    statement: "Our containers do not provide running services, but only preinstalled tools, there is not much value in adding HEALTHCHECK directives"

@@ -66,6 +66,9 @@ namespace clang {
   /// the CL_SYCL_LANGUAGE_VERSION and SYCL_LANGUAGE_VERSION macros.
   llvm::SmallVector<std::pair<llvm::StringRef, llvm::StringRef>, 2>
   getSYCLVersionMacros(const LangOptions &LangOpts);
+
+  /// Retrieves a string representing the Intel SYCL compiler build info.
+  std::string getSYCLBuildInfo();
 }
 
 #endif // LLVM_CLANG_BASIC_VERSION_H

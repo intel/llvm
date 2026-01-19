@@ -1,5 +1,8 @@
 // RUN: %clangxx -fsycl -O2 %s -o %t.out
 
+// XFAIL: libcxx
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19616
+
 // Kernel B sum by col
 #include <cmath>
 #include <iostream>
@@ -147,7 +150,7 @@ void matrix_sum_cols(queue q, big_matrix<T, M, N> &B, nd_range<2> &r) {
      auto os = sycl::stream(100000, 6144, cgh);
 
      cgh.parallel_for<class add_matrix>(
-         r, [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]] {
+         r, [=](nd_item<2> spmd_item) [[sycl::reqd_sub_group_size(SG_SZ)]] {
            const auto global_idx = spmd_item.get_global_id(0);
            const auto global_idy = spmd_item.get_global_id(1);
            const auto sg_startx = global_idx - spmd_item.get_local_id(0);

@@ -1,12 +1,9 @@
-// UNSUPPORTED: hip
+// UNSUPPORTED: target-amd
 // HIP doesn't support printf.
 // CUDA doesn't support vector format specifiers ("%v").
 //
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
-//
-// RUN: %{build} -fsycl-device-code-split=per_kernel -D__SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__ -o %t_var.out
-// RUN: %{run} %t_var.out | FileCheck %s
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/builtins.hpp>
@@ -59,10 +56,11 @@ int main() {
         sycl::vec<int, 4> v4{5, 6, 7, 8};
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
         // On SPIRV devices, vectors can be printed via native OpenCL types:
-        using ocl_int4 = sycl::vec<int, 4>::vector_t;
+        using ocl_int4 = int __attribute__((ext_vector_type(4)));
         {
           static const CONSTANT char format[] = "%v4hld\n";
-          ext::oneapi::experimental::printf(format, (ocl_int4)v4);
+          ext::oneapi::experimental::printf(format,
+                                            sycl::bit_cast<ocl_int4>(v4));
         }
 
         // However, you are still able to print them by-element:
@@ -97,13 +95,6 @@ int main() {
     Queue.wait();
   }
 
-#ifdef __SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__
-  // Currently printf will promote floating point values to doubles.
-  // __SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__ changes the behavior to use
-  // a variadic function, so if it is defined it will promote the floating
-  // point arguments.
-  if (Queue.get_device().has(sycl::aspect::fp64))
-#endif // __SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__
   {
     Queue.submit([&](handler &CGH) {
       CGH.single_task<class floating_points>([=]() {
@@ -119,12 +110,6 @@ int main() {
     });
     Queue.wait();
   }
-#ifdef __SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__
-  else {
-    std::cout << "Skipped floating point test." << std::endl;
-    std::cout << "Skipped floating point test." << std::endl;
-  }
-#endif // __SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__
   // CHECK-NEXT: {{(33.4|Skipped floating point test.)}}
   // CHECK-NEXT: {{(-33.4|Skipped floating point test.)}}
 

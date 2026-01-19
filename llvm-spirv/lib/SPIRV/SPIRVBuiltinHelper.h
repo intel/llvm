@@ -139,7 +139,6 @@ public:
              "Must specify a pointer element type if value is a pointer.");
     }
     ValueTypePair(std::pair<llvm::Value *, llvm::Type *> P) : pair(P) {}
-    ValueTypePair(llvm::Value *V, llvm::Type *T) : pair(V, T) {}
     ValueTypePair() = delete;
     using pair::pair;
   };

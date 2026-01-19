@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20.0)
 
-set(XPTI_VERSION 0.6.0)
+set(XPTI_VERSION 1.0.1)
 
 project (xptifw VERSION "${XPTI_VERSION}" LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
@@ -17,6 +17,12 @@ if (NOT DEFINED XPTI_DIR) # don't overwrite if already set
   else()
     set(XPTI_DIR ${XPTI_SOURCE_DIR}/../xpti)
   endif()
+endif()
+
+if (LLVM_ENABLE_PROJECTS)
+  # If XPTIFW is built as part of LLVM (i.e. as part of SYCL), then let's
+  # re-use existing infrastructure for setting up various hardening flags
+  include(HandleLLVMOptions)
 endif()
 
 option(XPTI_ENABLE_WERROR OFF)
@@ -41,24 +47,17 @@ endif()
 if(MSVC)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
 endif()
-if (SYCL_USE_LIBCXX)
-  if ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
-    (CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
-    if ((NOT (DEFINED SYCL_LIBCXX_INCLUDE_PATH)) OR (NOT (DEFINED SYCL_LIBCXX_LIBRARY_PATH)))
-      message(FATAL_ERROR "When building with libc++ SYCL_LIBCXX_INCLUDE_PATHS and"
-                          "SYCL_LIBCXX_LIBRARY_PATH should be set")
-    endif()
-    set(CMAKE_CXX_FLAGS "-nostdinc++ -I ${SYCL_LIBCXX_INCLUDE_PATH} ${CMAKE_CXX_FLAGS}")
-  else()
-    message(FATAL_ERROR "Build with libc++ is not yet supported for this compiler")
-  endif()
-endif()
-
 set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/lib/${CMAKE_BUILD_TYPE})
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 
 add_subdirectory(src)
+
+set(xptifw_lib xptifw)
+string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type_lower)
+if (WIN32 AND "${build_type_lower}" MATCHES "debug")
+  set(xptifw_lib xptifwd)
+endif()
 
 add_custom_target(check-xptifw)
 
@@ -68,8 +67,8 @@ endif()
 
 if (XPTI_BUILD_SAMPLES)
   add_subdirectory(samples/basic_collector)
-  add_subdirectory(samples/syclpi_collector)
   add_subdirectory(samples/sycl_perf_collector)
+  add_subdirectory(samples/syclur_collector)
   add_subdirectory(basic_test)
 endif()
 

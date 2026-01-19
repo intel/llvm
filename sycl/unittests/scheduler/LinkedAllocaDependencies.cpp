@@ -9,14 +9,12 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 using namespace sycl;
 
 class MemObjMock : public sycl::detail::SYCLMemObjI {
 public:
-  using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
-
   MemObjMock(const std::shared_ptr<sycl::detail::MemObjRecord> &Record)
       : SYCLMemObjI() {
     MRecord = Record;
@@ -26,12 +24,13 @@ public:
 
   MemObjType getType() const override { return MemObjType::Buffer; }
 
-  void *allocateMem(ContextImplPtr, bool, void *, sycl::detail::pi::PiEvent &) {
+  void *allocateMem(detail::context_impl *, bool, void *,
+                    ur_event_handle_t &) override {
     return nullptr;
   }
 
   void *allocateHostMem() { return nullptr; }
-  void releaseMem(ContextImplPtr, void *) {}
+  void releaseMem(detail::context_impl *, void *) override {}
   void releaseHostMem(void *) {}
   size_t getSizeInBytes() const noexcept override { return 10; }
   bool isInterop() const override { return false; }
@@ -39,7 +38,9 @@ public:
   bool isHostPointerReadOnly() const override { return false; }
   bool usesPinnedHostMemory() const override { return false; }
 
-  detail::ContextImplPtr getInteropContext() const override { return nullptr; }
+  sycl::detail::context_impl *getInteropContext() const override {
+    return nullptr;
+  }
 };
 
 static sycl::device getDeviceWithHostUnifiedMemory(sycl::platform &Plt) {
@@ -51,8 +52,8 @@ static sycl::device getDeviceWithHostUnifiedMemory(sycl::platform &Plt) {
 }
 
 TEST_F(SchedulerTest, LinkedAllocaDependencies) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
   sycl::device Dev = getDeviceWithHostUnifiedMemory(Plt);
 
   // 1. create two commands: alloca + alloca and link them
@@ -62,7 +63,7 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
   // Commands are linked only if the device supports host unified memory.
 
   sycl::queue Queue1{Dev};
-  sycl::detail::QueueImplPtr Q1 = sycl::detail::getSyclObjImpl(Queue1);
+  sycl::detail::queue_impl &Q1 = *sycl::detail::getSyclObjImpl(Queue1);
 
   auto AllocaDep = [](sycl::detail::Command *, sycl::detail::Command *,
                       sycl::detail::MemObjRecord *,
@@ -86,7 +87,7 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
 
   MockScheduler MS;
   sycl::detail::Command *AllocaCmd2 =
-      MS.getOrCreateAllocaForReq(Record.get(), &Req, Q1, ToEnqueue);
+      MS.getOrCreateAllocaForReq(Record.get(), &Req, &Q1, ToEnqueue);
 
   ASSERT_TRUE(!!AllocaCmd1.MLinkedAllocaCmd)
       << "No link appeared in existing command";

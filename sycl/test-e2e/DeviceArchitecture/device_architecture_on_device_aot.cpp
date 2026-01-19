@@ -1,6 +1,11 @@
 // REQUIRES: opencl-aot, cpu
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 %s -o %t.out
+
+// CPU AOT targets host isa, so we compile on the run system instead.
+// RUN: %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 %s -o %t.out
 // RUN: %{run} %t.out
+
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>

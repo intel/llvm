@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// RUN: env SYCL_ENABLE_DEFAULT_CONTEXTS=1 %t.out
-// RUN: env SYCL_ENABLE_DEFAULT_CONTEXTS=0 %t.out 1
+// RUN: %{run-unfiltered-devices} env SYCL_ENABLE_DEFAULT_CONTEXTS=1 %t.out
+// RUN: %{run-unfiltered-devices} env SYCL_ENABLE_DEFAULT_CONTEXTS=0 %t.out 1
 
 #include <sycl/detail/core.hpp>
 

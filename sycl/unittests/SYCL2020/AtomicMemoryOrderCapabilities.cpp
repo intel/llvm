@@ -8,7 +8,7 @@
 
 #include <algorithm>
 #include <gtest/gtest.h>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
@@ -23,45 +23,44 @@ static bool has_capability(const std::vector<memory_order> &deviceCapabilities,
                    capabilityToFind) != deviceCapabilities.end();
 }
 
-pi_result redefinedDevicesGet(pi_platform platform, pi_device_type device_type,
-                              pi_uint32 num_entries, pi_device *devices,
-                              pi_uint32 *num_devices) {
-  if (num_devices)
-    *num_devices = 2;
-  if (devices && num_entries > 0) {
-    devices[0] = reinterpret_cast<pi_device>(1);
-    devices[1] = reinterpret_cast<pi_device>(2);
+ur_result_t redefinedDevicesGet(void *pParams) {
+  auto params = *static_cast<ur_device_get_params_t *>(pParams);
+  if (*params.ppNumDevices)
+    **params.ppNumDevices = 2;
+  if (*params.pphDevices && *params.pNumEntries > 0) {
+    (*params.pphDevices)[0] = reinterpret_cast<ur_device_handle_t>(1);
+    (*params.pphDevices)[1] = reinterpret_cast<ur_device_handle_t>(2);
   }
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result redefinedDeviceGetInfo(pi_device device, pi_device_info param_name,
-                                 size_t param_value_size, void *param_value,
-                                 size_t *param_value_size_ret) {
-  if (param_name == PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES) {
+ur_result_t redefinedDeviceGetInfo(void *pParams) {
+  auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
+  if (*params.ppropName == UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES) {
     deviceGetInfoCalled = true;
-    if (param_value) {
-      pi_memory_order_capabilities *Capabilities =
-          reinterpret_cast<pi_memory_order_capabilities *>(param_value);
-      if (device == reinterpret_cast<pi_device>(1)) {
-        *Capabilities = PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
-                        PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL |
-                        PI_MEMORY_ORDER_SEQ_CST;
+    if (*params.ppPropValue) {
+      ur_memory_order_capability_flags_t *Capabilities =
+          reinterpret_cast<ur_memory_order_capability_flags_t *>(
+              *params.ppPropValue);
+      if (*params.phDevice == reinterpret_cast<ur_device_handle_t>(1)) {
+        *Capabilities = UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED | UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
+                        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE | UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL |
+                        UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST;
       }
-      if (device == reinterpret_cast<pi_device>(2)) {
-        *Capabilities = PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_SEQ_CST;
+      if (*params.phDevice == reinterpret_cast<ur_device_handle_t>(2)) {
+        *Capabilities = UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED | UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST;
       }
     }
   }
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 TEST(AtomicMemoryOrderCapabilities, DeviceQueryReturnsCorrectCapabilities) {
-  unittest::PiMock Mock;
-  platform Plt = Mock.getPlatform();
+  unittest::UrMock<> Mock;
+  platform Plt = sycl::platform();
 
-  Mock.redefineAfter<detail::PiApiKind::piDeviceGetInfo>(
-      redefinedDeviceGetInfo);
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &redefinedDeviceGetInfo);
 
   const device Dev = Plt.get_devices()[0];
   context Ctx{Dev};
@@ -82,12 +81,12 @@ TEST(AtomicMemoryOrderCapabilities, DeviceQueryReturnsCorrectCapabilities) {
 }
 
 TEST(AtomicMemoryOrderCapabilities, ContextQueryReturnsCorrectCapabilities) {
-  unittest::PiMock Mock;
-  platform Plt = Mock.getPlatform();
+  unittest::UrMock<> Mock;
+  platform Plt = sycl::platform();
 
-  Mock.redefineAfter<detail::PiApiKind::piDeviceGetInfo>(
-      redefinedDeviceGetInfo);
-  Mock.redefineAfter<detail::PiApiKind::piDevicesGet>(redefinedDevicesGet);
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &redefinedDeviceGetInfo);
+  mock::getCallbacks().set_after_callback("urDeviceGet", &redefinedDevicesGet);
 
   auto devices = Plt.get_devices();
   context Ctx{devices};

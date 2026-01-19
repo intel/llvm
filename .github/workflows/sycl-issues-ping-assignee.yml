@@ -18,9 +18,10 @@ permissions: read-all
 
 jobs:
   run:
+    if: github.repository == 'intel/llvm'
     permissions:
       issues: write 
-    runs-on: ubuntu-20.04 
+    runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       REPO: ${{ github.repository }}
@@ -39,7 +40,7 @@ jobs:
 
     - name: Filter issues and ping
       run: |
-          days_to_stale=60
+          days_to_stale=90
           current_time=$(date +%s)
 
           cat issues.json | jq -c '.[]' | while read -r issue; do

@@ -1,12 +1,12 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 
 // This tests checks that implicitly created kernel_bundles (i.e. through
 // setting a specialization ID from host) only builds the device image
 // containing the kernel it launches.
 
 #include <sycl/detail/core.hpp>
-
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/specialization_id.hpp>
 
 #include <iostream>
@@ -38,12 +38,9 @@ int main() {
         [&](sycl::handler &CGH) { CGH.single_task<class Kernel2>([=]() {}); });
     Q.wait_and_throw();
   }
-  std::cout << "passed" << std::endl;
   return 0;
 }
 
 // --- Check that only a single program is built:
-// CHECK: ---> piProgramBuild
-// CHECK-NOT: ---> piProgramBuild
-// --- Check that the test completed with expected results:
-// CHECK: passed
+// CHECK: <--- urProgramBuildExp
+// CHECK-NOT: <--- urProgramBuildExp

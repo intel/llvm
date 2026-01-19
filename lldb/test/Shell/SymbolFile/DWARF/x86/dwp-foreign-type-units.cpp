@@ -16,9 +16,9 @@
 // type unit comes from by looking at the DW_AT_dwo_name attribute in the
 // DW_TAG_type_unit.
 
-// RUN: %clang -target x86_64-pc-linux -gdwarf-5 -gsplit-dwarf \
+// RUN: %clangxx -target x86_64-pc-linux -gdwarf-5 -gsplit-dwarf \
 // RUN:   -fdebug-types-section -gpubnames -c %s -o %t.main.o
-// RUN: %clang -target x86_64-pc-linux -gdwarf-5 -gsplit-dwarf -DVARIANT \
+// RUN: %clangxx -target x86_64-pc-linux -gdwarf-5 -gsplit-dwarf -DVARIANT \
 // RUN:   -fdebug-types-section -gpubnames -c %s -o %t.foo.o
 // RUN: ld.lld %t.main.o %t.foo.o -o %t
 
@@ -28,26 +28,16 @@
 // RUN:   -o "type lookup IntegerType" \
 // RUN:   -o "type lookup FloatType" \
 // RUN:   -o "type lookup CustomType" \
-// RUN:   -b %t | FileCheck %s --check-prefix=NODWP
+// RUN:   -b %t | FileCheck %s --check-prefix=NODWP --match-full-lines
 // NODWP: (lldb) type lookup IntegerType
-// NODWP-NEXT: int
-// NODWP-NEXT: unsigned int
+// NODWP-DAG: int
+// NODWP-DAG: unsigned int
 // NODWP: (lldb) type lookup FloatType
-// NODWP-NEXT: double
-// NODWP-NEXT: float
+// NODWP-DAG: double
+// NODWP-DAG: float
 // NODWP: (lldb) type lookup CustomType
-// NODWP-NEXT: struct CustomType {
-// NODWP-NEXT:     typedef int IntegerType;
-// NODWP-NEXT:     typedef double FloatType;
-// NODWP-NEXT:     CustomType::IntegerType x;
-// NODWP-NEXT:     CustomType::FloatType y;
-// NODWP-NEXT: }
-// NODWP-NEXT: struct CustomType {
-// NODWP-NEXT:     typedef unsigned int IntegerType;
-// NODWP-NEXT:     typedef float FloatType;
-// NODWP-NEXT:     CustomType::IntegerType x;
-// NODWP-NEXT:     CustomType::FloatType y;
-// NODWP-NEXT: }
+// NODWP: struct CustomType {
+// NODWP: struct CustomType {
 
 // Check when we make the .dwp file with %t.main.dwo first so it will
 // pick the type unit from %t.main.dwo. Verify we find only the types from
@@ -66,8 +56,8 @@
 // DWPMAIN-NEXT: struct CustomType {
 // DWPMAIN-NEXT:     typedef int IntegerType;
 // DWPMAIN-NEXT:     typedef double FloatType;
-// DWPMAIN-NEXT:     CustomType::IntegerType x;
-// DWPMAIN-NEXT:     CustomType::FloatType y;
+// DWPMAIN-NEXT:     IntegerType x;
+// DWPMAIN-NEXT:     FloatType y;
 // DWPMAIN-NEXT: }
 
 // Next we check when we make the .dwp file with %t.foo.dwo first so it will
@@ -88,8 +78,8 @@
 // DWPFOO-NEXT: struct CustomType {
 // DWPFOO-NEXT:     typedef unsigned int IntegerType;
 // DWPFOO-NEXT:     typedef float FloatType;
-// DWPFOO-NEXT:     CustomType::IntegerType x;
-// DWPFOO-NEXT:     CustomType::FloatType y;
+// DWPFOO-NEXT:     IntegerType x;
+// DWPFOO-NEXT:     FloatType y;
 // DWPFOO-NEXT: }
 
 struct CustomType {

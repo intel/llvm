@@ -1,0 +1,26 @@
+// --*- c++ -*---
+#ifndef __SYCL_DATA_LESS_PROP
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)
+#endif
+#ifndef __SYCL_MANUALLY_DEFINED_PROP
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
+#endif
+
+/// Property passed to command_graph constructor to disable checking for cycles.
+__SYCL_DATA_LESS_PROP(property::graph, no_cycle_check, GraphNoCycleCheck)
+
+/// Property passed to command_graph constructor to allow buffers to be used
+/// with graphs. Passing this property represents a promise from the user that
+/// the buffer will outlive any graph that it is used in.
+__SYCL_DATA_LESS_PROP(property::graph, assume_buffer_outlives_graph, GraphAssumeBufferOutlivesGraph)
+
+/// Property passed to command_graph<graph_state::modifiable>::finalize() to
+/// mark the resulting executable command_graph as able to be updated.
+__SYCL_DATA_LESS_PROP(property::graph, updatable, GraphUpdatable)
+
+/// Property used to enable executable graph profiling. Enables profiling on
+/// events returned by submissions of the executable graph
+__SYCL_DATA_LESS_PROP(property::graph, enable_profiling, GraphEnableProfiling)
+
+#undef __SYCL_DATA_LESS_PROP
+#undef __SYCL_MANUALLY_DEFINED_PROP

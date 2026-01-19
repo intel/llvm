@@ -8,12 +8,9 @@
 
 #include "clang/Driver/Types.h"
 #include "clang/Driver/Driver.h"
-#include "clang/Driver/DriverDiagnostic.h"
-#include "clang/Driver/Options.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/Option/Arg.h"
 #include <cassert>
 #include <cstring>
 
@@ -171,6 +168,9 @@ bool types::isAcceptedByFlang(ID Id) {
   case TY_LLVM_IR:
   case TY_LLVM_BC:
     return true;
+  case TY_PP_CUDA:
+  case TY_CUDA:
+    return true;
   }
 }
 
@@ -199,7 +199,6 @@ bool types::isDerivedFromC(ID Id) {
   case TY_PP_ObjCXX:
   case TY_PP_ObjCXX_Alias:
   case TY_ObjCXX:
-  case TY_RenderScript:
   case TY_PP_CHeader:
   case TY_CHeader:
   case TY_CLHeader:
@@ -228,7 +227,17 @@ bool types::isObjC(ID Id) {
   }
 }
 
-bool types::isOpenCL(ID Id) { return Id == TY_CL || Id == TY_CLCXX; }
+bool types::isOpenCL(ID Id) {
+  switch (Id) {
+  default:
+    return false;
+  case TY_PP_CL:
+  case TY_PP_CLCXX:
+  case TY_CL:
+  case TY_CLCXX:
+    return true;
+  }
+}
 
 bool types::isCXX(ID Id) {
   switch (Id) {
@@ -243,7 +252,9 @@ bool types::isCXX(ID Id) {
   case TY_CXXHUHeader:
   case TY_PP_CXXHeaderUnit:
   case TY_ObjCXXHeader: case TY_PP_ObjCXXHeader:
-  case TY_CXXModule: case TY_PP_CXXModule:
+  case TY_CXXModule:
+  case TY_PP_CXXModule:
+  case TY_ModuleFile:
   case TY_PP_CLCXX:
   case TY_CUDA: case TY_PP_CUDA: case TY_CUDA_DEVICE:
   case TY_HIP:
@@ -286,19 +297,6 @@ bool types::isHIP(ID Id) {
   case TY_HIP:
   case TY_PP_HIP:
   case TY_HIP_DEVICE:
-    return true;
-  }
-}
-
-bool types::isFPGA(ID Id) {
-  switch (Id) {
-  default:
-    return false;
-
-  case TY_FPGA_AOCR:
-  case TY_FPGA_AOCX:
-  case TY_FPGA_AOCO:
-  case TY_FPGA_AOCR_EMU:
     return true;
   }
 }
@@ -347,7 +345,6 @@ types::ID types::lookupTypeForExtension(llvm::StringRef Ext) {
       .Case("ll", TY_LLVM_IR)
       .Case("mi", TY_PP_ObjC)
       .Case("mm", TY_ObjCXX)
-      .Case("rs", TY_RenderScript)
       .Case("adb", TY_Ada)
       .Case("ads", TY_Ada)
       .Case("asm", TY_PP_Asm)
@@ -389,8 +386,6 @@ types::ID types::lookupTypeForExtension(llvm::StringRef Ext) {
       .Case("cppm", TY_CXXModule)
       .Case("cxxm", TY_CXXModule)
       .Case("hlsl", TY_HLSL)
-      .Case("aocr", TY_FPGA_AOCR)
-      .Case("aocx", TY_FPGA_AOCX)
       .Default(TY_INVALID);
 }
 

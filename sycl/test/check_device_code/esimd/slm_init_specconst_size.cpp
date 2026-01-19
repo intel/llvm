@@ -1,4 +1,4 @@
-// RUN: %clangxx -O2 -fsycl -fsycl-device-only -emit-llvm %s -o %t
+// RUN: %clangxx -O2 -fsycl -fsycl-device-only %s -o %t
 // RUN: sycl-post-link -properties -split-esimd -lower-esimd -O2 -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll
 // Checks that we set 0 as VCSLMSize when slm_init is used with

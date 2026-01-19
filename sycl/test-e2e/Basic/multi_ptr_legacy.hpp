@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/detail/core.hpp>
-#include <sycl/ext/intel/usm_pointers.hpp>
 
 #include <cassert>
 #include <iostream>
@@ -102,15 +101,6 @@ template <typename T> void testMultPtr() {
                 multi_ptr<const void, access::address_space::generic_space,
                           access::decorated::legacy>(localAccessor);
 
-            // Construct extension pointer from accessors.
-            auto dev_ptr =
-                multi_ptr<const T,
-                          access::address_space::ext_intel_global_device_space>(
-                    accessorData_1);
-            static_assert(std::is_same_v<ext::intel::device_ptr<const T>,
-                                         decltype(dev_ptr)>,
-                          "Incorrect type for dev_ptr.");
-
             // General conversions in multi_ptr class
             T *RawPtr = nullptr;
             global_ptr<T> ptr_4(RawPtr);
@@ -121,17 +111,6 @@ template <typename T> void testMultPtr() {
             global_ptr<void> ptr_6((void *)RawPtr);
 
             ptr_6 = (void *)RawPtr;
-
-            // Explicit conversions for device_ptr/host_ptr to global_ptr
-            ext::intel::device_ptr<void> ptr_7((void *)RawPtr);
-            global_ptr<void> ptr_8 = global_ptr<void>(ptr_7);
-            ext::intel::host_ptr<void> ptr_9((void *)RawPtr);
-            global_ptr<void> ptr_10 = global_ptr<void>(ptr_9);
-            // TODO: need propagation of a7b763b26 patch to acl tool before
-            // testing these conversions - otherwise the test would fail on
-            // accelerator device during reversed translation from SPIR-V to
-            // LLVM IR device_ptr<T> ptr_11(accessorData_1); global_ptr<T>
-            // ptr_12 = global_ptr<T>(ptr_11);
 
             innerFunc<T>(wiID.get_local_id().get(0), ptr_1, ptr_2, local_ptr);
           });
@@ -157,6 +136,7 @@ template <typename T> void testMultPtrArrowOperator() {
     buffer<point<T>, 1> bufferData_2(data_2, numOfItems);
     buffer<point<T>, 1> bufferData_3(data_3, numOfItems);
     buffer<point<T>, 1> bufferData_4(data_4, numOfItems);
+    buffer<bool, 1> result_buf{1};
     queue myQueue;
     myQueue.submit([&](handler &cgh) {
       accessor<point<T>, 1, access::mode::read, access::target::device,
@@ -170,8 +150,12 @@ template <typename T> void testMultPtrArrowOperator() {
                access::placeholder::false_t>
           accessorData_4(bufferData_4, cgh);
 
+      accessor result{result_buf, cgh};
+
       cgh.parallel_for<class testMultPtrArrowOperatorKernel<T>>(
           sycl::nd_range<1>{1, 1}, [=](sycl::nd_item<1>) {
+            // Initialize local memory:
+            accessorData_3[0] = T{3};
             auto ptr_1 =
                 make_ptr<const point<T>, access::address_space::global_space,
                          access::decorated::legacy>(
@@ -184,16 +168,15 @@ template <typename T> void testMultPtrArrowOperator() {
             auto ptr_3 = make_ptr<point<T>, access::address_space::local_space,
                                   access::decorated::legacy>(
                 accessorData_3.get_pointer());
-            auto ptr_4 =
-                make_ptr<const point<T>,
-                         access::address_space::ext_intel_global_device_space,
-                         access::decorated::legacy>(
-                    accessorData_4.get_pointer());
 
             auto x1 = ptr_1->x;
             auto x2 = ptr_2->x;
             auto x3 = ptr_3->x;
-            auto x4 = ptr_4->x;
+
+            result[0] = true;
+            result[0] &= x1 == T{1};
+            result[0] &= x2 == T{2};
+            result[0] &= x3 == T{3};
 
             static_assert(std::is_same<decltype(x1), T>::value,
                           "Expected decltype(ptr_1->x) == T");
@@ -201,10 +184,10 @@ template <typename T> void testMultPtrArrowOperator() {
                           "Expected decltype(ptr_2->x) == T");
             static_assert(std::is_same<decltype(x3), T>::value,
                           "Expected decltype(ptr_3->x) == T");
-            static_assert(std::is_same<decltype(x4), T>::value,
-                          "Expected decltype(ptr_4->x) == T");
           });
     });
+
+    assert(sycl::host_accessor{result_buf}[0]);
   }
 }
 

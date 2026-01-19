@@ -1,7 +1,7 @@
 // REQUIRES: windows
 
 // RUN: %clangxx --driver-mode=cl -fsycl /MDd -c %s -o %t.obj
-// RUN: %clangxx --driver-mode=cl -fsycl %t.obj -o %t.out
+// RUN: %clangxx --driver-mode=cl -fsycl %t.obj -Wno-unused-command-line-argument -o %t.out
 // RUN: %{run} %t.out
 
 // The test aims to prevent regressions similar to the one which caused by

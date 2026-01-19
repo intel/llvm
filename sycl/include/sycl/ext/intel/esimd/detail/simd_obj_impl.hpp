@@ -15,7 +15,6 @@
 #include <sycl/ext/intel/esimd/detail/intrin.hpp>
 #include <sycl/ext/intel/esimd/detail/memory_intrin.hpp>
 #include <sycl/ext/intel/esimd/detail/sycl_util.hpp>
-#include <sycl/ext/intel/esimd/detail/test_proxy.hpp>
 #include <sycl/ext/intel/esimd/detail/type_format.hpp>
 #include <sycl/ext/intel/esimd/simd_view.hpp>
 
@@ -1023,7 +1022,7 @@ public:
   /// Unary logical negation operator, available in all subclasses, but only for
   /// integral element types (\c simd_mask included).
   /// Similarly to C++, where !x returns bool, !simd returns a simd_mask, where
-  /// each element is a result of comparision with zero.
+  /// each element is a result of comparison with zero.
   /// @return A \c simd_mask instance where each element is a result of
   ///   comparison of the original element with zero.
   template <class T1 = Ty, class = std::enable_if_t<std::is_integral_v<T1>>>
@@ -1038,8 +1037,8 @@ public:
   /** @tparam SimdT The argument object type(auto-deduced).                 */ \
   /** @param RHS The argument object.                                       */ \
   template <class T1, class SimdT,                                             \
-            class = std::enable_if_t<(is_simd_type_v<Derived> ==               \
-                                      is_simd_type_v<SimdT>)&&COND>>           \
+            class = std::enable_if_t<                                          \
+                (is_simd_type_v<Derived> == is_simd_type_v<SimdT>) && COND>>   \
   Derived &operator OPASSIGN(                                                  \
       const __ESIMD_DNS::simd_obj_impl<T1, N, SimdT> &RHS) {                   \
     auto Res = *this BINOP RHS;                                                \
@@ -1056,10 +1055,9 @@ public:
   /** @param RHS The argument object.                                       */ \
   template <class SimdT1, class RegionT1,                                      \
             class T1 = typename RegionT1::element_type,                        \
-            class = std::enable_if_t<                                          \
-                (is_simd_type_v<Derived> ==                                    \
-                 is_simd_type_v<SimdT1>)&&(RegionT1::length == length) &&      \
-                COND>>                                                         \
+            class = std::enable_if_t<(is_simd_type_v<Derived> ==               \
+                                      is_simd_type_v<SimdT1>) &&               \
+                                     (RegionT1::length == length) && COND>>    \
   Derived &operator OPASSIGN(                                                  \
       const __ESIMD_NS::simd_view<SimdT1, RegionT1> &RHS) {                    \
     auto Res = *this BINOP RHS.read();                                         \
@@ -1132,9 +1130,6 @@ public:
 #undef __ESIMD_ARITH_OP_FILTER
 #undef __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN
 
-  // Getter for the test proxy member, if enabled
-  __ESIMD_DECLARE_TEST_PROXY_ACCESS
-
 private:
   // The underlying data for this vector.
   raw_vector_type M_data;
@@ -1159,9 +1154,6 @@ private:
                  PropertyListT = {}) SYCL_ESIMD_FUNCTION;
 
 protected:
-  // The test proxy if enabled
-  __ESIMD_DECLARE_TEST_PROXY
-
   void set(const raw_vector_type &Val) {
 #ifndef __SYCL_DEVICE_ONLY__
     M_data = Val;

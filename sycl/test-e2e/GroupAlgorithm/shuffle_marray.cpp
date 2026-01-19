@@ -6,6 +6,7 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/group_algorithm.hpp>
 #include <sycl/marray.hpp>
+#include <sycl/sub_group.hpp>
 
 static constexpr size_t NumElems = 5;
 static constexpr size_t NumWorkItems = 64;
@@ -107,7 +108,11 @@ int main() {
     }
 
     std::cout << "Checking results for shuffle-xor" << std::endl;
-    for (size_t LID = 0; LID < SubGroupSize; ++LID) {
+    // XOR permutating shuffles shuffle in pairs, but in the cases where the
+    // sub-group size is uneven the last element will not have a partner and as
+    // such its result is UB.
+    unsigned EvenClampedSubGroupSize = SubGroupSize - (SubGroupSize % 2);
+    for (size_t LID = 0; LID < EvenClampedSubGroupSize; ++LID) {
       size_t GID = GIDOffset + LID;
       MarrayT Expected{0};
       for (int I = 0; I < NumElems; ++I)

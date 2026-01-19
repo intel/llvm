@@ -6,9 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "device_imf.hpp"
+#include "device.h"
 
 #ifdef __LIBDEVICE_IMF_ENABLED__
+
+#include "device_imf.hpp"
 
 DEVICE_EXTERN_C_INLINE
 float __devicelib_imf_saturatef(float);
@@ -2342,4 +2344,21 @@ float __devicelib_imf_sqrtf_rz(float);
 
 DEVICE_EXTERN_C_INLINE
 float __imf_sqrtf_rz(float x) { return __devicelib_imf_sqrtf_rz(x); }
+
+/// --------------------------------------------------------------------------
+/// sigmoid(x) function
+/// sigmoid(x) = 1 / (1 + exp(-x))
+/// --------------------------------------------------------------------------
+DEVICE_EXTERN_C_INLINE float __devicelib_imf_fsigmf(float x);
+
+DEVICE_EXTERN_C_INLINE
+_iml_half_internal __devicelib_imf_fsigmf16(_iml_half_internal x);
+
+DEVICE_EXTERN_C_INLINE _iml_half_internal __imf_fsigmf16(_iml_half_internal x) {
+  return __devicelib_imf_fsigmf16(x);
+}
+
+DEVICE_EXTERN_C_INLINE float __imf_fsigmf(float x) {
+  return __devicelib_imf_fsigmf(x);
+}
 #endif // __LIBDEVICE_IMF_ENABLED__

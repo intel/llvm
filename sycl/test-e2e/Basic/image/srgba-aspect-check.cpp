@@ -5,7 +5,7 @@
 
 int main() {
   sycl::queue q;
-  // Ensure that plugins that don't implement the support can still handle the
+  // Ensure that adapters that don't implement the support can still handle the
   // aspect query.
   std::ignore = q.get_device().has(sycl::aspect::ext_oneapi_srgb);
   return 0;

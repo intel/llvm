@@ -4,16 +4,22 @@ set( LLVM_LINK_COMPONENTS
   LineEditor
   Option
   OrcJIT
+  OrcShared
   Support
+  TargetParser
   )
 
 add_clang_tool(clang-repl
   ClangRepl.cpp
+
+  EXPORT_SYMBOLS
   )
 
 if(MSVC)
   set_target_properties(clang-repl PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS 1)
 
+  # Remove ,DATA in export symbols 4adce336f46235aa74c95a3664fe8150c640e4f5
+  # icx driver unable to pass the export symbol correctly to lld-linker.
   # RTTI/C++ symbols
   set(clang_repl_exports ${clang_repl_exports} ??_7type_info@@6B@
     ?__type_info_root_node@@3U__type_info_node@@A
@@ -46,11 +52,12 @@ if(MSVC)
   endif()
 
   # List to '/EXPORT:sym0 /EXPORT:sym1 /EXPORT:sym2 ...'
-  foreach(sym ${clang_repl_exports})
-    set(clang_repl_link_str "${clang_repl_link_str} /EXPORT:${sym}")
-  endforeach(sym ${clang_repl_exports})
+  # The 'SHELL' prefix tells CMake to use a space instead of comma as the
+  # separator between the driver and linker options, which we need since MSVC's
+  # linker uses `,DATA` as a suffix to indicate that data is being exported.
+  list(TRANSFORM clang_repl_exports PREPEND "LINKER:SHELL:/EXPORT:")
 
-  set_property(TARGET clang-repl APPEND_STRING PROPERTY LINK_FLAGS ${clang_repl_link_str})
+  set_property(TARGET clang-repl APPEND PROPERTY LINK_OPTIONS ${clang_repl_exports})
 
 endif(MSVC)
 
@@ -61,15 +68,13 @@ clang_target_link_libraries(clang-repl PRIVATE
   clangInterpreter
   )
 
-export_executable_symbols_for_plugins(clang-repl)
-
 # The clang-repl binary can get huge with static linking in debug mode.
 # Some 32-bit targets use PLT slots with limited branch range by default and we
 # start to exceed this limit, e.g. when linking for arm-linux-gnueabihf with
 # gold. This flag tells the linker to build a PLT for the full address range.
 # Linkers without this flag are assumed to support proper PLTs by default.
-set(flag_long_plt "-Wl,--long-plt")
-llvm_check_linker_flag(CXX ${flag_long_plt} HAVE_LINKER_FLAG_LONG_PLT)
+set(flag_long_plt "LINKER:--long-plt")
+check_linker_flag(CXX ${flag_long_plt} HAVE_LINKER_FLAG_LONG_PLT)
 if(HAVE_LINKER_FLAG_LONG_PLT)
   target_link_options(clang-repl PRIVATE ${flag_long_plt})
 endif()

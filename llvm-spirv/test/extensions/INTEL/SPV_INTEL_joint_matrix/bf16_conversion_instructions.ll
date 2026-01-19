@@ -12,13 +12,26 @@
 ; RUN: not llvm-spirv %t.bc --spirv-ext=+SPV_KHR_cooperative_matrix,+SPV_INTEL_bfloat16_conversion 2>&1 \
 ; RUN: | FileCheck %s --check-prefix=CHECK-ERROR
 
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_cooperative_matrix,+SPV_INTEL_joint_matrix,+SPV_INTEL_bfloat16_conversion,+SPV_KHR_untyped_pointers -o %t.spv
+; RUN: llvm-spirv %t.spv -to-text -o %t.spt
+; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
+
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-OCL-IR
+
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc --spirv-target-env=SPV-IR
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-SPV-IR
+
+; RUN: not llvm-spirv %t.bc --spirv-ext=+SPV_KHR_cooperative_matrix,+SPV_INTEL_bfloat16_conversion,+SPV_KHR_untyped_pointers 2>&1 \
+; RUN: | FileCheck %s --check-prefix=CHECK-ERROR
+
 ; CHECK-ERROR: InvalidInstruction: Can't translate llvm instruction:
 ; CHECK-ERROR-NEXT: ConvertFToBF16INTEL
 ; CHECK-ERROR-NEXT: Can be used with cooperative matrices only when SPV_INTEL_joint_matrix is enabled
 
 ; CHECK-SPIRV-DAG: Capability CooperativeMatrixKHR
 ; CHECK-SPIRV-DAG: Capability Bfloat16ConversionINTEL
-; CHECK-SPIRV-DAG: Capability JointMatrixBF16ComponentTypeINTEL
+; CHECK-SPIRV-DAG: Capability CooperativeMatrixBFloat16ComponentTypeINTEL
 ; CHECK-SPIRV-DAG: Extension "SPV_INTEL_bfloat16_conversion"
 ; CHECK-SPIRV-DAG: Extension "SPV_KHR_cooperative_matrix"
 ; CHECK-SPIRV-DAG: Extension "SPV_INTEL_joint_matrix"

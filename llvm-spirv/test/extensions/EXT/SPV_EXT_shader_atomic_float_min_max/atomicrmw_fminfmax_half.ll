@@ -6,7 +6,7 @@
 ; CHECK-DAG: Extension "SPV_EXT_shader_atomic_float_min_max"
 ; CHECK-DAG: Capability AtomicFloat16MinMaxEXT
 ; CHECK: TypeInt [[Int:[0-9]+]] 32 0
-; CHECK-DAG: Constant [[Int]] [[Scope_Device:[0-9]+]] 1 {{$}}
+; CHECK-DAG: Constant [[Int]] [[Scope_CrossDevice:[0-9]+]] 0 {{$}}
 ; CHECK-DAG: Constant [[Int]] [[MemSem_SequentiallyConsistent:[0-9]+]] 16
 ; CHECK: TypeFloat [[Half:[0-9]+]] 16
 ; CHECK: Variable {{[0-9]+}} [[HalfPointer:[0-9]+]]
@@ -21,9 +21,9 @@ target triple = "spir64"
 define dso_local spir_func void @test_atomicrmw_fadd() local_unnamed_addr #0 {
 entry:
  %0 = atomicrmw fmin ptr addrspace(1) @f, half 42.000000e+00 seq_cst
-; CHECK: AtomicFMinEXT [[Half]] {{[0-9]+}} [[HalfPointer]] [[Scope_Device]] [[MemSem_SequentiallyConsistent]] [[HalfValue]]
+; CHECK: AtomicFMinEXT [[Half]] {{[0-9]+}} [[HalfPointer]] [[Scope_CrossDevice]] [[MemSem_SequentiallyConsistent]] [[HalfValue]]
  %1 = atomicrmw fmax ptr addrspace(1) @f, half 42.000000e+00 seq_cst
-; CHECK: AtomicFMaxEXT [[Half]] {{[0-9]+}} [[HalfPointer]] [[Scope_Device]] [[MemSem_SequentiallyConsistent]] [[HalfValue]]
+; CHECK: AtomicFMaxEXT [[Half]] {{[0-9]+}} [[HalfPointer]] [[Scope_CrossDevice]] [[MemSem_SequentiallyConsistent]] [[HalfValue]]
 
   ret void
 }

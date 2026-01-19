@@ -10,7 +10,7 @@
 
 #include <detail/scheduler/leaves_collection.hpp>
 #include <gtest/gtest.h>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 #include <memory>
 #include <sycl/sycl.hpp>
 
@@ -31,9 +31,8 @@ protected:
   };
 };
 
-std::shared_ptr<Command>
-createGenericCommand(const std::shared_ptr<queue_impl> &Q) {
-  return std::shared_ptr<Command>{new MockCommand(Q, Command::RUN_CG)};
+std::shared_ptr<Command> createGenericCommand(queue_impl &Q) {
+  return std::shared_ptr<Command>{new MockCommand(&Q, Command::RUN_CG)};
 }
 
 std::shared_ptr<Command> createEmptyCommand(const Requirement &Req) {
@@ -44,8 +43,8 @@ std::shared_ptr<Command> createEmptyCommand(const Requirement &Req) {
 }
 
 TEST_F(LeavesCollectionTest, PushBack) {
-  sycl::unittest::PiMock Mock;
-  sycl::queue Q{Mock.getPlatform().get_devices()[0], MAsyncHandler};
+  sycl::unittest::UrMock<> Mock;
+  sycl::queue Q{sycl::platform().get_devices()[0], MAsyncHandler};
 
   static constexpr size_t GenericCmdsCapacity = 8;
 
@@ -66,7 +65,7 @@ TEST_F(LeavesCollectionTest, PushBack) {
     TimesGenericWasFull = 0;
 
     for (size_t Idx = 0; Idx < GenericCmdsCapacity * 2; ++Idx) {
-      Cmds.push_back(createGenericCommand(getSyclObjImpl(Q)));
+      Cmds.push_back(createGenericCommand(*getSyclObjImpl(Q)));
 
       LE.push_back(Cmds.back().get(), ToEnqueue);
     }
@@ -94,7 +93,7 @@ TEST_F(LeavesCollectionTest, PushBack) {
     TimesGenericWasFull = 0;
 
     for (size_t Idx = 0; Idx < GenericCmdsCapacity * 4; ++Idx) {
-      auto Cmd = Idx % 2 ? createGenericCommand(getSyclObjImpl(Q))
+      auto Cmd = Idx % 2 ? createGenericCommand(*getSyclObjImpl(Q))
                          : createEmptyCommand(MockReq);
       Cmds.push_back(Cmd);
 
@@ -113,8 +112,8 @@ TEST_F(LeavesCollectionTest, PushBack) {
 }
 
 TEST_F(LeavesCollectionTest, Remove) {
-  sycl::unittest::PiMock Mock;
-  sycl::queue Q{Mock.getPlatform().get_devices()[0], MAsyncHandler};
+  sycl::unittest::UrMock<> Mock;
+  sycl::queue Q{sycl::platform().get_devices()[0], MAsyncHandler};
 
   static constexpr size_t GenericCmdsCapacity = 8;
 
@@ -134,7 +133,7 @@ TEST_F(LeavesCollectionTest, Remove) {
     std::vector<std::shared_ptr<Command>> Cmds;
 
     for (size_t Idx = 0; Idx < GenericCmdsCapacity * 4; ++Idx) {
-      auto Cmd = Idx % 2 ? createGenericCommand(getSyclObjImpl(Q))
+      auto Cmd = Idx % 2 ? createGenericCommand(*getSyclObjImpl(Q))
                          : createEmptyCommand(MockReq);
       Cmds.push_back(Cmd);
 

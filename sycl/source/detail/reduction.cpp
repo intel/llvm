@@ -51,19 +51,8 @@ __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
 
 // Returns the estimated number of physical threads on the device associated
 // with the given queue.
-__SYCL_EXPORT uint32_t reduGetMaxNumConcurrentWorkGroups(
-    std::shared_ptr<sycl::detail::queue_impl> Queue) {
-  // TODO: Graphs extension explicit API uses a handler with no queue attached,
-  // so return some value here. In the future we should have access to the
-  // device so can remove this.
-  //
-  // The 8 value was chosen as the hardcoded value as it is the returned
-  // value for sycl::info::device::max_compute_units on
-  // Intel HD Graphics devices used as a L0 backend during development.
-  if (Queue == nullptr) {
-    return 8;
-  }
-  device Dev = Queue->get_device();
+__SYCL_EXPORT uint32_t reduGetMaxNumConcurrentWorkGroups(handler &cgh) {
+  const device_impl &Dev = getSyclObjImpl(cgh)->get_device();
   uint32_t NumThreads = Dev.get_info<sycl::info::device::max_compute_units>();
   // TODO: The heuristics here require additional tuning for various devices
   // and vendors. Also, it would be better to check vendor/generation/etc.
@@ -72,10 +61,9 @@ __SYCL_EXPORT uint32_t reduGetMaxNumConcurrentWorkGroups(
   return NumThreads;
 }
 
-__SYCL_EXPORT size_t
-reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
-                 size_t LocalMemBytesPerWorkItem) {
-  device Dev = Queue->get_device();
+__SYCL_EXPORT size_t reduGetMaxWGSize(handler &cgh,
+                                      size_t LocalMemBytesPerWorkItem) {
+  const device_impl &Dev = getSyclObjImpl(cgh)->get_device();
   size_t MaxWGSize = Dev.get_info<sycl::info::device::max_work_group_size>();
 
   size_t WGSizePerMem = MaxWGSize * 2;
@@ -113,20 +101,8 @@ reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
   return WGSize;
 }
 
-__SYCL_EXPORT size_t reduGetPreferredWGSize(std::shared_ptr<queue_impl> &Queue,
+__SYCL_EXPORT size_t reduGetPreferredWGSize(handler &cgh,
                                             size_t LocalMemBytesPerWorkItem) {
-  // TODO: Graphs extension explicit API uses a handler with a null queue to
-  // process CGFs, in future we should have access to the device so we can
-  // correctly calculate this.
-  //
-  // The 32 value was chosen as the hardcoded value as it is the returned
-  // value for SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE on
-  // Intel HD Graphics devices used as a L0 backend during development.
-  if (Queue == nullptr) {
-    return 32;
-  }
-  device Dev = Queue->get_device();
-
   // The maximum WGSize returned by CPU devices is very large and does not
   // help the reduction implementation: since all work associated with a
   // work-group is typically assigned to one CPU thread, selecting a large
@@ -136,6 +112,7 @@ __SYCL_EXPORT size_t reduGetPreferredWGSize(std::shared_ptr<queue_impl> &Queue,
   // behavior.
   using PrefWGConfig = sycl::detail::SYCLConfig<
       sycl::detail::SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE>;
+  const device_impl &Dev = getSyclObjImpl(cgh)->get_device();
   if (Dev.is_cpu()) {
     size_t CPUMaxWGSize = PrefWGConfig::get(sycl::info::device_type::cpu);
     if (CPUMaxWGSize == 0)
@@ -163,18 +140,24 @@ __SYCL_EXPORT size_t reduGetPreferredWGSize(std::shared_ptr<queue_impl> &Queue,
   }
 
   // Use the maximum work-group size otherwise.
-  return reduGetMaxWGSize(Queue, LocalMemBytesPerWorkItem);
+  return reduGetMaxWGSize(cgh, LocalMemBytesPerWorkItem);
 }
 
-__SYCL_EXPORT void
-addCounterInit(handler &CGH, std::shared_ptr<sycl::detail::queue_impl> &Queue,
-               std::shared_ptr<int> &Counter) {
-  auto EventImpl = std::make_shared<detail::event_impl>(Queue);
-  EventImpl->setContextImpl(detail::getSyclObjImpl(Queue->get_context()));
-  EventImpl->setStateIncomplete();
-  MemoryManager::fill_usm(Counter.get(), Queue, sizeof(int), {0}, {},
-                          &EventImpl->getHandleRef(), EventImpl);
-  CGH.depends_on(createSyclObjFromImpl<event>(EventImpl));
+__SYCL_EXPORT void verifyReductionProps(const property_list &Props) {
+  auto CheckDataLessProperties = [](int PropertyKind) {
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
+  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
+    return true;
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
+    switch (PropertyKind) {
+#include <sycl/properties/reduction_properties.def>
+    default:
+      return false;
+    }
+  };
+  auto NoAllowedPropertiesCheck = [](int) { return false; };
+  detail::PropertyValidator::checkPropsAndThrow(Props, CheckDataLessProperties,
+                                                NoAllowedPropertiesCheck);
 }
 
 } // namespace detail

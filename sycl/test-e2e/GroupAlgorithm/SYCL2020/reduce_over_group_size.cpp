@@ -1,11 +1,9 @@
-// Windows doesn't yet have full shutdown().
-// UNSUPPORTED: ze_debug && windows
 // REQUIRES: aspect-usm_shared_allocations
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// RUN: %{build} -O0 -o %t_O0.out
+// RUN: %{build} %O0 -o %t_O0.out
 // RUN: %{run} %t_O0.out
 
 /*

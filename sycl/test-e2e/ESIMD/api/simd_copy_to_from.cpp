@@ -15,7 +15,6 @@
 
 #include <array>
 #include <cstdlib>
-#include <sycl/builtins_esimd.hpp>
 #ifdef _WIN32
 #include <malloc.h>
 #endif // _WIN32

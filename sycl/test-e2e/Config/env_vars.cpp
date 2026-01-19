@@ -1,7 +1,7 @@
 // REQUIRES: opencl
 // Env vars are used to pass OpenCL-specific flags to PI compiling/linking.
 //
-// RUN: %{build} -O0 -o %t.out
+// RUN: %{build} %O0 -o %t.out
 //
 // RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" %{run} %t.out
 // RUN: env SYCL_PROGRAM_APPEND_COMPILE_OPTIONS="-g" %{run} %t.out
@@ -13,6 +13,7 @@
 // RUN: %if cpu %{ env SYCL_PROGRAM_COMPILE_OPTIONS="-enable-link-options -cl-denorms-are-zero" SHOULD_CRASH=1 %{run} %t.out %}
 // RUN: %if cpu %{ env SYCL_PROGRAM_APPEND_COMPILE_OPTIONS="-enable-link-options -cl-denorms-are-zero" SHOULD_CRASH=1 %{run} %t.out %}
 
+#include "../helpers.hpp"
 #include <cassert>
 #include <sycl/detail/core.hpp>
 
@@ -22,7 +23,7 @@ int main() {
   int data = 5;
   buffer<int, 1> buf(&data, range<1>(1));
   queue myQueue;
-  bool shouldCrash = getenv("SHOULD_CRASH");
+  bool shouldCrash = env::isDefined("SHOULD_CRASH");
   try {
     myQueue.submit([&](handler &cgh) {
       auto B = buf.get_access<access::mode::read_write>(cgh);

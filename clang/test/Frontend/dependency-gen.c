@@ -47,3 +47,11 @@
 // RUN: %clang -MMD -MF - %s -fsyntax-only -resource-dir=%S/Inputs/resource_dir_with_sanitizer_ignorelist -fsanitize=undefined -flto -fvisibility=hidden -I ./ | FileCheck -check-prefix=ONLY-USER-DEPS %s
 // ONLY-USER-DEPS: dependency-gen.o:
 // NOT-ONLY-USER-DEPS: ubsan_ignorelist.txt
+
+// RUN: %clang -c -x c++ -fsycl \
+// RUN: -MD -MF - %S/Inputs/dependency.cpp | FileCheck -check-prefix=FILTER %s
+
+// FILTER: dependency.o:
+// FILTER: {{.*}}dependency.cpp
+// FILTER: dependency.o:
+// FILTER: {{.*}}dependency.cpp

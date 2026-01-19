@@ -1,11 +1,8 @@
 // REQUIRES: aspect-ext_intel_legacy_image
+// UNSUPPORTED: linux && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20224
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-
-// UNSUPPORTED: cuda || hip
-// TODO: re-enable on cuda device.
-// See https://github.com/intel/llvm/issues/1542#issuecomment-707877817 for more
-// details.
 
 #include "image_write.h"
 

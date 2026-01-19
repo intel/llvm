@@ -3,6 +3,10 @@
 // REQUIRES: native_cpu
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu %s -o %t
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t
+
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu %s -o %t-new --offload-new-driver
+// RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t-new
+
 #include <sycl/sycl.hpp>
 #include <vector>
 

@@ -65,6 +65,14 @@ std::string getClangVendor() {
 #endif
 }
 
+std::string getSYCLBuildInfo() {
+#ifdef SYCL_BUILD_INFO
+  return SYCL_BUILD_INFO;
+#else
+  return "development";
+#endif
+}
+
 std::string getClangFullRepositoryVersion() {
   std::string buf;
   llvm::raw_string_ostream OS(buf);
@@ -128,7 +136,7 @@ std::string getClangFullCPPVersion() {
 llvm::SmallVector<std::pair<llvm::StringRef, llvm::StringRef>, 2>
 getSYCLVersionMacros(const LangOptions &LangOpts) {
   if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2020)
-    return {{"SYCL_LANGUAGE_VERSION", "202001"}};
+    return {{"SYCL_LANGUAGE_VERSION", "202012L"}};
   llvm_unreachable("SYCL standard should be set");
 }
 } // end namespace clang

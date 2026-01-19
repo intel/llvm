@@ -25,7 +25,12 @@
 #endif // __SYCL_ALWAYS_INLINE
 
 #ifdef SYCL_EXTERNAL
+#ifdef __NativeCPU__
+#define __DPCPP_SYCL_EXTERNAL SYCL_EXTERNAL __attribute__((__libclc_call__))
+#define __DPCPP_SYCL_EXTERNAL_LIBC SYCL_EXTERNAL
+#else
 #define __DPCPP_SYCL_EXTERNAL SYCL_EXTERNAL
+#endif
 #else
 #ifdef __SYCL_DEVICE_ONLY__
 #define __DPCPP_SYCL_EXTERNAL __attribute__((sycl_device))
@@ -33,6 +38,10 @@
 #define __DPCPP_SYCL_EXTERNAL
 #define SYCL_EXTERNAL
 #endif
+#endif
+
+#ifndef __DPCPP_SYCL_EXTERNAL_LIBC
+#define __DPCPP_SYCL_EXTERNAL_LIBC __DPCPP_SYCL_EXTERNAL
 #endif
 
 // Helper for enabling empty-base optimizations on MSVC.
@@ -49,7 +58,7 @@
 #endif
 
 #ifndef __SYCL_DEPRECATED
-#if !defined(SYCL2020_DISABLE_DEPRECATION_WARNINGS)
+#if !defined(__SYCL_DISABLE_DEPRECATION_WARNINGS)
 #define __SYCL_DEPRECATED(message) [[deprecated(message)]]
 #else // SYCL_DISABLE_DEPRECATION_WARNINGS
 #define __SYCL_DEPRECATED(message)
@@ -57,7 +66,7 @@
 #endif // __SYCL_DEPRECATED
 
 #ifndef __SYCL2020_DEPRECATED
-#if SYCL_LANGUAGE_VERSION >= 202001 &&                                         \
+#if SYCL_LANGUAGE_VERSION == 202012L &&                                        \
     !defined(SYCL2020_DISABLE_DEPRECATION_WARNINGS)
 #define __SYCL2020_DEPRECATED(message) __SYCL_DEPRECATED(message)
 #else
@@ -90,11 +99,10 @@
 static_assert(__cplusplus >= 201703L,
               "DPCPP does not support C++ version earlier than C++17.");
 
-// Helper macro to identify if fallback assert is needed
-#if defined(SYCL_FALLBACK_ASSERT)
-#define __SYCL_USE_FALLBACK_ASSERT SYCL_FALLBACK_ASSERT
-#else
-#define __SYCL_USE_FALLBACK_ASSERT 0
+// MSVC doesn't support #warning and we cannot use other methods to report a
+// warning from inside a system header (which SYCL is considered to be).
+#if defined(SYCL_FALLBACK_ASSERT) && (!defined(_MSC_VER) || defined(__clang__))
+#warning "SYCL_FALLBACK_ASSERT has been removed and no longer has any effect."
 #endif
 
 #if defined(_WIN32) && !defined(_DLL) && !defined(__SYCL_DEVICE_ONLY__)

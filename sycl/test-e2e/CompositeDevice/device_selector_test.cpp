@@ -1,9 +1,10 @@
 // RUN: %clangxx -fsycl %s -o %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR=level_zero:0 ZE_FLAT_DEVICE_HIERARCHY=COMBINED %t.out
+// RUN: %{run-unfiltered-devices} env ONEAPI_DEVICE_SELECTOR=level_zero:0 ZE_FLAT_DEVICE_HIERARCHY=COMBINED %t.out
 // REQUIRES: level_zero
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/composite_device.hpp>
+#include <sycl/platform.hpp>
 
 #ifdef SYCL_EXT_ONEAPI_COMPOSITE_DEVICE
 

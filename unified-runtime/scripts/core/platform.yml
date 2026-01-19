@@ -1,0 +1,257 @@
+#
+# Copyright (C) 2022 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime APIs for Platform"
+ordinal: "1"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Retrieves all available platforms for the given adapters"
+class: $xPlatform
+name: Get
+decl: static
+ordinal: "0"
+analogue:
+    - "**clGetPlatformIDs**"
+details:
+    - "Multiple calls to this function will return identical platforms handles, in the same order."
+    - "The application may call this function from simultaneous threads, the implementation must be thread-safe"
+params:
+    - type: "$x_adapter_handle_t"
+      name: "hAdapter"
+      desc: "[in] adapter to query for platforms."
+    - type: "uint32_t"
+      name: NumEntries
+      desc: |
+            [in] the number of platforms to be added to phPlatforms.
+            If phPlatforms is not NULL, then NumEntries should be greater than zero, otherwise $X_RESULT_ERROR_INVALID_SIZE,
+            will be returned.
+    - type: "$x_platform_handle_t*"
+      name: phPlatforms
+      desc: |
+            [out][optional][range(0, NumEntries)] array of handle of platforms.
+            If NumEntries is less than the number of platforms available, then $xPlatformGet shall only retrieve that number of platforms.
+    - type: "uint32_t*"
+      name: "pNumPlatforms"
+      desc: |
+            [out][optional] returns the total number of platforms available.
+returns:
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`NumEntries == 0 && phPlatforms != NULL`"
+    - $X_RESULT_ERROR_INVALID_VALUE:
+        - "`pNumPlatforms == NULL && phPlatforms == NULL`"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Supported platform info"
+class: $xPlatform
+name: $x_platform_info_t
+typed_etors: True
+etors:
+    - name: NAME
+      value: "1"
+      desc: "[char[]] The null-terminated string denoting name of the platform. The size of the info needs to be dynamically queried."
+    - name: VENDOR_NAME
+      value: "2"
+      desc: "[char[]] The null-terminated string denoting name of the vendor of the platform. The size of the info needs to be dynamically queried."
+    - name: VERSION
+      value: "3"
+      desc: "[char[]] The null-terminated string denoting the version of the platform. The size of the info needs to be dynamically queried."
+    - name: EXTENSIONS
+      value: "4"
+      desc: "[char[]] The null-terminated string denoting extensions supported by the platform. The size of the info needs to be dynamically queried."
+      todo: "document extensions names and their meaning"
+    - name: PROFILE
+      value: "5"
+      desc: "[char[]] The null-terminated string denoting profile of the platform. The size of the info needs to be dynamically queried."
+      todo: "currently always return FULL_PROFILE, deprecate?"
+    - name: BACKEND
+      value: "6"
+      desc: "[$x_backend_t] The backend of the platform. Identifies the native backend adapter implementing this platform."
+    - name: ADAPTER
+      value: "7"
+      desc: "[$x_adapter_handle_t] The adapter handle associated with the platform."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Retrieves various information about platform"
+class: $xPlatform
+name: GetInfo
+decl: static
+ordinal: "0"
+analogue:
+    - "**clGetPlatformInfo**"
+details:
+    - "The application may call this function from simultaneous threads."
+    - "The implementation of this function should be lock-free."
+params:
+    - type: $x_platform_handle_t
+      name: hPlatform
+      desc: "[in] handle of the platform"
+    - type: $x_platform_info_t
+      name: propName
+      desc: "[in] type of the info to retrieve"
+    - type: "size_t"
+      name: propSize
+      desc: |
+            [in] the number of bytes pointed to by pPlatformInfo.
+    - type: "void*"
+      name: pPropValue
+      desc: |
+            [out][optional][typename(propName, propSize)] array of bytes holding the info.
+            If Size is not equal to or greater to the real number of bytes needed to return the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPlatformInfo is not used.
+    - type: "size_t*"
+      name: pPropSizeRet
+      desc: |
+            [out][optional] pointer to the actual number of bytes being queried by pPlatformInfo.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
+        - "If `propName` is not supported by the adapter."
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`propSize == 0 && pPropValue != NULL`"
+        - "If `propSize` is less than the real number of bytes needed to return the info."
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`propSize != 0 && pPropValue == NULL`"
+        - "`pPropValue == NULL && pPropSizeRet == NULL`"
+    - $X_RESULT_ERROR_INVALID_PLATFORM
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Supported API versions"
+class: $xPlatform
+name: $x_api_version_t
+details:
+    - "API versions contain major and minor attributes, use $X_MAJOR_VERSION and $X_MINOR_VERSION"
+etors:
+    - name: "0_6"
+      value: "$X_MAKE_VERSION( 0, 6 )"
+      desc: "version 0.6"
+    - name: "0_7"
+      value: "$X_MAKE_VERSION( 0, 7 )"
+      desc: "version 0.7"
+    - name: "0_8"
+      value: "$X_MAKE_VERSION( 0, 8 )"
+      desc: "version 0.8"
+    - name: "0_9"
+      value: "$X_MAKE_VERSION( 0, 9 )"
+      desc: "version 0.9"
+    - name: "0_10"
+      value: "$X_MAKE_VERSION( 0, 10 )"
+      desc: "version 0.10"
+    - name: "0_11"
+      value: "$X_MAKE_VERSION( 0, 11 )"
+      desc: "version 0.11"
+    - name: "0_12"
+      value: "$X_MAKE_VERSION( 0, 12 )"
+      desc: "version 0.12"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Returns the API version supported by the specified platform"
+class: $xPlatform
+name: GetApiVersion
+ordinal: "1"
+details:
+    - "The application may call this function from simultaneous threads."
+    - "The implementation of this function should be lock-free."
+params:
+    - type: $x_platform_handle_t
+      name: hPlatform
+      desc: "[in] handle of the platform"
+    - type: "$x_api_version_t*"
+      name: pVersion
+      desc: "[out] api version"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Return platform native platform handle."
+class: $xPlatform
+name: GetNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Retrieved native handle can be used for direct interaction with the native platform driver."
+    - "Use interoperability platform extensions to convert native handle to native type."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: "$x_platform_handle_t"
+      name: hPlatform
+      desc: |
+            [in] handle of the platform.
+    - type: $x_native_handle_t*
+      name: phNativePlatform
+      desc: |
+            [out] a pointer to the native handle of the platform.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Native platform creation properties"
+class: $xPlatform
+name: $x_platform_native_properties_t
+base: $x_base_properties_t
+members:
+    - type: bool
+      name: isNativeHandleOwned
+      desc: |
+            [in] If true then ownership of the native handle is transferred to
+            the resultant object. This means the object will be responsible for
+            releasing the native resources at the end of its lifetime.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create runtime platform object from native platform handle."
+class: $xPlatform
+name: CreateWithNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Creates runtime platform handle from native driver platform handle."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: $x_native_handle_t
+      name: hNativePlatform
+      desc: "[in][nocheck] the native handle of the platform."
+    - type: $x_adapter_handle_t
+      name: hAdapter
+      desc: "[in] handle of the adapter associated with the native backend."
+    - type: const $x_platform_native_properties_t*
+      name: pProperties
+      desc: "[in][optional] pointer to native platform properties struct."
+    - type: "$x_platform_handle_t*"
+      name: phPlatform
+      desc: "[out][alloc] pointer to the handle of the platform object created."
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get the platform specific compiler backend option from a generic frontend option."
+class: $xPlatform
+name: GetBackendOption
+decl: static
+details:
+    - "The string returned via the ppPlatformOption is a NULL terminated C style string."
+    - "The string returned via the ppPlatformOption is thread local."
+    - "The memory in the string returned via the ppPlatformOption is owned by the adapter."
+    - "The application may call this function from simultaneous threads."
+    - "The implementation of this function should be lock-free."
+params:
+    - type: $x_platform_handle_t
+      name: hPlatform
+      desc: "[in] handle of the platform instance."
+    - type: const char*
+      name: pFrontendOption
+      desc: "[in] string containing the frontend option."
+    - type: const char**
+      name: ppPlatformOption
+      desc: "[out] returns the correct platform specific compiler option based on the frontend option."
+returns:
+    - $X_RESULT_ERROR_INVALID_VALUE:
+      - "If `pFrontendOption` is not a valid frontend option."

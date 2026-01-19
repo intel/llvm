@@ -17,6 +17,7 @@ set(LLVM_LINK_COMPONENTS
   LTO
   FrontendOffloading
   SYCLLowerIR
+  SYCLPostLink
   )
 
 set(LLVM_TARGET_DEFINITIONS LinkerWrapperOpts.td)
@@ -42,3 +43,5 @@ target_link_libraries(clang-linker-wrapper
   PRIVATE
   ${CLANG_LINKER_WRAPPER_LIB_DEPS}
   )
+
+export_executable_symbols_for_plugins(clang-linker-wrapper)

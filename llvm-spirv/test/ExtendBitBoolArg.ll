@@ -16,8 +16,8 @@
 ; CHECK: %[[#LSHR:]] = lshr i32 %[[#ExtBase]], %[[#ExtShift]]
 ; CHECK: and i32 %[[#LSHR]], 1
 
-; CHECK: %[[#ExtVecBase:]] = select <2 x i1> %vec1, <2 x i32> <i32 1, i32 1>, <2 x i32> zeroinitializer
-; CHECK: %[[#ExtVecShift:]] = select <2 x i1> %vec2, <2 x i32> <i32 1, i32 1>, <2 x i32> zeroinitializer
+; CHECK: %[[#ExtVecBase:]] = select <2 x i1> %vec1, <2 x i32> splat (i32 1), <2 x i32> zeroinitializer
+; CHECK: %[[#ExtVecShift:]] = select <2 x i1> %vec2, <2 x i32> splat (i32 1), <2 x i32> zeroinitializer
 ; CHECK: lshr <2 x i32> %[[#ExtVecBase]], %[[#ExtVecShift]]
 
 ; ModuleID = 'source.bc'

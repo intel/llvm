@@ -1,11 +1,10 @@
 // RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s
-// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fpreview-breaking-changes -fsyntax-only -Xclang -verify %s %}
 // expected-no-diagnostics
 
 // Regression test ensuring math builtins accept multi_ptr in the generic
 // address space.
 
-#include <sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
   sycl::queue Q;

@@ -1,4 +1,4 @@
-// RUN: %{build} -fsycl-instrument-device-code -o %t.out
+// RUN: %{build} -Wno-error=unused-command-line-argument -fsycl-instrument-device-code -o %t.out
 // RUN: %{run} %t.out
 
 #include "sycl/detail/core.hpp"

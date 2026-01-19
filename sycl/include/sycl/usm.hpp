@@ -8,10 +8,10 @@
 #pragma once
 
 #include <sycl/builtins.hpp>
-#include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/device.hpp>
+#include <sycl/platform.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/queue.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
@@ -21,6 +21,9 @@
 
 namespace sycl {
 inline namespace _V1 {
+
+class context;
+
 ///
 // Explicit USM
 ///
@@ -347,6 +350,73 @@ __SYCL_EXPORT void release_from_device_copy(const void *Ptr,
 __SYCL_EXPORT void release_from_device_copy(const void *Ptr,
                                             const queue &Queue);
 
+__SYCL_EXPORT void *malloc_device(size_t numBytes, const device &syclDevice,
+                                  const property_list &propList = {});
+
+template <typename T>
+T *malloc_device(size_t count, const device &syclDevice,
+                 const property_list &propList = {}) {
+  sycl::context ctxt = syclDevice.get_platform().khr_get_default_context();
+  return sycl::malloc_device<T>(count, syclDevice, ctxt, propList);
+}
+
+__SYCL_EXPORT void *aligned_alloc_device(size_t alignment, size_t numBytes,
+                                         const device &syclDevice,
+                                         const property_list &propList = {});
+
+template <typename T>
+T *aligned_alloc_device(size_t alignment, size_t count,
+                        const device &syclDevice,
+                        const property_list &propList = {}) {
+  sycl::context ctxt = syclDevice.get_platform().khr_get_default_context();
+  return sycl::aligned_alloc_device<T>(alignment, count, syclDevice, ctxt,
+                                       propList);
+}
+
+__SYCL_EXPORT void *malloc_shared(size_t numBytes, const device &syclDevice,
+                                  const property_list &propList = {});
+
+template <typename T>
+T *malloc_shared(size_t count, const device &syclDevice,
+                 const property_list &propList = {}) {
+  sycl::context ctxt = syclDevice.get_platform().khr_get_default_context();
+  return sycl::malloc_shared<T>(count, syclDevice, ctxt, propList);
+}
+
+__SYCL_EXPORT void *aligned_alloc_shared(size_t alignment, size_t numBytes,
+                                         const device &syclDevice,
+                                         const property_list &propList = {});
+
+template <typename T>
+T *aligned_alloc_shared(size_t alignment, size_t count,
+                        const device &syclDevice,
+                        const property_list &propList = {}) {
+  sycl::context ctxt = syclDevice.get_platform().khr_get_default_context();
+  return sycl::aligned_alloc_shared<T>(alignment, count, syclDevice, ctxt,
+                                       propList);
+}
+
+__SYCL_EXPORT void *malloc(size_t numBytes, const device &syclDevice,
+                           usm::alloc kind, const property_list &propList = {});
+
+template <typename T>
+T *malloc(size_t count, const device &syclDevice, usm::alloc kind,
+          const property_list &propList = {}) {
+  sycl::context ctxt = syclDevice.get_platform().khr_get_default_context();
+  return sycl::malloc<T>(count, syclDevice, ctxt, kind, propList);
+}
+
+__SYCL_EXPORT void *aligned_alloc(size_t alignment, size_t numBytes,
+                                  const device &syclDevice, usm::alloc kind,
+                                  const property_list &propList = {});
+
+template <typename T>
+T *aligned_alloc(size_t alignment, size_t count, const device &syclDevice,
+                 usm::alloc kind, const property_list &propList = {}) {
+  sycl::context ctxt = syclDevice.get_platform().khr_get_default_context();
+  return sycl::aligned_alloc<T>(alignment, count, syclDevice, ctxt, kind,
+                                propList);
+}
 } // namespace ext::oneapi::experimental
 
 } // namespace _V1

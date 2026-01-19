@@ -19,6 +19,7 @@
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Intrinsics.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Support/CommandLine.h"
 
 using namespace llvm;
@@ -52,7 +53,7 @@ SYCLConditionalCallOnDevicePass::run(Module &M, ModuleAnalysisManager &) {
     // (FAction). FAction should be a literal (i.e. not a pointer). The
     // structure of the header file ensures that there is exactly one such
     // instruction.
-    bool CallFound = false;
+    [[maybe_unused]] bool CallFound = false;
     for (Instruction &I : instructions(FCaller)) {
       if (auto *CI = dyn_cast<CallInst>(&I);
           CI && (Intrinsic::IndependentIntrinsics::not_intrinsic ==
@@ -120,8 +121,8 @@ SYCLConditionalCallOnDevicePass::run(Module &M, ModuleAnalysisManager &) {
         Args.push_back(Call->getArgOperand(I));
 
       // Create the new call instruction
-      auto *NewCall =
-          CallInst::Create(NewFCaller, Args, /*	NameStr = */ "", Call);
+      auto *NewCall = CallInst::Create(NewFCaller, Args, /*	NameStr = */ "",
+                                       Call->getIterator());
       NewCall->setCallingConv(Call->getCallingConv());
       NewCall->setDebugLoc(Call->getDebugLoc());
 

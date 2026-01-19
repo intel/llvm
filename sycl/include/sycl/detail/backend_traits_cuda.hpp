@@ -14,11 +14,10 @@
 
 #pragma once
 
-#include <sycl/context.hpp>
 #include <sycl/detail/backend_traits.hpp>
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
-#include <sycl/kernel_bundle.hpp>
+#include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/queue.hpp>
 
 typedef int CUdevice;
@@ -26,6 +25,7 @@ typedef struct CUctx_st *CUcontext;
 typedef struct CUstream_st *CUstream;
 typedef struct CUevent_st *CUevent;
 typedef struct CUmod_st *CUmodule;
+typedef struct CUgraph_st *CUgraph;
 
 // As defined in the CUDA 10.1 header file. This requires CUDA version > 3.2
 #if defined(_WIN64) || defined(__LP64__)
@@ -36,6 +36,9 @@ typedef unsigned int CUdeviceptr;
 
 namespace sycl {
 inline namespace _V1 {
+
+class context;
+
 namespace detail {
 
 // TODO the interops for context, device, event, platform and program
@@ -99,6 +102,12 @@ template <> struct BackendInput<backend::ext_oneapi_cuda, queue> {
 
 template <> struct BackendReturn<backend::ext_oneapi_cuda, queue> {
   using type = CUstream;
+};
+
+using graph = ext::oneapi::experimental::command_graph<
+    ext::oneapi::experimental::graph_state::executable>;
+template <> struct BackendReturn<backend::ext_oneapi_cuda, graph> {
+  using type = CUgraph;
 };
 
 } // namespace detail

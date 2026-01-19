@@ -61,7 +61,7 @@ using namespace llvm;
 namespace llvm {
 class IntrinsicInst;
 class IRBuilderBase;
-}
+} // namespace llvm
 
 namespace SPIRV {
 
@@ -189,6 +189,7 @@ enum SPIRAddressSpace {
   SPIRAS_GlobalHost,
   SPIRAS_Input,
   SPIRAS_Output,
+  SPIRAS_CodeSectionINTEL,
   SPIRAS_Count,
 };
 
@@ -199,6 +200,8 @@ template <> inline void SPIRVMap<SPIRAddressSpace, std::string>::init() {
   add(SPIRAS_Local, "Local");
   add(SPIRAS_Generic, "Generic");
   add(SPIRAS_Input, "Input");
+  add(SPIRAS_CodeSectionINTEL, "CodeSectionINTEL");
+
   add(SPIRAS_GlobalDevice, "GlobalDevice");
   add(SPIRAS_GlobalHost, "GlobalHost");
 }
@@ -215,6 +218,7 @@ inline void SPIRVMap<SPIRAddressSpace, SPIRVStorageClassKind>::init() {
   add(SPIRAS_Input, StorageClassInput);
   add(SPIRAS_GlobalDevice, StorageClassDeviceOnlyINTEL);
   add(SPIRAS_GlobalHost, StorageClassHostOnlyINTEL);
+  add(SPIRAS_CodeSectionINTEL, StorageClassCodeSectionINTEL);
 }
 typedef SPIRVMap<SPIRAddressSpace, SPIRVStorageClassKind> SPIRSPIRVAddrSpaceMap;
 
@@ -235,7 +239,6 @@ inline void SPIRVMap<Attribute::AttrKind, SPIRVFuncParamAttrKind>::init() {
   add(Attribute::ByVal, FunctionParameterAttributeByVal);
   add(Attribute::StructRet, FunctionParameterAttributeSret);
   add(Attribute::NoAlias, FunctionParameterAttributeNoAlias);
-  add(Attribute::NoCapture, FunctionParameterAttributeNoCapture);
   add(Attribute::ReadOnly, FunctionParameterAttributeNoWrite);
   add(Attribute::ReadNone, FunctionParameterAttributeNoReadWrite);
 }
@@ -314,7 +317,6 @@ const static char ConstantSampler[] = "ConstantSampler";
 const static char PipeStorage[] = "PipeStorage";
 const static char ConstantPipeStorage[] = "ConstantPipeStorage";
 const static char VmeImageINTEL[] = "VmeImageINTEL";
-const static char JointMatrixINTEL[] = "JointMatrixINTEL";
 const static char CooperativeMatrixKHR[] = "CooperativeMatrixKHR";
 const static char BufferSurfaceINTEL[] = "BufferSurfaceINTEL";
 } // namespace kSPIRVTypeName
@@ -365,10 +367,12 @@ const static char TranslateOCLMemScope[] = "__translate_ocl_memory_scope";
 const static char TranslateSPIRVMemOrder[] = "__translate_spirv_memory_order";
 const static char TranslateSPIRVMemScope[] = "__translate_spirv_memory_scope";
 const static char TranslateSPIRVMemFence[] = "__translate_spirv_memory_fence";
+const static char EntrypointPrefix[] = "__spirv_entry_";
 const static char ConvertHandleToImageINTEL[] = "ConvertHandleToImageINTEL";
 const static char ConvertHandleToSamplerINTEL[] = "ConvertHandleToSamplerINTEL";
 const static char ConvertHandleToSampledImageINTEL[] =
     "ConvertHandleToSampledImageINTEL";
+const static char InternalBuiltinPrefix[] = "__builtin_spirv_";
 } // namespace kSPIRVName
 
 namespace kSPIRVPostfix {
@@ -402,6 +406,7 @@ namespace kSPIR2MD {
 const static char Extensions[] = "opencl.used.extensions";
 const static char FPContract[] = "opencl.enable.FP_CONTRACT";
 const static char OCLVer[] = "opencl.ocl.version";
+const static char OCLCXXVer[] = "opencl.cxx.version";
 const static char OptFeatures[] = "opencl.used.optional.core.features";
 const static char SPIRVer[] = "opencl.spir.version";
 const static char VecTyHint[] = "vec_type_hint";
@@ -507,6 +512,7 @@ public:
   virtual void init(StringRef UniqUnmangledName) {
     UnmangledName = UniqUnmangledName.str();
   }
+  virtual bool isOpenCL() const { return false; }
 
 protected:
   std::string UnmangledName;
@@ -547,6 +553,19 @@ template <typename Container>
 inline unsigned findFirstPtr(const Container &Args) {
   auto PtArg = std::find_if(Args.begin(), Args.end(), [](Value *V) {
     return V->getType()->isPointerTy();
+  });
+  return PtArg - Args.begin();
+}
+
+// Utility function to check if a type is a TypedPointerType
+inline bool isTypedPointerType(llvm::Type *Ty) {
+  return llvm::isa<llvm::TypedPointerType>(Ty);
+}
+
+template <typename Container>
+inline unsigned findFirstPtrType(const Container &Args) {
+  auto PtArg = std::find_if(Args.begin(), Args.end(), [](Type *T) {
+    return T->isPointerTy() || isTypedPointerType(T);
   });
   return PtArg - Args.begin();
 }
@@ -646,7 +665,7 @@ Op getSPIRVFuncOC(StringRef Name, SmallVectorImpl<std::string> *Dec = nullptr);
 bool getSPIRVBuiltin(const std::string &Name, spv::BuiltIn &Builtin);
 
 /// \param Name LLVM function name
-/// \param DemangledName demanged name of the OpenCL built-in function
+/// \param DemangledName demangled name of the OpenCL built-in function
 /// \returns true if Name is the name of the OpenCL built-in function,
 /// false for other functions
 bool oclIsBuiltin(StringRef Name, StringRef &DemangledName, bool IsCpp = false);
@@ -708,6 +727,9 @@ CallInst *addCallInst(Module *M, StringRef FuncName, Type *RetTy,
                       Instruction *Pos, BuiltinFuncMangleInfo *Mangle = nullptr,
                       StringRef InstName = SPIR_TEMP_NAME_PREFIX_CALL,
                       bool TakeFuncName = true);
+
+/// Check if an LLVM type is spirv.CooperativeMatrixKHR.
+bool isLLVMCooperativeMatrixType(llvm::Type *Ty);
 
 /// Add a call instruction for SPIR-V builtin function.
 CallInst *addCallInstSPIRV(Module *M, StringRef FuncName, Type *RetTy,
@@ -799,13 +821,14 @@ Constant *getScalarOrVectorConstantInt(Type *T, uint64_t V,
 //  an integer pointer type.
 /// \param Len is the length of the array.
 /// \param V is the value to fill the array.
-Value *getScalarOrArrayConstantInt(Instruction *P, Type *T, unsigned Len,
-                                   uint64_t V, bool IsSigned = false);
+Value *getScalarOrArrayConstantInt(BasicBlock::iterator P, Type *T,
+                                   unsigned Len, uint64_t V,
+                                   bool IsSigned = false);
 
 /// Get the array from GEP.
 /// \param V is a GEP whose pointer operand is a pointer to an array of size
 /// \param Size.
-Value *getScalarOrArray(Value *V, unsigned Size, Instruction *Pos);
+Value *getScalarOrArray(Value *V, unsigned Size, BasicBlock::iterator Pos);
 
 void dumpUsers(Value *V, StringRef Prompt = "");
 
@@ -918,7 +941,7 @@ std::string getSPIRVFriendlyIRFunctionName(const std::string &UniqName,
 PointerType *getInt8PtrTy(PointerType *T);
 
 /// Cast a value to a i8* by inserting a cast instruction.
-Value *castToInt8Ptr(Value *V, Instruction *Pos);
+Value *castToInt8Ptr(Value *V, BasicBlock::iterator Pos);
 
 template <> inline void SPIRVMap<std::string, Op, SPIRVOpaqueType>::init() {
 #define _SPIRV_OP(x) add(#x, OpType##x);
@@ -948,7 +971,6 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVOpaqueType>::init() {
   _SPIRV_OP(BufferSurfaceINTEL)
   _SPIRV_OP(CooperativeMatrixKHR)
 #undef _SPIRV_OP
-  add("JointMatrixINTEL", internal::OpTypeJointMatrixINTEL);
   add("TaskSequenceINTEL", internal::OpTypeTaskSequenceINTEL);
 }
 
@@ -978,7 +1000,7 @@ CallInst *setAttrByCalledFunc(CallInst *Call);
 bool isSPIRVBuiltinVariable(GlobalVariable *GV, SPIRVBuiltinVariableKind *Kind);
 // Transform builtin variable from GlobalVariable to builtin call.
 // e.g.
-// - GlobalInvolcationId[x] -> _Z33__spirv_BuiltInGlobalInvocationIdi(x)
+// - GlobalInvocationId[x] -> _Z33__spirv_BuiltInGlobalInvocationIdi(x)
 // - WorkDim -> _Z22__spirv_BuiltInWorkDimv()
 bool lowerBuiltinVariableToCall(GlobalVariable *GV,
                                 SPIRVBuiltinVariableKind Kind);
@@ -1008,6 +1030,166 @@ bool postProcessBuiltinWithArrayArguments(Function *F, StringRef DemangledName);
 bool postProcessBuiltinsReturningStruct(Module *M, bool IsCpp = false);
 
 bool postProcessBuiltinsWithArrayArguments(Module *M, bool IsCpp = false);
+
+/// \param MangledName LLVM function name.
+/// \param DemangledName demangled name of the input function if it is the
+/// translator's internal built-in function.
+/// \returns true if MangledName is the name of the translator's internal
+/// built-in function, false for other functions.
+/// Used for 'mini'-floats conversion functions
+bool isInternalSPIRVBuiltin(StringRef MangledName, StringRef &DemangledName);
+
+// Wrapper around SPIR-V 1.6.4 FP Encoding to be used in the conversion
+// descriptor
+enum FPEncodingWrap {
+  Integer = FPEncoding::FPEncodingMax - 1,
+  IEEE754 = FPEncoding::FPEncodingMax,
+  BF16 = FPEncoding::FPEncodingBFloat16KHR,
+  E4M3 = FPEncoding::FPEncodingFloat8E4M3EXT,
+  E5M2 = FPEncoding::FPEncodingFloat8E5M2EXT,
+  E2M1 = internal::FPEncodingFloat4E2M1INTEL,
+};
+
+// Structure describing non-trivial conversions (FP8 and int4)
+struct FPConversionDesc {
+  FPEncodingWrap SrcEncoding;
+  FPEncodingWrap DstEncoding;
+  SPIRVWord ConvOpCode;
+
+  // To use as a key in std::map
+  bool operator==(const FPConversionDesc &Other) const {
+    return SrcEncoding == Other.SrcEncoding &&
+           DstEncoding == Other.DstEncoding && ConvOpCode == Other.ConvOpCode;
+  }
+
+  bool operator<(const FPConversionDesc &Other) const {
+    if (ConvOpCode != Other.ConvOpCode)
+      return ConvOpCode < Other.ConvOpCode;
+    if (SrcEncoding != Other.SrcEncoding)
+      return SrcEncoding < Other.SrcEncoding;
+    return DstEncoding < Other.DstEncoding;
+  }
+};
+
+// Maps internal builtin name to conversion descriptor
+typedef SPIRVMap<llvm::StringRef, FPConversionDesc> FPConvertToEncodingMap;
+
+// clang-format off
+template <> inline void FPConvertToEncodingMap::init() {
+  // 4-bit conversions
+  add("ConvertE2M1ToE4M3INTEL",
+      {FPEncodingWrap::E2M1,      FPEncodingWrap::E4M3,         OpFConvert});
+  add("ConvertE2M1ToE5M2INTEL",
+      {FPEncodingWrap::E2M1,      FPEncodingWrap::E5M2,         OpFConvert});
+  add("ConvertE2M1ToFP16INTEL",
+      {FPEncodingWrap::E2M1,      FPEncodingWrap::IEEE754,      OpFConvert});
+  add("ConvertE2M1ToBF16INTEL",
+      {FPEncodingWrap::E2M1,      FPEncodingWrap::BF16,         OpFConvert});
+
+  add("ConvertInt4ToE4M3INTEL",
+      {FPEncodingWrap::Integer,      FPEncodingWrap::E4M3,      OpConvertSToF});
+  add("ConvertInt4ToE5M2INTEL",
+      {FPEncodingWrap::Integer,      FPEncodingWrap::E5M2,      OpConvertSToF});
+  add("ConvertInt4ToFP16INTEL",
+      {FPEncodingWrap::Integer,      FPEncodingWrap::IEEE754,   OpConvertSToF});
+  add("ConvertInt4ToBF16INTEL",
+      {FPEncodingWrap::Integer,      FPEncodingWrap::BF16,      OpConvertSToF});
+  add("ConvertInt4ToInt8INTEL",
+      {FPEncodingWrap::Integer,      FPEncodingWrap::Integer,   OpSConvert});
+
+  add("ConvertFP16ToE2M1INTEL",
+      {FPEncodingWrap::IEEE754,      FPEncodingWrap::E2M1,      OpFConvert});
+  add("ConvertBF16ToE2M1INTEL",
+      {FPEncodingWrap::BF16,         FPEncodingWrap::E2M1,      OpFConvert});
+  add("ConvertFP16ToInt4INTEL",
+      {FPEncodingWrap::IEEE754,      FPEncodingWrap::Integer,   OpConvertFToS});
+  add("ConvertBF16ToInt4INTEL",
+      {FPEncodingWrap::BF16,         FPEncodingWrap::Integer,   OpConvertFToS});
+
+  // 8-bit conversions
+  add("ConvertE4M3ToFP16EXT",
+      {FPEncodingWrap::E4M3,         FPEncodingWrap::IEEE754,      OpFConvert});
+  add("ConvertE5M2ToFP16EXT",
+      {FPEncodingWrap::E5M2,         FPEncodingWrap::IEEE754,      OpFConvert});
+  add("ConvertE4M3ToBF16EXT",
+      {FPEncodingWrap::E4M3,         FPEncodingWrap::BF16,         OpFConvert});
+  add("ConvertE5M2ToBF16EXT",
+      {FPEncodingWrap::E5M2,         FPEncodingWrap::BF16,         OpFConvert});
+  add("ConvertFP16ToE4M3EXT",
+      {FPEncodingWrap::IEEE754,      FPEncodingWrap::E4M3,         OpFConvert});
+  add("ConvertFP16ToE5M2EXT",
+      {FPEncodingWrap::IEEE754,      FPEncodingWrap::E5M2,         OpFConvert});
+  add("ConvertBF16ToE4M3EXT",
+      {FPEncodingWrap::BF16,         FPEncodingWrap::E4M3,         OpFConvert});
+  add("ConvertBF16ToE5M2EXT",
+      {FPEncodingWrap::BF16,         FPEncodingWrap::E5M2,         OpFConvert});
+
+  // SPV_INTEL_fp_conversions
+  add("ClampConvertFP16ToE2M1INTEL",
+      {FPEncodingWrap::IEEE754,      FPEncodingWrap::E2M1,
+       internal::OpClampConvertFToFINTEL});
+  add("ClampConvertBF16ToE2M1INTEL",
+      {FPEncodingWrap::BF16,         FPEncodingWrap::E2M1,
+       internal::OpClampConvertFToFINTEL});
+  add("ClampConvertFP16ToE4M3INTEL",
+      {FPEncodingWrap::IEEE754,      FPEncodingWrap::E4M3,
+       internal::OpClampConvertFToFINTEL});
+  add("ClampConvertBF16ToE4M3INTEL",
+      {FPEncodingWrap::BF16,         FPEncodingWrap::E4M3,
+       internal::OpClampConvertFToFINTEL});
+  add("ClampConvertFP16ToE5M2INTEL",
+      {FPEncodingWrap::IEEE754,      FPEncodingWrap::E5M2,
+       internal::OpClampConvertFToFINTEL});
+  add("ClampConvertBF16ToE5M2INTEL",
+      {FPEncodingWrap::BF16,         FPEncodingWrap::E5M2,
+       internal::OpClampConvertFToFINTEL});
+  add("ClampConvertFP16ToInt4INTEL",
+      {FPEncodingWrap::IEEE754,      FPEncodingWrap::Integer,
+       internal::OpClampConvertFToSINTEL});
+  add("ClampConvertBF16ToInt4INTEL",
+      {FPEncodingWrap::BF16,         FPEncodingWrap::Integer,
+       internal::OpClampConvertFToSINTEL});
+
+  add("StochasticRoundFP16ToE5M2INTEL",
+      {FPEncodingWrap::IEEE754,      FPEncodingWrap::E5M2,
+       internal::OpStochasticRoundFToFINTEL});
+  add("StochasticRoundFP16ToE4M3INTEL",
+      {FPEncodingWrap::IEEE754,      FPEncodingWrap::E4M3,
+       internal::OpStochasticRoundFToFINTEL});
+  add("StochasticRoundBF16ToE5M2INTEL",
+      {FPEncodingWrap::BF16,         FPEncodingWrap::E5M2,
+       internal::OpStochasticRoundFToFINTEL});
+  add("StochasticRoundBF16ToE4M3INTEL",
+      {FPEncodingWrap::BF16,         FPEncodingWrap::E4M3,
+       internal::OpStochasticRoundFToFINTEL});
+  add("StochasticRoundFP16ToE2M1INTEL",
+      {FPEncodingWrap::IEEE754,      FPEncodingWrap::E2M1,
+       internal::OpStochasticRoundFToFINTEL});
+  add("StochasticRoundBF16ToE2M1INTEL",
+      {FPEncodingWrap::BF16,         FPEncodingWrap::E2M1,
+       internal::OpStochasticRoundFToFINTEL});
+  add("ClampStochasticRoundFP16ToInt4INTEL",
+      {FPEncodingWrap::IEEE754,      FPEncodingWrap::Integer,
+       internal::OpClampStochasticRoundFToSINTEL});
+  add("ClampStochasticRoundBF16ToInt4INTEL",
+      {FPEncodingWrap::BF16,         FPEncodingWrap::Integer,
+       internal::OpClampStochasticRoundFToSINTEL});
+
+  add("ClampStochasticRoundFP16ToE5M2INTEL",
+      {FPEncodingWrap::IEEE754,      FPEncodingWrap::E5M2,
+       internal::OpClampStochasticRoundFToFINTEL});
+  add("ClampStochasticRoundFP16ToE4M3INTEL",
+      {FPEncodingWrap::IEEE754,      FPEncodingWrap::E4M3,
+       internal::OpClampStochasticRoundFToFINTEL});
+  add("ClampStochasticRoundBF16ToE5M2INTEL",
+      {FPEncodingWrap::BF16,         FPEncodingWrap::E5M2,
+       internal::OpClampStochasticRoundFToFINTEL});
+  add("ClampStochasticRoundBF16ToE4M3INTEL",
+      {FPEncodingWrap::BF16,         FPEncodingWrap::E4M3,
+       internal::OpClampStochasticRoundFToFINTEL});
+}
+
+// clang-format on
 
 } // namespace SPIRV
 

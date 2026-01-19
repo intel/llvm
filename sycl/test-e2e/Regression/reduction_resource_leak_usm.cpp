@@ -1,8 +1,8 @@
-// REQUIRES: level_zero, level_zero_dev_kit
+// REQUIRES: level_zero
 // TODO: UR_L0_LEAKS_DEBUG=1 produces no output on Windows. Enable when fixed.
 // UNSUPPORTED: windows
 //
-// RUN: %{build} %level_zero_options -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR="level_zero:*" %{l0_leak_check}  %{run} %t.out 2>&1 | FileCheck %s
 //
 // CHECK-NOT: LEAK

@@ -1,14 +1,14 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// RUN: %if preview-breaking-changes-supported %{  %{build} -fpreview-breaking-changes -o %t2.out   %}
-// RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out  %}
+// RUN:  %{build} -D__SYCL_USE_LIBSYCL8_VEC_IMPL=1 -o %t2.out
+// RUN: %{run} %t2.out
 
 // Tests that the mutating operators (+=, -=, ..., ++, --) on swizzles compile
 // and correctly mutate the elements in the corresponding vector.
 
 #include <sycl/detail/core.hpp>
-#include <sycl/types.hpp>
 #include <sycl/usm.hpp>
+#include <sycl/vector.hpp>
 
 constexpr std::string_view OpNames[] = {
     "+=", "-=",  "*=",  "/=",        "%=",        "&=",         "|=",

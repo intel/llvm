@@ -1,10 +1,11 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
-// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
-// Extra run to check for immediate-command-list in Level Zero
-// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 //
+// XFAIL: windows && (arch-intel_gpu_ptl_u || arch-intel_gpu_ptl_h || arch-intel_gpu_wcl)
+// XFAIL-TRACKER: CMPLRTST-27275
+// XFAIL-TRACKER: CMPLRLLVM-72055
 
 // Tests updating a graph node accessor argument using index-based explicit
 // update while also submitting work using those accessors to a normal queue
@@ -30,7 +31,7 @@ int main() {
   // Initial accessor for use in kernel and dynamic parameter
   auto AccA = BufA.get_access();
   auto AccB = BufB.get_access();
-  exp_ext::dynamic_parameter InputParam(Graph, AccA);
+  exp_ext::dynamic_parameter InputParam(AccA);
 
   auto KernelNode = Graph.add([&](handler &cgh) {
     cgh.require(InputParam);

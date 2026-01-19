@@ -12,7 +12,6 @@
 #include <sycl/aliases.hpp>                           // for cl_float, cl_half
 #include <sycl/backend_types.hpp>                     // for backend, backe...
 #include <sycl/buffer.hpp>                            // for range
-#include <sycl/context.hpp>                           // for context
 #include <sycl/detail/aligned_allocator.hpp>          // for aligned_allocator
 #include <sycl/detail/backend_traits.hpp>             // for InteropFeature...
 #include <sycl/detail/common.hpp>                     // for convertToArrayOfN
@@ -20,17 +19,16 @@
 #include <sycl/detail/export.hpp>                     // for __SYCL_EXPORT
 #include <sycl/detail/impl_utils.hpp>                 // for getSyclObjImpl
 #include <sycl/detail/owner_less_base.hpp>            // for OwnerLessBase
-#include <sycl/detail/pi.h>                           // for pi_native_handle
 #include <sycl/detail/stl_type_traits.hpp>            // for iterator_value...
 #include <sycl/detail/sycl_mem_obj_allocator.hpp>     // for SYCLMemObjAllo...
-#include <sycl/detail/type_list.hpp>                  // for is_contained
 #include <sycl/event.hpp>                             // for event
 #include <sycl/exception.hpp>                         // for make_error_code
 #include <sycl/ext/oneapi/accessor_property_list.hpp> // for accessor_prope...
 #include <sycl/property_list.hpp>                     // for property_list
 #include <sycl/range.hpp>                             // for range, rangeTo...
 #include <sycl/sampler.hpp>                           // for image_sampler
-#include <sycl/types.hpp>                             // for vec
+#include <sycl/vector.hpp>                            // for vec
+#include <ur_api.h>                                   // for ur_native_hand...
 
 #include <cstddef>     // for size_t, nullptr_t
 #include <functional>  // for function
@@ -44,6 +42,7 @@ inline namespace _V1 {
 
 // forward declarations
 class handler;
+class context;
 
 template <int D, typename A> class image;
 
@@ -112,15 +111,12 @@ namespace detail {
 
 class image_impl;
 
-// validImageDataT: cl_int4, cl_uint4, cl_float4, cl_half4
-template <typename T>
-using is_validImageDataT = typename detail::is_contained<
-    T, type_list<vec<opencl::cl_int, 4>, vec<opencl::cl_uint, 4>,
-                 vec<opencl::cl_float, 4>, vec<opencl::cl_half, 4>>>::type;
-
+// Valid image DataT: cl_int4, cl_uint4, cl_float4, cl_half4
 template <typename DataT>
-using EnableIfImgAccDataT =
-    typename std::enable_if_t<is_validImageDataT<DataT>::value, DataT>;
+using EnableIfImgAccDataT = typename std::enable_if_t<
+    check_type_in_v<DataT, vec<opencl::cl_int, 4>, vec<opencl::cl_uint, 4>,
+                    vec<opencl::cl_float, 4>, vec<opencl::cl_half, 4>>,
+    DataT>;
 
 inline image_channel_type FormatChannelType(image_format Format) {
   switch (Format) {
@@ -174,6 +170,7 @@ inline image_channel_order FormatChannelOrder(image_format Format) {
 class __SYCL_EXPORT image_plain {
 protected:
   image_plain(const std::shared_ptr<detail::image_impl> &Impl) : impl{Impl} {}
+  friend sycl::detail::ImplUtils;
 
   image_plain(image_channel_order Order, image_channel_type Type,
               const range<3> &Range,
@@ -247,7 +244,7 @@ protected:
               uint8_t Dimensions);
 #endif
 
-  image_plain(pi_native_handle MemObject, const context &SyclContext,
+  image_plain(ur_native_handle_t MemObject, const context &SyclContext,
               event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator,
               uint8_t Dimensions, image_channel_order Order,
@@ -351,6 +348,7 @@ public:
 template <int Dimensions, typename AllocatorT>
 class unsampled_image_common : public image_common<Dimensions, AllocatorT> {
 private:
+  friend sycl::detail::ImplUtils;
   using common_base = typename detail::image_common<Dimensions, AllocatorT>;
 
 protected:
@@ -417,24 +415,7 @@ private:
         });
   }
 };
-
-template <typename DataT, int Dims, access::mode AccMode,
-          access::target AccTarget, access::placeholder IsPlaceholder>
-class image_accessor;
-
 } // namespace detail
-
-template <typename DataT, int Dimensions, access_mode AccessMode,
-          image_target AccessTarget>
-class unsampled_image_accessor;
-
-template <typename DataT, int Dimensions, access_mode AccessMode>
-class host_unsampled_image_accessor;
-
-template <typename DataT, int Dimensions, image_target AccessTarget>
-class sampled_image_accessor;
-
-template <typename DataT, int Dimensions> class host_sampled_image_accessor;
 
 /// Defines a shared image data.
 ///
@@ -448,6 +429,7 @@ template <typename DataT, int Dimensions> class host_sampled_image_accessor;
 template <int Dimensions = 1, typename AllocatorT = sycl::image_allocator>
 class image : public detail::unsampled_image_common<Dimensions, AllocatorT> {
 private:
+  friend sycl::detail::ImplUtils;
   using common_base =
       typename detail::unsampled_image_common<Dimensions, AllocatorT>;
 
@@ -672,7 +654,7 @@ public:
   }
 
 private:
-  image(pi_native_handle MemObject, const context &SyclContext,
+  image(ur_native_handle_t MemObject, const context &SyclContext,
         event AvailableEvent, image_channel_order Order,
         image_channel_type Type, bool OwnNativeHandle, range<Dimensions> Range)
       : common_base(MemObject, SyclContext, AvailableEvent,
@@ -715,10 +697,6 @@ private:
   make_image(const backend_input_t<Backend, image<D, A>> &BackendObject,
              const context &TargetContext, event AvailableEvent);
 
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
-
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget, access::placeholder IsPlaceholder,
             typename PropertyListT>
@@ -734,6 +712,7 @@ class unsampled_image
     : public detail::unsampled_image_common<Dimensions, AllocatorT>,
       public detail::OwnerLessBase<unsampled_image<Dimensions, AllocatorT>> {
 private:
+  friend sycl::detail::ImplUtils;
   using common_base =
       typename detail::unsampled_image_common<Dimensions, AllocatorT>;
 
@@ -1002,13 +981,6 @@ public:
   }
 
 private:
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
-
   template <typename DataT, int Dims, access_mode AccessMode>
   friend class host_unsampled_image_accessor;
 
@@ -1022,6 +994,7 @@ class sampled_image
     : public detail::image_common<Dimensions, AllocatorT>,
       public detail::OwnerLessBase<sampled_image<Dimensions, AllocatorT>> {
 private:
+  friend sycl::detail::ImplUtils;
   using common_base = typename detail::image_common<Dimensions, AllocatorT>;
 
   sampled_image(const std::shared_ptr<detail::image_impl> &Impl)
@@ -1138,13 +1111,6 @@ public:
   }
 
 private:
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
-
   template <typename DataT, int Dims> friend class host_sampled_image_accessor;
 
   template <typename DataT, int Dims, image_target AccessTarget>
@@ -1154,30 +1120,17 @@ private:
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
 template <int Dimensions, typename AllocatorT>
-struct hash<sycl::image<Dimensions, AllocatorT>> {
-  size_t operator()(const sycl::image<Dimensions, AllocatorT> &I) const {
-    return hash<std::shared_ptr<sycl::detail::image_impl>>()(
-        sycl::detail::getSyclObjImpl(I));
-  }
+struct std::hash<sycl::image<Dimensions, AllocatorT>>
+    : public sycl::detail::sycl_obj_hash<sycl::image<Dimensions, AllocatorT>> {
 };
 
 template <int Dimensions, typename AllocatorT>
-struct hash<sycl::unsampled_image<Dimensions, AllocatorT>> {
-  size_t
-  operator()(const sycl::unsampled_image<Dimensions, AllocatorT> &I) const {
-    return hash<std::shared_ptr<sycl::detail::image_impl>>()(
-        sycl::detail::getSyclObjImpl(I));
-  }
-};
+struct std::hash<sycl::unsampled_image<Dimensions, AllocatorT>>
+    : public sycl::detail::sycl_obj_hash<
+          sycl::unsampled_image<Dimensions, AllocatorT>> {};
 
 template <int Dimensions, typename AllocatorT>
-struct hash<sycl::sampled_image<Dimensions, AllocatorT>> {
-  size_t
-  operator()(const sycl::sampled_image<Dimensions, AllocatorT> &I) const {
-    return hash<std::shared_ptr<sycl::detail::image_impl>>()(
-        sycl::detail::getSyclObjImpl(I));
-  }
-};
-} // namespace std
+struct std::hash<sycl::sampled_image<Dimensions, AllocatorT>>
+    : public sycl::detail::sycl_obj_hash<
+          sycl::sampled_image<Dimensions, AllocatorT>> {};

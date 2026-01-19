@@ -12,20 +12,21 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-template <int Dim, typename T> struct IsValidCoordDataT;
-template <typename T> struct IsValidCoordDataT<1, T> {
-  constexpr static bool value = detail::is_contained<
-      T, detail::type_list<opencl::cl_int, opencl::cl_float>>::type::value;
+template <int Dim, typename T, bool AllowFP = true> struct IsValidCoordDataT;
+template <typename T, bool AllowFP> struct IsValidCoordDataT<1, T, AllowFP> {
+  constexpr static bool value =
+      std::is_same_v<T, opencl::cl_int> ||
+      (AllowFP && std::is_same_v<T, opencl::cl_float>);
 };
-template <typename T> struct IsValidCoordDataT<2, T> {
-  constexpr static bool value = detail::is_contained<
-      T, detail::type_list<vec<opencl::cl_int, 2>,
-                           vec<opencl::cl_float, 2>>>::type::value;
+template <typename T, bool AllowFP> struct IsValidCoordDataT<2, T, AllowFP> {
+  constexpr static bool value =
+      std::is_same_v<T, vec<opencl::cl_int, 2>> ||
+      (AllowFP && std::is_same_v<T, vec<opencl::cl_float, 2>>);
 };
-template <typename T> struct IsValidCoordDataT<3, T> {
-  constexpr static bool value = detail::is_contained<
-      T, detail::type_list<vec<opencl::cl_int, 4>,
-                           vec<opencl::cl_float, 4>>>::type::value;
+template <typename T, bool AllowFP> struct IsValidCoordDataT<3, T, AllowFP> {
+  constexpr static bool value =
+      std::is_same_v<T, vec<opencl::cl_int, 4>> ||
+      (AllowFP && std::is_same_v<T, vec<opencl::cl_float, 4>>);
 };
 
 template <int Dim, typename T> struct IsValidUnsampledCoord2020DataT;
@@ -76,6 +77,7 @@ class __SYCL_EXPORT UnsampledImageAccessorBaseHost {
 protected:
   UnsampledImageAccessorBaseHost(const UnsampledImageAccessorImplPtr &Impl)
       : impl{Impl} {}
+  friend sycl::detail::ImplUtils;
 
 public:
   UnsampledImageAccessorBaseHost(sycl::range<3> Size, access_mode AccessMode,
@@ -96,13 +98,6 @@ public:
   const property_list &getPropList() const;
 
 protected:
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
-
   UnsampledImageAccessorImplPtr impl;
 
   // The function references helper methods required by GDB pretty-printers
@@ -145,6 +140,7 @@ class __SYCL_EXPORT SampledImageAccessorBaseHost {
 protected:
   SampledImageAccessorBaseHost(const SampledImageAccessorImplPtr &Impl)
       : impl{Impl} {}
+  friend sycl::detail::ImplUtils;
 
 public:
   SampledImageAccessorBaseHost(sycl::range<3> Size, void *SYCLMemObject,
@@ -167,13 +163,6 @@ public:
   const property_list &getPropList() const;
 
 protected:
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
-
   SampledImageAccessorImplPtr impl;
 
   // The function references helper methods required by GDB pretty-printers
@@ -448,12 +437,12 @@ public:
   // (accessTarget == access::target::image && accessMode == access::mode::read)
   // || (accessTarget == access::target::host_image && ( accessMode ==
   // access::mode::read || accessMode == access::mode::read_write))
-  template <typename CoordT, int Dims = Dimensions,
-            typename = std::enable_if_t<
-                (Dims > 0) && (IsValidCoordDataT<Dims, CoordT>::value) &&
-                (detail::is_genint_v<CoordT>) &&
-                ((IsImageAcc && IsImageAccessReadOnly) ||
-                 (IsHostImageAcc && IsImageAccessAnyRead))>>
+  template <
+      typename CoordT, int Dims = Dimensions,
+      typename = std::enable_if_t<
+          (IsValidCoordDataT<Dims, CoordT, /* AllowFP = */ false>::value) &&
+          ((IsImageAcc && IsImageAccessReadOnly) ||
+           (IsHostImageAcc && IsImageAccessAnyRead))>>
   DataT read(const CoordT &Coords) const {
 #ifdef __SYCL_DEVICE_ONLY__
     return __invoke__ImageRead<DataT, OCLImageTy, CoordT>(MImageObj, Coords);
@@ -470,7 +459,7 @@ public:
   // access::mode::read || accessMode == access::mode::read_write))
   template <typename CoordT, int Dims = Dimensions,
             typename = std::enable_if_t<
-                (Dims > 0) && (IsValidCoordDataT<Dims, CoordT>::value) &&
+                (IsValidCoordDataT<Dims, CoordT>::value) &&
                 ((IsImageAcc && IsImageAccessReadOnly) ||
                  (IsHostImageAcc && IsImageAccessAnyRead))>>
   DataT read(const CoordT &Coords, const sampler &Smpl) const {
@@ -494,10 +483,10 @@ public:
   // accessMode == access::mode::read_write))
   template <
       typename CoordT, int Dims = Dimensions,
-      typename = std::enable_if_t<(Dims > 0) && (detail::is_genint_v<CoordT>) &&
-                                  (IsValidCoordDataT<Dims, CoordT>::value) &&
-                                  ((IsImageAcc && IsImageAccessWriteOnly) ||
-                                   (IsHostImageAcc && IsImageAccessAnyWrite))>>
+      typename = std::enable_if_t<
+          (IsValidCoordDataT<Dims, CoordT, /* AllowFP = */ false>::value) &&
+          ((IsImageAcc && IsImageAccessWriteOnly) ||
+           (IsHostImageAcc && IsImageAccessAnyWrite))>>
   void write(const CoordT &Coords, const DataT &Color) const {
 #ifdef __SYCL_DEVICE_ONLY__
     __invoke__ImageWrite<OCLImageTy, CoordT, DataT>(MImageObj, Coords, Color);
@@ -546,23 +535,21 @@ public:
       size_t Idx)
       : MBaseAcc(BaseAcc), MIdx(Idx) {}
 
-  template <typename CoordT, int Dims = Dimensions,
-            typename = std::enable_if_t<
-                (Dims > 0) && (IsValidCoordDataT<Dims, CoordT>::value)>>
+  template <
+      typename CoordT, int Dims = Dimensions,
+      typename = std::enable_if_t<(IsValidCoordDataT<Dims, CoordT>::value)>>
   DataT read(const CoordT &Coords) const {
     return MBaseAcc.read(getAdjustedCoords(Coords));
   }
 
   template <typename CoordT, int Dims = Dimensions,
-            typename = std::enable_if_t<(Dims > 0) &&
-                                        IsValidCoordDataT<Dims, CoordT>::value>>
+            typename = std::enable_if_t<IsValidCoordDataT<Dims, CoordT>::value>>
   DataT read(const CoordT &Coords, const sampler &Smpl) const {
     return MBaseAcc.read(getAdjustedCoords(Coords), Smpl);
   }
 
   template <typename CoordT, int Dims = Dimensions,
-            typename = std::enable_if_t<(Dims > 0) &&
-                                        IsValidCoordDataT<Dims, CoordT>::value>>
+            typename = std::enable_if_t<IsValidCoordDataT<Dims, CoordT>::value>>
   void write(const CoordT &Coords, const DataT &Color) const {
     return MBaseAcc.write(getAdjustedCoords(Coords), Color);
   }
@@ -780,6 +767,7 @@ class __SYCL_EBO unsampled_image_accessor :
 #endif // __SYCL_DEVICE_ONLY__
     public detail::OwnerLessBase<
         unsampled_image_accessor<DataT, Dimensions, AccessMode, AccessTarget>> {
+  friend sycl::detail::ImplUtils;
   static_assert(std::is_same_v<DataT, int4> || std::is_same_v<DataT, uint4> ||
                     std::is_same_v<DataT, float4> ||
                     std::is_same_v<DataT, half4>,
@@ -898,7 +886,7 @@ public:
   DataT read(const CoordT &Coords) const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     // Currently not reachable on device.
-    std::ignore = Coords;
+    (void)Coords;
     return {0, 0, 0, 0};
 #else
     return host_base_class::read<DataT>(Coords);
@@ -916,8 +904,8 @@ public:
   void write(const CoordT &Coords, const DataT &Color) const {
 #ifdef __SYCL_DEVICE_ONLY__
     // Currently not reachable on device.
-    std::ignore = Coords;
-    std::ignore = Color;
+    (void)Coords;
+    (void)Color;
 #else
     host_base_class::write<DataT>(Coords, Color);
 #endif // __SYCL_DEVICE_ONLY__
@@ -929,15 +917,8 @@ private:
       : host_base_class{Impl}
 #endif // __SYCL_DEVICE_ONLY__
   {
-    std::ignore = Impl;
+    (void)Impl;
   }
-
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
 
 template <typename DataT, int Dimensions = 1,
@@ -948,6 +929,7 @@ class __SYCL_EBO host_unsampled_image_accessor
     : private detail::UnsampledImageAccessorBaseHost,
       public detail::OwnerLessBase<
           host_unsampled_image_accessor<DataT, Dimensions, AccessMode>> {
+  friend sycl::detail::ImplUtils;
   static_assert(std::is_same_v<DataT, int4> || std::is_same_v<DataT, uint4> ||
                     std::is_same_v<DataT, float4> ||
                     std::is_same_v<DataT, half4>,
@@ -1068,13 +1050,6 @@ private:
   host_unsampled_image_accessor(
       const detail::UnsampledImageAccessorImplPtr &Impl)
       : base_class{Impl} {}
-
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
 
 template <typename DataT, int Dimensions,
@@ -1085,6 +1060,7 @@ class __SYCL_EBO sampled_image_accessor :
 #endif // __SYCL_DEVICE_ONLY__
     public detail::OwnerLessBase<
         sampled_image_accessor<DataT, Dimensions, AccessTarget>> {
+  friend sycl::detail::ImplUtils;
   static_assert(std::is_same_v<DataT, int4> || std::is_same_v<DataT, uint4> ||
                     std::is_same_v<DataT, float4> ||
                     std::is_same_v<DataT, half4>,
@@ -1197,7 +1173,7 @@ public:
   DataT read(const CoordT &Coords) const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     // Currently not reachable on device.
-    std::ignore = Coords;
+    (void)Coords;
     return {0, 0, 0, 0};
 #else
     return host_base_class::read<DataT>(Coords);
@@ -1210,15 +1186,8 @@ private:
       : host_base_class{Impl}
 #endif // __SYCL_DEVICE_ONLY__
   {
-    std::ignore = Impl;
+    (void)Impl;
   }
-
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
 
 template <typename DataT, int Dimensions>
@@ -1226,6 +1195,7 @@ class __SYCL_EBO host_sampled_image_accessor
     : private detail::SampledImageAccessorBaseHost,
       public detail::OwnerLessBase<
           host_sampled_image_accessor<DataT, Dimensions>> {
+  friend sycl::detail::ImplUtils;
   static_assert(std::is_same_v<DataT, int4> || std::is_same_v<DataT, uint4> ||
                     std::is_same_v<DataT, float4> ||
                     std::is_same_v<DataT, half4>,
@@ -1316,74 +1286,34 @@ public:
 private:
   host_sampled_image_accessor(const detail::SampledImageAccessorImplPtr &Impl)
       : base_class{Impl} {}
-
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
 
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
 template <typename DataT, int Dimensions, sycl::access_mode AccessMode,
           sycl::image_target AccessTarget>
-struct hash<sycl::unsampled_image_accessor<DataT, Dimensions, AccessMode,
-                                           AccessTarget>> {
-  using AccType = sycl::unsampled_image_accessor<DataT, Dimensions, AccessMode,
-                                                 AccessTarget>;
-
-  size_t operator()(const AccType &A) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    // Hash is not supported on DEVICE. Just return 0 here.
-    (void)A;
-    return 0;
-#else
-    auto AccImplPtr = sycl::detail::getSyclObjImpl(A);
-    return hash<decltype(AccImplPtr)>()(AccImplPtr);
-#endif
-  }
-};
+struct std::hash<
+    sycl::unsampled_image_accessor<DataT, Dimensions, AccessMode, AccessTarget>>
+    : public sycl::detail::sycl_obj_hash<
+          sycl::unsampled_image_accessor<DataT, Dimensions, AccessMode,
+                                         AccessTarget>,
+          false /*SupportedOnDevice*/> {};
 
 template <typename DataT, int Dimensions, sycl::access_mode AccessMode>
-struct hash<
-    sycl::host_unsampled_image_accessor<DataT, Dimensions, AccessMode>> {
-  using AccType =
-      sycl::host_unsampled_image_accessor<DataT, Dimensions, AccessMode>;
-
-  size_t operator()(const AccType &A) const {
-    auto AccImplPtr = sycl::detail::getSyclObjImpl(A);
-    return hash<decltype(AccImplPtr)>()(AccImplPtr);
-  }
+struct std::hash<
+    sycl::host_unsampled_image_accessor<DataT, Dimensions, AccessMode>>
+    : public sycl::detail::sycl_obj_hash<
+          sycl::host_unsampled_image_accessor<DataT, Dimensions, AccessMode>> {
 };
 
 template <typename DataT, int Dimensions, sycl::image_target AccessTarget>
-struct hash<sycl::sampled_image_accessor<DataT, Dimensions, AccessTarget>> {
-  using AccType = sycl::sampled_image_accessor<DataT, Dimensions, AccessTarget>;
-
-  size_t operator()(const AccType &A) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    // Hash is not supported on DEVICE. Just return 0 here.
-    (void)A;
-    return 0;
-#else
-    auto AccImplPtr = sycl::detail::getSyclObjImpl(A);
-    return hash<decltype(AccImplPtr)>()(AccImplPtr);
-#endif
-  }
-};
+struct std::hash<sycl::sampled_image_accessor<DataT, Dimensions, AccessTarget>>
+    : public sycl::detail::sycl_obj_hash<
+          sycl::sampled_image_accessor<DataT, Dimensions, AccessTarget>,
+          false /*SupportedOnDevice*/> {};
 
 template <typename DataT, int Dimensions>
-struct hash<sycl::host_sampled_image_accessor<DataT, Dimensions>> {
-  using AccType = sycl::host_sampled_image_accessor<DataT, Dimensions>;
-
-  size_t operator()(const AccType &A) const {
-    auto AccImplPtr = sycl::detail::getSyclObjImpl(A);
-    return hash<decltype(AccImplPtr)>()(AccImplPtr);
-  }
-};
-
-} // namespace std
+struct std::hash<sycl::host_sampled_image_accessor<DataT, Dimensions>>
+    : public sycl::detail::sycl_obj_hash<
+          sycl::host_sampled_image_accessor<DataT, Dimensions>> {};

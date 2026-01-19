@@ -83,6 +83,7 @@ add_clang_library(clangCodeGen
   CGExprScalar.cpp
   CGGPUBuiltin.cpp
   CGHLSLRuntime.cpp
+  CGHLSLBuiltins.cpp
   CGLoopInfo.cpp
   CGNonTrivialStruct.cpp
   CGObjC.cpp
@@ -104,19 +105,32 @@ add_clang_library(clangCodeGen
   CodeGenFunction.cpp
   CodeGenModule.cpp
   CodeGenPGO.cpp
+  CodeGenSYCL.cpp
   CodeGenTBAA.cpp
   CodeGenTypes.cpp
   ConstantInitBuilder.cpp
   CoverageMappingGen.cpp
   ItaniumCXXABI.cpp
+  HLSLBufferLayoutBuilder.cpp
   LinkInModulesPass.cpp
   MacroPPCallbacks.cpp
   MicrosoftCXXABI.cpp
   ModuleBuilder.cpp
-  ObjectFilePCHContainerOperations.cpp
+  ObjectFilePCHContainerWriter.cpp
   PatternInit.cpp
   SanitizerMetadata.cpp
   SwiftCallingConv.cpp
+  TargetBuiltins/ARM.cpp
+  TargetBuiltins/AMDGPU.cpp
+  TargetBuiltins/DirectX.cpp
+  TargetBuiltins/Hexagon.cpp
+  TargetBuiltins/NVPTX.cpp
+  TargetBuiltins/PPC.cpp
+  TargetBuiltins/RISCV.cpp
+  TargetBuiltins/SPIR.cpp
+  TargetBuiltins/SystemZ.cpp
+  TargetBuiltins/WebAssembly.cpp
+  TargetBuiltins/X86.cpp
   TargetInfo.cpp
   Targets/AArch64.cpp
   Targets/AMDGPU.cpp
@@ -125,6 +139,7 @@ add_clang_library(clangCodeGen
   Targets/AVR.cpp
   Targets/BPF.cpp
   Targets/CSKY.cpp
+  Targets/DirectX.cpp
   Targets/Hexagon.cpp
   Targets/Lanai.cpp
   Targets/LoongArch.cpp
@@ -132,7 +147,7 @@ add_clang_library(clangCodeGen
   Targets/MSP430.cpp
   Targets/Mips.cpp
   Targets/NVPTX.cpp
-  Targets/PNaCl.cpp
+  Targets/NativeCPU.cpp
   Targets/PPC.cpp
   Targets/RISCV.cpp
   Targets/SPIR.cpp
@@ -143,15 +158,16 @@ add_clang_library(clangCodeGen
   Targets/WebAssembly.cpp
   Targets/X86.cpp
   Targets/XCore.cpp
+  TrapReasonBuilder.cpp
   VarBypassDetector.cpp
 
   DEPENDS
   ${codegen_deps}
+  vt_gen
   intrinsics_gen
   ClangDriverOptions
   # These generated headers are included transitively.
-  ARMTargetParserTableGen
-  AArch64TargetParserTableGen
+  target_parser_gen
 
   LINK_LIBS
   clangAST

@@ -14,6 +14,7 @@
 #include "llvm/SYCLLowerIR/ConvertToMuxBuiltinsSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/RenameKernelSYCLNativeCPU.h"
+#include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
 #include "llvm/Support/CommandLine.h"
 
@@ -21,12 +22,20 @@
 #include "compiler/utils/builtin_info.h"
 #include "compiler/utils/define_mux_builtins_pass.h"
 #include "compiler/utils/device_info.h"
+#include "compiler/utils/encode_kernel_metadata_pass.h"
 #include "compiler/utils/prepare_barriers_pass.h"
+#include "compiler/utils/replace_local_module_scope_variables_pass.h"
 #include "compiler/utils/sub_group_analysis.h"
 #include "compiler/utils/work_item_loops_pass.h"
 #include "vecz/pass.h"
 #include "vecz/vecz_target_info.h"
+#include "llvm/IR/PassManager.h"
+#include "llvm/Transforms/AggressiveInstCombine/AggressiveInstCombine.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
+#include "llvm/Transforms/Scalar/DCE.h"
+#include "llvm/Transforms/Scalar/GVN.h"
+#include "llvm/Transforms/Scalar/SROA.h"
+#include "llvm/Transforms/Scalar/SimplifyCFG.h"
 #endif
 
 using namespace llvm;
@@ -58,8 +67,11 @@ static cl::opt<bool>
 void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
     llvm::ModulePassManager &MPM, ModuleAnalysisManager &MAM,
     OptimizationLevel OptLevel) {
+  MPM.addPass(SpecConstantsPass(SpecConstantsPass::HandlingMode::emulation));
   MPM.addPass(ConvertToMuxBuiltinsSYCLNativeCPUPass());
 #ifdef NATIVECPU_USE_OCK
+  MPM.addPass(compiler::utils::PrepareBarriersPass());
+  MPM.addPass(compiler::utils::TransferKernelMetadataPass());
   // Always enable vectorizer, unless explictly disabled or -O0 is set.
   if (OptLevel != OptimizationLevel::O0 && !SYCLNativeCPUNoVecz) {
     MAM.registerPass([] { return vecz::TargetInfoAnalysis(); });
@@ -70,7 +82,7 @@ void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
       if (F.getCallingConv() != llvm::CallingConv::SPIR_KERNEL) {
         return false;
       }
-      compiler::utils::VectorizationFactor VF(NativeCPUVeczWidth, false);
+      auto VF = llvm::ElementCount::getFixed(NativeCPUVeczWidth);
       vecz::VeczPassOptions VPO;
       VPO.factor = std::move(VF);
       Opts.emplace_back(std::move(VPO));
@@ -79,14 +91,22 @@ void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
     MAM.registerPass(
         [QueryFunc] { return vecz::VeczPassOptionsAnalysis(QueryFunc); });
     MPM.addPass(vecz::RunVeczPass());
+    FunctionPassManager FPM;
+    FPM.addPass(SimplifyCFGPass());
+    FPM.addPass(SROAPass(SROAOptions::ModifyCFG));
+    FPM.addPass(AggressiveInstCombinePass());
+    FPM.addPass(GVNPass(GVNOptions().setMemDep(true)));
+    FPM.addPass(DCEPass());
+    FPM.addPass(SimplifyCFGPass());
+    MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
   }
   compiler::utils::WorkItemLoopsPassOptions Opts;
   Opts.IsDebug = IsDebug;
   Opts.ForceNoTail = ForceNoTail;
   MAM.registerPass([] { return compiler::utils::BuiltinInfoAnalysis(); });
   MAM.registerPass([] { return compiler::utils::SubgroupAnalysis(); });
-  MPM.addPass(compiler::utils::PrepareBarriersPass());
   MPM.addPass(compiler::utils::WorkItemLoopsPass(Opts));
+  MPM.addPass(compiler::utils::ReplaceLocalModuleScopeVariablesPass());
   MPM.addPass(AlwaysInlinerPass());
 #endif
   MPM.addPass(PrepareSYCLNativeCPUPass());

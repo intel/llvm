@@ -14,7 +14,7 @@
 
 using namespace llvm;
 
-enum ModeKind { PI, ZE, CU, SYCL, VERIFY };
+enum ModeKind { UR, ZE, CU, SYCL, VERIFY };
 enum PrintFormatKind { PRETTY_COMPACT, PRETTY_VERBOSE, CLASSIC };
 
 int main(int argc, char **argv, char *env[]) {
@@ -22,7 +22,7 @@ int main(int argc, char **argv, char *env[]) {
       cl::desc("Available tracing modes:"),
       cl::values(
           // TODO graph dot
-          clEnumValN(PI, "plugin", "Trace Plugin Interface calls"),
+          clEnumValN(UR, "ur.call", "Trace Unified Runtime calls"),
           clEnumValN(ZE, "level_zero", "Trace Level Zero calls"),
           clEnumValN(CU, "cuda", "Trace CUDA Driver API calls"),
           clEnumValN(SYCL, "sycl", "Trace SYCL API calls"),
@@ -53,15 +53,16 @@ int main(int argc, char **argv, char *env[]) {
 
 #ifdef __linux__
   NewEnv.push_back("XPTI_FRAMEWORK_DISPATCHER=libxptifw.so");
-  NewEnv.push_back("XPTI_SUBSCRIBERS=libsycl_pi_trace_collector.so");
+  NewEnv.push_back("XPTI_SUBSCRIBERS=libsycl_ur_trace_collector.so");
 #elif defined(__APPLE__)
   NewEnv.push_back("XPTI_FRAMEWORK_DISPATCHER=libxptifw.dylib");
-  NewEnv.push_back("XPTI_SUBSCRIBERS=libsycl_pi_trace_collector.dylib");
+  NewEnv.push_back("XPTI_SUBSCRIBERS=libsycl_ur_trace_collector.dylib");
 #endif
   NewEnv.push_back("XPTI_TRACE_ENABLE=1");
 
-  const auto EnablePITrace = [&]() {
-    NewEnv.push_back("SYCL_TRACE_PI_ENABLE=1");
+  const auto EnableURTrace = [&]() {
+    NewEnv.push_back("SYCL_TRACE_UR_ENABLE=1");
+    NewEnv.push_back("UR_ENABLE_LAYERS=UR_LAYER_TRACING");
   };
   const auto EnableZETrace = [&]() {
     NewEnv.push_back("SYCL_TRACE_ZE_ENABLE=1");
@@ -75,12 +76,13 @@ int main(int argc, char **argv, char *env[]) {
   };
   const auto EnableVerificationTrace = [&]() {
     NewEnv.push_back("SYCL_TRACE_VERIFICATION_ENABLE=1");
+    NewEnv.push_back("UR_ENABLE_LAYERS=UR_LAYER_TRACING");
   };
 
   for (auto Mode : Modes) {
     switch (Mode) {
-    case PI:
-      EnablePITrace();
+    case UR:
+      EnableURTrace();
       break;
     case ZE:
       EnableZETrace();
@@ -106,7 +108,7 @@ int main(int argc, char **argv, char *env[]) {
   }
 
   if (Modes.size() == 0) {
-    EnablePITrace();
+    EnableURTrace();
     EnableZETrace();
     EnableCUTrace();
     // Intentionally do not enable SYCL API traces -> to not break existing

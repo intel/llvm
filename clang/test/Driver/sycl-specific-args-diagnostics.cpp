@@ -22,28 +22,15 @@
 // RUN:   %clang_cl -### -fsycl-dead-args-optimization  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-dead-args-optimization %s
 
-// Warning should be emitted when using -fsycl-device-lib-jit-link without -fsycl
-// RUN:   %clang -### -fsycl-device-lib-jit-link  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-device-lib-jit-link %s
-// RUN:   %clang_cl -### -fsycl-device-lib-jit-link  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-device-lib-jit-link %s
-
 // Warning should be emitted when using -fsycl-default-sub-group-size= without -fsycl
 // RUN:   %clang -### -fsycl-default-sub-group-size=10  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-default-sub-group-size=10 %s
 // RUN:   %clang_cl -### -fsycl-default-sub-group-size=10  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=WARNING-DSS-CL %s
-// WARNING-DSS-CL: unknown argument ignored in clang-cl: '-fsycl-default-sub-group-size=10' [-Wunknown-argument]
+// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-default-sub-group-size=10 %s
 
 // Warning should be emitted when using -fsycl-device-code-split-esimd without -fsycl
 // RUN:   %clang -### -fsycl-device-code-split-esimd  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-device-code-split-esimd %s
-
-// Warning should be emitted when using -fsycl-device-lib=libc without -fsycl
-// RUN:   %clang -### -fsycl-device-lib=libc  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-device-lib=libc %s
-// RUN:   %clang_cl -### -fsycl-device-lib=libc  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-device-lib=libc %s
 
 // Warning should be emitted when using -fsycl-device-obj=spirv without -fsycl
 // RUN:   %clang -### -fsycl-device-obj=spirv  %s 2>&1 \
@@ -82,12 +69,17 @@
 // RUN:   %clang_cl -### -fsycl-force-inline-kernel-lambda  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-force-inline-kernel-lambda %s
 
-// Warning should be emitted when using -fsycl-fp32-prec-sqrt without -fsycl
-// RUN:   %clang -### -fsycl-fp32-prec-sqrt  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-fp32-prec-sqrt %s
-// RUN:   %clang_cl -### -fsycl-fp32-prec-sqrt  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=WARNING-FP32-CL -DOPT=-fsycl-fp32-prec-sqrt %s
-// WARNING-FP32-CL: warning: unknown argument ignored in clang-cl: '[[OPT]]' [-Wunknown-argument]
+// Warning should be emitted when using -foffload-fp32-prec-sqrt without -fsycl
+// RUN:   %clang -### -foffload-fp32-prec-sqrt %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-foffload-fp32-prec-sqrt %s
+// RUN:   %clang_cl -### -foffload-fp32-prec-sqrt %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-foffload-fp32-prec-sqrt %s
+
+// Warning should be emitted when using -foffload-fp32-prec-div without -fsycl
+// RUN:   %clang -### -foffload-fp32-prec-div %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-foffload-fp32-prec-div %s
+// RUN:   %clang_cl -### -foffload-fp32-prec-div %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-foffload-fp32-prec-div %s
 
 // Warning should be emitted when using -fsycl-id-queries-fit-in-int without -fsycl
 // RUN:   %clang -### -fsycl-id-queries-fit-in-int  %s 2>&1 \

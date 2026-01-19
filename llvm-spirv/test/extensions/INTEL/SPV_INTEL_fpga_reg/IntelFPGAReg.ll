@@ -54,9 +54,8 @@
 ;   A ca(213);
 ;   A cb = __builtin_intel_fpga_reg(ca);
 
-; RUN: llvm-as %s -o %t.bc
 ; FIXME: add more negative test cases
-; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_reg -o %t.spv
+; RUN: llvm-spirv %s --spirv-ext=+SPV_INTEL_fpga_reg -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
@@ -116,7 +115,7 @@ entry:
 }
 
 ; Function Attrs: argmemonly nounwind
-declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #1
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr captures(none)) #1
 
 ; Function Attrs: inlinehint nounwind
 define internal spir_func void @"_ZZ4mainENK3$_0clEv"(ptr addrspace(4) %this) #2 align 2 {
@@ -129,7 +128,7 @@ entry:
 }
 
 ; Function Attrs: argmemonly nounwind
-declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr captures(none)) #1
 
 ; Function Attrs: nounwind
 define spir_func void @_Z3foov() #3 {
@@ -303,10 +302,10 @@ entry:
 declare i32 @llvm.annotation.i32.p1(i32, ptr addrspace(1), ptr addrspace(1), i32) #4
 
 ; Function Attrs: argmemonly nounwind
-declare void @llvm.memcpy.p0.p0.i64(ptr nocapture writeonly, ptr nocapture readonly, i64, i1 immarg) #1
+declare void @llvm.memcpy.p0.p0.i64(ptr captures(none) writeonly, ptr captures(none) readonly, i64, i1 immarg) #1
 
 ; Function Attrs: argmemonly nounwind
-declare void @llvm.memcpy.p0.p1.i64(ptr nocapture writeonly, ptr addrspace(1) nocapture readonly, i64, i1 immarg) #1
+declare void @llvm.memcpy.p0.p1.i64(ptr captures(none) writeonly, ptr addrspace(1) captures(none) readonly, i64, i1 immarg) #1
 
 ; Function Attrs: nounwind
 declare ptr @llvm.ptr.annotation.p0(ptr, ptr, ptr, i32, ptr) #4

@@ -13,7 +13,7 @@
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/info_desc_helpers.hpp>  // for is_event_info_desc, is_...
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
-#include <sycl/detail/pi.h>                   // for pi_native_handle
+#include <ur_api.h>                           // for ur_native_handle_t
 
 #ifdef __SYCL_INTERNAL_API
 #include <sycl/detail/cl.h>
@@ -42,6 +42,8 @@ class event_impl;
 ///
 /// \ingroup sycl_api
 class __SYCL_EXPORT event : public detail::OwnerLessBase<event> {
+  friend sycl::detail::ImplUtils;
+
 public:
   /// Constructs a ready SYCL event.
   ///
@@ -138,18 +140,11 @@ public:
 private:
   event(std::shared_ptr<detail::event_impl> EventImpl);
 
-  pi_native_handle getNative() const;
+  ur_native_handle_t getNative() const;
 
-  std::vector<pi_native_handle> getNativeVector() const;
+  std::vector<ur_native_handle_t> getNativeVector() const;
 
   std::shared_ptr<detail::event_impl> impl;
-
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)
@@ -159,11 +154,6 @@ private:
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
-template <> struct hash<sycl::event> {
-  size_t operator()(const sycl::event &e) const {
-    return hash<std::shared_ptr<sycl::detail::event_impl>>()(
-        sycl::detail::getSyclObjImpl(e));
-  }
-};
-} // namespace std
+template <>
+struct std::hash<sycl::event>
+    : public sycl::detail::sycl_obj_hash<sycl::event> {};

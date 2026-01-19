@@ -1,4 +1,4 @@
-// RUN: %{build} -fsycl-device-code-split=per_kernel -I . -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -fsycl-device-code-split=per_kernel -I . -o %t.out
 // RUN: %{run} %t.out
 
 #include "../helpers.hpp"
@@ -166,21 +166,10 @@ int main() {
   test<class KernelNameMultipliesI>(input_small, sycl::multiplies<int>(), 1);
   test<class KernelNameBitOrI>(input, sycl::bit_or<int>(), 0);
   test<class KernelNameBitXorI>(input, sycl::bit_xor<int>(), 0);
-  test<class KernelNameBitAndI>(input_small, sycl::bit_and<int>(), ~0);
-
-  test<class LogicalOrInt>(input, sycl::logical_or<int>(), 0);
-  test<class LogicalAndInt>(input, sycl::logical_and<int>(), 1);
 
   std::array<bool, N> bool_input = {};
   test<class LogicalOrBool>(bool_input, sycl::logical_or<bool>(), false);
-  test<class LogicalOrVoid>(bool_input, sycl::logical_or<>(), false);
   test<class LogicalAndBool>(bool_input, sycl::logical_and<bool>(), true);
-  test<class LogicalAndVoid>(bool_input, sycl::logical_and<>(), true);
-
-  test<class LogicalOrBool>(bool_input, sycl::logical_or<bool>(), false);
-  test<class LogicalOrVoid>(bool_input, sycl::logical_or<>(), false);
-  test<class LogicalAndBool>(bool_input, sycl::logical_and<bool>(), true);
-  test<class LogicalAndVoid>(bool_input, sycl::logical_and<>(), true);
 
   std::array<int2, N> int2_input = {};
   std::iota(int2_input.begin(), int2_input.end(), 0);

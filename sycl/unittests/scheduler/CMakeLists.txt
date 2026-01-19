@@ -1,3 +1,7 @@
+if(WIN32)
+  # https://github.com/intel/llvm/issues/15049
+  return()
+endif()
 add_sycl_unittest(SchedulerTests OBJECT
     BlockedCommands.cpp
     Commands.cpp
@@ -20,6 +24,7 @@ add_sycl_unittest(SchedulerTests OBJECT
     InOrderQueueSyncCheck.cpp
     EnqueueWithDependsOnDeps.cpp
     AccessorDefaultCtor.cpp
-    KernelFusion.cpp
     HostTaskAndBarrier.cpp
+    BarrierDependencies.cpp
+    NdRangeViewUsage.cpp
 )

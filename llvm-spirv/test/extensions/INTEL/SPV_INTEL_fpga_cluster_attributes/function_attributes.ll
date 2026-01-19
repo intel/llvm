@@ -1,7 +1,7 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_fpga_cluster_attributes -spirv-text -o - %t.bc | FileCheck --check-prefix CHECK-SPIRV %s
 ; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_fpga_cluster_attributes %t.bc -o %t.spv
-; spirv-val %t.spv
+; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r --spirv-ext=+SPV_INTEL_fpga_cluster_attributes %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck --check-prefix CHECK-LLVM %s 
 

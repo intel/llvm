@@ -11,7 +11,7 @@
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
-#include "llvm/SYCLLowerIR/HostPipes.h"
+#include "llvm/SYCLLowerIR/TargetHelpers.h"
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/StringMap.h"
@@ -26,24 +26,22 @@ using namespace llvm;
 
 namespace {
 
-constexpr StringRef SYCL_HOST_ACCESS_ATTR = "sycl-host-access";
-constexpr StringRef SYCL_PIPELINED_ATTR = "sycl-pipelined";
-constexpr StringRef SYCL_REGISTER_ALLOC_MODE_ATTR = "sycl-register-alloc-mode";
-constexpr StringRef SYCL_GRF_SIZE_ATTR = "sycl-grf-size";
+constexpr StringRef SyclHostAccessAttr = "sycl-host-access";
+constexpr StringRef SyclPipelinedAttr = "sycl-pipelined";
+constexpr StringRef SyclGrfSizeAttr = "sycl-grf-size";
 
-constexpr StringRef SPIRV_DECOR_MD_KIND = "spirv.Decorations";
-constexpr StringRef SPIRV_PARAM_DECOR_MD_KIND = "spirv.ParameterDecorations";
+constexpr StringRef SpirvDecorMdKind = "spirv.Decorations";
+constexpr StringRef SpirvDecorCacheControlMdKind =
+    "spirv.DecorationCacheControlINTEL";
+constexpr StringRef SpirvParamDecorMdKind = "spirv.ParameterDecorations";
 // The corresponding SPIR-V OpCode for the host_access property is documented
 // in the SPV_INTEL_global_variable_decorations design document:
 // https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/DeviceGlobal/SPV_INTEL_global_variable_decorations.asciidoc#decoration
-constexpr uint32_t SPIRV_HOST_ACCESS_DECOR = 6147;
-constexpr uint32_t SPIRV_HOST_ACCESS_DEFAULT_VALUE = 2; // Read/Write
+constexpr uint32_t SpirvHostAccessDecor = 6147;
+constexpr uint32_t SpirvHostAccessDefaultValue = 2; // Read/Write
 
-constexpr uint32_t SPIRV_INITIATION_INTERVAL_DECOR = 5917;
-constexpr uint32_t SPIRV_PIPELINE_ENABLE_DECOR = 5919;
-
-constexpr uint32_t SPIRV_CACHE_CONTROL_READ_DECOR = 6442;
-constexpr uint32_t SPIRV_CACHE_CONTROL_WRITE_DECOR = 6443;
+constexpr uint32_t SpirvInitiationIntervalDecor = 5917;
+constexpr uint32_t SpirvPipelineEnableDecor = 5919;
 
 enum class DecorValueTy {
   uint32,
@@ -88,12 +86,12 @@ enum FloatControlMask {
 // These opcodes are specified in SPIRV specification (SPV_KHR_float_controls
 // and SPV_INTEL_float_controls2 extensions):
 // https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.pdf
-constexpr uint32_t SPIRV_ROUNDING_MODE_RTE = 4462;       // RoundingModeRTE
-constexpr uint32_t SPIRV_ROUNDING_MODE_RTZ = 4463;       // RoundingModeRTZ
-constexpr uint32_t SPIRV_ROUNDING_MODE_RTP_INTEL = 5620; // RoundingModeRTPINTEL
-constexpr uint32_t SPIRV_ROUNDING_MODE_RTN_INTEL = 5621; // RoundingModeRTNINTEL
-constexpr uint32_t SPIRV_DENORM_FLUSH_TO_ZERO = 4460;    // DenormFlushToZero
-constexpr uint32_t SPIRV_DENORM_PRESERVE = 4459;         // DenormPreserve
+constexpr uint32_t SpirvRoundingModeRte = 4462;      // RoundingModeRTE
+constexpr uint32_t SpirvRoundingModeRtz = 4463;      // RoundingModeRTZ
+constexpr uint32_t SpirvRoundingModeRtpIntel = 5620; // RoundingModeRTPINTEL
+constexpr uint32_t SpirvRoundingModeRtnIntel = 5621; // RoundingModeRTNINTEL
+constexpr uint32_t SpirvDenormFlushToZero = 4460;    // DenormFlushToZero
+constexpr uint32_t SpirvDenormPreserve = 4459;       // DenormPreserve
 
 /// Builds a metadata node for a SPIR-V decoration (decoration code is
 /// \c uint32_t integers) with no value.
@@ -130,23 +128,9 @@ MDNode *buildSpirvDecorMetadata(LLVMContext &Ctx, uint32_t OpCode,
   return MDNode::get(Ctx, MD);
 }
 
-/// Builds a metadata node for a SPIR-V decoration for cache controls
-/// where decoration code and value are both uint32_t integers.
-/// The value encodes a cache level and a cache control type.
-///
-/// @param Ctx        [in] the LLVM Context.
-/// @param Name       [in] the SPIR-V property string name.
-/// @param OpCode     [in] the SPIR-V opcode.
-/// @param CacheMode  [in] whether read or write.
-/// @param CacheLevel [in] the cache level.
-///
-/// @returns a pointer to the metadata node created for the required decoration
-/// and its values.
-MDNode *buildSpirvDecorCacheProp(LLVMContext &Ctx, StringRef Name,
-                                 uint32_t OpCode, uint32_t CacheMode,
-                                 uint32_t CacheLevel) {
+static uint32_t getCacheProperty(StringRef Name, uint32_t CacheMode) {
   // SPIR-V encodings of read control
-  enum cache_control_read_type {
+  enum CacheControlReadType {
     read_uncached = 0,
     read_cached = 1,
     read_streaming = 2,
@@ -154,7 +138,7 @@ MDNode *buildSpirvDecorCacheProp(LLVMContext &Ctx, StringRef Name,
     read_const_cached = 4
   };
   // SPIR-V encodings of write control
-  enum cache_control_write_type {
+  enum CacheControlWriteType {
     write_uncached = 0,
     write_through = 1,
     write_back = 2,
@@ -179,12 +163,25 @@ MDNode *buildSpirvDecorCacheProp(LLVMContext &Ctx, StringRef Name,
       write_uncached, write_through,  write_back};
 
   // Map SYCL encoding to SPIR-V
-  uint32_t CacheProp;
   if (Name.starts_with("sycl-cache-read"))
-    CacheProp = SPIRVReadControl[CacheMode];
-  else
-    CacheProp = SPIRVWriteControl[CacheMode];
+    return SPIRVReadControl[CacheMode];
 
+  return SPIRVWriteControl[CacheMode];
+}
+
+/// Builds a metadata node for a SPIR-V decoration for cache controls.
+///
+/// @param Ctx        [in] the LLVM Context.
+/// @param OpCode     [in] the SPIR-V opcode.
+/// @param CacheLevel [in] the cache level.
+/// @param CacheProp  [in] the cache property.
+/// @param OperandNum [in] the operand number to decorate.
+///
+/// @returns a pointer to the metadata node created for the required decoration
+/// and its values.
+MDNode *buildSpirvDecorCacheProp(LLVMContext &Ctx, uint32_t OpCode,
+                                 uint32_t CacheLevel, uint32_t CacheProp,
+                                 uint32_t OperandNum) {
   auto *Ty = Type::getInt32Ty(Ctx);
   SmallVector<Metadata *, 3> MD;
   MD.push_back(ConstantAsMetadata::get(
@@ -193,6 +190,8 @@ MDNode *buildSpirvDecorCacheProp(LLVMContext &Ctx, StringRef Name,
       Constant::getIntegerValue(Ty, APInt(32, CacheLevel))));
   MD.push_back(ConstantAsMetadata::get(
       Constant::getIntegerValue(Ty, APInt(32, CacheProp))));
+  MD.push_back(ConstantAsMetadata::get(
+      Constant::getIntegerValue(Ty, APInt(32, OperandNum))));
   return MDNode::get(Ctx, MD);
 }
 
@@ -337,42 +336,48 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
     };
 
     if (IsFPModeSet(RTE))
-      AddFPControlMetadata(SPIRV_ROUNDING_MODE_RTE);
+      AddFPControlMetadata(SpirvRoundingModeRte);
 
     if (IsFPModeSet(RTP))
-      AddFPControlMetadata(SPIRV_ROUNDING_MODE_RTP_INTEL);
+      AddFPControlMetadata(SpirvRoundingModeRtpIntel);
 
     if (IsFPModeSet(RTN))
-      AddFPControlMetadata(SPIRV_ROUNDING_MODE_RTN_INTEL);
+      AddFPControlMetadata(SpirvRoundingModeRtnIntel);
 
     if (IsFPModeSet(RTZ))
-      AddFPControlMetadata(SPIRV_ROUNDING_MODE_RTZ);
+      AddFPControlMetadata(SpirvRoundingModeRtz);
 
     if (IsFPModeSet(DENORM_FTZ))
-      AddFPControlMetadata(SPIRV_DENORM_FLUSH_TO_ZERO);
+      AddFPControlMetadata(SpirvDenormFlushToZero);
 
     if (IsFPModeSet(DENORM_HF_ALLOW))
-      AddFPControlMetadataForWidth(SPIRV_DENORM_PRESERVE, 16);
+      AddFPControlMetadataForWidth(SpirvDenormPreserve, 16);
 
     if (IsFPModeSet(DENORM_F_ALLOW))
-      AddFPControlMetadataForWidth(SPIRV_DENORM_PRESERVE, 32);
+      AddFPControlMetadataForWidth(SpirvDenormPreserve, 32);
 
     if (IsFPModeSet(DENORM_D_ALLOW))
-      AddFPControlMetadataForWidth(SPIRV_DENORM_PRESERVE, 64);
+      AddFPControlMetadataForWidth(SpirvDenormPreserve, 64);
   }
 
-  if (AttrKindStr == "sycl-work-group-size" ||
-      AttrKindStr == "sycl-work-group-size-hint") {
-    // Split values in the comma-separated list integers.
-    SmallVector<StringRef, 3> ValStrs;
-    Attr.getValueAsString().split(ValStrs, ',');
+  static constexpr std::tuple<const char *, const char *> SimpleWGAttrs[] = {
+      {"sycl-work-group-size", "reqd_work_group_size"},
+      {"sycl-work-group-size-hint", "work_group_size_hint"},
+      {"sycl-max-work-group-size", "max_work_group_size"},
+  };
 
-    assert(ValStrs.size() <= 3 &&
-           "sycl-work-group-size and sycl-work-group-size-hint currently only "
-           "support up to three values");
+  for (auto &[AttrKind, MDStr] : SimpleWGAttrs) {
+    if (AttrKindStr != AttrKind)
+      continue;
+    // Split values in the comma-separated list integers.
+    SmallVector<StringRef, 3> AttrValStrs;
+    Attr.getValueAsString().split(AttrValStrs, ',');
+
+    size_t NumDims = AttrValStrs.size();
+    assert(NumDims <= 3 && "Incorrect number of values for kernel property");
 
     // SYCL work-group sizes must be reversed for SPIR-V.
-    std::reverse(ValStrs.begin(), ValStrs.end());
+    std::reverse(AttrValStrs.begin(), AttrValStrs.end());
 
     // Use integer pointer size as closest analogue to size_t.
     IntegerType *IntPtrTy = DLayout.getIntPtrType(Ctx);
@@ -381,14 +386,21 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
 
     // Get the integers from the strings.
     SmallVector<Metadata *, 3> MDVals;
-    for (StringRef ValStr : ValStrs)
+    for (StringRef ValStr : AttrValStrs)
       MDVals.push_back(ConstantAsMetadata::get(
           Constant::getIntegerValue(SizeTTy, APInt(SizeTBitSize, ValStr, 10))));
+    while (MDVals.size() < 3)
+      MDVals.push_back(ConstantAsMetadata::get(
+          Constant::getIntegerValue(SizeTTy, APInt(SizeTBitSize, 1, 10))));
 
-    const char *MDName = (AttrKindStr == "sycl-work-group-size")
-                             ? "reqd_work_group_size"
-                             : "work_group_size_hint";
-    return std::pair<std::string, MDNode *>(MDName, MDNode::get(Ctx, MDVals));
+    if (NumDims < 3) {
+      if (!F.hasMetadata("work_group_num_dim"))
+        F.setMetadata("work_group_num_dim",
+                      MDNode::get(Ctx, ConstantAsMetadata::get(ConstantInt::get(
+                                           Type::getInt32Ty(Ctx), NumDims))));
+    }
+
+    return std::pair<std::string, MDNode *>(MDStr, MDNode::get(Ctx, MDVals));
   }
 
   if (AttrKindStr == "sycl-sub-group-size") {
@@ -398,6 +410,21 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
         Constant::getIntegerValue(Ty, APInt(32, SubGroupSize)));
     SmallVector<Metadata *, 1> MD{MDVal};
     return std::pair<std::string, MDNode *>("intel_reqd_sub_group_size",
+                                            MDNode::get(Ctx, MD));
+  }
+
+  if (AttrKindStr == "sycl-max-linear-work-group-size") {
+    auto MaxLinearSize = getAttributeAsInteger<uint64_t>(Attr);
+    // Use integer pointer size as closest analogue to size_t.
+    IntegerType *IntPtrTy = DLayout.getIntPtrType(Ctx);
+    IntegerType *SizeTTy = Type::getIntNTy(Ctx, IntPtrTy->getBitWidth());
+    unsigned SizeTBitSize = SizeTTy->getBitWidth();
+
+    // Get the integers from the strings.
+    Metadata *MD = ConstantAsMetadata::get(Constant::getIntegerValue(
+        SizeTTy, APInt(SizeTBitSize, MaxLinearSize, 10)));
+
+    return std::pair<std::string, MDNode *>("max_linear_work_group_size",
                                             MDNode::get(Ctx, MD));
   }
 
@@ -416,6 +443,7 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
 
   if (AttrKindStr == "sycl-streaming-interface") {
     // generate either:
+    //   !ip_interface !N
     //   !N = !{!"streaming"} or
     //   !N = !{!"streaming", !"stall_free_return"}
     SmallVector<Metadata *, 2> MD;
@@ -428,6 +456,7 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
 
   if (AttrKindStr == "sycl-register-map-interface") {
     // generate either:
+    //   !ip_interface !N
     //   !N = !{!"csr"} or
     //   !N = !{!"csr", !"wait_for_done_write"}
     SmallVector<Metadata *, 2> MD;
@@ -438,24 +467,34 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
                                             MDNode::get(Ctx, MD));
   }
 
-  if ((AttrKindStr == SYCL_REGISTER_ALLOC_MODE_ATTR ||
-       AttrKindStr == SYCL_GRF_SIZE_ATTR) &&
-      !llvm::esimd::isESIMD(F)) {
-    // TODO: Remove SYCL_REGISTER_ALLOC_MODE_ATTR support in next ABI break.
+  if (AttrKindStr == "sycl-fpga-cluster") {
+    // generate either:
+    //   !stall_free !N
+    //   !N = !{i32 1} or
+    //   !stall_enable !N
+    //   !N = !{i32 1}
+    std::string ClusterType =
+        getAttributeAsInteger<uint32_t>(Attr) ? "stall_enable" : "stall_free";
+    Metadata *ClusterMDArgs[] = {
+        ConstantAsMetadata::get(ConstantInt::get(Type::getInt32Ty(Ctx), 1))};
+    return std::pair<std::string, MDNode *>(ClusterType,
+                                            MDNode::get(Ctx, ClusterMDArgs));
+  }
+
+  if ((AttrKindStr == SyclGrfSizeAttr) && !llvm::esimd::isESIMD(F)) {
     uint32_t PropVal = getAttributeAsInteger<uint32_t>(Attr);
-    if (AttrKindStr == SYCL_GRF_SIZE_ATTR) {
-      // The RegisterAllocMode metadata supports only 0, 128, and 256 for
-      // PropVal.
-      if (PropVal != 0 && PropVal != 128 && PropVal != 256)
-        return std::nullopt;
-      // Map sycl-grf-size values to RegisterAllocMode values used in SPIR-V.
-      static constexpr int SMALL_GRF_REGALLOCMODE_VAL = 1;
-      static constexpr int LARGE_GRF_REGALLOCMODE_VAL = 2;
-      if (PropVal == 128)
-        PropVal = SMALL_GRF_REGALLOCMODE_VAL;
-      else if (PropVal == 256)
-        PropVal = LARGE_GRF_REGALLOCMODE_VAL;
-    }
+    // The RegisterAllocMode metadata supports only 0, 128, and 256 for
+    // PropVal.
+    if (PropVal != 0 && PropVal != 128 && PropVal != 256)
+      return std::nullopt;
+    // Map sycl-grf-size values to RegisterAllocMode values used in SPIR-V.
+    static constexpr int SMALL_GRF_REGALLOCMODE_VAL = 1;
+    static constexpr int LARGE_GRF_REGALLOCMODE_VAL = 2;
+    if (PropVal == 128)
+      PropVal = SMALL_GRF_REGALLOCMODE_VAL;
+    else if (PropVal == 256)
+      PropVal = LARGE_GRF_REGALLOCMODE_VAL;
+
     Metadata *AttrMDArgs[] = {ConstantAsMetadata::get(
         Constant::getIntegerValue(Type::getInt32Ty(Ctx), APInt(32, PropVal)))};
     return std::pair<std::string, MDNode *>("RegisterAllocMode",
@@ -525,9 +564,9 @@ void getUserListIgnoringCast(
 PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
                                                  ModuleAnalysisManager &MAM) {
   LLVMContext &Ctx = M.getContext();
-  unsigned MDKindID = Ctx.getMDKindID(SPIRV_DECOR_MD_KIND);
+  unsigned MDKindID = Ctx.getMDKindID(SpirvDecorMdKind);
   bool CompileTimePropertiesMet = false;
-  unsigned MDParamKindID = Ctx.getMDKindID(SPIRV_PARAM_DECOR_MD_KIND);
+  unsigned MDParamKindID = Ctx.getMDKindID(SpirvParamDecorMdKind);
 
   // Let's process all the globals
   for (auto &GV : M.globals()) {
@@ -549,19 +588,12 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
     // of the variable.
     if (isDeviceGlobalVariable(GV)) {
       auto HostAccessDecorValue =
-          GV.hasAttribute(SYCL_HOST_ACCESS_ATTR)
-              ? getAttributeAsInteger<uint32_t>(GV, SYCL_HOST_ACCESS_ATTR)
-              : SPIRV_HOST_ACCESS_DEFAULT_VALUE;
+          GV.hasAttribute(SyclHostAccessAttr)
+              ? getAttributeAsInteger<uint32_t>(GV, SyclHostAccessAttr)
+              : SpirvHostAccessDefaultValue;
       auto VarName = getGlobalVariableUniqueId(GV);
-      MDOps.push_back(buildSpirvDecorMetadata(Ctx, SPIRV_HOST_ACCESS_DECOR,
+      MDOps.push_back(buildSpirvDecorMetadata(Ctx, SpirvHostAccessDecor,
                                               HostAccessDecorValue, VarName));
-    }
-
-    if (isHostPipeVariable(GV)) {
-      auto VarName = getGlobalVariableUniqueId(GV);
-      MDOps.push_back(buildSpirvDecorMetadata(Ctx, SPIRV_HOST_ACCESS_DECOR,
-                                              SPIRV_HOST_ACCESS_DEFAULT_VALUE,
-                                              VarName));
     }
 
     // Add the generated metadata to the variable
@@ -572,9 +604,13 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
   }
 
   // Process all properties on kernels.
+  TargetHelpers::KernelCache HIPCUDAKCache;
+  HIPCUDAKCache.populateKernels(M);
+
   for (Function &F : M) {
     // Only consider kernels.
-    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+    if (F.getCallingConv() != CallingConv::SPIR_KERNEL &&
+        !HIPCUDAKCache.isKernel(F))
       continue;
 
     // Compile time properties on kernel arguments
@@ -619,26 +655,25 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
     for (const Attribute &Attribute : F.getAttributes().getFnAttrs()) {
       // Handle pipelined attribute as a special case.
       if (Attribute.isStringAttribute() &&
-          Attribute.getKindAsString() == SYCL_PIPELINED_ATTR) {
+          Attribute.getKindAsString() == SyclPipelinedAttr) {
         auto PipelineOrInitiationInterval =
             getAttributeAsInteger<int32_t>(Attribute);
         MDNode *SPIRVMetadata;
         if (PipelineOrInitiationInterval < 0) {
           // Default pipelining desired
           SPIRVMetadata =
-              buildSpirvDecorMetadata(Ctx, SPIRV_PIPELINE_ENABLE_DECOR, 1);
+              buildSpirvDecorMetadata(Ctx, SpirvPipelineEnableDecor, 1);
         } else if (PipelineOrInitiationInterval == 0) {
           // No pipelining desired
           SPIRVMetadata =
-              buildSpirvDecorMetadata(Ctx, SPIRV_PIPELINE_ENABLE_DECOR, 0);
+              buildSpirvDecorMetadata(Ctx, SpirvPipelineEnableDecor, 0);
         } else {
           // Pipelining desired, with specified Initiation Interval
           SPIRVMetadata =
-              buildSpirvDecorMetadata(Ctx, SPIRV_PIPELINE_ENABLE_DECOR, 1);
+              buildSpirvDecorMetadata(Ctx, SpirvPipelineEnableDecor, 1);
           MDOps.push_back(SPIRVMetadata);
-          SPIRVMetadata =
-              buildSpirvDecorMetadata(Ctx, SPIRV_INITIATION_INTERVAL_DECOR,
-                                      PipelineOrInitiationInterval);
+          SPIRVMetadata = buildSpirvDecorMetadata(
+              Ctx, SpirvInitiationIntervalDecor, PipelineOrInitiationInterval);
         }
         MDOps.push_back(SPIRVMetadata);
       } else if (MDNode *SPIRVMetadata =
@@ -787,7 +822,7 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
   // Read the annotation values and create new annotation strings.
   std::string NewAnnotString = "";
   auto Properties = parseSYCLPropertiesString(M, IntrInst);
-  SmallVector<Metadata *, 8> MDOpsCacheProp;
+  SmallVector<std::array<uint32_t, 3>, 8> MDOpsCacheProp;
   bool CacheProp = false;
   bool FPGAProp = false;
   for (const auto &[PropName, PropVal] : Properties) {
@@ -812,7 +847,6 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
       // !CC1 = !{i32 Load/Store, i32 Level, i32 Control}
       // !CC2 = !{i32 Load/Store, i32 Level, i32 Control}
       // ...
-      LLVMContext &Ctx = M.getContext();
       uint32_t CacheMode = 0;
       while (AttrVal) {
         // The attribute value encodes cache control and levels.
@@ -825,8 +859,8 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
         uint32_t LevelMask = AttrVal & 0xf;
         while (LevelMask) {
           if (LevelMask & 1)
-            MDOpsCacheProp.push_back(buildSpirvDecorCacheProp(
-                Ctx, *PropName, DecorCode, CacheMode, CacheLevel));
+            MDOpsCacheProp.push_back({DecorCode, CacheLevel,
+                                      getCacheProperty(*PropName, CacheMode)});
           ++CacheLevel;
           LevelMask >>= 1;
         }
@@ -897,20 +931,39 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
 
   if (CacheProp) {
     LLVMContext &Ctx = M.getContext();
-    unsigned MDKindID = Ctx.getMDKindID(SPIRV_DECOR_MD_KIND);
-    if (!FPGAProp) {
-      // If there are no annotations other than cache controls we can apply the
-      // controls to the pointer and remove the intrinsic.
-      auto PtrInstr = cast<Instruction>(IntrInst->getArgOperand(0));
-      PtrInstr->setMetadata(MDKindID, MDTuple::get(Ctx, MDOpsCacheProp));
-      // Replace all uses of IntrInst with first operand
+    unsigned MDKindID = Ctx.getMDKindID(SpirvDecorCacheControlMdKind);
+    if (!FPGAProp && llvm::isa<llvm::Instruction>(IntrInst->getArgOperand(0))) {
+      // Find all load/store instructions using the pointer being annotated and
+      // apply the cache control metadata to them.
+      SmallVector<std::pair<Instruction *, int>, 8> TargetedInstList;
+      getUserListIgnoringCast<LoadInst>(IntrInst, TargetedInstList);
+      getUserListIgnoringCast<StoreInst>(IntrInst, TargetedInstList);
+      getUserListIgnoringCast<MemTransferInst>(IntrInst, TargetedInstList);
+      for (const auto &[Inst, MDVal] : TargetedInstList) {
+        assert(MDVal >= 0 && "Invalid operand number for instruction.");
+        // Merge with existing metadata if present.
+        SmallVector<Metadata *, 8> MDOps;
+        if (MDNode *CurrentMD = Inst->getMetadata(MDKindID))
+          for (Metadata *Op : CurrentMD->operands())
+            MDOps.push_back(Op);
+        for (const std::array<uint32_t, 3> &Op : MDOpsCacheProp)
+          MDOps.push_back(buildSpirvDecorCacheProp(Ctx, Op[0], Op[1], Op[2],
+                                                   uint32_t(MDVal)));
+        Inst->setMetadata(MDKindID, MDTuple::get(Ctx, MDOps));
+      }
+      // Replace all uses of ptr.annotations intrinsic with first operand and
+      // delete the original intrinsic.
+      Instruction *PtrInstr = cast<Instruction>(IntrInst->getArgOperand(0));
       IntrInst->replaceAllUsesWith(PtrInstr);
-      // Delete the original IntrInst
       RemovableAnnotations.push_back(IntrInst);
     } else {
       // If there were FPGA annotations then we retain the original intrinsic
       // and apply the cache control properties to its result.
-      IntrInst->setMetadata(MDKindID, MDTuple::get(Ctx, MDOpsCacheProp));
+      SmallVector<Metadata *, 8> MDOps;
+      for (const std::array<uint32_t, 3> &Op : MDOpsCacheProp)
+        MDOps.push_back(
+            buildSpirvDecorCacheProp(Ctx, Op[0], Op[1], Op[2], uint32_t(0)));
+      IntrInst->setMetadata(MDKindID, MDTuple::get(Ctx, MDOps));
     }
   }
 

@@ -90,7 +90,8 @@ BuiltinCallMutator::BuiltinCallMutator(BuiltinCallMutator &&Other)
 Value *BuiltinCallMutator::doConversion() {
   assert(CI && "Need to have a call instruction to do the conversion");
   auto Mangler = makeMangler(CI, Rules);
-  for (unsigned I = 0; I < Args.size(); I++) {
+  for (unsigned I = 0, E = std::min(Args.size(), PointerTypes.size()); I < E;
+       I++) {
     Mangler->getTypeMangleInfo(I).PointerTy =
         dyn_cast<TypedPointerType>(PointerTypes[I]);
   }
@@ -98,7 +99,7 @@ Value *BuiltinCallMutator::doConversion() {
 
   // Sanitize the return type, in case it's a TypedPointerType.
   if (auto *TPT = dyn_cast<TypedPointerType>(ReturnTy))
-    ReturnTy = PointerType::get(TPT->getElementType(), TPT->getAddressSpace());
+    ReturnTy = PointerType::get(CI->getContext(), TPT->getAddressSpace());
 
   CallInst *NewCall =
       Builder.Insert(addCallInst(CI->getModule(), FuncName, ReturnTy, Args,
@@ -106,6 +107,9 @@ Value *BuiltinCallMutator::doConversion() {
   NewCall->copyMetadata(*CI);
   NewCall->setAttributes(CallAttrs);
   NewCall->setTailCall(CI->isTailCall());
+  if (isa<FPMathOperator>(CI))
+    NewCall->setFastMathFlags(CI->getFastMathFlags());
+
   if (CI->hasFnAttr("fpbuiltin-max-error")) {
     auto Attr = CI->getFnAttr("fpbuiltin-max-error");
     NewCall->addFnAttr(Attr);
@@ -234,7 +238,7 @@ Value *BuiltinCallHelper::addSPIRVCall(IRBuilder<> &Builder, spv::Op Opcode,
                                        const Twine &Name) {
   // Sanitize the return type, in case it's a TypedPointerType.
   if (auto *TPT = dyn_cast<TypedPointerType>(ReturnTy))
-    ReturnTy = PointerType::get(TPT->getElementType(), TPT->getAddressSpace());
+    ReturnTy = PointerType::get(Builder.getContext(), TPT->getAddressSpace());
 
   // Copy the types into the mangling info.
   BuiltinFuncMangleInfo BtnInfo;
@@ -314,11 +318,28 @@ Type *BuiltinCallHelper::getSPIRVType(
                       UseRealType);
 }
 
+/// Return true if we always need to emit a TargetExtType for the given type.
+static bool needsTargetExtTy(spv::Op TypeOpcode) {
+  switch (TypeOpcode) {
+  default:
+    return false;
+  case OpTypeImage:
+  case OpTypeSampledImage:
+  case OpTypeSampler:
+  case OpTypeDeviceEvent:
+  case OpTypeEvent:
+  case OpTypeQueue:
+  case OpTypeReserveId:
+  case OpTypePipe:
+    return true;
+  }
+}
+
 Type *BuiltinCallHelper::getSPIRVType(spv::Op TypeOpcode,
                                       StringRef InnerTypeName,
                                       ArrayRef<unsigned> Parameters,
                                       bool UseRealType) {
-  if (UseTargetTypes) {
+  if (UseTargetTypes || needsTargetExtTy(TypeOpcode)) {
     std::string BaseName = (Twine(kSPIRVTypeName::PrefixAndDelim) +
                             SPIRVOpaqueTypeOpCodeMap::rmap(TypeOpcode))
                                .str();
@@ -348,7 +369,7 @@ Type *BuiltinCallHelper::getSPIRVType(spv::Op TypeOpcode,
     STy = StructType::create(M->getContext(), FullName);
 
   unsigned AddrSpace = getOCLOpaqueTypeAddrSpace(TypeOpcode);
-  return UseRealType ? (Type *)PointerType::get(STy, AddrSpace)
+  return UseRealType ? (Type *)PointerType::get(M->getContext(), AddrSpace)
                      : TypedPointerType::get(STy, AddrSpace);
 }
 

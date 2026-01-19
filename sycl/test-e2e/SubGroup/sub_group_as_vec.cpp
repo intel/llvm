@@ -1,16 +1,14 @@
-// RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{build} -o %t1.out -Wno-deprecated-declarations
+// RUN: %{run} %t1.out
 //
-// RUN: %{build} -DUSE_DEPRECATED_LOCAL_ACC -o %t.out
-// RUN: %{run} %t.out
-//
-// UNSUPPORTED: ze_debug
+// RUN: %{build} -DUSE_DEPRECATED_LOCAL_ACC -o %t2.out -Wno-deprecated-declarations
+// RUN: %{run} %t2.out
+
+// Depends on SPIR-V Backend & run-time drivers version.
+// XFAIL: spirv-backend && gpu
+// XFAIL-TRACKER: CMPLRLLVM-64705
 
 #include "helper.hpp"
-#include <cassert>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
 
 int main(int argc, char *argv[]) {
   sycl::queue queue;
@@ -31,7 +29,7 @@ int main(int argc, char *argv[]) {
     queue.submit([&](sycl::handler &cgh) {
       auto global = buf.get_access<sycl::access::mode::read_write,
                                    sycl::access::target::device>(cgh);
-#ifdef DUSE_DEPRECATED_LOCAL_ACC
+#ifdef USE_DEPRECATED_LOCAL_ACC
       sycl::accessor<sycl::vec<int, 2>, 1, sycl::access::mode::read_write,
                      sycl::access::target::local>
           local(N, cgh);

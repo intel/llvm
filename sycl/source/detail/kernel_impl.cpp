@@ -16,53 +16,76 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
-                         ContextImplPtr ContextImpl,
-                         KernelBundleImplPtr KernelBundleImpl,
+static CompileTimeKernelInfoTy
+createCompileTimeKernelInfo(std::string_view KernelName = {}) {
+  return CompileTimeKernelInfoTy{KernelName};
+}
+
+kernel_impl::kernel_impl(Managed<ur_kernel_handle_t> &&Kernel,
+                         context_impl &Context,
+                         kernel_bundle_impl *KernelBundleImpl,
                          const KernelArgMask *ArgMask)
-    : MKernel(Kernel), MContext(ContextImpl),
-      MProgram(ProgramManager::getInstance().getPiProgramFromPiKernel(
-          Kernel, ContextImpl)),
-      MCreatedFromSource(true), MKernelBundleImpl(std::move(KernelBundleImpl)),
-      MIsInterop(true), MKernelArgMaskPtr{ArgMask} {
-  sycl::detail::pi::PiContext Context = nullptr;
-  // Using the plugin from the passed ContextImpl
-  getPlugin()->call<PiApiKind::piKernelGetInfo>(
-      MKernel, PI_KERNEL_INFO_CONTEXT, sizeof(Context), &Context, nullptr);
-  if (ContextImpl->getHandleRef() != Context)
+    : MKernel(std::move(Kernel)), MContext(Context.shared_from_this()),
+      MProgram(ProgramManager::getInstance().getUrProgramFromUrKernel(MKernel,
+                                                                      Context)),
+      MCreatedFromSource(true),
+      MKernelBundleImpl(KernelBundleImpl ? KernelBundleImpl->shared_from_this()
+                                         : nullptr),
+      MIsInterop(true), MKernelArgMaskPtr{ArgMask}, MOwnsDeviceKernelInfo(true),
+      MDeviceKernelInfo(createCompileTimeKernelInfo(getName())) {
+  ur_context_handle_t UrContext = nullptr;
+  // Using the adapter from the passed ContextImpl
+  getAdapter().call<UrApiKind::urKernelGetInfo>(
+      MKernel, UR_KERNEL_INFO_CONTEXT, sizeof(UrContext), &UrContext, nullptr);
+  if (Context.getHandleRef() != UrContext)
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Input context must be the same as the context of cl_kernel");
 
   // Enable USM indirect access for interoperability kernels.
-  // Some PI Plugins (like OpenCL) require this call to enable USM
-  // For others, PI will turn this into a NOP.
-  if (ContextImpl->getPlatformImpl()->supports_usm())
-    getPlugin()->call<PiApiKind::piKernelSetExecInfo>(
-        MKernel, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
+  enableUSMIndirectAccess();
 }
 
-kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
-                         ContextImplPtr ContextImpl,
-                         DeviceImageImplPtr DeviceImageImpl,
-                         KernelBundleImplPtr KernelBundleImpl,
-                         const KernelArgMask *ArgMask, PiProgram ProgramPI,
-                         std::mutex *CacheMutex)
-    : MKernel(Kernel), MContext(std::move(ContextImpl)), MProgram(ProgramPI),
-      MCreatedFromSource(false), MDeviceImageImpl(std::move(DeviceImageImpl)),
-      MKernelBundleImpl(std::move(KernelBundleImpl)),
-      MKernelArgMaskPtr{ArgMask}, MCacheMutex{CacheMutex} {
-  MIsInterop = MKernelBundleImpl->isInterop();
+kernel_impl::kernel_impl(Managed<ur_kernel_handle_t> &&Kernel,
+                         context_impl &ContextImpl,
+                         std::shared_ptr<device_image_impl> &&DeviceImageImpl,
+                         const kernel_bundle_impl &KernelBundleImpl,
+                         const KernelArgMask *ArgMask,
+                         ur_program_handle_t Program, std::mutex *CacheMutex)
+    : MKernel(std::move(Kernel)), MContext(ContextImpl.shared_from_this()),
+      MProgram(Program),
+      MCreatedFromSource(DeviceImageImpl->isNonSYCLSourceBased()),
+      MDeviceImageImpl(std::move(DeviceImageImpl)),
+      MKernelBundleImpl(KernelBundleImpl.shared_from_this()),
+      MIsInterop(MDeviceImageImpl->getOriginMask() & ImageOriginInterop),
+      MKernelArgMaskPtr{ArgMask}, MCacheMutex{CacheMutex},
+      MOwnsDeviceKernelInfo(checkOwnsDeviceKernelInfo()),
+      MDeviceKernelInfo(MOwnsDeviceKernelInfo
+                            ? createCompileTimeKernelInfo(getName())
+                            : createCompileTimeKernelInfo()) {
+
+  // Enable USM indirect access for interop and non-sycl-jit source kernels.
+  // sycl-jit kernels will enable this if needed through the regular kernel
+  // path.
+  if (MCreatedFromSource || MIsInterop)
+    enableUSMIndirectAccess();
 }
 
-kernel_impl::~kernel_impl() {
-  try {
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    getPlugin()->call<PiApiKind::piKernelRelease>(MKernel);
-  } catch (std::exception &e) {
-    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~kernel_impl", e);
-  }
+#ifdef _MSC_VER
+#pragma warning(push)
+// https://developercommunity.visualstudio.com/t/False-C4297-warning-while-using-function/1130300
+// https://godbolt.org/z/xsMvKf84f
+#pragma warning(disable : 4297)
+#endif
+kernel_impl::~kernel_impl() try {
+} catch (std::exception &e) {
+  // TODO put it to list of asynchronous exceptions
+  __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~kernel_impl", e);
+  return; // Don't re-throw.
 }
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 bool kernel_impl::isCreatedFromSource() const {
   // TODO it is not clear how to understand whether the SYCL kernel is created
@@ -80,7 +103,38 @@ bool kernel_impl::isCreatedFromSource() const {
   return MCreatedFromSource;
 }
 
-bool kernel_impl::isBuiltInKernel(const device &Device) const {
+bool kernel_impl::isInteropOrSourceBased() const noexcept {
+  return isInterop() ||
+         (MDeviceImageImpl &&
+          (MDeviceImageImpl->getOriginMask() & ImageOriginKernelCompiler));
+}
+
+bool kernel_impl::hasSYCLMetadata() const noexcept {
+  return !isInteropOrSourceBased() ||
+         (MDeviceImageImpl &&
+          MDeviceImageImpl->isFromSourceLanguage(
+              sycl::ext::oneapi::experimental::source_language::sycl));
+}
+
+// TODO this is how kernel_impl::get_info<function_name> should behave instead.
+std::string_view kernel_impl::getName() const {
+  std::call_once(MNameInitFlag,
+                 [&]() { MName = get_info<info::kernel::function_name>(); });
+
+  return MName;
+}
+
+bool kernel_impl::checkOwnsDeviceKernelInfo() {
+  // If the image originates from something other than standard offline
+  // compilation, this kernel needs to own its info structure.
+  // We could also have a mixed origin image, in which case the device kernel
+  // info might reside in program manager.
+  return MDeviceImageImpl->getOriginMask() != ImageOriginSYCLOffline &&
+         (!(MDeviceImageImpl->getOriginMask() & ImageOriginSYCLOffline) ||
+          !ProgramManager::getInstance().tryGetDeviceKernelInfo(getName()));
+}
+
+bool kernel_impl::isBuiltInKernel(device_impl &Device) const {
   auto BuiltInKernels = Device.get_info<info::device::built_in_kernel_ids>();
   if (BuiltInKernels.empty())
     return false;
@@ -91,11 +145,12 @@ bool kernel_impl::isBuiltInKernel(const device &Device) const {
 }
 
 void kernel_impl::checkIfValidForNumArgsInfoQuery() const {
-  if (MKernelBundleImpl->isInterop())
+  if (isInteropOrSourceBased())
     return;
-  auto Devices = MKernelBundleImpl->get_devices();
-  if (std::any_of(Devices.begin(), Devices.end(),
-                  [this](device &Device) { return isBuiltInKernel(Device); }))
+  devices_range Devices = MKernelBundleImpl->get_devices();
+  if (std::any_of(Devices.begin(), Devices.end(), [this](device_impl &Device) {
+        return isBuiltInKernel(Device);
+      }))
     return;
 
   throw sycl::exception(
@@ -105,51 +160,24 @@ void kernel_impl::checkIfValidForNumArgsInfoQuery() const {
       "interoperability function or to query a device built-in kernel");
 }
 
-template <>
-typename info::platform::version::return_type
-kernel_impl::get_backend_info<info::platform::version>() const {
-  if (MContext->getBackend() != backend::opencl) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::platform::version info descriptor can "
-                          "only be queried with an OpenCL backend");
-  }
-  auto Devices = MKernelBundleImpl->get_devices();
-  return Devices[0].get_platform().get_info<info::platform::version>();
+std::optional<unsigned> kernel_impl ::getFreeFuncKernelArgSize() const {
+  return MKernelBundleImpl->tryGetKernelArgsSize(getName());
+}
+
+void kernel_impl::enableUSMIndirectAccess() const {
+  if (!MContext->getPlatformImpl().supports_usm())
+    return;
+
+  // Some UR Adapters (like OpenCL) require this call to enable USM
+  // For others, UR will turn this into a NOP.
+  bool EnableAccess = true;
+  getAdapter().call<UrApiKind::urKernelSetExecInfo>(
+      MKernel, UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS, sizeof(ur_bool_t),
+      nullptr, &EnableAccess);
 }
 
 device select_device(DSelectorInvocableType DeviceSelectorInvocable,
                      std::vector<device> &Devices);
-
-template <>
-typename info::device::version::return_type
-kernel_impl::get_backend_info<info::device::version>() const {
-  if (MContext->getBackend() != backend::opencl) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::device::version info descriptor can only "
-                          "be queried with an OpenCL backend");
-  }
-  auto Devices = MKernelBundleImpl->get_devices();
-  if (Devices.empty()) {
-    return "No available device";
-  }
-  // Use default selector to pick a device.
-  return select_device(default_selector_v, Devices)
-      .get_info<info::device::version>();
-}
-
-template <>
-typename info::device::backend_version::return_type
-kernel_impl::get_backend_info<info::device::backend_version>() const {
-  if (MContext->getBackend() != backend::ext_oneapi_level_zero) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::device::backend_version info descriptor "
-                          "can only be queried with a Level Zero backend");
-  }
-  return "";
-  // Currently The Level Zero backend does not define the value of this
-  // information descriptor and implementations are encouraged to return the
-  // empty string as per specification.
-}
 
 } // namespace detail
 } // namespace _V1

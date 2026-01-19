@@ -1,6 +1,3 @@
-// UNSUPPORTED: cuda, hip, acc
-// FIXME: replace unsupported with an aspect check once we have it
-//
 // RUN: %{build} -o %t.out %helper-includes
 // RUN: %{run} %t.out
 
@@ -14,52 +11,52 @@ namespace oneapi = sycl::ext::oneapi::experimental;
 
 class Base {
 public:
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
   virtual void increment(int *) { /* do nothhing */
   }
 
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
   virtual void multiply(int *) { /* do nothhing */
   }
 
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
   virtual void substract(int *) { /* do nothhing */
   }
 };
 
 class IncrementBy1 : public Base {
 public:
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
   void increment(int *Data) override { *Data += 1; }
 };
 
 class IncrementBy1AndSubstractBy2 : public IncrementBy1 {
 public:
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
   void substract(int *Data) override { *Data -= 2; }
 };
 
 class MultiplyBy2 : public Base {
 public:
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
   void multiply(int *Data) override { *Data *= 2; }
 };
 
 class MultiplyBy2AndIncrementBy8 : public MultiplyBy2 {
 public:
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
   void increment(int *Data) override { *Data += 8; }
 };
 
 class SubstractBy4 : public Base {
 public:
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
   void substract(int *Data) override { *Data -= 4; }
 };
 
 class SubstractBy4AndMultiplyBy4 : public SubstractBy4 {
 public:
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
   void multiply(int *Data) override { *Data *= 4; }
 };
 
@@ -68,6 +65,25 @@ void applyOp(int *DataPtr, Base *ObjPtr) {
   ObjPtr->substract(DataPtr);
   ObjPtr->multiply(DataPtr);
 }
+
+template <typename T1, typename T2> struct KernelFunctor {
+  T1 mStorageAcc;
+  T2 mDataAcc;
+  unsigned mTestCase;
+  KernelFunctor(T1 &StorageAcc, T2 &DataAcc, unsigned TestCase)
+      : mStorageAcc(StorageAcc), mDataAcc(DataAcc), mTestCase(TestCase) {}
+
+  void operator()() const {
+    auto *Ptr =
+        mStorageAcc[0].template construct</* ret type = */ Base>(mTestCase);
+    applyOp(
+        mDataAcc.template get_multi_ptr<sycl::access::decorated::no>().get(),
+        Ptr);
+  }
+  auto get(oneapi::properties_tag) const {
+    return oneapi::properties{oneapi::assume_indirect_calls};
+  }
+};
 
 int main() try {
   using storage_t = obj_storage_t<IncrementBy1, IncrementBy1AndSubstractBy2,
@@ -83,7 +99,6 @@ int main() try {
 
   sycl::queue q(asyncHandler);
 
-  constexpr oneapi::properties props{oneapi::calls_indirectly<>};
   for (unsigned TestCase = 0; TestCase < 6; ++TestCase) {
     int HostData = 42;
     int Data = HostData;
@@ -92,11 +107,7 @@ int main() try {
     q.submit([&](sycl::handler &CGH) {
       sycl::accessor StorageAcc(DeviceStorage, CGH, sycl::write_only);
       sycl::accessor DataAcc(DataStorage, CGH, sycl::write_only);
-      CGH.single_task(props, [=]() {
-        auto *Ptr = StorageAcc[0].construct</* ret type = */ Base>(TestCase);
-        applyOp(DataAcc.get_multi_ptr<sycl::access::decorated::no>().get(),
-                Ptr);
-      });
+      CGH.single_task(KernelFunctor(StorageAcc, DataAcc, TestCase));
     });
 
     Base *Ptr = HostStorage.construct</* ret type = */ Base>(TestCase);

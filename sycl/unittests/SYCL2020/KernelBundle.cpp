@@ -10,9 +10,9 @@
 #include <detail/kernel_bundle_impl.hpp>
 #include <sycl/sycl.hpp>
 
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
@@ -24,61 +24,58 @@ MOCK_INTEGRATION_HEADER(TestKernel)
 MOCK_INTEGRATION_HEADER(TestKernelExeOnly)
 MOCK_INTEGRATION_HEADER(TestKernelWithAspects)
 
-static sycl::unittest::PiImage
+static sycl::unittest::MockDeviceImage
 generateDefaultImage(std::initializer_list<std::string> KernelNames,
-                     pi_device_binary_type BinaryType,
+                     sycl_device_binary_type BinaryType,
                      const char *DeviceTargetSpec,
                      const std::vector<sycl::aspect> &Aspects = {}) {
   using namespace sycl::unittest;
 
-  PiPropertySet PropSet;
+  MockPropertySet PropSet;
   if (!Aspects.empty())
     addDeviceRequirementsProps(PropSet, Aspects);
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels(KernelNames);
+  std::vector<MockOffloadEntry> Entries = makeEmptyKernels(KernelNames);
 
-  PiImage Img{BinaryType, // Format
-              DeviceTargetSpec,
-              "", // Compile options
-              "", // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img{BinaryType, // Format
+                      DeviceTargetSpec,
+                      "", // Compile options
+                      "", // Link options
+                      std::move(Bin),
+                      std::move(Entries),
+                      std::move(PropSet)};
 
   return Img;
 }
 
-static sycl::unittest::PiImage Imgs[] = {
-    generateDefaultImage({"TestKernel"}, PI_DEVICE_BINARY_TYPE_SPIRV,
-                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64),
-    generateDefaultImage({"TestKernelExeOnly"}, PI_DEVICE_BINARY_TYPE_NATIVE,
-                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
+static sycl::unittest::MockDeviceImage Imgs[] = {
+    generateDefaultImage({"TestKernel"}, SYCL_DEVICE_BINARY_TYPE_SPIRV,
+                         __SYCL_DEVICE_BINARY_TARGET_SPIRV64),
+    generateDefaultImage({"TestKernelExeOnly"}, SYCL_DEVICE_BINARY_TYPE_NATIVE,
+                         __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
     // A device image without entires
-    generateDefaultImage({}, PI_DEVICE_BINARY_TYPE_NATIVE,
-                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
+    generateDefaultImage({}, SYCL_DEVICE_BINARY_TYPE_NATIVE,
+                         __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
     generateDefaultImage(
-        {"TestKernelWithAspects"}, PI_DEVICE_BINARY_TYPE_NATIVE,
-        __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, {sycl::aspect::gpu})};
-static sycl::unittest::PiImageArray<std::size(Imgs)> ImgArray{Imgs};
+        {"TestKernelWithAspects"}, SYCL_DEVICE_BINARY_TYPE_NATIVE,
+        __SYCL_DEVICE_BINARY_TARGET_SPIRV64, {sycl::aspect::gpu})};
+static sycl::unittest::MockDeviceImageArray<std::size(Imgs)> ImgArray{Imgs};
 
-static pi_result redefinedDeviceGetInfoCPU(pi_device device,
-                                           pi_device_info param_name,
-                                           size_t param_value_size,
-                                           void *param_value,
-                                           size_t *param_value_size_ret) {
-  if (param_name == PI_DEVICE_INFO_TYPE) {
-    auto *Result = reinterpret_cast<_pi_device_type *>(param_value);
-    *Result = PI_DEVICE_TYPE_CPU;
+static ur_result_t redefinedDeviceGetInfoCPU(void *pParams) {
+  auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
+  if (*params.ppropName == UR_DEVICE_INFO_TYPE) {
+    auto *Result = reinterpret_cast<ur_device_type_t *>(*params.ppPropValue);
+    *Result = UR_DEVICE_TYPE_CPU;
   }
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 TEST(KernelBundle, GetKernelBundleFromKernel) {
-  sycl::unittest::PiMock Mock;
+  sycl::unittest::UrMock<> Mock;
 
-  const sycl::device Dev = Mock.getPlatform().get_devices()[0];
+  const sycl::device Dev = sycl::platform().get_devices()[0];
   sycl::context Ctx{Dev};
   sycl::queue Queue{Ctx, Dev};
 
@@ -95,9 +92,9 @@ TEST(KernelBundle, GetKernelBundleFromKernel) {
 }
 
 TEST(KernelBundle, KernelBundleAndItsDevImageStateConsistency) {
-  sycl::unittest::PiMock Mock;
+  sycl::unittest::UrMock<> Mock;
 
-  const sycl::device Dev = Mock.getPlatform().get_devices()[0];
+  const sycl::device Dev = sycl::platform().get_devices()[0];
 
   sycl::queue Queue{Dev};
 
@@ -110,22 +107,24 @@ TEST(KernelBundle, KernelBundleAndItsDevImageStateConsistency) {
   auto ObjBundle = sycl::compile(KernelBundle, KernelBundle.get_devices());
   EXPECT_FALSE(ObjBundle.empty()) << "Expect non-empty obj kernel bundle";
 
-  auto ObjBundleImpl = sycl::detail::getSyclObjImpl(ObjBundle);
-  EXPECT_EQ(ObjBundleImpl->get_bundle_state(), sycl::bundle_state::object)
+  sycl::detail::kernel_bundle_impl &ObjBundleImpl =
+      *sycl::detail::getSyclObjImpl(ObjBundle);
+  EXPECT_EQ(ObjBundleImpl.get_bundle_state(), sycl::bundle_state::object)
       << "Expect object device image in bundle";
 
   auto LinkBundle = sycl::link(ObjBundle, ObjBundle.get_devices());
   EXPECT_FALSE(LinkBundle.empty()) << "Expect non-empty exec kernel bundle";
 
-  auto LinkBundleImpl = sycl::detail::getSyclObjImpl(LinkBundle);
-  EXPECT_EQ(LinkBundleImpl->get_bundle_state(), sycl::bundle_state::executable)
+  sycl::detail::kernel_bundle_impl &LinkBundleImpl =
+      *sycl::detail::getSyclObjImpl(LinkBundle);
+  EXPECT_EQ(LinkBundleImpl.get_bundle_state(), sycl::bundle_state::executable)
       << "Expect executable device image in bundle";
 }
 
 TEST(KernelBundle, EmptyKernelBundle) {
-  sycl::unittest::PiMock Mock;
+  sycl::unittest::UrMock<> Mock;
 
-  const sycl::device Dev = Mock.getPlatform().get_devices()[0];
+  const sycl::device Dev = sycl::platform().get_devices()[0];
   sycl::queue Queue{Dev};
   const sycl::context Ctx = Queue.get_context();
 
@@ -138,9 +137,9 @@ TEST(KernelBundle, EmptyKernelBundle) {
 }
 
 TEST(KernelBundle, EmptyKernelBundleKernelLaunchException) {
-  sycl::unittest::PiMock Mock;
+  sycl::unittest::UrMock<> Mock;
 
-  const sycl::device Dev = Mock.getPlatform().get_devices()[0];
+  const sycl::device Dev = sycl::platform().get_devices()[0];
   sycl::queue Queue{Dev};
   const sycl::context Ctx = Queue.get_context();
 
@@ -179,9 +178,9 @@ TEST(KernelBundle, EmptyKernelBundleKernelLaunchException) {
 }
 
 TEST(KernelBundle, HasKernelBundle) {
-  sycl::unittest::PiMock Mock;
+  sycl::unittest::UrMock<> Mock;
 
-  const sycl::device Dev = Mock.getPlatform().get_devices()[0];
+  const sycl::device Dev = sycl::platform().get_devices()[0];
 
   sycl::queue Queue{Dev};
 
@@ -225,9 +224,9 @@ TEST(KernelBundle, HasKernelBundle) {
 }
 
 TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueOnly) {
-  sycl::unittest::PiMock Mock;
+  sycl::unittest::UrMock<> Mock;
 
-  const sycl::device Dev = Mock.getPlatform().get_devices()[0];
+  const sycl::device Dev = sycl::platform().get_devices()[0];
   sycl::queue Queue{Dev};
   const sycl::context QueueCtx = Queue.get_context();
   const sycl::context OtherCtx{Dev};
@@ -265,102 +264,10 @@ TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueOnly) {
   }
 }
 
-TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueValidSecondaryQueue) {
-  sycl::unittest::PiMock Mock;
-
-  const sycl::device Dev = Mock.getPlatform().get_devices()[0];
-  const sycl::context PrimaryCtx{Dev};
-  const sycl::context SecondaryCtx{Dev};
-
-  ASSERT_NE(PrimaryCtx, SecondaryCtx);
-
-  auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
-      SecondaryCtx, {Dev});
-
-  sycl::queue PrimaryQueue{PrimaryCtx, Dev};
-  sycl::queue SecondaryQueue{SecondaryCtx, Dev};
-
-  class UnqiueException {};
-
-  try {
-    PrimaryQueue.submit(
-        [&](sycl::handler &CGH) {
-          try {
-            CGH.use_kernel_bundle(KernelBundle);
-            FAIL() << "No exception was thrown.";
-            CGH.single_task<TestKernel>([]() {});
-          } catch (const sycl::exception &e) {
-            ASSERT_EQ(e.code().value(), static_cast<int>(sycl::errc::invalid))
-                << "sycl::exception code was not the expected "
-                   "sycl::errc::invalid.";
-            // Throw uniquely identifiable exception to distinguish between that
-            // the sycl::exception originates from the correct level.
-            throw UnqiueException{};
-          } catch (...) {
-            FAIL() << "Unexpected exception was thrown in kernel invocation "
-                      "function.";
-          }
-        },
-        SecondaryQueue);
-  } catch (const UnqiueException &) {
-    // Expected path
-  } catch (const sycl::exception &) {
-    FAIL() << "sycl::exception thrown at the wrong level.";
-  } catch (...) {
-    FAIL() << "Unexpected exception was thrown in submit.";
-  }
-}
-
-TEST(KernelBundle, UseKernelBundleValidPrimaryQueueWrongContextSecondaryQueue) {
-  sycl::unittest::PiMock Mock;
-
-  const sycl::device Dev = Mock.getPlatform().get_devices()[0];
-  const sycl::context PrimaryCtx{Dev};
-  const sycl::context SecondaryCtx{Dev};
-
-  ASSERT_NE(PrimaryCtx, SecondaryCtx);
-
-  auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
-      PrimaryCtx, {Dev});
-
-  sycl::queue PrimaryQueue{PrimaryCtx, Dev};
-  sycl::queue SecondaryQueue{SecondaryCtx, Dev};
-
-  class UnqiueException {};
-
-  try {
-    PrimaryQueue.submit(
-        [&](sycl::handler &CGH) {
-          try {
-            CGH.use_kernel_bundle(KernelBundle);
-            FAIL() << "No exception was thrown.";
-            CGH.single_task<TestKernel>([]() {});
-          } catch (const sycl::exception &e) {
-            ASSERT_EQ(e.code().value(), static_cast<int>(sycl::errc::invalid))
-                << "sycl::exception code was not the expected "
-                   "sycl::errc::invalid.";
-            // Throw uniquely identifiable exception to distinguish between that
-            // the sycl::exception originates from the correct level.
-            throw UnqiueException{};
-          } catch (...) {
-            FAIL() << "Unexpected exception was thrown in kernel invocation "
-                      "function.";
-          }
-        },
-        SecondaryQueue);
-  } catch (const UnqiueException &) {
-    // Expected path
-  } catch (const sycl::exception &) {
-    FAIL() << "sycl::exception thrown at the wrong level.";
-  } catch (...) {
-    FAIL() << "Unexpected exception was thrown in submit.";
-  }
-}
-
 TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueAndSecondaryQueue) {
-  sycl::unittest::PiMock Mock;
+  sycl::unittest::UrMock<> Mock;
 
-  const sycl::device Dev = Mock.getPlatform().get_devices()[0];
+  const sycl::device Dev = sycl::platform().get_devices()[0];
   const sycl::context PrimaryCtx{Dev};
   const sycl::context SecondaryCtx{Dev};
   const sycl::context OtherCtx{Dev};
@@ -375,41 +282,31 @@ TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueAndSecondaryQueue) {
   sycl::queue PrimaryQueue{PrimaryCtx, Dev};
   sycl::queue SecondaryQueue{SecondaryCtx, Dev};
 
-  class UnqiueException {};
-
+  size_t EnqueueCounter = 0;
   try {
     PrimaryQueue.submit(
         [&](sycl::handler &CGH) {
-          try {
-            CGH.use_kernel_bundle(KernelBundle);
-            FAIL() << "No exception was thrown.";
-            CGH.single_task<TestKernel>([]() {});
-          } catch (const sycl::exception &e) {
-            ASSERT_EQ(e.code().value(), static_cast<int>(sycl::errc::invalid))
-                << "sycl::exception code was not the expected "
-                   "sycl::errc::invalid.";
-            // Throw uniquely identifiable exception to distinguish between that
-            // the sycl::exception originates from the correct level.
-            throw UnqiueException{};
-          } catch (...) {
-            FAIL() << "Unexpected exception was thrown in kernel invocation "
-                      "function.";
-          }
+          CGH.use_kernel_bundle(KernelBundle);
+          ++EnqueueCounter;
+          CGH.single_task<TestKernel>([]() {});
         },
         SecondaryQueue);
-  } catch (const UnqiueException &) {
-    // Expected path
-  } catch (const sycl::exception &) {
-    FAIL() << "sycl::exception thrown at the wrong level.";
+    FAIL() << "Submit should always throw.";
+  } catch (const sycl::exception &e) {
+    ASSERT_EQ(EnqueueCounter, size_t{0})
+        << "Exception was not thrown from primary queue.";
+    ASSERT_EQ(e.code().value(), static_cast<int>(sycl::errc::invalid))
+        << "sycl::exception code was not the expected "
+           "sycl::errc::invalid.";
   } catch (...) {
     FAIL() << "Unexpected exception was thrown in submit.";
   }
 }
 
 TEST(KernelBundle, EmptyDevicesKernelBundleLinkException) {
-  sycl::unittest::PiMock Mock;
+  sycl::unittest::UrMock<> Mock;
 
-  const sycl::device Dev = Mock.getPlatform().get_devices()[0];
+  const sycl::device Dev = sycl::platform().get_devices()[0];
   sycl::queue Queue{Dev};
   const sycl::context Ctx = Queue.get_context();
 
@@ -451,63 +348,60 @@ TEST(KernelBundle, EmptyDevicesKernelBundleLinkException) {
   }
 }
 
-pi_device ParentDevice = nullptr;
-pi_platform PiPlatform = nullptr;
+ur_device_handle_t ParentDevice = nullptr;
+ur_platform_handle_t UrPlatform = nullptr;
 
-pi_result redefinedDeviceGetInfoAfter(pi_device device,
-                                      pi_device_info param_name,
-                                      size_t param_value_size,
-                                      void *param_value,
-                                      size_t *param_value_size_ret) {
-  if (param_name == PI_DEVICE_INFO_PARTITION_PROPERTIES) {
-    if (param_value) {
+ur_result_t redefinedDeviceGetInfoAfter(void *pParams) {
+  auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
+  if (*params.ppropName == UR_DEVICE_INFO_SUPPORTED_PARTITIONS) {
+    if (*params.ppPropValue) {
       auto *Result =
-          reinterpret_cast<pi_device_partition_property *>(param_value);
-      *Result = PI_DEVICE_PARTITION_EQUALLY;
+          reinterpret_cast<ur_device_partition_t *>(*params.ppPropValue);
+      *Result = UR_DEVICE_PARTITION_EQUALLY;
     }
-    if (param_value_size_ret)
-      *param_value_size_ret = sizeof(pi_device_partition_property);
-  } else if (param_name == PI_DEVICE_INFO_MAX_COMPUTE_UNITS) {
-    auto *Result = reinterpret_cast<pi_uint32 *>(param_value);
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = sizeof(ur_device_partition_t);
+  } else if (*params.ppropName == UR_DEVICE_INFO_MAX_COMPUTE_UNITS) {
+    auto *Result = reinterpret_cast<uint32_t *>(*params.ppPropValue);
     *Result = 2;
-  } else if (param_name == PI_DEVICE_INFO_PARENT_DEVICE) {
-    auto *Result = reinterpret_cast<pi_device *>(param_value);
-    *Result = (device == ParentDevice) ? nullptr : ParentDevice;
-  } else if (param_name == PI_DEVICE_INFO_PLATFORM) {
-    auto *Result = reinterpret_cast<pi_platform *>(param_value);
-    *Result = PiPlatform;
+  } else if (*params.ppropName == UR_DEVICE_INFO_PARENT_DEVICE) {
+    auto *Result = reinterpret_cast<ur_device_handle_t *>(*params.ppPropValue);
+    *Result = (*params.phDevice == ParentDevice) ? nullptr : ParentDevice;
+  } else if (*params.ppropName == UR_DEVICE_INFO_PLATFORM) {
+    auto *Result =
+        reinterpret_cast<ur_platform_handle_t *>(*params.ppPropValue);
+    *Result = UrPlatform;
   }
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result redefinedDevicePartitionAfter(
-    pi_device device, const pi_device_partition_property *properties,
-    pi_uint32 num_devices, pi_device *out_devices, pi_uint32 *out_num_devices) {
-  if (out_devices) {
-    for (size_t I = 0; I < num_devices; ++I) {
-      out_devices[I] = reinterpret_cast<pi_device>(1000 + I);
+ur_result_t redefinedDevicePartitionAfter(void *pParams) {
+  auto params = *static_cast<ur_device_partition_params_t *>(pParams);
+  if (*params.pphSubDevices) {
+    for (size_t I = 0; I < *params.pNumDevices; ++I) {
+      *params.pphSubDevices[I] = reinterpret_cast<ur_device_handle_t>(1000 + I);
     }
   }
-  if (out_num_devices)
-    *out_num_devices = num_devices;
-  return PI_SUCCESS;
+  if (*params.ppNumDevicesRet)
+    **params.ppNumDevicesRet = *params.pNumDevices;
+  return UR_RESULT_SUCCESS;
 }
 
 TEST(KernelBundle, DescendentDevice) {
-  // Mock a non-OpenCL plugin since use of descendent devices of context members
-  // is not supported there yet.
-  sycl::unittest::PiMock Mock(sycl::backend::ext_oneapi_level_zero);
+  // Mock a non-OpenCL adapter since use of descendent devices of context
+  // members is not supported there yet.
+  sycl::unittest::UrMock<sycl::backend::ext_oneapi_level_zero> Mock;
 
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::platform Plt = sycl::platform();
 
-  PiPlatform = sycl::detail::getSyclObjImpl(Plt)->getHandleRef();
+  UrPlatform = sycl::detail::getSyclObjImpl(Plt)->getHandleRef();
 
-  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
-      redefinedDeviceGetInfoAfter);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piDevicePartition>(
-      redefinedDevicePartitionAfter);
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &redefinedDeviceGetInfoAfter);
+  mock::getCallbacks().set_after_callback("urDevicePartition",
+                                          &redefinedDevicePartitionAfter);
 
-  const sycl::device Dev = Mock.getPlatform().get_devices()[0];
+  const sycl::device Dev = sycl::platform().get_devices()[0];
   ParentDevice = sycl::detail::getSyclObjImpl(Dev)->getHandleRef();
   sycl::context Ctx{Dev};
   sycl::device Subdev =
@@ -529,12 +423,12 @@ TEST(KernelBundle, DescendentDevice) {
 }
 
 TEST(KernelBundle, CheckIfBundleHasIncompatibleKernel) {
-  sycl::unittest::PiMock Mock;
+  sycl::unittest::UrMock<> Mock;
   // TestKernelWithAspects has GPU aspect, so it shouldn't be compatible with
   // the CPU device and hence shouldn't be in the kernel bundle.
-  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
-      redefinedDeviceGetInfoCPU);
-  sycl::platform Plt = Mock.getPlatform();
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &redefinedDeviceGetInfoCPU);
+  sycl::platform Plt = sycl::platform();
   const sycl::device Dev = Plt.get_devices()[0];
   EXPECT_TRUE(Dev.is_cpu());
 
@@ -548,8 +442,8 @@ TEST(KernelBundle, CheckIfBundleHasIncompatibleKernel) {
 }
 
 TEST(KernelBundle, CheckIfBundleHasCompatibleKernel) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
   // GPU by default.
   const sycl::device Dev = Plt.get_devices()[0];
   EXPECT_TRUE(Dev.is_gpu());
@@ -564,12 +458,12 @@ TEST(KernelBundle, CheckIfBundleHasCompatibleKernel) {
 }
 
 TEST(KernelBundle, CheckIfIncompatibleBundleExists) {
-  sycl::unittest::PiMock Mock;
+  sycl::unittest::UrMock<> Mock;
   // TestKernelWithAspects has GPU aspect, so it shouldn't be compatible with
   // the CPU device and hence shouldn't be in the kernel bundle.
-  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
-      redefinedDeviceGetInfoCPU);
-  sycl::platform Plt = Mock.getPlatform();
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &redefinedDeviceGetInfoCPU);
+  sycl::platform Plt = sycl::platform();
   const sycl::device Dev = Plt.get_devices()[0];
   EXPECT_TRUE(Dev.is_cpu());
 
@@ -585,8 +479,8 @@ TEST(KernelBundle, CheckIfIncompatibleBundleExists) {
 }
 
 TEST(KernelBundle, CheckIfCompatibleBundleExists2) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
   // GPU by default.
   const sycl::device Dev = Plt.get_devices()[0];
   EXPECT_TRUE(Dev.is_gpu());
@@ -599,12 +493,12 @@ TEST(KernelBundle, CheckIfCompatibleBundleExists2) {
 }
 
 TEST(KernelBundle, CheckExceptionIfKernelIncompatible) {
-  sycl::unittest::PiMock Mock;
+  sycl::unittest::UrMock<> Mock;
   // TestKernelWithAspects has GPU aspect, so it shouldn't be compatible with
   // the CPU device and hence shouldn't be in the kernel bundle.
-  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
-      redefinedDeviceGetInfoCPU);
-  sycl::platform Plt = Mock.getPlatform();
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &redefinedDeviceGetInfoCPU);
+  sycl::platform Plt = sycl::platform();
   const sycl::device Dev = Plt.get_devices()[0];
   EXPECT_TRUE(Dev.is_cpu());
 
@@ -620,17 +514,17 @@ TEST(KernelBundle, CheckExceptionIfKernelIncompatible) {
 }
 
 TEST(KernelBundle, HasKernelForSubDevice) {
-  sycl::unittest::PiMock Mock;
+  sycl::unittest::UrMock<> Mock;
 
-  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
-      redefinedDeviceGetInfoAfter);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piDevicePartition>(
-      redefinedDevicePartitionAfter);
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &redefinedDeviceGetInfoAfter);
+  mock::getCallbacks().set_after_callback("urDevicePartition",
+                                          &redefinedDevicePartitionAfter);
 
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::platform Plt = sycl::platform();
   const sycl::device Dev = Plt.get_devices()[0];
 
-  PiPlatform = sycl::detail::getSyclObjImpl(Plt)->getHandleRef();
+  UrPlatform = sycl::detail::getSyclObjImpl(Plt)->getHandleRef();
   ParentDevice = sycl::detail::getSyclObjImpl(Dev)->getHandleRef();
 
   sycl::kernel_bundle<sycl::bundle_state::executable> Bundle =
@@ -648,6 +542,6 @@ TEST(KernelBundle, HasKernelForSubDevice) {
   EXPECT_EQ(std::find(BundleDevs.begin(), BundleDevs.end(), SubDev),
             BundleDevs.end())
       << "Sub-device should not be in the devices of the kernel bundle.";
-  EXPECT_FALSE(getSyclObjImpl(SubDev)->isRootDevice());
+  EXPECT_FALSE(sycl::detail::getSyclObjImpl(SubDev)->isRootDevice());
   EXPECT_TRUE(Bundle.has_kernel(KernelId, SubDev));
 }

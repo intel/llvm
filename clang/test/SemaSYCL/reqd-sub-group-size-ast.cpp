@@ -9,14 +9,14 @@ queue q;
 
 class Functor16 {
 public:
-  [[intel::reqd_sub_group_size(16)]] void operator()() const {}
+  [[sycl::reqd_sub_group_size(16)]] void operator()() const {}
 };
 
 // Test that checks template parameter support on member function of class template.
 template <int SIZE>
 class KernelFunctor {
 public:
-  [[intel::reqd_sub_group_size(SIZE)]] void operator()() const {}
+  [[sycl::reqd_sub_group_size(SIZE)]] void operator()() const {}
 };
 
 // Test that checks template parameter support on function.
@@ -35,7 +35,7 @@ public:
 // CHECK-NEXT: NonTypeTemplateParmDecl
 // CHECK-NEXT: IntegerLiteral {{.*}} 'int' 12
 template <int N>
-[[intel::reqd_sub_group_size(N)]] void func() {}
+[[sycl::reqd_sub_group_size(N)]] void func() {}
 
 int main() {
   q.submit([&](handler &h) {
@@ -52,14 +52,14 @@ int main() {
     // CHECK-NEXT: ConstantExpr {{.*}} 'int'
     // CHECK-NEXT: value: Int 2
     // CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}
-    h.single_task<class kernel_name3>([]() [[intel::reqd_sub_group_size(2)]] {});
+    h.single_task<class kernel_name3>([]() [[sycl::reqd_sub_group_size(2)]] {});
 
     // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name5
     // CHECK: IntelReqdSubGroupSizeAttr {{.*}} reqd_sub_group_size
     // CHECK-NEXT: ConstantExpr {{.*}} 'int'
     // CHECK-NEXT: value: Int 6
     // CHECK-NEXT: IntegerLiteral{{.*}}6{{$}}
-    h.single_task<class kernel_name5>([]() [[intel::reqd_sub_group_size(6)]] {});
+    h.single_task<class kernel_name5>([]() [[sycl::reqd_sub_group_size(6)]] {});
 
     // CHECK: FunctionDecl {{.*}}kernel_name_6
     // CHECK: IntelReqdSubGroupSizeAttr {{.*}} reqd_sub_group_size
@@ -79,8 +79,8 @@ int main() {
         // CHECK-NEXT: value: Int 8
         // CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
         // CHECK-NOT: IntelReqdSubGroupSizeAttr
-        []() [[intel::reqd_sub_group_size(8),
-               intel::reqd_sub_group_size(8)]] {});
+        []() [[sycl::reqd_sub_group_size(8),
+               sycl::reqd_sub_group_size(8)]] {});
   });
   func<12>();
   return 0;

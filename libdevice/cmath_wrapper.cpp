@@ -8,16 +8,7 @@
 
 #include "device_math.h"
 
-#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__)
-
-DEVICE_EXTERN_C_INLINE
-int abs(int x) { return __devicelib_abs(x); }
-
-DEVICE_EXTERN_C_INLINE
-long int labs(long int x) { return __devicelib_labs(x); }
-
-DEVICE_EXTERN_C_INLINE
-long long int llabs(long long int x) { return __devicelib_llabs(x); }
+#if defined(__SPIR__) || defined(__SPIRV__)
 
 DEVICE_EXTERN_C_INLINE
 float fabsf(float x) { return __devicelib_fabsf(x); }
@@ -52,15 +43,6 @@ DEVICE_EXTERN_C_INLINE
 float exp10f(float x) { return __devicelib_exp10f(x); }
 
 DEVICE_EXTERN_C_INLINE
-div_t div(int x, int y) { return __devicelib_div(x, y); }
-
-DEVICE_EXTERN_C_INLINE
-ldiv_t ldiv(long x, long y) { return __devicelib_ldiv(x, y); }
-
-DEVICE_EXTERN_C_INLINE
-lldiv_t lldiv(long long x, long long y) { return __devicelib_lldiv(x, y); }
-
-DEVICE_EXTERN_C_INLINE
 float roundf(float x) { return __devicelib_roundf(x); }
 
 DEVICE_EXTERN_C_INLINE
@@ -68,6 +50,9 @@ float floorf(float x) { return __devicelib_floorf(x); }
 
 DEVICE_EXTERN_C_INLINE
 float scalbnf(float x, int n) { return __devicelib_scalbnf(x, n); }
+
+DEVICE_EXTERN_C_INLINE
+float scalblnf(float x, long int n) { return __devicelib_scalblnf(x, n); }
 
 DEVICE_EXTERN_C_INLINE
 float logf(float x) { return __devicelib_logf(x); }
@@ -186,14 +171,7 @@ float asinhf(float x) { return __devicelib_asinhf(x); }
 DEVICE_EXTERN_C_INLINE
 float atanhf(float x) { return __devicelib_atanhf(x); }
 
-#ifdef __NVPTX__
-extern "C" SYCL_EXTERNAL float __nv_nearbyintf(float);
 DEVICE_EXTERN_C_INLINE
-float nearbyintf(float x) { return __nv_nearbyintf(x); }
+float rintf(float x) { return __spirv_ocl_rint(x); }
 
-extern "C" SYCL_EXTERNAL float __nv_rintf(float);
-DEVICE_EXTERN_C_INLINE
-float rintf(float x) { return __nv_rintf(x); }
-#endif // __NVPTX__
-
-#endif // __SPIR__ || __SPIRV__ || __NVPTX__
+#endif // __SPIR__ || __SPIRV__

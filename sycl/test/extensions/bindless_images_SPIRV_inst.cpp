@@ -26,8 +26,9 @@
 // 0 read only and 1 write only.
 // Arguments: TypeImage, Result, Sampled Type, Dim, Depth, Arrayed, MS, Sampled
 // and Image Format.
-// CHECK: TypeImage [[IMAGETYPEREAD:[0-9]+]] 7 0 0 0 0 0 0 0
-// CHECK: TypeImage [[IMAGETYPEWRITE:[0-9]+]] 7 0 0 0 0 0 0 1
+// CHECK: 2 TypeVoid [[#TyVoid:]]
+// CHECK: TypeImage [[IMAGETYPEREAD:[0-9]+]] [[#TyVoid]] 0 0 0 0 0 0 0
+// CHECK: TypeImage [[IMAGETYPEWRITE:[0-9]+]] [[#TyVoid]] 0 0 0 0 0 0 1
 // Generate `Result Type` for samplers
 // Arguments: Result
 // CHECK: TypeSampler [[SAMPLERTYPE:[0-9]+]]

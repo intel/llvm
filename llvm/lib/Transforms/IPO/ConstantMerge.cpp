@@ -85,7 +85,7 @@ static void copyDebugLocMetadata(const GlobalVariable *From,
 
 static Align getAlign(GlobalVariable *GV) {
   return GV->getAlign().value_or(
-      GV->getParent()->getDataLayout().getPreferredAlign(GV));
+      GV->getDataLayout().getPreferredAlign(GV));
 }
 
 static bool
@@ -226,9 +226,7 @@ static bool mergeConstants(Module &M) {
     // Now that we have figured out which replacements must be made, do them all
     // now.  This avoid invalidating the pointers in CMap, which are unneeded
     // now.
-    for (unsigned i = 0, e = SameContentReplacements.size(); i != e; ++i) {
-      GlobalVariable *Old = SameContentReplacements[i].first;
-      GlobalVariable *New = SameContentReplacements[i].second;
+    for (const auto &[Old, New] : SameContentReplacements) {
       replace(M, Old, New);
       ++ChangesMade;
       ++NumIdenticalMerged;

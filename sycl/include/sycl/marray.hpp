@@ -10,19 +10,14 @@
 
 #include <sycl/aliases.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/is_device_copyable.hpp>
-#include <sycl/half_type.hpp>
-
-#include <array>
-#include <cstddef>
-#include <cstdint>
-#include <type_traits>
-#include <utility>
+#include <sycl/detail/fwd/half.hpp>
 
 namespace sycl {
 inline namespace _V1 {
 
 template <typename DataT, std::size_t N> class marray;
+
+template <typename T> struct is_device_copyable;
 
 namespace detail {
 
@@ -48,6 +43,12 @@ template <typename T, typename... Ts> struct GetMArrayArgsSize<T, Ts...> {
 /// \ingroup sycl_api
 template <typename Type, std::size_t NumElements> class marray {
   using DataT = Type;
+  static_assert(std::is_same_v<DataT, std::remove_cv_t<DataT>> &&
+                    std::is_default_constructible_v<DataT> &&
+                    std::is_copy_constructible_v<DataT> &&
+                    std::is_copy_assignable_v<DataT> &&
+                    std::is_destructible_v<DataT>,
+                "DataT must be a NumericType");
 
 public:
   using value_type = Type;
@@ -113,7 +114,7 @@ private:
       : MData{Arr[Is]...} {}
 
 public:
-  constexpr marray() : MData{} {}
+  constexpr marray() = default;
 
   explicit constexpr marray(const Type &Arg) : MData{Arg} {
     initialize_data(Arg);

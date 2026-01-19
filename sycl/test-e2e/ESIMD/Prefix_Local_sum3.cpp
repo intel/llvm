@@ -8,6 +8,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17075
+
 #include "esimd_test_utils.hpp"
 
 #define MAX_TS_WIDTH 1024
@@ -340,7 +343,7 @@ int main(int argc, char *argv[]) {
   unsigned int *pDeviceOutputs =
       malloc_shared<unsigned int>(size * TUPLE_SZ, q);
 
-  // allocate & intialize expected result
+  // allocate & initialize expected result
   unsigned int *pExpectOutputs = static_cast<unsigned int *>(
       malloc(size * TUPLE_SZ * sizeof(unsigned int)));
   memcpy(pExpectOutputs, pInputs, size * TUPLE_SZ * sizeof(unsigned));

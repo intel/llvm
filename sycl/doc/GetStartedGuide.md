@@ -1,7 +1,7 @@
 # Getting Started with oneAPI DPC++
 
 The DPC++ Compiler compiles C++ and SYCL\* source files with code for both CPU
-and a wide range of compute accelerators such as GPU and FPGA.
+and GPU.
 
 ## Table of contents
 
@@ -12,8 +12,10 @@ and a wide range of compute accelerators such as GPU and FPGA.
     * [Build DPC++ toolchain with support for NVIDIA CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda)
     * [Build DPC++ toolchain with support for HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd)
     * [Build DPC++ toolchain with support for HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia)
-    * [Build DPC++ toolchain with support for runtime kernel fusion](#build-dpc-toolchain-with-support-for-runtime-kernel-fusion)
-    * [Build DPC++ toolchain with a custom Unified Runtime](#build-dpc-toolchain-with-a-custom-unified-runtime)
+    * [Build DPC++ toolchain with support for Native CPU](#build-dpc-toolchain-with-support-for-native-cpu)
+    * [Build DPC++ toolchain with support for ARM processors](#build-dpc-toolchain-with-support-for-arm-processors)
+    * [Build DPC++ toolchain with additional features enabled that require runtime/JIT compilation](#build-dpc-toolchain-with-additional-features-enabled-that-require-runtimejit-compilation)
+    * [Build DPC++ toolchain with device image compression support](#build-dpc-toolchain-with-device-image-compression-support)
     * [Build Doxygen documentation](#build-doxygen-documentation)
     * [Deployment](#deployment)
   * [Use DPC++ toolchain](#use-dpc-toolchain)
@@ -21,7 +23,6 @@ and a wide range of compute accelerators such as GPU and FPGA.
     * [Obtain prerequisites for ahead of time (AOT) compilation](#obtain-prerequisites-for-ahead-of-time-aot-compilation)
       * [GPU](#gpu)
       * [CPU](#cpu)
-      * [Accelerator](#accelerator)
     * [Test DPC++ toolchain](#test-dpc-toolchain)
       * [Run in-tree LIT tests](#run-in-tree-lit-tests)
       * [Run DPC++ E2E tests](#run-dpc-e2e-tests)
@@ -38,23 +39,20 @@ and a wide range of compute accelerators such as GPU and FPGA.
 
 ## Prerequisites
 
-* `git` - [Download](https://git-scm.com/downloads)
-* `cmake` version 3.20 or later - [Download](http://www.cmake.org/download/)
-* `python` - [Download](https://www.python.org/downloads/)
-* `ninja` -
-[Download](https://github.com/ninja-build/ninja/wiki/Pre-built-Ninja-packages)
-* C++ compiler
-  * See LLVM's [host compiler toolchain requirements](https://github.com/intel/llvm/blob/sycl/llvm/docs/GettingStarted.rst#host-c-toolchain-both-compiler-and-standard-library)
+| Software                                                                    | Version                                                                                                                              |
+| ---                                                                         | ---                                                                                                                                  |
+| [Git](https://git-scm.com/downloads)                                        |                                                                                                                                      |
+| [CMake](http://www.cmake.org/download/)                                     | [See LLVM](https://github.com/intel/llvm/blob/sycl/llvm/docs/GettingStarted.rst#software)                                            |
+| [Python](https://www.python.org/downloads/)                                 | [See LLVM](https://github.com/intel/llvm/blob/sycl/llvm/docs/GettingStarted.rst#software)                                            |
+| [Ninja](https://github.com/ninja-build/ninja/wiki/Pre-built-Ninja-packages) |                                                                                                                                      |
+| `hwloc`                                                                     | >= 2.3 (Linux only, `libhwloc-dev` or `hwloc-devel`)                                                                                 |
+| C++ compiler                                                                | [See LLVM](https://github.com/intel/llvm/blob/sycl/llvm/docs/GettingStarted.rst#host-c-toolchain-both-compiler-and-standard-library) |
+|`zstd` (optional) | >= 1.4.8 (see [ZSTD](#build-dpc-toolchain-with-device-image-compression-support)) |
 
-Alternatively, you can use a Docker image that has everything you need for
-building pre-installed:
+Alternatively, you can create a Docker image that has everything you need for
+building pre-installed using the [Ubuntu 24.04 build Dockerfile](https://github.com/intel/llvm/blob/sycl/devops/containers/ubuntu2404_build.Dockerfile).
 
-```bash
-docker run --name sycl_build -it -v /local/workspace/dir/:/src ghcr.io/intel/llvm/ubuntu2204_build /bin/bash
-```
-
-This command will start a terminal session, from which you can proceed with the
-instructions below. See [Docker BKMs](developer/DockerBKMs.md) for more info on
+See [Docker BKMs](developer/DockerBKMs.md) for more info on
 Docker commands.
 
 ### Create DPC++ workspace
@@ -93,11 +91,12 @@ git clone --config core.autocrlf=false https://github.com/intel/llvm -b sycl
 ## Build DPC++ toolchain
 
 The easiest way to get started is to use the buildbot
-[configure](../../buildbot/configure.py) and
-[compile](../../buildbot/compile.py) scripts.
+[configure](https://github.com/intel/llvm/blob/sycl/buildbot/configure.py) and
+[compile](https://github.com/intel/llvm/blob/sycl/buildbot/compile.py) scripts.
 
 In case you want to configure CMake manually the up-to-date reference for
-variables is in these files.
+variables is in these files. Note that the CMake variables set by default by the [configure.py](../../buildbot/configure.py) script are the ones commonly used by
+ DPC++ developers and might not necessarily suffice for your project-specific needs.
 
 **Linux**:
 
@@ -124,12 +123,14 @@ flags can be found by launching the script with `--help`):
 * `--hip-platform` -> select the platform used by the hip backend, `AMD` or
   `NVIDIA` (see [HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd) or see
   [HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia))
+* `--native_cpu` -> use the Native CPU backend (see [Native CPU](#build-dpc-toolchain-with-support-for-native-cpu))
 * `--enable-all-llvm-targets` -> build compiler (but not a runtime) with all
   supported targets
 * `--shared-libs` -> Build shared libraries
 * `-t` -> Build type (Debug or Release)
 * `-o` -> Path to build directory
 * `--cmake-gen` -> Set build system type (e.g. `--cmake-gen "Unix Makefiles"`)
+* `--use-zstd` -> Force link zstd while building LLVM (see [ZSTD](#build-dpc-toolchain-with-device-image-compression-support))
 
 You can use the following flags with `compile.py` (full list of available flags
 can be found by launching the script with `--help`):
@@ -149,23 +150,19 @@ needed at the moment.
 ### Build DPC++ toolchain with libc++ library
 
 There is experimental support for building and linking DPC++ runtime with libc++
-library instead of libstdc++. To enable it the following CMake options should be
+library instead of libstdc++. To enable it the following CMake option should be
 used.
 
 **Linux**:
 
 ```sh
--DSYCL_USE_LIBCXX=ON \
--DSYCL_LIBCXX_INCLUDE_PATH=<path to libc++ headers> \
--DSYCL_LIBCXX_LIBRARY_PATH=<path to libc++ and libc++abi libraries>
+-DLLVM_ENABLE_LIBCXX=ON
 ```
 
 You can also use configure script to enable:
 
 ```sh
-python %DPCPP_HOME%\llvm\buildbot\configure.py --use-libcxx \
---libcxx-include <path to libc++ headers> \
---libcxx-library <path to libc++ and libc++ abi libraries>
+python %DPCPP_HOME%\llvm\buildbot\configure.py --use-libcxx
 python %DPCPP_HOME%\llvm\buildbot\compile.py
 ```
 
@@ -200,8 +197,8 @@ extensions that require sm_80 and later architectures also require at least CUDA
 11.0.
 
 The CUDA backend should work on Windows or Linux operating systems with any GPU
-with compute capability (SM version) sm_50 or above. The default SM version for
-the NVIDIA CUDA backend is sm_50. Users of sm_3X devices can attempt to specify
+with compute capability (SM version) sm_75 or above. The default SM version for
+the NVIDIA CUDA backend is sm_75. Users of sm_3X devices can attempt to specify
 the target architecture [ahead of time](#aot-target-architectures), provided
 that they use a 11.X  or earlier CUDA toolkit version, but some features may not be
 supported. The CUDA backend has been tested with different Ubuntu Linux
@@ -221,13 +218,13 @@ Firstly, **do not** add the toolkit to your standard environment variables
 (`PATH`, `LD_LIBRARY_PATH`), as to do so will create conflicts with OpenCL
 headers.
 
-Secondly, set the `CUDA_LIB_PATH` environment variable and pass the CMake
-variable `CUDA_TOOLKIT_ROOT_DIR` as follows:
+Secondly pass the CMake variable `CUDAToolkit_ROOT` as follows:
 
 ```sh
-CUDA_LIB_PATH=/path/to/cuda/toolkit/lib64/stubs CC=gcc CXX=g++ python $DPCPP_HOME/llvm/buildbot/configure.py --cuda --cmake-opt="-DCUDA_TOOLKIT_ROOT_DIR=/path/to/cuda/toolkit"
+CC=gcc CXX=g++ python $DPCPP_HOME/llvm/buildbot/configure.py \
+    --cuda -DCUDA_Toolkit_ROOT=/path/to/cuda/toolkit
 
-CUDA_LIB_PATH=/path/to/cuda/toolkit/lib64/stubs CC=gcc CXX=g++ python $DPCPP_HOME/llvm/buildbot/compile.py
+CC=gcc CXX=g++ python $DPCPP_HOME/llvm/buildbot/compile.py
 
 $DPCPP_HOME/llvm/build/bin/clang++ -std=c++17 -O3 -fsycl -fsycl-targets=nvptx64-nvidia-cuda --cuda-path=/path/to/cuda/toolkit *.cpp -o a.out
 
@@ -236,14 +233,6 @@ LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$DPCPP_HOME/llvm/build/lib ./a.out
 
 ### Build DPC++ toolchain with support for HIP AMD
 
-There is beta support for oneAPI DPC++ for HIP on AMD devices. It is not feature
-complete and it still contains known and unknown bugs. Currently it has only
-been tried on Linux, with ROCm 4.2.0, 4.3.0, 4.5.2, 5.3.0, and 5.4.3, using the
-AMD Radeon Pro W6800 (gtx1030), MI50 (gfx906), MI100 (gfx908) and MI250x
-(gfx90a) devices. The backend is tested by a relevant device/toolkit prior to a
-oneAPI plugin release. Go to the plugin release
-[pages](https://developer.codeplay.com/products/oneapi/amd) for further details.
-
 To enable support for HIP devices, follow the instructions for the Linux DPC++
 toolchain, but add the `--hip` flag to `configure.py`.
 
@@ -251,26 +240,32 @@ Enabling this flag requires an installation of ROCm on the system, for
 instruction on how to install this refer to
 [AMD ROCm Installation Guide for Linux](https://rocmdocs.amd.com/en/latest/Installation_Guide/Installation-Guide.html).
 
+ROCm versions above 5.7 are recommended as earlier versions don't have graph
+support. DPC++ aims to support new ROCm versions as they come out, so there may
+be a delay but generally the latest ROCm version should work. The ROCm support
+is mostly tested on AMD Radeon Pro W6800 (gfx1030), and MI250x (gfx90a), however
+other architectures supported by LLVM may work just fine. The full list of ROCm
+versions tested prior to oneAPI releases are listed on the plugin release
+[pages](https://developer.codeplay.com/products/oneapi/amd).
+
 The DPC++ build assumes that ROCm is installed in `/opt/rocm`, if it is
 installed somewhere else, the directory must be provided through the CMake
-variable `SYCL_BUILD_PI_HIP_ROCM_DIR` which can be passed using the
-`--cmake-opt` option of `configure.py` as follows:
+variable `UR_HIP_ROCM_DIR` which can be passed through to cmake using the
+configure helper script as follows:
 
 ```sh
 python $DPCPP_HOME/llvm/buildbot/configure.py --hip \
-  --cmake-opt=-DSYCL_BUILD_PI_HIP_ROCM_DIR=/usr/local/rocm
+  -DUR_HIP_ROCM_DIR=/usr/local/rocm
 ```
 If further customization is required — for instance when the layout of
-individual directories can not be inferred from `SYCL_BUILD_PI_HIP_ROCM_DIR` —
+individual directories can not be inferred from `UR_HIP_ROCM_DIR` —
 it is possible to specify the location of HIP include, HSA include and HIP
 library directories, using the following CMake variables:
-* `SYCL_BUILD_PI_HIP_INCLUDE_DIR`,
-* `SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR`,
-* `SYCL_BUILD_PI_HIP_LIB_DIR`.
-Please note that a similar customization would also be required for Unified
-Runtime, see [the list of options provided by its
-CMake](https://github.com/oneapi-src/unified-runtime#cmake-standard-options)
-for details.
+* `UR_HIP_INCLUDE_DIR`,
+* `UR_HIP_HSA_INCLUDE_DIR`,
+* `UR_HIP_LIB_DIR`.
+These options are all passed through to Unified Runtime, more detail about them
+can be found [here](https://github.com/oneapi-src/unified-runtime#cmake-standard-options).
 
 [LLD](https://llvm.org/docs/AMDGPUUsage.html) is necessary for the AMDGPU
 compilation chain. The AMDGPU backend generates a standard ELF relocatable code
@@ -281,7 +276,10 @@ by default when configuring for HIP. For more details on building LLD refer to
 
 ### Build DPC++ toolchain with support for HIP NVIDIA
 
-There is experimental support for oneAPI DPC++ for HIP on Nvidia devices.
+HIP applications can be built to target Nvidia GPUs, so in theory it is possible
+to build the DPC++ HIP support for Nvidia, however this is not supported, so it
+may not work.
+
 There is no continuous integration for this and there are no guarantees for
 supported platforms or configurations.
 
@@ -293,23 +291,70 @@ To enable support for HIP NVIDIA devices, follow the instructions for the Linux
 DPC++ toolchain, but add the `--hip` and `--hip-platform NVIDIA` flags to
 `configure.py`.
 
-Enabling this flag requires HIP to be installed, more specifically
-[HIP NVCC](https://rocmdocs.amd.com/en/latest/Installation_Guide/HIP-Installation.html#nvidia-platform),
-as well as the CUDA Runtime API to be installed, see
-[NVIDIA CUDA Installation Guide for Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html).
+Enabling this flag requires HIP to be installed, specifically for Nvidia, see
+the Nvidia tab on the HIP installation docs
+[here](https://rocm.docs.amd.com/projects/HIP/en/latest/install/install.html),
+as well as the CUDA Runtime API to be installed, see [NVIDIA CUDA Installation
+Guide for
+Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html).
 
-Currently, this has only been tried on Linux, with ROCm 4.2.0 or 4.3.0, with
-CUDA 11, and using a GeForce 1060 device.
+### Build DPC++ toolchain with support for Native CPU
 
-### Build DPC++ toolchain with support for runtime kernel fusion
+Native CPU is a cpu device which by default has no other dependency than DPC++. This device works with all cpu targets supported by the DPC++ runtime.
+Supported targets include x86, Aarch64 and riscv_64.
 
-Support for the experimental SYCL extension for user-driven kernel fusion at
-runtime is enabled by default.
+To enable Native CPU in a DPC++ build just add `--native_cpu` to the set of flags passed to `configure.py`.
 
-To disable support for this feature, follow the instructions for the Linux DPC++
-toolchain, but add the `--disable-fusion` flag.
+### Build DPC++ toolchain with support for ARM processors
 
-Kernel fusion is currently not yet supported on the Windows platform.
+There is no continuous integration for this, and there are no guarantees for supported platforms or configurations.
+
+To enable support for ARM processors, follow the instructions for the linux
+toolchain, but add the `--host-target "AArch64;ARM;X86"` flag to `configure.py`.
+
+For CUDA support also add the `--cuda` flag.
+
+Currently, this has only been tried on Linux, with CUDA 12.3, and using a 
+Grace Hopper platform with a ARM64 processor and an H100 GPU.
+
+### Build DPC++ toolchain with additional features enabled that require runtime/JIT compilation
+
+Support for runtime compilation of SYCL source code (via the
+`sycl_ext_oneapi_kernel_compiler` extension) is enabled by default. The same
+mechanism is used to allow JIT compilation of AMD and Nvidia kernels, including
+materialization of specialization constants.
+
+To disable support for these features, add the `--disable-jit` flag.
+
+JIT compilation of AMD and Nvidia kernels is not yet supported on the Windows
+platform.
+
+### Build DPC++ toolchain with device image compression support
+
+Device image compression enables the compression of device code (SYCL Kernels) during compilation and decompressing them on-demand during the execution of the corresponding SYCL application.
+This reduces the size of fat binaries for both Just-in-Time (JIT) and Ahead-of-Time (AOT) compilation. Refer to the [blog post](https://www.intel.com/content/www/us/en/developer/articles/technical/sycl-compilation-device-image-compression.html) for more details on this feature.
+
+To enable device image compression, you need to build the DPC++ toolchain with the
+zstd compression library. By default, zstd is optional for DPC++ builds i.e. CMake will search for zstd installation but if not found, it will not fail the build
+and this feature will simply be disabled.
+
+To override this behavior and force the build to use zstd, you can use the `--use-zstd` flag in the `configure.py` script or by adding `-DLLVM_ENABLE_ZSTD=FORCE_ON` to the CMake configuration command.
+
+#### How to obtain zstd?
+
+Minimum zstd version that we have tested with is *1.4.8*.
+
+**Linux**:
+
+You can install zstd using the package manager of your distribution. For example, on Ubuntu, you can run:
+```sh
+sudo apt-get install libzstd-dev
+```
+Note that the libzstd-dev package provided on Ubuntu 24.04 has a bug ([link](https://bugs.launchpad.net/ubuntu/+source/libzstd/+bug/2086543)) and the zstd static library is not built with the `-fPIC` flag. Linking to this library will result in a build failure. For example: [Issue#15935](https://github.com/intel/llvm/issues/15935). As an alternative, zstd can be built from source either manually or by using the [build_zstd.sh](https://github.com/intel/llvm/blob/sycl/devops/scripts/build_zstd.sh) script (it works on Rocky Linux 8.10 / RHEL 8.10 as well).
+
+**Windows**
+
+For Windows, prebuilt zstd binaries can be obtained from the [facebook/zstd](https://github.com/facebook/zstd/releases/tag/v1.5.6) release page. After obtaining the zstd binaries, you can add the path to the zstd installation directory to the `PATH` environment variable.
 
 ### Build Doxygen documentation
 
@@ -330,36 +375,6 @@ command:
 After CMake cache is generated, build the documentation with `doxygen-sycl`
 target. It will be put to `$DPCPP_HOME/llvm/build/tools/sycl/doc/html`
 directory.
-
-### Build DPC++ toolchain with a custom Unified Runtime
-
-DPC++ uses the [Unified Runtime](https://github.com/oneapi-src/unified-runtime)
-under the hood to provide implementations of various SYCL backends. By default
-the source code for the Unified Runtime will be acquired using CMake's
-[FetchCotent](https://cmake.org/cmake/help/latest/module/FetchContent.html). The
-specific repository URL and revision tag used can be found in the file
-`sycl/plugins/unified_runtime/CMakeLists.txt` searching for the variables
-`UNIFIED_RUNTIME_REPO` and `UNIFIED_RUNTIME_TAG`.
-
-In order to enable developers, a number of CMake variables are available to
-control which revision of Unified Runtime should be used when building DPC++:
-
-* `SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO` is a variable which can be used to
-  override the `UNIFIED_RUNTIME_REPO` variable used by `FetchContent` to attain
-  the Unified Runtime source code.
-* `SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_TAG` is a variable which can be used to
-  override the `UNIFIED_RUNTIME_TAG` variable used by `FetchContent` to attain
-  the Unified Runtime source code.
-* `SYCL_PI_UR_USE_FETCH_CONTENT` is an option to control if CMake should use
-  `FetchContent` to pull in the Unified Runtime repository, it defaults to `ON`.
-  When set to `OFF`, `FetchContent` will not be used, instead:
-  * The path specified by variable `SYCL_PI_UR_SOURCE_DIR` will be used with
-    `add_directory()`. This can be used to point at an adjacent directory
-    containing a clone of the Unified Runtime repository.
-  * The path `sycl/plugins/unified_runtime/unified-runtime` will be used, if it
-    exists. This can be used as-if an in-tree build.
-* `SYCL_PI_UR_SOURCE_DIR` is a variable used to specify the path to the Unified
-  Runtime repository when `SYCL_PI_UR_USE_FETCH_CONTENT` is set of `OFF`.
 
 ### Build DPC++ libclc with a custom toolchain
 
@@ -391,8 +406,8 @@ To run DPC++ applications on Level Zero devices, Level Zero implementation(s)
 must be present in the system. You can find the link to the Level Zero spec in
 the following section [Find More](#find-more).
 
-The Level Zero RT for `GPU`, OpenCL RT for `GPU`, OpenCL RT for `CPU`, FPGA
-emulation RT and TBB runtime which are needed to run DPC++ application
+The Level Zero RT for `GPU`, OpenCL RT for `GPU`, OpenCL RT for `CPU` 
+and TBB runtime which are needed to run DPC++ application
 on Intel `GPU` or Intel `CPU` devices can be downloaded using links in
 [the dependency configuration file](../../devops/dependencies.json)
 and installed following the instructions below. The same versions are used in
@@ -400,15 +415,10 @@ PR testing.
 
 **Linux**:
 
-1) Extract the archive. For example, for the archives
-`oclcpuexp_<cpu_version>.tar.gz` and `fpgaemu_<fpga_version>.tar.gz` you would
-run the following commands
+1) Extract the archive. For example, for the archive
+`oclcpuexp_<cpu_version>.tar.gz` you would run the following commands
 
     ```bash
-    # Extract OpenCL FPGA emulation RT
-    mkdir -p /opt/intel/oclfpgaemu_<fpga_version>
-    cd /opt/intel/oclfpgaemu_<fpga_version>
-    tar zxvf fpgaemu_<fpga_version>.tar.gz
     # Extract OpenCL CPU RT
     mkdir -p /opt/intel/oclcpuexp_<cpu_version>
     cd /opt/intel/oclcpuexp_<cpu_version>
@@ -418,9 +428,6 @@ run the following commands
 2) Create ICD file pointing to the new runtime (requires sudo access)
 
     ```bash
-    # OpenCL FPGA emulation RT
-    echo  /opt/intel/oclfpgaemu_<fpga_version>/x64/libintelocl_emu.so | sudo tee
-      /etc/OpenCL/vendors/intel_fpgaemu.icd
     # OpenCL CPU RT
     echo /opt/intel/oclcpuexp_<cpu_version>/x64/libintelocl.so | sudo tee
       /etc/OpenCL/vendors/intel_expcpu.icd
@@ -440,15 +447,6 @@ for the archive oneapi-tbb-<tbb_version>-lin.tgz:
 folder:
 
     ```bash
-    # OpenCL FPGA emulation RT
-    ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbb.so
-      /opt/intel/oclfpgaemu_<fpga_version>/x64/libtbb.so
-    ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbbmalloc.so
-      /opt/intel/oclfpgaemu_<fpga_version>/x64/libtbbmalloc.so
-    ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbb.so.12
-      /opt/intel/oclfpgaemu_<fpga_version>/x64/libtbb.so.12
-    ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbbmalloc.so.2
-      /opt/intel/oclfpgaemu_<fpga_version>/x64/libtbbmalloc.so.2
     # OpenCL CPU RT
     ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbb.so
       /opt/intel/oclcpuexp_<cpu_version>/x64/libtbb.so
@@ -463,8 +461,6 @@ folder:
 5) Configure library paths (requires sudo access)
 
     ```bash
-    echo /opt/intel/oclfpgaemu_<fpga_version>/x64 | sudo tee
-      /etc/ld.so.conf.d/libintelopenclexp.conf
     echo /opt/intel/oclcpuexp_<cpu_version>/x64 | sudo tee -a
       /etc/ld.so.conf.d/libintelopenclexp.conf
     sudo ldconfig -f /etc/ld.so.conf.d/libintelopenclexp.conf
@@ -478,8 +474,7 @@ OpenCL runtime for Intel `GPU` installer may re-write some important
 files or settings and make existing OpenCL runtime for Intel `CPU` runtime
 not working properly.
 
-2) Extract the archive with OpenCL runtime for Intel `CPU` and/or for Intel
-`FPGA` emulation using links in
+2) Extract the archive with OpenCL runtime for Intel `CPU` using links in
 [the dependency configuration file](../../devops/dependencies.json).  For
 example, to `c:\oclcpu_rt_<cpu_version>`.
 
@@ -497,9 +492,6 @@ extracted files are in `c:\oclcpu_rt_<cpu_version>\` folder, then type the
 command:
 
     ```bash
-    # Install OpenCL FPGA emulation RT
-    # Answer Y to clean previous OCL_ICD_FILENAMES configuration and ICD records cleanup
-    c:\oclfpga_rt_<fpga_version>\install.bat c:\oneapi-tbb-<tbb_version>\redist\intel64\vc14
     # Install OpenCL CPU RT
     # Answer N for ICD records cleanup
     c:\oclcpu_rt_<cpu_version>\install.bat c:\oneapi-tbb-<tbb_version>\redist\intel64\vc14
@@ -513,7 +505,6 @@ AOT compiler for each device type:
 
 * `GPU`, Level Zero and OpenCL runtimes are supported,
 * `CPU`, OpenCL runtime is supported,
-* `Accelerator` (FPGA or FPGA emulation), OpenCL runtime is supported.
 
 #### GPU
 
@@ -542,15 +533,6 @@ AOT compiler for each device type:
 * CPU AOT compiler `opencl-aot` is enabled by default. For more, see
 [opencl-aot documentation](https://github.com/intel/llvm/blob/sycl/opencl/opencl-aot/README.md).
 
-#### Accelerator
-
-* Accelerator AOT compiler `aoc` is a part of
-[Intel&reg; oneAPI Base Toolkit](https://software.intel.com/content/www/us/en/develop/tools/oneapi/base-toolkit.html)
-(Intel&reg; oneAPI DPC++/C++ Compiler component).  
-Make sure that these binaries are available in `PATH` environment variable:
-
-  * `aoc` from `<oneAPI installation location>/compiler/<version>/<OS>/lib/oclfpga/bin`
-  * `aocl-ioc64` from `<oneAPI installation location>/compiler/<version>/<OS>/bin`
 
 ### Test DPC++ toolchain
 
@@ -689,6 +671,13 @@ clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
   simple-sycl-app.cpp -o simple-sycl-app-cuda.exe
 ```
 
+When building for Native CPU use the SYCL target native_cpu:
+
+```bash
+clang++ -fsycl -fsycl-targets=native_cpu simple-sycl-app.cpp -o simple-sycl-app.exe
+```
+More Native CPU build options can be found in [SYCLNativeCPU.md](design/SYCLNativeCPU.md).
+
 **Linux & Windows (64-bit)**:
 
 ```bash
@@ -696,17 +685,8 @@ clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
 The results are correct!
 ```
 
-**NOTE**: Currently, when the application has been built with the CUDA target,
-the CUDA backend must be selected at runtime using the `ONEAPI_DEVICE_SELECTOR`
-environment variable.
-
-```bash
-ONEAPI_DEVICE_SELECTOR=cuda:* ./simple-sycl-app-cuda.exe
-```
-
 **NOTE**: oneAPI DPC++/SYCL developers can specify SYCL device for execution
-using device selectors (e.g. `sycl::cpu_selector_v`, `sycl::gpu_selector_v`,
-[Intel FPGA selector(s)](extensions/supported/sycl_ext_intel_fpga_device_selector.asciidoc))
+using device selectors (e.g. `sycl::cpu_selector_v`, `sycl::gpu_selector_v`)
 as explained in following section
 [Code the program for a specific GPU](#code-the-program-for-a-specific-gpu).
 
@@ -737,14 +717,21 @@ clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
   -Xsycl-target-backend --cuda-gpu-arch=sm_80
 ```
 
-To build simple-sycl-app ahead of time for GPU, CPU or Accelerator devices,
+Additionally AMD and Nvidia targets also support aliases for the target to
+simplify passing the specific architectures, for example
+`-fsycl-targets=nvidia_gpu_sm_80` is equivalent to
+`-fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend
+--cuda-gpu-arch=sm_80`, the full list of available aliases is documented in the
+ [Users Manual](UsersManual.md#generic-options), for the `-fsycl-targets`
+ option.
+
+To build simple-sycl-app ahead of time for GPU or CPU devices,
 specify the target architecture.  The examples provided use a supported
 alias for the target, representing a full triple.  Additional details can
 be found in the [Users Manual](UsersManual.md#generic-options).
 
 ```-fsycl-targets=spir64_gen``` for GPU,
-```-fsycl-targets=spir64_x86_64``` for CPU,
-```-fsycl-targets=spir64_fpga``` for Accelerator.
+```-fsycl-targets=spir64_x86_64``` for CPU.
 
 Multiple target architectures are supported.
 
@@ -762,7 +749,6 @@ more. To find available options, execute:
 
 ```ocloc compile --help``` for GPU,
 ```opencl-aot --help``` for CPU,
-```aoc -help -sycl``` for Accelerator.
 
 The `simple-sycl-app.exe` application doesn't specify SYCL device for
 execution, so SYCL runtime will use `default_selector` logic to select one
@@ -780,7 +766,7 @@ ONEAPI_DEVICE_SELECTOR=cuda:* ./simple-sycl-app-cuda.exe
 The default is the OpenCL backend if available.
 
 **NOTE**: `nvptx64-nvidia-cuda` is usable with `-fsycl-targets`
-if clang was built with the cmake option `SYCL_ENABLE_PLUGINS=cuda`.
+if clang was built with the cmake option `SYCL_ENABLE_BACKENDS=cuda`.
 
 ### Build DPC++ application with CMake
 
@@ -815,8 +801,8 @@ available, a "device selector" may be used. A "device selector" is a ranking
 function (C++ Callable) that will give an integer ranking value to all the
 devices on the system. It can be passed to `sycl::queue`, `sycl::device` and
 `sycl::platform` constructors. The highest ranking device is then selected. SYCL
-has built-in device selectors for selecting a generic GPU, CPU, or accelerator
-device, as well as one for a default device. Additionally, a user can define
+has built-in device selectors for selecting a generic GPU, CPU, as well as one
+for a default device. Additionally, a user can define
 their own as function, lambda, or functor class. Device selectors returning
 negative values will "reject" a device ensuring it is not selected, but values 0
 or higher will be selected by the highest score with ties resolved by an
@@ -905,11 +891,14 @@ int CUDASelector(const sycl::device &Device) {
 
 ### HIP back-end limitations
 
-* Requires a ROCm compatible operating system, for full details of supported
-  Operating System for ROCm, please refer to the
-  [ROCm Supported Operating Systems](https://github.com/RadeonOpenCompute/ROCm#supported-operating-systems).
-* Support is still in a beta state, but the backend is being actively developed.
-* Global offsets are currently not supported.
+* Requires a ROCm compatible system and GPU, see for
+  [Linux](https://rocm.docs.amd.com/projects/install-on-linux/en/latest/reference/system-requirements.html#supported-skus)
+  and for
+  [Windows](https://rocm.docs.amd.com/projects/install-on-windows/en/latest/reference/system-requirements.html#supported-skus).
+* Windows for HIP is not supported by DPC++ at the moment so it may not work.
+* `printf` within kernels is not supported.
+* C++ standard library functions using complex types are not supported,
+  `sycl::complex` should be used instead.
 
 ## Find More
 

@@ -1,9 +1,9 @@
 // RUN: %clangxx -fsycl %s -o %t_default.out
 // RUN: %t_default.out
-// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fpreview-breaking-changes %s -o %t_vec.out %}
-// RUN: %if preview-breaking-changes-supported %{ %t_vec.out %}
+// RUN: %clangxx -fsycl -D__SYCL_USE_LIBSYCL8_VEC_IMPL=1 %s -o %t_vec.out
+// RUN: %t_vec.out
 
-#include <sycl/types.hpp>
+#include <sycl/vector.hpp>
 
 int main() {
   sycl::vec<int, 1> v1{42};
