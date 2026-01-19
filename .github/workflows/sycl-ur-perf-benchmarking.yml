@@ -88,6 +88,12 @@ on:
           - 'false'
           - 'true'
         default: 'false'
+      build_image:
+        type: string
+        description: |
+          Docker image used for building SYCL UR benchmarks
+        required: false
+        default: ''
 
 concurrency:
   # Cancel a currently running workflow for:
@@ -163,7 +169,7 @@ jobs:
       build_cache_root: "/__w/"
       build_cache_suffix: "prod_noassert"
       build_configure_extra_args: "--no-assertions"
-      build_image: "ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest"
+      build_image: ${{ inputs.build_image || 'ghcr.io/intel/llvm/sycl_ubuntu2204_build:latest' }}
       cc: clang
       cxx: clang++
       changes: '[]'
@@ -187,7 +193,7 @@ jobs:
     with:
       name: "Benchmarks (${{ matrix.runner }}, ${{ matrix.backend }}, preset: ${{ inputs.preset }})"
       runner: ${{ matrix.runner }}
-      image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
+      image: ${{ inputs.build_image || 'ghcr.io/intel/llvm/sycl_ubuntu2204_build:latest' }}
       image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
       target_devices: ${{ matrix.backend }}
       tests_selector: benchmarks
