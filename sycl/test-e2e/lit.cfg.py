@@ -845,8 +845,8 @@ tools = [
     ToolSubst("sycl-post-link", unresolved="fatal"),
     ToolSubst("file-table-tform", unresolved="fatal"),
     ToolSubst("llvm-foreach", unresolved="fatal"),
-    ToolSubst("llvm-profdata", unresolved="fatal"),
-    ToolSubst("llvm-cov", unresolved="fatal"),
+    ToolSubst("llvm-profdata", unresolved="ignore"),
+    ToolSubst("llvm-cov", unresolved="ignore"),
 ] + feature_tools
 
 # Try and find each of these tools in the DPC++ bin directory, in the llvm tools directory
@@ -983,6 +983,11 @@ if config.test_mode != "build-only":
         lit_config.note(
             "sycl-jit was not found. Tests requiring sycl-jit will be skipped."
         )
+
+# Check for enabled NewOffloadModel
+if lit_config.params.get("enable_new_offload_model", "False") != "False":
+    config.available_features.add("new-offload-model")
+    config.cxx_flags += " --offload-new-driver "
 
 # That has to be executed last so that all device-independent features have been
 # discovered already.
