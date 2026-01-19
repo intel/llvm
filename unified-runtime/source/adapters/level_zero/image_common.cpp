@@ -731,25 +731,23 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
   UR_ASSERT(Origin, UR_RESULT_ERROR_INVALID_VALUE);
   UR_ASSERT(Region, UR_RESULT_ERROR_INVALID_VALUE);
 
-  // Runtime validation of Origin values based on image type
-  if (ZeImageDesc.type == ZE_IMAGE_TYPE_1D) {
-    if (Origin->y != 0 || Origin->z != 0) {
-      return UR_RESULT_ERROR_INVALID_VALUE;
-    }
-  } else if (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY) {
-    if (Origin->y != 0) {
-      return UR_RESULT_ERROR_INVALID_VALUE;
-    }
-  } else if (ZeImageDesc.type == ZE_IMAGE_TYPE_2D) {
-    if (Origin->z != 0) {
-      return UR_RESULT_ERROR_INVALID_VALUE;
-    }
-  }
+#ifndef NDEBUG
+  // Validate Origin constraints based on image type
+  UR_ASSERT((ZeImageDesc.type == ZE_IMAGE_TYPE_1D && Origin->y == 0 &&
+             Origin->z == 0) ||
+                (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Origin->y == 0) ||
+                (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Origin->z == 0) ||
+                (ZeImageDesc.type == ZE_IMAGE_TYPE_2DARRAY) ||
+                (ZeImageDesc.type == ZE_IMAGE_TYPE_3D),
+            UR_RESULT_ERROR_INVALID_VALUE);
 
-  // Verify Region width is non-zero
-  if (Region->width == 0) {
-    return UR_RESULT_ERROR_INVALID_VALUE;
-  }
+  // Validate Region width is non-zero
+  UR_ASSERT(Region->width != 0, UR_RESULT_ERROR_INVALID_VALUE);
+
+  // Validate Region depth for 1D arrays contains layer count
+  UR_ASSERT(ZeImageDesc.type != ZE_IMAGE_TYPE_1DARRAY || Region->depth != 0,
+            UR_RESULT_ERROR_INVALID_VALUE);
+#endif // !NDEBUG
 
   uint32_t OriginX = ur_cast<uint32_t>(Origin->x);
   uint32_t OriginY = ur_cast<uint32_t>(Origin->y);
@@ -759,40 +757,15 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
   uint32_t Height = ur_cast<uint32_t>(Region->height);
   uint32_t Depth = ur_cast<uint32_t>(Region->depth);
 
-  // Normalize Region dimensions based on image type
-  if (ZeImageDesc.type == ZE_IMAGE_TYPE_1D) {
-    Height = 1;
-    Depth = 1;
-  } else if (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY) {
-    // UR uses z for the array layer when describing a 1D array subregion.
-    // Level Zero expects the array layer in originY/height for 1D arrays.
-    OriginY = ur_cast<uint32_t>(Origin->z);
+  // UR uses depth for 1D array layers, but Level Zero uses height
+  if (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY) {
+    OriginY = OriginZ;
     OriginZ = 0;
-    Height = ur_cast<uint32_t>(Region->depth); // Array layer count
-    Depth = 1;
-    fprintf(stderr,
-            "[DEBUG] 1DARRAY normalization: OriginY=%u (from z), OriginZ=0, "
-            "Height=%u (array layers), Depth=1\n",
-            OriginY, Height);
-  } else if (ZeImageDesc.type == ZE_IMAGE_TYPE_2D) {
+    Height = Depth;
     Depth = 1;
   }
 
   ZeRegion = {OriginX, OriginY, OriginZ, Width, Height, Depth};
-
-#ifndef NDEBUG
-  // Post-normalization assertions
-  UR_ASSERT((ZeImageDesc.type == ZE_IMAGE_TYPE_1D && Origin->y == 0 &&
-             Origin->z == 0) ||
-                (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Origin->y == 0) ||
-                (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Origin->z == 0) ||
-                (ZeImageDesc.type == ZE_IMAGE_TYPE_2DARRAY) ||
-                (ZeImageDesc.type == ZE_IMAGE_TYPE_3D),
-            UR_RESULT_ERROR_INVALID_VALUE);
-
-  UR_ASSERT(ZeRegion.width && ZeRegion.height && ZeRegion.depth,
-            UR_RESULT_ERROR_INVALID_VALUE);
-#endif // !NDEBUG
 
   return UR_RESULT_SUCCESS;
 }
@@ -831,8 +804,6 @@ ur_result_t bindlessImagesHandleCopyFlags(
 
   ZeStruct<ze_image_desc_t> zeSrcImageDesc;
   ur2zeImageDesc(pSrcImageFormat, pSrcImageDesc, zeSrcImageDesc);
-  ZeStruct<ze_image_desc_t> zeDstImageDesc;
-  ur2zeImageDesc(pDstImageFormat, pDstImageDesc, zeDstImageDesc);
   uint32_t SrcPixelSizeInBytes = getPixelSizeBytes(pSrcImageFormat);
   uint32_t DstPixelSizeInBytes = getPixelSizeBytes(pDstImageFormat);
 
@@ -883,7 +854,7 @@ ur_result_t bindlessImagesHandleCopyFlags(
   case UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_IMAGE: {
     // Copy between two ze_image_handle_t's
     ze_image_region_t DstRegion;
-    UR_CALL(getZeImageRegionHelper(zeDstImageDesc, DstPixelSizeInBytes,
+    UR_CALL(getZeImageRegionHelper(zeSrcImageDesc, DstPixelSizeInBytes,
                                    &pCopyRegion->dstOffset,
                                    &pCopyRegion->copyExtent, DstRegion));
 
@@ -905,7 +876,7 @@ ur_result_t bindlessImagesHandleCopyFlags(
   case UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_IMAGE: {
     // Copy from USM to ze_image_handle_t
     ze_image_region_t DstRegion;
-    UR_CALL(getZeImageRegionHelper(zeDstImageDesc, DstPixelSizeInBytes,
+    UR_CALL(getZeImageRegionHelper(zeSrcImageDesc, DstPixelSizeInBytes,
                                    &pCopyRegion->dstOffset,
                                    &pCopyRegion->copyExtent, DstRegion));
 
