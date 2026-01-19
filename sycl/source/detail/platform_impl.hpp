@@ -158,11 +158,8 @@ public:
   ///
   /// \param UrDevice is the UrDevice whose impl is requested
   ///
-  /// \param idx is the index of the defice within the platform. Used only when
-  /// creating a device.
-  ///
   /// \return a device_impl* corresponding to the device
-  device_impl &getOrMakeDeviceImpl(ur_device_handle_t UrDevice, int idx = 0);
+  device_impl &getOrMakeDeviceImpl(ur_device_handle_t UrDevice);
 
   /// Queries the cache to see if the specified UR platform has been seen
   /// before.  If so, return the cached platform_impl, otherwise create a new

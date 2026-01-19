@@ -52,7 +52,6 @@ int main() {
            "platform that contains this device");
   } else {
     if (orig_dev.get_backend() == sycl::backend::ext_oneapi_level_zero) {
-      return 1;
       auto l0_plt = sycl::get_native<sycl::backend::ext_oneapi_level_zero>(plt);
       auto l0_dev =
           sycl::get_native<sycl::backend::ext_oneapi_level_zero>(orig_dev);
