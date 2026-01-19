@@ -497,6 +497,11 @@ def __builtin_amdgcn_cvt_sr_bf8_f32 : AMDGPUBuiltin<"int(float, int, int, _Const
 def __builtin_amdgcn_cvt_sr_fp8_f32 : AMDGPUBuiltin<"int(float, int, int, _Constant int)", [Const], "fp8-conversion-insts">;
 
 //===----------------------------------------------------------------------===//
+// SYCL builtin.
+//===----------------------------------------------------------------------===//
+def __builtin_amdgcn_implicit_offset: AMDGPUBuiltin<"unsigned int address_space<5> *()", [Const]>;
+
+//===----------------------------------------------------------------------===//
 // GFX950 only builtins.
 //===----------------------------------------------------------------------===//
 def __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4 : AMDGPUBuiltin<"_ExtVector<4, float>(_ExtVector<8, int32_t>, _ExtVector<8, int32_t>, _ExtVector<4, float>, _Constant int, _Constant int, _Constant int, int, _Constant int, int)", [Const], "gfx950-insts">;
