@@ -204,6 +204,8 @@ verify_sub_copy(const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
             static_cast<bool>(result[2]));
   };
 
+  // If this is a multi-layer array image, use the layer count; otherwise, use
+  // the depth dimension (following the logic in fill_image_type() ).
   sycl::range<3> SrcImageSize = {
       SrcImgDesc.width, SrcImgDesc.height,
       SrcImgDesc.array_size > 1 ? SrcImgDesc.array_size : SrcImgDesc.depth};
