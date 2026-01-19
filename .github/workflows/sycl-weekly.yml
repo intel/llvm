@@ -84,6 +84,12 @@ jobs:
       # Is it the minimum set of options to get a working toolchain?
       options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
     steps:
+    - name: Checkout actions/source-tbb
+      uses: actions/checkout@v6
+      with:
+        sparse-checkout: |
+          devops/actions/source-tbb
+        sparse-checkout-cone-mode: false
     - name: Source OneAPI TBB vars.sh
       uses: ./devops/actions/source-tbb
     - name: Set up yarpgen
@@ -107,4 +113,4 @@ jobs:
         retention-days: 7
     - name: Clean up
       if: always()
-      run: rm -rf yarpgen yarpgen_results.tar.gz
+      run: rm -rf devops yarpgen yarpgen_results.tar.gz
