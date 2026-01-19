@@ -482,17 +482,8 @@ fatbinary(ArrayRef<std::pair<StringRef, StringRef>> InputFiles,
   CmdArgs.push_back("--create");
   CmdArgs.push_back(*TempFileOrErr);
   for (const auto &[File, Arch] : InputFiles) {
-    StringRef Kind = "elf";
-    StringRef ArchId = Arch;
-    if (Arch.starts_with("sm_")) {
-      ArchId = Arch.drop_front(3);
-    } else if (Arch.starts_with("compute_")) {
-      Kind = "ptx";
-      ArchId = Arch.drop_front(8);
-    }
-
-    CmdArgs.push_back(Args.MakeArgString("--image3=kind=" + Kind +
-                                         ",sm=" + ArchId + ",file=" + File));
+    CmdArgs.push_back(Args.MakeArgString(
+        "--image3=kind=elf,sm=" + Arch.drop_front(3) + ",file=" + File));
   }
 
   if (Error Err = executeCommands(*FatBinaryPath, CmdArgs))
@@ -2339,13 +2330,10 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         if (!ClangOutputOrErr)
           return ClangOutputOrErr.takeError();
         if (Triple.isNVPTX()) {
-          auto VirtualArch = StringRef(clang::OffloadArchToVirtualArchString(
-              clang::StringToOffloadArch(Arch)));
           auto PtxasOutputOrErr =
               nvptx::ptxas(*ClangOutputOrErr, LinkerArgs, Arch);
           if (!PtxasOutputOrErr)
             return PtxasOutputOrErr.takeError();
-          BundlerInputFiles.emplace_back(*ClangOutputOrErr, VirtualArch);
           BundlerInputFiles.emplace_back(*PtxasOutputOrErr, Arch);
           auto BundledFileOrErr =
               nvptx::fatbinary(BundlerInputFiles, LinkerArgs);
