@@ -612,8 +612,8 @@ add_custom_target(install-sycl-test-utilities
     install-llvm-size
     install-llvm-cov
     install-llvm-profdata
-    install-compiler-rt
   # This is required to perform the DeviceConfigFile consistency test, see
   # sycl/test-e2e/Basic/device_config_file_consistency.cpp.
   COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR} --component DeviceConfigFile
+  COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR} --component compiler-rt
 )
