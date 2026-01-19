@@ -11,7 +11,7 @@ features ([SYCL 2020 spec][sycl-spec-optional-kernel-features],
 the following example:
 
 ```c++
-using syclext = sycl::ext::oneapi::experimental;
+namespace syclext = sycl::ext::oneapi::experimental;
 
 struct set_fp64;
 
@@ -50,12 +50,12 @@ int main() {
 
   // The same binary produced by a sycl compiler should correctly work on both
   // devices with and without support for 'fp64' aspect.
-  Q.single_task<Use>(syclext::properties{syclext::assume_inddirect_calls}, [=]() {
+  Q.single_task<Use>(syclext::properties{syclext::assume_indirect_calls}, [=]() {
     Obj->foo();
   });
 
   if (Q.get_device().has(sycl::aspect::fp64)) {
-    Q.single_task<Use>(syclext::properties{syclext::assum_indirect_calls_to<set_fp64>},
+    Q.single_task<Use>(syclext::properties{syclext::assume_indirect_calls_to<set_fp64>},
         [=]() {
       Obj->bar();
     });
