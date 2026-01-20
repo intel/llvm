@@ -3685,10 +3685,12 @@
 ?aligned_alloc@_V1@sycl@@YAPEAX_K0AEBVdevice@12@AEBVcontext@12@W4alloc@usm@12@AEBVproperty_list@12@AEBUcode_location@detail@12@@Z
 ?aligned_alloc@_V1@sycl@@YAPEAX_K0AEBVqueue@12@W4alloc@usm@12@AEBUcode_location@detail@12@@Z
 ?aligned_alloc@_V1@sycl@@YAPEAX_K0AEBVqueue@12@W4alloc@usm@12@AEBVproperty_list@12@AEBUcode_location@detail@12@@Z
+?aligned_alloc@experimental@oneapi@ext@_V1@sycl@@YAPEAX_K0AEBVdevice@45@W4alloc@usm@45@AEBVproperty_list@45@@Z
 ?aligned_alloc_device@_V1@sycl@@YAPEAX_K0AEBVdevice@12@AEBVcontext@12@AEBUcode_location@detail@12@@Z
 ?aligned_alloc_device@_V1@sycl@@YAPEAX_K0AEBVdevice@12@AEBVcontext@12@AEBVproperty_list@12@AEBUcode_location@detail@12@@Z
 ?aligned_alloc_device@_V1@sycl@@YAPEAX_K0AEBVqueue@12@AEBUcode_location@detail@12@@Z
 ?aligned_alloc_device@_V1@sycl@@YAPEAX_K0AEBVqueue@12@AEBVproperty_list@12@AEBUcode_location@detail@12@@Z
+?aligned_alloc_device@experimental@oneapi@ext@_V1@sycl@@YAPEAX_K0AEBVdevice@45@AEBVproperty_list@45@@Z
 ?aligned_alloc_host@_V1@sycl@@YAPEAX_K0AEBVcontext@12@AEBUcode_location@detail@12@@Z
 ?aligned_alloc_host@_V1@sycl@@YAPEAX_K0AEBVcontext@12@AEBVproperty_list@12@AEBUcode_location@detail@12@@Z
 ?aligned_alloc_host@_V1@sycl@@YAPEAX_K0AEBVqueue@12@AEBUcode_location@detail@12@@Z
@@ -3697,6 +3699,7 @@
 ?aligned_alloc_shared@_V1@sycl@@YAPEAX_K0AEBVdevice@12@AEBVcontext@12@AEBVproperty_list@12@AEBUcode_location@detail@12@@Z
 ?aligned_alloc_shared@_V1@sycl@@YAPEAX_K0AEBVqueue@12@AEBUcode_location@detail@12@@Z
 ?aligned_alloc_shared@_V1@sycl@@YAPEAX_K0AEBVqueue@12@AEBVproperty_list@12@AEBUcode_location@detail@12@@Z
+?aligned_alloc_shared@experimental@oneapi@ext@_V1@sycl@@YAPEAX_K0AEBVdevice@45@AEBVproperty_list@45@@Z
 ?alloc_exportable_device_mem@experimental@oneapi@ext@_V1@sycl@@YAPEAX_K0W4external_mem_handle_type@12345@AEBVdevice@45@AEBVcontext@45@AEBVproperty_list@45@@Z
 ?alloc_image_mem@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@AEBUimage_descriptor@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?alloc_image_mem@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@AEBUimage_descriptor@12345@AEBVqueue@45@@Z
@@ -4179,10 +4182,12 @@
 ?malloc@_V1@sycl@@YAPEAX_KAEBVdevice@12@AEBVcontext@12@W4alloc@usm@12@AEBVproperty_list@12@AEBUcode_location@detail@12@@Z
 ?malloc@_V1@sycl@@YAPEAX_KAEBVqueue@12@W4alloc@usm@12@AEBUcode_location@detail@12@@Z
 ?malloc@_V1@sycl@@YAPEAX_KAEBVqueue@12@W4alloc@usm@12@AEBVproperty_list@12@AEBUcode_location@detail@12@@Z
+?malloc@experimental@oneapi@ext@_V1@sycl@@YAPEAX_KAEBVdevice@45@W4alloc@usm@45@AEBVproperty_list@45@@Z
 ?malloc_device@_V1@sycl@@YAPEAX_KAEBVdevice@12@AEBVcontext@12@AEBUcode_location@detail@12@@Z
 ?malloc_device@_V1@sycl@@YAPEAX_KAEBVdevice@12@AEBVcontext@12@AEBVproperty_list@12@AEBUcode_location@detail@12@@Z
 ?malloc_device@_V1@sycl@@YAPEAX_KAEBVqueue@12@AEBUcode_location@detail@12@@Z
 ?malloc_device@_V1@sycl@@YAPEAX_KAEBVqueue@12@AEBVproperty_list@12@AEBUcode_location@detail@12@@Z
+?malloc_device@experimental@oneapi@ext@_V1@sycl@@YAPEAX_KAEBVdevice@45@AEBVproperty_list@45@@Z
 ?malloc_host@_V1@sycl@@YAPEAX_KAEBVcontext@12@AEBUcode_location@detail@12@@Z
 ?malloc_host@_V1@sycl@@YAPEAX_KAEBVcontext@12@AEBVproperty_list@12@AEBUcode_location@detail@12@@Z
 ?malloc_host@_V1@sycl@@YAPEAX_KAEBVqueue@12@AEBUcode_location@detail@12@@Z
@@ -4191,6 +4196,7 @@
 ?malloc_shared@_V1@sycl@@YAPEAX_KAEBVdevice@12@AEBVcontext@12@AEBVproperty_list@12@AEBUcode_location@detail@12@@Z
 ?malloc_shared@_V1@sycl@@YAPEAX_KAEBVqueue@12@AEBUcode_location@detail@12@@Z
 ?malloc_shared@_V1@sycl@@YAPEAX_KAEBVqueue@12@AEBVproperty_list@12@AEBUcode_location@detail@12@@Z
+?malloc_shared@experimental@oneapi@ext@_V1@sycl@@YAPEAX_KAEBVdevice@45@AEBVproperty_list@45@@Z
 ?map@physical_mem@experimental@oneapi@ext@_V1@sycl@@QEBAPEAX_K0W4address_access_mode@23456@0@Z
 ?map_external_image_memory@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@Uexternal_mem@12345@AEBUimage_descriptor@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?map_external_image_memory@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@Uexternal_mem@12345@AEBUimage_descriptor@12345@AEBVqueue@45@@Z

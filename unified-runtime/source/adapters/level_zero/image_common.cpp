@@ -767,8 +767,10 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
 
   // For 1D images, Level Zero requires height and depth to be at least 1
   if (ZeImageDesc.type == ZE_IMAGE_TYPE_1D) {
-    if (Height == 0) Height = 1;
-    if (Depth == 0) Depth = 1;
+    if (Height == 0)
+      Height = 1;
+    if (Depth == 0)
+      Depth = 1;
   }
 
   ZeRegion = {OriginX, OriginY, OriginZ, Width, Height, Depth};

@@ -6,47 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/atomic/clc_atomic_inc.h>
+#include <libspirv/atomic/atomic_helper.h>
 #include <libspirv/spirv.h>
 
-_CLC_OVERLOAD _CLC_DEF int __spirv_AtomicIIncrement(local int *p, int scope,
-                                                    int semantics) {
-  return __sync_fetch_and_add(p, (int)1);
-}
+#define __CLC_FUNCTION __spirv_AtomicIIncrement
+#define __CLC_IMPL_FUNCTION __clc_atomic_inc
+#define __CLC_NO_VALUE_ARG
 
-_CLC_OVERLOAD _CLC_DEF int __spirv_AtomicIIncrement(global int *p, int scope,
-                                                    int semantics) {
-  return __sync_fetch_and_add(p, (int)1);
-}
-
-_CLC_OVERLOAD _CLC_DEF uint __spirv_AtomicIIncrement(local uint *p, int scope,
-                                                     int semantics) {
-  return __sync_fetch_and_add(p, (uint)1);
-}
-
-_CLC_OVERLOAD _CLC_DEF uint __spirv_AtomicIIncrement(global uint *p, int scope,
-                                                     int semantics) {
-  return __sync_fetch_and_add(p, (uint)1);
-}
-
-#ifdef cl_khr_int64_base_atomics
-_CLC_OVERLOAD _CLC_DEF long __spirv_AtomicIIncrement(local long *p, int scope,
-                                                     int semantics) {
-  return __sync_fetch_and_add(p, (long)1);
-}
-
-_CLC_OVERLOAD _CLC_DEF long __spirv_AtomicIIncrement(global long *p, int scope,
-                                                     int semantics) {
-  return __sync_fetch_and_add(p, (long)1);
-}
-
-_CLC_OVERLOAD _CLC_DEF ulong __spirv_AtomicIIncrement(local ulong *p, int scope,
-                                                      int semantics) {
-  return __sync_fetch_and_add(p, (ulong)1);
-}
-
-_CLC_OVERLOAD _CLC_DEF ulong __spirv_AtomicIIncrement(global ulong *p,
-                                                      int scope,
-                                                      int semantics) {
-  return __sync_fetch_and_add(p, (ulong)1);
-}
-#endif
+#define __CLC_BODY <atomic_def.inc>
+#include <clc/integer/gentype.inc>

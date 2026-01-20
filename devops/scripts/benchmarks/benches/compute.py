@@ -61,8 +61,8 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        # Jan 7, 2026
-        return "667721a8220cedd0d7dd2cc2a53da572adadfb9b"
+        # Jan 13, 2026
+        return "ca382c152aa54931acb868c2624386277266da3c"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -208,16 +208,20 @@ class ComputeBench(Suite):
             measure_completion_time,
             use_events,
         ) in submit_graph_params:
-            # SYCL only supports graph mode, UR supports only emulation with command buffers,
-            # and L0 supports both modes via graph and command list APIs.
+            # SYCL only supports graph mode, UR & L0 support both emulated
+            # and non-emulated graph APIs.
             if runtime == RUNTIMES.SYCL or runtime == RUNTIMES.SYCL_PREVIEW:
                 emulate_graphs = [0]
-            elif runtime == RUNTIMES.UR:
-                emulate_graphs = [1]
-            else:  # level-zero
-                # SubmitGraph with L0 graph segfaults on PVC
+            else:  # level-zero and unified-runtime
+                # SubmitGraph with L0 / UR graph segfaults on PVC
                 device_arch = getattr(options, "device_architecture", "")
-                emulate_graphs = [1] if "pvc" in device_arch else [0, 1]
+                # UR currently only supports EmulateGraphs=0 with in-order queue and Level-Zero V2 Adapter
+                skip_ur_native_graph = runtime == RUNTIMES.UR and (
+                    in_order_queue == 0 or options.ur_adapter != "level_zero_v2"
+                )
+                emulate_graphs = (
+                    [1] if "pvc" in device_arch or skip_ur_native_graph else [0, 1]
+                )
             for emulate_graph in emulate_graphs:
                 benches.append(
                     GraphApiSubmitGraph(
@@ -334,49 +338,49 @@ class ComputeBench(Suite):
                         profiler_type,
                         **{
                             **kwargs,
-                            "KernelBatchSize": 512,
-                            "KernelName": "Add",
-                            "KernelParamsNum": 5,
-                            "KernelSubmitPattern": "Single",
+                            "kernelBatchSize": 512,
+                            "kernelName": "Add",
+                            "kernelParamsNum": 5,
+                            "kernelSubmitPattern": "Single",
                         },
                     )
 
                 benches += [
                     createTorchSingleQueueBench(
                         "Int32Large",
-                        KernelDataType="Int32",
-                        KernelWGCount=4096,
-                        KernelWGSize=512,
+                        kernelDataType="Int32",
+                        kernelWGCount=4096,
+                        kernelWGSize=512,
                     ),
                     createTorchSingleQueueBench(
                         "Int32Medium",
-                        KernelDataType="Int32",
-                        KernelWGCount=512,
-                        KernelWGSize=256,
+                        kernelDataType="Int32",
+                        kernelWGCount=512,
+                        kernelWGSize=256,
                     ),
                     createTorchSingleQueueBench(
                         "Int32Small",
-                        KernelDataType="Int32",
-                        KernelWGCount=256,
-                        KernelWGSize=128,
+                        kernelDataType="Int32",
+                        kernelWGCount=256,
+                        kernelWGSize=128,
                     ),
                     createTorchSingleQueueBench(
                         "MixedLarge",
-                        KernelDataType="Mixed",
-                        KernelWGCount=4096,
-                        KernelWGSize=512,
+                        kernelDataType="Mixed",
+                        kernelWGCount=4096,
+                        kernelWGSize=512,
                     ),
                     createTorchSingleQueueBench(
                         "MixedMedium",
-                        KernelDataType="Mixed",
-                        KernelWGCount=512,
-                        KernelWGSize=256,
+                        kernelDataType="Mixed",
+                        kernelWGCount=512,
+                        kernelWGSize=256,
                     ),
                     createTorchSingleQueueBench(
                         "MixedSmall",
-                        KernelDataType="Mixed",
-                        KernelWGCount=256,
-                        KernelWGSize=128,
+                        kernelDataType="Mixed",
+                        kernelWGCount=256,
+                        kernelWGSize=128,
                     ),
                 ]
 
@@ -396,20 +400,20 @@ class ComputeBench(Suite):
                 benches += [
                     createTorchMultiQueueBench(
                         "large",
-                        workgroupCount=4096,
-                        workgroupSize=512,
+                        kernelWGCount=4096,
+                        kernelWGSize=512,
                         kernelsPerQueue=20,
                     ),
                     createTorchMultiQueueBench(
                         "medium",
-                        workgroupCount=512,
-                        workgroupSize=256,
+                        kernelWGCount=512,
+                        kernelWGSize=256,
                         kernelsPerQueue=10,
                     ),
                     createTorchMultiQueueBench(
                         "small",
-                        workgroupCount=256,
-                        workgroupSize=128,
+                        kernelWGCount=256,
+                        kernelWGSize=128,
                         kernelsPerQueue=4,
                     ),
                 ]
@@ -424,23 +428,23 @@ class ComputeBench(Suite):
                         runtime,
                         variant_name,
                         profiler_type,
-                        **{**kwargs, "warmupIterations": 1},
+                        **kwargs,
                     )
 
                 benches += [
                     createTorchSlmSizeBench(
                         "small",
-                        batchSize=512,
+                        kernelBatchSize=512,
                         slmNum=1,
                     ),
                     createTorchSlmSizeBench(
                         "medium",
-                        batchSize=512,
+                        kernelBatchSize=512,
                         slmNum=1024,
                     ),
                     createTorchSlmSizeBench(
                         "large",
-                        batchSize=512,
+                        kernelBatchSize=512,
                         slmNum=16384,
                     ),
                 ]
@@ -462,22 +466,22 @@ class ComputeBench(Suite):
                     createTorchMemoryReuseBench(
                         "Int32Large",
                         kernelBatchSize=4096,
-                        dataType="Int32",
+                        kernelDataType="Int32",
                     ),
                     createTorchMemoryReuseBench(
                         "Int32Medium",
                         kernelBatchSize=512,
-                        dataType="Int32",
+                        kernelDataType="Int32",
                     ),
                     createTorchMemoryReuseBench(
                         "FloatLarge",
                         kernelBatchSize=4096,
-                        dataType="Float",
+                        kernelDataType="Float",
                     ),
                     createTorchMemoryReuseBench(
                         "FloatMedium",
                         kernelBatchSize=512,
-                        dataType="Float",
+                        kernelDataType="Float",
                     ),
                 ]
 

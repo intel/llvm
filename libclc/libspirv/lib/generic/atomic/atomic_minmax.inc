@@ -6,7 +6,24 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <libspirv/spirv.h>
+#ifdef __CLC_GEN_S
 
-#define __CLC_BODY <fmin_common.inc>
-#include <clc/math/gentype.inc>
+#ifdef __CLC_ATOMIC_MIN
+#define __CLC_FUNCTION __spirv_AtomicSMin
+#else
+#define __CLC_FUNCTION __spirv_AtomicSMax
+#endif
+
+#else
+
+#ifdef __CLC_ATOMIC_MIN
+#define __CLC_FUNCTION __spirv_AtomicUMin
+#else
+#define __CLC_FUNCTION __spirv_AtomicUMax
+#endif
+
+#endif
+
+#include <atomic_def.inc>
+
+#undef __CLC_FUNCTION

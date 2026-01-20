@@ -13,10 +13,38 @@
 
 #include "../device.hpp"
 
+// UR copy of the deprecated
+// zex_intel_queue_copy_operations_offload_hint_exp_desc_t
+typedef struct _ur_zex_intel_queue_copy_operations_offload_hint_exp_desc_t {
+  ze_structure_type_ext_t stype; ///< [in] type of this structure
+  const void
+      *pNext; ///< [in][optional] must be null or a pointer to an
+              ///< extension-specific structure (i.e. contains stype and pNext).
+  ze_bool_t
+      copyOffloadEnabled; ///< [in] If set, try to offload copy operations to
+                          ///< different engines. Applicable only for compute
+                          ///< queues. This is only a hint. Driver may ignore it
+                          ///< per append call, based on platform capabilities
+                          ///< or internal heuristics. If not set, driver will
+                          ///< follow default behaviour. Copy operations will be
+                          ///< submitted to same engine as compute operations.
+
+} ur_zex_intel_queue_copy_operations_offload_hint_exp_desc_t;
+
+// ZEX_INTEL_STRUCTURE_TYPE_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_PROPERTIES is
+// deprecated and will be removed
+#ifdef ZEX_INTEL_STRUCTURE_TYPE_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_PROPERTIES
+#define UR_ZEX_INTEL_STRUCTURE_TYPE_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_PROPERTIES \
+  ZEX_INTEL_STRUCTURE_TYPE_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_PROPERTIES
+#else
+#define UR_ZEX_INTEL_STRUCTURE_TYPE_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_PROPERTIES \
+  static_cast<ze_structure_type_ext_t>(0x0003001B)
+#endif // ZEX_INTEL_STRUCTURE_TYPE_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_PROPERTIES
+
 template <>
-ze_structure_type_ext_t
-getZexStructureType<zex_intel_queue_copy_operations_offload_hint_exp_desc_t>() {
-  return ZEX_INTEL_STRUCTURE_TYPE_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_PROPERTIES;
+ze_structure_type_ext_t getZexStructureType<
+    ur_zex_intel_queue_copy_operations_offload_hint_exp_desc_t>() {
+  return UR_ZEX_INTEL_STRUCTURE_TYPE_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_PROPERTIES;
 }
 
 bool v2::immediate_command_list_descriptor_t::operator==(
@@ -53,7 +81,9 @@ command_list_cache_t::command_list_cache_t(
       ZeCopyOffloadExtensionSupported{
           supportedExtensions.ZeCopyOffloadExtensionSupported},
       ZeMutableCmdListExtentionSupported{
-          supportedExtensions.ZeMutableCmdListExtentionSupported} {}
+          supportedExtensions.ZeMutableCmdListExtentionSupported},
+      ZeCopyOffloadFlagSupported{
+          supportedExtensions.ZeCopyOffloadFlagSupported} {}
 
 static bool ForceDisableCopyOffload = [] {
   return getenv_tobool("UR_L0_V2_FORCE_DISABLE_COPY_OFFLOAD");
@@ -61,7 +91,7 @@ static bool ForceDisableCopyOffload = [] {
 
 raii::ze_command_list_handle_t
 command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
-  ZexStruct<zex_intel_queue_copy_operations_offload_hint_exp_desc_t>
+  ZexStruct<ur_zex_intel_queue_copy_operations_offload_hint_exp_desc_t>
       offloadDesc;
   auto requestedCopyOffload =
       std::visit([](auto &&arg) { return arg.CopyOffloadEnabled; }, desc);
@@ -92,7 +122,14 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
       QueueDesc.flags |= ZE_COMMAND_QUEUE_FLAG_EXPLICIT_ONLY;
       QueueDesc.index = ImmCmdDesc->Index.value();
     }
-    QueueDesc.pNext = &offloadDesc;
+
+    // ZeCopyOffloadFlagSupported is set during platform initialization
+    if (requestedCopyOffload && ZeCopyOffloadFlagSupported) {
+      QueueDesc.flags |= ZE_COMMAND_QUEUE_FLAG_COPY_OFFLOAD_HINT;
+      QueueDesc.pNext = nullptr;
+    } else {
+      QueueDesc.pNext = &offloadDesc;
+    }
 
     UR_LOG(DEBUG,
            "create command list ordinal: {}, type: immediate, "

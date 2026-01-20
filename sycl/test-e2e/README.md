@@ -323,6 +323,7 @@ configure specific single test execution in the command line:
   by CMake variable HIP_LIBS_DIR (autodetected).
 * **run_launcher** - part of `%{run*}` expansion/substitution to alter execution
   of the test by, e.g., running it through Valgrind.
+* **enable_new_offload_model** - enables New Offload Model driver mode for all tests.
 
 Example:
 
