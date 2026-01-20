@@ -168,11 +168,11 @@ class ComputeRuntime:
         return None, None
 
     # "https://github.com/lslusarczyk/compute-runtime.git",
-    # "worker-thread",
+    # "worker-thread",options.compute_runtime_tag
     def build_compute_runtime(self):
         project = GitProject(
-            "https://github.com/intel/compute-runtime.git",
-            options.compute_runtime_tag,
+            "https://github.com/lslusarczyk/compute-runtime.git",
+            "worker-thread",
             Path(options.workdir),
             "compute-runtime",
             use_installdir=False,
