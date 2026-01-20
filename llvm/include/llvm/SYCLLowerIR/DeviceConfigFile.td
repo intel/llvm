@@ -97,6 +97,7 @@ def Aspectext_oneapi_clock_work_group : Aspect<"ext_oneapi_clock_work_group">;
 def Aspectext_oneapi_clock_device : Aspect<"ext_oneapi_clock_device">;
 def Aspectext_oneapi_is_integrated_gpu : Aspect<"ext_oneapi_is_integrated_gpu">;
 def Aspectext_oneapi_ipc_memory : Aspect<"ext_oneapi_ipc_memory">;
+def Aspectext_oneapi_device_wait : Aspect<"ext_oneapi_device_wait">;
 
 // Deprecated aspects
 def AspectInt64_base_atomics : Aspect<"int64_base_atomics">;
@@ -175,7 +176,8 @@ def : TargetInfo<"__TestAspectList",
     Aspectext_oneapi_clock_work_group,
     Aspectext_oneapi_clock_device,
     Aspectext_oneapi_is_integrated_gpu,
-    Aspectext_oneapi_ipc_memory],
+    Aspectext_oneapi_ipc_memory,
+    Aspectext_oneapi_device_wait],
     []>;
 // This definition serves the only purpose of testing whether the deprecated aspect list defined in here and in SYCL RT
 // match.

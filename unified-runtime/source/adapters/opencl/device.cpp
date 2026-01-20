@@ -1583,6 +1583,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_MIN_POWER_LIMIT:
   case UR_DEVICE_INFO_MAX_POWER_LIMIT:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  case UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP:
+    return ReturnValue(false);
   default: {
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }

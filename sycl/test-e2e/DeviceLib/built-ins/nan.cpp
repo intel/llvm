@@ -1,8 +1,8 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
-// RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -fsycl-device-code-split=per_kernel -o %t2.out %}
-// RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
+// RUN: %{build} -D__SYCL_USE_LIBSYCL8_VEC_IMPL=1 -fsycl-device-code-split=per_kernel -o %t2.out
+// RUN: %{run} %t2.out
 
 #include <iostream>
 #include <cassert>

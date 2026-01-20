@@ -1486,6 +1486,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintExpKernelArgProperties(
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_host_task_flag_t enum
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPrintExpHostTaskFlags(enum ur_exp_host_task_flag_t value, char *buffer,
+                        const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_host_task_properties_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintExpHostTaskProperties(
+    const struct ur_exp_host_task_properties_t params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_exp_enqueue_ext_flag_t enum
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -2884,6 +2904,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintEnqueueCommandBufferExpParams(
 UR_APIEXPORT ur_result_t UR_APICALL urPrintEnqueueTimestampRecordingExpParams(
     const struct ur_enqueue_timestamp_recording_exp_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_enqueue_host_task_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintEnqueueHostTaskExpParams(
+    const struct ur_enqueue_host_task_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_enqueue_native_command_exp_params_t struct

@@ -107,9 +107,9 @@ public:
 
   bool operator!=(const device &rhs) const { return !(*this == rhs); }
 
-  device(const device &rhs) = default;
+  device(const device &rhs);
 
-  device(device &&rhs) = default;
+  device(device &&rhs);
 
   device &operator=(const device &rhs) = default;
 
@@ -380,6 +380,21 @@ public:
   inline bool ext_oneapi_owner_before(const device &Other) const noexcept;
   inline bool ext_oneapi_owner_before(
       const ext::oneapi::weak_object<device> &Other) const noexcept;
+
+  /// Synchronizes with all queues associated with the device.
+  void ext_oneapi_wait();
+
+  /// Dispatches all unconsumed asynchronous exceptions for all queues or
+  /// contexts associated with the queues.
+  void ext_oneapi_throw_asynchronous();
+
+  /// Synchronizes with all queues associated with the device, then dispatches
+  /// all unconsumed asynchronous exceptions for all queues or contexts
+  /// associated with the queues.
+  void ext_oneapi_wait_and_throw() {
+    ext_oneapi_wait();
+    ext_oneapi_throw_asynchronous();
+  }
 
 // TODO: Remove this diagnostics when __SYCL_WARN_IMAGE_ASPECT is removed.
 #if defined(__clang__)

@@ -399,7 +399,7 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
     RawEvents = detail::Command::getUrEvents(DepEvents, this, false);
   }
 
-  bool DiscardEvent = !EventNeeded && supportsDiscardingPiEvents();
+  bool DiscardEvent = !EventNeeded && isInOrder();
   std::shared_ptr<detail::event_impl> ResultEvent =
       DiscardEvent ? nullptr : detail::event_impl::create_device_event(*this);
 
@@ -603,8 +603,8 @@ EventImplPtr queue_impl::submit_graph_direct_impl(
         ExecGraph,
     bool CallerNeedsEvent, sycl::span<const event> DepEvents,
     [[maybe_unused]] const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
-  bool EventNeeded = CallerNeedsEvent || ExecGraph->containsHostTask() ||
-                     !supportsDiscardingPiEvents();
+  bool EventNeeded =
+      CallerNeedsEvent || ExecGraph->containsHostTask() || !isInOrder();
   auto SubmitGraphFunc = [&](detail::CG::StorageInitHelper &&CGData)
       -> std::pair<EventImplPtr, bool> {
     if (auto ParentGraph = getCommandGraph(); ParentGraph) {
@@ -732,7 +732,7 @@ event queue_impl::submitWithHandler(const std::vector<event> &DepEvents,
   };
   detail::type_erased_cgfo_ty CGF{L};
 
-  if (!CallerNeedsEvent && supportsDiscardingPiEvents()) {
+  if (!CallerNeedsEvent && isInOrder()) {
     submit_without_event(CGF, SI,
                          /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
     return createSyclObjFromImpl<event>(event_impl::create_discarded_event());
@@ -928,32 +928,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
       LastEvent->wait();
     }
   } else if (!isInOrder()) {
-    std::vector<std::weak_ptr<event_impl>> WeakEvents;
-    {
-      std::lock_guard<std::mutex> Lock(MMutex);
-      WeakEvents.swap(MEventsWeak);
-      MMissedCleanupRequests.unset(
-          [&](MissedCleanupRequestsType &MissedCleanupRequests) {
-            for (auto &UpdatedGraph : MissedCleanupRequests)
-              doUnenqueuedCommandCleanup(UpdatedGraph);
-            MissedCleanupRequests.clear();
-          });
-    }
-
-    // Wait for unenqueued or host task events, starting
-    // from the latest submitted task in order to minimize total amount of
-    // calls, then handle the rest with urQueueFinish.
-    for (auto EventImplWeakPtrIt = WeakEvents.rbegin();
-         EventImplWeakPtrIt != WeakEvents.rend(); ++EventImplWeakPtrIt) {
-      if (std::shared_ptr<event_impl> EventImplSharedPtr =
-              EventImplWeakPtrIt->lock()) {
-        // A nullptr UR event indicates that urQueueFinish will not cover it,
-        // either because it's a host task event or an unenqueued one.
-        if (nullptr == EventImplSharedPtr->getHandle()) {
-          EventImplSharedPtr->wait();
-        }
-      }
-    }
+    waitForRuntimeLevelCmdsAndClear();
   }
 
   getAdapter().call<UrApiKind::urQueueFinish>(getHandleRef());
@@ -1173,6 +1148,47 @@ EventImplPtr queue_impl::insertHelperBarrier() {
       getHandleRef(), 0, nullptr, &UREvent);
   ResEvent->setHandle(UREvent);
   return ResEvent;
+}
+
+void queue_impl::waitForRuntimeLevelCmdsAndClear() {
+  if (isInOrder() && !MNoLastEventMode.load(std::memory_order_relaxed)) {
+    // if MLastEvent is not null and has no associated handle, we need to wait
+    // for it. We do not clear it however.
+    EventImplPtr LastEvent;
+    {
+      std::lock_guard<std::mutex> Lock(MMutex);
+      LastEvent = MDefaultGraphDeps.LastEventPtr;
+    }
+    if (LastEvent && nullptr == LastEvent->getHandle())
+      LastEvent->wait();
+  } else if (!isInOrder()) {
+    std::vector<std::weak_ptr<event_impl>> WeakEvents;
+    {
+      std::lock_guard<std::mutex> Lock(MMutex);
+      WeakEvents.swap(MEventsWeak);
+      MMissedCleanupRequests.unset(
+          [&](MissedCleanupRequestsType &MissedCleanupRequests) {
+            for (auto &UpdatedGraph : MissedCleanupRequests)
+              doUnenqueuedCommandCleanup(UpdatedGraph);
+            MissedCleanupRequests.clear();
+          });
+    }
+
+    // Wait for unenqueued or host task events, starting
+    // from the latest submitted task in order to minimize total amount of
+    // calls, then handle the rest with urQueueFinish.
+    for (auto EventImplWeakPtrIt = WeakEvents.rbegin();
+         EventImplWeakPtrIt != WeakEvents.rend(); ++EventImplWeakPtrIt) {
+      if (std::shared_ptr<event_impl> EventImplSharedPtr =
+              EventImplWeakPtrIt->lock()) {
+        // A nullptr UR event indicates that urQueueFinish will not cover it,
+        // either because it's a host task event or an unenqueued one.
+        if (nullptr == EventImplSharedPtr->getHandle()) {
+          EventImplSharedPtr->wait();
+        }
+      }
+    }
+  }
 }
 
 } // namespace detail
