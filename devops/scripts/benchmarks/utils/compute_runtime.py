@@ -172,7 +172,7 @@ class ComputeRuntime:
     def build_compute_runtime(self):
         project = GitProject(
             "https://github.com/intel/compute-runtime.git",
-            "master",
+            options.compute_runtime_tag,
             Path(options.workdir),
             "compute-runtime",
             use_installdir=False,
