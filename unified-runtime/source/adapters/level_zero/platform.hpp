@@ -69,6 +69,7 @@ struct ur_platform_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter>,
   bool zeDriverImmediateCommandListAppendFound{false};
   bool ZeDriverEuCountExtensionFound{false};
   bool ZeCopyOffloadExtensionSupported{false};
+  bool ZeCopyOffloadFlagSupported{false};
   bool ZeBindlessImagesExtensionSupported{false};
   bool ZeLUIDSupported{false};
 

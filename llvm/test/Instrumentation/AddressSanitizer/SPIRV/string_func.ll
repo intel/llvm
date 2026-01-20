@@ -3,6 +3,18 @@
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64-G1"
 target triple = "spir64-unknown-unknown"
 
+@__const.test.a = private unnamed_addr addrspace(1) constant [4 x i32] [i32 1, i32 2, i32 3, i32 4], align 4
+
+; Function Attrs: sanitize_address
+define weak_odr dso_local spir_kernel void @test_unsupported_global() #0 {
+; CHECK-LABEL: define weak_odr dso_local spir_kernel void @test_unsupported_global
+entry:
+  %p.i = alloca [4 x i32], align 4
+  call void @llvm.memcpy.p0.p1.i64(ptr align 4 %p.i, ptr addrspace(1) align 4 @__const.test.a, i64 16, i1 false)
+  ; CHECK-NOT: call ptr addrspace(1) @__asan_memcpy_p0_p1
+  ret void
+}
+
 ; Function Attrs: sanitize_address
 define weak_odr dso_local spir_kernel void @test_memset_as0() #0 {
 ; CHECK-LABEL: define weak_odr dso_local spir_kernel void @test_memset_as0
@@ -135,6 +147,9 @@ declare void @llvm.memset.p4.i64(ptr addrspace(4) writeonly captures(none), i8, 
 
 ; Function Attrs: nocallback nofree nounwind willreturn memory(argmem: readwrite)
 declare void @llvm.memcpy.p0.p0.i64(ptr noalias writeonly captures(none), ptr noalias readonly captures(none), i64, i1 immarg) #2
+
+; Function Attrs: nocallback nofree nounwind willreturn memory(argmem: readwrite)
+declare void @llvm.memcpy.p0.p1.i64(ptr noalias writeonly captures(none), ptr addrspace(1) noalias readonly captures(none), i64, i1 immarg) #2
 
 ; Function Attrs: nocallback nofree nounwind willreturn memory(argmem: readwrite)
 declare void @llvm.memcpy.p1.p1.i64(ptr addrspace(1) noalias writeonly captures(none), ptr addrspace(1) noalias readonly captures(none), i64, i1 immarg) #2
