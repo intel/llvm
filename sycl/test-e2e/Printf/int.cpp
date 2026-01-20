@@ -5,7 +5,12 @@
 // [1]: https://en.cppreference.com/w/cpp/io/c/fprintf
 //
 // UNSUPPORTED: target-amd
-// FIXME: The 'short' type gets overflown with sporadic values on CUDA.
+// FIXME: CUDA's vprintf implementation has a bug with length modifiers %hhd
+// and %hd. These modifiers do not work correctly when:
+// - They are not the first argument, OR
+// - There are multiple such arguments in the format string
+// The issue is in CUDA's vprintf syscall implementation, not in our argument
+// packing. Workaround: use %d for all int-promoted types (char, short, int).
 // XFAIL: cuda
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/14734
 
