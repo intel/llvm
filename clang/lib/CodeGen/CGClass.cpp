@@ -1503,7 +1503,8 @@ static void EmitConditionalArrayDtorCall(const CXXDestructorDecl *DD,
   if (Dtor->getArrayOperatorDelete()) {
     if (!Dtor->getGlobalArrayOperatorDelete()) {
       CGF.EmitDeleteCall(Dtor->getArrayOperatorDelete(), allocatedPtr,
-                         CGF.getContext().getCanonicalTagType(ClassDecl));
+                         CGF.getContext().getCanonicalTagType(ClassDecl),
+                         numElements, cookieSize);
     } else {
       // If global operator[] is set, the class had its own operator delete[].
       // In that case, check the 4th bit. If it is set, we need to call
@@ -1520,12 +1521,14 @@ static void EmitConditionalArrayDtorCall(const CXXDestructorDecl *DD,
       CGF.Builder.CreateCondBr(ShouldCallGlobDelete, ClassDelete, GlobDelete);
       CGF.EmitBlock(ClassDelete);
       CGF.EmitDeleteCall(Dtor->getArrayOperatorDelete(), allocatedPtr,
-                         CGF.getContext().getCanonicalTagType(ClassDecl));
+                         CGF.getContext().getCanonicalTagType(ClassDecl),
+                         numElements, cookieSize);
       CGF.EmitBranchThroughCleanup(CGF.ReturnBlock);
 
       CGF.EmitBlock(GlobDelete);
       CGF.EmitDeleteCall(Dtor->getGlobalArrayOperatorDelete(), allocatedPtr,
-                         CGF.getContext().getCanonicalTagType(ClassDecl));
+                         CGF.getContext().getCanonicalTagType(ClassDecl),
+                         numElements, cookieSize);
     }
   } else {
     // No operators delete[] were found, so emit a trap.
