@@ -70,7 +70,7 @@ class Options:
     build_compute_runtime: bool = True
     extra_ld_libraries: list[str] = field(default_factory=list)
     extra_env_vars: dict = field(default_factory=dict)
-    compute_runtime_tag: str = "25.27.34303.5"
+    compute_runtime_tag: str = "25.44.36015.8"
     build_igc: bool = False
     current_run_name: str = "This PR"
     preset: str = "Full"
