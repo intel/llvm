@@ -757,20 +757,20 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
   uint32_t Height = ur_cast<uint32_t>(Region->height);
   uint32_t Depth = ur_cast<uint32_t>(Region->depth);
 
-  // UR uses depth for 1D array layers, but Level Zero uses height
-  if (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY) {
+  // Normalize Region dimensions based on image type
+  if (ZeImageDesc.type == ZE_IMAGE_TYPE_1D) {
+    // 1D images: height and depth must be 1
+    Height = 1;
+    Depth = 1;
+  } else if (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY) {
+    // UR uses depth for 1D array layers, but Level Zero uses height
     OriginY = OriginZ;
     OriginZ = 0;
     Height = Depth;
     Depth = 1;
-  }
-
-  // For 1D images, Level Zero requires height and depth to be at least 1
-  if (ZeImageDesc.type == ZE_IMAGE_TYPE_1D) {
-    if (Height == 0)
-      Height = 1;
-    if (Depth == 0)
-      Depth = 1;
+  } else if (ZeImageDesc.type == ZE_IMAGE_TYPE_2D) {
+    // 2D images: depth must be 1
+    Depth = 1;
   }
 
   ZeRegion = {OriginX, OriginY, OriginZ, Width, Height, Depth};
