@@ -187,6 +187,8 @@ class SPIRVABIInfo : public CommonSPIRABIInfo {
 public:
   SPIRVABIInfo(CodeGenTypes &CGT) : CommonSPIRABIInfo(CGT) {}
   void computeInfo(CGFunctionInfo &FI) const override;
+  RValue EmitVAArg(CodeGenFunction &CGF, Address VAListAddr, QualType Ty,
+                   AggValueSlot Slot) const override;
 
 private:
   ABIArgInfo classifyKernelArgumentType(QualType Ty) const;
@@ -359,6 +361,11 @@ void SPIRVABIInfo::computeInfo(CGFunctionInfo &FI) const {
   // arguments handling.
   llvm::CallingConv::ID CC = FI.getCallingConvention();
 
+  for (auto &&[ArgumentsCount, I] : llvm::enumerate(FI.arguments()))
+    I.info = ArgumentsCount < FI.getNumRequiredArgs()
+                 ? classifyArgumentType(I.type)
+                 : ABIArgInfo::getDirect();
+
   if (!getCXXABI().classifyReturnType(FI))
     FI.getReturnInfo() = classifyReturnType(FI.getReturnType());
 
@@ -369,6 +376,14 @@ void SPIRVABIInfo::computeInfo(CGFunctionInfo &FI) const {
       I.info = classifyArgumentType(I.type);
     }
   }
+}
+
+RValue SPIRVABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
+                               QualType Ty, AggValueSlot Slot) const {
+  return emitVoidPtrVAArg(CGF, VAListAddr, Ty, /*IsIndirect=*/false,
+                          getContext().getTypeInfoInChars(Ty),
+                          CharUnits::fromQuantity(1),
+                          /*AllowHigherAlign=*/true, Slot);
 }
 
 unsigned AMDGCNSPIRVABIInfo::numRegsForType(QualType Ty) const {
