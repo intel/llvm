@@ -6,7 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_fmax_common(__CLC_GENTYPE x,
-                                                             __CLC_GENTYPE y) {
-  return (x < y) ? y : x;
-}
+#include <clc/math/clc_fmin.h>
+#include <libspirv/spirv.h>
+
+#define __CLC_FUNCTION __spirv_ocl_fmin_common
+#define __CLC_IMPL_FUNCTION(x) __clc_fmin
+#define __CLC_BODY <clc/shared/binary_def.inc>
+#include <clc/math/gentype.inc>
