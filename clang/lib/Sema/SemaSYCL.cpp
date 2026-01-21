@@ -5375,12 +5375,30 @@ createSYCLCrossABIMangleContext(ASTContext &Ctx) {
   // host + Itanium device on Windows+CUDA), use device mangling context to
   // ensure consistent kernel name mangling between host and device.
   const TargetInfo *AuxTarget = Ctx.getAuxTargetInfo();
+  
+  // DEBUG: Log target information
+  llvm::errs() << "DEBUG createSYCLCrossABIMangleContext:\n";
+  llvm::errs() << "  Primary Target ABI: " << Ctx.getTargetInfo().getCXXABI().getKind() << "\n";
+  llvm::errs() << "  Primary Target Triple: " << Ctx.getTargetInfo().getTriple().str() << "\n";
+  if (AuxTarget) {
+    llvm::errs() << "  Aux Target ABI: " << AuxTarget->getCXXABI().getKind() << "\n";
+    llvm::errs() << "  Aux Target Triple: " << AuxTarget->getTriple().str() << "\n";
+  } else {
+    llvm::errs() << "  Aux Target: nullptr\n";
+  }
+  llvm::errs() << "  isMicrosoft: " << Ctx.getTargetInfo().getCXXABI().isMicrosoft() << "\n";
+  if (AuxTarget) {
+    llvm::errs() << "  isItaniumFamily: " << AuxTarget->getCXXABI().isItaniumFamily() << "\n";
+  }
+  
   if (AuxTarget && Ctx.getTargetInfo().getCXXABI().isMicrosoft() &&
       AuxTarget->getCXXABI().isItaniumFamily()) {
+    llvm::errs() << "  -> Using device mangling context (cross-ABI scenario)\n";
     return std::unique_ptr<MangleContext>(
         Ctx.createDeviceMangleContext(*AuxTarget));
   }
   // Same ABI or no offload target: use standard mangling
+  llvm::errs() << "  -> Using standard mangling context\n";
   return std::unique_ptr<MangleContext>(Ctx.createMangleContext());
 }
 
