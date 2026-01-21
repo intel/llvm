@@ -1,0 +1,53 @@
+name: Collect aggregated data 
+on:
+  workflow_run:
+    workflows: ["Check load of the machine"]
+    types:
+      - completed
+
+jobs:
+  sycl-aggregate-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      
+      - name: Calculate yesterday's date
+        id: date
+        run: echo "YESTERDAY=$(date -d 'yesterday' +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+      
+      - name: Download artifacts from yesterday's runs
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: sycl-health-check.yml
+          name_is_regexp: true
+          name: '${{ steps.date.outputs.YESTERDAY }}_.*_load-average'
+          path: ./artifacts
+          if_no_artifact_found: warn
+      
+      - name: Process and aggregate data
+        run: |
+          echo "Processing artifacts from ${{ steps.date.outputs.YESTERDAY }}"
+          ls -la ./artifacts/
+          
+          # Create JSON with runner:load_average pairs
+          echo "{" > aggregated_${{ steps.date.outputs.YESTERDAY }}.json
+          first=true
+          for dir in ./artifacts/*/; do
+            for file in "$dir"*.txt; do
+              if [ -f "$file" ]; then
+                runner=$(head -n1 "$file")
+                load=$(tail -n1 "$file" | sed 's/load average://g' | xargs)
+                
+                if [ "$first" = true ]; then
+                  echo "  \"$runner\": \"$load\"" >> aggregated_${{ steps.date.outputs.YESTERDAY }}.json
+                  first=false
+                else
+                  echo "  ,\"$runner\": \"$load\"" >> aggregated_${{ steps.date.outputs.YESTERDAY }}.json
+                fi
+              fi
+            done
+          done
+          echo "}" >> aggregated_${{ steps.date.outputs.YESTERDAY }}.json
+          
+          cat aggregated_${{ steps.date.outputs.YESTERDAY }}.json
