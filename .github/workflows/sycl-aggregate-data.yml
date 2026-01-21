@@ -1,9 +1,6 @@
 name: Collect aggregated data 
 on:
-  workflow_run:
-    workflows: ["Check load of the machine"]
-    types:
-      - completed
+  workflow_call:
 
 jobs:
   sycl-aggregate-data:
