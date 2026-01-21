@@ -1,0 +1,19 @@
+name: Check load of the machine 
+
+on:
+  workflow_call:
+
+jobs:
+  health-check:
+    runs-on: ["health-check"]
+    steps:
+      - name: Check load average
+        run: |
+          $DATE=$(date +"%Y-%m-%d")
+          ${{ runner.name }} >> ${{DATE}}_${{ runner.name }}.txt
+          uptime | awk -F'load average:' '{ print "load average:" $2 }' >> ${{DATE}}_${{ runner.name }}.txt
+      - name: Upload load average artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: ${{DATE}}_${{ runner.name }}_load-average
+          path: ${{DATE}}_${{ runner.name }}.txt
