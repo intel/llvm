@@ -168,6 +168,10 @@ struct ur_queue_t_ : ur_queue_extensions {
       const size_t *, uint32_t, const ur_exp_kernel_arg_properties_t *,
       const ur_kernel_launch_ext_properties_t *, uint32_t,
       const ur_event_handle_t *, ur_event_handle_t *) = 0;
+  virtual ur_result_t enqueueHostTaskExp(ur_exp_host_task_function_t, void *,
+                                         const ur_exp_host_task_properties_t *,
+                                         uint32_t, const ur_event_handle_t *,
+                                         ur_event_handle_t *) = 0;
   virtual ur_result_t
   enqueueEventsWaitWithBarrierExt(const ur_exp_enqueue_ext_properties_t *,
                                   uint32_t, const ur_event_handle_t *,

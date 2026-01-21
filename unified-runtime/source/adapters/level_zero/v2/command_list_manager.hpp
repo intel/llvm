@@ -1,6 +1,6 @@
 //===--------- command_list_manager.hpp - Level Zero Adapter --------------===//
 //
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -245,6 +245,11 @@ struct ur_command_list_manager {
       const ur_exp_kernel_arg_properties_t *pArgs,
       const ur_kernel_launch_ext_properties_t *launchPropList,
       wait_list_view &waitListView, ur_event_handle_t phEvent);
+
+  ur_result_t
+  appendHostTaskExp(ur_exp_host_task_function_t pfnHostTask, void *data,
+                    const ur_exp_host_task_properties_t *pProperties,
+                    wait_list_view &waitListView, ur_event_handle_t phEvent);
 
   /************ Graph methods *************/
   ur_result_t appendGraph(ur_exp_executable_graph_handle_t hGraph,

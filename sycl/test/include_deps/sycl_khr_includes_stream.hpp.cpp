@@ -150,6 +150,7 @@
 // CHECK-NEXT: ext/oneapi/kernel_properties/properties.hpp
 // CHECK-NEXT: ext/oneapi/work_group_scratch_memory.hpp
 // CHECK-NEXT: detail/sycl_local_mem_builtins.hpp
+// CHECK-NEXT: detail/nd_range_view.hpp
 // CHECK-NEXT: detail/range_rounding.hpp
 // CHECK-NEXT: device.hpp
 // CHECK-NEXT: detail/util.hpp

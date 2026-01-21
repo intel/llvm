@@ -78,7 +78,7 @@ Example usage of the external `llvm-offload-binary` call:
 The `clang-linker-wrapper` provides the interface to perform the needed link
 steps when consuming fat binaries.  The linker wrapper performs a majority of
 the work involved during the link step during an offload compilation,
-significantly reducing the amount of work that is occuring in the compiler
+significantly reducing the amount of work that is occurring in the compiler
 driver.  From the compilation perspective, the linker wrapper replaces the
 typical call to the host link.  This allows for the responsibility of the
 compiler driver to be nearly identical when performing a regular compilation

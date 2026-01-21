@@ -16,7 +16,7 @@ template <typename... T> struct aligned_storage {
 };
 
 // Helper data structure that automatically creates a right (in terms of size
-// and alignment) storage to accomodate a value of any of types T...
+// and alignment) storage to accommodate a value of any of types T...
 template <typename... T> struct obj_storage_t {
   static_assert(std::max({alignof(T)...}) == std::min({alignof(T)...}),
                 "Unsupported alignment of input types");

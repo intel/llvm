@@ -1002,7 +1002,6 @@ std::string computeFuncCategoryForSplittingPerSource(const Function &F) {
   // Optional features
   // NOTE: Add more categories at the end of the list to avoid changing orders
   // of output files in existing tests.
-  computeFuncCategoryFromAttribute(F, "sycl-register-alloc-mode", Result);
   computeFuncCategoryFromAttribute(F, "sycl-grf-size", Result);
   computeFuncCategoryFromSYCLUsedAspects(F, Result);
   computeFuncCategoryFromIntegersListMetadata(F, "reqd_work_group_size",

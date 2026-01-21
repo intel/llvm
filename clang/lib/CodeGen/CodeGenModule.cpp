@@ -70,11 +70,12 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ConvertUTF.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/Hash.h"
 #include "llvm/Support/TimeProfiler.h"
-#include "llvm/Support/xxhash.h"
 #include "llvm/TargetParser/RISCVISAInfo.h"
 #include "llvm/TargetParser/Triple.h"
 #include "llvm/TargetParser/X86TargetParser.h"
+#include "llvm/Transforms/Instrumentation/KCFI.h"
 #include "llvm/Transforms/Utils/BuildLibCalls.h"
 #include <optional>
 #include <set>
@@ -426,15 +427,11 @@ static void checkDataLayoutConsistency(const TargetInfo &Target,
     Check("bfloat", llvm::Type::getBFloatTy(Context), Target.BFloat16Align);
   Check("float", llvm::Type::getFloatingPointTy(Context, *Target.FloatFormat),
         Target.FloatAlign);
-  // FIXME: AIX specifies wrong double alignment in DataLayout
-  if (!Triple.isOSAIX()) {
-    Check("double",
-          llvm::Type::getFloatingPointTy(Context, *Target.DoubleFormat),
-          Target.DoubleAlign);
-    Check("long double",
-          llvm::Type::getFloatingPointTy(Context, *Target.LongDoubleFormat),
-          Target.LongDoubleAlign);
-  }
+  Check("double", llvm::Type::getFloatingPointTy(Context, *Target.DoubleFormat),
+        Target.DoubleAlign);
+  Check("long double",
+        llvm::Type::getFloatingPointTy(Context, *Target.LongDoubleFormat),
+        Target.LongDoubleAlign);
   if (Target.hasFloat128Type())
     Check("__float128", llvm::Type::getFP128Ty(Context), Target.Float128Align);
   if (Target.hasIbm128Type())
@@ -1364,6 +1361,12 @@ void CodeGenModule::Release() {
                                 CodeGenOpts.PatchableFunctionEntryOffset);
     if (CodeGenOpts.SanitizeKcfiArity)
       getModule().addModuleFlag(llvm::Module::Override, "kcfi-arity", 1);
+    // Store the hash algorithm choice for use in LLVM passes
+    getModule().addModuleFlag(
+        llvm::Module::Override, "kcfi-hash",
+        llvm::MDString::get(
+            getLLVMContext(),
+            llvm::stringifyKCFIHashAlgorithm(CodeGenOpts.SanitizeKcfiHash)));
   }
 
   if (CodeGenOpts.CFProtectionReturn &&
@@ -1797,6 +1800,22 @@ void CodeGenModule::EmitBackendOptionsMetadata(
     getModule().addModuleFlag(llvm::Module::Min, "SmallDataLimit",
                               CodeGenOpts.SmallDataLimit);
   }
+
+  // Set AllocToken configuration for backend pipeline.
+  if (LangOpts.AllocTokenMode) {
+    StringRef S = llvm::getAllocTokenModeAsString(*LangOpts.AllocTokenMode);
+    getModule().addModuleFlag(llvm::Module::Error, "alloc-token-mode",
+                              llvm::MDString::get(VMContext, S));
+  }
+  if (LangOpts.AllocTokenMax)
+    getModule().addModuleFlag(
+        llvm::Module::Error, "alloc-token-max",
+        llvm::ConstantInt::get(llvm::Type::getInt64Ty(VMContext),
+                               *LangOpts.AllocTokenMax));
+  if (CodeGenOpts.SanitizeAllocTokenFastABI)
+    getModule().addModuleFlag(llvm::Module::Error, "alloc-token-fast-abi", 1);
+  if (CodeGenOpts.SanitizeAllocTokenExtended)
+    getModule().addModuleFlag(llvm::Module::Error, "alloc-token-extended", 1);
 }
 
 void CodeGenModule::UpdateCompletedType(const TagDecl *TD) {
@@ -2606,8 +2625,8 @@ llvm::ConstantInt *CodeGenModule::CreateKCFITypeId(QualType T, StringRef Salt) {
   if (getCodeGenOpts().SanitizeCfiICallGeneralizePointers)
     Out << ".generalized";
 
-  return llvm::ConstantInt::get(Int32Ty,
-                                static_cast<uint32_t>(llvm::xxHash64(OutName)));
+  return llvm::ConstantInt::get(
+      Int32Ty, llvm::getKCFITypeID(OutName, getCodeGenOpts().SanitizeKcfiHash));
 }
 
 void CodeGenModule::SetLLVMFunctionAttributes(GlobalDecl GD,
@@ -3457,7 +3476,8 @@ void CodeGenModule::finalizeKCFITypes() {
       continue;
 
     std::string Asm = (".weak __kcfi_typeid_" + Name + "\n.set __kcfi_typeid_" +
-                       Name + ", " + Twine(Type->getZExtValue()) + "\n")
+                       Name + ", " + Twine(Type->getZExtValue()) + " /* " +
+                       Twine(Type->getSExtValue()) + " */\n")
                           .str();
     M.appendModuleInlineAsm(Asm);
   }
@@ -4533,6 +4553,38 @@ template <typename AttrT> static bool hasImplicitAttr(const ValueDecl *D) {
   return D->isImplicit();
 }
 
+static bool shouldSkipAliasEmission(const CodeGenModule &CGM,
+                                    const ValueDecl *Global) {
+  const LangOptions &LangOpts = CGM.getLangOpts();
+  if (!LangOpts.OpenMPIsTargetDevice && !LangOpts.CUDA)
+    return false;
+
+  const auto *AA = Global->getAttr<AliasAttr>();
+  GlobalDecl AliaseeGD;
+
+  // Check if the aliasee exists, if the aliasee is not found, skip the alias
+  // emission. This is executed for both the host and device.
+  if (!CGM.lookupRepresentativeDecl(AA->getAliasee(), AliaseeGD))
+    return true;
+
+  const auto *AliaseeDecl = dyn_cast<ValueDecl>(AliaseeGD.getDecl());
+  if (LangOpts.OpenMPIsTargetDevice)
+    return !AliaseeDecl ||
+           !OMPDeclareTargetDeclAttr::isDeclareTargetDeclaration(AliaseeDecl);
+
+  // CUDA / HIP
+  const bool HasDeviceAttr = Global->hasAttr<CUDADeviceAttr>();
+  const bool AliaseeHasDeviceAttr =
+      AliaseeDecl && AliaseeDecl->hasAttr<CUDADeviceAttr>();
+
+  if (LangOpts.CUDAIsDevice)
+    return !HasDeviceAttr || !AliaseeHasDeviceAttr;
+
+  // CUDA / HIP Host
+  // we know that the aliasee exists from above, so we know to emit
+  return false;
+}
+
 bool CodeGenModule::shouldEmitCUDAGlobalVar(const VarDecl *Global) const {
   assert(LangOpts.CUDA && "Should not be called by non-CUDA languages");
   // We need to emit host-side 'shadows' for all global
@@ -4557,8 +4609,11 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
   // handle it now.
   if (AliasAttr *Attr = Global->getAttr<AliasAttr>()) {
     // Emit the alias here if it is not SYCL device compilation.
-    if (!LangOpts.SYCLIsDevice)
+    if (!LangOpts.SYCLIsDevice) {
+      if (shouldSkipAliasEmission(*this, Global))
+        return;
       return EmitAliasDefinition(GD);
+    }
     // Defer for SYCL devices, until either the alias or what it aliases
     // is used.
     StringRef MangledName = getMangledName(GD);
@@ -4566,6 +4621,12 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
     StringRef AliaseeName = Attr->getAliasee();
     DeferredAliases[AliaseeName] = GD;
     return;
+  }
+    // emit it now.
+  if (Global->hasAttr<AliasAttr>()) {
+    if (shouldSkipAliasEmission(*this, Global))
+      return;
+    return EmitAliasDefinition(GD);
   }
 
   // IFunc like an alias whose value is resolved at runtime by calling resolver.
@@ -6660,7 +6721,8 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
              (D->getType()->isHLSLResourceRecord() ||
               D->getType()->isHLSLResourceRecordArray())) {
     Init = llvm::PoisonValue::get(getTypes().ConvertType(ASTTy));
-    NeedsGlobalCtor = D->getType()->isHLSLResourceRecord();
+    NeedsGlobalCtor = D->getType()->isHLSLResourceRecord() ||
+                      D->getStorageClass() == SC_Static;
   } else if (D->hasAttr<LoaderUninitializedAttr>()) {
     Init = llvm::UndefValue::get(getTypes().ConvertTypeForMem(ASTTy));
   } else if (!InitExpr) {

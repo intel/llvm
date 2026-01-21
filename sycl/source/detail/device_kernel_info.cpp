@@ -12,8 +12,9 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-DeviceKernelInfo::DeviceKernelInfo(const CompileTimeKernelInfoTy &Info)
-    : CompileTimeKernelInfoTy(Info) {}
+DeviceKernelInfo::DeviceKernelInfo(const CompileTimeKernelInfoTy &Info,
+                                   std::optional<sycl::kernel_id> KernelID)
+    : CompileTimeKernelInfoTy{Info}, MKernelID{std::move(KernelID)} {}
 
 template <typename OtherTy>
 inline constexpr bool operator==(const CompileTimeKernelInfoTy &LHS,

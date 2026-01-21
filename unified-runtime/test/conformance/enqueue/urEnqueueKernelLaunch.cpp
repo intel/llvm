@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -19,7 +19,8 @@ struct urEnqueueKernelLaunchNoArgs3DTest : uur::urKernelExecutionTest {
   size_t global_offset[3] = {0, 0, 0};
   size_t n_dimensions = 3;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueKernelLaunchNoArgs3DTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(
+    urEnqueueKernelLaunchNoArgs3DTest);
 
 struct urEnqueueKernelLaunchTest : uur::urKernelExecutionTest {
   void SetUp() override {
@@ -32,7 +33,7 @@ struct urEnqueueKernelLaunchTest : uur::urKernelExecutionTest {
   size_t global_offset = 0;
   size_t n_dimensions = 1;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueKernelLaunchTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(urEnqueueKernelLaunchTest);
 
 struct urEnqueueKernelLaunchKernelWgSizeTest : uur::urKernelExecutionTest {
   void SetUp() override {
@@ -48,7 +49,8 @@ struct urEnqueueKernelLaunchKernelWgSizeTest : uur::urKernelExecutionTest {
   std::array<size_t, 3> wg_size{2, 4, 8};
   size_t n_dimensions = 3;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueKernelLaunchKernelWgSizeTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(
+    urEnqueueKernelLaunchKernelWgSizeTest);
 
 // Note: Due to an issue with HIP, the subgroup test is not generated
 struct urEnqueueKernelLaunchKernelSubGroupTest : uur::urKernelExecutionTest {
@@ -65,7 +67,8 @@ struct urEnqueueKernelLaunchKernelSubGroupTest : uur::urKernelExecutionTest {
   std::array<size_t, 3> global_offset{0, 0, 0};
   size_t n_dimensions = 3;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueKernelLaunchKernelSubGroupTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(
+    urEnqueueKernelLaunchKernelSubGroupTest);
 
 struct urEnqueueKernelLaunchKernelStandardTest : uur::urKernelExecutionTest {
   void SetUp() override {
@@ -77,7 +80,8 @@ struct urEnqueueKernelLaunchKernelStandardTest : uur::urKernelExecutionTest {
   size_t global_size = 1;
   size_t offset = 0;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueKernelLaunchKernelStandardTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(
+    urEnqueueKernelLaunchKernelStandardTest);
 
 TEST_P(urEnqueueKernelLaunchNoArgs3DTest, Success) {
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
@@ -298,15 +302,21 @@ inline std::string printKernelLaunchTestString(
   const auto device_handle = std::get<0>(info.param).device;
   const auto platform_device_name =
       uur::GetPlatformAndDeviceName(device_handle);
+
+  auto paramTuple = std::get<1>(info.param);
+  auto param = std::get<0>(paramTuple);
+  auto queueMode = std::get<1>(paramTuple);
+
   std::stringstream test_name;
-  test_name << platform_device_name << "__" << std::get<1>(info.param).Dims
-            << "D_" << std::get<1>(info.param).X;
-  if (std::get<1>(info.param).Dims > 1) {
-    test_name << "_" << std::get<1>(info.param).Y;
+  test_name << platform_device_name << "__" << param.Dims << "D_" << param.X;
+  if (param.Dims > 1) {
+    test_name << "_" << param.Y;
   }
-  if (std::get<1>(info.param).Dims > 2) {
-    test_name << "_" << std::get<1>(info.param).Z;
+  if (param.Dims > 2) {
+    test_name << "_" << param.Z;
   }
+  test_name << "__" << queueMode;
+
   test_name << "";
   return test_name.str();
 }
@@ -314,11 +324,11 @@ inline std::string printKernelLaunchTestString(
 struct urEnqueueKernelLaunchTestWithParam
     : uur::urKernelExecutionTestWithParam<testParametersEnqueueKernel> {
   void SetUp() override {
-    global_range[0] = std::get<1>(GetParam()).X;
-    global_range[1] = std::get<1>(GetParam()).Y;
-    global_range[2] = std::get<1>(GetParam()).Z;
+    global_range[0] = getParam().X;
+    global_range[1] = getParam().Y;
+    global_range[2] = getParam().Z;
     buffer_size = sizeof(val) * global_range[0];
-    n_dimensions = std::get<1>(GetParam()).Dims;
+    n_dimensions = getParam().Dims;
     if (n_dimensions == 1) {
       program_name = "fill";
     } else if (n_dimensions == 2) {
@@ -362,7 +372,7 @@ static std::vector<testParametersEnqueueKernel> test_cases{// 1D
                                                            {1027, 1, 19, 3},
                                                            {1, 53, 19, 3},
                                                            {256, 79, 8, 3}};
-UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+UUR_MULTI_QUEUE_TYPE_TEST_SUITE_WITH_PARAM(
     urEnqueueKernelLaunchTestWithParam, testing::ValuesIn(test_cases),
     printKernelLaunchTestString<urEnqueueKernelLaunchTestWithParam>);
 
@@ -409,7 +419,7 @@ struct urEnqueueKernelLaunchWithUSM : uur::urKernelExecutionTest {
   size_t alloc_size = 0;
   void *usmPtr = nullptr;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueKernelLaunchWithUSM);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(urEnqueueKernelLaunchWithUSM);
 
 TEST_P(urEnqueueKernelLaunchWithUSM, Success) {
   size_t work_dim = 1;
@@ -533,7 +543,8 @@ struct urEnqueueKernelLaunchWithVirtualMemory : uur::urKernelExecutionTest {
   ur_physical_mem_handle_t physical_mem = nullptr;
   void *virtual_ptr = nullptr;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueKernelLaunchWithVirtualMemory);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(
+    urEnqueueKernelLaunchWithVirtualMemory);
 
 TEST_P(urEnqueueKernelLaunchWithVirtualMemory, Success) {
   size_t work_dim = 1;
@@ -699,10 +710,10 @@ struct urEnqueueKernelLaunchUSMLinkedList
   ur_queue_handle_t queue = nullptr;
 };
 
-UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+UUR_MULTI_QUEUE_TYPE_TEST_SUITE_WITH_PARAM(
     urEnqueueKernelLaunchUSMLinkedList,
     testing::ValuesIn(uur::BoolTestParam::makeBoolParam("UsePool")),
-    uur::deviceTestWithParamPrinter<uur::BoolTestParam>);
+    uur::deviceTestWithParamPrinterMulti<uur::BoolTestParam>);
 
 TEST_P(urEnqueueKernelLaunchUSMLinkedList, Success) {
   ur_device_usm_access_capability_flags_t shared_usm_flags = 0;

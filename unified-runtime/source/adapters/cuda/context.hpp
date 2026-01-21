@@ -107,14 +107,14 @@ struct ur_context_handle_t_ : ur::cuda::handle_base {
     UR_CHECK_ERROR(urAdapterRetain(ur::cuda::adapter));
   };
 
-  ~ur_context_handle_t_() {
+  ~ur_context_handle_t_() noexcept {
     if (MemoryPoolHost) {
       umfPoolDestroy(MemoryPoolHost);
     }
     if (MemoryProviderHost) {
       umfMemoryProviderDestroy(MemoryProviderHost);
     }
-    UR_CHECK_ERROR(urAdapterRelease(ur::cuda::adapter));
+    urAdapterRelease(ur::cuda::adapter);
   }
 
   void invokeExtendedDeleters() {

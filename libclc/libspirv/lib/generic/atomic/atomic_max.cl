@@ -6,48 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/atomic/clc_atomic_fetch_max.h>
+#include <libspirv/atomic/atomic_helper.h>
 #include <libspirv/spirv.h>
 
-#define IMPL(TYPE, AS, NAME, PREFIX, SUFFIX)                                   \
-  _CLC_OVERLOAD _CLC_DEF TYPE NAME(AS TYPE *p, int scope, int semantics,       \
-                                   TYPE val) {                                 \
-    return PREFIX##__sync_fetch_and_##SUFFIX(p, val);                          \
-  }
+#define __CLC_IMPL_FUNCTION __clc_atomic_fetch_max
 
-IMPL(int, global, __spirv_AtomicSMax, , max)
-IMPL(unsigned int, global, __spirv_AtomicUMax, , umax)
-IMPL(int, local, __spirv_AtomicSMax, , max)
-IMPL(unsigned int, local, __spirv_AtomicUMax, , umax)
+#define __CLC_BODY <atomic_minmax.inc>
+#include <clc/integer/gentype.inc>
 
-#ifdef cl_khr_int64_extended_atomics
-unsigned long __clc__sync_fetch_and_max_local_8(volatile local long *, long);
-unsigned long __clc__sync_fetch_and_max_global_8(volatile global long *, long);
-unsigned long __clc__sync_fetch_and_umax_local_8(volatile local unsigned long *, unsigned long);
-unsigned long __clc__sync_fetch_and_umax_global_8(volatile global unsigned long *, unsigned long);
+#define __CLC_FUNCTION __spirv_AtomicFMaxEXT
 
-IMPL(long, global, __spirv_AtomicSMax, __clc, max_global_8)
-IMPL(unsigned long, global, __spirv_AtomicUMax, __clc, umax_global_8)
-IMPL(long, local, __spirv_AtomicSMax, __clc, max_local_8)
-IMPL(unsigned long, local, __spirv_AtomicUMax, __clc, umax_local_8)
-#endif
-
-#if _CLC_GENERIC_AS_SUPPORTED
-
-#define IMPL_GENERIC(TYPE, NAME, PREFIX, SUFFIX)                               \
-  IMPL(TYPE, , NAME, PREFIX, SUFFIX)
-
-IMPL_GENERIC(int, __spirv_AtomicSMax, , max)
-IMPL_GENERIC(unsigned int, __spirv_AtomicUMax, , umax)
-
-#ifdef cl_khr_int64_extended_atomics
-
-unsigned long __clc__sync_fetch_and_max_generic_8(volatile generic long *, long);
-unsigned long __clc__sync_fetch_and_umax_generic_8(volatile __generic unsigned long *, unsigned long);
-
-IMPL_GENERIC(long, __spirv_AtomicSMax, __clc, max_generic_8)
-IMPL_GENERIC(unsigned long, __spirv_AtomicUMax, __clc, umax_generic_8)
-#endif
-
-
-#endif //_CLC_GENERIC_AS_SUPPORTED
-#undef IMPL
+#define __CLC_BODY <atomic_def.inc>
+#include <clc/math/gentype.inc>

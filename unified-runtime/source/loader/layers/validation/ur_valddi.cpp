@@ -569,7 +569,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
-    if (UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP < propName)
+    if (UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
     if (propSize == 0 && pPropValue != NULL)
@@ -11210,6 +11210,78 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueHostTaskExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueHostTaskExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] Host task callback function. Must not call any UR functions.
+    ur_exp_host_task_function_t pfnHostTask,
+    /// [in][optional] data used by pfnHostTask
+    void *data,
+    /// [in][optional] pointer to the host task properties
+    const ur_exp_host_task_properties_t *pProperties,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] return an event object that identifies the work
+    /// that has
+    /// been enqueued in nativeEnqueueFunc. If phEventWaitList and phEvent are
+    /// not NULL, phEvent must not refer to an element of the phEventWaitList
+    /// array.
+    ur_event_handle_t *phEvent) {
+  auto pfnHostTaskExp = getContext()->urDdiTable.EnqueueExp.pfnHostTaskExp;
+
+  if (nullptr == pfnHostTaskExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pfnHostTask)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL != pProperties && UR_EXP_HOST_TASK_FLAGS_MASK & pProperties->flags)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+
+    if (phEventWaitList == NULL && numEventsInWaitList > 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
+    if (phEventWaitList != NULL && numEventsInWaitList == 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
+    if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+      for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+        if (phEventWaitList[i] == NULL) {
+          return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+      }
+    }
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hQueue)) {
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
+  }
+
+  ur_result_t result =
+      pfnHostTaskExp(hQueue, pfnHostTask, data, pProperties,
+                     numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueEventsWaitWithBarrierExt
 __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrierExt(
     /// [in] handle of the queue object
@@ -12211,6 +12283,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   dditable.pfnTimestampRecordingExp = pDdiTable->pfnTimestampRecordingExp;
   pDdiTable->pfnTimestampRecordingExp =
       ur_validation_layer::urEnqueueTimestampRecordingExp;
+
+  dditable.pfnHostTaskExp = pDdiTable->pfnHostTaskExp;
+  pDdiTable->pfnHostTaskExp = ur_validation_layer::urEnqueueHostTaskExp;
 
   dditable.pfnNativeCommandExp = pDdiTable->pfnNativeCommandExp;
   pDdiTable->pfnNativeCommandExp =

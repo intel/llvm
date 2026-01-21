@@ -142,7 +142,7 @@ get_kernel_device_specific_info(ur_kernel_handle_t Kernel,
 }
 
 // TODO: This is used by a deprecated version of
-// info::kernel_device_specific::max_sub_group_size taking an input paramter.
+// info::kernel_device_specific::max_sub_group_size taking an input parameter.
 // This should be removed when the deprecated info query is removed.
 template <typename Param>
 uint32_t get_kernel_device_specific_info_with_input(ur_kernel_handle_t Kernel,

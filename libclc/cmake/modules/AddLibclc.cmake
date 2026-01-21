@@ -33,10 +33,14 @@ function(compile_to_bc)
   if( NOT ${FILE_EXT} STREQUAL ".ll" )
     # Pass '-c' when not running the preprocessor
     set( PP_OPTS -c )
+    set( EXTRA_OPTS ${ARG_EXTRA_OPTS} )
   else()
     set( PP_OPTS -E;-P )
     set( TMP_SUFFIX .tmp )
     set( XCL_OPT -x;cl )
+    string( REPLACE "-Xclang;-fdeclare-opencl-builtins;-Xclang;-finclude-default-header"
+      "" EXTRA_OPTS "${ARG_EXTRA_OPTS}"
+    )
   endif()
 
 
@@ -54,7 +58,7 @@ function(compile_to_bc)
     COMMAND ${clang_exe}
       ${TARGET_ARG}
       ${PP_OPTS}
-      ${ARG_EXTRA_OPTS}
+      ${EXTRA_OPTS}
       -MD -MF ${ARG_OUTPUT}.d -MT ${ARG_OUTPUT}${TMP_SUFFIX}
       # LLVM 13 enables standard includes by default - we don't want
       # those when pre-processing IR. We disable it unconditionally.
@@ -212,13 +216,7 @@ function(get_libclc_device_info)
   if( ARG_DEVICE STREQUAL none
       OR ((ARCH STREQUAL spirv OR ARCH STREQUAL spirv64)
           AND NOT LIBCLC_USE_SPIRV_BACKEND) )
-    if( ARCH STREQUAL amdgcn )
-      # AMDGCN needs libclc to be compiled to high bc version since all atomic
-      # clang builtins need to be accessible
-      set( cpu gfx942 )
-    else()
-      set( cpu )
-    endif()
+    set( cpu )
     set( arch_suffix "${ARG_TRIPLE}" )
   else()
     set( cpu "${ARG_DEVICE}" )

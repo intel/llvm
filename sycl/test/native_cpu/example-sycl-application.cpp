@@ -83,7 +83,7 @@ int main() {
     /* This kernel will actually perform the computation C = A * B. Since
      * A and B are only read from, we specify read accessors for those two
      * buffers, which the SYCL runtime recognises as a dependency on the
-     * previous kernels. If the data were initialised on a different device,
+     * previous kernels. If the data were initialized on a different device,
      * or on the host, the SYCL runtime would ensure that the data were
      * copied between contexts etc. properly. */
     myQueue.submit([&](handler &cgh) {

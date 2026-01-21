@@ -106,12 +106,12 @@ jobs:
     # - downloading DPC++ should be integrated somehow; most likely use nightly release.
     #
     - name: Checkout LLVM
-      uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493 # v4.1.1
+      uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
     # for some reason it's required to re-configure python for venv to work properly.
     - name: Set up Python 3.12
       if: ${{ inputs.docker_image == 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps' }}
-      uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+      uses: actions/setup-python@4f41a90a1f38628c7ccc608d05fbafe701bc20ae # v6.0.0
       with:
         python-version: '3.12'
 
@@ -170,7 +170,7 @@ jobs:
 
     - name: Build
       # This is so that device binaries can find the sycl runtime library
-      run: cmake --build build -j $(nproc)
+      run: cmake --build build -j $(($(nproc)/3))
 
     - name: Install
       # This is to check that install command does not fail
@@ -179,18 +179,18 @@ jobs:
     - name: Test adapter specific
       env:
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
-        LIT_OPTS: "--timeout 120"
+        LIT_OPTS: "--timeout 120 -j 50"
         # These tests cause timeouts on CI
         LIT_FILTER_OUT: "(adapters/level_zero/memcheck.test|adapters/level_zero/v2/deferred_kernel_memcheck.test)"
-      run: cmake --build build -j $(nproc) -- check-unified-runtime-adapter
+      run: cmake --build build -j $(($(nproc)/3)) -- check-unified-runtime-adapter
       # Don't run adapter specific tests when building multiple adapters
       if: ${{ matrix.adapter.other_name == '' }}
 
     - name: Test adapters
       env:
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
-        LIT_OPTS: "--timeout 120"
-      run: cmake --build build -j $(nproc) -- check-unified-runtime-conformance
+        LIT_OPTS: "--timeout 120 -j 50"
+      run: cmake --build build -j $(($(nproc)/3)) -- check-unified-runtime-conformance
 
     - name: Get information about platform
       if: ${{ always() }}
