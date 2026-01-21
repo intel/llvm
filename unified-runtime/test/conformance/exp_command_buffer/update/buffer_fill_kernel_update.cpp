@@ -1,10 +1,11 @@
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "../fixtures.h"
+#include "uur/fixtures.h"
 
 // Test that updating a command-buffer with a single kernel command
 // taking USM arguments works correctly.
@@ -76,7 +77,7 @@ struct BufferFillCommandTest
   ur_exp_command_buffer_command_handle_t command_handle = nullptr;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(BufferFillCommandTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(BufferFillCommandTest);
 
 // Update kernel arguments to fill with a new scalar value to a new output
 // buffer.
