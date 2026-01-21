@@ -63,6 +63,9 @@ jobs:
       cc: clang
       cxx: clang++
       changes: ${{ needs.detect_changes.outputs.filters }}
+      run_clang_tidy: true
+      # For clang-tidy
+      build_configure_extra_args: -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
       toolchain_artifact: sycl_linux_default
       e2e_binaries_artifact: e2e_bin
