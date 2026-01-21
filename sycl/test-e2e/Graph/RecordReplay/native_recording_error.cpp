@@ -1,3 +1,5 @@
+// REQUIRES: level_zero_v2_adapter
+
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_GRAPH_ENABLE_NATIVE_RECORDING=1 %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
