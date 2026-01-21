@@ -13,7 +13,7 @@
 // XFAIL: windows && arch-intel_gpu_bmg_g21
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/18576
 
-// XFAIL: linux && arch-intel_gpu_mtl_u
+// XFAIL: linux && (arch-intel_gpu_mtl_u || gpu-intel-gen12)
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20896
 
 // RUN: %{build} -o %t.out
