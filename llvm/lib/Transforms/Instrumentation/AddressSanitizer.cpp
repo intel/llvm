@@ -1936,6 +1936,12 @@ void AddressSanitizer::instrumentMemIntrinsic(MemIntrinsic *MI,
   InstrumentationIRBuilder IRB(MI);
   if (isa<MemTransferInst>(MI)) {
     if (TargetTriple.isSPIROrSPIRV()) {
+      // FIXME: We'd better move module level pass before function pass, then
+      // all users of unsupported device globals can be skipped earlier.
+      if (isUnsupportedSPIRAccess(MI->getOperand(0), MI) ||
+          isUnsupportedSPIRAccess(MI->getOperand(1), MI)) {
+        return;
+      }
       unsigned int DstAS =
           cast<PointerType>(MI->getOperand(0)->getType()->getScalarType())
               ->getPointerAddressSpace();
@@ -1960,6 +1966,8 @@ void AddressSanitizer::instrumentMemIntrinsic(MemIntrinsic *MI,
     }
   } else if (isa<MemSetInst>(MI)) {
     if (TargetTriple.isSPIROrSPIRV()) {
+      if (isUnsupportedSPIRAccess(MI->getOperand(0), MI))
+        return;
       unsigned int AS =
           cast<PointerType>(MI->getOperand(0)->getType()->getScalarType())
               ->getPointerAddressSpace();

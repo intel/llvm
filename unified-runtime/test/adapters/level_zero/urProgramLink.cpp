@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -11,7 +11,7 @@
 #include <uur/fixtures.h>
 
 using urLevelZeroProgramLinkTest = uur::urProgramTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urLevelZeroProgramLinkTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urLevelZeroProgramLinkTest);
 
 TEST_P(urLevelZeroProgramLinkTest, InvalidLinkOptionsPrintedInLog) {
   ur_program_handle_t linked_program = nullptr;

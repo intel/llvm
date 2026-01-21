@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -15,7 +15,7 @@ struct urProgramGetInfoTest : uur::urProgramTest {
   }
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urProgramGetInfoTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urProgramGetInfoTest);
 
 TEST_P(urProgramGetInfoTest, SuccessReferenceCount) {
   size_t property_size = 0;
