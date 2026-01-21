@@ -1,10 +1,11 @@
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "../fixtures.h"
+#include "uur/fixtures.h"
 #include <cstring>
 
 struct KernelCommandEventSyncUpdateTest
@@ -64,7 +65,7 @@ struct KernelCommandEventSyncUpdateTest
   static constexpr size_t A = 2;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(KernelCommandEventSyncUpdateTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(KernelCommandEventSyncUpdateTest);
 
 // Tests updating the signal and wait event dependencies of the saxpy
 // command in a command-buffer.

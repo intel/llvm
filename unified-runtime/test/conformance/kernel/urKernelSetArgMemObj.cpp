@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -25,7 +25,7 @@ struct urKernelSetArgMemObjTest : uur::urKernelTest {
 
   ur_mem_handle_t buffer = nullptr;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelSetArgMemObjTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urKernelSetArgMemObjTest);
 
 TEST_P(urKernelSetArgMemObjTest, Success) {
   ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, 0, nullptr, buffer));
