@@ -36,6 +36,10 @@ concurrency:
 permissions: read-all
 
 jobs:
+  health-check:
+    name: Health Check
+    uses: ./.github/workflows/sycl-health-check.yml
+
   detect_changes:
     name: Detect Changes
     uses: ./.github/workflows/sycl-detect-changes.yml
