@@ -44,6 +44,10 @@ on:
         default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc]'
         required: false
 
+      run_clang_tidy:
+        type: boolean
+        default: false
+
       # Artifacts:
 
       retention-days:
@@ -214,6 +218,40 @@ jobs:
       # Emulate default value for manual dispatch as we've run out of available arguments.
       run: cmake --build $GITHUB_WORKSPACE/build --target ${{ inputs.build_target || 'sycl-toolchain' }}
     - run: $GITHUB_WORKSPACE/build/bin/clang++ --version
+
+    - name: Run clang-tidy on modified files
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' && github.base_ref == 'sycl' && inputs.run_clang_tidy && !contains(github.event.pull_request.labels.*.name, 'disable-lint') }}
+      # Exeprimental step, it won't affect the merge in case of failure.
+      continue-on-error: true
+      id: clang_tidy
+      run: |
+        # Download diff.
+        echo "Downloading diff"
+        curl -L "${{ github.server_url }}/${{ github.repository }}/pull/${{ github.event.pull_request.number }}.diff" -o pr.diff
+
+        if ! grep -qE '\.(cpp|cxx|cc|hpp|h|hxx)$' pr.diff; then
+          echo "No C++ files were changed, skip clang-tidy."
+          exit 0
+        fi
+
+        # Prepare compile_commands.json:
+        # Remove commands containing the "-D__INTEL_PREVIEW_BREAKING_CHANGES" flag to avoid double runs on SYCL source files.
+        # TODO: need to remove gcc flags unsupported by clang
+        jq '[ .[] | select(.command | contains("-D__INTEL_PREVIEW_BREAKING_CHANGES") | not) ]' $GITHUB_WORKSPACE/build/compile_commands.json > $GITHUB_WORKSPACE/build/compile_commands.temp.json
+        mv $GITHUB_WORKSPACE/build/compile_commands.temp.json $GITHUB_WORKSPACE/build/compile_commands.json
+
+        echo '::group::Build clang-tidy'
+        cmake --build $GITHUB_WORKSPACE/build --target clang-tidy
+        echo '::endgroup::'
+
+        cd "$GITHUB_WORKSPACE/src"
+        python3 "$GITHUB_WORKSPACE/src/clang-tools-extra/clang-tidy/tool/clang-tidy-diff.py" \
+          -clang-tidy-binary "$GITHUB_WORKSPACE/build/bin/clang-tidy" \
+          -p 1 \
+          -path "$GITHUB_WORKSPACE/build" \
+          -checks "clang-analyzer-*,bugprone-*,performance-*,-bugprone-std-namespace-modification" \
+          < "$GITHUB_WORKSPACE/pr.diff"
+
     - name: check-llvm
       if: ${{ !cancelled() && contains(inputs.changes, 'llvm') }}
       env:

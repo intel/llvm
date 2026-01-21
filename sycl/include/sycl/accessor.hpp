@@ -767,8 +767,7 @@ public:
              detail::InitializedVal<AdjustedDim, range>::template get<0>()) {}
 
 #else
-  accessor(const detail::AccessorImplPtr &Impl)
-      : detail::AccessorBaseHost{Impl} {}
+  accessor(const detail::AccessorImplPtr &Impl) : detail::AccessorBaseHost{Impl} {}
 
   void *getPtr() { return AccessorBaseHost::getPtr(); }
 
