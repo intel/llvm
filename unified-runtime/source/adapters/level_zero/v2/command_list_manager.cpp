@@ -1,6 +1,6 @@
 //===--------- command_list_manager.cpp - Level Zero Adapter --------------===//
 //
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -21,7 +21,6 @@
 #include "memory.hpp"
 
 thread_local std::vector<ze_event_handle_t> waitList;
-
 // The wait_list_view is a wrapper for eventsWaitLists, which:
 // -  enables passing a ze_event_handle_t buffer created from events as an
 // argument for the driver API;
@@ -1376,6 +1375,26 @@ ur_result_t ur_command_list_manager::isGraphCaptureActive(bool *pResult) {
   }
 
   *pResult = graphCapture.isActive();
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t ur_command_list_manager::appendHostTaskExp(
+    ur_exp_host_task_function_t pfnHostTask, void *data,
+    const ur_exp_host_task_properties_t *pProperties,
+    wait_list_view &waitListView, ur_event_handle_t phEvent) {
+
+  ur_platform_handle_t hPlatform = hContext->getPlatform();
+
+  if (!hPlatform->ZeHostTaskExt.Supported) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  ZE2UR_CALL(hPlatform->ZeHostTaskExt.zeCommandListAppendHostFunction,
+             (getZeCommandList(), (void *)pfnHostTask, data,
+              const_cast<void *>(reinterpret_cast<const void *>(pProperties)),
+              getSignalEvent(phEvent, UR_COMMAND_HOST_TASK_EXP),
+              waitListView.num, waitListView.handles));
 
   return UR_RESULT_SUCCESS;
 }

@@ -253,21 +253,7 @@ jobs:
       run: |
         sudo -E bash devops/scripts/install_drivers.sh devops/dependencies.json --all
     - name: Source OneAPI TBB vars.sh
-      shell: bash
-      run: |
-        # https://github.com/actions/runner/issues/1964 prevents us from using
-        # the ENTRYPOINT in the image.
-        env | sort > env_before
-        if [ -e /runtimes/oneapi-tbb/env/vars.sh ]; then
-          source /runtimes/oneapi-tbb/env/vars.sh;
-        elif [ -e /opt/runtimes/oneapi-tbb/env/vars.sh ]; then
-          source /opt/runtimes/oneapi-tbb/env/vars.sh;
-        else
-          echo "no TBB vars in /opt/runtimes or /runtimes";
-        fi
-        env | sort > env_after
-        comm -13 env_before env_after >> $GITHUB_ENV
-        rm env_before env_after
+      uses: ./devops/actions/source-tbb
     - name: Download SYCL toolchain
       if: inputs.toolchain_artifact != '' && github.event_name != 'workflow_run'
       uses: actions/download-artifact@v7
@@ -333,7 +319,7 @@ jobs:
 
     - name: Run E2E Tests
       if: inputs.tests_selector == 'e2e'
-      uses: ./devops/actions/run-tests/e2e
+      uses: ./devops/actions/run-tests/linux/e2e
       timeout-minutes: 60
       with:
         ref: ${{ inputs.tests_ref || inputs.repo_ref || github.sha }}
@@ -348,7 +334,7 @@ jobs:
 
     - name: Run SYCL CTS Tests
       if: inputs.tests_selector == 'cts'
-      uses: ./devops/actions/run-tests/cts
+      uses: ./devops/actions/run-tests/linux/cts
       # Normally this job takes less than 10m. But sometimes it hangs up and
       # reaches the 360m limit. Set a lower limit to free up the runner earlier.
       timeout-minutes: 35

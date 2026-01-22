@@ -1,9 +1,11 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include "ur_api.h"
+#include "gtest/gtest.h"
 #include <uur/fixtures.h>
 #include <uur/known_failure.h>
 
@@ -118,7 +120,8 @@ struct urUSMFreeDuringExecutionTest : uur::urKernelExecutionTest {
   uint32_t data = 42;
   size_t wg_offset = 0;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urUSMFreeDuringExecutionTest);
+
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urUSMFreeDuringExecutionTest);
 
 TEST_P(urUSMFreeDuringExecutionTest, SuccessHost) {
   // Causes an abort in liboffload

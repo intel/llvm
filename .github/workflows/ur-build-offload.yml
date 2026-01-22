@@ -43,7 +43,7 @@ jobs:
 
     - name: Build
       # This is so that device binaries can find the sycl runtime library
-      run: cmake --build $GITHUB_WORKSPACE/build -j $(nproc)
+      run: cmake --build $GITHUB_WORKSPACE/build -j $(($(nproc)/3))
 
     - name: Install
       # This is to check that install command does not fail

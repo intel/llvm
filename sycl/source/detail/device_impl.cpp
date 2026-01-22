@@ -468,14 +468,17 @@ device_impl::getImmediateProgressGuarantee(
   return forward_progress_guarantee::weakly_parallel;
 }
 
-void device_impl::wait() const {
+void device_impl::wait() {
   // Firstly, all associated queues should be cleaned through of all
   // not-yet-enqueued commands and host_task.
-  for (const std::weak_ptr<queue_impl> &WQueue : MQueues) {
-    std::shared_ptr<queue_impl> Queue = WQueue.lock();
-    assert(Queue && "Queue should never be dangling in the list of queues "
-                    "associated with the device!");
-    Queue->waitForRuntimeLevelCmdsAndClear();
+  {
+    std::lock_guard<std::mutex> Lock(MQueuesMutex);
+    for (const std::weak_ptr<queue_impl> &WQueue : MQueues) {
+      std::shared_ptr<queue_impl> Queue = WQueue.lock();
+      assert(Queue && "Queue should never be dangling in the list of queues "
+                      "associated with the device!");
+      Queue->waitForRuntimeLevelCmdsAndClear();
+    }
   }
 
   // Then we synchronize the entire device.

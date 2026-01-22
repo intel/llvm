@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -12,14 +12,14 @@ struct testParametersFill {
 };
 
 struct urEnqueueMemBufferFillTest
-    : uur::urQueueTestWithParam<testParametersFill> {
+    : uur::urMultiQueueTypeTestWithParam<testParametersFill> {
   void SetUp() override {
     // https://github.com/intel/llvm/issues/19604
     UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
     UUR_RETURN_ON_FATAL_FAILURE(
-        urQueueTestWithParam<testParametersFill>::SetUp());
-    size = std::get<1>(GetParam()).size;
-    pattern_size = std::get<1>(GetParam()).pattern_size;
+        uur::urMultiQueueTypeTestWithParam<testParametersFill>::SetUp());
+    size = getParam().size;
+    pattern_size = getParam().pattern_size;
     pattern = std::vector<uint8_t>(pattern_size);
     uur::generateMemFillPattern(pattern);
     auto ret = urMemBufferCreate(this->context, UR_MEM_FLAG_READ_WRITE, size,
@@ -36,7 +36,7 @@ struct urEnqueueMemBufferFillTest
       EXPECT_SUCCESS(urMemRelease(buffer));
     }
     UUR_RETURN_ON_FATAL_FAILURE(
-        urQueueTestWithParam<testParametersFill>::TearDown());
+        uur::urMultiQueueTypeTestWithParam<testParametersFill>::TearDown());
   }
 
   void verifyData(std::vector<uint8_t> &output, size_t verify_size) {
@@ -71,9 +71,9 @@ static std::vector<testParametersFill> test_cases{
     {256, 16},
     {256, 32}};
 
-UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+UUR_MULTI_QUEUE_TYPE_TEST_SUITE_WITH_PARAM(
     urEnqueueMemBufferFillTest, testing::ValuesIn(test_cases),
-    uur::printFillTestString<urEnqueueMemBufferFillTest>);
+    uur::printFillTestStringMultiQueueType<urEnqueueMemBufferFillTest>);
 
 TEST_P(urEnqueueMemBufferFillTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
@@ -149,7 +149,8 @@ TEST_P(urEnqueueMemBufferFillTest, SuccessOffset) {
 
 using urEnqueueMemBufferFillNegativeTest = uur::urMemBufferQueueTest;
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueMemBufferFillNegativeTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(
+    urEnqueueMemBufferFillNegativeTest);
 
 TEST_P(urEnqueueMemBufferFillNegativeTest, InvalidNullHandleQueue) {
   const uint32_t pattern = 0xdeadbeef;

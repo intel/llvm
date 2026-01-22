@@ -50,6 +50,7 @@ Design Documents for the oneAPI DPC++ Compiler
    design/DeviceConfigFile
    design/PropagateCompilerFlagsToRuntime
    design/SYCLNativeCPU
+   design/VirtualFunctions
    design/SYCLNativeCPUPipeline
    design/SYCLNativeCPUPipelinePasses
    design/SYCLNativeCPUVecz

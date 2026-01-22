@@ -1,10 +1,11 @@
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "../fixtures.h"
+#include "uur/fixtures.h"
 #include <array>
 
 // Test that updating a command-buffer with a single kernel command
@@ -129,7 +130,7 @@ struct BufferSaxpyKernelTest
   ur_exp_command_buffer_command_handle_t command_handle = nullptr;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(BufferSaxpyKernelTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(BufferSaxpyKernelTest);
 
 TEST_P(BufferSaxpyKernelTest, UpdateParameters) {
   // Run command-buffer prior to update an verify output

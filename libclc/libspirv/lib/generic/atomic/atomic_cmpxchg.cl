@@ -6,96 +6,23 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/atomic/clc_atomic_compare_exchange.h>
+#include <libspirv/atomic/atomic_helper.h>
 #include <libspirv/spirv.h>
 
-_CLC_OVERLOAD _CLC_DEF int __spirv_AtomicCompareExchange(local int *p,
-                                                         int scope, int eq,
-                                                         int neq, int val,
-                                                         int cmp) {
-  return __sync_val_compare_and_swap(p, cmp, val);
-}
+#define __CLC_FUNCTION __spirv_AtomicCompareExchange
+#define __CLC_IMPL_FUNCTION __clc_atomic_compare_exchange
+#define __CLC_COMPARE_EXCHANGE
 
-_CLC_OVERLOAD _CLC_DEF int __spirv_AtomicCompareExchange(global int *p,
-                                                         int scope, int eq,
-                                                         int neq, int val,
-                                                         int cmp) {
-  return __sync_val_compare_and_swap(p, cmp, val);
-}
+#define __CLC_BODY <atomic_def.inc>
+#include <clc/integer/gentype.inc>
 
-_CLC_OVERLOAD _CLC_DEF uint __spirv_AtomicCompareExchange(local uint *p,
-                                                          int scope, int eq,
-                                                          int neq, uint val,
-                                                          uint cmp) {
-  return __sync_val_compare_and_swap(p, cmp, val);
-}
+#define __CLC_FLOAT_ONLY
+#define __CLC_BODY <atomic_def.inc>
+#include <clc/math/gentype.inc>
 
-_CLC_OVERLOAD _CLC_DEF uint __spirv_AtomicCompareExchange(global uint *p,
-                                                          int scope, int eq,
-                                                          int neq, uint val,
-                                                          uint cmp) {
-  return __sync_val_compare_and_swap(p, cmp, val);
-}
+#undef __CLC_FUNCTION
+#define __CLC_FUNCTION __spirv_AtomicCompareExchangeWeak
 
-#ifdef cl_khr_int64_base_atomics
-_CLC_OVERLOAD _CLC_DEF long __spirv_AtomicCompareExchange(local long *p,
-                                                          int scope, int eq,
-                                                          int neq, long val,
-                                                          long cmp) {
-  return __sync_val_compare_and_swap_8(p, cmp, val);
-}
-
-_CLC_OVERLOAD _CLC_DEF long __spirv_AtomicCompareExchange(global long *p,
-                                                          int scope, int eq,
-                                                          int neq, long val,
-                                                          long cmp) {
-  return __sync_val_compare_and_swap_8(p, cmp, val);
-}
-
-_CLC_OVERLOAD _CLC_DEF ulong __spirv_AtomicCompareExchange(local ulong *p,
-                                                           int scope, int eq,
-                                                           int neq, ulong val,
-                                                           ulong cmp) {
-  return __sync_val_compare_and_swap_8(p, cmp, val);
-}
-
-_CLC_OVERLOAD _CLC_DEF ulong __spirv_AtomicCompareExchange(global ulong *p,
-                                                           int scope, int eq,
-                                                           int neq, ulong val,
-                                                           ulong cmp) {
-  return __sync_val_compare_and_swap_8(p, cmp, val);
-}
-
-#endif
-
-#if _CLC_GENERIC_AS_SUPPORTED
-
-_CLC_OVERLOAD _CLC_DEF int __spirv_AtomicCompareExchange(int *p, int scope,
-                                                         int eq, int neq,
-                                                         int val, int cmp) {
-  return __sync_val_compare_and_swap(p, cmp, val);
-}
-
-_CLC_OVERLOAD _CLC_DEF uint __spirv_AtomicCompareExchange(uint *p, int scope,
-                                                          int eq, int neq,
-                                                          uint val, uint cmp) {
-  return __sync_val_compare_and_swap(p, cmp, val);
-}
-
-#ifdef cl_khr_int64_base_atomics
-
-_CLC_OVERLOAD _CLC_DEF long __spirv_AtomicCompareExchange(long *p, int scope,
-                                                          int eq, int neq,
-                                                          long val, long cmp) {
-  return __sync_val_compare_and_swap_8(p, cmp, val);
-}
-
-_CLC_OVERLOAD _CLC_DEF ulong __spirv_AtomicCompareExchange(ulong *p, int scope,
-                                                           int eq, int neq,
-                                                           ulong val,
-                                                           ulong cmp) {
-  return __sync_val_compare_and_swap_8(p, cmp, val);
-}
-
-#endif
-
-#endif //_CLC_GENERIC_AS_SUPPORTED
+#define __CLC_BODY <atomic_def.inc>
+#include <clc/integer/gentype.inc>

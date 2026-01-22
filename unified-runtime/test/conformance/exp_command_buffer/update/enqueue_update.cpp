@@ -1,10 +1,11 @@
-// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2025-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "../fixtures.h"
+#include "uur/fixtures.h"
 #include <array>
 #include <cstring>
 
@@ -159,7 +160,8 @@ struct urUpdatableEnqueueCommandBufferExpTest
   std::array<void *, 3> shared_ptrs = {nullptr, nullptr};
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urUpdatableEnqueueCommandBufferExpTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(
+    urUpdatableEnqueueCommandBufferExpTest);
 
 // Tests that the same command-buffer submitted across different in-order
 // queues has an implicit dependency on first submission

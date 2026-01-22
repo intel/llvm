@@ -216,13 +216,7 @@ function(get_libclc_device_info)
   if( ARG_DEVICE STREQUAL none
       OR ((ARCH STREQUAL spirv OR ARCH STREQUAL spirv64)
           AND NOT LIBCLC_USE_SPIRV_BACKEND) )
-    if( ARCH STREQUAL amdgcn )
-      # AMDGCN needs libclc to be compiled to high bc version since all atomic
-      # clang builtins need to be accessible
-      set( cpu gfx942 )
-    else()
-      set( cpu )
-    endif()
+    set( cpu )
     set( arch_suffix "${ARG_TRIPLE}" )
   else()
     set( cpu "${ARG_DEVICE}" )

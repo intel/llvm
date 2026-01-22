@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -7,7 +7,7 @@
 #include <uur/fixtures.h>
 
 using urProgramRetainTest = uur::urProgramTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urProgramRetainTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urProgramRetainTest);
 
 TEST_P(urProgramRetainTest, Success) {
   uint32_t prevRefCount = 0;

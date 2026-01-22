@@ -71,7 +71,7 @@ def run(
         command_str = " ".join(command)
         env_str = " ".join(f"{key}={value}" for key, value in env_vars.items())
         full_command_str = f"{env_str} {command_str}".strip()
-        log.debug(f"Running: {full_command_str}")
+        log.info(f"Running: {full_command_str}")
 
         for key, value in env_vars.items():
             # Only PATH and LD_LIBRARY_PATH should be prepended to existing values
@@ -195,7 +195,7 @@ def get_device_architecture(additional_env_vars):
 
     if len(architectures) != 1:
         raise ValueError(
-            f"Expected exactly one device architecture, but found {len(architectures)}: {architectures}."
+            f"Expected exactly one device architecture, but found {len(architectures)}: {architectures}. "
             "Set ONEAPI_DEVICE_SELECTOR=backend:device_id to specify a single device."
         )
 
