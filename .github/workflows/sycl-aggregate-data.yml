@@ -9,6 +9,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
       
+      # change to yesterday's date to match artifact names
       - name: Calculate today's date
         id: date
         run: echo "TODAY=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
@@ -29,22 +30,17 @@ jobs:
           
           # Create JSON with runner:load_average pairs
           echo "{" > aggregated_${{ steps.date.outputs.TODAY }}.json
-          first=true
+
           for dir in ./artifacts/*/; do
             for file in "$dir"*.txt; do
-              if [ -f "$file" ]; then
-                runner=$(head -n1 "$file")
+              if [[ -f "$file" && $(basename "$file") == ${DATE}*.txt ]]; then
+                runner=$(head -n1 "$file" | sed 's/[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}//g; s/\.txt$//')
                 load=$(tail -n1 "$file" | sed 's/load average://g' | xargs)
-                
-                if [ "$first" = true ]; then
-                  echo "  \"$runner\": \"$load\"" >> aggregated_${{ steps.date.outputs.TODAY }}.json
-                  first=false
-                else
-                  echo "  ,\"$runner\": \"$load\"" >> aggregated_${{ steps.date.outputs.TODAY }}.json
-                fi
-              fi
+                echo "  \"$runner\": \"$load\"" >> aggregated_${{ steps.date.outputs.TODAY }}.json
+              fi 
             done
           done
+
           echo "}" >> aggregated_${{ steps.date.outputs.TODAY }}.json
           
           cat aggregated_${{ steps.date.outputs.TODAY }}.json
