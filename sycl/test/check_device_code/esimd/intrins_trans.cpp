@@ -282,7 +282,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
   // CHECK: call void @llvm.genx.media.st.v32i32(i32 0, i32 %[[SI2]], i32 0, i32 32, i32 %{{[0-9a-zA-Z_.]+}}, i32 %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}})
 
   auto ee = __esimd_vload<int, 16>((detail::vector_type_t<int, 16> *)(&vg));
-  // CHECK: %{{[0-9a-zA-Z_.]+}} = call <16 x i32> @llvm.genx.vload.v16i32.p0(ptr {{.*}})
+  // CHECK: %{{[0-9a-zA-Z_.]+}} = load <16 x i32>, ptr addrspace(4) {{.*}}
   __esimd_vstore<int, 32>(&vc, va.data());
   // CHECK: store <32 x i32>  %{{[0-9a-zA-Z_.]+}}, ptr addrspace(4) {{.*}}
 

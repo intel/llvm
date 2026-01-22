@@ -7462,9 +7462,6 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
   case ParsedAttr::AT_SYCLGlobalVar:
     S.SYCL().handleSYCLGlobalVarAttr(D, AL);
     break;
-  case ParsedAttr::AT_SYCLRegisterNum:
-    S.SYCL().handleSYCLRegisterNumAttr(D, AL);
-    break;
   case ParsedAttr::AT_SYCLIntelESimdVectorize:
     S.SYCL().handleSYCLIntelESimdVectorizeAttr(D, AL);
     break;
@@ -7648,9 +7645,6 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     else
       handleWorkGroupSize<ReqdWorkGroupSizeAttr>(S, D, AL);
     break;
-  case ParsedAttr::AT_SYCLIntelMaxWorkGroupSize:
-    S.SYCL().handleSYCLIntelMaxWorkGroupSize(D, AL);
-    break;
   case ParsedAttr::AT_SYCLIntelMinWorkGroupsPerComputeUnit:
     S.SYCL().handleSYCLIntelMinWorkGroupsPerComputeUnit(D, AL);
     break;
@@ -7662,27 +7656,6 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     break;
   case ParsedAttr::AT_IntelNamedSubGroupSize:
     S.SYCL().handleIntelNamedSubGroupSizeAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelNumSimdWorkItems:
-    S.SYCL().handleSYCLIntelNumSimdWorkItemsAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelSchedulerTargetFmaxMhz:
-    S.SYCL().handleSYCLIntelSchedulerTargetFmaxMhzAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim:
-    S.SYCL().handleSYCLIntelMaxGlobalWorkDimAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelNoGlobalWorkOffset:
-    S.SYCL().handleSYCLIntelNoGlobalWorkOffsetAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelUseStallEnableClusters:
-    S.SYCL().handleSYCLIntelUseStallEnableClustersAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelLoopFuse:
-    S.SYCL().handleSYCLIntelLoopFuseAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelInitiationInterval:
-    S.SYCL().handleSYCLIntelInitiationIntervalAttr(D, AL);
     break;
   case ParsedAttr::AT_VecTypeHint:
     handleVecTypeHint(S, D, AL);
@@ -8022,49 +7995,6 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     handleTypeTagForDatatypeAttr(S, D, AL);
     break;
 
-  // Intel FPGA specific attributes
-  case ParsedAttr::AT_SYCLIntelDoublePump:
-    S.SYCL().handleSYCLIntelDoublePumpAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelSinglePump:
-    S.SYCL().handleSYCLIntelSinglePumpAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelMemory:
-    S.SYCL().handleSYCLIntelMemoryAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelRegister:
-    S.SYCL().handleSYCLIntelRegisterAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelBankWidth:
-    S.SYCL().handleSYCLIntelBankWidthAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelNumBanks:
-    S.SYCL().handleSYCLIntelNumBanksAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelPrivateCopies:
-    S.SYCL().handleSYCLIntelPrivateCopiesAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelMaxReplicates:
-    S.SYCL().handleSYCLIntelMaxReplicatesAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelSimpleDualPort:
-    S.SYCL().handleIntelSimpleDualPortAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelMerge:
-    S.SYCL().handleSYCLIntelMergeAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelBankBits:
-    S.SYCL().handleSYCLIntelBankBitsAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelForcePow2Depth:
-    S.SYCL().handleSYCLIntelForcePow2DepthAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelPipeIO:
-    S.SYCL().handleSYCLIntelPipeIOAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelMaxConcurrency:
-    S.SYCL().handleSYCLIntelMaxConcurrencyAttr(D, AL);
-    break;
   case ParsedAttr::AT_SYCLAddIRAttributesFunction:
     S.SYCL().handleSYCLAddIRAttributesFunctionAttr(D, AL);
     break;
@@ -8249,18 +8179,12 @@ void Sema::ProcessDeclAttributeList(
     } else if (const auto *A = D->getAttr<SYCLWorkGroupSizeHintAttr>()) {
       Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
       D->setInvalidDecl();
-    } else if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-      Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
-      D->setInvalidDecl();
     } else if (const auto *A =
                    D->getAttr<SYCLIntelMinWorkGroupsPerComputeUnitAttr>()) {
       Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
       D->setInvalidDecl();
     } else if (const auto *A =
                    D->getAttr<SYCLIntelMaxWorkGroupsPerMultiprocessorAttr>()) {
-      Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
-      D->setInvalidDecl();
-    } else if (const auto *A = D->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>()) {
       Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
       D->setInvalidDecl();
     } else if (const auto *A = D->getAttr<VecTypeHintAttr>()) {
