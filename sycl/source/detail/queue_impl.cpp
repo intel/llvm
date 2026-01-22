@@ -512,8 +512,8 @@ EventImplPtr queue_impl::submit_barrier_direct_impl(
       }
 
       // Do not add redundant event dependencies for in-order queues.
-      // At this stage dependency is definitely ur task and need to check if
-      // current one is a host task. In this case we should not skip pi event
+      // At this stage dependency is definitely UR task and need to check if
+      // current one is a host task. In this case we should not skip UR event
       // due to different sync mechanisms for different task types on in-order
       // queue. If the resulting event is supposed to have a specific event
       // mode, redundant events may still differ from the resulting event, so
@@ -545,32 +545,26 @@ EventImplPtr queue_impl::submit_barrier_direct_impl(
 
     this->submit_command_to_graph(*getCommandGraph(), std::move(CommandGroup),
                                   CGType::BarrierWaitlist);
-  } else {
-
-    ur_event_handle_t UREvent = nullptr;
-    ur_exp_enqueue_ext_properties_t Properties{};
-    Properties.stype = UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES;
-    Properties.pNext = nullptr;
-    Properties.flags = 0;
-
-    if (DepEvents.size()) {
-      if (!UrDepEvents.size()) {
-        return ResEvent;
-      }
-
-      ResEvent->setStateIncomplete();
-      getAdapter().call<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
-          getHandleRef(), &Properties, UrDepEvents.size(), UrDepEvents.data(),
-          &UREvent);
-    } else {
-      ResEvent->setStateIncomplete();
-      getAdapter().call<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
-          getHandleRef(), &Properties, 0, nullptr, &UREvent);
-    }
-
-    ResEvent->setHandle(UREvent);
   }
 
+  // Spec says that call to ext_oneapi_submit_barrier(Events) should
+  // insert a barrier that waits for all events in 'Events' to complete.
+  // But, if all events in 'Events' can be skipped (NOP or host events),
+  // then the barrier itself can be skipped as well.
+  if (DepEvents.size() && !UrDepEvents.size()) {
+    return ResEvent;
+  }
+
+  ur_event_handle_t UREvent = nullptr;
+  ur_exp_enqueue_ext_properties_t Properties{
+      UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES, nullptr, 0};
+  ResEvent->setStateIncomplete();
+
+  getAdapter().call<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
+      getHandleRef(), &Properties, UrDepEvents.size(),
+      UrDepEvents.size() ? UrDepEvents.data() : nullptr, &UREvent);
+
+  ResEvent->setHandle(UREvent);
   ResEvent->setEnqueued();
   return ResEvent;
 }
