@@ -18,7 +18,7 @@
 #include "queue_api.hpp"
 #include "queue_handle.hpp"
 
-#include "../ur_interface_loader.hpp"
+#include "ur_interface_loader.hpp"
 
 static uint64_t adjustEndEventTimestamp(uint64_t adjustedStartTimestamp,
                                         uint64_t endTimestamp,
@@ -82,7 +82,7 @@ void event_profiling_data_t::recordStartTimestamp(ur_device_handle_t hDevice) {
   timestampMaxValue = hDevice->getTimestampMask();
 
   uint64_t deviceStartTimestamp = 0;
-  UR_CALL_THROWS(ur::level_zero::urDeviceGetGlobalTimestamps(
+  UR_CALL_THROWS(ur::level_zero_v2::urDeviceGetGlobalTimestamps(
       hDevice, &deviceStartTimestamp, nullptr));
 
   assert(adjustedEventStartTimestamp == 0);
@@ -235,7 +235,7 @@ ur_event_handle_t_::ur_event_handle_t_(
           ,
           nullptr) {}
 
-namespace ur::level_zero {
+namespace ur::level_zero_v2 {
 ur_result_t urEventRetain(ur_event_handle_t hEvent) try {
   return hEvent->retain();
 } catch (...) {
@@ -417,4 +417,4 @@ urEventCreateWithNativeHandle(ur_native_handle_t hNativeEvent,
   return exceptionToResult(std::current_exception());
 }
 
-} // namespace ur::level_zero
+} // namespace ur::level_zero_v2

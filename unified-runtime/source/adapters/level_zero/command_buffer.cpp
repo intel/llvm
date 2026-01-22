@@ -1023,6 +1023,13 @@ ur_result_t setKernelPendingArguments(
   return UR_RESULT_SUCCESS;
 }
 
+kernel_command_handle *CreateCommandHandle(ur_exp_command_buffer_handle_t commandBuffer,
+                        ur_kernel_handle_t kernel, uint64_t commandId,
+                        uint32_t workDim, uint32_t numKernelAlternatives,
+                        ur_kernel_handle_t *kernelAlternatives) {
+    return new kernel_command_handle(commandBuffer, kernel, commandId, workDim, numKernelAlternatives, kernelAlternatives);
+}
+
 ur_result_t urCommandBufferAppendKernelLaunchExp(
     ur_exp_command_buffer_handle_t CommandBuffer, ur_kernel_handle_t Kernel,
     uint32_t WorkDim, const size_t *GlobalWorkOffset,
@@ -1092,6 +1099,7 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
     UR_CALL(createCommandHandleUnlocked(
         CommandBuffer, ZeCommandList, Kernel, WorkDim, GlobalWorkSize,
         NumKernelAlternatives, KernelAlternatives, Platform, getZeKernelWrapped,
+        CreateCommandHandle,
         Device, NewCommand));
     *Command = NewCommand.get();
     CommandBuffer->CommandHandles.push_back(std::move(NewCommand));

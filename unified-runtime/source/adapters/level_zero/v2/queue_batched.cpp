@@ -25,8 +25,8 @@
 #include "../image_common.hpp"
 
 #include "../program.hpp"
-#include "../ur_interface_loader.hpp"
 #include "ur_api.h"
+#include "ur_interface_loader.hpp"
 #include "ze_api.h"
 #include <cstddef>
 #include <cstdint>

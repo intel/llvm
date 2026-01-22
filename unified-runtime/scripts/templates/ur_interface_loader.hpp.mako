@@ -41,7 +41,7 @@ ${x}_result_t ${th.make_func_name(n, tags, obj)}(
 %endif
 %endfor
 %endfor
-#ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
+#ifdef UR_STATIC_ADAPTER_${Adapter}
 ur_result_t urAdapterGetDdiTables(ur_dditable_t *ddi);
 #endif
 

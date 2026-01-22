@@ -19,7 +19,7 @@
 #include "../image_common.hpp"
 
 #include "../program.hpp"
-#include "../ur_interface_loader.hpp"
+#include "ur_interface_loader.hpp"
 
 namespace v2 {
 

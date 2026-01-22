@@ -9,8 +9,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "memory.hpp"
-#include "../ur_interface_loader.hpp"
 #include "context.hpp"
+#include "ur_interface_loader.hpp"
 
 #include "../helpers/memory_helpers.hpp"
 #include "../image_common.hpp"
@@ -430,11 +430,11 @@ ur_mem_sub_buffer_t::ur_mem_sub_buffer_t(ur_mem_handle_t hParent, size_t offset,
                                          device_access_mode_t accessMode)
     : ur_mem_buffer_t(hParent->getBuffer()->getContext(), size, accessMode),
       hParent(hParent), offset(offset) {
-  ur::level_zero::urMemRetain(hParent);
+  ur::level_zero_v2::urMemRetain(hParent);
 }
 
 ur_mem_sub_buffer_t::~ur_mem_sub_buffer_t() {
-  ur::level_zero::urMemRelease(hParent);
+  ur::level_zero_v2::urMemRelease(hParent);
 }
 
 void *ur_mem_sub_buffer_t::getDevicePtr(ur_device_handle_t hDevice,
@@ -545,7 +545,7 @@ ur_mem_image_t::copy_desc_t ur_mem_image_t::getCopyRegions(
   return {{src.zeImage.get(), zeSrcRegion}, {src.zeImage.get(), zeDstRegion}};
 }
 
-namespace ur::level_zero {
+namespace ur::level_zero_v2 {
 ur_result_t urMemBufferCreate(ur_context_handle_t hContext,
                               ur_mem_flags_t flags, size_t size,
                               const ur_buffer_properties_t *pProperties,
@@ -842,4 +842,4 @@ ur_result_t urIPCCloseMemHandleExp(ur_context_handle_t, void *pMem) {
   return umf::umf2urResult(umfCloseIPCHandle(pMem));
 }
 
-} // namespace ur::level_zero
+} // namespace ur::level_zero_v2

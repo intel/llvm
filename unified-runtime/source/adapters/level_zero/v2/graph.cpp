@@ -10,9 +10,9 @@
 
 #include "graph.hpp"
 #include "../external/driver_experimental/zex_graph.h"
-#include "../ur_interface_loader.hpp"
 #include "common.hpp"
 #include "context.hpp"
+#include "ur_interface_loader.hpp"
 
 ur_exp_graph_handle_t_::ur_exp_graph_handle_t_(ur_context_handle_t hContext)
     : hContext(hContext) {
@@ -53,7 +53,7 @@ ur_exp_executable_graph_handle_t_::~ur_exp_executable_graph_handle_t_() {
   }
 }
 
-namespace ur::level_zero {
+namespace ur::level_zero_v2 {
 
 ur_result_t urGraphCreateExp(ur_context_handle_t hContext,
                              ur_exp_graph_handle_t *phGraph) try {
@@ -128,4 +128,4 @@ ur_result_t urGraphDumpContentsExp(ur_exp_graph_handle_t, const char *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-} // namespace ur::level_zero
+} // namespace ur::level_zero_v2

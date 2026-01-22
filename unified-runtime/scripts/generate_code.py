@@ -418,10 +418,9 @@ def generate_loader(path, section, namespace, tags, version, specs, meta):
 
 
 def _mako_interface_loader_api(
-    path, adapter, ext, namespace, tags, version, specs, meta
+    dstpath, adapter, ext, namespace, tags, version, specs, meta
 ):
     """generates c/c++ files from the specification documents"""
-    dstpath = os.path.join(path, adapter)
     os.makedirs(dstpath, exist_ok=True)
 
     template = f"ur_interface_loader.{ext}.mako"
@@ -463,13 +462,20 @@ def generate_adapters(path, section, namespace, tags, version, specs, meta):
         dstpath, "adapter", "def", namespace, tags, version, specs, meta
     )
 
+    level_zero_dstpath = os.path.join(path, "adapters", "level_zero")
     loc += _mako_interface_loader_api(
-        dstpath, "level_zero", "cpp", namespace, tags, version, specs, meta
+        level_zero_dstpath, "level_zero", "cpp", namespace, tags, version, specs, meta
     )
     loc += _mako_interface_loader_api(
-        dstpath, "level_zero", "hpp", namespace, tags, version, specs, meta
+        level_zero_dstpath, "level_zero", "hpp", namespace, tags, version, specs, meta
     )
-
+    level_zero_v2_dstpath = os.path.join(level_zero_dstpath, "v2")
+    loc += _mako_interface_loader_api(
+        level_zero_v2_dstpath, "level_zero_v2", "cpp", namespace, tags, version, specs, meta
+    )
+    loc += _mako_interface_loader_api(
+        level_zero_v2_dstpath, "level_zero_v2", "hpp", namespace, tags, version, specs, meta
+    )
     print("Generated %s lines of code.\n" % loc)
 
 

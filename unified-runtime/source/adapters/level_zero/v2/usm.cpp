@@ -440,7 +440,7 @@ size_t ur_usm_pool_handle_t_::getTotalUsedSize() {
 
 size_t ur_usm_pool_handle_t_::getPeakUsedSize() { return allocStats.getPeak(); }
 
-namespace ur::level_zero {
+namespace ur::level_zero_v2 {
 ur_result_t urUSMPoolCreate(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
@@ -852,4 +852,4 @@ ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t hContext,
   return UR_RESULT_SUCCESS;
 }
 
-} // namespace ur::level_zero
+} // namespace ur::level_zero_v2

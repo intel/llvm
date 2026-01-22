@@ -96,7 +96,7 @@ struct UsmPool {
       : urPool(urPool), umfPool(std::move(umfPool)),
         asyncPool([](ur_event_handle_t hEvent) { return hEvent->release(); },
                   [context = urPool->getContextHandle()](void *ptr) {
-                    return ur::level_zero::urUSMFree(context, ptr);
+                    return ur::level_zero_v2::urUSMFree(context, ptr);
                   }) {}
   ur_usm_pool_handle_t urPool;
   umf::pool_unique_handle_t umfPool;

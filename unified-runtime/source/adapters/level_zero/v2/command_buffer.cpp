@@ -11,10 +11,10 @@
 #include "command_buffer.hpp"
 #include "../command_buffer_command.hpp"
 #include "../helpers/kernel_helpers.hpp"
-#include "../ur_interface_loader.hpp"
 #include "command_list_manager.hpp"
 #include "logger/ur_logger.hpp"
 #include "queue_handle.hpp"
+#include "ur_interface_loader.hpp"
 
 namespace {
 
@@ -107,6 +107,13 @@ ur_event_handle_t *ur_exp_command_buffer_handle_t_::getWaitListFromSyncPoints(
   return syncPointWaitList.data();
 }
 
+kernel_command_handle *CreateKernelCommandHandle(ur_exp_command_buffer_handle_t commandBuffer,
+                        ur_kernel_handle_t kernel, uint64_t commandId,
+                        uint32_t workDim, uint32_t numKernelAlternatives,
+                        ur_kernel_handle_t *kernelAlternatives) {
+    return new kernel_command_handle(commandBuffer, kernel, commandId, workDim, numKernelAlternatives, kernelAlternatives);
+}
+
 ur_result_t ur_exp_command_buffer_handle_t_::createCommandHandle(
     locked<ur_command_list_manager> &commandListLocked,
     ur_kernel_handle_t hKernel, uint32_t workDim, const size_t *pGlobalWorkSize,
@@ -120,7 +127,8 @@ ur_result_t ur_exp_command_buffer_handle_t_::createCommandHandle(
   UR_CALL(createCommandHandleUnlocked(this, zeCommandList, hKernel, workDim,
                                       pGlobalWorkSize, numKernelAlternatives,
                                       kernelAlternatives, platform,
-                                      getZeKernelWrapped, device, newCommand));
+                                      getZeKernelWrapped, CreateKernelCommandHandle,
+                                device, newCommand));
   *command = newCommand.get();
 
   commandHandles.push_back(std::move(newCommand));
@@ -234,7 +242,7 @@ ur_event_handle_t ur_exp_command_buffer_handle_t_::createEventIfRequested(
   return event;
 }
 
-namespace ur::level_zero {
+namespace ur::level_zero_v2 {
 
 ur_result_t
 urCommandBufferCreateExp(ur_context_handle_t context, ur_device_handle_t device,
@@ -764,4 +772,4 @@ ur_result_t urCommandBufferUpdateWaitEventsExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-} // namespace ur::level_zero
+} // namespace ur::level_zero_v2

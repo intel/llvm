@@ -56,7 +56,7 @@ static event_flags_t eventFlagsFromQueueFlags(ur_queue_flags_t flags) {
 
 } // namespace v2
 
-namespace ur::level_zero {
+namespace ur::level_zero_v2 {
 ur_result_t urQueueCreate(ur_context_handle_t hContext,
                           ur_device_handle_t hDevice,
                           const ur_queue_properties_t *pProperties,
@@ -198,4 +198,4 @@ ur_result_t urQueueCreateWithNativeHandle(
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
-} // namespace ur::level_zero
+} // namespace ur::level_zero_v2

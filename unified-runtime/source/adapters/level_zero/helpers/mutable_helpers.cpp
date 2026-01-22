@@ -12,7 +12,10 @@
 #include "../device.hpp"
 #include "../ur_interface_loader.hpp"
 #include "../ur_level_zero.hpp"
+#include "adapters/level_zero/command_buffer_command.hpp"
 #include "kernel_helpers.hpp"
+#include "ur_api.h"
+#include <memory>
 
 using desc_storage_t = std::vector<std::variant<
     std::unique_ptr<ZeStruct<ze_mutable_kernel_argument_exp_desc_t>>,
@@ -445,6 +448,10 @@ ur_result_t createCommandHandleUnlocked(
     ur_platform_handle_t Platform,
     ur_result_t (*GetZeKernel)(ur_kernel_handle_t, ze_kernel_handle_t &,
                                ur_device_handle_t),
+    kernel_command_handle *(*CreateCommandHandle)(ur_exp_command_buffer_handle_t,
+                        ur_kernel_handle_t, uint64_t,
+                        uint32_t, uint32_t,
+                        ur_kernel_handle_t *),
     ur_device_handle_t Device,
     std::unique_ptr<kernel_command_handle> &Command) {
 
@@ -506,10 +513,8 @@ ur_result_t createCommandHandleUnlocked(
   }
 
   try {
-    Command = std::make_unique<kernel_command_handle>(
-        CommandBuffer, Kernel, CommandId, WorkDim, NumKernelAlternatives,
-        KernelAlternatives);
-
+    Command = std::unique_ptr<kernel_command_handle>(CreateCommandHandle(CommandBuffer, Kernel, CommandId, WorkDim, NumKernelAlternatives,
+        KernelAlternatives));
     Command->setGlobalWorkSize(GlobalWorkSize);
 
   } catch (const std::bad_alloc &) {

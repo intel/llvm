@@ -3,6 +3,86 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_L0_V2)
+    set(UR_L0_COMMON_SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/adapter.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/device.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/platform.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/program.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/image_common.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/usm_p2p.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/virtual_mem.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/sampler.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/enqueued_pool.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/physical_mem.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/memory_export.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/helpers/kernel_helpers.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/helpers/memory_helpers.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/helpers/mutable_helpers.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/helpers/shared_helpers.cpp
+    )
+
+    add_library(ur_adapter_level_zero_common STATIC ${UR_L0_COMMON_SOURCES})
+
+    # The common code needs the same include paths as adapters
+    target_include_directories(ur_adapter_level_zero_common PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../.."
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../ur"
+        LevelZeroLoader-Headers
+    )
+
+    # If shared code depends on this define, keep it here so both adapters inherit
+    target_compile_definitions(ur_adapter_level_zero_common PUBLIC
+        UR_STATIC_LEVEL_ZERO
+    )
+
+    # Keep the warning suppression that applied to the shared code
+    target_compile_options(ur_adapter_level_zero_common PRIVATE
+        $<$<CXX_COMPILER_ID:MSVC>:/wd4805 /wd4244>
+    )
+
+    target_link_libraries(ur_adapter_level_zero_common PUBLIC
+        ${PROJECT_NAME}::headers
+        ${PROJECT_NAME}::common
+        ${PROJECT_NAME}::umf
+        LevelZeroLoader
+        LevelZeroLoader-Headers
+        ComputeRuntimeLevelZero-Headers
+    )
+
+    set_target_properties(ur_adapter_level_zero_common PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+    )
+
+    install(TARGETS ur_adapter_level_zero_common
+    EXPORT ${PROJECT_NAME}-targets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+endif()
+
+if(UR_STATIC_ADAPTER_L0 OR UR_STATIC_ADAPTER_L0_V2)
+    set(ADAPTER_L0_TARGETS_TO_INSTALL ur_umf LevelZeroLoader LevelZeroLoader-Headers ComputeRuntimeLevelZero-Headers)
+    # 'utils' target from 'level-zero-loader' includes path which is prefixed
+    # in the source directory, this breaks the installation of 'utils' target.
+    if(TARGET level_zero_utils)
+        set_target_properties(level_zero_utils PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "")
+        list(APPEND ADAPTER_L0_TARGETS_TO_INSTALL level_zero_utils)
+    endif()
+    if(TARGET ze_loader)
+        list(APPEND ADAPTER_L0_TARGETS_TO_INSTALL ze_loader)
+    endif()
+    install(TARGETS ${ADAPTER_L0_TARGETS_TO_INSTALL}
+        EXPORT ${PROJECT_NAME}-targets
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    )
+endif()
+
 if(UR_BUILD_ADAPTER_L0)
     set(ADAPTER_LIB_TYPE SHARED)
     if(UR_STATIC_ADAPTER_L0)
@@ -10,77 +90,42 @@ if(UR_BUILD_ADAPTER_L0)
     endif()
 
     add_ur_adapter(ur_adapter_level_zero ${ADAPTER_LIB_TYPE}
-        ${CMAKE_CURRENT_SOURCE_DIR}/ur_interface_loader.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/adapter.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/adapter.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/async_alloc.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/command_buffer.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/command_buffer.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/command_buffer_command.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/command_buffer_command.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/common.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/context.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/device.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/event.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/image_common.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/usm.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/memory.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/kernel.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/physical_mem.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/platform.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/program.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/queue.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/image_common.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/physical_mem.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/sampler.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/kernel_helpers.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/memory_helpers.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/mutable_helpers.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/ur_level_zero.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/common.cpp
+
+        ${CMAKE_CURRENT_SOURCE_DIR}/async_alloc.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/command_buffer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/command_buffer_command.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/context.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/device.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/enqueue_native.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/ur_interface_loader.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/event.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/usm.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/usm_p2p.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/virtual_mem.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/memory.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/kernel.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/physical_mem.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/platform.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/program.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/queue.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/sampler.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/image.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/image_common.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/graph.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/helpers/kernel_helpers.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/helpers/memory_helpers.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/helpers/mutable_helpers.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/enqueued_pool.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/memory_export.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/ur_level_zero.cpp
     )
     install_ur_library(ur_adapter_level_zero)
+
+    target_link_libraries(ur_adapter_level_zero PRIVATE
+        ur_adapter_level_zero_common
+    )
 
     target_compile_definitions(ur_adapter_level_zero PUBLIC UR_STATIC_LEVEL_ZERO)
     if(UR_STATIC_ADAPTER_L0)
         target_compile_definitions(ur_adapter_level_zero PUBLIC UR_STATIC_ADAPTER_LEVEL_ZERO)
-        set(ADAPTER_L0_TARGETS_TO_INSTALL ur_umf LevelZeroLoader LevelZeroLoader-Headers ComputeRuntimeLevelZero-Headers)
-        # 'utils' target from 'level-zero-loader' includes path which is prefixed
-        # in the source directory, this breaks the installation of 'utils' target.
-        if(TARGET level_zero_utils)
-          set_target_properties(level_zero_utils PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "")
-          list(APPEND ADAPTER_L0_TARGETS_TO_INSTALL level_zero_utils)
-        endif()
-        if(TARGET ze_loader)
-          list(APPEND ADAPTER_L0_TARGETS_TO_INSTALL ze_loader)
-        endif()
-        install(TARGETS ${ADAPTER_L0_TARGETS_TO_INSTALL}
-            EXPORT ${PROJECT_NAME}-targets
-            ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        )
     endif()
 
     # Ensure UR flags are propagated to level zero
@@ -124,39 +169,12 @@ if(UR_BUILD_ADAPTER_L0)
 endif()
 
 if(UR_BUILD_ADAPTER_L0_V2)
-    add_ur_adapter(ur_adapter_level_zero_v2
-        SHARED
-        # sources shared with legacy adapter
-        ${CMAKE_CURRENT_SOURCE_DIR}/adapter.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/command_buffer_command.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/common.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/device.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/image_common.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/platform.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/physical_mem.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/program.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/helpers/kernel_helpers.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/helpers/memory_helpers.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/helpers/mutable_helpers.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/adapter.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/common.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/command_buffer_command.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/device.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/enqueued_pool.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/image_common.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/ur_interface_loader.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/platform.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/physical_mem.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/program.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/helpers/kernel_helpers.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/helpers/memory_helpers.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/helpers/mutable_helpers.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/usm_p2p.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/virtual_mem.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/sampler.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/sampler.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/memory_export.cpp
+    set(ADAPTER_V2_LIB_TYPE SHARED)
+    if(UR_STATIC_ADAPTER_L0_V2)
+        set(ADAPTER_V2_LIB_TYPE STATIC)
+    endif()
+
+    add_ur_adapter(ur_adapter_level_zero_v2 ${ADAPTER_V2_LIB_TYPE}
         # v2-only sources
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_buffer.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_list_cache.hpp
@@ -195,8 +213,13 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_out_of_order.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/usm.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/ur_interface_loader.cpp
     )
     install_ur_library(ur_adapter_level_zero_v2)
+
+    target_link_libraries(ur_adapter_level_zero_v2 PRIVATE
+        ur_adapter_level_zero_common
+    )
 
     if(NOT WIN32)
         # api.cpp contains NOT_SUPPORTED functions-only
@@ -205,7 +228,9 @@ if(UR_BUILD_ADAPTER_L0_V2)
     endif()
 
     target_compile_definitions(ur_adapter_level_zero_v2 PUBLIC UR_STATIC_LEVEL_ZERO)
-    target_compile_definitions(ur_adapter_level_zero_v2 PUBLIC UR_ADAPTER_LEVEL_ZERO_V2)
+    if(UR_STATIC_ADAPTER_L0_V2)
+        target_compile_definitions(ur_adapter_level_zero_v2 PUBLIC UR_STATIC_ADAPTER_LEVEL_ZERO_V2)
+    endif()
 
     # TODO: fix level_zero adapter conversion warnings
     target_compile_options(ur_adapter_level_zero_v2 PRIVATE

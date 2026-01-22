@@ -24,7 +24,7 @@
 #include "event_provider.hpp"
 
 #include "../device.hpp"
-#include "../ur_interface_loader.hpp"
+#include "ur_interface_loader.hpp"
 
 namespace v2 {
 

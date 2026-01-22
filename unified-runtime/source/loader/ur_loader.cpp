@@ -12,6 +12,10 @@
 #ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
 #include "adapters/level_zero/ur_interface_loader.hpp"
 #endif
+#ifdef UR_STATIC_ADAPTER_LEVEL_ZERO_V2
+#include "adapters/level_zero/v2/ur_interface_loader.hpp"
+#endif
+
 
 namespace ur_loader {
 ///////////////////////////////////////////////////////////////////////////////
@@ -32,12 +36,21 @@ ur_result_t context_t::init() {
   UINT SavedMode = SetErrorMode(SEM_FAILCRITICALERRORS);
 #endif
 
-#ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
+#ifndef UR_STATIC_ADAPTER_LEVEL_ZERO
   // If the adapters were force loaded, it means the user wants to use
   // a specific adapter library. Don't load any static adapters.
   if (!adapter_registry.adaptersForceLoaded()) {
     auto &level_zero = platforms.emplace_back(nullptr);
     ur::level_zero::urAdapterGetDdiTables(&level_zero.dditable);
+  }
+#endif
+
+#ifdef UR_STATIC_ADAPTER_LEVEL_ZERO_V2
+  // If the adapters were force loaded, it means the user wants to use
+  // a specific adapter library. Don't load any static adapters.
+  if (!adapter_registry.adaptersForceLoaded()) {
+    auto &level_zero_v2 = platforms.emplace_back(nullptr);
+    ur::level_zero_v2::urAdapterGetDdiTables(&level_zero_v2.dditable);
   }
 #endif
 

@@ -158,7 +158,7 @@ ur_context_handle_t_::getP2PDevices(ur_device_handle_t hDevice) const {
   return p2pAccessDevices[hDevice->Id.value()];
 }
 
-namespace ur::level_zero {
+namespace ur::level_zero_v2 {
 ur_result_t urContextCreate(uint32_t deviceCount,
                             const ur_device_handle_t *phDevices,
                             const ur_context_properties_t * /*pProperties*/,
@@ -241,4 +241,4 @@ ur_result_t urContextGetInfo(ur_context_handle_t hContext,
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
-} // namespace ur::level_zero
+} // namespace ur::level_zero_v2

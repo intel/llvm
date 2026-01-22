@@ -13,11 +13,36 @@
 #include <exception>
 #include <ze_api.h>
 
-#include "../common.hpp"
+#include "../helpers/shared_helpers.hpp"
 #include "logger/ur_logger.hpp"
+#include "ur_interface_loader.hpp"
 
 namespace v2 {
 namespace raii {
+
+// Base class to store common data
+struct ur_object : ur::handle_base<ur::level_zero_v2::ddi_getter> {
+  ur_object() : handle_base() {}
+
+  // This mutex protects accesses to all the non-const member variables.
+  // Exclusive access is required to modify any of these members.
+  //
+  // To get shared access to the object in a scope use std::shared_lock:
+  //    std::shared_lock Lock(Obj->Mutex);
+  // To get exclusive access to the object in a scope use std::scoped_lock:
+  //    std::scoped_lock Lock(Obj->Mutex);
+  //
+  // If several UR objects are accessed in a scope then each object's mutex must
+  // be locked. For example, to get write access to Obj1 and Obj2 and read
+  // access to Obj3 in a scope use the following approach:
+  //   std::shared_lock Obj3Lock(Obj3->Mutex, std::defer_lock);
+  //   std::scoped_lock LockAll(Obj1->Mutex, Obj2->Mutex, Obj3Lock);
+  ur_shared_mutex Mutex;
+
+  // Indicates if we own the native handle or it came from interop that
+  // asked to not transfer the ownership to SYCL RT.
+  bool OwnNativeHandle = false;
+};
 
 template <typename ZeHandleT, ze_result_t (*destroy)(ZeHandleT),
           const char *destroyName>
@@ -155,11 +180,11 @@ private:
 };
 
 using ur_context_handle_t =
-    ur_handle<::ur_context_handle_t, ur::level_zero::urContextRetain,
-              ur::level_zero::urContextRelease>;
+    ur_handle<::ur_context_handle_t, ur::level_zero_v2::urContextRetain,
+              ur::level_zero_v2::urContextRelease>;
 using ur_device_handle_t =
-    ur_handle<::ur_device_handle_t, ur::level_zero::urDeviceRetain,
-              ur::level_zero::urDeviceRelease>;
+    ur_handle<::ur_device_handle_t, ur::level_zero_v2::urDeviceRetain,
+              ur::level_zero_v2::urDeviceRelease>;
 
 } // namespace raii
 } // namespace v2

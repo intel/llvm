@@ -20,7 +20,7 @@
 
 ur_queue_t_::~ur_queue_t_() {}
 
-namespace ur::level_zero {
+namespace ur::level_zero_v2 {
 ur_result_t urQueueGetInfo(ur_queue_handle_t hQueue, ur_queue_info_t propName,
                            size_t propSize, void *pPropValue,
                            size_t *pPropSizeRet) try {
@@ -523,4 +523,4 @@ ur_result_t urQueueIsGraphCaptureEnabledExp(ur_queue_handle_t hQueue,
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
-} // namespace ur::level_zero
+} // namespace ur::level_zero_v2

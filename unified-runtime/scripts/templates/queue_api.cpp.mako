@@ -29,7 +29,7 @@ from templates import helper as th
 ur_queue_t_::~ur_queue_t_() {}
 
 ## FUNCTION ###################################################################
-namespace ${x}::level_zero {
+namespace ${x}::level_zero_v2 {
 %for obj in th.get_queue_related_functions(specs, n, tags):
 %if not 'Release' in obj['name'] and not 'Retain' in obj['name']:
 %if 'guard' in obj:

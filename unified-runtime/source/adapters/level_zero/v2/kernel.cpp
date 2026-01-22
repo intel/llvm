@@ -21,7 +21,7 @@
 #include "../platform.hpp"
 #include "../program.hpp"
 #include "../sampler.hpp"
-#include "../ur_interface_loader.hpp"
+#include "ur_interface_loader.hpp"
 
 ur_single_device_kernel_t::ur_single_device_kernel_t(ur_device_handle_t hDevice,
                                                      ze_kernel_handle_t hKernel,
@@ -371,7 +371,7 @@ std::vector<char> ur_kernel_handle_t_::getSourceAttributes() const {
   return attributes;
 }
 
-namespace ur::level_zero {
+namespace ur::level_zero_v2 {
 ur_result_t urKernelCreate(ur_program_handle_t hProgram,
                            const char *pKernelName,
                            ur_kernel_handle_t *phKernel) try {
@@ -750,4 +750,4 @@ ur_result_t urKernelSetArgSampler(
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
-} // namespace ur::level_zero
+} // namespace ur::level_zero_v2

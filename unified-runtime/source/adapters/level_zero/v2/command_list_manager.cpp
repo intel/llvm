@@ -12,13 +12,13 @@
 #include "../helpers/kernel_helpers.hpp"
 #include "../helpers/memory_helpers.hpp"
 #include "../sampler.hpp"
-#include "../ur_interface_loader.hpp"
 #include "command_buffer.hpp"
 #include "common.hpp"
 #include "context.hpp"
 #include "graph.hpp"
 #include "kernel.hpp"
 #include "memory.hpp"
+#include "ur_interface_loader.hpp"
 
 thread_local std::vector<ze_event_handle_t> waitList;
 // The wait_list_view is a wrapper for eventsWaitLists, which:
