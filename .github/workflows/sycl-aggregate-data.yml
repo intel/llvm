@@ -28,15 +28,20 @@ jobs:
           echo "Processing artifacts from ${{ steps.date.outputs.TODAY }}"
           ls -la ./artifacts/
           echo "{" > aggregated_${{ steps.date.outputs.TODAY }}.json
+          first_data=true
 
           for dir in ./artifacts/*/; do
             for file in "$dir"*.txt; do
-              if [[ -f "$file" && $(basename "$file") == ${TODAY}*.txt ]]; then
+              if [[ -f "$file" && $(basename "$file") == ${{ steps.date.outputs.TODAY }}*.txt ]]; then
                 runner=$(basename "$file" | sed 's/^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}_//; s/\.txt$//')
-                load=$(cat $file) 
-                echo $load
-                echo $runner
-                echo "  \"$runner\": \"$load\"" >> aggregated_${{ steps.date.outputs.TODAY }}.json
+                load=$(tail -n1 "$file" | xargs)
+                
+                if [ "$first_data" = true ]; then
+                  echo "  \"$runner\": \"$load\"" >> aggregated_${{ steps.date.outputs.TODAY }}.json
+                  first_data=false
+                else
+                  echo "  ,\"$runner\": \"$load\"" >> aggregated_${{ steps.date.outputs.TODAY }}.json
+                fi
               fi 
             done
           done
