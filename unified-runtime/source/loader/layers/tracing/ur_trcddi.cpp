@@ -8004,6 +8004,907 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urDeviceWaitExp
+__urdlllocal ur_result_t UR_APICALL urDeviceWaitExp(
+    /// [in] handle of the device instance.
+    ur_device_handle_t hDevice) {
+  auto pfnWaitExp = getContext()->urDdiTable.DeviceExp.pfnWaitExp;
+
+  if (nullptr == pfnWaitExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_device_wait_exp_params_t params = {&hDevice};
+  uint64_t instance = getContext()->notify_begin(UR_FUNCTION_DEVICE_WAIT_EXP,
+                                                 "urDeviceWaitExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urDeviceWaitExp\n");
+
+  ur_result_t result = pfnWaitExp(hDevice);
+
+  getContext()->notify_end(UR_FUNCTION_DEVICE_WAIT_EXP, "urDeviceWaitExp",
+                           &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_DEVICE_WAIT_EXP,
+                                    &params);
+    UR_LOG_L(logger, INFO, "   <--- urDeviceWaitExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramDynamicLinkExp
+__urdlllocal ur_result_t UR_APICALL urProgramDynamicLinkExp(
+    /// [in] handle of the context instance.
+    ur_context_handle_t hContext,
+    /// [in] number of program handles in `phPrograms`.
+    uint32_t count,
+    /// [in][range(0, count)] pointer to array of program handles.
+    const ur_program_handle_t *phPrograms) {
+  auto pfnDynamicLinkExp =
+      getContext()->urDdiTable.ProgramExp.pfnDynamicLinkExp;
+
+  if (nullptr == pfnDynamicLinkExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_program_dynamic_link_exp_params_t params = {&hContext, &count,
+                                                 &phPrograms};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_PROGRAM_DYNAMIC_LINK_EXP, "urProgramDynamicLinkExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urProgramDynamicLinkExp\n");
+
+  ur_result_t result = pfnDynamicLinkExp(hContext, count, phPrograms);
+
+  getContext()->notify_end(UR_FUNCTION_PROGRAM_DYNAMIC_LINK_EXP,
+                           "urProgramDynamicLinkExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_PROGRAM_DYNAMIC_LINK_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urProgramDynamicLinkExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueKernelLaunchWithArgsExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] number of dimensions, from 1 to 3, to specify the global and
+    /// work-group work-items
+    uint32_t workDim,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the offset used to calculate the global ID of a work-item
+    const size_t *pGlobalWorkOffset,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// number of global work-items in workDim that will execute the kernel
+    /// function
+    const size_t *pGlobalWorkSize,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the number of local work-items forming a work-group that will
+    /// execute the kernel function.
+    /// If nullptr, the runtime implementation will choose the work-group size.
+    const size_t *pLocalWorkSize,
+    /// [in] Number of entries in pArgs
+    uint32_t numArgs,
+    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
+    /// properties.
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    /// [in][optional] pointer to a single linked list of launch properties
+    const ur_kernel_launch_ext_properties_t *launchPropList,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+    /// event.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular kernel execution instance. If phEventWaitList and phEvent
+    /// are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
+    ur_event_handle_t *phEvent) {
+  auto pfnKernelLaunchWithArgsExp =
+      getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchWithArgsExp;
+
+  if (nullptr == pfnKernelLaunchWithArgsExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_enqueue_kernel_launch_with_args_exp_params_t params = {
+      &hQueue,          &hKernel,
+      &workDim,         &pGlobalWorkOffset,
+      &pGlobalWorkSize, &pLocalWorkSize,
+      &numArgs,         &pArgs,
+      &launchPropList,  &numEventsInWaitList,
+      &phEventWaitList, &phEvent};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP,
+      "urEnqueueKernelLaunchWithArgsExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urEnqueueKernelLaunchWithArgsExp\n");
+
+  ur_result_t result = pfnKernelLaunchWithArgsExp(
+      hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+      pLocalWorkSize, numArgs, pArgs, launchPropList, numEventsInWaitList,
+      phEventWaitList, phEvent);
+
+  getContext()->notify_end(UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP,
+                           "urEnqueueKernelLaunchWithArgsExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP, &params);
+    UR_LOG_L(logger, INFO,
+             "   <--- urEnqueueKernelLaunchWithArgsExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueTimestampRecordingExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] indicates whether the call to this function should block until
+    /// until the device timestamp recording command has executed on the
+    /// device.
+    bool blocking,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [in,out] return an event object that identifies this particular kernel
+    /// execution instance. Profiling information can be queried
+    /// from this event as if `hQueue` had profiling enabled. Querying
+    /// `UR_PROFILING_INFO_COMMAND_QUEUED` or `UR_PROFILING_INFO_COMMAND_SUBMIT`
+    /// reports the timestamp at the time of the call to this function.
+    /// Querying `UR_PROFILING_INFO_COMMAND_START` or
+    /// `UR_PROFILING_INFO_COMMAND_END` reports the timestamp recorded when the
+    /// command is executed on the device. If phEventWaitList and phEvent are
+    /// not NULL, phEvent must not refer to an element of the phEventWaitList
+    /// array.
+    ur_event_handle_t *phEvent) {
+  auto pfnTimestampRecordingExp =
+      getContext()->urDdiTable.EnqueueExp.pfnTimestampRecordingExp;
+
+  if (nullptr == pfnTimestampRecordingExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_enqueue_timestamp_recording_exp_params_t params = {
+      &hQueue, &blocking, &numEventsInWaitList, &phEventWaitList, &phEvent};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP,
+                                 "urEnqueueTimestampRecordingExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urEnqueueTimestampRecordingExp\n");
+
+  ur_result_t result = pfnTimestampRecordingExp(
+      hQueue, blocking, numEventsInWaitList, phEventWaitList, phEvent);
+
+  getContext()->notify_end(UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP,
+                           "urEnqueueTimestampRecordingExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP, &params);
+    UR_LOG_L(logger, INFO,
+             "   <--- urEnqueueTimestampRecordingExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCGetMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] pointer to device USM memory
+    void *pMem,
+    /// [out][optional] a pointer to the IPC memory handle data
+    void **ppIPCMemHandleData,
+    /// [out][optional] size of the resulting IPC memory handle data
+    size_t *pIPCMemHandleDataSizeRet) {
+  auto pfnGetMemHandleExp = getContext()->urDdiTable.IPCExp.pfnGetMemHandleExp;
+
+  if (nullptr == pfnGetMemHandleExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_ipc_get_mem_handle_exp_params_t params = {
+      &hContext, &pMem, &ppIPCMemHandleData, &pIPCMemHandleDataSizeRet};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP, "urIPCGetMemHandleExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urIPCGetMemHandleExp\n");
+
+  ur_result_t result = pfnGetMemHandleExp(hContext, pMem, ppIPCMemHandleData,
+                                          pIPCMemHandleDataSizeRet);
+
+  getContext()->notify_end(UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP,
+                           "urIPCGetMemHandleExp", &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urIPCGetMemHandleExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCPutMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCPutMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] a pointer to the IPC memory handle data
+    void *pIPCMemHandleData) {
+  auto pfnPutMemHandleExp = getContext()->urDdiTable.IPCExp.pfnPutMemHandleExp;
+
+  if (nullptr == pfnPutMemHandleExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_ipc_put_mem_handle_exp_params_t params = {&hContext, &pIPCMemHandleData};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_IPC_PUT_MEM_HANDLE_EXP, "urIPCPutMemHandleExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urIPCPutMemHandleExp\n");
+
+  ur_result_t result = pfnPutMemHandleExp(hContext, pIPCMemHandleData);
+
+  getContext()->notify_end(UR_FUNCTION_IPC_PUT_MEM_HANDLE_EXP,
+                           "urIPCPutMemHandleExp", &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_IPC_PUT_MEM_HANDLE_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urIPCPutMemHandleExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCOpenMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCOpenMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object the corresponding USM device memory
+    /// was allocated on
+    ur_device_handle_t hDevice,
+    /// [in] the IPC memory handle data
+    void *pIPCMemHandleData,
+    /// [in] size of the IPC memory handle data
+    size_t ipcMemHandleDataSize,
+    /// [out] pointer to a pointer to device USM memory
+    void **ppMem) {
+  auto pfnOpenMemHandleExp =
+      getContext()->urDdiTable.IPCExp.pfnOpenMemHandleExp;
+
+  if (nullptr == pfnOpenMemHandleExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_ipc_open_mem_handle_exp_params_t params = {
+      &hContext, &hDevice, &pIPCMemHandleData, &ipcMemHandleDataSize, &ppMem};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_IPC_OPEN_MEM_HANDLE_EXP, "urIPCOpenMemHandleExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urIPCOpenMemHandleExp\n");
+
+  ur_result_t result = pfnOpenMemHandleExp(hContext, hDevice, pIPCMemHandleData,
+                                           ipcMemHandleDataSize, ppMem);
+
+  getContext()->notify_end(UR_FUNCTION_IPC_OPEN_MEM_HANDLE_EXP,
+                           "urIPCOpenMemHandleExp", &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_IPC_OPEN_MEM_HANDLE_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urIPCOpenMemHandleExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCCloseMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCCloseMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] pointer to device USM memory opened through urIPCOpenMemHandleExp
+    void *pMem) {
+  auto pfnCloseMemHandleExp =
+      getContext()->urDdiTable.IPCExp.pfnCloseMemHandleExp;
+
+  if (nullptr == pfnCloseMemHandleExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_ipc_close_mem_handle_exp_params_t params = {&hContext, &pMem};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_IPC_CLOSE_MEM_HANDLE_EXP, "urIPCCloseMemHandleExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urIPCCloseMemHandleExp\n");
+
+  ur_result_t result = pfnCloseMemHandleExp(hContext, pMem);
+
+  getContext()->notify_end(UR_FUNCTION_IPC_CLOSE_MEM_HANDLE_EXP,
+                           "urIPCCloseMemHandleExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_IPC_CLOSE_MEM_HANDLE_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urIPCCloseMemHandleExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportAllocExportableMemoryExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
+    /// [in] Handle to context in which to allocate memory.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which to allocate memory.
+    ur_device_handle_t hDevice,
+    /// [in] Requested alignment of the allocation.
+    size_t alignment,
+    /// [in] Requested size of the allocation.
+    size_t size,
+    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
+    /// or win32 NT handle).
+    ur_exp_external_mem_type_t handleTypeToExport,
+    /// [out][alloc] Pointer to allocated exportable memory.
+    void **ppMem) {
+  auto pfnAllocExportableMemoryExp =
+      getContext()->urDdiTable.MemoryExportExp.pfnAllocExportableMemoryExp;
+
+  if (nullptr == pfnAllocExportableMemoryExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_memory_export_alloc_exportable_memory_exp_params_t params = {
+      &hContext, &hDevice, &alignment, &size, &handleTypeToExport, &ppMem};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_MEMORY_EXPORT_ALLOC_EXPORTABLE_MEMORY_EXP,
+      "urMemoryExportAllocExportableMemoryExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urMemoryExportAllocExportableMemoryExp\n");
+
+  ur_result_t result = pfnAllocExportableMemoryExp(
+      hContext, hDevice, alignment, size, handleTypeToExport, ppMem);
+
+  getContext()->notify_end(
+      UR_FUNCTION_MEMORY_EXPORT_ALLOC_EXPORTABLE_MEMORY_EXP,
+      "urMemoryExportAllocExportableMemoryExp", &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_MEMORY_EXPORT_ALLOC_EXPORTABLE_MEMORY_EXP,
+        &params);
+    UR_LOG_L(logger, INFO,
+             "   <--- urMemoryExportAllocExportableMemoryExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportFreeExportableMemoryExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportFreeExportableMemoryExp(
+    /// [in] Handle to context in which to free memory.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which to free memory.
+    ur_device_handle_t hDevice,
+    /// [in][release] Pointer to exportable memory to be deallocated.
+    void *pMem) {
+  auto pfnFreeExportableMemoryExp =
+      getContext()->urDdiTable.MemoryExportExp.pfnFreeExportableMemoryExp;
+
+  if (nullptr == pfnFreeExportableMemoryExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_memory_export_free_exportable_memory_exp_params_t params = {
+      &hContext, &hDevice, &pMem};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_MEMORY_EXPORT_FREE_EXPORTABLE_MEMORY_EXP,
+      "urMemoryExportFreeExportableMemoryExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urMemoryExportFreeExportableMemoryExp\n");
+
+  ur_result_t result = pfnFreeExportableMemoryExp(hContext, hDevice, pMem);
+
+  getContext()->notify_end(UR_FUNCTION_MEMORY_EXPORT_FREE_EXPORTABLE_MEMORY_EXP,
+                           "urMemoryExportFreeExportableMemoryExp", &params,
+                           &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_MEMORY_EXPORT_FREE_EXPORTABLE_MEMORY_EXP,
+        &params);
+    UR_LOG_L(logger, INFO,
+             "   <--- urMemoryExportFreeExportableMemoryExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportExportMemoryHandleExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportExportMemoryHandleExp(
+    /// [in] Handle to context in which the exportable memory was allocated.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which the exportable memory was allocated.
+    ur_device_handle_t hDevice,
+    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
+    /// or win32 NT handle).
+    ur_exp_external_mem_type_t handleTypeToExport,
+    /// [in] Pointer to exportable memory handle.
+    void *pMem,
+    /// [out] Returned exportable handle to memory allocated in `pMem`
+    void *pMemHandleRet) {
+  auto pfnExportMemoryHandleExp =
+      getContext()->urDdiTable.MemoryExportExp.pfnExportMemoryHandleExp;
+
+  if (nullptr == pfnExportMemoryHandleExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_memory_export_export_memory_handle_exp_params_t params = {
+      &hContext, &hDevice, &handleTypeToExport, &pMem, &pMemHandleRet};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_MEMORY_EXPORT_EXPORT_MEMORY_HANDLE_EXP,
+      "urMemoryExportExportMemoryHandleExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urMemoryExportExportMemoryHandleExp\n");
+
+  ur_result_t result = pfnExportMemoryHandleExp(
+      hContext, hDevice, handleTypeToExport, pMem, pMemHandleRet);
+
+  getContext()->notify_end(UR_FUNCTION_MEMORY_EXPORT_EXPORT_MEMORY_HANDLE_EXP,
+                           "urMemoryExportExportMemoryHandleExp", &params,
+                           &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_MEMORY_EXPORT_EXPORT_MEMORY_HANDLE_EXP, &params);
+    UR_LOG_L(logger, INFO,
+             "   <--- urMemoryExportExportMemoryHandleExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramBuildExp
+__urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
+    /// [in] Handle of the program to build.
+    ur_program_handle_t hProgram,
+    /// [in] number of devices
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] pointer to array of device handles
+    ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
+    /// [in][optional] pointer to build options null-terminated string.
+    const char *pOptions) {
+  auto pfnBuildExp = getContext()->urDdiTable.ProgramExp.pfnBuildExp;
+
+  if (nullptr == pfnBuildExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_program_build_exp_params_t params = {&hProgram, &numDevices, &phDevices,
+                                          &flags, &pOptions};
+  uint64_t instance = getContext()->notify_begin(UR_FUNCTION_PROGRAM_BUILD_EXP,
+                                                 "urProgramBuildExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urProgramBuildExp\n");
+
+  ur_result_t result =
+      pfnBuildExp(hProgram, numDevices, phDevices, flags, pOptions);
+
+  getContext()->notify_end(UR_FUNCTION_PROGRAM_BUILD_EXP, "urProgramBuildExp",
+                           &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_PROGRAM_BUILD_EXP,
+                                    &params);
+    UR_LOG_L(logger, INFO, "   <--- urProgramBuildExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramCompileExp
+__urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
+    /// [in][out] handle of the program to compile.
+    ur_program_handle_t hProgram,
+    /// [in] number of devices
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] pointer to array of device handles
+    ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
+    /// [in][optional] pointer to build options null-terminated string.
+    const char *pOptions) {
+  auto pfnCompileExp = getContext()->urDdiTable.ProgramExp.pfnCompileExp;
+
+  if (nullptr == pfnCompileExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_program_compile_exp_params_t params = {&hProgram, &numDevices, &phDevices,
+                                            &flags, &pOptions};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_PROGRAM_COMPILE_EXP, "urProgramCompileExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urProgramCompileExp\n");
+
+  ur_result_t result =
+      pfnCompileExp(hProgram, numDevices, phDevices, flags, pOptions);
+
+  getContext()->notify_end(UR_FUNCTION_PROGRAM_COMPILE_EXP,
+                           "urProgramCompileExp", &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_PROGRAM_COMPILE_EXP,
+                                    &params);
+    UR_LOG_L(logger, INFO, "   <--- urProgramCompileExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramLinkExp
+__urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
+    /// [in] handle of the context instance.
+    ur_context_handle_t hContext,
+    /// [in] number of devices
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] pointer to array of device handles
+    ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
+    /// [in] number of program handles in `phPrograms`.
+    uint32_t count,
+    /// [in][range(0, count)] pointer to array of program handles.
+    const ur_program_handle_t *phPrograms,
+    /// [in][optional] pointer to linker options null-terminated string.
+    const char *pOptions,
+    /// [out][alloc] pointer to handle of program object created.
+    ur_program_handle_t *phProgram) {
+  if (nullptr != phProgram) {
+    *phProgram = nullptr;
+  }
+  auto pfnLinkExp = getContext()->urDdiTable.ProgramExp.pfnLinkExp;
+
+  if (nullptr == pfnLinkExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_program_link_exp_params_t params = {&hContext, &numDevices, &phDevices,
+                                         &flags,    &count,      &phPrograms,
+                                         &pOptions, &phProgram};
+  uint64_t instance = getContext()->notify_begin(UR_FUNCTION_PROGRAM_LINK_EXP,
+                                                 "urProgramLinkExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urProgramLinkExp\n");
+
+  ur_result_t result = pfnLinkExp(hContext, numDevices, phDevices, flags, count,
+                                  phPrograms, pOptions, phProgram);
+
+  getContext()->notify_end(UR_FUNCTION_PROGRAM_LINK_EXP, "urProgramLinkExp",
+                           &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_PROGRAM_LINK_EXP,
+                                    &params);
+    UR_LOG_L(logger, INFO, "   <--- urProgramLinkExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMContextMemcpyExp
+__urdlllocal ur_result_t UR_APICALL urUSMContextMemcpyExp(
+    /// [in] Context associated with the device(s) that own the allocations
+    /// `pSrc` and `pDst`.
+    ur_context_handle_t hContext,
+    /// [in] Destination pointer to copy to.
+    void *pDst,
+    /// [in] Source pointer to copy from.
+    const void *pSrc,
+    /// [in] Size in bytes to be copied.
+    size_t size) {
+  auto pfnContextMemcpyExp =
+      getContext()->urDdiTable.USMExp.pfnContextMemcpyExp;
+
+  if (nullptr == pfnContextMemcpyExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_usm_context_memcpy_exp_params_t params = {&hContext, &pDst, &pSrc, &size};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_USM_CONTEXT_MEMCPY_EXP, "urUSMContextMemcpyExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urUSMContextMemcpyExp\n");
+
+  ur_result_t result = pfnContextMemcpyExp(hContext, pDst, pSrc, size);
+
+  getContext()->notify_end(UR_FUNCTION_USM_CONTEXT_MEMCPY_EXP,
+                           "urUSMContextMemcpyExp", &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_USM_CONTEXT_MEMCPY_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urUSMContextMemcpyExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMImportExp
+__urdlllocal ur_result_t UR_APICALL urUSMImportExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] pointer to host memory object
+    void *pMem,
+    /// [in] size in bytes of the host memory object to be imported
+    size_t size) {
+  auto pfnImportExp = getContext()->urDdiTable.USMExp.pfnImportExp;
+
+  if (nullptr == pfnImportExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_usm_import_exp_params_t params = {&hContext, &pMem, &size};
+  uint64_t instance = getContext()->notify_begin(UR_FUNCTION_USM_IMPORT_EXP,
+                                                 "urUSMImportExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urUSMImportExp\n");
+
+  ur_result_t result = pfnImportExp(hContext, pMem, size);
+
+  getContext()->notify_end(UR_FUNCTION_USM_IMPORT_EXP, "urUSMImportExp",
+                           &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_USM_IMPORT_EXP,
+                                    &params);
+    UR_LOG_L(logger, INFO, "   <--- urUSMImportExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMReleaseExp
+__urdlllocal ur_result_t UR_APICALL urUSMReleaseExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] pointer to host memory object
+    void *pMem) {
+  auto pfnReleaseExp = getContext()->urDdiTable.USMExp.pfnReleaseExp;
+
+  if (nullptr == pfnReleaseExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_usm_release_exp_params_t params = {&hContext, &pMem};
+  uint64_t instance = getContext()->notify_begin(UR_FUNCTION_USM_RELEASE_EXP,
+                                                 "urUSMReleaseExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urUSMReleaseExp\n");
+
+  ur_result_t result = pfnReleaseExp(hContext, pMem);
+
+  getContext()->notify_end(UR_FUNCTION_USM_RELEASE_EXP, "urUSMReleaseExp",
+                           &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_USM_RELEASE_EXP,
+                                    &params);
+    UR_LOG_L(logger, INFO, "   <--- urUSMReleaseExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUsmP2PEnablePeerAccessExp
+__urdlllocal ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
+    /// [in] handle of the command device object
+    ur_device_handle_t commandDevice,
+    /// [in] handle of the peer device object
+    ur_device_handle_t peerDevice) {
+  auto pfnEnablePeerAccessExp =
+      getContext()->urDdiTable.UsmP2PExp.pfnEnablePeerAccessExp;
+
+  if (nullptr == pfnEnablePeerAccessExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_usm_p2p_enable_peer_access_exp_params_t params = {&commandDevice,
+                                                       &peerDevice};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP,
+                                 "urUsmP2PEnablePeerAccessExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urUsmP2PEnablePeerAccessExp\n");
+
+  ur_result_t result = pfnEnablePeerAccessExp(commandDevice, peerDevice);
+
+  getContext()->notify_end(UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP,
+                           "urUsmP2PEnablePeerAccessExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urUsmP2PEnablePeerAccessExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUsmP2PDisablePeerAccessExp
+__urdlllocal ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
+    /// [in] handle of the command device object
+    ur_device_handle_t commandDevice,
+    /// [in] handle of the peer device object
+    ur_device_handle_t peerDevice) {
+  auto pfnDisablePeerAccessExp =
+      getContext()->urDdiTable.UsmP2PExp.pfnDisablePeerAccessExp;
+
+  if (nullptr == pfnDisablePeerAccessExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_usm_p2p_disable_peer_access_exp_params_t params = {&commandDevice,
+                                                        &peerDevice};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_USM_P2P_DISABLE_PEER_ACCESS_EXP,
+                                 "urUsmP2PDisablePeerAccessExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urUsmP2PDisablePeerAccessExp\n");
+
+  ur_result_t result = pfnDisablePeerAccessExp(commandDevice, peerDevice);
+
+  getContext()->notify_end(UR_FUNCTION_USM_P2P_DISABLE_PEER_ACCESS_EXP,
+                           "urUsmP2PDisablePeerAccessExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_USM_P2P_DISABLE_PEER_ACCESS_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urUsmP2PDisablePeerAccessExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUsmP2PPeerAccessGetInfoExp
+__urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
+    /// [in] handle of the command device object
+    ur_device_handle_t commandDevice,
+    /// [in] handle of the peer device object
+    ur_device_handle_t peerDevice,
+    /// [in] type of the info to retrieve
+    ur_exp_peer_info_t propName,
+    /// [in] the number of bytes pointed to by pPropValue.
+    size_t propSize,
+    /// [out][optional][typename(propName, propSize)] array of bytes holding
+    /// the info.
+    /// If propSize is not equal to or greater than the real number of bytes
+    /// needed to return the info
+    /// then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+    /// pPropValue is not used.
+    void *pPropValue,
+    /// [out][optional] pointer to the actual size in bytes of the queried
+    /// propName.
+    size_t *pPropSizeRet) {
+  auto pfnPeerAccessGetInfoExp =
+      getContext()->urDdiTable.UsmP2PExp.pfnPeerAccessGetInfoExp;
+
+  if (nullptr == pfnPeerAccessGetInfoExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_usm_p2p_peer_access_get_info_exp_params_t params = {
+      &commandDevice, &peerDevice, &propName,
+      &propSize,      &pPropValue, &pPropSizeRet};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_USM_P2P_PEER_ACCESS_GET_INFO_EXP,
+                                 "urUsmP2PPeerAccessGetInfoExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urUsmP2PPeerAccessGetInfoExp\n");
+
+  ur_result_t result = pfnPeerAccessGetInfoExp(
+      commandDevice, peerDevice, propName, propSize, pPropValue, pPropSizeRet);
+
+  getContext()->notify_end(UR_FUNCTION_USM_P2P_PEER_ACCESS_GET_INFO_EXP,
+                           "urUsmP2PPeerAccessGetInfoExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_USM_P2P_PEER_ACCESS_GET_INFO_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urUsmP2PPeerAccessGetInfoExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urCommandBufferCreateExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferCreateExp(
     /// [in] Handle of the context object.
@@ -9508,907 +10409,6 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urDeviceWaitExp
-__urdlllocal ur_result_t UR_APICALL urDeviceWaitExp(
-    /// [in] handle of the device instance.
-    ur_device_handle_t hDevice) {
-  auto pfnWaitExp = getContext()->urDdiTable.DeviceExp.pfnWaitExp;
-
-  if (nullptr == pfnWaitExp)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_device_wait_exp_params_t params = {&hDevice};
-  uint64_t instance = getContext()->notify_begin(UR_FUNCTION_DEVICE_WAIT_EXP,
-                                                 "urDeviceWaitExp", &params);
-
-  auto &logger = getContext()->logger;
-  UR_LOG_L(logger, INFO, "   ---> urDeviceWaitExp\n");
-
-  ur_result_t result = pfnWaitExp(hDevice);
-
-  getContext()->notify_end(UR_FUNCTION_DEVICE_WAIT_EXP, "urDeviceWaitExp",
-                           &params, &result, instance);
-
-  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(args_str, UR_FUNCTION_DEVICE_WAIT_EXP,
-                                    &params);
-    UR_LOG_L(logger, INFO, "   <--- urDeviceWaitExp({}) -> {};\n",
-             args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramDynamicLinkExp
-__urdlllocal ur_result_t UR_APICALL urProgramDynamicLinkExp(
-    /// [in] handle of the context instance.
-    ur_context_handle_t hContext,
-    /// [in] number of program handles in `phPrograms`.
-    uint32_t count,
-    /// [in][range(0, count)] pointer to array of program handles.
-    const ur_program_handle_t *phPrograms) {
-  auto pfnDynamicLinkExp =
-      getContext()->urDdiTable.ProgramExp.pfnDynamicLinkExp;
-
-  if (nullptr == pfnDynamicLinkExp)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_program_dynamic_link_exp_params_t params = {&hContext, &count,
-                                                 &phPrograms};
-  uint64_t instance = getContext()->notify_begin(
-      UR_FUNCTION_PROGRAM_DYNAMIC_LINK_EXP, "urProgramDynamicLinkExp", &params);
-
-  auto &logger = getContext()->logger;
-  UR_LOG_L(logger, INFO, "   ---> urProgramDynamicLinkExp\n");
-
-  ur_result_t result = pfnDynamicLinkExp(hContext, count, phPrograms);
-
-  getContext()->notify_end(UR_FUNCTION_PROGRAM_DYNAMIC_LINK_EXP,
-                           "urProgramDynamicLinkExp", &params, &result,
-                           instance);
-
-  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_PROGRAM_DYNAMIC_LINK_EXP, &params);
-    UR_LOG_L(logger, INFO, "   <--- urProgramDynamicLinkExp({}) -> {};\n",
-             args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urEnqueueTimestampRecordingExp
-__urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] indicates whether the call to this function should block until
-    /// until the device timestamp recording command has executed on the
-    /// device.
-    bool blocking,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution.
-    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
-    /// events.
-    const ur_event_handle_t *phEventWaitList,
-    /// [in,out] return an event object that identifies this particular kernel
-    /// execution instance. Profiling information can be queried
-    /// from this event as if `hQueue` had profiling enabled. Querying
-    /// `UR_PROFILING_INFO_COMMAND_QUEUED` or `UR_PROFILING_INFO_COMMAND_SUBMIT`
-    /// reports the timestamp at the time of the call to this function.
-    /// Querying `UR_PROFILING_INFO_COMMAND_START` or
-    /// `UR_PROFILING_INFO_COMMAND_END` reports the timestamp recorded when the
-    /// command is executed on the device. If phEventWaitList and phEvent are
-    /// not NULL, phEvent must not refer to an element of the phEventWaitList
-    /// array.
-    ur_event_handle_t *phEvent) {
-  auto pfnTimestampRecordingExp =
-      getContext()->urDdiTable.EnqueueExp.pfnTimestampRecordingExp;
-
-  if (nullptr == pfnTimestampRecordingExp)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_enqueue_timestamp_recording_exp_params_t params = {
-      &hQueue, &blocking, &numEventsInWaitList, &phEventWaitList, &phEvent};
-  uint64_t instance =
-      getContext()->notify_begin(UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP,
-                                 "urEnqueueTimestampRecordingExp", &params);
-
-  auto &logger = getContext()->logger;
-  UR_LOG_L(logger, INFO, "   ---> urEnqueueTimestampRecordingExp\n");
-
-  ur_result_t result = pfnTimestampRecordingExp(
-      hQueue, blocking, numEventsInWaitList, phEventWaitList, phEvent);
-
-  getContext()->notify_end(UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP,
-                           "urEnqueueTimestampRecordingExp", &params, &result,
-                           instance);
-
-  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP, &params);
-    UR_LOG_L(logger, INFO,
-             "   <--- urEnqueueTimestampRecordingExp({}) -> {};\n",
-             args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urIPCGetMemHandleExp
-__urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] pointer to device USM memory
-    void *pMem,
-    /// [out][optional] a pointer to the IPC memory handle data
-    void **ppIPCMemHandleData,
-    /// [out][optional] size of the resulting IPC memory handle data
-    size_t *pIPCMemHandleDataSizeRet) {
-  auto pfnGetMemHandleExp = getContext()->urDdiTable.IPCExp.pfnGetMemHandleExp;
-
-  if (nullptr == pfnGetMemHandleExp)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_ipc_get_mem_handle_exp_params_t params = {
-      &hContext, &pMem, &ppIPCMemHandleData, &pIPCMemHandleDataSizeRet};
-  uint64_t instance = getContext()->notify_begin(
-      UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP, "urIPCGetMemHandleExp", &params);
-
-  auto &logger = getContext()->logger;
-  UR_LOG_L(logger, INFO, "   ---> urIPCGetMemHandleExp\n");
-
-  ur_result_t result = pfnGetMemHandleExp(hContext, pMem, ppIPCMemHandleData,
-                                          pIPCMemHandleDataSizeRet);
-
-  getContext()->notify_end(UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP,
-                           "urIPCGetMemHandleExp", &params, &result, instance);
-
-  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP, &params);
-    UR_LOG_L(logger, INFO, "   <--- urIPCGetMemHandleExp({}) -> {};\n",
-             args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urIPCPutMemHandleExp
-__urdlllocal ur_result_t UR_APICALL urIPCPutMemHandleExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] a pointer to the IPC memory handle data
-    void *pIPCMemHandleData) {
-  auto pfnPutMemHandleExp = getContext()->urDdiTable.IPCExp.pfnPutMemHandleExp;
-
-  if (nullptr == pfnPutMemHandleExp)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_ipc_put_mem_handle_exp_params_t params = {&hContext, &pIPCMemHandleData};
-  uint64_t instance = getContext()->notify_begin(
-      UR_FUNCTION_IPC_PUT_MEM_HANDLE_EXP, "urIPCPutMemHandleExp", &params);
-
-  auto &logger = getContext()->logger;
-  UR_LOG_L(logger, INFO, "   ---> urIPCPutMemHandleExp\n");
-
-  ur_result_t result = pfnPutMemHandleExp(hContext, pIPCMemHandleData);
-
-  getContext()->notify_end(UR_FUNCTION_IPC_PUT_MEM_HANDLE_EXP,
-                           "urIPCPutMemHandleExp", &params, &result, instance);
-
-  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_IPC_PUT_MEM_HANDLE_EXP, &params);
-    UR_LOG_L(logger, INFO, "   <--- urIPCPutMemHandleExp({}) -> {};\n",
-             args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urIPCOpenMemHandleExp
-__urdlllocal ur_result_t UR_APICALL urIPCOpenMemHandleExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] handle of the device object the corresponding USM device memory
-    /// was allocated on
-    ur_device_handle_t hDevice,
-    /// [in] the IPC memory handle data
-    void *pIPCMemHandleData,
-    /// [in] size of the IPC memory handle data
-    size_t ipcMemHandleDataSize,
-    /// [out] pointer to a pointer to device USM memory
-    void **ppMem) {
-  auto pfnOpenMemHandleExp =
-      getContext()->urDdiTable.IPCExp.pfnOpenMemHandleExp;
-
-  if (nullptr == pfnOpenMemHandleExp)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_ipc_open_mem_handle_exp_params_t params = {
-      &hContext, &hDevice, &pIPCMemHandleData, &ipcMemHandleDataSize, &ppMem};
-  uint64_t instance = getContext()->notify_begin(
-      UR_FUNCTION_IPC_OPEN_MEM_HANDLE_EXP, "urIPCOpenMemHandleExp", &params);
-
-  auto &logger = getContext()->logger;
-  UR_LOG_L(logger, INFO, "   ---> urIPCOpenMemHandleExp\n");
-
-  ur_result_t result = pfnOpenMemHandleExp(hContext, hDevice, pIPCMemHandleData,
-                                           ipcMemHandleDataSize, ppMem);
-
-  getContext()->notify_end(UR_FUNCTION_IPC_OPEN_MEM_HANDLE_EXP,
-                           "urIPCOpenMemHandleExp", &params, &result, instance);
-
-  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_IPC_OPEN_MEM_HANDLE_EXP, &params);
-    UR_LOG_L(logger, INFO, "   <--- urIPCOpenMemHandleExp({}) -> {};\n",
-             args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urIPCCloseMemHandleExp
-__urdlllocal ur_result_t UR_APICALL urIPCCloseMemHandleExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] pointer to device USM memory opened through urIPCOpenMemHandleExp
-    void *pMem) {
-  auto pfnCloseMemHandleExp =
-      getContext()->urDdiTable.IPCExp.pfnCloseMemHandleExp;
-
-  if (nullptr == pfnCloseMemHandleExp)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_ipc_close_mem_handle_exp_params_t params = {&hContext, &pMem};
-  uint64_t instance = getContext()->notify_begin(
-      UR_FUNCTION_IPC_CLOSE_MEM_HANDLE_EXP, "urIPCCloseMemHandleExp", &params);
-
-  auto &logger = getContext()->logger;
-  UR_LOG_L(logger, INFO, "   ---> urIPCCloseMemHandleExp\n");
-
-  ur_result_t result = pfnCloseMemHandleExp(hContext, pMem);
-
-  getContext()->notify_end(UR_FUNCTION_IPC_CLOSE_MEM_HANDLE_EXP,
-                           "urIPCCloseMemHandleExp", &params, &result,
-                           instance);
-
-  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_IPC_CLOSE_MEM_HANDLE_EXP, &params);
-    UR_LOG_L(logger, INFO, "   <--- urIPCCloseMemHandleExp({}) -> {};\n",
-             args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urMemoryExportAllocExportableMemoryExp
-__urdlllocal ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
-    /// [in] Handle to context in which to allocate memory.
-    ur_context_handle_t hContext,
-    /// [in] Handle to device on which to allocate memory.
-    ur_device_handle_t hDevice,
-    /// [in] Requested alignment of the allocation.
-    size_t alignment,
-    /// [in] Requested size of the allocation.
-    size_t size,
-    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
-    /// or win32 NT handle).
-    ur_exp_external_mem_type_t handleTypeToExport,
-    /// [out][alloc] Pointer to allocated exportable memory.
-    void **ppMem) {
-  auto pfnAllocExportableMemoryExp =
-      getContext()->urDdiTable.MemoryExportExp.pfnAllocExportableMemoryExp;
-
-  if (nullptr == pfnAllocExportableMemoryExp)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_memory_export_alloc_exportable_memory_exp_params_t params = {
-      &hContext, &hDevice, &alignment, &size, &handleTypeToExport, &ppMem};
-  uint64_t instance = getContext()->notify_begin(
-      UR_FUNCTION_MEMORY_EXPORT_ALLOC_EXPORTABLE_MEMORY_EXP,
-      "urMemoryExportAllocExportableMemoryExp", &params);
-
-  auto &logger = getContext()->logger;
-  UR_LOG_L(logger, INFO, "   ---> urMemoryExportAllocExportableMemoryExp\n");
-
-  ur_result_t result = pfnAllocExportableMemoryExp(
-      hContext, hDevice, alignment, size, handleTypeToExport, ppMem);
-
-  getContext()->notify_end(
-      UR_FUNCTION_MEMORY_EXPORT_ALLOC_EXPORTABLE_MEMORY_EXP,
-      "urMemoryExportAllocExportableMemoryExp", &params, &result, instance);
-
-  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_MEMORY_EXPORT_ALLOC_EXPORTABLE_MEMORY_EXP,
-        &params);
-    UR_LOG_L(logger, INFO,
-             "   <--- urMemoryExportAllocExportableMemoryExp({}) -> {};\n",
-             args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urMemoryExportFreeExportableMemoryExp
-__urdlllocal ur_result_t UR_APICALL urMemoryExportFreeExportableMemoryExp(
-    /// [in] Handle to context in which to free memory.
-    ur_context_handle_t hContext,
-    /// [in] Handle to device on which to free memory.
-    ur_device_handle_t hDevice,
-    /// [in][release] Pointer to exportable memory to be deallocated.
-    void *pMem) {
-  auto pfnFreeExportableMemoryExp =
-      getContext()->urDdiTable.MemoryExportExp.pfnFreeExportableMemoryExp;
-
-  if (nullptr == pfnFreeExportableMemoryExp)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_memory_export_free_exportable_memory_exp_params_t params = {
-      &hContext, &hDevice, &pMem};
-  uint64_t instance = getContext()->notify_begin(
-      UR_FUNCTION_MEMORY_EXPORT_FREE_EXPORTABLE_MEMORY_EXP,
-      "urMemoryExportFreeExportableMemoryExp", &params);
-
-  auto &logger = getContext()->logger;
-  UR_LOG_L(logger, INFO, "   ---> urMemoryExportFreeExportableMemoryExp\n");
-
-  ur_result_t result = pfnFreeExportableMemoryExp(hContext, hDevice, pMem);
-
-  getContext()->notify_end(UR_FUNCTION_MEMORY_EXPORT_FREE_EXPORTABLE_MEMORY_EXP,
-                           "urMemoryExportFreeExportableMemoryExp", &params,
-                           &result, instance);
-
-  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_MEMORY_EXPORT_FREE_EXPORTABLE_MEMORY_EXP,
-        &params);
-    UR_LOG_L(logger, INFO,
-             "   <--- urMemoryExportFreeExportableMemoryExp({}) -> {};\n",
-             args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urMemoryExportExportMemoryHandleExp
-__urdlllocal ur_result_t UR_APICALL urMemoryExportExportMemoryHandleExp(
-    /// [in] Handle to context in which the exportable memory was allocated.
-    ur_context_handle_t hContext,
-    /// [in] Handle to device on which the exportable memory was allocated.
-    ur_device_handle_t hDevice,
-    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
-    /// or win32 NT handle).
-    ur_exp_external_mem_type_t handleTypeToExport,
-    /// [in] Pointer to exportable memory handle.
-    void *pMem,
-    /// [out] Returned exportable handle to memory allocated in `pMem`
-    void *pMemHandleRet) {
-  auto pfnExportMemoryHandleExp =
-      getContext()->urDdiTable.MemoryExportExp.pfnExportMemoryHandleExp;
-
-  if (nullptr == pfnExportMemoryHandleExp)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_memory_export_export_memory_handle_exp_params_t params = {
-      &hContext, &hDevice, &handleTypeToExport, &pMem, &pMemHandleRet};
-  uint64_t instance = getContext()->notify_begin(
-      UR_FUNCTION_MEMORY_EXPORT_EXPORT_MEMORY_HANDLE_EXP,
-      "urMemoryExportExportMemoryHandleExp", &params);
-
-  auto &logger = getContext()->logger;
-  UR_LOG_L(logger, INFO, "   ---> urMemoryExportExportMemoryHandleExp\n");
-
-  ur_result_t result = pfnExportMemoryHandleExp(
-      hContext, hDevice, handleTypeToExport, pMem, pMemHandleRet);
-
-  getContext()->notify_end(UR_FUNCTION_MEMORY_EXPORT_EXPORT_MEMORY_HANDLE_EXP,
-                           "urMemoryExportExportMemoryHandleExp", &params,
-                           &result, instance);
-
-  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_MEMORY_EXPORT_EXPORT_MEMORY_HANDLE_EXP, &params);
-    UR_LOG_L(logger, INFO,
-             "   <--- urMemoryExportExportMemoryHandleExp({}) -> {};\n",
-             args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramBuildExp
-__urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
-    /// [in] Handle of the program to build.
-    ur_program_handle_t hProgram,
-    /// [in] number of devices
-    uint32_t numDevices,
-    /// [in][range(0, numDevices)] pointer to array of device handles
-    ur_device_handle_t *phDevices,
-    /// [in] program information flags
-    ur_exp_program_flags_t flags,
-    /// [in][optional] pointer to build options null-terminated string.
-    const char *pOptions) {
-  auto pfnBuildExp = getContext()->urDdiTable.ProgramExp.pfnBuildExp;
-
-  if (nullptr == pfnBuildExp)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_program_build_exp_params_t params = {&hProgram, &numDevices, &phDevices,
-                                          &flags, &pOptions};
-  uint64_t instance = getContext()->notify_begin(UR_FUNCTION_PROGRAM_BUILD_EXP,
-                                                 "urProgramBuildExp", &params);
-
-  auto &logger = getContext()->logger;
-  UR_LOG_L(logger, INFO, "   ---> urProgramBuildExp\n");
-
-  ur_result_t result =
-      pfnBuildExp(hProgram, numDevices, phDevices, flags, pOptions);
-
-  getContext()->notify_end(UR_FUNCTION_PROGRAM_BUILD_EXP, "urProgramBuildExp",
-                           &params, &result, instance);
-
-  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(args_str, UR_FUNCTION_PROGRAM_BUILD_EXP,
-                                    &params);
-    UR_LOG_L(logger, INFO, "   <--- urProgramBuildExp({}) -> {};\n",
-             args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramCompileExp
-__urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
-    /// [in][out] handle of the program to compile.
-    ur_program_handle_t hProgram,
-    /// [in] number of devices
-    uint32_t numDevices,
-    /// [in][range(0, numDevices)] pointer to array of device handles
-    ur_device_handle_t *phDevices,
-    /// [in] program information flags
-    ur_exp_program_flags_t flags,
-    /// [in][optional] pointer to build options null-terminated string.
-    const char *pOptions) {
-  auto pfnCompileExp = getContext()->urDdiTable.ProgramExp.pfnCompileExp;
-
-  if (nullptr == pfnCompileExp)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_program_compile_exp_params_t params = {&hProgram, &numDevices, &phDevices,
-                                            &flags, &pOptions};
-  uint64_t instance = getContext()->notify_begin(
-      UR_FUNCTION_PROGRAM_COMPILE_EXP, "urProgramCompileExp", &params);
-
-  auto &logger = getContext()->logger;
-  UR_LOG_L(logger, INFO, "   ---> urProgramCompileExp\n");
-
-  ur_result_t result =
-      pfnCompileExp(hProgram, numDevices, phDevices, flags, pOptions);
-
-  getContext()->notify_end(UR_FUNCTION_PROGRAM_COMPILE_EXP,
-                           "urProgramCompileExp", &params, &result, instance);
-
-  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(args_str, UR_FUNCTION_PROGRAM_COMPILE_EXP,
-                                    &params);
-    UR_LOG_L(logger, INFO, "   <--- urProgramCompileExp({}) -> {};\n",
-             args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramLinkExp
-__urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
-    /// [in] handle of the context instance.
-    ur_context_handle_t hContext,
-    /// [in] number of devices
-    uint32_t numDevices,
-    /// [in][range(0, numDevices)] pointer to array of device handles
-    ur_device_handle_t *phDevices,
-    /// [in] program information flags
-    ur_exp_program_flags_t flags,
-    /// [in] number of program handles in `phPrograms`.
-    uint32_t count,
-    /// [in][range(0, count)] pointer to array of program handles.
-    const ur_program_handle_t *phPrograms,
-    /// [in][optional] pointer to linker options null-terminated string.
-    const char *pOptions,
-    /// [out][alloc] pointer to handle of program object created.
-    ur_program_handle_t *phProgram) {
-  if (nullptr != phProgram) {
-    *phProgram = nullptr;
-  }
-  auto pfnLinkExp = getContext()->urDdiTable.ProgramExp.pfnLinkExp;
-
-  if (nullptr == pfnLinkExp)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_program_link_exp_params_t params = {&hContext, &numDevices, &phDevices,
-                                         &flags,    &count,      &phPrograms,
-                                         &pOptions, &phProgram};
-  uint64_t instance = getContext()->notify_begin(UR_FUNCTION_PROGRAM_LINK_EXP,
-                                                 "urProgramLinkExp", &params);
-
-  auto &logger = getContext()->logger;
-  UR_LOG_L(logger, INFO, "   ---> urProgramLinkExp\n");
-
-  ur_result_t result = pfnLinkExp(hContext, numDevices, phDevices, flags, count,
-                                  phPrograms, pOptions, phProgram);
-
-  getContext()->notify_end(UR_FUNCTION_PROGRAM_LINK_EXP, "urProgramLinkExp",
-                           &params, &result, instance);
-
-  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(args_str, UR_FUNCTION_PROGRAM_LINK_EXP,
-                                    &params);
-    UR_LOG_L(logger, INFO, "   <--- urProgramLinkExp({}) -> {};\n",
-             args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urUSMContextMemcpyExp
-__urdlllocal ur_result_t UR_APICALL urUSMContextMemcpyExp(
-    /// [in] Context associated with the device(s) that own the allocations
-    /// `pSrc` and `pDst`.
-    ur_context_handle_t hContext,
-    /// [in] Destination pointer to copy to.
-    void *pDst,
-    /// [in] Source pointer to copy from.
-    const void *pSrc,
-    /// [in] Size in bytes to be copied.
-    size_t size) {
-  auto pfnContextMemcpyExp =
-      getContext()->urDdiTable.USMExp.pfnContextMemcpyExp;
-
-  if (nullptr == pfnContextMemcpyExp)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_usm_context_memcpy_exp_params_t params = {&hContext, &pDst, &pSrc, &size};
-  uint64_t instance = getContext()->notify_begin(
-      UR_FUNCTION_USM_CONTEXT_MEMCPY_EXP, "urUSMContextMemcpyExp", &params);
-
-  auto &logger = getContext()->logger;
-  UR_LOG_L(logger, INFO, "   ---> urUSMContextMemcpyExp\n");
-
-  ur_result_t result = pfnContextMemcpyExp(hContext, pDst, pSrc, size);
-
-  getContext()->notify_end(UR_FUNCTION_USM_CONTEXT_MEMCPY_EXP,
-                           "urUSMContextMemcpyExp", &params, &result, instance);
-
-  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_USM_CONTEXT_MEMCPY_EXP, &params);
-    UR_LOG_L(logger, INFO, "   <--- urUSMContextMemcpyExp({}) -> {};\n",
-             args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urUSMImportExp
-__urdlllocal ur_result_t UR_APICALL urUSMImportExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] pointer to host memory object
-    void *pMem,
-    /// [in] size in bytes of the host memory object to be imported
-    size_t size) {
-  auto pfnImportExp = getContext()->urDdiTable.USMExp.pfnImportExp;
-
-  if (nullptr == pfnImportExp)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_usm_import_exp_params_t params = {&hContext, &pMem, &size};
-  uint64_t instance = getContext()->notify_begin(UR_FUNCTION_USM_IMPORT_EXP,
-                                                 "urUSMImportExp", &params);
-
-  auto &logger = getContext()->logger;
-  UR_LOG_L(logger, INFO, "   ---> urUSMImportExp\n");
-
-  ur_result_t result = pfnImportExp(hContext, pMem, size);
-
-  getContext()->notify_end(UR_FUNCTION_USM_IMPORT_EXP, "urUSMImportExp",
-                           &params, &result, instance);
-
-  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(args_str, UR_FUNCTION_USM_IMPORT_EXP,
-                                    &params);
-    UR_LOG_L(logger, INFO, "   <--- urUSMImportExp({}) -> {};\n",
-             args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urUSMReleaseExp
-__urdlllocal ur_result_t UR_APICALL urUSMReleaseExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] pointer to host memory object
-    void *pMem) {
-  auto pfnReleaseExp = getContext()->urDdiTable.USMExp.pfnReleaseExp;
-
-  if (nullptr == pfnReleaseExp)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_usm_release_exp_params_t params = {&hContext, &pMem};
-  uint64_t instance = getContext()->notify_begin(UR_FUNCTION_USM_RELEASE_EXP,
-                                                 "urUSMReleaseExp", &params);
-
-  auto &logger = getContext()->logger;
-  UR_LOG_L(logger, INFO, "   ---> urUSMReleaseExp\n");
-
-  ur_result_t result = pfnReleaseExp(hContext, pMem);
-
-  getContext()->notify_end(UR_FUNCTION_USM_RELEASE_EXP, "urUSMReleaseExp",
-                           &params, &result, instance);
-
-  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(args_str, UR_FUNCTION_USM_RELEASE_EXP,
-                                    &params);
-    UR_LOG_L(logger, INFO, "   <--- urUSMReleaseExp({}) -> {};\n",
-             args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urUsmP2PEnablePeerAccessExp
-__urdlllocal ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
-    /// [in] handle of the command device object
-    ur_device_handle_t commandDevice,
-    /// [in] handle of the peer device object
-    ur_device_handle_t peerDevice) {
-  auto pfnEnablePeerAccessExp =
-      getContext()->urDdiTable.UsmP2PExp.pfnEnablePeerAccessExp;
-
-  if (nullptr == pfnEnablePeerAccessExp)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_usm_p2p_enable_peer_access_exp_params_t params = {&commandDevice,
-                                                       &peerDevice};
-  uint64_t instance =
-      getContext()->notify_begin(UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP,
-                                 "urUsmP2PEnablePeerAccessExp", &params);
-
-  auto &logger = getContext()->logger;
-  UR_LOG_L(logger, INFO, "   ---> urUsmP2PEnablePeerAccessExp\n");
-
-  ur_result_t result = pfnEnablePeerAccessExp(commandDevice, peerDevice);
-
-  getContext()->notify_end(UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP,
-                           "urUsmP2PEnablePeerAccessExp", &params, &result,
-                           instance);
-
-  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP, &params);
-    UR_LOG_L(logger, INFO, "   <--- urUsmP2PEnablePeerAccessExp({}) -> {};\n",
-             args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urUsmP2PDisablePeerAccessExp
-__urdlllocal ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
-    /// [in] handle of the command device object
-    ur_device_handle_t commandDevice,
-    /// [in] handle of the peer device object
-    ur_device_handle_t peerDevice) {
-  auto pfnDisablePeerAccessExp =
-      getContext()->urDdiTable.UsmP2PExp.pfnDisablePeerAccessExp;
-
-  if (nullptr == pfnDisablePeerAccessExp)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_usm_p2p_disable_peer_access_exp_params_t params = {&commandDevice,
-                                                        &peerDevice};
-  uint64_t instance =
-      getContext()->notify_begin(UR_FUNCTION_USM_P2P_DISABLE_PEER_ACCESS_EXP,
-                                 "urUsmP2PDisablePeerAccessExp", &params);
-
-  auto &logger = getContext()->logger;
-  UR_LOG_L(logger, INFO, "   ---> urUsmP2PDisablePeerAccessExp\n");
-
-  ur_result_t result = pfnDisablePeerAccessExp(commandDevice, peerDevice);
-
-  getContext()->notify_end(UR_FUNCTION_USM_P2P_DISABLE_PEER_ACCESS_EXP,
-                           "urUsmP2PDisablePeerAccessExp", &params, &result,
-                           instance);
-
-  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_USM_P2P_DISABLE_PEER_ACCESS_EXP, &params);
-    UR_LOG_L(logger, INFO, "   <--- urUsmP2PDisablePeerAccessExp({}) -> {};\n",
-             args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urUsmP2PPeerAccessGetInfoExp
-__urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
-    /// [in] handle of the command device object
-    ur_device_handle_t commandDevice,
-    /// [in] handle of the peer device object
-    ur_device_handle_t peerDevice,
-    /// [in] type of the info to retrieve
-    ur_exp_peer_info_t propName,
-    /// [in] the number of bytes pointed to by pPropValue.
-    size_t propSize,
-    /// [out][optional][typename(propName, propSize)] array of bytes holding
-    /// the info.
-    /// If propSize is not equal to or greater than the real number of bytes
-    /// needed to return the info
-    /// then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
-    /// pPropValue is not used.
-    void *pPropValue,
-    /// [out][optional] pointer to the actual size in bytes of the queried
-    /// propName.
-    size_t *pPropSizeRet) {
-  auto pfnPeerAccessGetInfoExp =
-      getContext()->urDdiTable.UsmP2PExp.pfnPeerAccessGetInfoExp;
-
-  if (nullptr == pfnPeerAccessGetInfoExp)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_usm_p2p_peer_access_get_info_exp_params_t params = {
-      &commandDevice, &peerDevice, &propName,
-      &propSize,      &pPropValue, &pPropSizeRet};
-  uint64_t instance =
-      getContext()->notify_begin(UR_FUNCTION_USM_P2P_PEER_ACCESS_GET_INFO_EXP,
-                                 "urUsmP2PPeerAccessGetInfoExp", &params);
-
-  auto &logger = getContext()->logger;
-  UR_LOG_L(logger, INFO, "   ---> urUsmP2PPeerAccessGetInfoExp\n");
-
-  ur_result_t result = pfnPeerAccessGetInfoExp(
-      commandDevice, peerDevice, propName, propSize, pPropValue, pPropSizeRet);
-
-  getContext()->notify_end(UR_FUNCTION_USM_P2P_PEER_ACCESS_GET_INFO_EXP,
-                           "urUsmP2PPeerAccessGetInfoExp", &params, &result,
-                           instance);
-
-  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_USM_P2P_PEER_ACCESS_GET_INFO_EXP, &params);
-    UR_LOG_L(logger, INFO, "   <--- urUsmP2PPeerAccessGetInfoExp({}) -> {};\n",
-             args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urEnqueueKernelLaunchWithArgsExp
-__urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t workDim,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *pGlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that will
-    /// execute the kernel function.
-    /// If nullptr, the runtime implementation will choose the work-group size.
-    const size_t *pLocalWorkSize,
-    /// [in] Number of entries in pArgs
-    uint32_t numArgs,
-    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
-    /// properties.
-    const ur_exp_kernel_arg_properties_t *pArgs,
-    /// [in][optional] pointer to a single linked list of launch properties
-    const ur_kernel_launch_ext_properties_t *launchPropList,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution.
-    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    /// event.
-    const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
-    /// particular kernel execution instance. If phEventWaitList and phEvent
-    /// are not NULL, phEvent must not refer to an element of the
-    /// phEventWaitList array.
-    ur_event_handle_t *phEvent) {
-  auto pfnKernelLaunchWithArgsExp =
-      getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchWithArgsExp;
-
-  if (nullptr == pfnKernelLaunchWithArgsExp)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_enqueue_kernel_launch_with_args_exp_params_t params = {
-      &hQueue,          &hKernel,
-      &workDim,         &pGlobalWorkOffset,
-      &pGlobalWorkSize, &pLocalWorkSize,
-      &numArgs,         &pArgs,
-      &launchPropList,  &numEventsInWaitList,
-      &phEventWaitList, &phEvent};
-  uint64_t instance = getContext()->notify_begin(
-      UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP,
-      "urEnqueueKernelLaunchWithArgsExp", &params);
-
-  auto &logger = getContext()->logger;
-  UR_LOG_L(logger, INFO, "   ---> urEnqueueKernelLaunchWithArgsExp\n");
-
-  ur_result_t result = pfnKernelLaunchWithArgsExp(
-      hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      pLocalWorkSize, numArgs, pArgs, launchPropList, numEventsInWaitList,
-      phEventWaitList, phEvent);
-
-  getContext()->notify_end(UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP,
-                           "urEnqueueKernelLaunchWithArgsExp", &params, &result,
-                           instance);
-
-  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP, &params);
-    UR_LOG_L(logger, INFO,
-             "   <--- urEnqueueKernelLaunchWithArgsExp({}) -> {};\n",
-             args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueHostTaskExp
 __urdlllocal ur_result_t UR_APICALL urEnqueueHostTaskExp(
     /// [in] handle of the queue object
@@ -11510,12 +11510,12 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   dditable.pfnUSMFreeExp = pDdiTable->pfnUSMFreeExp;
   pDdiTable->pfnUSMFreeExp = ur_tracing_layer::urEnqueueUSMFreeExp;
 
-  dditable.pfnCommandBufferExp = pDdiTable->pfnCommandBufferExp;
-  pDdiTable->pfnCommandBufferExp = ur_tracing_layer::urEnqueueCommandBufferExp;
-
   dditable.pfnTimestampRecordingExp = pDdiTable->pfnTimestampRecordingExp;
   pDdiTable->pfnTimestampRecordingExp =
       ur_tracing_layer::urEnqueueTimestampRecordingExp;
+
+  dditable.pfnCommandBufferExp = pDdiTable->pfnCommandBufferExp;
+  pDdiTable->pfnCommandBufferExp = ur_tracing_layer::urEnqueueCommandBufferExp;
 
   dditable.pfnHostTaskExp = pDdiTable->pfnHostTaskExp;
   pDdiTable->pfnHostTaskExp = ur_tracing_layer::urEnqueueHostTaskExp;

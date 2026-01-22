@@ -43,17 +43,17 @@ public:
 
     std::string message = buffer.str();
 
-// This is a temporary workaround, where UR adapter is teardowned
-// before the UR loader, which will result in access violation when we use print
-// function as the overrided print function was already released with the UR
-// adapter.
-// TODO: Change adapters to use a common sink class in the loader instead of
-// using thier own sink class that inherit from logger::Sink.
-   if (isTearDowned) {
-     std::cerr << message;
-   } else {
-     print(level, message);
-   }
+    // This is a temporary workaround, where UR adapter is teardowned
+    // before the UR loader, which will result in access violation when we use
+    // print function as the overrided print function was already released with
+    // the UR adapter.
+    // TODO: Change adapters to use a common sink class in the loader instead of
+    // using thier own sink class that inherit from logger::Sink.
+    if (isTearDowned) {
+      std::cerr << message;
+    } else {
+      print(level, message);
+    }
   }
 
   void setFileLine(bool fileline) { add_fileline = fileline; }
@@ -187,9 +187,7 @@ public:
     this->flush_level = flush_lvl;
   }
 
-  ~StderrSink() {
-    logger::isTearDowned = true;
-  }
+  ~StderrSink() { logger::isTearDowned = true; }
 };
 
 class FileSink : public Sink {
