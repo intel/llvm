@@ -1,9 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: run-mode && linux && arch-intel_gpu_pvc && level_zero_v2_adapter
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19585
-
 //==- handler.cpp - SYCL handler explicit memory operations test -*- C++-*--==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -485,9 +482,8 @@ template <typename T> void test_update_host() {
     Queue.submit([&](handler &Cgh) {
       accessor<T, 1, access::mode::write, access::target::device> Accessor(
           Buffer, Cgh, range<1>(Size));
-      Cgh.parallel_for<class rawPointer<T>>(range<1>{Size},
-          [=](id<1> Index) {
-        Accessor[Index] = Index.get(0); });
+      Cgh.parallel_for<class rawPointer<T>>(
+          range<1>{Size}, [=](id<1> Index) { Accessor[Index] = Index.get(0); });
     });
     Queue.submit([&](handler &Cgh) {
       accessor<T, 1, access::mode::write, access::target::device> Accessor(
