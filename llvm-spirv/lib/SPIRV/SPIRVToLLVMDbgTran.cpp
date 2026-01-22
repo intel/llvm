@@ -843,8 +843,7 @@ DINode *SPIRVToLLVMDbgTran::transTypeFunction(const SPIRVExtInst *DebugInst) {
 
     Elements.push_back(Param);
   }
-  DITypeArray ArgTypes =
-      getDIBuilder(DebugInst).getOrCreateTypeArray(Elements);
+  DITypeArray ArgTypes = getDIBuilder(DebugInst).getOrCreateTypeArray(Elements);
   return getDIBuilder(DebugInst).createSubroutineType(ArgTypes, Flags);
 }
 
