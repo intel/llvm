@@ -741,7 +741,8 @@ std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents(
   return Events;
 }
 
-void graph_impl::beginRecordingUnlockedQueue(sycl::detail::queue_impl &Queue) {
+void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
+                                    bool LockQueue) {
   graph_impl::WriteLock Lock(MMutex);
   if (!Queue.hasCommandGraph()) {
     addQueue(Queue);
@@ -783,56 +784,21 @@ void graph_impl::beginRecordingUnlockedQueue(sycl::detail::queue_impl &Queue) {
       }
     } else {
       // Only set command graph for non-native recording
-      Queue.setCommandGraphUnlocked(shared_from_this());
+      if (LockQueue) {
+        Queue.setCommandGraph(shared_from_this());
+      } else {
+        Queue.setCommandGraphUnlocked(shared_from_this());
+      }
     }
   }
 }
 
+void graph_impl::beginRecordingUnlockedQueue(sycl::detail::queue_impl &Queue) {
+  beginRecordingImpl(Queue, /*LockQueue=*/false);
+}
+
 void graph_impl::beginRecording(sycl::detail::queue_impl &Queue) {
-  graph_impl::WriteLock Lock(MMutex);
-  if (!Queue.hasCommandGraph()) {
-    addQueue(Queue);
-
-    // Use native UR graph recording if enabled
-    if (MEnableNativeRecording && MNativeGraphHandle) {
-      // Native recording only works with immediate command lists
-      // Check if the queue is actually using immediate command lists
-      ur_queue_flags_t queueFlags = 0;
-      size_t retSize = 0;
-      auto UrQueue = Queue.getHandleRef();
-      ur_result_t Result =
-          urQueueGetInfo(UrQueue, UR_QUEUE_INFO_FLAGS, sizeof(queueFlags),
-                         &queueFlags, &retSize);
-      if (Result != UR_RESULT_SUCCESS) {
-        throw sycl::exception(sycl::make_error_code(errc::runtime),
-                              "Failed to query queue flags");
-      }
-
-      bool isImmediateQueue =
-          (queueFlags & UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE) != 0;
-      bool isBatchedQueue =
-          (queueFlags & UR_QUEUE_FLAG_SUBMISSION_BATCHED) != 0;
-
-      if (isBatchedQueue || !isImmediateQueue) {
-        throw sycl::exception(
-            sycl::make_error_code(errc::invalid),
-            "Native recording requires queues with immediate command lists. "
-            "Either set ext::intel::property::queue::immediate_command_list on "
-            "queue creation "
-            "or use environment variable "
-            "SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1.");
-      }
-
-      Result = urQueueBeginCaptureIntoGraphExp(UrQueue, MNativeGraphHandle);
-      if (Result != UR_RESULT_SUCCESS) {
-        throw sycl::exception(sycl::make_error_code(errc::runtime),
-                              "Failed to begin native UR graph capture");
-      }
-    } else {
-      // Only set command graph for non-native recording
-      Queue.setCommandGraph(shared_from_this());
-    }
-  }
+  beginRecordingImpl(Queue, /*LockQueue=*/true);
 }
 
 // Check if nodes do not require enqueueing and if so loop back through

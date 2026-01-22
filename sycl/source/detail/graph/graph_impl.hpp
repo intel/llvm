@@ -541,6 +541,11 @@ public:
   bool isQueueRecording(sycl::detail::queue_impl &Queue);
 
 private:
+  /// Common implementation for beginRecording and beginRecordingUnlockedQueue.
+  /// @param[in] Queue The queue to be recorded from.
+  /// @param[in] LockQueue Whether to lock the queue when setting command graph.
+  void beginRecordingImpl(sycl::detail::queue_impl &Queue, bool LockQueue);
+
   template <typename... Ts> node_impl &createNode(Ts &&...Args) {
     MNodeStorage.push_back(
         std::make_shared<node_impl>(std::forward<Ts>(Args)...));
