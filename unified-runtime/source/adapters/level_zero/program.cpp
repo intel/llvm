@@ -474,6 +474,7 @@ ur_result_t urProgramLinkExp(
       break;
     case ur_program_handle_t_::CodeFormat::Native:
       ZeModuleDesc.format = ZE_MODULE_FORMAT_NATIVE;
+      break;
     default:
       ur::unreachable();
       return UR_RESULT_ERROR_INVALID_PROGRAM;
