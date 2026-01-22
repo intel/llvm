@@ -13,7 +13,7 @@ jobs:
       - name: Check load average
         id: check
         run: |
-          DATE=$(date -d 'yesterday' +"%Y-%m-%d")
+          DATE=$(date +"%Y-%m-%d")
           echo "DATE=${DATE}" >> $GITHUB_OUTPUT
           echo ${{ runner.name }} >> ${DATE}_${{ runner.name }}.txt
           uptime | awk -F'load average:' '{ print $2 }' >> ${DATE}_${{ runner.name }}.txt
