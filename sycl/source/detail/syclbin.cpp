@@ -57,34 +57,59 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
       llvm::StringRef(SYCLBINContentCopy.get(), SYCLBINSize), "");
   llvm::Expected<std::unique_ptr<llvm::object::SYCLBIN>> SYCLBINOrErr =
       llvm::object::SYCLBIN::read(ContentRef);
-  if (SYCLBINOrErr)
-    ParsedSYCLBIN = std::move(*SYCLBINOrErr);
-  else {
-    // try legacy format just in case for backward compatibility
-    // check dump or some other util...
-    // getImageInOffloadBinary
-        // throw sycl::exception(make_error_code(errc::invalid),
-        //                   llvm::toString(SYCLBINOrErr.takeError()));
+  if (!SYCLBINOrErr) {
+    // Try legacy format for backward compatibility.
+    llvm::Error FirstError = SYCLBINOrErr.takeError();
+    auto OffloadBinaryVecOrError =
+        llvm::object::OffloadBinary::create(ContentRef);
+    if (!OffloadBinaryVecOrError) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Failed to parse SYCLBIN file: " +
+              llvm::toString(std::move(FirstError)) +
+              " Failed to parse Offload Binary: " +
+              llvm::toString(std::move(OffloadBinaryVecOrError.takeError())));
+    }
+
+    consumeError(std::move(FirstError));
+    SYCLBINOrErr = llvm::object::SYCLBIN::read(llvm::MemoryBufferRef(
+        OffloadBinaryVecOrError->front()->getImage(), ""));
+    if (!SYCLBINOrErr) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Failed to parse SYCLBIN file: " +
+              llvm::toString(std::move(SYCLBINOrErr.takeError())));
+    }
   }
 
-  AbstractModuleDescriptors = std::unique_ptr<AbstractModuleDesc[]>(
-      new AbstractModuleDesc[ParsedSYCLBIN->getOffloadBinaries().size()]);
+  ParsedSYCLBIN = std::move(*SYCLBINOrErr);
+  // look again at this code.
+  GlobalMetadata =
+      &((*(ParsedSYCLBIN->GlobalMetadata))
+            [llvm::util::PropertySetRegistry::SYCLBIN_GLOBAL_METADATA]);
 
-  size_t NumBinaries = 0;
-  for (const SYCLBIN::AbstractModule &AM : ParsedSYCLBIN.AbstractModules)
-    NumBinaries += AM.IRModules.size() + AM.NativeDeviceCodeImages.size();
-  DeviceBinaries.reserve(NumBinaries);
+  AbstractModuleDescriptors = std::unique_ptr<AbstractModuleDesc[]>(
+      new AbstractModuleDesc[getNumAbstractModules()]);
+
+  DeviceBinaries.reserve(ParsedSYCLBIN->Metadata.size());
   BinaryImages = std::unique_ptr<RTDeviceBinaryImage[]>(
-      new RTDeviceBinaryImage[NumBinaries]);
+      new RTDeviceBinaryImage[ParsedSYCLBIN->Metadata.size()]);
 
   RTDeviceBinaryImage *CurrentBinaryImagesStart = BinaryImages.get();
-  for (size_t I = 0; I < getNumAbstractModules(); ++I) {
-    SYCLBIN::AbstractModule &AM = ParsedSYCLBIN.AbstractModules[I];
+  for (const auto &OBPtr : ParsedSYCLBIN->getOffloadBinaries()) {
+    if (OBPtr->getFlags() & llvm::object::OIF_NoImage)
+      continue;
+    
+    uint32_t I;
+    OBPtr->getString("syclbin_abstract_module_id").getAsInteger(10, I);
+
     AbstractModuleDesc &AMDesc = AbstractModuleDescriptors[I];
 
-    // Set up the abstract module descriptor.
-    AMDesc.NumJITBinaries = AM.IRModules.size();
-    AMDesc.NumNativeBinaries = AM.NativeDeviceCodeImages.size();
+    // Set up the abstract module descriptor if it was not setup yet.
+    if (AMDesc.NumJITBinaries == 0 && AMDesc.NumNativeBinaries == 0) {
+      OBPtr->getString("syclbin_num_ir_modules").getAsInteger(10, AMDesc.NumJITBinaries);
+      OBPtr->getString("syclbin_num_native_images").getAsInteger(10, AMDesc.NumNativeBinaries);
+    }
     AMDesc.JITBinaries = CurrentBinaryImagesStart;
     AMDesc.NativeBinaries = CurrentBinaryImagesStart + AMDesc.NumJITBinaries;
     CurrentBinaryImagesStart +=
