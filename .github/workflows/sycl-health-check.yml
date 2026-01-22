@@ -6,6 +6,7 @@ on:
     branches:
       - luszczewskakasia1_monitoring
 #zmienić date na dzisaj
+# echo ${{ runner.name }} > ${DATE}_${{ runner.name }}.txt
 jobs:
   health-check:
     runs-on: ["self-hosted"]
@@ -15,7 +16,6 @@ jobs:
         run: |
           DATE=$(date +"%Y-%m-%d")
           echo "DATE=${DATE}" >> $GITHUB_OUTPUT
-          echo ${{ runner.name }} > ${DATE}_${{ runner.name }}.txt
           uptime | awk -F'load average:' '{ print $2 }' > ${DATE}_${{ runner.name }}.txt
       - name: Upload load average artifact
         uses: actions/upload-artifact@v5
