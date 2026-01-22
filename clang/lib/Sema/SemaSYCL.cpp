@@ -663,10 +663,8 @@ static void collectSYCLAttributes(FunctionDecl *FD,
                  SYCLReqdWorkGroupSizeAttr, SYCLWorkGroupSizeHintAttr,
                  SYCLIntelKernelArgsRestrictAttr,
                  SYCLIntelMinWorkGroupsPerComputeUnitAttr,
-                 SYCLIntelMaxWorkGroupsPerMultiprocessorAttr,
-                 SYCLSimdAttr,
-                 SYCLDeviceHasAttr,
-                 SYCLAddIRAttributesFunctionAttr>(A);
+                 SYCLIntelMaxWorkGroupsPerMultiprocessorAttr, SYCLSimdAttr,
+                 SYCLDeviceHasAttr, SYCLAddIRAttributesFunctionAttr>(A);
     });
   }
 }

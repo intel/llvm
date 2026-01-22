@@ -512,10 +512,8 @@ void SemaSYCL::addSYCLIntelMinWorkGroupsPerComputeUnitAttr(
       return;
     }
 
-    if (!false) {
-      Diag(CI.getLoc(), diag::warn_launch_bounds_missing_attr) << CI << 0;
-      return;
-    }
+    Diag(CI.getLoc(), diag::warn_launch_bounds_missing_attr) << CI << 0;
+    return;
   }
   if (!E->isValueDependent()) {
     // Validate that we have an integer constant expression and then store the
@@ -570,11 +568,8 @@ void SemaSYCL::addSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
       return;
     }
 
-    if (!false ||
-        !D->hasAttr<SYCLIntelMinWorkGroupsPerComputeUnitAttr>()) {
-      Diag(CI.getLoc(), diag::warn_launch_bounds_missing_attr) << CI << 1;
-      return;
-    }
+    Diag(CI.getLoc(), diag::warn_launch_bounds_missing_attr) << CI << 1;
+    return;
   }
   if (!E->isValueDependent()) {
     // Validate that we have an integer constant expression and then store the
