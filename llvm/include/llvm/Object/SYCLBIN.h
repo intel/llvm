@@ -85,16 +85,25 @@ public:
     return OffloadBinaries;
   }
 
+  struct AbstractModule {
+    std::unique_ptr<llvm::util::PropertySetRegistry> Metadata;
+    SmallVector<const OffloadBinary *> IRModules;
+    SmallVector<const OffloadBinary *> NativeDeviceCodeImages;
+  };
+
+  // TODO: enough to keep 1 property set, not entire propertyset registry for global metadata.
   std::unique_ptr<llvm::util::PropertySetRegistry> GlobalMetadata;
-  DenseMap<const OffloadBinary *,
-           std::unique_ptr<llvm::util::PropertySetRegistry>>
-      Metadata;
+  SmallVector<AbstractModule, 4> AbstractModules;
 
 private:
   SYCLBIN(SmallVector<std::unique_ptr<OffloadBinary>> OB)
       : OffloadBinaries(std::move(OB)) {}
 
-  Error initMetadata();
+  Error initAbstractModules();
+
+  size_t getNumAbstractModules() const {
+    // TODO!!! reading global metadata.
+  }
 
   SmallVector<std::unique_ptr<OffloadBinary>> OffloadBinaries;
 
