@@ -468,6 +468,97 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
   return ResultEvent;
 }
 
+// TODO: Not sure what to do with CodeLoc here?
+EventImplPtr queue_impl::submit_barrier_direct_impl(
+    sycl::span<const event> DepEvents,
+    [[maybe_unused]] const detail::code_location &CodeLoc) {
+  auto ResEvent = detail::event_impl::create_device_event(*this);
+
+  // Get UR handles for dependency events, remove NOPs and host events.
+  auto getUREventHandles = [&]() {
+    std::vector<ur_event_handle_t> RetUrEvents;
+    for (const event &RawEvent : DepEvents) {
+      auto Event = detail::getSyclObjImpl(RawEvent);
+
+      // This is equivalent to handler::depends_on() and is required
+      // to handle events associated with graphs correctly.
+      if (Event->isHost()) {
+        std::vector<EventImplPtr> implEvents;
+
+        detail::registerEventDependency(
+            Event, implEvents, this, this->getContextImpl(),
+            this->getDeviceImpl(), getCommandGraph().get(),
+            CGType::BarrierWaitlist);
+        continue;
+      }
+
+      // Throwaway events created with empty constructor will not have a context
+      // (which is set lazily) calling getContextImpl() would set that
+      // context, which we wish to avoid as it is expensive.
+      // Skip NOP events also.
+      if (Event->isDefaultConstructed() || Event->isNOP())
+        continue;
+
+      // If command has not been enqueued then we have to enqueue it.
+      // It may happen if async enqueue in a host task is involved.
+      // Interoperability events are special cases and they are not enqueued, as
+      // they don't have an associated queue and command.
+      if (!Event->isInterop() && !Event->isEnqueued()) {
+        if (!Event->getCommand() || !Event->getCommand()->producesPiEvent())
+          continue;
+        std::vector<Command *> AuxCmds;
+        Scheduler::getInstance().enqueueCommandForCG(*Event, AuxCmds, BLOCKING);
+      }
+
+      // Do not add redundant event dependencies for in-order queues.
+      // At this stage dependency is definitely ur task and need to check if
+      // current one is a host task. In this case we should not skip pi event
+      // due to different sync mechanisms for different task types on in-order
+      // queue. If the resulting event is supposed to have a specific event
+      // mode, redundant events may still differ from the resulting event, so
+      // they are kept.
+      if (Event->getWorkerQueue().get() == this && this->isInOrder())
+        continue;
+
+      RetUrEvents.push_back(Event->getHandle());
+    }
+
+    return RetUrEvents;
+  };
+
+  ur_exp_enqueue_ext_properties_t Properties{};
+  Properties.stype = UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES;
+  Properties.pNext = nullptr;
+  Properties.flags = 0;
+
+  ur_event_handle_t UREvent = nullptr;
+  ResEvent->setWorkerQueue(weak_from_this());
+  ResEvent->setSubmissionTime();
+
+  if (DepEvents.size() > 0) {
+    std::vector<ur_event_handle_t> UrDepEvents = getUREventHandles();
+
+    if (UrDepEvents.size() == 0) {
+      // No valid events found after filtering.
+      ResEvent->setHandle(nullptr);
+      return ResEvent;
+    }
+
+    ResEvent->setStateIncomplete();
+    getAdapter().call<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
+        getHandleRef(), &Properties, UrDepEvents.size(), UrDepEvents.data(),
+        &UREvent);
+  } else {
+    ResEvent->setStateIncomplete();
+    getAdapter().call<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
+        getHandleRef(), &Properties, 0, nullptr, &UREvent);
+  }
+
+  ResEvent->setHandle(UREvent);
+  ResEvent->setEnqueued();
+  return ResEvent;
+}
+
 EventImplPtr queue_impl::submit_command_to_graph(
     ext::oneapi::experimental::detail::graph_impl &GraphImpl,
     std::unique_ptr<detail::CG> CommandGroup, sycl::detail::CGType CGType,
