@@ -31,10 +31,11 @@ jobs:
 
           for dir in ./artifacts/*/; do
             for file in "$dir"*.txt; do
-              cat "$file"
               if [[ -f "$file" && $(basename "$file") == ${TODAY}*.txt ]]; then
-                runner=$(head -n1 "$file" | sed 's/[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}//g; s/\.txt$//')
-                load=$(tail -n1 "$file" | sed 's/load average://g' | xargs)
+                runner=$(basename "$file" | sed 's/^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}_//; s/\.txt$//')
+                load=$(cat $file) 
+                echo $load
+                echo $runner
                 echo "  \"$runner\": \"$load\"" >> aggregated_${{ steps.date.outputs.TODAY }}.json
               fi 
             done
