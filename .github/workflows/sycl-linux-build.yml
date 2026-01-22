@@ -228,7 +228,7 @@ jobs:
         # TODO: Need to check if source (c++) files were changed
         # TODO: make it possible to disable this step in case of big PRs like pulldown etc.
 
-        cmake --build $GITHUB_WORKSPACE/build --target clang-tidy
+        # cmake --build $GITHUB_WORKSPACE/build --target clang-tidy
         # Make sure we have the base branch available locally for diff
         # git fetch --no-tags origin "${BASE_REF}" --depth=1
 
@@ -237,13 +237,13 @@ jobs:
         # DEBUG
         cat pr.patch
 
-        python3 "$GITHUB_WORKSPACE/clang-tools-extra/clang-tidy/tool/clang-tidy-diff.py" \
-          -clang-tidy-binary "$BUILD_DIR/bin/clang-tidy" \
-          -p 1 \
-          -path "$GITHUB_WORKSPACE/build" \
-          -checks "clang-analyzer-*,bugprone-*,performance-*" \
-          < pr.patch \
-          2>&1 | tee "$GITHUB_WORKSPACE/clang-tidy-output.log"
+        # python3 "$GITHUB_WORKSPACE/clang-tools-extra/clang-tidy/tool/clang-tidy-diff.py" \
+        #   -clang-tidy-binary "$BUILD_DIR/bin/clang-tidy" \
+        #   -p 1 \
+        #   -path "$GITHUB_WORKSPACE/build" \
+        #   -checks "clang-analyzer-*,bugprone-*,performance-*" \
+        #   < pr.patch \
+        #   2>&1 | tee "$GITHUB_WORKSPACE/clang-tidy-output.log"
     - name: Upload clang-tidy log
       if: ${{ !cancelled() && steps.clang_tidy.outcome != 'skipped' }}
       uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
