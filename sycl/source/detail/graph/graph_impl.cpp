@@ -593,7 +593,7 @@ void graph_impl::removeQueue(sycl::detail::queue_impl &RecordingQueue) {
 }
 
 bool graph_impl::isQueueRecording(sycl::detail::queue_impl &Queue) {
-  
+
   return MRecordingQueues.count(Queue.weak_from_this()) > 0;
 }
 
