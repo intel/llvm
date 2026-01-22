@@ -242,8 +242,8 @@ runs:
       fi
 
       sudo apt-get update
-      sudo apt-get install -y linux-tools-$(uname -r)
-      # bison flex ocl-icd-libopencl1
+      sudo apt-get install -y linux-tools-$(uname -r) bison flex
+      # ocl-icd-libopencl1
 
       # mkdir neo_debs
       # cd neo_debs
