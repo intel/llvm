@@ -472,7 +472,10 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
 EventImplPtr queue_impl::submit_barrier_direct_impl(
     sycl::span<const event> DepEvents,
     [[maybe_unused]] const detail::code_location &CodeLoc) {
+
   auto ResEvent = detail::event_impl::create_device_event(*this);
+  detail::CG::StorageInitHelper CGData;
+  std::vector<ur_event_handle_t> UrDepEvents;
 
   // Get UR handles for dependency events, remove NOPs and host events.
   auto getUREventHandles = [&]() {
@@ -483,10 +486,8 @@ EventImplPtr queue_impl::submit_barrier_direct_impl(
       // This is equivalent to handler::depends_on() and is required
       // to handle events associated with graphs correctly.
       if (Event->isHost()) {
-        std::vector<EventImplPtr> implEvents;
-
         detail::registerEventDependency(
-            Event, implEvents, this, this->getContextImpl(),
+            Event, CGData.MEvents, this, this->getContextImpl(),
             this->getDeviceImpl(), getCommandGraph().get(),
             CGType::BarrierWaitlist);
         continue;
@@ -526,35 +527,50 @@ EventImplPtr queue_impl::submit_barrier_direct_impl(
     return RetUrEvents;
   };
 
-  ur_exp_enqueue_ext_properties_t Properties{};
-  Properties.stype = UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES;
-  Properties.pNext = nullptr;
-  Properties.flags = 0;
-
-  ur_event_handle_t UREvent = nullptr;
-  ResEvent->setWorkerQueue(weak_from_this());
-  ResEvent->setSubmissionTime();
-
-  if (DepEvents.size() > 0) {
-    std::vector<ur_event_handle_t> UrDepEvents = getUREventHandles();
-
-    if (UrDepEvents.size() == 0) {
-      // No valid events found after filtering.
-      ResEvent->setHandle(nullptr);
-      return ResEvent;
-    }
-
-    ResEvent->setStateIncomplete();
-    getAdapter().call<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
-        getHandleRef(), &Properties, UrDepEvents.size(), UrDepEvents.data(),
-        &UREvent);
-  } else {
-    ResEvent->setStateIncomplete();
-    getAdapter().call<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
-        getHandleRef(), &Properties, 0, nullptr, &UREvent);
+  if (DepEvents.size()) {
+    UrDepEvents = getUREventHandles();
   }
 
-  ResEvent->setHandle(UREvent);
+  ResEvent->setWorkerQueue(weak_from_this());
+  ResEvent->setSubmissionTime();
+  ResEvent->setHandle(nullptr);
+
+  // Add dependency to the command graph if there are host events.
+  if (CGData.MEvents.size() && getCommandGraph()) {
+    std::unique_ptr<detail::CG> CommandGroup;
+    // Submit a barrier node to the command graph for host event dependencies.
+    CommandGroup.reset(new detail::CGBarrier(
+        CGData.MEvents, ext::oneapi::experimental::event_mode_enum::none,
+        std::move(CGData), CGType::BarrierWaitlist, CodeLoc));
+
+    this->submit_command_to_graph(*getCommandGraph(), std::move(CommandGroup),
+                                  CGType::BarrierWaitlist);
+  } else {
+
+    ur_event_handle_t UREvent = nullptr;
+    ur_exp_enqueue_ext_properties_t Properties{};
+    Properties.stype = UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES;
+    Properties.pNext = nullptr;
+    Properties.flags = 0;
+
+    if (DepEvents.size()) {
+      if (!UrDepEvents.size()) {
+        return ResEvent;
+      }
+
+      ResEvent->setStateIncomplete();
+      getAdapter().call<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
+          getHandleRef(), &Properties, UrDepEvents.size(), UrDepEvents.data(),
+          &UREvent);
+    } else {
+      ResEvent->setStateIncomplete();
+      getAdapter().call<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
+          getHandleRef(), &Properties, 0, nullptr, &UREvent);
+    }
+
+    ResEvent->setHandle(UREvent);
+  }
+
   ResEvent->setEnqueued();
   return ResEvent;
 }
