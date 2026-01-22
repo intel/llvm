@@ -18,20 +18,20 @@
 #include "lockable.hpp"
 #include "memory.hpp"
 
+#include "../common/helpers/kernel_helpers.hpp"
+#include "../common/image_common.hpp"
 #include "../common/latency_tracker.hpp"
-#include "../helpers/kernel_helpers.hpp"
-#include "../image_common.hpp"
 
 #include "../program.hpp"
-#include "../ur_interface_loader.hpp"
 #include "unified-runtime/ur_api.h"
 #include "ur.hpp"
+#include "ur_interface_loader.hpp"
 #include "ze_api.h"
 #include <cstddef>
 #include <cstdint>
 #include <tuple>
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 
 ur_queue_batched_t::ur_queue_batched_t(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, uint32_t ordinal,
@@ -1102,4 +1102,4 @@ ur_result_t ur_queue_batched_t::enqueueHostTaskExp(
       this->getEvent(batchLocked, phEvent));
 }
 
-} // namespace v2
+} // namespace ur::level_zero::v2

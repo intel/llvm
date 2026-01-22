@@ -24,12 +24,12 @@
 #include <zes_api.h>
 
 #include "common.hpp"
+#include "common/device.hpp"
 #include "common/ur_ref_count.hpp"
-#include "device.hpp"
 
-extern "C" {
+namespace ur::level_zero::v1 {
+
 ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue);
-} // extern "C"
 
 struct ur_completion_batch;
 using ur_completion_batch_list = std::list<ur_completion_batch>;
@@ -224,7 +224,7 @@ using ur_command_list_map_t =
 // The iterator pointing to a specific command-list in use.
 using ur_command_list_ptr_t = ur_command_list_map_t::iterator;
 
-struct ur_queue_handle_t_ : ur_object {
+struct ur_queue_handle_t_ : ur_object_t {
   ur_queue_handle_t_(std::vector<ze_command_queue_handle_t> &ComputeQueues,
                      std::vector<ze_command_queue_handle_t> &CopyQueues,
                      ur_context_handle_t Context, ur_device_handle_t Device,
@@ -738,3 +738,5 @@ ur_result_t setSignalEvent(ur_queue_handle_t Queue, bool UseCopyEngine,
 ur_result_t CleanupEventListFromResetCmdList(
     std::vector<ur_event_handle_t> &EventListToCleanup,
     bool QueueLocked = false);
+
+} // namespace ur::level_zero::v1

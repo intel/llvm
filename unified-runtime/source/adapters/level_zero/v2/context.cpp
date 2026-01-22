@@ -7,12 +7,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "../adapter.hpp"
-#include "../device.hpp"
+#include "../common/device.hpp"
+#include "../common/platform.hpp"
 
 #include "context.hpp"
 #include "event_provider_counter.hpp"
 #include "event_provider_normal.hpp"
+
+namespace ur::level_zero::v2 {
 
 template <typename T> static void sortAndUnique(std::vector<T> &values) {
   std::sort(values.begin(), values.end());
@@ -39,16 +41,17 @@ static bool isCompletePlatformDeviceList(uint32_t deviceCount,
   sortAndUnique(requestedDevices);
 
   uint32_t platformDeviceCount = 0;
-  ur_result_t result = ur::level_zero::urDeviceGet(
-      hPlatform, UR_DEVICE_TYPE_ALL, 0, nullptr, &platformDeviceCount);
+  ur_result_t result =
+      ur::level_zero::urDeviceGet(common_cast(hPlatform), UR_DEVICE_TYPE_ALL, 0,
+                                  nullptr, &platformDeviceCount);
   if (result != UR_RESULT_SUCCESS || platformDeviceCount == 0) {
     return false;
   }
 
   std::vector<ur_device_handle_t> platformDevices(platformDeviceCount);
-  result = ur::level_zero::urDeviceGet(hPlatform, UR_DEVICE_TYPE_ALL,
-                                       platformDeviceCount,
-                                       platformDevices.data(), nullptr);
+  result = ur::level_zero::urDeviceGet(
+      common_cast(hPlatform), UR_DEVICE_TYPE_ALL, platformDeviceCount,
+      common_cast(platformDevices.data()), nullptr);
   if (result != UR_RESULT_SUCCESS) {
     return false;
   }
@@ -66,8 +69,9 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
                                            uint32_t numDevices,
                                            const ur_device_handle_t *phDevices,
                                            bool ownZeContext)
-    : hContext(hContext, ownZeContext),
-      hDevices(uniqueDevices(numDevices, phDevices)),
+    : ur_context_common_t(hContext, uniqueDevices(numDevices, phDevices),
+                          phDevices[0]->Platform),
+      hContext(hContext, ownZeContext),
       commandListCache(
           hContext, {phDevices[0]->Platform->ZeCopyOffloadExtensionSupported,
                      phDevices[0]->Platform->ZeMutableCmdListExt.Supported,
@@ -88,7 +92,7 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
           this, phDevices[0]->Platform->getNumDevices(),
           [context = this, platform = phDevices[0]->Platform](
               DeviceId deviceId,
-              v2::event_flags_t flags) -> std::unique_ptr<v2::event_provider> {
+              event_flags_t flags) -> std::unique_ptr<v2::event_provider> {
             auto device = platform->getDeviceById(deviceId);
 
             // TODO: just use per-context id?
@@ -113,24 +117,6 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
 ur_result_t ur_context_handle_t_::retain() {
   RefCount.retain();
   return UR_RESULT_SUCCESS;
-}
-
-ur_platform_handle_t ur_context_handle_t_::getPlatform() const {
-  return hDevices[0]->Platform;
-}
-
-const std::vector<ur_device_handle_t> &
-ur_context_handle_t_::getDevices() const {
-  return hDevices;
-}
-
-bool ur_context_handle_t_::isValidDevice(ur_device_handle_t hDevice) const {
-  while (hDevice) {
-    if (std::find(hDevices.begin(), hDevices.end(), hDevice) != hDevices.end())
-      return true;
-    hDevice = hDevice->RootDevice;
-  }
-  return false;
 }
 
 ur_usm_pool_handle_t ur_context_handle_t_::getDefaultUSMPool() {
@@ -233,96 +219,94 @@ ur_context_handle_t_::getDevicesWhichCanAccessAllocationsPresentOn(
   return retVal;
 }
 
-namespace ur::level_zero {
 ur_result_t urContextCreate(uint32_t deviceCount,
-                            const ur_device_handle_t *phDevices,
+                            const ::ur_device_handle_t *phDevicesOpque,
                             const ur_context_properties_t * /*pProperties*/,
-                            ur_context_handle_t *phContext) {
+                            ::ur_context_handle_t *phContextOpque) try {
+  auto phContext = v2_cast(phContextOpque);
+  auto phDevices = common_cast(phDevicesOpque);
   *phContext = nullptr;
-  try {
-    for (uint32_t i = 0; i < deviceCount; ++i) {
-      UR_ASSERT(phDevices[i], UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-    }
-
-    ur_platform_handle_t hPlatform = phDevices[0]->Platform;
-    ZeStruct<ze_context_desc_t> contextDesc{};
-
-    if (isCompletePlatformDeviceList(deviceCount, phDevices)) {
-      if (auto zeContext = zeDriverGetDefaultContext(hPlatform->ZeDriver)) {
-        *phContext =
-            new ur_context_handle_t_(zeContext, deviceCount, phDevices, false);
-        {
-          std::scoped_lock<ur_shared_mutex> Lock(hPlatform->ContextsMutex);
-          hPlatform->Contexts.push_back(*phContext);
-        }
-        return UR_RESULT_SUCCESS;
-      }
-    }
-
-    ze_context_handle_t rawZeContext{};
-    ZE2UR_CALL(zeContextCreate,
-               (hPlatform->ZeDriver, &contextDesc, &rawZeContext));
-    UR_LOG(INFO, "ZE context created with {} devices", deviceCount);
-
-    // Wrap immediately so any exception thrown by the ur_context_handle_t_
-    // constructor (after hContext member is initialised) does not double-free
-    // the Level Zero context handle.
-    *phContext =
-        new ur_context_handle_t_(rawZeContext, deviceCount, phDevices, true);
-    {
-      std::scoped_lock<ur_shared_mutex> Lock(hPlatform->ContextsMutex);
-      hPlatform->Contexts.push_back(*phContext);
-    }
-    return UR_RESULT_SUCCESS;
-  } catch (...) {
-    UR_LOG(ERR, "creating context failed");
-    delete *phContext;
-    *phContext = nullptr;
-    return exceptionToResult(std::current_exception());
+  for (uint32_t i = 0; i < deviceCount; ++i) {
+    UR_ASSERT(phDevices[i], UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   }
+
+  ur_platform_handle_t hPlatform = phDevices[0]->Platform;
+  ZeStruct<ze_context_desc_t> contextDesc{};
+
+  if (isCompletePlatformDeviceList(deviceCount, phDevices)) {
+    if (auto zeContext = zeDriverGetDefaultContext(hPlatform->ZeDriver)) {
+      *phContext = new v2::ur_context_handle_t_(zeContext, deviceCount,
+                                                phDevices, false);
+      {
+        std::scoped_lock<ur_shared_mutex> Lock(hPlatform->ContextsMutex);
+        hPlatform->Contexts.push_back(v2_cast(*phContext));
+      }
+      return UR_RESULT_SUCCESS;
+    }
+  }
+
+  ze_context_handle_t rawZeContext{};
+  ZE2UR_CALL(zeContextCreate,
+             (hPlatform->ZeDriver, &contextDesc, &rawZeContext));
+  UR_LOG(INFO, "ZE context created with {} devices", deviceCount);
+
+  // Wrap immediately so any exception thrown by the ur_context_handle_t_
+  // constructor (after hContext member is initialised) does not double-free
+  // the Level Zero context handle.
+  *phContext =
+      new v2::ur_context_handle_t_(rawZeContext, deviceCount, phDevices, true);
+  {
+    std::scoped_lock<ur_shared_mutex> Lock(hPlatform->ContextsMutex);
+    hPlatform->Contexts.push_back(v2_cast(*phContext));
+  }
+  return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urContextGetNativeHandle(ur_context_handle_t hContext,
-                                     ur_native_handle_t *phNativeContext) try {
-  *phNativeContext =
-      reinterpret_cast<ur_native_handle_t>(hContext->getZeHandle());
+ur_result_t
+urContextGetNativeHandle(::ur_context_handle_t hContextOpque,
+                         ::ur_native_handle_t *phNativeContext) try {
+  *phNativeContext = reinterpret_cast<ur_native_handle_t>(
+      v2_cast(hContextOpque)->getZeHandle());
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urContextCreateWithNativeHandle(
-    ur_native_handle_t hNativeContext, ur_adapter_handle_t, uint32_t numDevices,
-    const ur_device_handle_t *phDevices,
+    ::ur_native_handle_t hNativeContext, ::ur_adapter_handle_t,
+    uint32_t numDevices, const ::ur_device_handle_t *phDevicesOpque,
     const ur_context_native_properties_t *pProperties,
-    ur_context_handle_t *phContext) try {
+    ::ur_context_handle_t *phContextOpque) try {
+  auto phContext = v2_cast(phContextOpque);
+  auto phDevices = common_cast(phDevicesOpque);
   *phContext = nullptr;
 
   auto zeContext = reinterpret_cast<ze_context_handle_t>(hNativeContext);
 
   auto ownZeHandle = pProperties ? pProperties->isNativeHandleOwned : false;
 
-  *phContext =
-      new ur_context_handle_t_(zeContext, numDevices, phDevices, ownZeHandle);
+  *phContext = new v2::ur_context_handle_t_(zeContext, numDevices, phDevices,
+                                            ownZeHandle);
   {
     auto hPlatform = phDevices[0]->Platform;
     std::scoped_lock<ur_shared_mutex> Lock(hPlatform->ContextsMutex);
-    hPlatform->Contexts.push_back(*phContext);
+    hPlatform->Contexts.push_back(v2_cast(*phContext));
   }
   return UR_RESULT_SUCCESS;
 } catch (...) {
-  delete *phContext;
-  *phContext = nullptr;
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urContextRetain(ur_context_handle_t hContext) try {
-  return hContext->retain();
+ur_result_t urContextRetain(::ur_context_handle_t hContextOpque) try {
+  return v2_cast(hContextOpque)->retain();
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urContextRelease(ur_context_handle_t hContext) try {
+ur_result_t urContextRelease(::ur_context_handle_t hContextOpque) try {
+  auto hContext = v2_cast(hContextOpque);
   if (!hContext->RefCount.release())
     return UR_RESULT_SUCCESS;
 
@@ -330,7 +314,7 @@ ur_result_t urContextRelease(ur_context_handle_t hContext) try {
   {
     std::scoped_lock<ur_shared_mutex> Lock(Platform->ContextsMutex);
     auto &Contexts = Platform->Contexts;
-    auto It = std::find(Contexts.begin(), Contexts.end(), hContext);
+    auto It = std::find(Contexts.begin(), Contexts.end(), hContextOpque);
     if (It != Contexts.end()) {
       Contexts.erase(It);
     }
@@ -341,11 +325,10 @@ ur_result_t urContextRelease(ur_context_handle_t hContext) try {
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urContextGetInfo(ur_context_handle_t hContext,
+ur_result_t urContextGetInfo(::ur_context_handle_t hContextOpque,
                              ur_context_info_t contextInfoType, size_t propSize,
                              void *pContextInfo, size_t *pPropSizeRet) try {
-  // No locking needed here, we only read const members
-
+  auto hContext = v2_cast(hContextOpque);
   UrReturnHelper ReturnValue(propSize, pContextInfo, pPropSizeRet);
   switch (
       (uint32_t)contextInfoType) { // cast to avoid warnings on EXT enum values
@@ -368,4 +351,4 @@ ur_result_t urContextGetInfo(ur_context_handle_t hContext,
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
-} // namespace ur::level_zero
+} // namespace ur::level_zero::v2

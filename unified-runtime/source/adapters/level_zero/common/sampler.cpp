@@ -8,13 +8,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "sampler.hpp"
+#include "device.hpp"
+#include "interfaces.hpp"
 #include "logger/ur_logger.hpp"
+#include "platform.hpp"
 
-#ifdef UR_ADAPTER_LEVEL_ZERO_V2
-#include "v2/context.hpp"
-#else
-#include "context.hpp"
-#endif
+namespace ur::level_zero {
 
 ur_result_t ur2zeSamplerDesc(ze_api_version_t ZeApiVersion,
                              const ur_sampler_desc_t *SamplerDesc,
@@ -78,17 +77,16 @@ ur_result_t ur2zeSamplerDesc(ze_api_version_t ZeApiVersion,
   return UR_RESULT_SUCCESS;
 }
 
-namespace ur::level_zero {
-
 ur_result_t urSamplerCreate(
     /// [in] handle of the context object
-    ur_context_handle_t Context,
+    ::ur_context_handle_t ContextOpque,
     /// [in] specifies a list of sampler property names and their
     /// corresponding values.
     const ur_sampler_desc_t *Props,
     /// [out] pointer to handle of sampler object created
-    ur_sampler_handle_t *Sampler) {
-  std::shared_lock<ur_shared_mutex> Lock(Context->Mutex);
+    ::ur_sampler_handle_t *SamplerOpque) {
+  auto Context = common_cast(ContextOpque);
+  std::shared_lock<ur_shared_mutex> Lock(Context->getMutex());
 
   // Have the "0" device in context to own the sampler. Rely on Level-Zero
   // drivers to perform migration as necessary for sharing it across multiple
@@ -109,9 +107,10 @@ ur_result_t urSamplerCreate(
                                &ZeSampler));
 
   try {
-    ur_sampler_handle_t_ *UrSampler = new ur_sampler_handle_t_(ZeSampler);
+    ur_sampler_handle_t_ *UrSampler =
+        new ur_sampler_handle_t_(ZeSampler, ContextOpque);
     UrSampler->ZeSamplerDesc = ZeSamplerDesc;
-    *Sampler = reinterpret_cast<ur_sampler_handle_t>(UrSampler);
+    *SamplerOpque = common_cast(UrSampler);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -122,14 +121,15 @@ ur_result_t urSamplerCreate(
 
 ur_result_t urSamplerRetain(
     /// [in] handle of the sampler object to get access
-    ur_sampler_handle_t Sampler) {
-  Sampler->RefCount.retain();
+    ::ur_sampler_handle_t SamplerOpque) {
+  common_cast(SamplerOpque)->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urSamplerRelease(
     /// [in] handle of the sampler object to release
-    ur_sampler_handle_t Sampler) {
+    ::ur_sampler_handle_t SamplerOpque) {
+  auto Sampler = common_cast(SamplerOpque);
   if (!Sampler->RefCount.release())
     return UR_RESULT_SUCCESS;
 
@@ -150,7 +150,7 @@ ur_result_t urSamplerRelease(
 
 ur_result_t urSamplerGetInfo(
     /// [in] handle of the sampler object
-    ur_sampler_handle_t /*Sampler*/,
+    ::ur_sampler_handle_t /*Sampler*/,
     /// [in] name of the sampler property to query
     ur_sampler_info_t /*PropName*/,
     /// [in] size in bytes of the sampler property value provided
@@ -167,9 +167,9 @@ ur_result_t urSamplerGetInfo(
 
 ur_result_t urSamplerGetNativeHandle(
     /// [in] handle of the sampler.
-    ur_sampler_handle_t /*Sampler*/,
+    ::ur_sampler_handle_t /*Sampler*/,
     /// [out] a pointer to the native handle of the sampler.
-    ur_native_handle_t * /*NativeSampler*/) {
+    ::ur_native_handle_t * /*NativeSampler*/) {
   UR_LOG_LEGACY(ERR,
                 logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
@@ -178,13 +178,13 @@ ur_result_t urSamplerGetNativeHandle(
 
 ur_result_t urSamplerCreateWithNativeHandle(
     /// [in] the native handle of the sampler.
-    ur_native_handle_t /*NativeSampler*/,
+    ::ur_native_handle_t /*NativeSampler*/,
     /// [in] handle of the context object
-    ur_context_handle_t /*Context*/,
+    ::ur_context_handle_t /*Context*/,
     /// [in][optional] pointer to native sampler properties struct.
     const ur_sampler_native_properties_t * /*Properties*/,
     /// [out] pointer to the handle of the sampler object created.
-    ur_sampler_handle_t * /*Sampler*/) {
+    ::ur_sampler_handle_t * /*Sampler*/) {
   UR_LOG_LEGACY(ERR,
                 logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);

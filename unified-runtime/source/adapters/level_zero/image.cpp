@@ -8,32 +8,35 @@
 //===----------------------------------------------------------------------===//
 
 #include "common.hpp"
+#include "common/image_common.hpp"
+#include "common/platform.hpp"
+#include "common/sampler.hpp"
 #include "context.hpp"
 #include "event.hpp"
-#include "image_common.hpp"
 #include "logger/ur_logger.hpp"
 #include "memory.hpp"
-#include "sampler.hpp"
 #include "unified-runtime/ur_api.h"
 #include "ur_interface_loader.hpp"
 
 #include "loader/ze_loader.h"
 
-namespace ur::level_zero {
+namespace ur::level_zero::v1 {
 
 ur_result_t urBindlessImagesImageCopyExp(
-    ur_queue_handle_t hQueue, const void *pSrc, void *pDst,
+    ::ur_queue_handle_t hQueueOpque, const void *pSrc, void *pDst,
     const ur_image_desc_t *pSrcImageDesc, const ur_image_desc_t *pDstImageDesc,
     const ur_image_format_t *pSrcImageFormat,
     const ur_image_format_t *pDstImageFormat,
     ur_exp_image_copy_region_t *pCopyRegion,
     ur_exp_image_copy_flags_t imageCopyFlags,
     ur_exp_image_copy_input_types_t imageCopyInputTypes,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
+    uint32_t numEventsInWaitList,
+    const ::ur_event_handle_t *phEventWaitListOpque,
+    ::ur_event_handle_t *phEventOpque) {
+  auto hQueue = v1_cast(hQueueOpque);
   std::scoped_lock<ur_shared_mutex> Lock(hQueue->Mutex);
 
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hQueueOpque, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pDst && pSrc && pSrcImageFormat && pSrcImageDesc && pDstImageDesc &&
                 pCopyRegion,
             UR_RESULT_ERROR_INVALID_NULL_POINTER);
@@ -52,9 +55,9 @@ ur_result_t urBindlessImagesImageCopyExp(
   // This is wild and the change is only added because we continue to test
   // both V1 and V2 L0 adapters for all HW, regardless of the default adapter
   // there.
-  bool UseCopyEngine =
-      hQueue->useCopyEngine(/*PreferCopyEngine*/ imageCopyInputTypes ==
-                            UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_MEM);
+  bool UseCopyEngine = hQueue->useCopyEngine(
+      /*PreferCopyEngine*/ imageCopyInputTypes ==
+      UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_MEM);
   // Due to the limitation of the copy engine, disable usage of Copy Engine
   // Given 3 channel image
   if (is3ChannelOrder(
@@ -64,9 +67,12 @@ ur_result_t urBindlessImagesImageCopyExp(
     UseCopyEngine = false;
   }
 
+  auto phEventWaitListInternal = v1_cast(phEventWaitListOpque);
+  auto phEventInternal = v1_cast(phEventOpque);
+
   ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
-      numEventsInWaitList, phEventWaitList, hQueue, UseCopyEngine));
+      numEventsInWaitList, phEventWaitListInternal, hQueue, UseCopyEngine));
 
   bool Blocking = false;
   // We want to batch these commands to avoid extra submissions (costly)
@@ -75,18 +81,18 @@ ur_result_t urBindlessImagesImageCopyExp(
   // Get a new command list to be used on this call
   ur_command_list_ptr_t CommandList{};
   UR_CALL(hQueue->Context->getAvailableCommandList(
-      hQueue, CommandList, UseCopyEngine, numEventsInWaitList, phEventWaitList,
-      OkToBatch, nullptr /*ForcedCmdQueue*/));
+      hQueue, CommandList, UseCopyEngine, numEventsInWaitList,
+      phEventWaitListInternal, OkToBatch, nullptr /*ForcedCmdQueue*/));
 
   ze_event_handle_t ZeEvent = nullptr;
   ur_event_handle_t InternalEvent;
-  bool IsInternal = phEvent == nullptr;
-  ur_event_handle_t *Event = phEvent ? phEvent : &InternalEvent;
+  bool IsInternal = phEventInternal == nullptr;
+  ur_event_handle_t *Event = phEventInternal ? phEventInternal : &InternalEvent;
   UR_CALL(createEventAndAssociateQueue(hQueue, Event, UR_COMMAND_MEM_IMAGE_COPY,
                                        CommandList, IsInternal,
                                        /*IsMultiDevice*/ false));
   UR_CALL(setSignalEvent(hQueue, UseCopyEngine, &ZeEvent, Event,
-                         numEventsInWaitList, phEventWaitList,
+                         numEventsInWaitList, phEventWaitListInternal,
                          CommandList->second.ZeQueue));
   (*Event)->WaitList = TmpWaitList;
 
@@ -105,9 +111,12 @@ ur_result_t urBindlessImagesImageCopyExp(
 }
 
 ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
-    ur_queue_handle_t hQueue, ur_exp_external_semaphore_handle_t hSemaphore,
-    bool hasValue, uint64_t waitValue, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+    ::ur_queue_handle_t hQueueOpque,
+    ::ur_exp_external_semaphore_handle_t hSemaphoreOpque, bool hasValue,
+    uint64_t waitValue, uint32_t numEventsInWaitList,
+    const ::ur_event_handle_t *phEventWaitListOpque,
+    ::ur_event_handle_t *phEventOpque) {
+  auto hQueue = v1_cast(hQueueOpque);
   auto UrPlatform = hQueue->Context->getPlatform();
   if (UrPlatform->ZeExternalSemaphoreExt.Supported == false) {
     UR_LOG_LEGACY(ERR,
@@ -121,26 +130,45 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
 
+  // External semaphore operations require an immediate command list per the
+  // Level Zero spec. If the queue is not using immediate command lists,
+  // we need to get one specifically for this operation.
+  bool NeedTempImmCmdList = !hQueue->UsingImmCmdLists;
+
+  auto phEventWaitListInternal = v1_cast(phEventWaitListOpque);
+  auto phEventInternal = v1_cast(phEventOpque);
+
   ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
-      numEventsInWaitList, phEventWaitList, hQueue, UseCopyEngine));
+      numEventsInWaitList, phEventWaitListInternal, hQueue, UseCopyEngine));
 
   // Get a new command list to be used on this call
   ur_command_list_ptr_t CommandList{};
-  UR_CALL(hQueue->Context->getAvailableCommandList(
-      hQueue, CommandList, UseCopyEngine, numEventsInWaitList, phEventWaitList,
-      OkToBatch, nullptr /*ForcedCmdQueue*/));
+  if (NeedTempImmCmdList) {
+    // Ensure the queue group has ImmCmdLists initialized so we can
+    // obtain an immediate command list.
+    auto &QGroup = hQueue->getQueueGroup(UseCopyEngine);
+    if (QGroup.ImmCmdLists.empty()) {
+      QGroup.ImmCmdLists = std::vector<ur_command_list_ptr_t>(
+          QGroup.ZeQueues.size(), hQueue->CommandListMap.end());
+    }
+    CommandList = QGroup.getImmCmdList();
+  } else {
+    UR_CALL(hQueue->Context->getAvailableCommandList(
+        hQueue, CommandList, UseCopyEngine, numEventsInWaitList,
+        phEventWaitListInternal, OkToBatch, nullptr /*ForcedCmdQueue*/));
+  }
 
   ze_event_handle_t ZeEvent = nullptr;
   ur_event_handle_t InternalEvent;
-  bool IsInternal = phEvent == nullptr;
-  ur_event_handle_t *Event = phEvent ? phEvent : &InternalEvent;
+  bool IsInternal = phEventInternal == nullptr;
+  ur_event_handle_t *Event = phEventInternal ? phEventInternal : &InternalEvent;
   UR_CALL(createEventAndAssociateQueue(hQueue, Event,
                                        UR_COMMAND_EXTERNAL_SEMAPHORE_WAIT_EXP,
                                        CommandList, IsInternal,
                                        /*IsMultiDevice*/ false));
   UR_CALL(setSignalEvent(hQueue, UseCopyEngine, &ZeEvent, Event,
-                         numEventsInWaitList, phEventWaitList,
+                         numEventsInWaitList, phEventWaitListInternal,
                          CommandList->second.ZeQueue));
   (*Event)->WaitList = TmpWaitList;
 
@@ -151,7 +179,7 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
       ZE_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_WAIT_PARAMS_EXT, nullptr, 0};
   WaitParams.value = hasValue ? waitValue : 0;
   ze_external_semaphore_ext_handle_t hExtSemaphore =
-      reinterpret_cast<ze_external_semaphore_ext_handle_t>(hSemaphore);
+      reinterpret_cast<ze_external_semaphore_ext_handle_t>(hSemaphoreOpque);
   ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
                  .zexCommandListAppendWaitExternalSemaphoresExp,
              (ZeCommandList, 1, &hExtSemaphore, &WaitParams, ZeEvent,
@@ -163,9 +191,12 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
 }
 
 ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
-    ur_queue_handle_t hQueue, ur_exp_external_semaphore_handle_t hSemaphore,
-    bool hasValue, uint64_t signalValue, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+    ::ur_queue_handle_t hQueueOpque,
+    ::ur_exp_external_semaphore_handle_t hSemaphoreOpque, bool hasValue,
+    uint64_t signalValue, uint32_t numEventsInWaitList,
+    const ::ur_event_handle_t *phEventWaitListOpque,
+    ::ur_event_handle_t *phEventOpque) {
+  auto hQueue = v1_cast(hQueueOpque);
   auto UrPlatform = hQueue->Context->getPlatform();
   if (UrPlatform->ZeExternalSemaphoreExt.Supported == false) {
     UR_LOG_LEGACY(ERR,
@@ -179,26 +210,45 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
 
+  // External semaphore operations require an immediate command list per the
+  // Level Zero spec. If the queue is not using immediate command lists,
+  // we need to get one specifically for this operation.
+  bool NeedTempImmCmdList = !hQueue->UsingImmCmdLists;
+
+  auto phEventWaitListInternal = v1_cast(phEventWaitListOpque);
+  auto phEventInternal = v1_cast(phEventOpque);
+
   ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
-      numEventsInWaitList, phEventWaitList, hQueue, UseCopyEngine));
+      numEventsInWaitList, phEventWaitListInternal, hQueue, UseCopyEngine));
 
   // Get a new command list to be used on this call
   ur_command_list_ptr_t CommandList{};
-  UR_CALL(hQueue->Context->getAvailableCommandList(
-      hQueue, CommandList, UseCopyEngine, numEventsInWaitList, phEventWaitList,
-      OkToBatch, nullptr /*ForcedCmdQueue*/));
+  if (NeedTempImmCmdList) {
+    // Ensure the queue group has ImmCmdLists initialized so we can
+    // obtain an immediate command list.
+    auto &QGroup = hQueue->getQueueGroup(UseCopyEngine);
+    if (QGroup.ImmCmdLists.empty()) {
+      QGroup.ImmCmdLists = std::vector<ur_command_list_ptr_t>(
+          QGroup.ZeQueues.size(), hQueue->CommandListMap.end());
+    }
+    CommandList = QGroup.getImmCmdList();
+  } else {
+    UR_CALL(hQueue->Context->getAvailableCommandList(
+        hQueue, CommandList, UseCopyEngine, numEventsInWaitList,
+        phEventWaitListInternal, OkToBatch, nullptr /*ForcedCmdQueue*/));
+  }
 
   ze_event_handle_t ZeEvent = nullptr;
   ur_event_handle_t InternalEvent;
-  bool IsInternal = phEvent == nullptr;
-  ur_event_handle_t *Event = phEvent ? phEvent : &InternalEvent;
+  bool IsInternal = phEventInternal == nullptr;
+  ur_event_handle_t *Event = phEventInternal ? phEventInternal : &InternalEvent;
   UR_CALL(createEventAndAssociateQueue(hQueue, Event,
                                        UR_COMMAND_EXTERNAL_SEMAPHORE_SIGNAL_EXP,
                                        CommandList, IsInternal,
                                        /*IsMultiDevice*/ false));
   UR_CALL(setSignalEvent(hQueue, UseCopyEngine, &ZeEvent, Event,
-                         numEventsInWaitList, phEventWaitList,
+                         numEventsInWaitList, phEventWaitListInternal,
                          CommandList->second.ZeQueue));
   (*Event)->WaitList = TmpWaitList;
 
@@ -209,7 +259,7 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
       ZE_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_EXT, nullptr, 0};
   SignalParams.value = hasValue ? signalValue : 0;
   ze_external_semaphore_ext_handle_t hExtSemaphore =
-      reinterpret_cast<ze_external_semaphore_ext_handle_t>(hSemaphore);
+      reinterpret_cast<ze_external_semaphore_ext_handle_t>(hSemaphoreOpque);
 
   ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
                  .zexCommandListAppendSignalExternalSemaphoresExp,
@@ -221,4 +271,4 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
   return UR_RESULT_SUCCESS;
 }
 
-} // namespace ur::level_zero
+} // namespace ur::level_zero::v1

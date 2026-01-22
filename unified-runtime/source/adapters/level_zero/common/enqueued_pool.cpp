@@ -8,8 +8,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "enqueued_pool.hpp"
+#include "../usm.hpp"
 
 #include <unified-runtime/ur_api.h>
+
+namespace ur::level_zero {
 
 EnqueuedPool::~EnqueuedPool() { cleanup(); }
 
@@ -30,7 +33,7 @@ std::optional<EnqueuedPool::Allocation> EnqueuedPool::getBestFit(size_t Size,
   return std::nullopt;
 }
 
-void EnqueuedPool::insert(void *Ptr, size_t Size, ur_event_handle_t Event,
+void EnqueuedPool::insert(void *Ptr, size_t Size, ::ur_event_handle_t Event,
                           void *Queue) {
   auto Lock = std::lock_guard(Mutex);
 
@@ -78,3 +81,5 @@ bool EnqueuedPool::cleanupForQueue(void *Queue) {
 
   return FreedAllocations;
 }
+
+} // namespace ur::level_zero

@@ -91,6 +91,13 @@ if(UR_STATIC_ADAPTER_OPENCL AND (UR_BUILD_ADAPTER_OPENCL OR UR_BUILD_ADAPTER_ALL
     target_compile_definitions(ur_loader PRIVATE UR_STATIC_ADAPTER_OPENCL)
 endif()
 
+if(UR_STATIC_ADAPTER_L0_V2)
+    target_link_libraries(ur_loader PRIVATE
+        ur_adapter_level_zero_v2
+    )
+    target_compile_definitions(ur_loader PRIVATE UR_STATIC_ADAPTER_LEVEL_ZERO_V2)
+endif()
+
 if(UR_ENABLE_TRACING)
     target_link_libraries(ur_loader PRIVATE ${TARGET_XPTI})
     target_include_directories(ur_loader PRIVATE ${xpti_SOURCE_DIR}/include)

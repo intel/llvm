@@ -11,6 +11,9 @@
 
 #include <unified-runtime/ur_api.h>
 
+#include <ze_api.h>
+
+#include "../common/interfaces.hpp"
 #include "command_list_cache.hpp"
 #include "common.hpp"
 #include "common/ur_ref_count.hpp"
@@ -18,18 +21,16 @@
 #include "logger/ur_logger.hpp"
 #include "usm.hpp"
 
+namespace ur::level_zero::v2 {
+
 enum class PoolCacheType { Immediate, Regular };
 
-struct ur_context_handle_t_ : ur_object {
+struct ur_context_handle_t_ : ur_context_common_t {
   ur_context_handle_t_(ze_context_handle_t hContext, uint32_t numDevices,
                        const ur_device_handle_t *phDevices, bool ownZeContext);
 
   ur_result_t retain();
 
-  inline ze_context_handle_t getZeHandle() const { return hContext.get(); }
-  ur_platform_handle_t getPlatform() const;
-
-  const std::vector<ur_device_handle_t> &getDevices() const;
   ur_usm_pool_handle_t getDefaultUSMPool();
   ur_usm_pool_handle_t getAsyncPool();
 
@@ -52,9 +53,9 @@ struct ur_context_handle_t_ : ur_object {
   std::vector<ur_device_handle_t>
   getDevicesWhichCanAccessAllocationsPresentOn(ur_device_handle_t hDevice);
 
-  v2::event_pool &getNativeEventsPool() { return nativeEventsPool; }
-  v2::command_list_cache_t &getCommandListCache() { return commandListCache; }
-  v2::event_pool_cache &getEventPoolCache(PoolCacheType type) {
+  event_pool &getNativeEventsPool() { return nativeEventsPool; }
+  command_list_cache_t &getCommandListCache() { return commandListCache; }
+  event_pool_cache &getEventPoolCache(PoolCacheType type) {
     switch (type) {
     case PoolCacheType::Immediate:
       return eventPoolCacheImmediate;
@@ -64,12 +65,9 @@ struct ur_context_handle_t_ : ur_object {
     UR_FFAILURE("Requested invalid event pool cache type");
   }
 
-  v2::event_pool_cache &getReusableEventPoolCache() {
+  event_pool_cache &getReusableEventPoolCache() {
     return reusableEventPoolCache;
   }
-  // Checks if Device is covered by this context.
-  // For that the Device or its root devices need to be in the context.
-  bool isValidDevice(ur_device_handle_t Device) const;
 
   ur_exp_graph_handle_t getGraphFromZeHandle(ze_graph_handle_t zeGraph) {
     auto it = zeToUrGraphMap.find(zeGraph);
@@ -89,19 +87,19 @@ struct ur_context_handle_t_ : ur_object {
   ur_shared_mutex GraphMapMutex;
 
 private:
-  const v2::raii::ze_context_handle_t hContext;
+  const raii::ze_context_handle_t hContext;
   const std::vector<ur_device_handle_t>
       hDevices; // possibly without subdevices, only what was passed to ctor,
                 // context may have user-defined, limited subset of available
                 // devices
-  v2::command_list_cache_t commandListCache;
-  v2::event_pool_cache eventPoolCacheImmediate;
-  v2::event_pool_cache eventPoolCacheRegular;
-  v2::event_pool_cache reusableEventPoolCache;
+  command_list_cache_t commandListCache;
+  event_pool_cache eventPoolCacheImmediate;
+  event_pool_cache eventPoolCacheRegular;
+  event_pool_cache reusableEventPoolCache;
 
   // pool used for urEventCreateWithNativeHandle when native handle is NULL
   // (uses non-counter based events to allow for signaling from host)
-  v2::event_pool nativeEventsPool;
+  event_pool nativeEventsPool;
 
   ur_usm_pool_handle_t_ defaultUSMPool;
   ur_usm_pool_handle_t_ asyncPool;
@@ -112,3 +110,5 @@ private:
   // managers. Caller must protect accesses with GraphMapMutex.
   std::unordered_map<ze_graph_handle_t, ur_exp_graph_handle_t> zeToUrGraphMap;
 };
+
+} // namespace ur::level_zero::v2

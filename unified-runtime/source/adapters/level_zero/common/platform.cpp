@@ -9,7 +9,6 @@
 
 #include "platform.hpp"
 #include "adapter.hpp"
-#include "ur_level_zero.hpp"
 
 // The default value of the driver versions skiplist
 // (SYCL_UR_L0_DRIVER_SKIPLIST)
@@ -18,7 +17,7 @@ static const std::vector<std::string> DriverSkiplistDefault = {};
 namespace ur::level_zero {
 
 ur_result_t urPlatformGet(
-    ur_adapter_handle_t,
+    ::ur_adapter_handle_t hAdapterOpque,
     /// [in] the number of platforms to be added to phPlatforms. If phPlatforms
     /// is not NULL, then NumEntries should be greater than zero, otherwise
     /// ::UR_RESULT_ERROR_INVALID_SIZE, will be returned.
@@ -26,18 +25,19 @@ ur_result_t urPlatformGet(
     /// [out][optional][range(0, NumEntries)] array of handle of platforms.
     /// If NumEntries is less than the number of platforms available, then
     /// ::urPlatformGet shall only retrieve that number of platforms.
-    ur_platform_handle_t *Platforms,
+    ::ur_platform_handle_t *Platforms,
     /// [out][optional] returns the total number of platforms available.
     uint32_t *NumPlatforms) {
+  auto hAdapter = common_cast(hAdapterOpque);
   // Platform handles are cached for reuse. This is to ensure consistent
   // handle pointers across invocations and to improve retrieval performance.
-  uint32_t nplatforms = (uint32_t)GlobalAdapter->Platforms.size();
+  uint32_t nplatforms = (uint32_t)hAdapter->Platforms.size();
   if (NumPlatforms) {
     *NumPlatforms = nplatforms;
   }
   if (Platforms) {
     for (uint32_t i = 0; i < std::min(nplatforms, NumEntries); ++i) {
-      Platforms[i] = GlobalAdapter->Platforms.at(i).get();
+      Platforms[i] = common_cast(hAdapter->Platforms.at(i).get());
     }
   }
 
@@ -46,7 +46,7 @@ ur_result_t urPlatformGet(
 
 ur_result_t urPlatformGetInfo(
     /// [in] handle of the platform
-    ur_platform_handle_t Platform,
+    ::ur_platform_handle_t PlatformOpque,
     /// [in] type of the info to retrieve
     ur_platform_info_t ParamName,
     /// [in] the number of bytes pointed to by pPlatformInfo.
@@ -64,11 +64,7 @@ ur_result_t urPlatformGetInfo(
   switch (ParamName) {
   case UR_PLATFORM_INFO_NAME:
     // TODO: Query Level Zero driver when relevant info is added there.
-#ifdef UR_ADAPTER_LEVEL_ZERO_V2
-    return ReturnValue("Intel(R) oneAPI Unified Runtime over Level-Zero V2");
-#else
     return ReturnValue("Intel(R) oneAPI Unified Runtime over Level-Zero");
-#endif
   case UR_PLATFORM_INFO_VENDOR_NAME:
     // TODO: Query Level Zero driver when relevant info is added there.
     return ReturnValue("Intel(R) Corporation");
@@ -94,11 +90,13 @@ ur_result_t urPlatformGetInfo(
     // OpenCL<space><major_version.minor_version><space><platform-specific
     // information>. Follow the same notation here.
     //
-    return ReturnValue(Platform->ZeDriverApiVersion.c_str());
+    return ReturnValue(common_cast(PlatformOpque)->ZeDriverApiVersion.c_str());
   case UR_PLATFORM_INFO_BACKEND:
     return ReturnValue(UR_BACKEND_LEVEL_ZERO);
   case UR_PLATFORM_INFO_ADAPTER:
-    return ReturnValue(GlobalAdapter);
+    // Whichever adapter (L0v1 or L0v2) won selection in urAdapterGet is
+    // also the one that stamped this platform's DDI table.
+    return ReturnValue(common_cast(GlobalAdapter));
   default:
     UR_LOG(DEBUG, "urPlatformGetInfo: unrecognized ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
@@ -109,7 +107,7 @@ ur_result_t urPlatformGetInfo(
 
 ur_result_t urPlatformGetApiVersion(
     /// [in] handle of the platform
-    ur_platform_handle_t /*Driver*/,
+    ::ur_platform_handle_t /*Driver*/,
     /// [out] api version
     ur_api_version_t *Version) {
   *Version = UR_API_VERSION_CURRENT;
@@ -118,31 +116,31 @@ ur_result_t urPlatformGetApiVersion(
 
 ur_result_t urPlatformGetNativeHandle(
     /// [in] handle of the platform.
-    ur_platform_handle_t Platform,
+    ::ur_platform_handle_t PlatformOpque,
     /// [out] a pointer to the native handle of the platform.
-    ur_native_handle_t *NativePlatform) {
+    ::ur_native_handle_t *NativePlatform) {
   // Extract the Level Zero driver handle from the given PI platform
-  *NativePlatform = reinterpret_cast<ur_native_handle_t>(Platform->ZeDriver);
+  *NativePlatform = reinterpret_cast<ur_native_handle_t>(
+      common_cast(PlatformOpque)->ZeDriver);
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urPlatformCreateWithNativeHandle(
     /// [in] the native handle of the platform.
-    ur_native_handle_t NativePlatform, ur_adapter_handle_t,
+    ::ur_native_handle_t NativePlatform, ::ur_adapter_handle_t hAdapterOpque,
     /// [in][optional] pointer to native platform properties struct.
     const ur_platform_native_properties_t * /*Properties*/,
     /// [out] pointer to the handle of the platform object created.
-    ur_platform_handle_t *Platform) {
+    ::ur_platform_handle_t *Platform) {
   auto ZeDriver = ur_cast<ze_driver_handle_t>(NativePlatform);
 
   uint32_t NumPlatforms = 0;
-  ur_adapter_handle_t AdapterHandle = GlobalAdapter;
   UR_CALL(
-      ur::level_zero::urPlatformGet(AdapterHandle, 0, nullptr, &NumPlatforms));
+      ur::level_zero::urPlatformGet(hAdapterOpque, 0, nullptr, &NumPlatforms));
 
   if (NumPlatforms) {
-    std::vector<ur_platform_handle_t> Platforms(NumPlatforms);
-    UR_CALL(ur::level_zero::urPlatformGet(AdapterHandle, NumPlatforms,
+    std::vector<::ur_platform_handle_t> Platforms(NumPlatforms);
+    UR_CALL(ur::level_zero::urPlatformGet(hAdapterOpque, NumPlatforms,
                                           Platforms.data(), nullptr));
 
     // The SYCL spec requires that the set of platforms must remain fixed for
@@ -150,9 +148,9 @@ ur_result_t urPlatformCreateWithNativeHandle(
     // of the Level Zero drivers when we initialized the platform cache, so the
     // "NativeHandle" must already be in the cache. If it is not, this must not
     // be a valid Level Zero driver.
-    for (const ur_platform_handle_t &CachedPlatform : Platforms) {
-      if (CachedPlatform->ZeDriver == ZeDriver) {
-        *Platform = CachedPlatform;
+    for (const ::ur_platform_handle_t &CachedPlatformGlobal : Platforms) {
+      if (common_cast(CachedPlatformGlobal)->ZeDriver == ZeDriver) {
+        *Platform = CachedPlatformGlobal;
         return UR_RESULT_SUCCESS;
       }
     }
@@ -169,7 +167,7 @@ ur_result_t urPlatformCreateWithNativeHandle(
 // frontend_option=-ftarget-compile-fast.
 ur_result_t urPlatformGetBackendOption(
     /// [in] handle of the platform instance.
-    ur_platform_handle_t /*Platform*/,
+    ::ur_platform_handle_t /*Platform*/,
     /// [in] string containing the frontend option.
     const char *FrontendOption,
     /// [out] returns the correct platform specific compiler option based on
@@ -203,8 +201,6 @@ ur_result_t urPlatformGetBackendOption(
   }
   return UR_RESULT_ERROR_INVALID_VALUE;
 }
-
-} // namespace ur::level_zero
 
 ur_result_t ur_platform_handle_t_::initialize() {
   ZE2UR_CALL(zeDriverGetApiVersion, (ZeDriver, &ZeApiVersion));
@@ -1138,3 +1134,5 @@ ur_device_handle_t ur_platform_handle_t_::getDeviceById(DeviceId id) {
   }
   return nullptr;
 }
+
+} // namespace ur::level_zero

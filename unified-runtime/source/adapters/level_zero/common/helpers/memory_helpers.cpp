@@ -8,7 +8,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "memory_helpers.hpp"
-#include "../common.hpp"
+
+namespace ur::level_zero {
 
 ur_result_t
 getMemoryAttrs(ze_context_handle_t hContext, void *ptr,
@@ -77,3 +78,5 @@ ze_region_params ur2zeRegionParams(ur_rect_offset_t SrcOrigin,
   return ze_region_params{ZeDstRegion, DstPitch, DstSlicePitch,
                           ZeSrcRegion, SrcPitch, SrcSlicePitch};
 }
+
+} // namespace ur::level_zero

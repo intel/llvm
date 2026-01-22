@@ -13,7 +13,9 @@
 
 #include <utility>
 
-#include "../common.hpp"
+#include "shared_helpers.hpp"
+
+namespace ur::level_zero {
 
 // If USM Import feature is enabled and hostptr is supplied,
 // import the hostptr if not already imported into USM.
@@ -44,3 +46,5 @@ ze_region_params ur2zeRegionParams(ur_rect_offset_t SrcOrigin,
                                    ur_rect_region_t Region, size_t SrcRowPitch,
                                    size_t DstRowPitch, size_t SrcSlicePitch,
                                    size_t DstSlicePitch);
+
+} // namespace ur::level_zero

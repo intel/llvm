@@ -10,6 +10,7 @@
 #include <optional>
 #include <ze_api.h>
 
+#include "../common/device.hpp"
 #include "context.hpp"
 #include "event.hpp"
 #include "event_pool.hpp"
@@ -17,8 +18,9 @@
 #include "queue_api.hpp"
 #include "queue_handle.hpp"
 
-#include "../device.hpp"
-#include "../ur_interface_loader.hpp"
+#include "ur_interface_loader.hpp"
+
+namespace ur::level_zero::v2 {
 
 static uint64_t adjustEndEventTimestamp(uint64_t adjustedStartTimestamp,
                                         uint64_t endTimestamp,
@@ -83,7 +85,7 @@ void event_profiling_data_t::recordStartTimestamp(ur_device_handle_t hDevice) {
 
   uint64_t deviceStartTimestamp = 0;
   UR_CALL_THROWS(ur::level_zero::urDeviceGetGlobalTimestamps(
-      hDevice, &deviceStartTimestamp, nullptr));
+      common_cast(hDevice), &deviceStartTimestamp, nullptr));
 
   assert(adjustedEventStartTimestamp == 0);
   adjustedEventStartTimestamp = deviceStartTimestamp;
@@ -251,21 +253,21 @@ ur_event_handle_t_::ur_event_handle_t_(
           ,
           nullptr) {}
 
-namespace ur::level_zero {
-ur_result_t urEventRetain(ur_event_handle_t hEvent) try {
-  return hEvent->retain();
+ur_result_t urEventRetain(::ur_event_handle_t hEventOpque) try {
+  return v2_cast(hEventOpque)->retain();
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urEventRelease(ur_event_handle_t hEvent) try {
-  return hEvent->release();
+ur_result_t urEventRelease(::ur_event_handle_t hEventOpque) try {
+  return v2_cast(hEventOpque)->release();
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urEventWait(uint32_t numEvents,
-                        const ur_event_handle_t *phEventWaitList) try {
+                        const ::ur_event_handle_t *phEventWaitListOpque) try {
+  auto phEventWaitList = v2_cast(phEventWaitListOpque);
   for (uint32_t i = 0; i < numEvents; ++i) {
     phEventWaitList[i]->onWaitListUse();
     ZE2UR_CALL(zeEventHostSynchronize,
@@ -276,14 +278,15 @@ ur_result_t urEventWait(uint32_t numEvents,
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urEventGetInfo(ur_event_handle_t hEvent, ur_event_info_t propName,
-                           size_t propValueSize, void *pPropValue,
-                           size_t *pPropValueSizeRet) try {
+ur_result_t urEventGetInfo(::ur_event_handle_t hEventOpque,
+                           ur_event_info_t propName, size_t propValueSize,
+                           void *pPropValue, size_t *pPropValueSizeRet) try {
+  auto event = v2_cast(hEventOpque);
   UrReturnHelper returnValue(propValueSize, pPropValue, pPropValueSizeRet);
 
   switch (propName) {
   case UR_EVENT_INFO_COMMAND_EXECUTION_STATUS: {
-    auto zeStatus = ZE_CALL_NOCHECK(zeEventQueryStatus, (hEvent->getZeEvent()));
+    auto zeStatus = ZE_CALL_NOCHECK(zeEventQueryStatus, (event->getZeEvent()));
 
     if (zeStatus == ZE_RESULT_NOT_READY) {
       return returnValue(UR_EVENT_STATUS_SUBMITTED);
@@ -292,18 +295,18 @@ ur_result_t urEventGetInfo(ur_event_handle_t hEvent, ur_event_info_t propName,
     }
   }
   case UR_EVENT_INFO_REFERENCE_COUNT: {
-    return returnValue(hEvent->RefCount.getCount());
+    return returnValue(event->RefCount.getCount());
   }
   case UR_EVENT_INFO_COMMAND_QUEUE: {
-    auto urQueueHandle = reinterpret_cast<uintptr_t>(hEvent->getQueue()) -
+    auto urQueueHandle = reinterpret_cast<uintptr_t>(event->getQueue()) -
                          ur_queue_handle_t_::queue_offset;
     return returnValue(urQueueHandle);
   }
   case UR_EVENT_INFO_CONTEXT: {
-    return returnValue(hEvent->getContext());
+    return returnValue(event->getContext());
   }
   case UR_EVENT_INFO_COMMAND_TYPE: {
-    return returnValue(hEvent->getCommandType());
+    return returnValue(event->getCommandType());
   }
   default:
     UR_LOG(ERR, "Unsupported ParamName in urEventGetInfo: ParamName={}(0x{})",
@@ -318,7 +321,7 @@ ur_result_t urEventGetInfo(ur_event_handle_t hEvent, ur_event_info_t propName,
 
 ur_result_t urEventGetProfilingInfo(
     /// [in] handle of the event object
-    ur_event_handle_t hEvent,
+    ::ur_event_handle_t hEventOpque,
     /// [in] the name of the profiling property to query
     ur_profiling_info_t propName,
     /// [in] size in bytes of the profiling property value
@@ -328,11 +331,12 @@ ur_result_t urEventGetProfilingInfo(
     /// [out][optional] pointer to the actual size in bytes returned in
     /// propValue
     size_t *pPropValueSizeRet) try {
-  std::scoped_lock<ur_shared_mutex> lock(hEvent->Mutex);
+  auto event = v2_cast(hEventOpque);
+  std::scoped_lock<ur_shared_mutex> lock(event->Mutex);
 
   // The event must either have profiling enabled or be recording timestamps.
-  bool isTimestampedEvent = hEvent->isTimestamped();
-  if (!hEvent->isProfilingEnabled() && !isTimestampedEvent) {
+  bool isTimestampedEvent = event->isTimestamped();
+  if (!event->isProfilingEnabled() && !isTimestampedEvent) {
     return UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE;
   }
 
@@ -341,7 +345,7 @@ ur_result_t urEventGetProfilingInfo(
   // For timestamped events we have the timestamps ready directly on the event
   // handle, so we short-circuit the return.
   if (isTimestampedEvent) {
-    uint64_t contextStartTime = hEvent->getEventStartTimestmap();
+    uint64_t contextStartTime = event->getEventStartTimestmap();
     switch (propName) {
     case UR_PROFILING_INFO_COMMAND_QUEUED:
     case UR_PROFILING_INFO_COMMAND_SUBMIT:
@@ -349,7 +353,7 @@ ur_result_t urEventGetProfilingInfo(
     case UR_PROFILING_INFO_COMMAND_END:
     case UR_PROFILING_INFO_COMMAND_START:
     case UR_PROFILING_INFO_COMMAND_COMPLETE: {
-      return returnValue(hEvent->getEventEndTimestamp());
+      return returnValue(event->getEventEndTimestamp());
     }
     default:
       UR_LOG(ERR, "urEventGetProfilingInfo: not supported ParamName");
@@ -357,7 +361,7 @@ ur_result_t urEventGetProfilingInfo(
     }
   }
 
-  auto hDevice = hEvent->getDevice();
+  auto hDevice = event->getDevice();
   if (!hDevice) {
     // no command has been enqueued with this event yet
     return UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE;
@@ -370,14 +374,14 @@ ur_result_t urEventGetProfilingInfo(
 
   switch (propName) {
   case UR_PROFILING_INFO_COMMAND_START: {
-    ZE2UR_CALL(zeEventQueryKernelTimestamp, (hEvent->getZeEvent(), &tsResult));
+    ZE2UR_CALL(zeEventQueryKernelTimestamp, (event->getZeEvent(), &tsResult));
     uint64_t contextStartTime =
         (tsResult.global.kernelStart & timestampMaxValue) * zeTimerResolution;
     return returnValue(contextStartTime);
   }
   case UR_PROFILING_INFO_COMMAND_END:
   case UR_PROFILING_INFO_COMMAND_COMPLETE: {
-    ZE2UR_CALL(zeEventQueryKernelTimestamp, (hEvent->getZeEvent(), &tsResult));
+    ZE2UR_CALL(zeEventQueryKernelTimestamp, (event->getZeEvent(), &tsResult));
 
     uint64_t contextStartTime =
         (tsResult.global.kernelStart & timestampMaxValue);
@@ -406,19 +410,22 @@ ur_result_t urEventGetProfilingInfo(
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urEventGetNativeHandle(ur_event_handle_t hEvent,
-                                   ur_native_handle_t *phNativeEvent) try {
-  *phNativeEvent = reinterpret_cast<ur_native_handle_t>(hEvent->getZeEvent());
+ur_result_t urEventGetNativeHandle(::ur_event_handle_t hEventOpque,
+                                   ::ur_native_handle_t *phNativeEvent) try {
+  *phNativeEvent =
+      reinterpret_cast<ur_native_handle_t>(v2_cast(hEventOpque)->getZeEvent());
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
 ur_result_t
-urEventCreateWithNativeHandle(ur_native_handle_t hNativeEvent,
-                              ur_context_handle_t hContext,
+urEventCreateWithNativeHandle(::ur_native_handle_t hNativeEvent,
+                              ::ur_context_handle_t hContextOpque,
                               const ur_event_native_properties_t *pProperties,
-                              ur_event_handle_t *phEvent) try {
+                              ::ur_event_handle_t *phEventOpque) try {
+  auto hContext = v2_cast(hContextOpque);
+  auto phEvent = v2_cast(phEventOpque);
   if (!hNativeEvent) {
     assert((hContext->getNativeEventsPool().getFlags() &
             v2::EVENT_FLAGS_COUNTER) == 0);
@@ -426,21 +433,25 @@ urEventCreateWithNativeHandle(ur_native_handle_t hNativeEvent,
     *phEvent = hContext->getNativeEventsPool().allocate();
     ZE2UR_CALL(zeEventHostSignal, ((*phEvent)->getZeEvent()));
   } else {
-    *phEvent = new ur_event_handle_t_(hContext, hNativeEvent, pProperties);
+    *phEvent = new v2::ur_event_handle_t_(hContext, hNativeEvent, pProperties);
   }
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urEventCreateExp(ur_context_handle_t hContext,
-                             ur_device_handle_t hDevice,
+ur_result_t urEventCreateExp(::ur_context_handle_t hContextOpque,
+                             ::ur_device_handle_t hDeviceOpque,
                              const ur_exp_event_desc_t *pEventDesc,
-                             ur_event_handle_t *phEvent) try {
-  UR_ASSERT(hContext && hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pEventDesc && phEvent, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+                             ::ur_event_handle_t *phEventOpque) try {
+  UR_ASSERT(hContextOpque && hDeviceOpque, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(pEventDesc && phEventOpque, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(!(pEventDesc->flags & UR_EXP_EVENT_FLAGS_MASK),
             UR_RESULT_ERROR_INVALID_ENUMERATION);
+
+  auto hContext = v2_cast(hContextOpque);
+  auto hDevice = common_cast(hDeviceOpque);
+  auto phEvent = v2_cast(phEventOpque);
 
   const v2::event_flags_t flags =
       v2::EVENT_FLAGS_COUNTER |
@@ -466,4 +477,4 @@ ur_result_t urEventCreateExp(ur_context_handle_t hContext,
   return exceptionToResult(std::current_exception());
 }
 
-} // namespace ur::level_zero
+} // namespace ur::level_zero::v2

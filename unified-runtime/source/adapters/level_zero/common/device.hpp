@@ -1,4 +1,4 @@
-//===--------- device.hpp - Level Zero Adapter ----------------------------===//
+//===--------- device.hpp - Level Zero Adapter ---------------------------===//
 //
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM
@@ -14,17 +14,26 @@
 #include <optional>
 #include <stdarg.h>
 #include <string>
+#include <unified-runtime/ur_api.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
-#include "adapters/level_zero/platform.hpp"
-#include "common.hpp"
+#include "api.hpp"
 #include "common/ur_ref_count.hpp"
+#include "helpers/shared_helpers.hpp"
+#include "interfaces.hpp"
 #include <unified-runtime/ur_ddi.h>
 #include <ur/ur.hpp>
 #include <ze_api.h>
 #include <zes_api.h>
+
+namespace ur::level_zero {
+
+typedef size_t DeviceId;
+
+struct ur_device_handle_t_;
+typedef struct ur_device_handle_t_ *ur_device_handle_t;
 
 enum EventsScope {
   // All events are created host-visible.
@@ -56,13 +65,12 @@ struct ur_ze_external_memory_data {
   size_t size;
 };
 
-struct ur_device_handle_t_ : ur_object {
+struct ur_device_handle_t_ : ur::level_zero::ur_object_t {
   ur_device_handle_t_(ze_device_handle_t Device, ur_platform_handle_t Plt,
                       ur_device_handle_t ParentDevice = nullptr)
       : ZeDevice{Device}, Platform{Plt}, RootDevice{ParentDevice},
         ZeDeviceProperties{}, ZeDeviceComputeProperties{}, Id(std::nullopt) {
-    // NOTE: one must additionally call initialize() to complete
-    // UR device creation.
+    ddi_table = ddiTableOf(Plt);
   }
 
   // The helper structure that keeps info about a command queue groups of the
@@ -313,3 +321,5 @@ inline std::vector<ur_device_handle_t> CollectDevicesForUsmPoolCreation(
 
   return DevicesAndSubDevices;
 }
+
+} // namespace ur::level_zero

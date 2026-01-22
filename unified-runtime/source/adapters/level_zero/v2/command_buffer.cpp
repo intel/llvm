@@ -8,26 +8,30 @@
 //===----------------------------------------------------------------------===//
 
 #include "command_buffer.hpp"
-#include "../command_buffer_command.hpp"
-#include "../helpers/kernel_helpers.hpp"
-#include "../ur_interface_loader.hpp"
+#include "../common/command_buffer_command.hpp"
+#include "../common/device.hpp"
+#include "../common/helpers/kernel_helpers.hpp"
 #include "command_list_manager.hpp"
 #include "logger/ur_logger.hpp"
 #include "queue_handle.hpp"
+#include "ur_interface_loader.hpp"
 
+namespace ur::level_zero::v2 {
 namespace {
 
-ur_result_t getZeKernelWrapped(ur_kernel_handle_t kernel,
+ur_result_t getZeKernelWrapped(::ur_kernel_handle_t kernelOpque,
                                ze_kernel_handle_t &zeKernel,
-                               ur_device_handle_t device) {
-  zeKernel = kernel->getZeHandle(device);
+                               ur::level_zero::ur_device_handle_t device) {
+  zeKernel = v2_cast(kernelOpque)->getZeHandle(device);
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t getMemPtr(ur_mem_handle_t memObj,
+ur_result_t getMemPtr(::ur_mem_handle_t memObjOpque,
                       const ur_kernel_arg_mem_obj_properties_t *properties,
-                      char **&zeHandlePtr, ur_device_handle_t device,
+                      char **&zeHandlePtr,
+                      ur::level_zero::ur_device_handle_t device,
                       device_ptr_storage_t *ptrStorage) {
+  auto memObj = v2_cast(memObjOpque);
   char *ptr;
   if (memObj->isImage()) {
     auto imageObj = memObj->getImage();
@@ -72,7 +76,7 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
           context, device,
           std::forward<v2::raii::command_list_unique_handle>(commandList)),
       context(context), device(device),
-      eventPool(context->getEventPoolCache(PoolCacheType::Regular)
+      eventPool(context->getEventPoolCache(v2::PoolCacheType::Regular)
                     .borrow(device->Id.value(),
                             isInOrder ? v2::EVENT_FLAGS_COUNTER : 0)) {}
 
@@ -106,6 +110,15 @@ ur_event_handle_t *ur_exp_command_buffer_handle_t_::getWaitListFromSyncPoints(
   return syncPointWaitList.data();
 }
 
+kernel_command_handle *
+CreateKernelCommandHandle(::ur_exp_command_buffer_handle_t commandBuffer,
+                          ::ur_kernel_handle_t kernel, uint64_t commandId,
+                          uint32_t workDim, uint32_t numKernelAlternatives,
+                          ::ur_kernel_handle_t *kernelAlternatives) {
+  return new kernel_command_handle(commandBuffer, kernel, commandId, workDim,
+                                   numKernelAlternatives, kernelAlternatives);
+}
+
 ur_result_t ur_exp_command_buffer_handle_t_::createCommandHandle(
     locked<ur_command_list_manager> &commandListLocked,
     ur_kernel_handle_t hKernel, uint32_t workDim, const size_t *pGlobalWorkSize,
@@ -116,11 +129,12 @@ ur_result_t ur_exp_command_buffer_handle_t_::createCommandHandle(
   ze_command_list_handle_t zeCommandList =
       commandListLocked->getZeCommandList();
   std::unique_ptr<kernel_command_handle> newCommand;
-  UR_CALL(createCommandHandleUnlocked(this, zeCommandList, hKernel, workDim,
-                                      pGlobalWorkSize, numKernelAlternatives,
-                                      kernelAlternatives, platform,
-                                      getZeKernelWrapped, device, newCommand));
-  *command = newCommand.get();
+  UR_CALL(createCommandHandleUnlocked(
+      v2_cast(this), zeCommandList, v2_cast(hKernel), workDim, pGlobalWorkSize,
+      numKernelAlternatives, v2_cast(kernelAlternatives), platform,
+      getZeKernelWrapped, CreateKernelCommandHandle, device, newCommand));
+  *command = reinterpret_cast<ur_exp_command_buffer_command_handle_t>(
+      newCommand.get());
 
   commandHandles.push_back(std::move(newCommand));
   return UR_RESULT_SUCCESS;
@@ -193,7 +207,8 @@ ur_result_t ur_exp_command_buffer_handle_t_::applyUpdateCommands(
     return UR_RESULT_ERROR_INVALID_OPERATION;
   }
   UR_CALL(validateCommandDescUnlocked(
-      this, device, context->getPlatform()->ZeDriverGlobalOffsetExtensionFound,
+      v2_cast(this), device,
+      context->getPlatform()->ZeDriverGlobalOffsetExtensionFound,
       numUpdateCommands, updateCommands));
 
   if (currentExecution) {
@@ -233,12 +248,12 @@ ur_event_handle_t ur_exp_command_buffer_handle_t_::createEventIfRequested(
   return event;
 }
 
-namespace ur::level_zero {
-
-ur_result_t
-urCommandBufferCreateExp(ur_context_handle_t context, ur_device_handle_t device,
-                         const ur_exp_command_buffer_desc_t *commandBufferDesc,
-                         ur_exp_command_buffer_handle_t *commandBuffer) try {
+ur_result_t urCommandBufferCreateExp(
+    ::ur_context_handle_t contextOpque, ::ur_device_handle_t deviceOpque,
+    const ur_exp_command_buffer_desc_t *commandBufferDesc,
+    ::ur_exp_command_buffer_handle_t *commandBufferOpque) try {
+  auto context = v2_cast(contextOpque);
+  auto device = common_cast(deviceOpque);
   checkImmediateAppendSupport(context);
 
   if (commandBufferDesc->isUpdatable &&
@@ -258,7 +273,7 @@ urCommandBufferCreateExp(ur_context_handle_t context, ur_device_handle_t device,
       context->getCommandListCache().getRegularCommandList(device->ZeDevice,
                                                            listDesc);
 
-  *commandBuffer = new ur_exp_command_buffer_handle_t_(
+  *v2_cast(commandBufferOpque) = new ur_exp_command_buffer_handle_t_(
       context, device, std::move(zeCommandList), commandBufferDesc);
   return UR_RESULT_SUCCESS;
 
@@ -266,16 +281,17 @@ urCommandBufferCreateExp(ur_context_handle_t context, ur_device_handle_t device,
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t
-urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) try {
-  hCommandBuffer->RefCount.retain();
+ur_result_t urCommandBufferRetainExp(
+    ::ur_exp_command_buffer_handle_t hCommandBufferOpque) try {
+  v2_cast(hCommandBufferOpque)->RefCount.retain();
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t
-urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) try {
+ur_result_t urCommandBufferReleaseExp(
+    ::ur_exp_command_buffer_handle_t hCommandBufferOpque) try {
+  auto hCommandBuffer = v2_cast(hCommandBufferOpque);
   if (!hCommandBuffer->RefCount.release())
     return UR_RESULT_SUCCESS;
 
@@ -289,8 +305,9 @@ urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) try {
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t
-urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t hCommandBuffer) try {
+ur_result_t urCommandBufferFinalizeExp(
+    ::ur_exp_command_buffer_handle_t hCommandBufferOpque) try {
+  auto hCommandBuffer = v2_cast(hCommandBufferOpque);
   UR_ASSERT(hCommandBuffer, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_CALL(hCommandBuffer->finalizeCommandBuffer());
   return UR_RESULT_SUCCESS;
@@ -299,17 +316,22 @@ urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t hCommandBuffer) try {
 }
 
 ur_result_t urCommandBufferAppendKernelLaunchExp(
-    ur_exp_command_buffer_handle_t commandBuffer, ur_kernel_handle_t hKernel,
-    uint32_t workDim, const size_t *pGlobalWorkOffset,
-    const size_t *pGlobalWorkSize, const size_t *pLocalWorkSize,
-    uint32_t numKernelAlternatives, ur_kernel_handle_t *kernelAlternatives,
+    ::ur_exp_command_buffer_handle_t commandBufferOpque,
+    ::ur_kernel_handle_t hKernelOpque, uint32_t workDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    const size_t *pLocalWorkSize, uint32_t numKernelAlternatives,
+    ::ur_kernel_handle_t *kernelAlternativesOpque,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *syncPointWaitList,
     uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*eventWaitList*/,
+    const ::ur_event_handle_t * /*eventWaitList*/,
     ur_exp_command_buffer_sync_point_t *retSyncPoint,
-    ur_event_handle_t * /*event*/,
-    ur_exp_command_buffer_command_handle_t *command) try {
+    ::ur_event_handle_t * /*event*/,
+    ::ur_exp_command_buffer_command_handle_t *commandOpque) try {
+  auto commandBuffer = v2_cast(commandBufferOpque);
+  auto hKernel = v2_cast(hKernelOpque);
+  auto kernelAlternatives = v2_cast(kernelAlternativesOpque);
+  auto command = common_cast(commandOpque);
 
   if (command != nullptr && !commandBuffer->isUpdatable) {
     return UR_RESULT_ERROR_INVALID_OPERATION;
@@ -342,18 +364,23 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
 }
 
 ur_result_t urCommandBufferAppendKernelLaunchWithArgsExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, ur_kernel_handle_t hKernel,
-    uint32_t workDim, const size_t *pGlobalWorkOffset,
-    const size_t *pGlobalWorkSize, const size_t *pLocalWorkSize,
-    uint32_t numArgs, const ur_exp_kernel_arg_properties_t *pArgs,
-    uint32_t numKernelAlternatives, ur_kernel_handle_t *phKernelAlternatives,
+    ::ur_exp_command_buffer_handle_t hCommandBufferOpque,
+    ::ur_kernel_handle_t hKernelOpque, uint32_t workDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    const size_t *pLocalWorkSize, uint32_t numArgs,
+    const ur_exp_kernel_arg_properties_t *pArgs, uint32_t numKernelAlternatives,
+    ::ur_kernel_handle_t *phKernelAlternativesOpque,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     uint32_t /* numEventsInWaitList */,
-    const ur_event_handle_t * /* phEventWaitList */,
+    const ::ur_event_handle_t * /* phEventWaitList */,
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    ur_event_handle_t * /* phEvent */,
-    ur_exp_command_buffer_command_handle_t *phCommand) try {
+    ::ur_event_handle_t * /* phEvent */,
+    ::ur_exp_command_buffer_command_handle_t *phCommandOpque) try {
+  auto hCommandBuffer = v2_cast(hCommandBufferOpque);
+  auto hKernel = v2_cast(hKernelOpque);
+  auto phKernelAlternatives = v2_cast(phKernelAlternativesOpque);
+  auto phCommand = common_cast(phCommandOpque);
 
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hKernel->getProgramHandle(), UR_RESULT_ERROR_INVALID_NULL_POINTER);
@@ -391,14 +418,15 @@ ur_result_t urCommandBufferAppendKernelLaunchWithArgsExp(
 }
 
 ur_result_t urCommandBufferAppendUSMMemcpyExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, void *pDst, const void *pSrc,
-    size_t size, uint32_t numSyncPointsInWaitList,
+    ::ur_exp_command_buffer_handle_t hCommandBufferOpque, void *pDst,
+    const void *pSrc, size_t size, uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
+    const ::ur_event_handle_t * /*phEventWaitList*/,
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    ur_event_handle_t * /*phEvent*/,
-    ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
+    ::ur_event_handle_t * /*phEvent*/,
+    ::ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
+  auto hCommandBuffer = v2_cast(hCommandBufferOpque);
 
   // Responsibility of UMD to offload to copy engine
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
@@ -418,15 +446,19 @@ ur_result_t urCommandBufferAppendUSMMemcpyExp(
 }
 
 ur_result_t urCommandBufferAppendMemBufferCopyExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hSrcMem,
-    ur_mem_handle_t hDstMem, size_t srcOffset, size_t dstOffset, size_t size,
+    ::ur_exp_command_buffer_handle_t hCommandBufferOpque,
+    ::ur_mem_handle_t hSrcMemOpque, ::ur_mem_handle_t hDstMemOpque,
+    size_t srcOffset, size_t dstOffset, size_t size,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
+    const ::ur_event_handle_t * /*phEventWaitList*/,
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    ur_event_handle_t * /*phEvent*/,
-    ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
+    ::ur_event_handle_t * /*phEvent*/,
+    ::ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
+  auto hCommandBuffer = v2_cast(hCommandBufferOpque);
+  auto hSrcMem = v2_cast(hSrcMemOpque);
+  auto hDstMem = v2_cast(hDstMemOpque);
 
   // the same issue as in urCommandBufferAppendKernelLaunchExp
   // sync mechanic can be ignored, because all lists are in-order
@@ -448,15 +480,17 @@ ur_result_t urCommandBufferAppendMemBufferCopyExp(
 }
 
 ur_result_t urCommandBufferAppendMemBufferWriteExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hBuffer,
-    size_t offset, size_t size, const void *pSrc,
-    uint32_t numSyncPointsInWaitList,
+    ::ur_exp_command_buffer_handle_t hCommandBufferOpque,
+    ::ur_mem_handle_t hBufferOpque, size_t offset, size_t size,
+    const void *pSrc, uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
+    const ::ur_event_handle_t * /*phEventWaitList*/,
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    ur_event_handle_t * /*phEvent*/,
-    ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
+    ::ur_event_handle_t * /*phEvent*/,
+    ::ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
+  auto hCommandBuffer = v2_cast(hCommandBufferOpque);
+  auto hBuffer = v2_cast(hBufferOpque);
 
   // the same issue as in urCommandBufferAppendKernelLaunchExp
   // sync mechanic can be ignored, because all lists are in-order
@@ -478,14 +512,17 @@ ur_result_t urCommandBufferAppendMemBufferWriteExp(
 }
 
 ur_result_t urCommandBufferAppendMemBufferReadExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hBuffer,
-    size_t offset, size_t size, void *pDst, uint32_t numSyncPointsInWaitList,
+    ::ur_exp_command_buffer_handle_t hCommandBufferOpque,
+    ::ur_mem_handle_t hBufferOpque, size_t offset, size_t size, void *pDst,
+    uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
+    const ::ur_event_handle_t * /*phEventWaitList*/,
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    ur_event_handle_t * /*phEvent*/,
-    ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
+    ::ur_event_handle_t * /*phEvent*/,
+    ::ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
+  auto hCommandBuffer = v2_cast(hCommandBufferOpque);
+  auto hBuffer = v2_cast(hBufferOpque);
 
   // the same issue as in urCommandBufferAppendKernelLaunchExp
   // Responsibility of UMD to offload to copy engine
@@ -506,17 +543,20 @@ ur_result_t urCommandBufferAppendMemBufferReadExp(
 }
 
 ur_result_t urCommandBufferAppendMemBufferCopyRectExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hSrcMem,
-    ur_mem_handle_t hDstMem, ur_rect_offset_t srcOrigin,
-    ur_rect_offset_t dstOrigin, ur_rect_region_t region, size_t srcRowPitch,
-    size_t srcSlicePitch, size_t dstRowPitch, size_t dstSlicePitch,
-    uint32_t numSyncPointsInWaitList,
+    ::ur_exp_command_buffer_handle_t hCommandBufferOpque,
+    ::ur_mem_handle_t hSrcMemOpque, ::ur_mem_handle_t hDstMemOpque,
+    ur_rect_offset_t srcOrigin, ur_rect_offset_t dstOrigin,
+    ur_rect_region_t region, size_t srcRowPitch, size_t srcSlicePitch,
+    size_t dstRowPitch, size_t dstSlicePitch, uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
+    const ::ur_event_handle_t * /*phEventWaitList*/,
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    ur_event_handle_t * /*phEvent*/,
-    ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
+    ::ur_event_handle_t * /*phEvent*/,
+    ::ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
+  auto hCommandBuffer = v2_cast(hCommandBufferOpque);
+  auto hSrcMem = v2_cast(hSrcMemOpque);
+  auto hDstMem = v2_cast(hDstMemOpque);
 
   // the same issue as in urCommandBufferAppendKernelLaunchExp
   // sync mechanic can be ignored, because all lists are in-order
@@ -539,17 +579,19 @@ ur_result_t urCommandBufferAppendMemBufferCopyRectExp(
 }
 
 ur_result_t urCommandBufferAppendMemBufferWriteRectExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hBuffer,
-    ur_rect_offset_t bufferOffset, ur_rect_offset_t hostOffset,
-    ur_rect_region_t region, size_t bufferRowPitch, size_t bufferSlicePitch,
-    size_t hostRowPitch, size_t hostSlicePitch, void *pSrc,
-    uint32_t numSyncPointsInWaitList,
+    ::ur_exp_command_buffer_handle_t hCommandBufferOpque,
+    ::ur_mem_handle_t hBufferOpque, ur_rect_offset_t bufferOffset,
+    ur_rect_offset_t hostOffset, ur_rect_region_t region, size_t bufferRowPitch,
+    size_t bufferSlicePitch, size_t hostRowPitch, size_t hostSlicePitch,
+    void *pSrc, uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
+    const ::ur_event_handle_t * /*phEventWaitList*/,
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    ur_event_handle_t * /*phEvent*/,
-    ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
+    ::ur_event_handle_t * /*phEvent*/,
+    ::ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
+  auto hCommandBuffer = v2_cast(hCommandBufferOpque);
+  auto hBuffer = v2_cast(hBufferOpque);
 
   // the same issue as in urCommandBufferAppendKernelLaunchExp
 
@@ -572,17 +614,19 @@ ur_result_t urCommandBufferAppendMemBufferWriteRectExp(
 }
 
 ur_result_t urCommandBufferAppendMemBufferReadRectExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hBuffer,
-    ur_rect_offset_t bufferOffset, ur_rect_offset_t hostOffset,
-    ur_rect_region_t region, size_t bufferRowPitch, size_t bufferSlicePitch,
-    size_t hostRowPitch, size_t hostSlicePitch, void *pDst,
-    uint32_t numSyncPointsInWaitList,
+    ::ur_exp_command_buffer_handle_t hCommandBufferOpque,
+    ::ur_mem_handle_t hBufferOpque, ur_rect_offset_t bufferOffset,
+    ur_rect_offset_t hostOffset, ur_rect_region_t region, size_t bufferRowPitch,
+    size_t bufferSlicePitch, size_t hostRowPitch, size_t hostSlicePitch,
+    void *pDst, uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
+    const ::ur_event_handle_t * /*phEventWaitList*/,
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    ur_event_handle_t * /*phEvent*/,
-    ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
+    ::ur_event_handle_t * /*phEvent*/,
+    ::ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
+  auto hCommandBuffer = v2_cast(hCommandBufferOpque);
+  auto hBuffer = v2_cast(hBufferOpque);
 
   // the same issue as in urCommandBufferAppendKernelLaunchExp
 
@@ -605,15 +649,16 @@ ur_result_t urCommandBufferAppendMemBufferReadRectExp(
 }
 
 ur_result_t urCommandBufferAppendUSMFillExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, void *pMemory,
+    ::ur_exp_command_buffer_handle_t hCommandBufferOpque, void *pMemory,
     const void *pPattern, size_t patternSize, size_t size,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
+    const ::ur_event_handle_t * /*phEventWaitList*/,
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    ur_event_handle_t * /*phEvent*/,
-    ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
+    ::ur_event_handle_t * /*phEvent*/,
+    ::ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
+  auto hCommandBuffer = v2_cast(hCommandBufferOpque);
 
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
   auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
@@ -631,15 +676,17 @@ ur_result_t urCommandBufferAppendUSMFillExp(
 }
 
 ur_result_t urCommandBufferAppendMemBufferFillExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hBuffer,
-    const void *pPattern, size_t patternSize, size_t offset, size_t size,
-    uint32_t numSyncPointsInWaitList,
+    ::ur_exp_command_buffer_handle_t hCommandBufferOpque,
+    ::ur_mem_handle_t hBufferOpque, const void *pPattern, size_t patternSize,
+    size_t offset, size_t size, uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
+    const ::ur_event_handle_t * /*phEventWaitList*/,
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    ur_event_handle_t * /*phEvent*/,
-    ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
+    ::ur_event_handle_t * /*phEvent*/,
+    ::ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
+  auto hCommandBuffer = v2_cast(hCommandBufferOpque);
+  auto hBuffer = v2_cast(hBufferOpque);
 
   // the same issue as in urCommandBufferAppendKernelLaunchExp
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
@@ -659,15 +706,16 @@ ur_result_t urCommandBufferAppendMemBufferFillExp(
 }
 
 ur_result_t urCommandBufferAppendUSMPrefetchExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, const void *pMemory,
+    ::ur_exp_command_buffer_handle_t hCommandBufferOpque, const void *pMemory,
     size_t size, ur_usm_migration_flags_t flags,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
+    const ::ur_event_handle_t * /*phEventWaitList*/,
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    ur_event_handle_t * /*phEvent*/,
-    ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
+    ::ur_event_handle_t * /*phEvent*/,
+    ::ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
+  auto hCommandBuffer = v2_cast(hCommandBufferOpque);
 
   // the same issue as in urCommandBufferAppendKernelLaunchExp
 
@@ -688,14 +736,15 @@ ur_result_t urCommandBufferAppendUSMPrefetchExp(
 }
 
 ur_result_t urCommandBufferAppendUSMAdviseExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, const void *pMemory,
+    ::ur_exp_command_buffer_handle_t hCommandBufferOpque, const void *pMemory,
     size_t size, ur_usm_advice_flags_t advice, uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
+    const ::ur_event_handle_t * /*phEventWaitList*/,
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    ur_event_handle_t * /*phEvent*/,
-    ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
+    ::ur_event_handle_t * /*phEvent*/,
+    ::ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
+  auto hCommandBuffer = v2_cast(hCommandBufferOpque);
   // the same issue as in urCommandBufferAppendKernelLaunchExp
 
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
@@ -715,10 +764,11 @@ ur_result_t urCommandBufferAppendUSMAdviseExp(
 }
 
 ur_result_t
-urCommandBufferGetInfoExp(ur_exp_command_buffer_handle_t hCommandBuffer,
+urCommandBufferGetInfoExp(::ur_exp_command_buffer_handle_t hCommandBufferOpque,
                           ur_exp_command_buffer_info_t propName,
                           size_t propSize, void *pPropValue,
                           size_t *pPropSizeRet) try {
+  auto hCommandBuffer = v2_cast(hCommandBufferOpque);
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   switch (propName) {
@@ -743,12 +793,13 @@ urCommandBufferGetInfoExp(ur_exp_command_buffer_handle_t hCommandBuffer,
 }
 
 ur_result_t urCommandBufferAppendNativeCommandExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer,
+    ::ur_exp_command_buffer_handle_t hCommandBufferOpque,
     ur_exp_command_buffer_native_command_function_t pfnNativeCommand,
-    void *pData, ur_exp_command_buffer_handle_t,
+    void *pData, ::ur_exp_command_buffer_handle_t,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+  auto hCommandBuffer = v2_cast(hCommandBufferOpque);
   // Barrier on all commands before user defined commands.
 
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
@@ -772,11 +823,11 @@ ur_result_t urCommandBufferAppendNativeCommandExp(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t
-urCommandBufferGetNativeHandleExp(ur_exp_command_buffer_handle_t hCommandBuffer,
-                                  ur_native_handle_t *phNativeCommandBuffer) {
-
-  auto commandListLocked = hCommandBuffer->commandListManager.lock();
+ur_result_t urCommandBufferGetNativeHandleExp(
+    ::ur_exp_command_buffer_handle_t hCommandBufferOpque,
+    ::ur_native_handle_t *phNativeCommandBuffer) {
+  auto commandListLocked =
+      v2_cast(hCommandBufferOpque)->commandListManager.lock();
   ze_command_list_handle_t ZeCommandList =
       commandListLocked->getZeCommandList();
   *phNativeCommandBuffer = reinterpret_cast<ur_native_handle_t>(ZeCommandList);
@@ -784,32 +835,34 @@ urCommandBufferGetNativeHandleExp(ur_exp_command_buffer_handle_t hCommandBuffer,
 }
 
 ur_result_t urCommandBufferUpdateKernelLaunchExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, uint32_t numUpdateCommands,
+    ::ur_exp_command_buffer_handle_t hCommandBufferOpque,
+    uint32_t numUpdateCommands,
     const ur_exp_command_buffer_update_kernel_launch_desc_t
         *pUpdateKernelLaunch) {
-  UR_CALL(hCommandBuffer->applyUpdateCommands(numUpdateCommands,
-                                              pUpdateKernelLaunch));
+  UR_CALL(v2_cast(hCommandBufferOpque)
+              ->applyUpdateCommands(numUpdateCommands, pUpdateKernelLaunch));
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urCommandBufferUpdateSignalEventExp(
-    ur_exp_command_buffer_command_handle_t hCommand,
-    ur_event_handle_t *phEvent) {
+    ::ur_exp_command_buffer_command_handle_t hCommandOpque,
+    ::ur_event_handle_t *phEventOpque) {
   // needs to be implemented together with signal event handling
-  (void)hCommand;
-  (void)phEvent;
+  (void)hCommandOpque;
+  (void)phEventOpque;
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 ur_result_t urCommandBufferUpdateWaitEventsExp(
-    ur_exp_command_buffer_command_handle_t hCommand,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList) {
+    ::ur_exp_command_buffer_command_handle_t hCommandOpque,
+    uint32_t numEventsInWaitList,
+    const ::ur_event_handle_t *phEventWaitListOpque) {
   // needs to be implemented together with wait event handling
-  (void)hCommand;
+  (void)hCommandOpque;
   (void)numEventsInWaitList;
-  (void)phEventWaitList;
+  (void)phEventWaitListOpque;
 
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-} // namespace ur::level_zero
+} // namespace ur::level_zero::v2
