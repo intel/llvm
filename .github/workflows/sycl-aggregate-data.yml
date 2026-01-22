@@ -9,10 +9,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
       
-      # change to yesterday's date to match artifact names
+      # change to today's date to match artifact names
       - name: Calculate today's date
         id: date
-        run: echo "TODAY=$(date -d 'yesterday' +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+        run: echo "TODAY=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
       
       - name: Download artifacts from today's runs
         uses: dawidd6/action-download-artifact@v6
