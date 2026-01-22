@@ -19,7 +19,7 @@ jobs:
         with:
           workflow: sycl-health-check.yml
           name_is_regexp: true
-          name: '${{ steps.date.outputs.TODAY }}.*'
+          name: '${{ steps.date.outputs.TODAY }}*'
           path: ./artifacts
           if_no_artifact_found: warn
       
