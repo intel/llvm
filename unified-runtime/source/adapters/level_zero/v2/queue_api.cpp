@@ -424,23 +424,6 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
-ur_result_t urEnqueueCommandBufferExp(
-    ur_queue_handle_t hQueue, ur_exp_command_buffer_handle_t hCommandBuffer,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) try {
-  return hQueue->get().enqueueCommandBufferExp(
-      hCommandBuffer, numEventsInWaitList, phEventWaitList, phEvent);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-ur_result_t urEnqueueTimestampRecordingExp(
-    ur_queue_handle_t hQueue, bool blocking, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) try {
-  return hQueue->get().enqueueTimestampRecordingExp(
-      blocking, numEventsInWaitList, phEventWaitList, phEvent);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
 ur_result_t urEnqueueKernelLaunchWithArgsExp(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
@@ -453,6 +436,23 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
       hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
       numArgs, pArgs, launchPropList, numEventsInWaitList, phEventWaitList,
       phEvent);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+ur_result_t urEnqueueTimestampRecordingExp(
+    ur_queue_handle_t hQueue, bool blocking, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) try {
+  return hQueue->get().enqueueTimestampRecordingExp(
+      blocking, numEventsInWaitList, phEventWaitList, phEvent);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+ur_result_t urEnqueueCommandBufferExp(
+    ur_queue_handle_t hQueue, ur_exp_command_buffer_handle_t hCommandBuffer,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) try {
+  return hQueue->get().enqueueCommandBufferExp(
+      hCommandBuffer, numEventsInWaitList, phEventWaitList, phEvent);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
