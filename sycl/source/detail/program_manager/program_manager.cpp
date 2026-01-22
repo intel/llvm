@@ -2685,10 +2685,6 @@ void ProgramManager::dynamicLink(device_images_range Imgs) {
                                                     URPrograms.data());
 }
 
-// The function duplicates most of the code from existing getBuiltPIProgram.
-// The differences are:
-// Different API - uses different objects to extract required info
-// Supports caching of a program built for multiple devices
 device_image_plain
 ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
                       devices_range Devs, const property_list &PropList) {
