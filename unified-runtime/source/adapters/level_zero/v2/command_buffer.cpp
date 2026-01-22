@@ -8,19 +8,21 @@
 //===----------------------------------------------------------------------===//
 
 #include "command_buffer.hpp"
-#include "../command_buffer_command.hpp"
-#include "../helpers/kernel_helpers.hpp"
-#include "../ur_interface_loader.hpp"
+#include "../common/command_buffer_command.hpp"
+#include "../common/helpers/kernel_helpers.hpp"
 #include "command_list_manager.hpp"
 #include "logger/ur_logger.hpp"
 #include "queue_handle.hpp"
+#include "ur_interface_loader.hpp"
+
+namespace ur::level_zero::v2 {
 
 namespace {
 
 ur_result_t getZeKernelWrapped(ur_kernel_handle_t kernel,
                                ze_kernel_handle_t &zeKernel,
                                ur_device_handle_t device) {
-  zeKernel = kernel->getZeHandle(device);
+  zeKernel = v2_cast(kernel)->getZeHandle(device);
   return UR_RESULT_SUCCESS;
 }
 
@@ -29,11 +31,11 @@ ur_result_t getMemPtr(ur_mem_handle_t memObj,
                       char **&zeHandlePtr, ur_device_handle_t device,
                       device_ptr_storage_t *ptrStorage) {
   char *ptr;
-  if (memObj->isImage()) {
-    auto imageObj = memObj->getImage();
+  if (v2_cast(memObj)->isImage()) {
+    auto imageObj = v2_cast(memObj)->getImage();
     ptr = reinterpret_cast<char *>(imageObj->getZeImage());
   } else {
-    auto memBuffer = memObj->getBuffer();
+    auto memBuffer = v2_cast(memObj)->getBuffer();
     auto urAccessMode = ur_mem_buffer_t::device_access_mode_t::read_write;
     if (properties != nullptr) {
       urAccessMode =
@@ -53,7 +55,7 @@ ur_result_t getMemPtr(ur_mem_handle_t memObj,
 // Checks whether zeCommandListImmediateAppendCommandListsExp can be used for a
 // given context.
 void checkImmediateAppendSupport(ur_context_handle_t context) {
-  if (!context->getPlatform()->ZeCommandListImmediateAppendExt.Supported) {
+  if (!v2::v2_cast(context)->getPlatform()->ZeCommandListImmediateAppendExt.Supported) {
     UR_LOG(ERR, "Adapter v2 is used but the current driver does not support "
                 "the zeCommandListImmediateAppendCommandListsExp entrypoint.");
     throw UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -72,7 +74,7 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
           context, device,
           std::forward<v2::raii::command_list_unique_handle>(commandList)),
       context(context), device(device),
-      eventPool(context->getEventPoolCache(PoolCacheType::Regular)
+      eventPool(v2::v2_cast(context)->getEventPoolCache(v2::PoolCacheType::Regular)
                     .borrow(device->Id.value(),
                             isInOrder ? v2::EVENT_FLAGS_COUNTER : 0)) {}
 
@@ -106,21 +108,30 @@ ur_event_handle_t *ur_exp_command_buffer_handle_t_::getWaitListFromSyncPoints(
   return syncPointWaitList.data();
 }
 
+kernel_command_handle *CreateKernelCommandHandle(ur_exp_command_buffer_handle_t commandBuffer,
+                        ur_kernel_handle_t kernel, uint64_t commandId,
+                        uint32_t workDim, uint32_t numKernelAlternatives,
+                        ur_kernel_handle_t *kernelAlternatives) {
+    return new kernel_command_handle(commandBuffer, kernel, commandId, workDim, numKernelAlternatives, kernelAlternatives);
+}
+
 ur_result_t ur_exp_command_buffer_handle_t_::createCommandHandle(
     locked<ur_command_list_manager> &commandListLocked,
     ur_kernel_handle_t hKernel, uint32_t workDim, const size_t *pGlobalWorkSize,
     uint32_t numKernelAlternatives, ur_kernel_handle_t *kernelAlternatives,
     ur_exp_command_buffer_command_handle_t *command) {
 
-  auto platform = context->getPlatform();
+  auto platform = v2::v2_cast(context)->getPlatform();
   ze_command_list_handle_t zeCommandList =
       commandListLocked->getZeCommandList();
   std::unique_ptr<kernel_command_handle> newCommand;
-  UR_CALL(createCommandHandleUnlocked(this, zeCommandList, hKernel, workDim,
-                                      pGlobalWorkSize, numKernelAlternatives,
-                                      kernelAlternatives, platform,
-                                      getZeKernelWrapped, device, newCommand));
-  *command = newCommand.get();
+  UR_CALL(createCommandHandleUnlocked(
+      reinterpret_cast<::ur_exp_command_buffer_handle_t>(this), zeCommandList,
+      hKernel, workDim, pGlobalWorkSize, numKernelAlternatives,
+      kernelAlternatives, platform, getZeKernelWrapped,
+      CreateKernelCommandHandle, device, newCommand));
+  *command = reinterpret_cast<ur_exp_command_buffer_command_handle_t>(
+      newCommand.get());
 
   commandHandles.push_back(std::move(newCommand));
   return UR_RESULT_SUCCESS;
@@ -143,7 +154,7 @@ ur_result_t ur_exp_command_buffer_handle_t_::finalizeCommandBuffer() {
       ++numEventResets;
       ZE2UR_CALL(
           zeCommandListAppendEventReset,
-          (commandListLocked->getZeCommandList(), syncPoints[i]->getZeEvent()));
+          (commandListLocked->getZeCommandList(), v2::v2_cast(syncPoints[i])->getZeEvent()));
     }
 
     if (numEventResets)
@@ -162,7 +173,7 @@ ur_event_handle_t ur_exp_command_buffer_handle_t_::getExecutionEventUnlocked() {
 ur_result_t ur_exp_command_buffer_handle_t_::registerExecutionEventUnlocked(
     ur_event_handle_t nextExecutionEvent) {
   if (currentExecution) {
-    UR_CALL(currentExecution->release());
+    UR_CALL(v2::v2_cast(currentExecution)->release());
     currentExecution = nullptr;
   }
   if (nextExecutionEvent) {
@@ -175,10 +186,10 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() try {
   UR_CALL_NOCHECK(commandListManager.lock()->releaseSubmittedKernels());
 
   if (currentExecution) {
-    currentExecution->release();
+    v2::v2_cast(currentExecution)->release();
   }
   for (auto &event : syncPoints) {
-    event->release();
+    v2::v2_cast(event)->release();
   }
 } catch (...) {
   UR_LOG(DEBUG, "ur_exp_command_buffer_handle_t_ destructor failed with: {}",
@@ -193,7 +204,8 @@ ur_result_t ur_exp_command_buffer_handle_t_::applyUpdateCommands(
     return UR_RESULT_ERROR_INVALID_OPERATION;
   }
   UR_CALL(validateCommandDescUnlocked(
-      this, device, context->getPlatform()->ZeDriverGlobalOffsetExtensionFound,
+      reinterpret_cast<::ur_exp_command_buffer_handle_t>(this), device,
+      v2::v2_cast(context)->getPlatform()->ZeDriverGlobalOffsetExtensionFound,
       numUpdateCommands, updateCommands));
 
   if (currentExecution) {
@@ -201,14 +213,14 @@ ur_result_t ur_exp_command_buffer_handle_t_::applyUpdateCommands(
     // it would require to remember the update commands and perform update
     // before appending to the queue
     ZE2UR_CALL(zeEventHostSynchronize,
-               (currentExecution->getZeEvent(), UINT64_MAX));
-    currentExecution->release();
+               (v2::v2_cast(currentExecution)->getZeEvent(), UINT64_MAX));
+    v2::v2_cast(currentExecution)->release();
     currentExecution = nullptr;
   }
 
   device_ptr_storage_t zeHandles;
 
-  auto platform = context->getPlatform();
+  auto platform = v2::v2_cast(context)->getPlatform();
   ze_command_list_handle_t zeCommandList =
       commandListLocked->getZeCommandList();
   UR_CALL(updateCommandBufferUnlocked(
@@ -226,14 +238,13 @@ ur_event_handle_t ur_exp_command_buffer_handle_t_::createEventIfRequested(
   }
 
   auto event = eventPool->allocate();
-  event->setQueue(nullptr);
+  v2::v2_cast(event)->setQueue(nullptr);
 
   *retSyncPoint = getSyncPoint(event);
 
   return event;
 }
 
-namespace ur::level_zero {
 
 ur_result_t
 urCommandBufferCreateExp(ur_context_handle_t context, ur_device_handle_t device,
@@ -242,7 +253,7 @@ urCommandBufferCreateExp(ur_context_handle_t context, ur_device_handle_t device,
   checkImmediateAppendSupport(context);
 
   if (commandBufferDesc->isUpdatable &&
-      !context->getPlatform()->ZeMutableCmdListExt.Supported) {
+      !v2_cast(context)->getPlatform()->ZeMutableCmdListExt.Supported) {
     throw UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
@@ -255,11 +266,11 @@ urCommandBufferCreateExp(ur_context_handle_t context, ur_device_handle_t device,
   listDesc.CopyOffloadEnable = true;
   listDesc.Mutable = commandBufferDesc->isUpdatable;
   v2::raii::command_list_unique_handle zeCommandList =
-      context->getCommandListCache().getRegularCommandList(device->ZeDevice,
+      v2_cast(context)->getCommandListCache().getRegularCommandList(device->ZeDevice,
                                                            listDesc);
 
-  *commandBuffer = new ur_exp_command_buffer_handle_t_(
-      context, device, std::move(zeCommandList), commandBufferDesc);
+  *commandBuffer = reinterpret_cast<::ur_exp_command_buffer_handle_t>(new ur_exp_command_buffer_handle_t_(
+      context, device, std::move(zeCommandList), commandBufferDesc));
   return UR_RESULT_SUCCESS;
 
 } catch (...) {
@@ -268,7 +279,7 @@ urCommandBufferCreateExp(ur_context_handle_t context, ur_device_handle_t device,
 
 ur_result_t
 urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) try {
-  hCommandBuffer->RefCount.retain();
+  v2_cast(hCommandBuffer)->RefCount.retain();
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -276,14 +287,14 @@ urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) try {
 
 ur_result_t
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) try {
-  if (!hCommandBuffer->RefCount.release())
+  if (!v2_cast(hCommandBuffer)->RefCount.release())
     return UR_RESULT_SUCCESS;
 
-  if (auto executionEvent = hCommandBuffer->getExecutionEventUnlocked()) {
+  if (auto executionEvent = v2_cast(hCommandBuffer)->getExecutionEventUnlocked()) {
     ZE2UR_CALL(zeEventHostSynchronize,
-               (executionEvent->getZeEvent(), UINT64_MAX));
+               (v2_cast(executionEvent)->getZeEvent(), UINT64_MAX));
   }
-  delete hCommandBuffer;
+  delete v2_cast(hCommandBuffer);
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -292,7 +303,7 @@ urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) try {
 ur_result_t
 urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t hCommandBuffer) try {
   UR_ASSERT(hCommandBuffer, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_CALL(hCommandBuffer->finalizeCommandBuffer());
+  UR_CALL(v2_cast(hCommandBuffer)->finalizeCommandBuffer());
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -311,7 +322,7 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
     ur_event_handle_t * /*event*/,
     ur_exp_command_buffer_command_handle_t *command) try {
 
-  if (command != nullptr && !commandBuffer->isUpdatable) {
+  if (command != nullptr && !v2_cast(commandBuffer)->isUpdatable) {
     return UR_RESULT_ERROR_INVALID_OPERATION;
   }
 
@@ -319,13 +330,13 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
-  auto commandListLocked = commandBuffer->commandListManager.lock();
+  auto commandListLocked = v2_cast(commandBuffer)->commandListManager.lock();
   if (command != nullptr) {
-    UR_CALL(commandBuffer->createCommandHandle(
+    UR_CALL(v2_cast(commandBuffer)->createCommandHandle(
         commandListLocked, hKernel, workDim, pGlobalWorkSize,
         numKernelAlternatives, kernelAlternatives, command));
   }
-  auto eventsWaitList = commandBuffer->getWaitListFromSyncPoints(
+  auto eventsWaitList = v2_cast(commandBuffer)->getWaitListFromSyncPoints(
       syncPointWaitList, numSyncPointsInWaitList);
 
   wait_list_view waitListView =
@@ -334,7 +345,7 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
   UR_CALL(commandListLocked->appendKernelLaunch(
       hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
       nullptr, waitListView,
-      commandBuffer->createEventIfRequested(retSyncPoint)));
+      v2_cast(commandBuffer)->createEventIfRequested(retSyncPoint)));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -356,11 +367,13 @@ ur_result_t urCommandBufferAppendKernelLaunchWithArgsExp(
     ur_exp_command_buffer_command_handle_t *phCommand) try {
 
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hKernel->getProgramHandle(), UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(v2_cast(hKernel)->getProgramHandle(),
+            UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
-  if (phCommand != nullptr && !hCommandBuffer->isUpdatable) {
+  auto *cmdBuf = v2_cast(hCommandBuffer);
+  if (phCommand != nullptr && !cmdBuf->isUpdatable) {
     return UR_RESULT_ERROR_INVALID_OPERATION;
   }
 
@@ -368,13 +381,13 @@ ur_result_t urCommandBufferAppendKernelLaunchWithArgsExp(
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
-  auto commandListLocked = hCommandBuffer->commandListManager.lock();
+  auto commandListLocked = cmdBuf->commandListManager.lock();
   if (phCommand != nullptr) {
-    UR_CALL(hCommandBuffer->createCommandHandle(
+    UR_CALL(cmdBuf->createCommandHandle(
         commandListLocked, hKernel, workDim, pGlobalWorkSize,
         numKernelAlternatives, phKernelAlternatives, phCommand));
   }
-  auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
+  auto eventsWaitList = cmdBuf->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
 
   wait_list_view waitListView =
@@ -383,7 +396,7 @@ ur_result_t urCommandBufferAppendKernelLaunchWithArgsExp(
   UR_CALL(commandListLocked->appendKernelLaunchWithArgsExp(
       hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
       numArgs, pArgs, nullptr, waitListView,
-      hCommandBuffer->createEventIfRequested(pSyncPoint)));
+      cmdBuf->createEventIfRequested(pSyncPoint)));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -401,8 +414,8 @@ ur_result_t urCommandBufferAppendUSMMemcpyExp(
     ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
 
   // Responsibility of UMD to offload to copy engine
-  auto commandListLocked = hCommandBuffer->commandListManager.lock();
-  auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
+  auto commandListLocked = v2_cast(hCommandBuffer)->commandListManager.lock();
+  auto eventsWaitList = v2_cast(hCommandBuffer)->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
 
   wait_list_view waitListView =
@@ -410,7 +423,7 @@ ur_result_t urCommandBufferAppendUSMMemcpyExp(
 
   UR_CALL(commandListLocked->appendUSMMemcpy(
       false, pDst, pSrc, size, waitListView,
-      hCommandBuffer->createEventIfRequested(pSyncPoint)));
+      v2_cast(hCommandBuffer)->createEventIfRequested(pSyncPoint)));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -431,8 +444,8 @@ ur_result_t urCommandBufferAppendMemBufferCopyExp(
   // the same issue as in urCommandBufferAppendKernelLaunchExp
   // sync mechanic can be ignored, because all lists are in-order
   // Responsibility of UMD to offload to copy engine
-  auto commandListLocked = hCommandBuffer->commandListManager.lock();
-  auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
+  auto commandListLocked = v2_cast(hCommandBuffer)->commandListManager.lock();
+  auto eventsWaitList = v2_cast(hCommandBuffer)->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
 
   wait_list_view waitListView =
@@ -440,7 +453,7 @@ ur_result_t urCommandBufferAppendMemBufferCopyExp(
 
   UR_CALL(commandListLocked->appendMemBufferCopy(
       hSrcMem, hDstMem, srcOffset, dstOffset, size, waitListView,
-      hCommandBuffer->createEventIfRequested(pSyncPoint)));
+      v2_cast(hCommandBuffer)->createEventIfRequested(pSyncPoint)));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -461,8 +474,8 @@ ur_result_t urCommandBufferAppendMemBufferWriteExp(
   // the same issue as in urCommandBufferAppendKernelLaunchExp
   // sync mechanic can be ignored, because all lists are in-order
   // Responsibility of UMD to offload to copy engine
-  auto commandListLocked = hCommandBuffer->commandListManager.lock();
-  auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
+  auto commandListLocked = v2_cast(hCommandBuffer)->commandListManager.lock();
+  auto eventsWaitList = v2_cast(hCommandBuffer)->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
 
   wait_list_view waitListView =
@@ -470,7 +483,7 @@ ur_result_t urCommandBufferAppendMemBufferWriteExp(
 
   UR_CALL(commandListLocked->appendMemBufferWrite(
       hBuffer, false, offset, size, pSrc, waitListView,
-      hCommandBuffer->createEventIfRequested(pSyncPoint)));
+      v2_cast(hCommandBuffer)->createEventIfRequested(pSyncPoint)));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -489,8 +502,8 @@ ur_result_t urCommandBufferAppendMemBufferReadExp(
 
   // the same issue as in urCommandBufferAppendKernelLaunchExp
   // Responsibility of UMD to offload to copy engine
-  auto commandListLocked = hCommandBuffer->commandListManager.lock();
-  auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
+  auto commandListLocked = v2_cast(hCommandBuffer)->commandListManager.lock();
+  auto eventsWaitList = v2_cast(hCommandBuffer)->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
 
   wait_list_view waitListView =
@@ -498,7 +511,7 @@ ur_result_t urCommandBufferAppendMemBufferReadExp(
 
   UR_CALL(commandListLocked->appendMemBufferRead(
       hBuffer, false, offset, size, pDst, waitListView,
-      hCommandBuffer->createEventIfRequested(pSyncPoint)));
+      v2_cast(hCommandBuffer)->createEventIfRequested(pSyncPoint)));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -521,8 +534,8 @@ ur_result_t urCommandBufferAppendMemBufferCopyRectExp(
   // the same issue as in urCommandBufferAppendKernelLaunchExp
   // sync mechanic can be ignored, because all lists are in-order
   // Responsibility of UMD to offload to copy engine
-  auto commandListLocked = hCommandBuffer->commandListManager.lock();
-  auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
+  auto commandListLocked = v2_cast(hCommandBuffer)->commandListManager.lock();
+  auto eventsWaitList = v2_cast(hCommandBuffer)->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
 
   wait_list_view waitListView =
@@ -531,7 +544,7 @@ ur_result_t urCommandBufferAppendMemBufferCopyRectExp(
   UR_CALL(commandListLocked->appendMemBufferCopyRect(
       hSrcMem, hDstMem, srcOrigin, dstOrigin, region, srcRowPitch,
       srcSlicePitch, dstRowPitch, dstSlicePitch, waitListView,
-      hCommandBuffer->createEventIfRequested(pSyncPoint)));
+      v2_cast(hCommandBuffer)->createEventIfRequested(pSyncPoint)));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -554,8 +567,8 @@ ur_result_t urCommandBufferAppendMemBufferWriteRectExp(
   // the same issue as in urCommandBufferAppendKernelLaunchExp
 
   // Responsibility of UMD to offload to copy engine
-  auto commandListLocked = hCommandBuffer->commandListManager.lock();
-  auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
+  auto commandListLocked = v2_cast(hCommandBuffer)->commandListManager.lock();
+  auto eventsWaitList = v2_cast(hCommandBuffer)->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
 
   wait_list_view waitListView =
@@ -564,7 +577,7 @@ ur_result_t urCommandBufferAppendMemBufferWriteRectExp(
   UR_CALL(commandListLocked->appendMemBufferWriteRect(
       hBuffer, false, bufferOffset, hostOffset, region, bufferRowPitch,
       bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc, waitListView,
-      hCommandBuffer->createEventIfRequested(pSyncPoint)));
+      v2_cast(hCommandBuffer)->createEventIfRequested(pSyncPoint)));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -587,8 +600,8 @@ ur_result_t urCommandBufferAppendMemBufferReadRectExp(
   // the same issue as in urCommandBufferAppendKernelLaunchExp
 
   // Responsibility of UMD to offload to copy engine
-  auto commandListLocked = hCommandBuffer->commandListManager.lock();
-  auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
+  auto commandListLocked = v2_cast(hCommandBuffer)->commandListManager.lock();
+  auto eventsWaitList = v2_cast(hCommandBuffer)->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
 
   wait_list_view waitListView =
@@ -597,7 +610,7 @@ ur_result_t urCommandBufferAppendMemBufferReadRectExp(
   UR_CALL(commandListLocked->appendMemBufferReadRect(
       hBuffer, false, bufferOffset, hostOffset, region, bufferRowPitch,
       bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst, waitListView,
-      hCommandBuffer->createEventIfRequested(pSyncPoint)));
+      v2_cast(hCommandBuffer)->createEventIfRequested(pSyncPoint)));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -615,8 +628,8 @@ ur_result_t urCommandBufferAppendUSMFillExp(
     ur_event_handle_t * /*phEvent*/,
     ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
 
-  auto commandListLocked = hCommandBuffer->commandListManager.lock();
-  auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
+  auto commandListLocked = v2_cast(hCommandBuffer)->commandListManager.lock();
+  auto eventsWaitList = v2_cast(hCommandBuffer)->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
 
   wait_list_view waitListView =
@@ -624,7 +637,7 @@ ur_result_t urCommandBufferAppendUSMFillExp(
 
   UR_CALL(commandListLocked->appendUSMFill(
       pMemory, patternSize, pPattern, size, waitListView,
-      hCommandBuffer->createEventIfRequested(pSyncPoint)));
+      v2_cast(hCommandBuffer)->createEventIfRequested(pSyncPoint)));
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -642,8 +655,8 @@ ur_result_t urCommandBufferAppendMemBufferFillExp(
     ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
 
   // the same issue as in urCommandBufferAppendKernelLaunchExp
-  auto commandListLocked = hCommandBuffer->commandListManager.lock();
-  auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
+  auto commandListLocked = v2_cast(hCommandBuffer)->commandListManager.lock();
+  auto eventsWaitList = v2_cast(hCommandBuffer)->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
 
   wait_list_view waitListView =
@@ -651,7 +664,7 @@ ur_result_t urCommandBufferAppendMemBufferFillExp(
 
   UR_CALL(commandListLocked->appendMemBufferFill(
       hBuffer, pPattern, patternSize, offset, size, waitListView,
-      hCommandBuffer->createEventIfRequested(pSyncPoint)));
+      v2_cast(hCommandBuffer)->createEventIfRequested(pSyncPoint)));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -671,8 +684,8 @@ ur_result_t urCommandBufferAppendUSMPrefetchExp(
 
   // the same issue as in urCommandBufferAppendKernelLaunchExp
 
-  auto commandListLocked = hCommandBuffer->commandListManager.lock();
-  auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
+  auto commandListLocked = v2_cast(hCommandBuffer)->commandListManager.lock();
+  auto eventsWaitList = v2_cast(hCommandBuffer)->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
 
   wait_list_view waitListView =
@@ -680,7 +693,7 @@ ur_result_t urCommandBufferAppendUSMPrefetchExp(
 
   UR_CALL(commandListLocked->appendUSMPrefetch(
       pMemory, size, flags, waitListView,
-      hCommandBuffer->createEventIfRequested(pSyncPoint)));
+      v2_cast(hCommandBuffer)->createEventIfRequested(pSyncPoint)));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -698,8 +711,8 @@ ur_result_t urCommandBufferAppendUSMAdviseExp(
     ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
   // the same issue as in urCommandBufferAppendKernelLaunchExp
 
-  auto commandListLocked = hCommandBuffer->commandListManager.lock();
-  auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
+  auto commandListLocked = v2_cast(hCommandBuffer)->commandListManager.lock();
+  auto eventsWaitList = v2_cast(hCommandBuffer)->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
 
   wait_list_view waitListView =
@@ -707,7 +720,7 @@ ur_result_t urCommandBufferAppendUSMAdviseExp(
 
   UR_CALL(commandListLocked->appendUSMAdvise(
       pMemory, size, advice, waitListView,
-      hCommandBuffer->createEventIfRequested(pSyncPoint)));
+      v2_cast(hCommandBuffer)->createEventIfRequested(pSyncPoint)));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -723,14 +736,14 @@ urCommandBufferGetInfoExp(ur_exp_command_buffer_handle_t hCommandBuffer,
 
   switch (propName) {
   case UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{hCommandBuffer->RefCount.getCount()});
+    return ReturnValue(uint32_t{v2_cast(hCommandBuffer)->RefCount.getCount()});
   case UR_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR: {
     ur_exp_command_buffer_desc_t Descriptor{};
     Descriptor.stype = UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC;
     Descriptor.pNext = nullptr;
-    Descriptor.isUpdatable = hCommandBuffer->isUpdatable;
-    Descriptor.isInOrder = hCommandBuffer->isInOrder;
-    Descriptor.enableProfiling = hCommandBuffer->isProfilingEnabled;
+    Descriptor.isUpdatable = v2_cast(hCommandBuffer)->isUpdatable;
+    Descriptor.isInOrder = v2_cast(hCommandBuffer)->isInOrder;
+    Descriptor.enableProfiling = v2_cast(hCommandBuffer)->isProfilingEnabled;
 
     return ReturnValue(Descriptor);
   }
@@ -751,8 +764,8 @@ ur_result_t urCommandBufferAppendNativeCommandExp(
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
   // Barrier on all commands before user defined commands.
 
-  auto commandListLocked = hCommandBuffer->commandListManager.lock();
-  auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
+  auto commandListLocked = v2_cast(hCommandBuffer)->commandListManager.lock();
+  auto eventsWaitList = v2_cast(hCommandBuffer)->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
 
   wait_list_view waitListView =
@@ -767,7 +780,7 @@ ur_result_t urCommandBufferAppendNativeCommandExp(
   wait_list_view emptyWaitList = wait_list_view(nullptr, 0);
   // Barrier on all commands after user defined commands.
   UR_CALL(commandListLocked->appendEventsWaitWithBarrier(
-      emptyWaitList, hCommandBuffer->createEventIfRequested(pSyncPoint)));
+      emptyWaitList, v2_cast(hCommandBuffer)->createEventIfRequested(pSyncPoint)));
 
   return UR_RESULT_SUCCESS;
 }
@@ -776,7 +789,7 @@ ur_result_t
 urCommandBufferGetNativeHandleExp(ur_exp_command_buffer_handle_t hCommandBuffer,
                                   ur_native_handle_t *phNativeCommandBuffer) {
 
-  auto commandListLocked = hCommandBuffer->commandListManager.lock();
+  auto commandListLocked = v2_cast(hCommandBuffer)->commandListManager.lock();
   ze_command_list_handle_t ZeCommandList =
       commandListLocked->getZeCommandList();
   *phNativeCommandBuffer = reinterpret_cast<ur_native_handle_t>(ZeCommandList);
@@ -787,7 +800,7 @@ ur_result_t urCommandBufferUpdateKernelLaunchExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, uint32_t numUpdateCommands,
     const ur_exp_command_buffer_update_kernel_launch_desc_t
         *pUpdateKernelLaunch) {
-  UR_CALL(hCommandBuffer->applyUpdateCommands(numUpdateCommands,
+  UR_CALL(v2_cast(hCommandBuffer)->applyUpdateCommands(numUpdateCommands,
                                               pUpdateKernelLaunch));
   return UR_RESULT_SUCCESS;
 }
@@ -812,4 +825,4 @@ ur_result_t urCommandBufferUpdateWaitEventsExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-} // namespace ur::level_zero
+} // namespace ur::level_zero::v2

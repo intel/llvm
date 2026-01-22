@@ -11,15 +11,18 @@
 
 #include <unified-runtime/ur_api.h>
 
+#include "../common/context_interface.hpp"
 #include "command_list_cache.hpp"
 #include "common.hpp"
 #include "common/ur_ref_count.hpp"
 #include "event_pool_cache.hpp"
 #include "usm.hpp"
 
+namespace ur::level_zero::v2 {
+
 enum class PoolCacheType { Immediate, Regular };
 
-struct ur_context_handle_t_ : ur_object {
+struct ur_context_handle_t_ : ::ur_context_interface_t, v2::ur_object_t {
   ur_context_handle_t_(ze_context_handle_t hContext, uint32_t numDevices,
                        const ur_device_handle_t *phDevices, bool ownZeContext);
 
@@ -75,6 +78,8 @@ struct ur_context_handle_t_ : ur_object {
     zeToUrGraphMap.erase(zeGraph);
   }
 
+  ur_shared_mutex &getMutex() { return v2::ur_object_t::Mutex; }
+
   ur::RefCount RefCount;
 
   ur_shared_mutex GraphMapMutex;
@@ -93,8 +98,8 @@ private:
   // P2P devices for each device in the context, indexed by device id.
   const std::vector<std::vector<ur_device_handle_t>> p2pAccessDevices;
 
-  ur_usm_pool_handle_t_ defaultUSMPool;
-  ur_usm_pool_handle_t_ asyncPool;
+  v2::ur_usm_pool_handle_t_ defaultUSMPool;
+  v2::ur_usm_pool_handle_t_ asyncPool;
   std::list<ur_usm_pool_handle_t> usmPoolHandles;
 
   // Graph fork-join may occur from direct L0 submissions, so we must map
@@ -102,3 +107,5 @@ private:
   // managers. Caller must protect accesses with GraphMapMutex.
   std::unordered_map<ze_graph_handle_t, ur_exp_graph_handle_t> zeToUrGraphMap;
 };
+
+} // namespace ur::level_zero::v2

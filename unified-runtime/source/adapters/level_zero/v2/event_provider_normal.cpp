@@ -20,7 +20,7 @@
 
 #include "../common.hpp"
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 static constexpr int EVENTS_BURST = 64;
 
 provider_pool::provider_pool(ur_context_handle_t context, queue_type queue,
@@ -47,14 +47,14 @@ provider_pool::provider_pool(ur_context_handle_t context, queue_type queue,
   }
 
   std::vector<ze_device_handle_t> devices;
-  for (auto &d : context->getDevices()) {
+  for (auto &d : v2_cast(context)->getDevices()) {
     devices.push_back(d->ZeDevice);
   }
 
   UR_LOG(DEBUG, "ze_event_pool_desc_t flags set to: {}", desc.flags);
 
   ZE2UR_CALL_THROWS(zeEventPoolCreate,
-                    (context->getZeHandle(), &desc, devices.size(),
+                    (v2_cast(context)->getZeHandle(), &desc, devices.size(),
                      devices.data(), pool.ptr()));
 
   freelist.resize(EVENTS_BURST);
@@ -118,4 +118,4 @@ raii::cache_borrowed_event provider_normal::allocate() {
 
 event_flags_t provider_normal::eventFlags() const { return flags; }
 
-} // namespace v2
+} // namespace ur::level_zero::v2

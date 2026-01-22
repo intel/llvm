@@ -31,6 +31,8 @@ extern "C" {
 ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue);
 } // extern "C"
 
+namespace ur::level_zero::v1 {
+
 struct ur_completion_batch;
 using ur_completion_batch_list = std::list<ur_completion_batch>;
 using ur_completion_batch_it = ur_completion_batch_list::iterator;
@@ -224,7 +226,7 @@ using ur_command_list_map_t =
 // The iterator pointing to a specific command-list in use.
 using ur_command_list_ptr_t = ur_command_list_map_t::iterator;
 
-struct ur_queue_handle_t_ : ur_object {
+struct ur_queue_handle_t_ : ur::level_zero::ur_handle_base_t {
   ur_queue_handle_t_(std::vector<ze_command_queue_handle_t> &ComputeQueues,
                      std::vector<ze_command_queue_handle_t> &CopyQueues,
                      ur_context_handle_t Context, ur_device_handle_t Device,
@@ -297,7 +299,7 @@ struct ur_queue_handle_t_ : ur_object {
 
     // Make the specified queue group be the master
     void set(const ur_queue_group_t &QueueGroup) {
-      const auto &Device = QueueGroup.Queue->Device;
+      const auto &Device = v1_cast(QueueGroup.Queue)->Device;
       PerThread =
           Device->ImmCommandListUsed == ur_device_handle_t_::PerThreadPerQueue;
       assert(empty());
@@ -318,7 +320,8 @@ struct ur_queue_handle_t_ : ur_object {
       QueueGroup.ZeQueues = std::vector<ze_command_queue_handle_t>(
           QueueGroup.ZeQueues.size(), nullptr);
       QueueGroup.ImmCmdLists = std::vector<ur_command_list_ptr_t>(
-          QueueGroup.ZeQueues.size(), QueueGroup.Queue->CommandListMap.end());
+          QueueGroup.ZeQueues.size(),
+          v1_cast(QueueGroup.Queue)->CommandListMap.end());
 
       std::tie(It, std::ignore) = insert({tid(), QueueGroup});
       return It->second;
@@ -738,3 +741,22 @@ ur_result_t setSignalEvent(ur_queue_handle_t Queue, bool UseCopyEngine,
 ur_result_t CleanupEventListFromResetCmdList(
     std::vector<ur_event_handle_t> &EventListToCleanup,
     bool QueueLocked = false);
+
+} // namespace ur::level_zero::v1
+
+// Expose v1 support types at global scope for v1 .cpp files that still use
+// these names unqualified.
+using ur::level_zero::v1::ur_command_list_info_t;
+using ur::level_zero::v1::ur_command_list_map_t;
+using ur::level_zero::v1::ur_command_list_ptr_t;
+using ur::level_zero::v1::ur_completion_batch;
+using ur::level_zero::v1::ur_completion_batch_it;
+using ur::level_zero::v1::ur_completion_batch_list;
+using ur::level_zero::v1::ur_completion_batches;
+// Free helpers defined inside v1 but called unqualified from v1 .cpp files.
+using ur::level_zero::v1::CleanupEventListFromResetCmdList;
+using ur::level_zero::v1::CleanupEventsInImmCmdLists;
+using ur::level_zero::v1::createEventAndAssociateQueue;
+using ur::level_zero::v1::eventCanBeBatched;
+using ur::level_zero::v1::resetCommandLists;
+using ur::level_zero::v1::setSignalEvent;

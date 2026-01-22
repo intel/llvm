@@ -17,7 +17,13 @@
 #include <unordered_set>
 #include <ze_api.h>
 
+namespace ur::level_zero::v2 {
 struct ur_mem_buffer_t;
+}
+// ur_mem_buffer_t was moved to `ur::level_zero::v2` by the chunk-2 namespace
+// work. Expose the unqualified name at file scope so the rest of this header
+// (and its consumers) can keep using `ur_mem_buffer_t` unchanged.
+using ur::level_zero::v2::ur_mem_buffer_t;
 
 struct wait_list_view {
   ze_event_handle_t *handles;

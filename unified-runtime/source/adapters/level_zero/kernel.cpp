@@ -12,15 +12,17 @@
 #include "unified-runtime/ur_api.h"
 #include "ur_interface_loader.hpp"
 
-#include "helpers/kernel_helpers.hpp"
+#include "common/helpers/kernel_helpers.hpp"
+#include "common/program.hpp"
+#include "common/sampler.hpp"
 
 ur_result_t getZeKernel(ze_device_handle_t hDevice, ur_kernel_handle_t hKernel,
                         ze_kernel_handle_t *phZeKernel) {
-  if (hKernel->ZeKernelMap.empty()) {
-    *phZeKernel = hKernel->ZeKernel;
+  if (ur::level_zero::v1::v1_cast(hKernel)->ZeKernelMap.empty()) {
+    *phZeKernel = ur::level_zero::v1::v1_cast(hKernel)->ZeKernel;
   } else {
-    auto It = hKernel->ZeKernelMap.find(hDevice);
-    if (It == hKernel->ZeKernelMap.end()) {
+    auto It = ur::level_zero::v1::v1_cast(hKernel)->ZeKernelMap.find(hDevice);
+    if (It == ur::level_zero::v1::v1_cast(hKernel)->ZeKernelMap.end()) {
       /* kernel and queue don't match */
       return UR_RESULT_ERROR_INVALID_QUEUE;
     }
@@ -46,9 +48,9 @@ ur_result_t urKernelGetSuggestedLocalWorkSize(
   std::copy(pGlobalWorkSize, pGlobalWorkSize + workDim, GlobalWorkSize3D);
 
   ze_kernel_handle_t ZeKernel{};
-  UR_CALL(getZeKernel(hQueue->Device->ZeDevice, hKernel, &ZeKernel));
+  UR_CALL(getZeKernel(ur::level_zero::v1::v1_cast(hQueue)->Device->ZeDevice, hKernel, &ZeKernel));
 
-  UR_CALL(getSuggestedLocalWorkSize(hQueue->Device, ZeKernel, GlobalWorkSize3D,
+  UR_CALL(getSuggestedLocalWorkSize(ur::level_zero::v1::v1_cast(hQueue)->Device, ZeKernel, GlobalWorkSize3D,
                                     LocalWorkSize));
 
   std::copy(LocalWorkSize, LocalWorkSize + workDim, pSuggestedLocalWorkSize);
@@ -86,17 +88,17 @@ ur_result_t urKernelSetArgValueHelper(
     PArgValue = nullptr;
   }
 
-  if (ArgIndex > Kernel->ZeKernelProperties->numKernelArgs - 1) {
+  if (ArgIndex > ur::level_zero::v1::v1_cast(Kernel)->ZeKernelProperties->numKernelArgs - 1) {
     return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
   }
 
   ze_result_t ZeResult = ZE_RESULT_SUCCESS;
-  if (Kernel->ZeKernelMap.empty()) {
-    auto ZeKernel = Kernel->ZeKernel;
+  if (ur::level_zero::v1::v1_cast(Kernel)->ZeKernelMap.empty()) {
+    auto ZeKernel = ur::level_zero::v1::v1_cast(Kernel)->ZeKernel;
     ZeResult = ZE_CALL_NOCHECK(zeKernelSetArgumentValue,
                                (ZeKernel, ArgIndex, ArgSize, PArgValue));
   } else {
-    for (auto It : Kernel->ZeKernelMap) {
+    for (auto It : ur::level_zero::v1::v1_cast(Kernel)->ZeKernelMap) {
       auto ZeKernel = It.second;
       ZeResult = ZE_CALL_NOCHECK(zeKernelSetArgumentValue,
                                  (ZeKernel, ArgIndex, ArgSize, PArgValue));
@@ -122,23 +124,23 @@ ur_result_t urKernelSetArgMemObjHelper(
   // The ArgValue may be a NULL pointer in which case a NULL value is used for
   // the kernel argument declared as a pointer to global or constant memory.
 
-  if (ArgIndex > Kernel->ZeKernelProperties->numKernelArgs - 1) {
+  if (ArgIndex > ur::level_zero::v1::v1_cast(Kernel)->ZeKernelProperties->numKernelArgs - 1) {
     return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
   }
 
-  ur_mem_handle_t_ *UrMem = ur_cast<ur_mem_handle_t_ *>(ArgValue);
+  auto *UrMem = ur::level_zero::v1::v1_cast(ArgValue);
 
-  ur_mem_handle_t_::access_mode_t UrAccessMode = ur_mem_handle_t_::read_write;
+  ur::level_zero::v1::ur_mem_handle_t_::access_mode_t UrAccessMode = ur::level_zero::v1::ur_mem_handle_t_::read_write;
   if (Properties) {
     switch (Properties->memoryAccess) {
     case UR_MEM_FLAG_READ_WRITE:
-      UrAccessMode = ur_mem_handle_t_::read_write;
+      UrAccessMode = ur::level_zero::v1::ur_mem_handle_t_::read_write;
       break;
     case UR_MEM_FLAG_WRITE_ONLY:
-      UrAccessMode = ur_mem_handle_t_::write_only;
+      UrAccessMode = ur::level_zero::v1::ur_mem_handle_t_::write_only;
       break;
     case UR_MEM_FLAG_READ_ONLY:
-      UrAccessMode = ur_mem_handle_t_::read_only;
+      UrAccessMode = ur::level_zero::v1::ur_mem_handle_t_::read_only;
       break;
     case 0:
       break;
@@ -147,7 +149,7 @@ ur_result_t urKernelSetArgMemObjHelper(
     }
   }
   auto Arg = UrMem ? UrMem : nullptr;
-  Kernel->PendingArguments.push_back(
+  ur::level_zero::v1::v1_cast(Kernel)->PendingArguments.push_back(
       {ArgIndex, sizeof(void *), Arg, UrAccessMode});
 
   return UR_RESULT_SUCCESS;
@@ -201,7 +203,7 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
     /// particular kernel execution instance.
     ur_event_handle_t *OutEvent) {
   {
-    std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
+    std::scoped_lock<ur_shared_mutex> Guard(ur::level_zero::v1::v1_cast(Kernel)->Mutex);
     for (uint32_t i = 0; i < NumArgs; i++) {
       switch (Args[i].type) {
       case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
@@ -225,8 +227,9 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
         break;
       }
       case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
-        UR_CALL(urKernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,
-                                          &Args[i].value.sampler->ZeSampler));
+        UR_CALL(urKernelSetArgValueHelper(
+            Kernel, Args[i].index, Args[i].size,
+            &ur::level_zero::common::cast(Args[i].value.sampler)->ZeSampler));
         break;
       }
       default:
@@ -304,18 +307,18 @@ static ur_result_t urEnqueueKernelLaunch(
   UR_ASSERT(WorkDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
   ze_kernel_handle_t ZeKernel{};
-  UR_CALL(getZeKernel(Queue->Device->ZeDevice, Kernel, &ZeKernel));
+  UR_CALL(getZeKernel(ur::level_zero::v1::v1_cast(Queue)->Device->ZeDevice, Kernel, &ZeKernel));
 
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> Lock(
-      Queue->Mutex, Kernel->Mutex, Kernel->Program->Mutex);
+      ur::level_zero::v1::v1_cast(Queue)->Mutex, ur::level_zero::v1::v1_cast(Kernel)->Mutex, ur::level_zero::v1::v1_cast(Kernel)->Program->Mutex);
   if (GlobalWorkOffset != NULL) {
-    UR_CALL(setKernelGlobalOffset(Queue->Context, ZeKernel, WorkDim,
+    UR_CALL(setKernelGlobalOffset(ur::level_zero::v1::v1_cast(Queue)->Context, ZeKernel, WorkDim,
                                   GlobalWorkOffset));
   }
 
   // If there are any pending arguments set them now.
-  for (auto &Arg : Kernel->PendingArguments) {
+  for (auto &Arg : ur::level_zero::v1::v1_cast(Kernel)->PendingArguments) {
     // The Arg.Value can be either a ur_mem_handle_t or a raw pointer
     // (const void*). Resolve per-device: for mem handles obtain the device
     // specific handle, otherwise pass the raw pointer value.
@@ -323,9 +326,10 @@ static ur_result_t urEnqueueKernelLaunch(
     if (auto MemObjPtr = std::get_if<ur_mem_handle_t>(&Arg.Value)) {
       ur_mem_handle_t MemObj = *MemObjPtr;
       if (MemObj) {
-        UR_CALL(MemObj->getZeHandlePtr(ZeHandlePtr, Arg.AccessMode,
-                                       Queue->Device, EventWaitList,
-                                       NumEventsInWaitList));
+        UR_CALL(ur::level_zero::v1::v1_cast(MemObj)->getZeHandlePtr(
+            ZeHandlePtr, Arg.AccessMode,
+            ur::level_zero::v1::v1_cast(Queue)->Device, EventWaitList,
+            NumEventsInWaitList));
       }
     } else {
       auto Ptr = const_cast<void **>(&std::get<const void *>(Arg.Value));
@@ -333,12 +337,12 @@ static ur_result_t urEnqueueKernelLaunch(
     }
     UR_CALL(setArgValueOnZeKernel(ZeKernel, Arg.Index, Arg.Size, ZeHandlePtr));
   }
-  Kernel->PendingArguments.clear();
+  ur::level_zero::v1::v1_cast(Kernel)->PendingArguments.clear();
 
   ze_group_count_t ZeThreadGroupDimensions{1, 1, 1};
   uint32_t WG[3]{};
 
-  UR_CALL(calculateKernelWorkDimensions(Kernel->ZeKernel, Queue->Device,
+  UR_CALL(calculateKernelWorkDimensions(ur::level_zero::v1::v1_cast(Kernel)->ZeKernel, ur::level_zero::v1::v1_cast(Queue)->Device,
                                         ZeThreadGroupDimensions, WG, WorkDim,
                                         GlobalWorkSize, LocalWorkSize));
 
@@ -351,7 +355,7 @@ static ur_result_t urEnqueueKernelLaunch(
 
   // Get a new command list to be used on this call
   ur_command_list_ptr_t CommandList{};
-  UR_CALL(Queue->Context->getAvailableCommandList(
+  UR_CALL(ur::level_zero::v1::v1_cast(ur::level_zero::v1::v1_cast(Queue)->Context)->getAvailableCommandList(
       Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
       true /* AllowBatching */, nullptr /*ForcedCmdQueue*/));
 
@@ -365,11 +369,11 @@ static ur_result_t urEnqueueKernelLaunch(
   UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
                          NumEventsInWaitList, EventWaitList,
                          CommandList->second.ZeQueue));
-  (*Event)->WaitList = TmpWaitList;
+  ur::level_zero::v1::v1_cast(*Event)->WaitList = TmpWaitList;
 
   // Save the kernel in the event, so that when the event is signalled
   // the code can do a urKernelRelease on this kernel.
-  (*Event)->CommandData = (void *)Kernel;
+  ur::level_zero::v1::v1_cast(*Event)->CommandData = (void *)Kernel;
 
   // Increment the reference count of the Kernel and indicate that the Kernel
   // is in use. Once the event has been signalled, the code in
@@ -379,14 +383,14 @@ static ur_result_t urEnqueueKernelLaunch(
 
   // Add to list of kernels to be submitted
   if (IndirectAccessTrackingEnabled)
-    Queue->KernelsToBeSubmitted.push_back(Kernel);
+    ur::level_zero::v1::v1_cast(Queue)->KernelsToBeSubmitted.push_back(Kernel);
 
-  if (Queue->UsingImmCmdLists && IndirectAccessTrackingEnabled) {
+  if (ur::level_zero::v1::v1_cast(Queue)->UsingImmCmdLists && IndirectAccessTrackingEnabled) {
     // If using immediate commandlists then gathering of indirect
     // references and appending to the queue (which means submission)
     // must be done together.
     std::unique_lock<ur_shared_mutex> ContextsLock(
-        Queue->Device->Platform->ContextsMutex, std::defer_lock);
+        ur::level_zero::v1::v1_cast(Queue)->Device->Platform->ContextsMutex, std::defer_lock);
     // We are going to submit kernels for execution. If indirect access flag is
     // set for a kernel then we need to make a snapshot of existing memory
     // allocations in all contexts in the platform. We need to lock the mutex
@@ -394,11 +398,11 @@ static ur_result_t urEnqueueKernelLaunch(
     // memory alocations in any context before we submit the kernel for
     // execution.
     ContextsLock.lock();
-    Queue->CaptureIndirectAccesses();
+    ur::level_zero::v1::v1_cast(Queue)->CaptureIndirectAccesses();
     // Add the command to the command list, which implies submission.
     ZE2UR_CALL(ZeKernelLaunchFunc,
                (CommandList->first, ZeKernel, &ZeThreadGroupDimensions, ZeEvent,
-                (*Event)->WaitList.Length, (*Event)->WaitList.ZeEventList));
+                ur::level_zero::v1::v1_cast(*Event)->WaitList.Length, ur::level_zero::v1::v1_cast(*Event)->WaitList.ZeEventList));
   } else {
     // Add the command to the command list for later submission.
     // No lock is needed here, unlike the immediate commandlist case above,
@@ -406,16 +410,16 @@ static ur_result_t urEnqueueKernelLaunch(
     // submitted only when the comamndlist is closed. Then, a lock is held.
     ZE2UR_CALL(ZeKernelLaunchFunc,
                (CommandList->first, ZeKernel, &ZeThreadGroupDimensions, ZeEvent,
-                (*Event)->WaitList.Length, (*Event)->WaitList.ZeEventList));
+                ur::level_zero::v1::v1_cast(*Event)->WaitList.Length, ur::level_zero::v1::v1_cast(*Event)->WaitList.ZeEventList));
   }
 
   UR_LOG(DEBUG, "calling zeCommandListAppendLaunchKernel() with ZeEvent {}",
          ur_cast<std::uintptr_t>(ZeEvent));
-  printZeEventList((*Event)->WaitList);
+  printZeEventList(ur::level_zero::v1::v1_cast(*Event)->WaitList);
 
   // Execute command list asynchronously, as the event will be used
   // to track down its completion.
-  UR_CALL(Queue->executeCommandList(CommandList, false /*IsBlocking*/,
+  UR_CALL(ur::level_zero::v1::v1_cast(Queue)->executeCommandList(CommandList, false /*IsBlocking*/,
                                     true /*OKToBatchCommand*/));
 
   return UR_RESULT_SUCCESS;
@@ -446,12 +450,12 @@ ur_result_t urEnqueueDeviceGlobalVariableWrite(
     /// [in,out][optional] return an event object that identifies this
     /// particular kernel execution instance.
     ur_event_handle_t *Event) {
-  std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
+  std::scoped_lock<ur_shared_mutex> lock(ur::level_zero::v1::v1_cast(Queue)->Mutex);
   // Find global variable pointer
   size_t GlobalVarSize = 0;
   void *GlobalVarPtr = nullptr;
   ze_module_handle_t ZeModule =
-      Program->getZeModuleHandle(Queue->Device->ZeDevice);
+      Program->getZeModuleHandle(ur::level_zero::v1::v1_cast(Queue)->Device->ZeDevice);
   ZE2UR_CALL(zeModuleGetGlobalPointer,
              (ZeModule, Name, &GlobalVarSize, &GlobalVarPtr));
   if (GlobalVarSize < Offset + Count) {
@@ -463,10 +467,10 @@ ur_result_t urEnqueueDeviceGlobalVariableWrite(
 
   // Copy engine is preferred only for host to device transfer.
   // Device to device transfers run faster on compute engines.
-  bool PreferCopyEngine = !IsDevicePointer(Queue->Context, Src);
+  bool PreferCopyEngine = !IsDevicePointer(ur::level_zero::v1::v1_cast(Queue)->Context, Src);
   // For better performance, Copy Engines are not preferred given Shared
   // pointers on DG2.
-  if (Queue->Device->isDG2() && IsSharedPointer(Queue->Context, Src)) {
+  if (ur::level_zero::v1::v1_cast(Queue)->Device->isDG2() && IsSharedPointer(ur::level_zero::v1::v1_cast(Queue)->Context, Src)) {
     PreferCopyEngine = false;
   }
 
@@ -505,9 +509,9 @@ ur_result_t urEnqueueDeviceGlobalVariableRead(
     /// [in,out][optional] return an event object that identifies this
     /// particular kernel execution instance.
     ur_event_handle_t *Event) {
-  std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
+  std::scoped_lock<ur_shared_mutex> lock(ur::level_zero::v1::v1_cast(Queue)->Mutex);
   ze_module_handle_t ZeModule =
-      Program->getZeModuleHandle(Queue->Device->ZeDevice);
+      Program->getZeModuleHandle(ur::level_zero::v1::v1_cast(Queue)->Device->ZeDevice);
   // Find global variable pointer
   size_t GlobalVarSize = 0;
   void *GlobalVarPtr = nullptr;
@@ -522,10 +526,10 @@ ur_result_t urEnqueueDeviceGlobalVariableRead(
 
   // Copy engine is preferred only for host to device transfer.
   // Device to device transfers run faster on compute engines.
-  bool PreferCopyEngine = !IsDevicePointer(Queue->Context, Dst);
+  bool PreferCopyEngine = !IsDevicePointer(ur::level_zero::v1::v1_cast(Queue)->Context, Dst);
   // For better performance, Copy Engines are not preferred given Shared
   // pointers on DG2.
-  if (Queue->Device->isDG2() && IsSharedPointer(Queue->Context, Dst)) {
+  if (ur::level_zero::v1::v1_cast(Queue)->Device->isDG2() && IsSharedPointer(ur::level_zero::v1::v1_cast(Queue)->Context, Dst)) {
     PreferCopyEngine = false;
   }
 
@@ -547,7 +551,7 @@ ur_result_t urKernelCreate(
     ur_kernel_handle_t *RetKernel) {
   std::shared_lock<ur_shared_mutex> Guard(Program->Mutex);
   try {
-    ur_kernel_handle_t_ *UrKernel = new ur_kernel_handle_t_(true, Program);
+    ur::level_zero::v1::ur_kernel_handle_t_ *UrKernel = new ur::level_zero::v1::ur_kernel_handle_t_(true, Program);
     *RetKernel = reinterpret_cast<ur_kernel_handle_t>(UrKernel);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
@@ -572,7 +576,7 @@ ur_result_t urKernelCreate(
         ZE_CALL_NOCHECK(zeKernelCreate, (ZeModule, &ZeKernelDesc, &ZeKernel));
     // Gracefully handle the case that kernel create fails.
     if (ZeResult != ZE_RESULT_SUCCESS) {
-      delete *RetKernel;
+      delete ur::level_zero::v1::v1_cast(*RetKernel);
       *RetKernel = nullptr;
       return ze2urResult(ZeResult);
     }
@@ -580,8 +584,8 @@ ur_result_t urKernelCreate(
     // Store the kernel in the ZeKernelMap so the correct
     // kernel can be retrieved later for a specific device
     // where a queue is being submitted.
-    (*RetKernel)->ZeKernelMap[ZeDevice] = ZeKernel;
-    (*RetKernel)->ZeKernels.push_back(ZeKernel);
+    ur::level_zero::v1::v1_cast(*RetKernel)->ZeKernelMap[ZeDevice] = ZeKernel;
+    ur::level_zero::v1::v1_cast(*RetKernel)->ZeKernels.push_back(ZeKernel);
 
     // If the device used to create the module's kernel is a root-device
     // then store the kernel also using the sub-devices, since application
@@ -591,16 +595,16 @@ ur_result_t urKernelCreate(
     std::vector<ze_device_handle_t> ZeSubDevices(SubDevicesCount);
     zeDeviceGetSubDevices(ZeDevice, &SubDevicesCount, ZeSubDevices.data());
     for (auto ZeSubDevice : ZeSubDevices) {
-      (*RetKernel)->ZeKernelMap[ZeSubDevice] = ZeKernel;
+      ur::level_zero::v1::v1_cast(*RetKernel)->ZeKernelMap[ZeSubDevice] = ZeKernel;
     }
   }
   // There is no any successfully built executable for program.
-  if ((*RetKernel)->ZeKernelMap.empty())
+  if (ur::level_zero::v1::v1_cast(*RetKernel)->ZeKernelMap.empty())
     return UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE;
 
-  (*RetKernel)->ZeKernel = (*RetKernel)->ZeKernelMap.begin()->second;
+  ur::level_zero::v1::v1_cast(*RetKernel)->ZeKernel = ur::level_zero::v1::v1_cast(*RetKernel)->ZeKernelMap.begin()->second;
 
-  UR_CALL((*RetKernel)->initialize());
+  UR_CALL(ur::level_zero::v1::v1_cast(*RetKernel)->initialize());
 
   return UR_RESULT_SUCCESS;
 }
@@ -619,16 +623,16 @@ ur_result_t urKernelSetArgValue(
 
   UR_ASSERT(Kernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  if (ArgIndex > Kernel->ZeKernelProperties->numKernelArgs - 1) {
+  if (ArgIndex > ur::level_zero::v1::v1_cast(Kernel)->ZeKernelProperties->numKernelArgs - 1) {
     return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
   }
 
-  std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
-  if (Kernel->ZeKernelMap.empty()) {
-    auto ZeKernel = Kernel->ZeKernel;
+  std::scoped_lock<ur_shared_mutex> Guard(ur::level_zero::v1::v1_cast(Kernel)->Mutex);
+  if (ur::level_zero::v1::v1_cast(Kernel)->ZeKernelMap.empty()) {
+    auto ZeKernel = ur::level_zero::v1::v1_cast(Kernel)->ZeKernel;
     UR_CALL(setArgValueOnZeKernel(ZeKernel, ArgIndex, ArgSize, PArgValue))
   } else {
-    for (auto It : Kernel->ZeKernelMap) {
+    for (auto It : ur::level_zero::v1::v1_cast(Kernel)->ZeKernelMap) {
       auto ZeKernel = It.second;
       UR_CALL(setArgValueOnZeKernel(ZeKernel, ArgIndex, ArgSize, PArgValue))
     }
@@ -670,15 +674,15 @@ ur_result_t urKernelGetInfo(
 
   UrReturnHelper ReturnValue(PropSize, KernelInfo, PropSizeRet);
 
-  std::shared_lock<ur_shared_mutex> Guard(Kernel->Mutex);
+  std::shared_lock<ur_shared_mutex> Guard(ur::level_zero::v1::v1_cast(Kernel)->Mutex);
   switch (ParamName) {
   case UR_KERNEL_INFO_CONTEXT:
-    return ReturnValue(ur_context_handle_t{Kernel->Program->Context});
+    return ReturnValue(ur_context_handle_t{ur::level_zero::v1::v1_cast(Kernel)->Program->Context});
   case UR_KERNEL_INFO_PROGRAM:
-    return ReturnValue(ur_program_handle_t{Kernel->Program});
+    return ReturnValue(ur_program_handle_t{ur::level_zero::v1::v1_cast(Kernel)->Program});
   case UR_KERNEL_INFO_FUNCTION_NAME:
     try {
-      std::string &KernelName = Kernel->ZeKernelName.get();
+      std::string &KernelName = ur::level_zero::v1::v1_cast(Kernel)->ZeKernelName.get();
       return ReturnValue(static_cast<const char *>(KernelName.c_str()));
     } catch (const std::bad_alloc &) {
       return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
@@ -687,12 +691,12 @@ ur_result_t urKernelGetInfo(
     }
   case UR_KERNEL_INFO_NUM_REGS:
   case UR_KERNEL_INFO_NUM_ARGS:
-    return ReturnValue(uint32_t{Kernel->ZeKernelProperties->numKernelArgs});
+    return ReturnValue(uint32_t{ur::level_zero::v1::v1_cast(Kernel)->ZeKernelProperties->numKernelArgs});
   case UR_KERNEL_INFO_SPILL_MEM_SIZE: {
     try {
       std::vector<uint32_t> Spills;
-      Spills.reserve(Kernel->ZeKernels.size());
-      for (auto &ZeKernel : Kernel->ZeKernels) {
+      Spills.reserve(ur::level_zero::v1::v1_cast(Kernel)->ZeKernels.size());
+      for (auto &ZeKernel : ur::level_zero::v1::v1_cast(Kernel)->ZeKernels) {
         ze_kernel_properties_t props;
         props.stype = ZE_STRUCTURE_TYPE_KERNEL_PROPERTIES;
         props.pNext = nullptr;
@@ -709,15 +713,15 @@ ur_result_t urKernelGetInfo(
     }
   }
   case UR_KERNEL_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{Kernel->RefCount.getCount()});
+    return ReturnValue(uint32_t{ur::level_zero::v1::v1_cast(Kernel)->RefCount.getCount()});
   case UR_KERNEL_INFO_ATTRIBUTES:
     try {
       uint32_t Size;
       ZE2UR_CALL(zeKernelGetSourceAttributes,
-                 (Kernel->ZeKernel, &Size, nullptr));
+                 (ur::level_zero::v1::v1_cast(Kernel)->ZeKernel, &Size, nullptr));
       char *attributes = new char[Size];
       ZE2UR_CALL(zeKernelGetSourceAttributes,
-                 (Kernel->ZeKernel, &Size, &attributes));
+                 (ur::level_zero::v1::v1_cast(Kernel)->ZeKernel, &Size, &attributes));
       auto Res = ReturnValue(static_cast<const char *>(attributes));
       delete[] attributes;
       return Res;
@@ -752,7 +756,7 @@ ur_result_t urKernelGetGroupInfo(
     size_t *ParamValueSizeRet) {
   UrReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
 
-  std::shared_lock<ur_shared_mutex> Guard(Kernel->Mutex);
+  std::shared_lock<ur_shared_mutex> Guard(ur::level_zero::v1::v1_cast(Kernel)->Mutex);
   switch (ParamName) {
   case UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE: {
     // TODO: To revisit after level_zero/issues/262 is resolved
@@ -775,10 +779,10 @@ ur_result_t urKernelGetGroupInfo(
     // Set the Kernel to use as the ZeKernel initally for native handle support.
     // This makes the assumption that this device is the same device where this
     // kernel was created.
-    auto ZeKernelDevice = Kernel->ZeKernel;
-    auto It = Kernel->ZeKernelMap.find(Device->ZeDevice);
-    if (It != Kernel->ZeKernelMap.end()) {
-      ZeKernelDevice = Kernel->ZeKernelMap[Device->ZeDevice];
+    auto ZeKernelDevice = ur::level_zero::v1::v1_cast(Kernel)->ZeKernel;
+    auto It = ur::level_zero::v1::v1_cast(Kernel)->ZeKernelMap.find(Device->ZeDevice);
+    if (It != ur::level_zero::v1::v1_cast(Kernel)->ZeKernelMap.end()) {
+      ZeKernelDevice = ur::level_zero::v1::v1_cast(Kernel)->ZeKernelMap[Device->ZeDevice];
     }
     if (ZeKernelDevice) {
       auto ZeResult = ZE_CALL_NOCHECK(zeKernelGetProperties,
@@ -797,18 +801,18 @@ ur_result_t urKernelGetGroupInfo(
   case UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
     struct {
       size_t Arr[3];
-    } WgSize = {{Kernel->ZeKernelProperties->requiredGroupSizeX,
-                 Kernel->ZeKernelProperties->requiredGroupSizeY,
-                 Kernel->ZeKernelProperties->requiredGroupSizeZ}};
+    } WgSize = {{ur::level_zero::v1::v1_cast(Kernel)->ZeKernelProperties->requiredGroupSizeX,
+                 ur::level_zero::v1::v1_cast(Kernel)->ZeKernelProperties->requiredGroupSizeY,
+                 ur::level_zero::v1::v1_cast(Kernel)->ZeKernelProperties->requiredGroupSizeZ}};
     return ReturnValue(WgSize);
   }
   case UR_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE:
-    return ReturnValue(size_t{Kernel->ZeKernelProperties->localMemSize});
+    return ReturnValue(size_t{ur::level_zero::v1::v1_cast(Kernel)->ZeKernelProperties->localMemSize});
   case UR_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
     return ReturnValue(size_t{Device->ZeDeviceProperties->physicalEUSimdWidth});
   }
   case UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE: {
-    return ReturnValue(size_t{Kernel->ZeKernelProperties->privateMemSize});
+    return ReturnValue(size_t{ur::level_zero::v1::v1_cast(Kernel)->ZeKernelProperties->privateMemSize});
   }
   case UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE:
   case UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE:
@@ -841,15 +845,15 @@ ur_result_t urKernelGetSubGroupInfo(
 
   UrReturnHelper ReturnValue(PropSize, PropValue, PropSizeRet);
 
-  std::shared_lock<ur_shared_mutex> Guard(Kernel->Mutex);
+  std::shared_lock<ur_shared_mutex> Guard(ur::level_zero::v1::v1_cast(Kernel)->Mutex);
   if (PropName == UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE) {
-    ReturnValue(uint32_t{Kernel->ZeKernelProperties->maxSubgroupSize});
+    ReturnValue(uint32_t{ur::level_zero::v1::v1_cast(Kernel)->ZeKernelProperties->maxSubgroupSize});
   } else if (PropName == UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS) {
-    ReturnValue(uint32_t{Kernel->ZeKernelProperties->maxNumSubgroups});
+    ReturnValue(uint32_t{ur::level_zero::v1::v1_cast(Kernel)->ZeKernelProperties->maxNumSubgroups});
   } else if (PropName == UR_KERNEL_SUB_GROUP_INFO_COMPILE_NUM_SUB_GROUPS) {
-    ReturnValue(uint32_t{Kernel->ZeKernelProperties->requiredNumSubGroups});
+    ReturnValue(uint32_t{ur::level_zero::v1::v1_cast(Kernel)->ZeKernelProperties->requiredNumSubGroups});
   } else if (PropName == UR_KERNEL_SUB_GROUP_INFO_SUB_GROUP_SIZE_INTEL) {
-    ReturnValue(uint32_t{Kernel->ZeKernelProperties->requiredSubgroupSize});
+    ReturnValue(uint32_t{ur::level_zero::v1::v1_cast(Kernel)->ZeKernelProperties->requiredSubgroupSize});
   } else {
     die("urKernelGetSubGroupInfo: parameter not implemented");
     return {};
@@ -860,7 +864,7 @@ ur_result_t urKernelGetSubGroupInfo(
 ur_result_t urKernelRetain(
     /// [in] handle for the Kernel to retain
     ur_kernel_handle_t Kernel) {
-  Kernel->RefCount.retain();
+  ur::level_zero::v1::v1_cast(Kernel)->RefCount.retain();
 
   return UR_RESULT_SUCCESS;
 }
@@ -868,12 +872,12 @@ ur_result_t urKernelRetain(
 ur_result_t urKernelRelease(
     /// [in] handle for the Kernel to release
     ur_kernel_handle_t Kernel) {
-  if (!Kernel->RefCount.release())
+  if (!ur::level_zero::v1::v1_cast(Kernel)->RefCount.release())
     return UR_RESULT_SUCCESS;
 
-  auto KernelProgram = Kernel->Program;
-  if (Kernel->OwnNativeHandle) {
-    for (auto &ZeKernel : Kernel->ZeKernels) {
+  auto KernelProgram = ur::level_zero::v1::v1_cast(Kernel)->Program;
+  if (ur::level_zero::v1::v1_cast(Kernel)->OwnNativeHandle) {
+    for (auto &ZeKernel : ur::level_zero::v1::v1_cast(Kernel)->ZeKernels) {
       if (checkL0LoaderTeardown()) {
         auto ZeResult = ZE_CALL_NOCHECK(zeKernelDestroy, (ZeKernel));
         // Gracefully handle the case that L0 was already unloaded.
@@ -886,7 +890,7 @@ ur_result_t urKernelRelease(
       }
     }
   }
-  Kernel->ZeKernelMap.clear();
+  ur::level_zero::v1::v1_cast(Kernel)->ZeKernelMap.clear();
   if (IndirectAccessTrackingEnabled) {
     UR_CALL(ur::level_zero::urContextRelease(KernelProgram->Context));
   }
@@ -894,7 +898,7 @@ ur_result_t urKernelRelease(
   // program handle
   KernelProgram->ur_release_program_resources(false);
 
-  delete Kernel;
+  delete ur::level_zero::v1::v1_cast(Kernel);
 
   return UR_RESULT_SUCCESS;
 }
@@ -911,17 +915,20 @@ ur_result_t urKernelSetArgPointer(
     const void *ArgValue) {
   UR_ASSERT(Kernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   {
-    std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
+    std::scoped_lock<ur_shared_mutex> Guard(ur::level_zero::v1::v1_cast(Kernel)->Mutex);
     // In multi-device context instead of setting pointer arguments immediately
     // across all device kernels, store them as pending so they can be resolved
     // per-device at enqueue time. This ensures the correct handle is used for
     // the device of the queue.
-    if (Kernel->Program->Context->getDevices().size() > 1) {
-      if (ArgIndex > Kernel->ZeKernelProperties->numKernelArgs - 1) {
+    if (ur::level_zero::v1::v1_cast(
+            ur::level_zero::v1::v1_cast(Kernel)->Program->Context)
+            ->getDevices()
+            .size() > 1) {
+      if (ArgIndex > ur::level_zero::v1::v1_cast(Kernel)->ZeKernelProperties->numKernelArgs - 1) {
         return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
       }
-      Kernel->PendingArguments.push_back({ArgIndex, sizeof(const void *),
-                                          ArgValue, ur_mem_handle_t_::unknown});
+      ur::level_zero::v1::v1_cast(Kernel)->PendingArguments.push_back({ArgIndex, sizeof(const void *),
+                                          ArgValue, ur::level_zero::v1::ur_mem_handle_t_::unknown});
 
       return UR_RESULT_SUCCESS;
     }
@@ -946,8 +953,8 @@ ur_result_t urKernelSetExecInfo(
     /// value.
     const void *PropValue) {
 
-  std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
-  for (auto &ZeKernel : Kernel->ZeKernels) {
+  std::scoped_lock<ur_shared_mutex> Guard(ur::level_zero::v1::v1_cast(Kernel)->Mutex);
+  for (auto &ZeKernel : ur::level_zero::v1::v1_cast(Kernel)->ZeKernels) {
     if (PropName == UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS &&
         *(static_cast<const ur_bool_t *>(PropValue)) == true) {
       // The whole point for users really was to not need to know anything
@@ -990,12 +997,13 @@ ur_result_t urKernelSetArgSampler(
     const ur_kernel_arg_sampler_properties_t * /*Properties*/,
     /// [in] handle of Sampler object.
     ur_sampler_handle_t ArgValue) {
-  std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
-  if (ArgIndex > Kernel->ZeKernelProperties->numKernelArgs - 1) {
+  std::scoped_lock<ur_shared_mutex> Guard(ur::level_zero::v1::v1_cast(Kernel)->Mutex);
+  if (ArgIndex > ur::level_zero::v1::v1_cast(Kernel)->ZeKernelProperties->numKernelArgs - 1) {
     return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
   }
-  ZE2UR_CALL(zeKernelSetArgumentValue, (Kernel->ZeKernel, ArgIndex,
-                                        sizeof(void *), &ArgValue->ZeSampler));
+  ZE2UR_CALL(zeKernelSetArgumentValue,
+             (ur::level_zero::v1::v1_cast(Kernel)->ZeKernel, ArgIndex, sizeof(void *),
+              &ur::level_zero::common::cast(ArgValue)->ZeSampler));
 
   return UR_RESULT_SUCCESS;
 }
@@ -1010,34 +1018,34 @@ ur_result_t urKernelSetArgMemObj(
     /// [in][optional] handle of Memory object.
     ur_mem_handle_t ArgValue) {
 
-  std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
+  std::scoped_lock<ur_shared_mutex> Guard(ur::level_zero::v1::v1_cast(Kernel)->Mutex);
   // The ArgValue may be a NULL pointer in which case a NULL value is used for
   // the kernel argument declared as a pointer to global or constant memory.
 
-  if (ArgIndex > Kernel->ZeKernelProperties->numKernelArgs - 1) {
+  if (ArgIndex > ur::level_zero::v1::v1_cast(Kernel)->ZeKernelProperties->numKernelArgs - 1) {
     return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
   }
 
-  ur_mem_handle_t_ *UrMem = ur_cast<ur_mem_handle_t_ *>(ArgValue);
+  auto *UrMem = ur::level_zero::v1::v1_cast(ArgValue);
 
-  ur_mem_handle_t_::access_mode_t UrAccessMode = ur_mem_handle_t_::read_write;
+  ur::level_zero::v1::ur_mem_handle_t_::access_mode_t UrAccessMode = ur::level_zero::v1::ur_mem_handle_t_::read_write;
   if (Properties) {
     switch (Properties->memoryAccess) {
     case UR_MEM_FLAG_READ_WRITE:
-      UrAccessMode = ur_mem_handle_t_::read_write;
+      UrAccessMode = ur::level_zero::v1::ur_mem_handle_t_::read_write;
       break;
     case UR_MEM_FLAG_WRITE_ONLY:
-      UrAccessMode = ur_mem_handle_t_::write_only;
+      UrAccessMode = ur::level_zero::v1::ur_mem_handle_t_::write_only;
       break;
     case UR_MEM_FLAG_READ_ONLY:
-      UrAccessMode = ur_mem_handle_t_::read_only;
+      UrAccessMode = ur::level_zero::v1::ur_mem_handle_t_::read_only;
       break;
     default:
       return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
   }
   auto Arg = UrMem ? UrMem : nullptr;
-  Kernel->PendingArguments.push_back(
+  ur::level_zero::v1::v1_cast(Kernel)->PendingArguments.push_back(
       {ArgIndex, sizeof(void *), Arg, UrAccessMode});
 
   return UR_RESULT_SUCCESS;
@@ -1048,9 +1056,9 @@ ur_result_t urKernelGetNativeHandle(
     ur_kernel_handle_t Kernel,
     /// [out] a pointer to the native handle of the kernel.
     ur_native_handle_t *NativeKernel) {
-  std::shared_lock<ur_shared_mutex> Guard(Kernel->Mutex);
+  std::shared_lock<ur_shared_mutex> Guard(ur::level_zero::v1::v1_cast(Kernel)->Mutex);
 
-  *NativeKernel = reinterpret_cast<ur_native_handle_t>(Kernel->ZeKernel);
+  *NativeKernel = reinterpret_cast<ur_native_handle_t>(ur::level_zero::v1::v1_cast(Kernel)->ZeKernel);
   return UR_RESULT_SUCCESS;
 }
 
@@ -1059,7 +1067,7 @@ ur_result_t urKernelSuggestMaxCooperativeGroupCount(
     const size_t *pLocalWorkSize, size_t dynamicSharedMemorySize,
     uint32_t *pGroupCountRet) {
   (void)dynamicSharedMemorySize;
-  std::shared_lock<ur_shared_mutex> Guard(hKernel->Mutex);
+  std::shared_lock<ur_shared_mutex> Guard(ur::level_zero::v1::v1_cast(hKernel)->Mutex);
 
   ze_kernel_handle_t ZeKernel = nullptr;
   UR_CALL(getZeKernel(hDevice->ZeDevice, hKernel, &ZeKernel));
@@ -1089,10 +1097,10 @@ ur_result_t urKernelCreateWithNativeHandle(
     return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
   ze_kernel_handle_t ZeKernel = ur_cast<ze_kernel_handle_t>(NativeKernel);
-  ur_kernel_handle_t_ *Kernel = nullptr;
+  ur::level_zero::v1::ur_kernel_handle_t_ *Kernel = nullptr;
   try {
     auto OwnNativeHandle = Properties ? Properties->isNativeHandleOwned : false;
-    Kernel = new ur_kernel_handle_t_(ZeKernel, OwnNativeHandle, Context);
+    Kernel = new ur::level_zero::v1::ur_kernel_handle_t_(ZeKernel, OwnNativeHandle, Context);
     if (OwnNativeHandle) {
       // If ownership is passed to the adapter we need to pass the kernel
       // to this vector which is then used during ZeKernelRelease.
@@ -1129,9 +1137,9 @@ ur_result_t urKernelSetSpecializationConstants(
 
 } // namespace ur::level_zero
 
-ur_result_t ur_kernel_handle_t_::initialize() {
+ur_result_t ur::level_zero::v1::ur_kernel_handle_t_::initialize() {
   // Retain the program and context to show it's used by this kernel.
-  UR_CALL(ur::level_zero::urProgramRetain(Program));
+  UR_CALL(ur::level_zero::common::urProgramRetain(Program));
 
   if (IndirectAccessTrackingEnabled)
     // TODO: do piContextRetain without the guard

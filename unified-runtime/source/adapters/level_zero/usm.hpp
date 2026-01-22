@@ -10,7 +10,7 @@
 
 #include "common.hpp"
 #include "common/ur_ref_count.hpp"
-#include "enqueued_pool.hpp"
+#include "common/enqueued_pool.hpp"
 #include "event.hpp"
 #include "unified-runtime/ur_api.h"
 #include "ur_pool_manager.hpp"
@@ -57,7 +57,9 @@ private:
   std::atomic_size_t PeakAllocatedMemorySize{0};
 };
 
-struct ur_usm_pool_handle_t_ : ur_object {
+namespace ur::level_zero::v1 {
+
+struct ur_usm_pool_handle_t_ : ur::level_zero::ur_handle_base_t {
   ur_usm_pool_handle_t_(ur_context_handle_t Context,
                         ur_usm_pool_desc_t *PoolDesc, bool IsProxy = false);
   ur_usm_pool_handle_t_(ur_context_handle_t Context, ur_device_handle_t Device,
@@ -89,6 +91,8 @@ private:
   usm::pool_manager<usm::pool_descriptor, UsmPool> PoolManager;
   AllocationStats AllocStats;
 };
+
+} // namespace ur::level_zero::v1
 
 // Exception type to pass allocation errors
 class UsmAllocationException {

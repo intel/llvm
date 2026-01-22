@@ -15,7 +15,9 @@
 #include "common/ur_ref_count.hpp"
 #include "memory.hpp"
 
-struct ur_kernel_handle_t_ : ur_object {
+namespace ur::level_zero::v1 {
+
+struct ur_kernel_handle_t_ : ur::level_zero::ur_handle_base_t {
   ur_kernel_handle_t_(bool OwnZeHandle, ur_program_handle_t Program)
       : Context{nullptr}, Program{Program}, ZeKernel{nullptr},
         SubmissionsCount{0}, MemAllocs{} {
@@ -113,6 +115,8 @@ struct ur_kernel_handle_t_ : ur_object {
 
   ur::RefCount RefCount;
 };
+
+} // namespace ur::level_zero::v1
 
 ur_result_t getZeKernel(ze_device_handle_t hDevice, ur_kernel_handle_t hKernel,
                         ze_kernel_handle_t *phZeKernel);

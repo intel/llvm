@@ -22,7 +22,7 @@
 #include "event_pool.hpp"
 #include "event_provider.hpp"
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 
 namespace raii {
 using cache_borrowed_event_pool =
@@ -57,4 +57,4 @@ private:
   std::vector<std::vector<std::unique_ptr<event_pool>>> pools;
 };
 
-} // namespace v2
+} // namespace ur::level_zero::v2

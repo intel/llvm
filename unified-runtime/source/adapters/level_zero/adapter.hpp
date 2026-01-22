@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include "common.hpp"
 #include "common/ur_ref_count.hpp"
 #include "logger/ur_logger.hpp"
 #include "ur_interface_loader.hpp"
@@ -23,7 +24,7 @@ using PlatformVec = std::vector<std::unique_ptr<ur_platform_handle_t_>>;
 
 class ur_legacy_sink;
 
-struct ur_adapter_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter> {
+struct ur_adapter_handle_t_ : ur_shared_handle_base_t {
   ur_adapter_handle_t_();
 
   zes_pfnDriverGetDeviceByUuidExp_t getDeviceByUUIdFunctionPtr = nullptr;
@@ -40,7 +41,19 @@ struct ur_adapter_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter> {
   logger::Logger &logger;
   HMODULE processHandle = nullptr;
 
+  // The adapter version returned via UR_ADAPTER_INFO_VERSION. Each
+  // adapter overrides this in its urAdapterGet body after construction.
+  uint32_t version = 1;
+
   ur::RefCount RefCount;
 };
 
 extern ur_adapter_handle_t_ *GlobalAdapter;
+extern ur_adapter_handle_t_ *GlobalAdapterV2;
+
+std::pair<bool, std::string> shouldUseV1Adapter();
+std::pair<bool, std::string> shouldUseV2Adapter();
+
+ur_result_t adapterStateInit();
+ur_result_t initPlatforms(ur_adapter_handle_t_ *adapter, PlatformVec &platforms,
+                          ze_result_t ZesResult) noexcept;

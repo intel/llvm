@@ -12,10 +12,42 @@
 #include <exception>
 #include <ze_api.h>
 
-#include "../common.hpp"
+#include "../common/device.hpp"
+#include "../common/helpers/shared_helpers.hpp"
 #include "logger/ur_logger.hpp"
+#include "ur_interface_loader.hpp"
 
-namespace v2 {
+// Transition alias: existing v2 code uses bare `v2::foo` throughout (e.g.
+// `v2::raii::...`, `v2::EVENT_FLAGS_COUNTER`). The actual namespace is now
+// `ur::level_zero::v2`; this alias keeps those references resolving.
+namespace v2 = ur::level_zero::v2;
+
+namespace ur::level_zero::v2 {
+
+// V2-local plain-data payload shared by every concrete v2 handle. Does NOT
+// carry `ddi_table`; that lives on `ur_handle_base_t` below (or, for
+// handle types that implement a `ur_<noun>_interface_t` from common/, on
+// the interface itself).
+struct ur_object_t {
+  ur_shared_mutex Mutex;
+  bool OwnNativeHandle = false;
+};
+
+// Default base for v2 concrete handle types that don't implement a
+// common/-level `_interface_t`. Auto-populates `ddi_table` with v2's DDI
+// at construction. `ddi_table` is the first member so it sits at offset
+// 0 of every concrete handle (where the loader's intercept layer reads
+// it).
+struct ur_handle_base_t {
+  const ur_dditable_t *ddi_table = ur::level_zero::v2::ddi_getter::value();
+  ur_shared_mutex Mutex;
+  bool OwnNativeHandle = false;
+
+  ur_handle_base_t() = default;
+  ur_handle_base_t(const ur_handle_base_t &) = delete;
+  ur_handle_base_t &operator=(const ur_handle_base_t &) = delete;
+};
+
 namespace raii {
 
 template <typename ZeHandleT, ze_result_t (*destroy)(ZeHandleT),
@@ -154,11 +186,65 @@ private:
 };
 
 using ur_context_handle_t =
-    ur_handle<::ur_context_handle_t, ur::level_zero::urContextRetain,
-              ur::level_zero::urContextRelease>;
+    ur_handle<::ur_context_handle_t, ur::level_zero::v2::urContextRetain,
+              ur::level_zero::v2::urContextRelease>;
 using ur_device_handle_t =
-    ur_handle<::ur_device_handle_t, ur::level_zero::urDeviceRetain,
-              ur::level_zero::urDeviceRelease>;
+    ur_handle<::ur_device_handle_t, ur::level_zero::common::urDeviceRetain,
+              ur::level_zero::common::urDeviceRelease>;
 
 } // namespace raii
-} // namespace v2
+
+struct ur_context_handle_t_;
+struct ur_event_handle_t_;
+struct ur_usm_pool_handle_t_;
+struct ur_kernel_handle_t_;
+struct ur_queue_handle_t_;
+struct ur_mem_handle_t_;
+struct ur_exp_command_buffer_handle_t_;
+struct ur_exp_graph_handle_t_;
+struct ur_exp_executable_graph_handle_t_;
+
+template <typename V2Type, typename HandleType>
+inline V2Type *v2_cast(HandleType h) {
+  return reinterpret_cast<V2Type *>(h);
+}
+
+inline ur_context_handle_t_ *v2_cast(::ur_context_handle_t h) {
+  return reinterpret_cast<ur_context_handle_t_ *>(h);
+}
+
+inline ur_event_handle_t_ *v2_cast(::ur_event_handle_t h) {
+  return reinterpret_cast<ur_event_handle_t_ *>(h);
+}
+
+inline ur_usm_pool_handle_t_ *v2_cast(::ur_usm_pool_handle_t h) {
+  return reinterpret_cast<ur_usm_pool_handle_t_ *>(h);
+}
+
+inline ur_kernel_handle_t_ *v2_cast(::ur_kernel_handle_t h) {
+  return reinterpret_cast<ur_kernel_handle_t_ *>(h);
+}
+
+inline ur_queue_handle_t_ *v2_cast(::ur_queue_handle_t h) {
+  return reinterpret_cast<ur_queue_handle_t_ *>(h);
+}
+
+inline ur_mem_handle_t_ *v2_cast(::ur_mem_handle_t h) {
+  return reinterpret_cast<ur_mem_handle_t_ *>(h);
+}
+
+inline ur_exp_command_buffer_handle_t_ *
+v2_cast(::ur_exp_command_buffer_handle_t h) {
+  return reinterpret_cast<ur_exp_command_buffer_handle_t_ *>(h);
+}
+
+inline ur_exp_graph_handle_t_ *v2_cast(::ur_exp_graph_handle_t h) {
+  return reinterpret_cast<ur_exp_graph_handle_t_ *>(h);
+}
+
+inline ur_exp_executable_graph_handle_t_ *
+v2_cast(::ur_exp_executable_graph_handle_t h) {
+  return reinterpret_cast<ur_exp_executable_graph_handle_t_ *>(h);
+}
+
+} // namespace ur::level_zero::v2

@@ -14,8 +14,8 @@
 
 #include "context.hpp"
 #include "event.hpp"
-#include "helpers/memory_helpers.hpp"
-#include "image_common.hpp"
+#include "common/helpers/memory_helpers.hpp"
+#include "common/image_common.hpp"
 #include "logger/ur_logger.hpp"
 #include "queue.hpp"
 #include "ur_interface_loader.hpp"
@@ -37,7 +37,7 @@ bool IsDevicePointer(ur_context_handle_t Context, const void *Ptr) {
 
   // Query memory type of the pointer
   ZE2UR_CALL(zeMemGetAllocProperties,
-             (Context->ZeContext, Ptr, &ZeMemoryAllocationProperties,
+             (ur::level_zero::v1::v1_cast(Context)->ZeContext, Ptr, &ZeMemoryAllocationProperties,
               &ZeDeviceHandle));
 
   return (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_DEVICE);
@@ -50,7 +50,7 @@ bool IsSharedPointer(ur_context_handle_t Context, const void *Ptr) {
 
   // Query memory type of the pointer
   ZE2UR_CALL(zeMemGetAllocProperties,
-             (Context->ZeContext, Ptr, &ZeMemoryAllocationProperties,
+             (ur::level_zero::v1::v1_cast(Context)->ZeContext, Ptr, &ZeMemoryAllocationProperties,
               &ZeDeviceHandle));
 
   return (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_SHARED);
@@ -66,7 +66,7 @@ ur_result_t enqueueMemCopyHelper(ur_command_t CommandType,
                                  const ur_event_handle_t *EventWaitList,
                                  ur_event_handle_t *OutEvent,
                                  bool PreferCopyEngine) {
-  bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
+  bool UseCopyEngine = ur::level_zero::v1::v1_cast(Queue)->useCopyEngine(PreferCopyEngine);
 
   ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
@@ -77,7 +77,7 @@ ur_result_t enqueueMemCopyHelper(ur_command_t CommandType,
 
   // Get a new command list to be used on this call
   ur_command_list_ptr_t CommandList{};
-  UR_CALL(Queue->Context->getAvailableCommandList(
+  UR_CALL(ur::level_zero::v1::v1_cast(ur::level_zero::v1::v1_cast(Queue)->Context)->getAvailableCommandList(
       Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
       OkToBatch, nullptr /*ForcedCmdQueue*/));
 
@@ -90,10 +90,10 @@ ur_result_t enqueueMemCopyHelper(ur_command_t CommandType,
   UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
                          NumEventsInWaitList, EventWaitList,
                          CommandList->second.ZeQueue));
-  (*Event)->WaitList = TmpWaitList;
+  ur::level_zero::v1::v1_cast(*Event)->WaitList = TmpWaitList;
 
   const auto &ZeCommandList = CommandList->first;
-  const auto &WaitList = (*Event)->WaitList;
+  const auto &WaitList = ur::level_zero::v1::v1_cast(*Event)->WaitList;
 
   UR_LOG(DEBUG, "calling zeCommandListAppendMemoryCopy() with ZeEvent {}",
          ur_cast<std::uintptr_t>(ZeEvent));
@@ -103,7 +103,7 @@ ur_result_t enqueueMemCopyHelper(ur_command_t CommandType,
              (ZeCommandList, Dst, Src, Size, ZeEvent, WaitList.Length,
               WaitList.ZeEventList));
 
-  UR_CALL(Queue->executeCommandList(CommandList, BlockingWrite, OkToBatch));
+  UR_CALL(ur::level_zero::v1::v1_cast(Queue)->executeCommandList(CommandList, BlockingWrite, OkToBatch));
 
   return UR_RESULT_SUCCESS;
 }
@@ -118,7 +118,7 @@ ur_result_t enqueueMemCopyRectHelper(
     size_t SrcSlicePitch, size_t DstSlicePitch, ur_bool_t Blocking,
     uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
     ur_event_handle_t *OutEvent, bool PreferCopyEngine) {
-  bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
+  bool UseCopyEngine = ur::level_zero::v1::v1_cast(Queue)->useCopyEngine(PreferCopyEngine);
 
   ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
@@ -129,7 +129,7 @@ ur_result_t enqueueMemCopyRectHelper(
 
   // Get a new command list to be used on this call
   ur_command_list_ptr_t CommandList{};
-  UR_CALL(Queue->Context->getAvailableCommandList(
+  UR_CALL(ur::level_zero::v1::v1_cast(ur::level_zero::v1::v1_cast(Queue)->Context)->getAvailableCommandList(
       Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
       OkToBatch, nullptr /*ForcedCmdQueue*/));
 
@@ -142,10 +142,10 @@ ur_result_t enqueueMemCopyRectHelper(
   UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
                          NumEventsInWaitList, EventWaitList,
                          CommandList->second.ZeQueue));
-  (*Event)->WaitList = TmpWaitList;
+  ur::level_zero::v1::v1_cast(*Event)->WaitList = TmpWaitList;
 
   const auto &ZeCommandList = CommandList->first;
-  const auto &WaitList = (*Event)->WaitList;
+  const auto &WaitList = ur::level_zero::v1::v1_cast(*Event)->WaitList;
 
   UR_LOG(DEBUG, "calling zeCommandListAppendMemoryCopy() with ZeEvent {}",
          ur_cast<std::uintptr_t>(ZeEvent));
@@ -162,7 +162,7 @@ ur_result_t enqueueMemCopyRectHelper(
 
   UR_LOG(DEBUG, "calling zeCommandListAppendMemoryCopyRegion()");
 
-  UR_CALL(Queue->executeCommandList(CommandList, Blocking, OkToBatch));
+  UR_CALL(ur::level_zero::v1::v1_cast(Queue)->executeCommandList(CommandList, Blocking, OkToBatch));
 
   return UR_RESULT_SUCCESS;
 }
@@ -175,7 +175,7 @@ static ur_result_t enqueueMemFillHelper(ur_command_t CommandType,
                                         uint32_t NumEventsInWaitList,
                                         const ur_event_handle_t *EventWaitList,
                                         ur_event_handle_t *OutEvent) {
-  auto &Device = Queue->Device;
+  auto &Device = ur::level_zero::v1::v1_cast(Queue)->Device;
 
   // Make sure that pattern size matches the capability of the copy queues.
   // Check both main and link groups as we don't known which one will be used.
@@ -193,7 +193,7 @@ static ur_result_t enqueueMemFillHelper(ur_command_t CommandType,
     }
   }
 
-  bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
+  bool UseCopyEngine = ur::level_zero::v1::v1_cast(Queue)->useCopyEngine(PreferCopyEngine);
   if (!UseCopyEngine) {
     // Pattern size must fit the compute queue capabilities.
     UR_ASSERT(
@@ -210,7 +210,7 @@ static ur_result_t enqueueMemFillHelper(ur_command_t CommandType,
   ur_command_list_ptr_t CommandList{};
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
-  UR_CALL(Queue->Context->getAvailableCommandList(
+  UR_CALL(ur::level_zero::v1::v1_cast(ur::level_zero::v1::v1_cast(Queue)->Context)->getAvailableCommandList(
       Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
       OkToBatch, nullptr /*ForcedCmdQueue*/));
 
@@ -223,10 +223,10 @@ static ur_result_t enqueueMemFillHelper(ur_command_t CommandType,
   UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
                          NumEventsInWaitList, EventWaitList,
                          CommandList->second.ZeQueue));
-  (*Event)->WaitList = TmpWaitList;
+  ur::level_zero::v1::v1_cast(*Event)->WaitList = TmpWaitList;
 
   const auto &ZeCommandList = CommandList->first;
-  const auto &WaitList = (*Event)->WaitList;
+  const auto &WaitList = ur::level_zero::v1::v1_cast(*Event)->WaitList;
 
   // PatternSize must be a power of two for zeCommandListAppendMemoryFill.
   // When it's not, the fill is emulated with zeCommandListAppendMemoryCopy.
@@ -241,7 +241,7 @@ static ur_result_t enqueueMemFillHelper(ur_command_t CommandType,
 
     // Execute command list asynchronously, as the event will be used
     // to track down its completion.
-    UR_CALL(Queue->executeCommandList(CommandList, false /*IsBlocking*/,
+    UR_CALL(ur::level_zero::v1::v1_cast(Queue)->executeCommandList(CommandList, false /*IsBlocking*/,
                                       OkToBatch));
   } else {
     // Copy pattern into every entry in memory array pointed by Ptr.
@@ -262,7 +262,7 @@ static ur_result_t enqueueMemFillHelper(ur_command_t CommandType,
 
     // Execute command list synchronously.
     UR_CALL(
-        Queue->executeCommandList(CommandList, true /*IsBlocking*/, OkToBatch));
+        ur::level_zero::v1::v1_cast(Queue)->executeCommandList(CommandList, true /*IsBlocking*/, OkToBatch));
   }
 
   return UR_RESULT_SUCCESS;
@@ -273,7 +273,7 @@ static ur_result_t enqueueMemFillHelper(ur_command_t CommandType,
 static ur_result_t ZeHostMemAllocHelper(void **ResultPtr,
                                         ur_context_handle_t UrContext,
                                         size_t Size) {
-  ur_platform_handle_t Plt = UrContext->getPlatform();
+  ur_platform_handle_t Plt = ur::level_zero::v1::v1_cast(UrContext)->getPlatform();
   std::unique_lock<ur_shared_mutex> ContextsLock(Plt->ContextsMutex,
                                                  std::defer_lock);
   if (IndirectAccessTrackingEnabled) {
@@ -292,11 +292,11 @@ static ur_result_t ZeHostMemAllocHelper(void **ResultPtr,
   ZeStruct<ze_host_mem_alloc_desc_t> ZeDesc;
   ZeDesc.flags = 0;
   ZE2UR_CALL(zeMemAllocHost,
-             (UrContext->ZeContext, &ZeDesc, Size, 1, ResultPtr));
+             (ur::level_zero::v1::v1_cast(UrContext)->ZeContext, &ZeDesc, Size, 1, ResultPtr));
 
   if (IndirectAccessTrackingEnabled) {
     // Keep track of all memory allocations in the context
-    UrContext->MemAllocs.emplace(
+    ur::level_zero::v1::v1_cast(UrContext)->MemAllocs.emplace(
         std::piecewise_construct, std::forward_as_tuple(*ResultPtr),
         std::forward_as_tuple(
             reinterpret_cast<ur_context_handle_t>(UrContext)));
@@ -316,7 +316,7 @@ static ur_result_t enqueueMemImageCommandHelper(
     size_t SlicePitch, uint32_t NumEventsInWaitList,
     const ur_event_handle_t *EventWaitList, ur_event_handle_t *OutEvent,
     bool PreferCopyEngine = false) {
-  bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
+  bool UseCopyEngine = ur::level_zero::v1::v1_cast(Queue)->useCopyEngine(PreferCopyEngine);
 
   ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
@@ -327,7 +327,7 @@ static ur_result_t enqueueMemImageCommandHelper(
 
   // Get a new command list to be used on this call
   ur_command_list_ptr_t CommandList{};
-  UR_CALL(Queue->Context->getAvailableCommandList(
+  UR_CALL(ur::level_zero::v1::v1_cast(ur::level_zero::v1::v1_cast(Queue)->Context)->getAvailableCommandList(
       Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
       OkToBatch, nullptr /*ForcedCmdQueue*/));
 
@@ -340,10 +340,10 @@ static ur_result_t enqueueMemImageCommandHelper(
   UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
                          NumEventsInWaitList, EventWaitList,
                          CommandList->second.ZeQueue));
-  (*Event)->WaitList = TmpWaitList;
+  ur::level_zero::v1::v1_cast(*Event)->WaitList = TmpWaitList;
 
   const auto &ZeCommandList = CommandList->first;
-  const auto &WaitList = (*Event)->WaitList;
+  const auto &WaitList = ur::level_zero::v1::v1_cast(*Event)->WaitList;
 
   if (CommandType == UR_COMMAND_MEM_IMAGE_READ) {
     ur_image *SrcMem = ur_cast<ur_image *>(const_cast<void *>(Src));
@@ -374,8 +374,8 @@ static ur_result_t enqueueMemImageCommandHelper(
               UR_RESULT_ERROR_INVALID_IMAGE_SIZE);
 
     char *ZeHandleSrc = nullptr;
-    UR_CALL(SrcMem->getZeHandle(ZeHandleSrc, ur_mem_handle_t_::read_only,
-                                Queue->Device, EventWaitList,
+    UR_CALL(SrcMem->getZeHandle(ZeHandleSrc, ur::level_zero::v1::ur_mem_handle_t_::read_only,
+                                ur::level_zero::v1::v1_cast(Queue)->Device, EventWaitList,
                                 NumEventsInWaitList));
     ZE2UR_CALL(zeCommandListAppendImageCopyToMemory,
                (ZeCommandList, Dst, ur_cast<ze_image_handle_t>(ZeHandleSrc),
@@ -408,8 +408,8 @@ static ur_result_t enqueueMemImageCommandHelper(
               UR_RESULT_ERROR_INVALID_IMAGE_SIZE);
 
     char *ZeHandleDst = nullptr;
-    UR_CALL(DstMem->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                                Queue->Device, EventWaitList,
+    UR_CALL(DstMem->getZeHandle(ZeHandleDst, ur::level_zero::v1::ur_mem_handle_t_::write_only,
+                                ur::level_zero::v1::v1_cast(Queue)->Device, EventWaitList,
                                 NumEventsInWaitList));
     ZE2UR_CALL(zeCommandListAppendImageCopyFromMemory,
                (ZeCommandList, ur_cast<ze_image_handle_t>(ZeHandleDst), Src,
@@ -427,11 +427,11 @@ static ur_result_t enqueueMemImageCommandHelper(
 
     char *ZeHandleSrc = nullptr;
     char *ZeHandleDst = nullptr;
-    UR_CALL(SrcImage->getZeHandle(ZeHandleSrc, ur_mem_handle_t_::read_only,
-                                  Queue->Device, EventWaitList,
+    UR_CALL(SrcImage->getZeHandle(ZeHandleSrc, ur::level_zero::v1::ur_mem_handle_t_::read_only,
+                                  ur::level_zero::v1::v1_cast(Queue)->Device, EventWaitList,
                                   NumEventsInWaitList));
-    UR_CALL(DstImage->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                                  Queue->Device, EventWaitList,
+    UR_CALL(DstImage->getZeHandle(ZeHandleDst, ur::level_zero::v1::ur_mem_handle_t_::write_only,
+                                  ur::level_zero::v1::v1_cast(Queue)->Device, EventWaitList,
                                   NumEventsInWaitList));
     ZE2UR_CALL(zeCommandListAppendImageCopyRegion,
                (ZeCommandList, ur_cast<ze_image_handle_t>(ZeHandleDst),
@@ -442,7 +442,7 @@ static ur_result_t enqueueMemImageCommandHelper(
     return UR_RESULT_ERROR_INVALID_OPERATION;
   }
 
-  UR_CALL(Queue->executeCommandList(CommandList, IsBlocking, OkToBatch));
+  UR_CALL(ur::level_zero::v1::v1_cast(Queue)->executeCommandList(CommandList, IsBlocking, OkToBatch));
 
   return UR_RESULT_SUCCESS;
 }
@@ -472,15 +472,15 @@ ur_result_t urEnqueueMemBufferRead(
     /// [in,out][optional] return an event object that identifies this
     /// particular command instance.
     ur_event_handle_t *phEvent) {
-  ur_mem_handle_t_ *Src = ur_cast<ur_mem_handle_t_ *>(hBuffer);
+  auto *Src = ur::level_zero::v1::v1_cast(hBuffer);
 
   std::shared_lock<ur_shared_mutex> SrcLock(Src->Mutex, std::defer_lock);
   std::scoped_lock<std::shared_lock<ur_shared_mutex>, ur_shared_mutex> LockAll(
-      SrcLock, Queue->Mutex);
+      SrcLock, ur::level_zero::v1::v1_cast(Queue)->Mutex);
 
   char *ZeHandleSrc = nullptr;
-  UR_CALL(Src->getZeHandle(ZeHandleSrc, ur_mem_handle_t_::read_only,
-                           Queue->Device, phEventWaitList,
+  UR_CALL(Src->getZeHandle(ZeHandleSrc, ur::level_zero::v1::ur_mem_handle_t_::read_only,
+                           ur::level_zero::v1::v1_cast(Queue)->Device, phEventWaitList,
                            numEventsInWaitList));
   return enqueueMemCopyHelper(UR_COMMAND_MEM_BUFFER_READ, Queue, pDst,
                               blockingRead, size, ZeHandleSrc + offset,
@@ -511,14 +511,14 @@ ur_result_t urEnqueueMemBufferWrite(
     /// [in,out][optional] return an event object that identifies this
     /// particular command instance.
     ur_event_handle_t *phEvent) {
-  ur_mem_handle_t_ *Buffer = ur_cast<ur_mem_handle_t_ *>(hBuffer);
+  auto *Buffer = ur::level_zero::v1::v1_cast(hBuffer);
 
-  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(Queue->Mutex,
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(ur::level_zero::v1::v1_cast(Queue)->Mutex,
                                                           Buffer->Mutex);
 
   char *ZeHandleDst = nullptr;
-  UR_CALL(Buffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                              Queue->Device, phEventWaitList,
+  UR_CALL(Buffer->getZeHandle(ZeHandleDst, ur::level_zero::v1::ur_mem_handle_t_::write_only,
+                              ur::level_zero::v1::v1_cast(Queue)->Device, phEventWaitList,
                               numEventsInWaitList));
   return enqueueMemCopyHelper(UR_COMMAND_MEM_BUFFER_WRITE, Queue,
                               ZeHandleDst + offset, // dst
@@ -563,15 +563,15 @@ ur_result_t urEnqueueMemBufferReadRect(
     /// [in,out][optional] return an event object that identifies this
     /// particular command instance.
     ur_event_handle_t *phEvent) {
-  ur_mem_handle_t_ *Buffer = ur_cast<ur_mem_handle_t_ *>(hBuffer);
+  auto *Buffer = ur::level_zero::v1::v1_cast(hBuffer);
 
   std::shared_lock<ur_shared_mutex> SrcLock(Buffer->Mutex, std::defer_lock);
   std::scoped_lock<std::shared_lock<ur_shared_mutex>, ur_shared_mutex> LockAll(
-      SrcLock, Queue->Mutex);
+      SrcLock, ur::level_zero::v1::v1_cast(Queue)->Mutex);
 
   char *ZeHandleSrc;
-  UR_CALL(Buffer->getZeHandle(ZeHandleSrc, ur_mem_handle_t_::read_only,
-                              Queue->Device, phEventWaitList,
+  UR_CALL(Buffer->getZeHandle(ZeHandleSrc, ur::level_zero::v1::ur_mem_handle_t_::read_only,
+                              ur::level_zero::v1::v1_cast(Queue)->Device, phEventWaitList,
                               numEventsInWaitList));
   return enqueueMemCopyRectHelper(
       UR_COMMAND_MEM_BUFFER_READ_RECT, Queue, ZeHandleSrc, pDst, bufferOffset,
@@ -615,14 +615,14 @@ ur_result_t urEnqueueMemBufferWriteRect(
     /// [in,out][optional] return an event object that identifies this
     /// particular command instance.
     ur_event_handle_t *phEvent) {
-  ur_mem_handle_t_ *Buffer = ur_cast<ur_mem_handle_t_ *>(hBuffer);
+  auto *Buffer = ur::level_zero::v1::v1_cast(hBuffer);
 
-  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(Queue->Mutex,
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(ur::level_zero::v1::v1_cast(Queue)->Mutex,
                                                           Buffer->Mutex);
 
   char *ZeHandleDst = nullptr;
-  UR_CALL(Buffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                              Queue->Device, phEventWaitList,
+  UR_CALL(Buffer->getZeHandle(ZeHandleDst, ur::level_zero::v1::ur_mem_handle_t_::write_only,
+                              ur::level_zero::v1::v1_cast(Queue)->Device, phEventWaitList,
                               numEventsInWaitList));
   return enqueueMemCopyRectHelper(
       UR_COMMAND_MEM_BUFFER_WRITE_RECT, Queue,
@@ -664,7 +664,7 @@ ur_result_t urEnqueueMemBufferCopy(
   std::shared_lock<ur_shared_mutex> SrcLock(SrcBuffer->Mutex, std::defer_lock);
   std::scoped_lock<std::shared_lock<ur_shared_mutex>, ur_shared_mutex,
                    ur_shared_mutex>
-      LockAll(SrcLock, DstBuffer->Mutex, Queue->Mutex);
+      LockAll(SrcLock, DstBuffer->Mutex, ur::level_zero::v1::v1_cast(Queue)->Mutex);
 
   // Copy engine is preferred only for host to device transfer.
   // Device to device transfers run faster on compute engines.
@@ -674,12 +674,12 @@ ur_result_t urEnqueueMemBufferCopy(
   PreferCopyEngine |= UseCopyEngineForD2DCopy;
 
   char *ZeHandleSrc = nullptr;
-  UR_CALL(SrcBuffer->getZeHandle(ZeHandleSrc, ur_mem_handle_t_::read_only,
-                                 Queue->Device, EventWaitList,
+  UR_CALL(SrcBuffer->getZeHandle(ZeHandleSrc, ur::level_zero::v1::ur_mem_handle_t_::read_only,
+                                 ur::level_zero::v1::v1_cast(Queue)->Device, EventWaitList,
                                  NumEventsInWaitList));
   char *ZeHandleDst = nullptr;
-  UR_CALL(DstBuffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                                 Queue->Device, EventWaitList,
+  UR_CALL(DstBuffer->getZeHandle(ZeHandleDst, ur::level_zero::v1::ur_mem_handle_t_::write_only,
+                                 ur::level_zero::v1::v1_cast(Queue)->Device, EventWaitList,
                                  NumEventsInWaitList));
 
   return enqueueMemCopyHelper(
@@ -729,19 +729,19 @@ ur_result_t urEnqueueMemBufferCopyRect(
   std::shared_lock<ur_shared_mutex> SrcLock(SrcBuffer->Mutex, std::defer_lock);
   std::scoped_lock<std::shared_lock<ur_shared_mutex>, ur_shared_mutex,
                    ur_shared_mutex>
-      LockAll(SrcLock, DstBuffer->Mutex, Queue->Mutex);
+      LockAll(SrcLock, DstBuffer->Mutex, ur::level_zero::v1::v1_cast(Queue)->Mutex);
 
   // Copy engine is preferred only for host to device transfer.
   // Device to device transfers run faster on compute engines.
   bool PreferCopyEngine = (SrcBuffer->OnHost || DstBuffer->OnHost);
 
   char *ZeHandleSrc = nullptr;
-  UR_CALL(SrcBuffer->getZeHandle(ZeHandleSrc, ur_mem_handle_t_::read_only,
-                                 Queue->Device, EventWaitList,
+  UR_CALL(SrcBuffer->getZeHandle(ZeHandleSrc, ur::level_zero::v1::ur_mem_handle_t_::read_only,
+                                 ur::level_zero::v1::v1_cast(Queue)->Device, EventWaitList,
                                  NumEventsInWaitList));
   char *ZeHandleDst = nullptr;
-  UR_CALL(DstBuffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                                 Queue->Device, EventWaitList,
+  UR_CALL(DstBuffer->getZeHandle(ZeHandleDst, ur::level_zero::v1::ur_mem_handle_t_::write_only,
+                                 ur::level_zero::v1::v1_cast(Queue)->Device, EventWaitList,
                                  NumEventsInWaitList));
 
   return enqueueMemCopyRectHelper(
@@ -775,13 +775,14 @@ ur_result_t urEnqueueMemBufferFill(
     /// [in,out][optional] return an event object that identifies this
     /// particular command instance.
     ur_event_handle_t *OutEvent) {
-  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(Queue->Mutex,
-                                                          Buffer->Mutex);
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(
+      ur::level_zero::v1::v1_cast(Queue)->Mutex,
+      ur::level_zero::v1::v1_cast(Buffer)->Mutex);
 
   char *ZeHandleDst = nullptr;
   ur_buffer *UrBuffer = reinterpret_cast<ur_buffer *>(Buffer);
-  UR_CALL(UrBuffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                                Queue->Device, EventWaitList,
+  UR_CALL(UrBuffer->getZeHandle(ZeHandleDst, ur::level_zero::v1::ur_mem_handle_t_::write_only,
+                                ur::level_zero::v1::v1_cast(Queue)->Device, EventWaitList,
                                 NumEventsInWaitList));
   return enqueueMemFillHelper(
       UR_COMMAND_MEM_BUFFER_FILL, Queue, ZeHandleDst + Offset,
@@ -818,8 +819,8 @@ ur_result_t urEnqueueMemImageRead(
     /// [in,out][optional] return an event object that identifies this
     /// particular command instance.
     ur_event_handle_t *OutEvent) {
-  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(Queue->Mutex,
-                                                          Image->Mutex);
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(ur::level_zero::v1::v1_cast(Queue)->Mutex,
+                                                          ur::level_zero::v1::v1_cast(Image)->Mutex);
   return enqueueMemImageCommandHelper(
       UR_COMMAND_MEM_IMAGE_READ, Queue, Image, Dst, BlockingRead, &Origin,
       nullptr, &Region, RowPitch, SlicePitch, NumEventsInWaitList,
@@ -854,8 +855,8 @@ ur_result_t urEnqueueMemImageWrite(
     /// [in,out][optional] return an event object that identifies this
     /// particular command instance.
     ur_event_handle_t *OutEvent) {
-  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(Queue->Mutex,
-                                                          Image->Mutex);
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(ur::level_zero::v1::v1_cast(Queue)->Mutex,
+                                                          ur::level_zero::v1::v1_cast(Image)->Mutex);
   return enqueueMemImageCommandHelper(
       UR_COMMAND_MEM_IMAGE_WRITE, Queue, Src, Image, BlockingWrite, nullptr,
       &Origin, &Region, RowPitch, SlicePitch, NumEventsInWaitList,
@@ -888,10 +889,10 @@ ur_result_t urEnqueueMemImageCopy(
     /// [in,out][optional] return an event object that identifies this
     /// particular command instance.
     ur_event_handle_t *OutEvent) {
-  std::shared_lock<ur_shared_mutex> SrcLock(ImageSrc->Mutex, std::defer_lock);
+  std::shared_lock<ur_shared_mutex> SrcLock(ur::level_zero::v1::v1_cast(ImageSrc)->Mutex, std::defer_lock);
   std::scoped_lock<std::shared_lock<ur_shared_mutex>, ur_shared_mutex,
                    ur_shared_mutex>
-      LockAll(SrcLock, ImageDst->Mutex, Queue->Mutex);
+      LockAll(SrcLock, ur::level_zero::v1::v1_cast(ImageDst)->Mutex, ur::level_zero::v1::v1_cast(Queue)->Mutex);
   // Copy engine is preferred only for host to device transfer.
   // Device to device transfers run faster on compute engines.
   // Images are always allocated on device.
@@ -943,34 +944,34 @@ ur_result_t urEnqueueMemBufferMap(
   bool UseCopyEngine = false;
   {
     // Lock automatically releases when this goes out of scope.
-    std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
+    std::scoped_lock<ur_shared_mutex> lock(ur::level_zero::v1::v1_cast(Queue)->Mutex);
 
     ur_ze_event_list_t TmpWaitList;
     UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
         NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
 
     UR_CALL(createEventAndAssociateQueue(
-        Queue, Event, UR_COMMAND_MEM_BUFFER_MAP, Queue->CommandListMap.end(),
+        Queue, Event, UR_COMMAND_MEM_BUFFER_MAP, ur::level_zero::v1::v1_cast(Queue)->CommandListMap.end(),
         IsInternal, false));
 
-    ZeEvent = (*Event)->ZeEvent;
-    (*Event)->WaitList = TmpWaitList;
+    ZeEvent = ur::level_zero::v1::v1_cast(*Event)->ZeEvent;
+    ur::level_zero::v1::v1_cast(*Event)->WaitList = TmpWaitList;
   }
 
   // Translate the host access mode info.
-  ur_mem_handle_t_::access_mode_t AccessMode = ur_mem_handle_t_::unknown;
+  ur::level_zero::v1::ur_mem_handle_t_::access_mode_t AccessMode = ur::level_zero::v1::ur_mem_handle_t_::unknown;
   if (MapFlags & UR_MAP_FLAG_WRITE_INVALIDATE_REGION)
-    AccessMode = ur_mem_handle_t_::write_only;
+    AccessMode = ur::level_zero::v1::ur_mem_handle_t_::write_only;
   else {
     if (MapFlags & UR_MAP_FLAG_READ) {
-      AccessMode = ur_mem_handle_t_::read_only;
+      AccessMode = ur::level_zero::v1::ur_mem_handle_t_::read_only;
       if (MapFlags & UR_MAP_FLAG_WRITE)
-        AccessMode = ur_mem_handle_t_::read_write;
+        AccessMode = ur::level_zero::v1::ur_mem_handle_t_::read_write;
     } else if (MapFlags & UR_MAP_FLAG_WRITE)
-      AccessMode = ur_mem_handle_t_::write_only;
+      AccessMode = ur::level_zero::v1::ur_mem_handle_t_::write_only;
   }
 
-  UR_ASSERT(AccessMode != ur_mem_handle_t_::unknown,
+  UR_ASSERT(AccessMode != ur::level_zero::v1::ur_mem_handle_t_::unknown,
             UR_RESULT_ERROR_INVALID_VALUE);
 
   // TODO: Level Zero is missing the memory "mapping" capabilities, so we are
@@ -991,20 +992,20 @@ ur_result_t urEnqueueMemBufferMap(
     if (NumEventsInWaitList > 0)
       UR_CALL(ur::level_zero::urEventWait(NumEventsInWaitList, EventWaitList));
 
-    if (Queue->isInOrderQueue())
+    if (ur::level_zero::v1::v1_cast(Queue)->isInOrderQueue())
       UR_CALL(ur::level_zero::urQueueFinish(Queue));
 
     // Lock automatically releases when this goes out of scope.
     std::scoped_lock<ur_shared_mutex> Guard(Buffer->Mutex);
 
     char *ZeHandleSrc;
-    UR_CALL(Buffer->getZeHandle(ZeHandleSrc, AccessMode, Queue->Device,
+    UR_CALL(Buffer->getZeHandle(ZeHandleSrc, AccessMode, ur::level_zero::v1::v1_cast(Queue)->Device,
                                 EventWaitList, NumEventsInWaitList));
 
     if (Buffer->MapHostPtr) {
       *RetMap = Buffer->MapHostPtr + Offset;
       if (ZeHandleSrc != Buffer->MapHostPtr &&
-          AccessMode != ur_mem_handle_t_::write_only) {
+          AccessMode != ur::level_zero::v1::ur_mem_handle_t_::write_only) {
         memcpy(*RetMap, ZeHandleSrc + Offset, Size);
       }
     } else {
@@ -1020,14 +1021,14 @@ ur_result_t urEnqueueMemBufferMap(
     }
 
     // Signal this event
-    if (!(*Event)->CounterBasedEventsEnabled)
+    if (!ur::level_zero::v1::v1_cast(*Event)->CounterBasedEventsEnabled)
       ZE2UR_CALL(zeEventHostSignal, (ZeEvent));
-    (*Event)->Completed = true;
+    ur::level_zero::v1::v1_cast(*Event)->Completed = true;
     return UR_RESULT_SUCCESS;
   }
 
   // Lock automatically releases when this goes out of scope.
-  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(Queue->Mutex,
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(ur::level_zero::v1::v1_cast(Queue)->Mutex,
                                                           Buffer->Mutex);
 
   if (Buffer->MapHostPtr) {
@@ -1036,28 +1037,28 @@ ur_result_t urEnqueueMemBufferMap(
     // TODO: use USM host allocator here
     // TODO: Do we even need every map to allocate new host memory?
     //       In the case when the buffer is "OnHost" we use single allocation.
-    UR_CALL(ZeHostMemAllocHelper(RetMap, Queue->Context, Size));
+    UR_CALL(ZeHostMemAllocHelper(RetMap, ur::level_zero::v1::v1_cast(Queue)->Context, Size));
   }
 
   // Take a shortcut if the host is not going to read buffer's data.
-  if (AccessMode == ur_mem_handle_t_::write_only) {
-    (*Event)->Completed = true;
+  if (AccessMode == ur::level_zero::v1::ur_mem_handle_t_::write_only) {
+    ur::level_zero::v1::v1_cast(*Event)->Completed = true;
   } else {
     // For discrete devices we need a command list
     ur_command_list_ptr_t CommandList{};
-    UR_CALL(Queue->Context->getAvailableCommandList(
+    UR_CALL(ur::level_zero::v1::v1_cast(ur::level_zero::v1::v1_cast(Queue)->Context)->getAvailableCommandList(
         Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
         false /*AllowBatching*/, nullptr /*ForcedCmdQueue*/));
 
     // Add the event to the command list.
     CommandList->second.append(reinterpret_cast<ur_event_handle_t>(*Event));
-    (*Event)->RefCount.retain();
+    ur::level_zero::v1::v1_cast(*Event)->RefCount.retain();
 
     const auto &ZeCommandList = CommandList->first;
-    const auto &WaitList = (*Event)->WaitList;
+    const auto &WaitList = ur::level_zero::v1::v1_cast(*Event)->WaitList;
 
     char *ZeHandleSrc;
-    UR_CALL(Buffer->getZeHandle(ZeHandleSrc, AccessMode, Queue->Device,
+    UR_CALL(Buffer->getZeHandle(ZeHandleSrc, AccessMode, ur::level_zero::v1::v1_cast(Queue)->Device,
                                 EventWaitList, NumEventsInWaitList));
 
     UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
@@ -1068,7 +1069,7 @@ ur_result_t urEnqueueMemBufferMap(
                (ZeCommandList, *RetMap, ZeHandleSrc + Offset, Size, ZeEvent,
                 WaitList.Length, WaitList.ZeEventList));
 
-    UR_CALL(Queue->executeCommandList(CommandList, BlockingMap,
+    UR_CALL(ur::level_zero::v1::v1_cast(Queue)->executeCommandList(CommandList, BlockingMap,
                                       false /*OKToBatchCommand*/));
   }
 
@@ -1099,9 +1100,10 @@ ur_result_t urEnqueueMemUnmap(
     /// [in,out][optional] return an event object that identifies this
     /// particular command instance.
     ur_event_handle_t *OutEvent) {
-  UR_ASSERT(!Mem->isImage(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+  UR_ASSERT(!ur::level_zero::v1::v1_cast(Mem)->isImage(),
+            UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
-  auto Buffer = ur_cast<ur_buffer *>(Mem);
+  auto Buffer = reinterpret_cast<ur_buffer *>(Mem);
 
   bool UseCopyEngine = false;
 
@@ -1111,17 +1113,17 @@ ur_result_t urEnqueueMemUnmap(
   ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
   {
     // Lock automatically releases when this goes out of scope.
-    std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
+    std::scoped_lock<ur_shared_mutex> lock(ur::level_zero::v1::v1_cast(Queue)->Mutex);
 
     ur_ze_event_list_t TmpWaitList;
     UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
         NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
 
     UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_MEM_UNMAP,
-                                         Queue->CommandListMap.end(),
+                                         ur::level_zero::v1::v1_cast(Queue)->CommandListMap.end(),
                                          IsInternal, false));
-    ZeEvent = (*Event)->ZeEvent;
-    (*Event)->WaitList = TmpWaitList;
+    ZeEvent = ur::level_zero::v1::v1_cast(*Event)->ZeEvent;
+    ur::level_zero::v1::v1_cast(*Event)->WaitList = TmpWaitList;
   }
 
   ur_buffer::Mapping MapInfo = {};
@@ -1142,7 +1144,7 @@ ur_result_t urEnqueueMemUnmap(
     // do so in piEventRelease called for the pi_event tracking the unmap.
     // In the case of an integrated device, the map operation does not allocate
     // any memory, so there is nothing to free. This is indicated by a nullptr.
-    (*Event)->CommandData =
+    ur::level_zero::v1::v1_cast(*Event)->CommandData =
         (Buffer->OnHost ? nullptr : (Buffer->MapHostPtr ? nullptr : MappedPtr));
   }
 
@@ -1152,12 +1154,12 @@ ur_result_t urEnqueueMemUnmap(
     if (NumEventsInWaitList > 0)
       UR_CALL(ur::level_zero::urEventWait(NumEventsInWaitList, EventWaitList));
 
-    if (Queue->isInOrderQueue())
+    if (ur::level_zero::v1::v1_cast(Queue)->isInOrderQueue())
       UR_CALL(ur::level_zero::urQueueFinish(Queue));
 
     char *ZeHandleDst;
-    UR_CALL(Buffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                                Queue->Device, EventWaitList,
+    UR_CALL(Buffer->getZeHandle(ZeHandleDst, ur::level_zero::v1::ur_mem_handle_t_::write_only,
+                                ur::level_zero::v1::v1_cast(Queue)->Device, EventWaitList,
                                 NumEventsInWaitList));
 
     std::scoped_lock<ur_shared_mutex> Guard(Buffer->Mutex);
@@ -1165,24 +1167,24 @@ ur_result_t urEnqueueMemUnmap(
       memcpy(ZeHandleDst + MapInfo.Offset, MappedPtr, MapInfo.Size);
 
     // Signal this event if it is not using counter based events
-    if (!(*Event)->CounterBasedEventsEnabled)
+    if (!ur::level_zero::v1::v1_cast(*Event)->CounterBasedEventsEnabled)
       ZE2UR_CALL(zeEventHostSignal, (ZeEvent));
-    (*Event)->Completed = true;
+    ur::level_zero::v1::v1_cast(*Event)->Completed = true;
     return UR_RESULT_SUCCESS;
   }
 
   // Lock automatically releases when this goes out of scope.
-  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(Queue->Mutex,
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(ur::level_zero::v1::v1_cast(Queue)->Mutex,
                                                           Buffer->Mutex);
 
   ur_command_list_ptr_t CommandList{};
-  UR_CALL(Queue->Context->getAvailableCommandList(
+  UR_CALL(ur::level_zero::v1::v1_cast(ur::level_zero::v1::v1_cast(Queue)->Context)->getAvailableCommandList(
       reinterpret_cast<ur_queue_handle_t>(Queue), CommandList, UseCopyEngine,
       NumEventsInWaitList, EventWaitList, false /*AllowBatching*/,
       nullptr /*ForcedCmdQueue*/));
 
   CommandList->second.append(reinterpret_cast<ur_event_handle_t>(*Event));
-  (*Event)->RefCount.retain();
+  ur::level_zero::v1::v1_cast(*Event)->RefCount.retain();
 
   const auto &ZeCommandList = CommandList->first;
 
@@ -1193,8 +1195,8 @@ ur_result_t urEnqueueMemUnmap(
   // piEnqueueMemBufferMap.
 
   char *ZeHandleDst;
-  UR_CALL(Buffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                              Queue->Device, EventWaitList,
+  UR_CALL(Buffer->getZeHandle(ZeHandleDst, ur::level_zero::v1::ur_mem_handle_t_::write_only,
+                              ur::level_zero::v1::v1_cast(Queue)->Device, EventWaitList,
                               NumEventsInWaitList));
 
   UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
@@ -1203,12 +1205,12 @@ ur_result_t urEnqueueMemUnmap(
 
   ZE2UR_CALL(zeCommandListAppendMemoryCopy,
              (ZeCommandList, ZeHandleDst + MapInfo.Offset, MappedPtr,
-              MapInfo.Size, ZeEvent, (*Event)->WaitList.Length,
-              (*Event)->WaitList.ZeEventList));
+              MapInfo.Size, ZeEvent, ur::level_zero::v1::v1_cast(*Event)->WaitList.Length,
+              ur::level_zero::v1::v1_cast(*Event)->WaitList.ZeEventList));
 
   // Execute command list asynchronously, as the event will be used
   // to track down its completion.
-  UR_CALL(Queue->executeCommandList(CommandList, false /*IsBlocking*/,
+  UR_CALL(ur::level_zero::v1::v1_cast(Queue)->executeCommandList(CommandList, false /*IsBlocking*/,
                                     false /*OKToBatchCommand*/));
 
   return UR_RESULT_SUCCESS;
@@ -1235,16 +1237,16 @@ ur_result_t urEnqueueUSMMemcpy(
     /// [in,out][optional] return an event object that identifies this
     /// particular command instance.
     ur_event_handle_t *OutEvent) {
-  std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
+  std::scoped_lock<ur_shared_mutex> lock(ur::level_zero::v1::v1_cast(Queue)->Mutex);
 
   // Device to Device copies are found to execute slower on copy engine
   // (versus compute engine).
-  bool PreferCopyEngine = !IsDevicePointer(Queue->Context, Src) ||
-                          !IsDevicePointer(Queue->Context, Dst);
+  bool PreferCopyEngine = !IsDevicePointer(ur::level_zero::v1::v1_cast(Queue)->Context, Src) ||
+                          !IsDevicePointer(ur::level_zero::v1::v1_cast(Queue)->Context, Dst);
   // For better performance, Copy Engines are not preferred given Shared
   // pointers on DG2.
-  if (Queue->Device->isDG2() && (IsSharedPointer(Queue->Context, Src) ||
-                                 IsSharedPointer(Queue->Context, Dst))) {
+  if (ur::level_zero::v1::v1_cast(Queue)->Device->isDG2() && (IsSharedPointer(ur::level_zero::v1::v1_cast(Queue)->Context, Src) ||
+                                 IsSharedPointer(ur::level_zero::v1::v1_cast(Queue)->Context, Dst))) {
     PreferCopyEngine = false;
   }
 
@@ -1288,7 +1290,7 @@ ur_result_t urEnqueueUSMPrefetch(
   }
 
   // Lock automatically releases when this goes out of scope.
-  std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
+  std::scoped_lock<ur_shared_mutex> lock(ur::level_zero::v1::v1_cast(Queue)->Mutex);
 
   bool UseCopyEngine = false;
 
@@ -1306,7 +1308,7 @@ ur_result_t urEnqueueUSMPrefetch(
   ur_command_list_ptr_t CommandList{};
   // TODO: Change UseCopyEngine argument to 'true' once L0 backend
   // support is added
-  UR_CALL(Queue->Context->getAvailableCommandList(
+  UR_CALL(ur::level_zero::v1::v1_cast(ur::level_zero::v1::v1_cast(Queue)->Context)->getAvailableCommandList(
       Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
       false /*AllowBatching*/, nullptr /*ForcedCmdQueue*/));
 
@@ -1317,10 +1319,10 @@ ur_result_t urEnqueueUSMPrefetch(
   ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
   UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_USM_PREFETCH,
                                        CommandList, IsInternal, false));
-  ZeEvent = (*Event)->ZeEvent;
-  (*Event)->WaitList = TmpWaitList;
+  ZeEvent = ur::level_zero::v1::v1_cast(*Event)->ZeEvent;
+  ur::level_zero::v1::v1_cast(*Event)->WaitList = TmpWaitList;
 
-  const auto &WaitList = (*Event)->WaitList;
+  const auto &WaitList = ur::level_zero::v1::v1_cast(*Event)->WaitList;
   const auto &ZeCommandList = CommandList->first;
   if (WaitList.Length) {
     ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
@@ -1335,7 +1337,7 @@ ur_result_t urEnqueueUSMPrefetch(
   // so manually add command to signal our event.
   ZE2UR_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
 
-  UR_CALL(Queue->executeCommandList(CommandList, false /*IsBlocking*/,
+  UR_CALL(ur::level_zero::v1::v1_cast(Queue)->executeCommandList(CommandList, false /*IsBlocking*/,
                                     false /*OKToBatchCommand*/));
 
   return UR_RESULT_SUCCESS;
@@ -1354,7 +1356,7 @@ ur_result_t urEnqueueUSMAdvise(
     /// particular command instance.
     ur_event_handle_t *OutEvent) {
   // Lock automatically releases when this goes out of scope.
-  std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
+  std::scoped_lock<ur_shared_mutex> lock(ur::level_zero::v1::v1_cast(Queue)->Mutex);
 
   auto ZeAdvice = ur_cast<ze_memory_advice_t>(Advice);
 
@@ -1369,7 +1371,7 @@ ur_result_t urEnqueueUSMAdvise(
   // UseCopyEngine is set to 'false' here.
   // TODO: Additional analysis is required to check if this operation will
   // run faster on copy engines.
-  UR_CALL(Queue->Context->getAvailableCommandList(
+  UR_CALL(ur::level_zero::v1::v1_cast(ur::level_zero::v1::v1_cast(Queue)->Context)->getAvailableCommandList(
       Queue, CommandList, UseCopyEngine, 0, nullptr, false /*AllowBatching*/,
       nullptr /*ForcedCmdQueue*/));
 
@@ -1380,11 +1382,11 @@ ur_result_t urEnqueueUSMAdvise(
   ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
   UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_USM_ADVISE,
                                        CommandList, IsInternal, false));
-  ZeEvent = (*Event)->ZeEvent;
-  (*Event)->WaitList = TmpWaitList;
+  ZeEvent = ur::level_zero::v1::v1_cast(*Event)->ZeEvent;
+  ur::level_zero::v1::v1_cast(*Event)->WaitList = TmpWaitList;
 
   const auto &ZeCommandList = CommandList->first;
-  const auto &WaitList = (*Event)->WaitList;
+  const auto &WaitList = ur::level_zero::v1::v1_cast(*Event)->WaitList;
 
   if (WaitList.Length) {
     ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
@@ -1392,13 +1394,13 @@ ur_result_t urEnqueueUSMAdvise(
   }
 
   ZE2UR_CALL(zeCommandListAppendMemAdvise,
-             (ZeCommandList, Queue->Device->ZeDevice, Mem, Size, ZeAdvice));
+             (ZeCommandList, ur::level_zero::v1::v1_cast(Queue)->Device->ZeDevice, Mem, Size, ZeAdvice));
 
   // TODO: Level Zero does not have a completion "event" with the advise API,
   // so manually add command to signal our event.
   ZE2UR_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
 
-  Queue->executeCommandList(CommandList, false /*IsBlocking*/,
+  ur::level_zero::v1::v1_cast(Queue)->executeCommandList(CommandList, false /*IsBlocking*/,
                             false /*OKToBatchCommand*/);
 
   return UR_RESULT_SUCCESS;
@@ -1465,16 +1467,16 @@ ur_result_t urEnqueueUSMMemcpy2D(
   ur_rect_offset_t ZeroOffset{0, 0, 0};
   ur_rect_region_t Region{Width, Height, 0};
 
-  std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
+  std::scoped_lock<ur_shared_mutex> lock(ur::level_zero::v1::v1_cast(Queue)->Mutex);
 
   // Device to Device copies are found to execute slower on copy engine
   // (versus compute engine).
-  bool PreferCopyEngine = !IsDevicePointer(Queue->Context, Src) ||
-                          !IsDevicePointer(Queue->Context, Dst);
+  bool PreferCopyEngine = !IsDevicePointer(ur::level_zero::v1::v1_cast(Queue)->Context, Src) ||
+                          !IsDevicePointer(ur::level_zero::v1::v1_cast(Queue)->Context, Dst);
   // For better performance, Copy Engines are not preferred given Shared
   // pointers on DG2.
-  if (Queue->Device->isDG2() && (IsSharedPointer(Queue->Context, Src) ||
-                                 IsSharedPointer(Queue->Context, Dst))) {
+  if (ur::level_zero::v1::v1_cast(Queue)->Device->isDG2() && (IsSharedPointer(ur::level_zero::v1::v1_cast(Queue)->Context, Src) ||
+                                 IsSharedPointer(ur::level_zero::v1::v1_cast(Queue)->Context, Dst))) {
     PreferCopyEngine = false;
   }
 
@@ -1508,7 +1510,7 @@ ur_result_t urMemImageCreate(
         "no read-only or write-only yet.");
   }
 
-  std::shared_lock<ur_shared_mutex> Lock(Context->Mutex);
+  std::shared_lock<ur_shared_mutex> Lock(ur::level_zero::v1::v1_cast(Context)->Mutex);
 
   ZeStruct<ze_image_desc_t> ZeImageDesc;
   UR_CALL(ur2zeImageDesc(ImageFormat, ImageDesc, ZeImageDesc));
@@ -1517,10 +1519,10 @@ ur_result_t urMemImageCreate(
   // own the image.
   // TODO: Implement explicit copying for acessing the image from other devices
   // in the context.
-  ur_device_handle_t Device = Context->Devices[0];
+  ur_device_handle_t Device = ur::level_zero::v1::v1_cast(Context)->Devices[0];
   ze_image_handle_t ZeImage;
   ZE2UR_CALL(zeImageCreate,
-             (Context->ZeContext, Device->ZeDevice, &ZeImageDesc, &ZeImage));
+             (ur::level_zero::v1::v1_cast(Context)->ZeContext, Device->ZeDevice, &ZeImageDesc, &ZeImage));
 
   UR_CALL(createUrMemFromZeImage(Context, ZeImage, /*OwnZeMemHandle*/ true,
                                  ZeImageDesc, Mem));
@@ -1531,9 +1533,9 @@ ur_result_t urMemImageCreate(
     // zeCommandListAppendImageCopyFromMemory must not be called from
     // simultaneous threads with the same command list handle, so we need
     // exclusive lock.
-    std::scoped_lock<ur_mutex> Lock(Context->ImmediateCommandListMutex);
+    std::scoped_lock<ur_mutex> Lock(ur::level_zero::v1::v1_cast(Context)->ImmediateCommandListMutex);
     ZE2UR_CALL(zeCommandListAppendImageCopyFromMemory,
-               (Context->ZeCommandListInit, ZeImage, Host, nullptr, nullptr, 0,
+               (ur::level_zero::v1::v1_cast(Context)->ZeCommandListInit, ZeImage, Host, nullptr, nullptr, 0,
                 nullptr));
   }
 
@@ -1551,7 +1553,7 @@ ur_result_t urMemImageCreateWithNativeHandle(
     [[maybe_unused]] const ur_image_desc_t *ImageDesc,
     /// [in][optional] pointer to native memory creation properties.
     const ur_mem_native_properties_t *Properties, ur_mem_handle_t *Mem) {
-  std::shared_lock<ur_shared_mutex> Lock(Context->Mutex);
+  std::shared_lock<ur_shared_mutex> Lock(ur::level_zero::v1::v1_cast(Context)->Mutex);
 
   ze_image_handle_t ZeHImage = ur_cast<ze_image_handle_t>(NativeMem);
 
@@ -1595,8 +1597,8 @@ ur_result_t urMemBufferCreate(
   bool HostPtrImported = false;
   if (Flags & UR_MEM_FLAG_USE_HOST_POINTER)
     HostPtrImported =
-        maybeImportUSM(Context->getPlatform()->ZeDriverHandleExpTranslated,
-                       Context->ZeContext, Host, Size);
+        maybeImportUSM(ur::level_zero::v1::v1_cast(Context)->getPlatform()->ZeDriverHandleExpTranslated,
+                       ur::level_zero::v1::v1_cast(Context)->ZeContext, Host, Size);
 
   ur_buffer *Buffer = nullptr;
   auto HostPtrOrNull = (Flags & UR_MEM_FLAG_USE_HOST_POINTER)
@@ -1619,8 +1621,8 @@ ur_result_t urMemBufferCreate(
       // device in the context be the master, and hold the initial valid
       // allocation.
       char *ZeHandleDst;
-      UR_CALL(Buffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                                  Context->Devices[0], nullptr, 0u));
+      UR_CALL(Buffer->getZeHandle(ZeHandleDst, ur::level_zero::v1::ur_mem_handle_t_::write_only,
+                                  ur::level_zero::v1::v1_cast(Context)->Devices[0], nullptr, 0u));
       if (Buffer->OnHost) {
         // Do a host to host copy.
         // For an imported HostPtr the copy is unneeded.
@@ -1630,9 +1632,9 @@ ur_result_t urMemBufferCreate(
         // Initialize the buffer synchronously with immediate offload
         // zeCommandListAppendMemoryCopy must not be called from simultaneous
         // threads with the same command list handle, so we need exclusive lock.
-        std::scoped_lock<ur_mutex> Lock(Context->ImmediateCommandListMutex);
+        std::scoped_lock<ur_mutex> Lock(ur::level_zero::v1::v1_cast(Context)->ImmediateCommandListMutex);
         ZE2UR_CALL(zeCommandListAppendMemoryCopy,
-                   (Context->ZeCommandListInit, ZeHandleDst, Host, Size,
+                   (ur::level_zero::v1::v1_cast(Context)->ZeCommandListInit, ZeHandleDst, Host, Size,
                     nullptr, 0, nullptr));
       }
     } else if (Flags == 0 || (Flags == UR_MEM_FLAG_READ_WRITE)) {
@@ -1648,22 +1650,24 @@ ur_result_t urMemBufferCreate(
 ur_result_t urMemRetain(
     /// [in] handle of the memory object to get access
     ur_mem_handle_t Mem) {
-  Mem->RefCount.retain();
+  ur::level_zero::v1::v1_cast(Mem)->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urMemRelease(
     /// [in] handle of the memory object to release
     ur_mem_handle_t Mem) {
-  if (!Mem->RefCount.release())
+  auto *UrMem = ur::level_zero::v1::v1_cast(Mem);
+  if (!UrMem->RefCount.release())
     return UR_RESULT_SUCCESS;
 
-  if (Mem->isImage()) {
+  if (UrMem->isImage()) {
     char *ZeHandleImage;
-    auto Image = static_cast<ur_image *>(Mem);
+    auto Image = reinterpret_cast<ur_image *>(Mem);
     if (Image->OwnNativeHandle) {
-      UR_CALL(Mem->getZeHandle(ZeHandleImage, ur_mem_handle_t_::write_only,
-                               nullptr, nullptr, 0u));
+      UR_CALL(UrMem->getZeHandle(ZeHandleImage,
+                                 ur::level_zero::v1::ur_mem_handle_t_::write_only,
+                                 nullptr, nullptr, 0u));
       if (checkL0LoaderTeardown()) {
         auto ZeResult = ZE_CALL_NOCHECK(
             zeImageDestroy, (ur_cast<ze_image_handle_t>(ZeHandleImage)));
@@ -1698,11 +1702,12 @@ ur_result_t urMemBufferPartition(
     const ur_buffer_region_t *BufferCreateInfo,
     /// [out] pointer to the handle of sub buffer created
     ur_mem_handle_t *RetMem) {
-  UR_ASSERT(Buffer && !Buffer->isImage() &&
-                !(static_cast<ur_buffer *>(Buffer))->isSubBuffer(),
+  UR_ASSERT(Buffer && !ur::level_zero::v1::v1_cast(Buffer)->isImage() &&
+                !(reinterpret_cast<ur_buffer *>(Buffer))->isSubBuffer(),
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
-  std::shared_lock<ur_shared_mutex> Guard(Buffer->Mutex);
+  std::shared_lock<ur_shared_mutex> Guard(
+      ur::level_zero::v1::v1_cast(Buffer)->Mutex);
 
   if (Flags != UR_MEM_FLAG_READ_WRITE) {
     die("urMemBufferPartition: Level-Zero implements only read-write buffer,"
@@ -1711,7 +1716,7 @@ ur_result_t urMemBufferPartition(
 
   try {
     auto partitionedBuffer =
-        new ur_buffer(static_cast<ur_buffer *>(Buffer),
+        new ur_buffer(reinterpret_cast<ur_buffer *>(Buffer),
                       BufferCreateInfo->origin, BufferCreateInfo->size);
     *RetMem = reinterpret_cast<ur_mem_handle_t>(partitionedBuffer);
   } catch (const std::bad_alloc &) {
@@ -1730,10 +1735,12 @@ ur_result_t urMemGetNativeHandle(
     ur_device_handle_t,
     /// [out] a pointer to the native handle of the mem.
     ur_native_handle_t *NativeMem) {
-  std::shared_lock<ur_shared_mutex> Guard(Mem->Mutex);
+  std::shared_lock<ur_shared_mutex> Guard(
+      ur::level_zero::v1::v1_cast(Mem)->Mutex);
   char *ZeHandle = nullptr;
-  UR_CALL(Mem->getZeHandle(ZeHandle, ur_mem_handle_t_::read_write, nullptr,
-                           nullptr, 0u));
+  UR_CALL(ur::level_zero::v1::v1_cast(Mem)->getZeHandle(
+      ZeHandle, ur::level_zero::v1::ur_mem_handle_t_::read_write, nullptr,
+      nullptr, 0u));
   *NativeMem = ur_cast<ur_native_handle_t>(ZeHandle);
 
   return UR_RESULT_SUCCESS;
@@ -1750,28 +1757,28 @@ ur_result_t urMemBufferCreateWithNativeHandle(
     ur_mem_handle_t *Mem) {
   bool OwnNativeHandle = Properties ? Properties->isNativeHandleOwned : false;
 
-  std::shared_lock<ur_shared_mutex> Lock(Context->Mutex);
+  std::shared_lock<ur_shared_mutex> Lock(ur::level_zero::v1::v1_cast(Context)->Mutex);
 
   // Get base of the allocation
   void *Ptr = ur_cast<void *>(NativeMem);
 
   void *Base;
   size_t Size;
-  ZE2UR_CALL(zeMemGetAddressRange, (Context->ZeContext, Ptr, &Base, &Size));
+  ZE2UR_CALL(zeMemGetAddressRange, (ur::level_zero::v1::v1_cast(Context)->ZeContext, Ptr, &Base, &Size));
 
   UR_ASSERT(Ptr == Base, UR_RESULT_ERROR_INVALID_VALUE);
 
   ze_device_handle_t ZeDevice;
   ZeStruct<ze_memory_allocation_properties_t> MemoryAttrs;
-  UR_CALL(getMemoryAttrs(Context->ZeContext, Ptr, &ZeDevice, &MemoryAttrs));
+  UR_CALL(getMemoryAttrs(ur::level_zero::v1::v1_cast(Context)->ZeContext, Ptr, &ZeDevice, &MemoryAttrs));
   if (MemoryAttrs.type == ZE_MEMORY_TYPE_UNKNOWN) {
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
   ur_device_handle_t Device{};
   if (ZeDevice) {
-    Device = Context->getPlatform()->getDeviceFromNativeHandle(ZeDevice);
-    UR_ASSERT(Context->isValidDevice(Device), UR_RESULT_ERROR_INVALID_CONTEXT);
+    Device = ur::level_zero::v1::v1_cast(Context)->getPlatform()->getDeviceFromNativeHandle(ZeDevice);
+    UR_ASSERT(ur::level_zero::v1::v1_cast(Context)->isValidDevice(Device), UR_RESULT_ERROR_INVALID_CONTEXT);
   }
 
   ur_buffer *Buffer = nullptr;
@@ -1785,7 +1792,7 @@ ur_result_t urMemBufferCreateWithNativeHandle(
     return UR_RESULT_ERROR_UNKNOWN;
   }
 
-  ur_platform_handle_t Plt = Context->getPlatform();
+  ur_platform_handle_t Plt = ur::level_zero::v1::v1_cast(Context)->getPlatform();
   std::unique_lock<ur_shared_mutex> ContextsLock(Plt->ContextsMutex,
                                                  std::defer_lock);
   // If we don't own the native handle then we can't control deallocation of
@@ -1799,7 +1806,7 @@ ur_result_t urMemBufferCreateWithNativeHandle(
     // allocations in this context are released.
     UR_CALL(ur::level_zero::urContextRetain(Context));
 
-    Context->MemAllocs.emplace(std::piecewise_construct,
+    ur::level_zero::v1::v1_cast(Context)->MemAllocs.emplace(std::piecewise_construct,
                                std::forward_as_tuple(Ptr),
                                std::forward_as_tuple(Context, OwnNativeHandle));
   }
@@ -1815,7 +1822,7 @@ ur_result_t urMemBufferCreateWithNativeHandle(
     // represent the buffer in this context) copy the data to a newly
     // created device allocation.
     char *ZeHandleDst;
-    UR_CALL(Buffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
+    UR_CALL(Buffer->getZeHandle(ZeHandleDst, ur::level_zero::v1::ur_mem_handle_t_::write_only,
                                 Device, nullptr, 0u));
 
     // Indicate that this buffer has the device buffer mapped to a native buffer
@@ -1824,9 +1831,9 @@ ur_result_t urMemBufferCreateWithNativeHandle(
     Buffer->DeviceMappedHostNativePtr = Ptr;
     // zeCommandListAppendMemoryCopy must not be called from simultaneous
     // threads with the same command list handle, so we need exclusive lock.
-    std::scoped_lock<ur_mutex> Lock(Context->ImmediateCommandListMutex);
+    std::scoped_lock<ur_mutex> Lock(ur::level_zero::v1::v1_cast(Context)->ImmediateCommandListMutex);
     ZE2UR_CALL(zeCommandListAppendMemoryCopy,
-               (Context->ZeCommandListInit, ZeHandleDst, Ptr, Size, nullptr, 0,
+               (ur::level_zero::v1::v1_cast(Context)->ZeCommandListInit, ZeHandleDst, Ptr, Size, nullptr, 0,
                 nullptr));
   }
 
@@ -1914,7 +1921,7 @@ ur_result_t urEnqueueUSMFill(
     /// [out][optional] return an event object that identifies this particular
     /// command instance.
     ur_event_handle_t *Event) {
-  std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
+  std::scoped_lock<ur_shared_mutex> Lock(ur::level_zero::v1::v1_cast(Queue)->Mutex);
 
   return enqueueMemFillHelper(
       // TODO: do we need a new command type for USM memset?
@@ -1982,8 +1989,11 @@ ur_result_t urIPCOpenMemHandleExp(ur_context_handle_t hContext,
                                   ur_device_handle_t hDevice,
                                   void *pIPCMemHandleData,
                                   size_t ipcMemHandleDataSize, void **ppMem) {
-  auto *pool = hContext->DefaultPool.getPool(usm::pool_descriptor{
-      &hContext->DefaultPool, hContext, hDevice, UR_USM_TYPE_DEVICE, false});
+  auto *pool = ur::level_zero::v1::v1_cast(hContext)->DefaultPool.getPool(
+      usm::pool_descriptor{
+          reinterpret_cast<::ur_usm_pool_handle_t>(
+              &ur::level_zero::v1::v1_cast(hContext)->DefaultPool),
+          hContext, hDevice, UR_USM_TYPE_DEVICE, false});
   if (!pool)
     return UR_RESULT_ERROR_INVALID_CONTEXT;
   umf_memory_pool_handle_t umfPool = pool->UmfPool.get();
@@ -2038,12 +2048,12 @@ static ur_result_t ZeDeviceMemAllocHelper(void **ResultPtr,
   ze_device_mem_alloc_desc_t ZeDesc = {};
   ZeDesc.flags = 0;
   ZeDesc.ordinal = 0;
-  ZE2UR_CALL(zeMemAllocDevice, (Context->ZeContext, &ZeDesc, Size, 1,
+  ZE2UR_CALL(zeMemAllocDevice, (ur::level_zero::v1::v1_cast(Context)->ZeContext, &ZeDesc, Size, 1,
                                 Device->ZeDevice, ResultPtr));
 
   if (IndirectAccessTrackingEnabled) {
     // Keep track of all memory allocations in the context
-    Context->MemAllocs.emplace(std::piecewise_construct,
+    ur::level_zero::v1::v1_cast(Context)->MemAllocs.emplace(std::piecewise_construct,
                                std::forward_as_tuple(*ResultPtr),
                                std::forward_as_tuple(Context));
   }
@@ -2065,7 +2075,7 @@ ur_result_t ur_buffer::getBufferZeHandle(char *&ZeHandle,
   // If the device is still not selected then use the first one in
   // the context of the buffer.
   if (!Device)
-    Device = UrContext->Devices[0];
+    Device = ur::level_zero::v1::v1_cast(UrContext)->Devices[0];
 
   auto &Allocation = Allocations[Device];
 
@@ -2154,7 +2164,7 @@ ur_result_t ur_buffer::getBufferZeHandle(char *&ZeHandle,
 
     // For write-only access the allocation contents is not going to be used.
     // So don't do anything to make it "valid".
-    bool NeedCopy = AccessMode != ur_mem_handle_t_::write_only;
+    bool NeedCopy = AccessMode != ur::level_zero::v1::ur_mem_handle_t_::write_only;
     // It's also possible that the buffer doesn't have a valid allocation
     // yet presumably when it is passed to a kernel that will perform
     // it's intialization.
@@ -2163,7 +2173,7 @@ ur_result_t ur_buffer::getBufferZeHandle(char *&ZeHandle,
     }
     char *ZeHandleSrc = nullptr;
     if (NeedCopy) {
-      UR_CALL(getZeHandle(ZeHandleSrc, ur_mem_handle_t_::read_only,
+      UR_CALL(getZeHandle(ZeHandleSrc, ur::level_zero::v1::ur_mem_handle_t_::read_only,
                           LastDeviceWithValidAllocation, phWaitEvents,
                           numWaitEvents));
       // It's possible with the single root-device contexts that
@@ -2181,23 +2191,23 @@ ur_result_t ur_buffer::getBufferZeHandle(char *&ZeHandle,
       waitlist.Length = 0;
       uint32_t EventListIndex = 0;
       for (unsigned i = 0; i < numWaitEvents; ++i) {
-        if (phWaitEvents[i]->HostVisibleEvent) {
+        if (ur::level_zero::v1::v1_cast(phWaitEvents[i])->HostVisibleEvent) {
           ZE2UR_CALL(zeEventHostSynchronize,
-                     (phWaitEvents[i]->ZeEvent, UINT64_MAX));
+                     (ur::level_zero::v1::v1_cast(phWaitEvents[i])->ZeEvent, UINT64_MAX));
         } else {
           // Generate the waitlist for the Copy calls based on the passed in
           // dependencies, if they exist for device only.
           if (waitlist.ZeEventList == nullptr) {
             waitlist.ZeEventList = new ze_event_handle_t[numWaitEvents];
           }
-          waitlist.ZeEventList[EventListIndex] = phWaitEvents[i]->ZeEvent;
+          waitlist.ZeEventList[EventListIndex] = ur::level_zero::v1::v1_cast(phWaitEvents[i])->ZeEvent;
           waitlist.Length++;
           EventListIndex++;
         }
       }
       if (waitlist.Length > 0) {
         ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
-                   (UrContext->ZeCommandListInit, waitlist.Length,
+                   (ur::level_zero::v1::v1_cast(UrContext)->ZeCommandListInit, waitlist.Length,
                     waitlist.ZeEventList));
       }
 
@@ -2234,10 +2244,10 @@ ur_result_t ur_buffer::getBufferZeHandle(char *&ZeHandle,
           HostAllocation.ZeHandle = reinterpret_cast<char *>(ZeHandleHost);
           HostAllocation.Valid = false;
         }
-        std::scoped_lock<ur_mutex> Lock(UrContext->ImmediateCommandListMutex);
+        std::scoped_lock<ur_mutex> Lock(ur::level_zero::v1::v1_cast(UrContext)->ImmediateCommandListMutex);
         if (!HostAllocation.Valid) {
           ZE2UR_CALL(zeCommandListAppendMemoryCopy,
-                     (UrContext->ZeCommandListInit, HostAllocation.ZeHandle,
+                     (ur::level_zero::v1::v1_cast(UrContext)->ZeCommandListInit, HostAllocation.ZeHandle,
                       ZeHandleSrc, Size, nullptr, 0u, nullptr));
           // Mark the host allocation data  as valid so it can be reused.
           // It will be invalidated below if the current access is not
@@ -2245,13 +2255,13 @@ ur_result_t ur_buffer::getBufferZeHandle(char *&ZeHandle,
           HostAllocation.Valid = true;
         }
         ZE2UR_CALL(zeCommandListAppendMemoryCopy,
-                   (UrContext->ZeCommandListInit, ZeHandle,
+                   (ur::level_zero::v1::v1_cast(UrContext)->ZeCommandListInit, ZeHandle,
                     HostAllocation.ZeHandle, Size, nullptr, 0u, nullptr));
       } else {
         // Perform P2P copy.
-        std::scoped_lock<ur_mutex> Lock(UrContext->ImmediateCommandListMutex);
+        std::scoped_lock<ur_mutex> Lock(ur::level_zero::v1::v1_cast(UrContext)->ImmediateCommandListMutex);
         ZE2UR_CALL(zeCommandListAppendMemoryCopy,
-                   (UrContext->ZeCommandListInit, ZeHandle, ZeHandleSrc, Size,
+                   (ur::level_zero::v1::v1_cast(UrContext)->ZeCommandListInit, ZeHandle, ZeHandleSrc, Size,
                     nullptr, 0u, nullptr));
       }
       if (waitlist.ZeEventList) {
@@ -2264,7 +2274,7 @@ ur_result_t ur_buffer::getBufferZeHandle(char *&ZeHandle,
 
   // Invalidate other allocations that would become not valid if
   // this access is not read-only.
-  if (AccessMode != ur_mem_handle_t_::read_only) {
+  if (AccessMode != ur::level_zero::v1::ur_mem_handle_t_::read_only) {
     for (auto &Alloc : Allocations) {
       if (Alloc.first != LastDeviceWithValidAllocation)
         Alloc.second.Valid = false;
@@ -2288,10 +2298,10 @@ ur_result_t ur_buffer::free() {
     case allocation_t::keep:
       break;
     case allocation_t::free: {
-      ur_platform_handle_t Plt = UrContext->getPlatform();
+      ur_platform_handle_t Plt = ur::level_zero::v1::v1_cast(UrContext)->getPlatform();
       std::scoped_lock<ur_shared_mutex> Lock(IndirectAccessTrackingEnabled
                                                  ? Plt->ContextsMutex
-                                                 : UrContext->Mutex);
+                                                 : ur::level_zero::v1::v1_cast(UrContext)->Mutex);
 
       // If this memory was allocated as a proxy device buffer, then we must
       // copy the final memory contents back to the original native pointer
@@ -2299,9 +2309,9 @@ ur_result_t ur_buffer::free() {
       if (DeviceMappedHostNativePtr != nullptr) {
         // zeCommandListAppendMemoryCopy must not be called from simultaneous
         // threads with the same command list handle, so we need exclusive lock.
-        std::scoped_lock<ur_mutex> Lock(UrContext->ImmediateCommandListMutex);
+        std::scoped_lock<ur_mutex> Lock(ur::level_zero::v1::v1_cast(UrContext)->ImmediateCommandListMutex);
         ZE2UR_CALL(zeCommandListAppendMemoryCopy,
-                   (UrContext->ZeCommandListInit, DeviceMappedHostNativePtr,
+                   (ur::level_zero::v1::v1_cast(UrContext)->ZeCommandListInit, DeviceMappedHostNativePtr,
                     ZeHandle, Size, nullptr, 0, nullptr));
       }
       UR_CALL(USMFreeHelper(reinterpret_cast<ur_context_handle_t>(UrContext),
@@ -2313,7 +2323,7 @@ ur_result_t ur_buffer::free() {
       break;
     case allocation_t::unimport:
       ZeUSMImport.doZeUSMRelease(
-          UrContext->getPlatform()->ZeDriverHandleExpTranslated, ZeHandle);
+          ur::level_zero::v1::v1_cast(UrContext)->getPlatform()->ZeDriverHandleExpTranslated, ZeHandle);
       break;
     default:
       die("ur_buffer::free(): Unhandled release action");
@@ -2334,8 +2344,8 @@ ur_buffer::ur_buffer(ur_context_handle_t Context, size_t Size, char *HostPtr,
   // For integrated devices, allocating the buffer in the host memory
   // enables automatic access from the device, and makes copying
   // unnecessary in the map/unmap operations. This improves performance.
-  OnHost = Context->Devices.size() == 1 &&
-           Context->Devices[0]->ZeDeviceProperties->flags &
+  OnHost = ur::level_zero::v1::v1_cast(Context)->Devices.size() == 1 &&
+           ur::level_zero::v1::v1_cast(Context)->Devices[0]->ZeDeviceProperties->flags &
                ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
 
   // Fill the host allocation data.
@@ -2373,8 +2383,8 @@ ur_buffer::ur_buffer(ur_context_handle_t Context, size_t Size,
   // Check if this buffer can always stay on host
   OnHost = false;
   if (!Device) { // Host allocation
-    if (Context->Devices.size() == 1 &&
-        Context->Devices[0]->ZeDeviceProperties->flags &
+    if (ur::level_zero::v1::v1_cast(Context)->Devices.size() == 1 &&
+        ur::level_zero::v1::v1_cast(Context)->Devices[0]->ZeDeviceProperties->flags &
             ZE_DEVICE_PROPERTY_FLAG_INTEGRATED) {
       OnHost = true;
       MapHostPtr = ZeMemHandle; // map to this allocation
@@ -2385,38 +2395,39 @@ ur_buffer::ur_buffer(ur_context_handle_t Context, size_t Size,
 
 ur_buffer::~ur_buffer() {
   if (isSubBuffer())
-    ur::level_zero::urMemRelease(SubBuffer->Parent);
+    ur::level_zero::urMemRelease(
+        reinterpret_cast<ur_mem_handle_t>(SubBuffer->Parent));
 }
 
-ur_result_t ur_mem_handle_t_::getZeHandle(char *&ZeHandle, access_mode_t mode,
+ur_result_t ur::level_zero::v1::ur_mem_handle_t_::getZeHandle(char *&ZeHandle, access_mode_t mode,
                                           ur_device_handle_t Device,
                                           const ur_event_handle_t *phWaitEvents,
                                           uint32_t numWaitEvents) {
   switch (mem_type) {
-  case ur_mem_handle_t_::image:
+  case ur::level_zero::v1::ur_mem_handle_t_::image:
     return reinterpret_cast<ur_image *>(this)->getImageZeHandle(
         ZeHandle, mode, Device, phWaitEvents, numWaitEvents);
-  case ur_mem_handle_t_::buffer:
+  case ur::level_zero::v1::ur_mem_handle_t_::buffer:
     return reinterpret_cast<ur_buffer *>(this)->getBufferZeHandle(
         ZeHandle, mode, Device, phWaitEvents, numWaitEvents);
   default:
-    die("ur_mem_handle_t_::getZeHandle: Unhandled memory type");
+    die("ur::level_zero::v1::ur_mem_handle_t_::getZeHandle: Unhandled memory type");
   }
   ur::unreachable();
 }
 
-ur_result_t ur_mem_handle_t_::getZeHandlePtr(
+ur_result_t ur::level_zero::v1::ur_mem_handle_t_::getZeHandlePtr(
     char **&ZeHandlePtr, access_mode_t mode, ur_device_handle_t Device,
     const ur_event_handle_t *phWaitEvents, uint32_t numWaitEvents) {
   switch (mem_type) {
-  case ur_mem_handle_t_::image:
+  case ur::level_zero::v1::ur_mem_handle_t_::image:
     return reinterpret_cast<ur_image *>(this)->getImageZeHandlePtr(
         ZeHandlePtr, mode, Device, phWaitEvents, numWaitEvents);
-  case ur_mem_handle_t_::buffer:
+  case ur::level_zero::v1::ur_mem_handle_t_::buffer:
     return reinterpret_cast<ur_buffer *>(this)->getBufferZeHandlePtr(
         ZeHandlePtr, mode, Device, phWaitEvents, numWaitEvents);
   default:
-    die("ur_mem_handle_t_::getZeHandle: Unhandled memory type");
+    die("ur::level_zero::v1::ur_mem_handle_t_::getZeHandle: Unhandled memory type");
   }
   ur::unreachable();
 }

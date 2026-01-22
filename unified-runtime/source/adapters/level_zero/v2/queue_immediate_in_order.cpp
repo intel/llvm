@@ -14,13 +14,13 @@
 #include "ur.hpp"
 
 #include "../common/latency_tracker.hpp"
-#include "../helpers/kernel_helpers.hpp"
-#include "../image_common.hpp"
+#include "../common/helpers/kernel_helpers.hpp"
+#include "../common/image_common.hpp"
 
 #include "../program.hpp"
-#include "../ur_interface_loader.hpp"
+#include "ur_interface_loader.hpp"
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 
 ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, uint32_t ordinal,
@@ -29,12 +29,13 @@ ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
     : hContext(hContext), hDevice(hDevice),
       commandListManager(
           hContext, hDevice,
-          hContext->getCommandListCache().getImmediateCommandList(
+          v2_cast(hContext)->getCommandListCache().getImmediateCommandList(
               hDevice->ZeDevice,
               {true, ordinal, true /* always enable copy offload */},
               ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS, priority, index)),
       flags(flags),
-      eventPool(hContext->getEventPoolCache(PoolCacheType::Immediate)
+      eventPool(v2_cast(hContext)
+                    ->getEventPoolCache(PoolCacheType::Immediate)
                     .borrow(hDevice->Id.value(), eventFlags)) {}
 
 ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
@@ -44,7 +45,8 @@ ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
     : hContext(hContext), hDevice(hDevice),
       commandListManager(hContext, hDevice, std::move(commandListHandle)),
       flags(flags),
-      eventPool(hContext->getEventPoolCache(PoolCacheType::Immediate)
+      eventPool(v2_cast(hContext)
+                    ->getEventPoolCache(PoolCacheType::Immediate)
                     .borrow(hDevice->Id.value(), eventFlags)) {}
 
 ur_result_t
@@ -112,9 +114,9 @@ ur_result_t ur_queue_immediate_in_order_t::queueFinish() {
 
   {
     TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::asyncPools");
-    hContext->getAsyncPool()->cleanupPoolsForQueue(this);
-    hContext->forEachUsmPool([this](ur_usm_pool_handle_t hPool) {
-      hPool->cleanupPoolsForQueue(this);
+    v2_cast(v2_cast(hContext)->getAsyncPool())->cleanupPoolsForQueue(this);
+    v2_cast(hContext)->forEachUsmPool([this](ur_usm_pool_handle_t hPool) {
+      v2_cast(hPool)->cleanupPoolsForQueue(this);
       return true;
     });
   }
@@ -163,4 +165,4 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrier(
   }
 }
 
-} // namespace v2
+} // namespace ur::level_zero::v2

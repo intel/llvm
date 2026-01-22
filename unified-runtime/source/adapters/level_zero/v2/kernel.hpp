@@ -15,6 +15,8 @@
 #include "common/ur_ref_count.hpp"
 #include "memory.hpp"
 
+namespace ur::level_zero::v2 {
+
 struct ur_single_device_kernel_t {
   ur_single_device_kernel_t(ur_device_handle_t hDevice,
                             ze_kernel_handle_t hKernel, bool ownZeHandle);
@@ -33,7 +35,7 @@ struct ur_single_device_kernel_t {
   mutable ZeCache<ZeStruct<ze_kernel_properties_t>> zeKernelProperties;
 };
 
-struct ur_kernel_handle_t_ : ur_object {
+struct ur_kernel_handle_t_ : v2::ur_handle_base_t {
 private:
   struct pending_memory_allocation_t;
 
@@ -156,3 +158,5 @@ private:
   // pointer to any non-null kernel in deviceKernels
   ur_single_device_kernel_t *nonEmptyKernel;
 };
+
+} // namespace ur::level_zero::v2

@@ -68,11 +68,58 @@ uniqueDevices(uint32_t numDevices, const ur_device_handle_t *phDevices) {
   return devices;
 }
 
+namespace ur::level_zero::v2 {
+
+// Dispatch table registered with the non-virtual `ur_context_interface_t`
+// base. Each thunk forwards to the concrete v2 method.
+namespace {
+ze_context_handle_t vfn_getZeHandle(const ::ur_context_interface_t *iface) {
+  return static_cast<const ur_context_handle_t_ *>(iface)->getZeHandle();
+}
+ur_platform_handle_t vfn_getPlatform(const ::ur_context_interface_t *iface) {
+  return static_cast<const ur_context_handle_t_ *>(iface)->getPlatform();
+}
+const std::vector<ur_device_handle_t> &
+vfn_getDevices(const ::ur_context_interface_t *iface) {
+  return static_cast<const ur_context_handle_t_ *>(iface)->getDevices();
+}
+bool vfn_isValidDevice(const ::ur_context_interface_t *iface,
+                       ur_device_handle_t hDevice) {
+  return static_cast<const ur_context_handle_t_ *>(iface)->isValidDevice(
+      hDevice);
+}
+ur_shared_mutex &vfn_getMutex(::ur_context_interface_t *iface) {
+  return static_cast<ur_context_handle_t_ *>(iface)->getMutex();
+}
+
+static constexpr ::ur_context_vfns_t v2_context_vfns = {
+    &vfn_getZeHandle, &vfn_getPlatform, &vfn_getDevices,
+    &vfn_isValidDevice, &vfn_getMutex,
+};
+} // namespace
+
+namespace {
+// Runtime check: the loader's intercept layer reads `ddi_table` at offset 0
+// of every opaque UR handle. `ur_context_interface_t` is `ur_context_handle_t_`'s
+// first base and its first data member is `ddi_table`. If any future edit
+// inserts a vtable or other member in front, this invariant breaks and the
+// intercept layer would dispatch through garbage.
+inline void assertDdiTableAtOffsetZero(const ur_context_handle_t_ *self) {
+  assert(static_cast<const void *>(self) ==
+             static_cast<const void *>(
+                 &static_cast<const ::ur_context_interface_t *>(self)
+                      ->ddi_table) &&
+         "ddi_table must be at offset 0 for loader intercept dispatch");
+}
+} // namespace
+
 ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
                                            uint32_t numDevices,
                                            const ur_device_handle_t *phDevices,
                                            bool ownZeContext)
-    : hContext(hContext, ownZeContext),
+    : ::ur_context_interface_t(ur::level_zero::v2::ddi_getter::value(),
+                               &v2_context_vfns),
+      hContext(hContext, ownZeContext),
       hDevices(uniqueDevices(numDevices, phDevices)),
       commandListCache(
           hContext, {phDevices[0]->Platform->ZeCopyOffloadExtensionSupported,
@@ -80,8 +127,10 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
                      phDevices[0]->Platform->ZeCopyOffloadQueueFlagSupported,
                      phDevices[0]->Platform->ZeCopyOffloadListFlagSupported}),
       eventPoolCacheImmediate(
-          this, phDevices[0]->Platform->getNumDevices(),
-          [context = this, platform = phDevices[0]->Platform](
+          reinterpret_cast<::ur_context_handle_t>(this),
+          phDevices[0]->Platform->getNumDevices(),
+          [context = reinterpret_cast<::ur_context_handle_t>(this),
+           platform = phDevices[0]->Platform](
               DeviceId deviceId,
               v2::event_flags_t flags) -> std::unique_ptr<v2::event_provider> {
             auto device = platform->getDeviceById(deviceId);
@@ -91,8 +140,10 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
                                       device, flags);
           }),
       eventPoolCacheRegular(
-          this, phDevices[0]->Platform->getNumDevices(),
-          [context = this, platform = phDevices[0]->Platform](
+          reinterpret_cast<::ur_context_handle_t>(this),
+          phDevices[0]->Platform->getNumDevices(),
+          [context = reinterpret_cast<::ur_context_handle_t>(this),
+           platform = phDevices[0]->Platform](
               DeviceId deviceId,
               v2::event_flags_t flags) -> std::unique_ptr<v2::event_provider> {
             auto device = platform->getDeviceById(deviceId);
@@ -101,11 +152,16 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
             return v2::createProvider(platform, context, v2::QUEUE_REGULAR,
                                       device, flags);
           }),
-      nativeEventsPool(this, std::make_unique<v2::provider_normal>(
-                                 this, v2::QUEUE_IMMEDIATE,
-                                 v2::EVENT_FLAGS_PROFILING_ENABLED)),
+      nativeEventsPool(reinterpret_cast<::ur_context_handle_t>(this),
+                       std::make_unique<v2::provider_normal>(
+                           reinterpret_cast<::ur_context_handle_t>(this),
+                           v2::QUEUE_IMMEDIATE,
+                           v2::EVENT_FLAGS_PROFILING_ENABLED)),
       p2pAccessDevices(populateP2PDevices(this->hDevices)),
-      defaultUSMPool(this, nullptr), asyncPool(this, nullptr) {}
+      defaultUSMPool(reinterpret_cast<::ur_context_handle_t>(this), nullptr),
+      asyncPool(reinterpret_cast<::ur_context_handle_t>(this), nullptr) {
+  assertDdiTableAtOffsetZero(this);
+}
 
 ur_result_t ur_context_handle_t_::retain() {
   RefCount.retain();
@@ -139,10 +195,12 @@ bool ur_context_handle_t_::isValidDevice(ur_device_handle_t hDevice) const {
 }
 
 ur_usm_pool_handle_t ur_context_handle_t_::getDefaultUSMPool() {
-  return &defaultUSMPool;
+  return reinterpret_cast<ur_usm_pool_handle_t>(&defaultUSMPool);
 }
 
-ur_usm_pool_handle_t ur_context_handle_t_::getAsyncPool() { return &asyncPool; }
+ur_usm_pool_handle_t ur_context_handle_t_::getAsyncPool() {
+  return reinterpret_cast<ur_usm_pool_handle_t>(&asyncPool);
+}
 
 void ur_context_handle_t_::addUsmPool(ur_usm_pool_handle_t hPool) {
   std::scoped_lock<ur_shared_mutex> lock(Mutex);
@@ -159,7 +217,11 @@ ur_context_handle_t_::getP2PDevices(ur_device_handle_t hDevice) const {
   return p2pAccessDevices[hDevice->Id.value()];
 }
 
-namespace ur::level_zero {
+} // namespace ur::level_zero::v2
+
+namespace ur::level_zero::v2 {
+
+using v2::v2_cast;
 ur_result_t urContextCreate(uint32_t deviceCount,
                             const ur_device_handle_t *phDevices,
                             const ur_context_properties_t * /*pProperties*/,
@@ -171,8 +233,8 @@ ur_result_t urContextCreate(uint32_t deviceCount,
   ze_context_handle_t zeContext{};
   ZE2UR_CALL(zeContextCreate, (hPlatform->ZeDriver, &contextDesc, &zeContext));
 
-  *phContext =
-      new ur_context_handle_t_(zeContext, deviceCount, phDevices, true);
+  *phContext = reinterpret_cast<ur_context_handle_t>(
+      new v2::ur_context_handle_t_(zeContext, deviceCount, phDevices, true));
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -181,7 +243,7 @@ ur_result_t urContextCreate(uint32_t deviceCount,
 ur_result_t urContextGetNativeHandle(ur_context_handle_t hContext,
                                      ur_native_handle_t *phNativeContext) try {
   *phNativeContext =
-      reinterpret_cast<ur_native_handle_t>(hContext->getZeHandle());
+      reinterpret_cast<ur_native_handle_t>(v2_cast(hContext)->getZeHandle());
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -196,21 +258,22 @@ ur_result_t urContextCreateWithNativeHandle(
 
   auto ownZeHandle = pProperties ? pProperties->isNativeHandleOwned : false;
 
-  *phContext =
-      new ur_context_handle_t_(zeContext, numDevices, phDevices, ownZeHandle);
+  *phContext = reinterpret_cast<ur_context_handle_t>(
+      new v2::ur_context_handle_t_(zeContext, numDevices, phDevices,
+                                   ownZeHandle));
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urContextRetain(ur_context_handle_t hContext) try {
-  return hContext->retain();
+  return v2_cast(hContext)->retain();
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urContextRelease(ur_context_handle_t hContext) try {
-  return hContext->release();
+  return v2_cast(hContext)->release();
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
@@ -218,18 +281,16 @@ ur_result_t urContextRelease(ur_context_handle_t hContext) try {
 ur_result_t urContextGetInfo(ur_context_handle_t hContext,
                              ur_context_info_t contextInfoType, size_t propSize,
                              void *pContextInfo, size_t *pPropSizeRet) try {
-  // No locking needed here, we only read const members
-
+  auto ctx = v2_cast(hContext);
   UrReturnHelper ReturnValue(propSize, pContextInfo, pPropSizeRet);
   switch (
       (uint32_t)contextInfoType) { // cast to avoid warnings on EXT enum values
   case UR_CONTEXT_INFO_DEVICES:
-    return ReturnValue(hContext->getDevices().data(),
-                       hContext->getDevices().size());
+    return ReturnValue(ctx->getDevices().data(), ctx->getDevices().size());
   case UR_CONTEXT_INFO_NUM_DEVICES:
-    return ReturnValue(uint32_t(hContext->getDevices().size()));
+    return ReturnValue(uint32_t(ctx->getDevices().size()));
   case UR_CONTEXT_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{hContext->RefCount.getCount()});
+    return ReturnValue(uint32_t{ctx->RefCount.getCount()});
   case UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
     // TODO: this is currently not implemented
     return ReturnValue(uint8_t{false});
@@ -242,4 +303,4 @@ ur_result_t urContextGetInfo(ur_context_handle_t hContext,
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
-} // namespace ur::level_zero
+} // namespace ur::level_zero::v2

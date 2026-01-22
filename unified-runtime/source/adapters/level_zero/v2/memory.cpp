@@ -8,12 +8,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "memory.hpp"
-
-#include "../ur_interface_loader.hpp"
 #include "context.hpp"
+#include "ur_interface_loader.hpp"
 
-#include "../helpers/memory_helpers.hpp"
-#include "../image_common.hpp"
+#include "../common/helpers/memory_helpers.hpp"
+#include "../common/image_common.hpp"
+
+namespace ur::level_zero::v2 {
 
 static bool isAccessCompatible(ur_mem_buffer_t::device_access_mode_t requested,
                                ur_mem_buffer_t::device_access_mode_t actual) {
@@ -63,7 +64,7 @@ getSyncCommandListForCopy(ur_context_handle_t hContext,
           ->QueueGroup[ur_device_handle_t_::queue_group_info_t::type::Compute]
           .ZeOrdinal;
   listDesc.CopyOffloadEnable = true;
-  return hContext->getCommandListCache().getImmediateCommandList(
+  return v2::v2_cast(hContext)->getCommandListCache().getImmediateCommandList(
       hDevice->ZeDevice, listDesc, ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS,
       ZE_COMMAND_QUEUE_PRIORITY_NORMAL, std::nullopt);
 }
@@ -85,23 +86,25 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
     ur_context_handle_t hContext, void *hostPtr, size_t size,
     device_access_mode_t accessMode)
     : ur_mem_buffer_t(hContext, size, accessMode) {
+  auto *ctx = v2_cast(hContext);
   bool hostPtrImported =
-      maybeImportUSM(hContext->getPlatform()->ZeDriverHandleExpTranslated,
-                     hContext->getZeHandle(), hostPtr, size);
+      maybeImportUSM(ctx->getPlatform()->ZeDriverHandleExpTranslated,
+                     ctx->getZeHandle(), hostPtr, size);
 
   if (hostPtrImported) {
     this->ptr = usm_unique_ptr_t(hostPtr, [hContext](void *ptr) {
       ZeUSMImport.doZeUSMRelease(
-          hContext->getPlatform()->ZeDriverHandleExpTranslated, ptr);
+          v2_cast(hContext)->getPlatform()->ZeDriverHandleExpTranslated, ptr);
     });
   } else {
     void *rawPtr;
     // Use HOST memory for integrated GPUs to enable zero-copy device access
-    UR_CALL_THROWS(hContext->getDefaultUSMPool()->allocate(
-        hContext, nullptr, nullptr, UR_USM_TYPE_HOST, size, &rawPtr));
+    UR_CALL_THROWS(v2_cast(ctx->getDefaultUSMPool())
+                       ->allocate(hContext, nullptr, nullptr, UR_USM_TYPE_HOST,
+                                  size, &rawPtr));
 
     this->ptr = usm_unique_ptr_t(rawPtr, [hContext](void *ptr) {
-      auto ret = hContext->getDefaultUSMPool()->free(ptr);
+      auto ret = v2_cast(v2_cast(hContext)->getDefaultUSMPool())->free(ptr);
       if (ret != UR_RESULT_SUCCESS) {
         UR_LOG(ERR, "Failed to free host memory: {}", ret);
       }
@@ -109,7 +112,7 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
 
     if (hostPtr) {
       // Initial copy using Level Zero for USM HOST memory
-      auto hDevice = hContext->getDevices()[0];
+      auto hDevice = ctx->getDevices()[0];
       UR_CALL_THROWS(
           synchronousZeCopy(hContext, hDevice, this->ptr.get(), hostPtr, size));
       // Store writeBackPtr for copy-back - needed when original pointer
@@ -127,7 +130,7 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
     if (!ownHostPtr || !checkL0LoaderTeardown()) {
       return;
     }
-    ZE_CALL_NOCHECK(zeMemFree, (hContext->getZeHandle(), ptr));
+    ZE_CALL_NOCHECK(zeMemFree, (v2_cast(hContext)->getZeHandle(), ptr));
   });
 }
 
@@ -202,7 +205,7 @@ void ur_integrated_buffer_handle_t::copyBackToHostIfNeeded() {
     ze_device_handle_t device;
     auto result = ZE_CALL_NOCHECK(
         zeMemGetAllocProperties,
-        (hContext->getZeHandle(), writeBackPtr, &memProps, &device));
+        (v2_cast(hContext)->getZeHandle(), writeBackPtr, &memProps, &device));
 
     // If pointer is not a valid allocation (SYCL freed it), skip copy-back
     if (result != ZE_RESULT_SUCCESS ||
@@ -212,7 +215,7 @@ void ur_integrated_buffer_handle_t::copyBackToHostIfNeeded() {
     }
 
     // Pointer is valid, perform copy-back
-    auto hDevice = hContext->getDevices()[0];
+    auto hDevice = v2_cast(hContext)->getDevices()[0];
     auto result2 = synchronousZeCopy(hContext, hDevice, writeBackPtr,
                                      this->ptr.get(), size);
     if (result2 == UR_RESULT_SUCCESS) {
@@ -235,12 +238,12 @@ void *ur_discrete_buffer_handle_t::allocateOnDevice(ur_device_handle_t hDevice,
   assert(deviceAllocations[id].get() == nullptr);
 
   void *ptr;
-  UR_CALL_THROWS(hContext->getDefaultUSMPool()->allocate(
+  UR_CALL_THROWS(v2::v2_cast(v2::v2_cast(hContext)->getDefaultUSMPool())->allocate(
       hContext, hDevice, nullptr, UR_USM_TYPE_DEVICE, size, &ptr));
 
   deviceAllocations[id] =
       usm_unique_ptr_t(ptr, [hContext = this->hContext](void *ptr) {
-        auto ret = hContext->getDefaultUSMPool()->free(ptr);
+        auto ret = v2::v2_cast(v2::v2_cast(hContext)->getDefaultUSMPool())->free(ptr);
         if (ret != UR_RESULT_SUCCESS) {
           UR_LOG(ERR, "Failed to free device memory: {}", ret);
         }
@@ -269,25 +272,27 @@ ur_discrete_buffer_handle_t::ur_discrete_buffer_handle_t(
     ur_context_handle_t hContext, void *hostPtr, size_t size,
     device_access_mode_t accessMode)
     : ur_mem_buffer_t(hContext, size, accessMode),
-      deviceAllocations(hContext->getPlatform()->getNumDevices()),
+      deviceAllocations(
+          v2::v2_cast(hContext)->getPlatform()->getNumDevices()),
       activeAllocationDevice(nullptr), mapToPtr(nullptr, nullptr),
       hostAllocations() {
   if (hostPtr) {
     // Try importing the pointer to speed up memory copies for map/unmap
-    bool hostPtrImported =
-        maybeImportUSM(hContext->getPlatform()->ZeDriverHandleExpTranslated,
-                       hContext->getZeHandle(), hostPtr, size);
+    bool hostPtrImported = maybeImportUSM(
+        v2::v2_cast(hContext)->getPlatform()->ZeDriverHandleExpTranslated,
+        v2::v2_cast(hContext)->getZeHandle(), hostPtr, size);
 
     if (hostPtrImported) {
       mapToPtr = usm_unique_ptr_t(hostPtr, [hContext](void *ptr) {
         ZeUSMImport.doZeUSMRelease(
-            hContext->getPlatform()->ZeDriverHandleExpTranslated, ptr);
+            v2::v2_cast(hContext)->getPlatform()->ZeDriverHandleExpTranslated,
+            ptr);
       });
     } else {
       mapToPtr = usm_unique_ptr_t(hostPtr, [](void *) {});
     }
 
-    auto initialDevice = hContext->getDevices()[0];
+    auto initialDevice = v2::v2_cast(hContext)->getDevices()[0];
     UR_CALL_THROWS(migrateBufferTo(initialDevice, hostPtr, size));
   }
 }
@@ -296,12 +301,13 @@ ur_discrete_buffer_handle_t::ur_discrete_buffer_handle_t(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, void *devicePtr,
     size_t size, device_access_mode_t accessMode, void *hostPtr, bool ownZePtr)
     : ur_mem_buffer_t(hContext, size, accessMode),
-      deviceAllocations(hContext->getPlatform()->getNumDevices()),
+      deviceAllocations(
+          v2::v2_cast(hContext)->getPlatform()->getNumDevices()),
       activeAllocationDevice(hDevice), writeBackPtr(hostPtr),
       hostAllocations() {
 
   if (!devicePtr) {
-    hDevice = hDevice ? hDevice : hContext->getDevices()[0];
+    hDevice = hDevice ? hDevice : v2::v2_cast(hContext)->getDevices()[0];
     devicePtr = allocateOnDevice(hDevice, size);
 
     if (hostPtr) {
@@ -314,7 +320,8 @@ ur_discrete_buffer_handle_t::ur_discrete_buffer_handle_t(
           if (!ownZePtr || !checkL0LoaderTeardown()) {
             return;
           }
-          ZE_CALL_NOCHECK(zeMemFree, (hContext->getZeHandle(), ptr));
+          ZE_CALL_NOCHECK(zeMemFree,
+                          (v2::v2_cast(hContext)->getZeHandle(), ptr));
         });
   }
 }
@@ -346,7 +353,7 @@ void *ur_discrete_buffer_handle_t::getDevicePtr(
 
   if (!activeAllocationDevice) {
     if (!hDevice) {
-      hDevice = hContext->getDevices()[0];
+      hDevice = v2::v2_cast(hContext)->getDevices()[0];
     }
 
     allocateOnDevice(hDevice, getSize());
@@ -360,7 +367,7 @@ void *ur_discrete_buffer_handle_t::getDevicePtr(
     return getActiveDeviceAlloc(offset);
   }
 
-  auto &p2pDevices = hContext->getP2PDevices(hDevice);
+  auto &p2pDevices = v2::v2_cast(hContext)->getP2PDevices(hDevice);
   auto p2pAccessible = std::find(p2pDevices.begin(), p2pDevices.end(),
                                  activeAllocationDevice) != p2pDevices.end();
 
@@ -395,14 +402,14 @@ void *ur_discrete_buffer_handle_t::mapHostPtr(ur_map_flags_t flags,
 
   void *ptr = mapToPtr.get();
   if (!ptr) {
-    UR_CALL_THROWS(hContext->getDefaultUSMPool()->allocate(
+    UR_CALL_THROWS(v2::v2_cast(v2::v2_cast(hContext)->getDefaultUSMPool())->allocate(
         hContext, nullptr, nullptr, UR_USM_TYPE_HOST, size, &ptr));
   }
 
   usm_unique_ptr_t mappedPtr =
       usm_unique_ptr_t(ptr, [ownsAlloc = !bool(mapToPtr), this](void *p) {
         if (ownsAlloc) {
-          auto ret = hContext->getDefaultUSMPool()->free(p);
+          auto ret = v2::v2_cast(v2::v2_cast(hContext)->getDefaultUSMPool())->free(p);
           if (ret != UR_RESULT_SUCCESS) {
             UR_LOG(ERR, "Failed to free mapped memory: {}", ret);
           }
@@ -440,7 +447,7 @@ void ur_discrete_buffer_handle_t::unmapHostPtr(void *pMappedPtr,
       !(hostAlloc->flags & UR_MAP_FLAG_WRITE_INVALIDATE_REGION);
 
   if (!activeAllocationDevice && shouldMigrateToDevice) {
-    allocateOnDevice(hContext->getDevices()[0], getSize());
+    allocateOnDevice(v2::v2_cast(hContext)->getDevices()[0], getSize());
   }
 
   // TODO: tests require that memory is migrated even for
@@ -463,7 +470,7 @@ ur_shared_buffer_handle_t::ur_shared_buffer_handle_t(
         if (!ownDevicePtr || !checkL0LoaderTeardown()) {
           return;
         }
-        ZE_CALL_NOCHECK(zeMemFree, (hContext->getZeHandle(), ptr));
+        ZE_CALL_NOCHECK(zeMemFree, (v2::v2_cast(hContext)->getZeHandle(), ptr));
       }) {}
 
 void *ur_shared_buffer_handle_t::getDevicePtr(
@@ -492,21 +499,21 @@ static bool useHostBuffer(ur_context_handle_t hContext) {
   // enables automatic access from the device, and makes copying
   // unnecessary in the map/unmap operations. This improves performance.
 
-  return hContext->getDevices().size() == 1 &&
-         hContext->getDevices()[0]->ZeDeviceProperties->flags &
+  return v2_cast(hContext)->getDevices().size() == 1 &&
+         v2_cast(hContext)->getDevices()[0]->ZeDeviceProperties->flags &
              ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
 }
 
 ur_mem_sub_buffer_t::ur_mem_sub_buffer_t(ur_mem_handle_t hParent, size_t offset,
                                          size_t size,
                                          device_access_mode_t accessMode)
-    : ur_mem_buffer_t(hParent->getBuffer()->getContext(), size, accessMode),
+    : ur_mem_buffer_t(v2_cast(hParent)->getBuffer()->getContext(), size, accessMode),
       hParent(hParent), offset(offset) {
-  ur::level_zero::urMemRetain(hParent);
+  ur::level_zero::v2::urMemRetain(hParent);
 }
 
 ur_mem_sub_buffer_t::~ur_mem_sub_buffer_t() {
-  ur::level_zero::urMemRelease(hParent);
+  ur::level_zero::v2::urMemRelease(hParent);
 }
 
 void *ur_mem_sub_buffer_t::getDevicePtr(ur_device_handle_t hDevice,
@@ -514,7 +521,7 @@ void *ur_mem_sub_buffer_t::getDevicePtr(ur_device_handle_t hDevice,
                                         size_t offset, size_t size,
                                         ze_command_list_handle_t cmdList,
                                         wait_list_view &waitListView) {
-  return hParent->getBuffer()->getDevicePtr(
+  return v2_cast(hParent)->getBuffer()->getDevicePtr(
       hDevice, access, offset + this->offset, size, cmdList, waitListView);
 }
 
@@ -522,18 +529,18 @@ void *ur_mem_sub_buffer_t::mapHostPtr(ur_map_flags_t flags, size_t offset,
                                       size_t size,
                                       ze_command_list_handle_t cmdList,
                                       wait_list_view &waitListView) {
-  return hParent->getBuffer()->mapHostPtr(flags, offset + this->offset, size,
+  return v2_cast(hParent)->getBuffer()->mapHostPtr(flags, offset + this->offset, size,
                                           cmdList, waitListView);
 }
 
 void ur_mem_sub_buffer_t::unmapHostPtr(void *pMappedPtr,
                                        ze_command_list_handle_t cmdList,
                                        wait_list_view &waitListView) {
-  return hParent->getBuffer()->unmapHostPtr(pMappedPtr, cmdList, waitListView);
+  return v2_cast(hParent)->getBuffer()->unmapHostPtr(pMappedPtr, cmdList, waitListView);
 }
 
 ur_shared_mutex &ur_mem_sub_buffer_t::getMutex() {
-  return hParent->getBuffer()->getMutex();
+  return v2_cast(hParent)->getBuffer()->getMutex();
 }
 
 ur_mem_image_t::ur_mem_image_t(ur_context_handle_t hContext,
@@ -547,8 +554,9 @@ ur_mem_image_t::ur_mem_image_t(ur_context_handle_t hContext,
   // own the image.
   // TODO: Implement explicit copying for acessing the image from other devices
   // in the context.
-  ur_device_handle_t hDevice = hContext->getDevices()[0];
-  ZE2UR_CALL_THROWS(zeImageCreate, (hContext->getZeHandle(), hDevice->ZeDevice,
+  ur_device_handle_t hDevice = v2::v2_cast(hContext)->getDevices()[0];
+  ZE2UR_CALL_THROWS(zeImageCreate,
+                    (v2::v2_cast(hContext)->getZeHandle(), hDevice->ZeDevice,
                                     &zeImageDesc, zeImage.ptr()));
 
   if ((flags & UR_MEM_FLAG_USE_HOST_POINTER) != 0 ||
@@ -617,7 +625,6 @@ ur_mem_image_t::copy_desc_t ur_mem_image_t::getCopyRegions(
   return {{src.zeImage.get(), zeSrcRegion}, {src.zeImage.get(), zeDstRegion}};
 }
 
-namespace ur::level_zero {
 ur_result_t urMemBufferCreate(ur_context_handle_t hContext,
                               ur_mem_flags_t flags, size_t size,
                               const ur_buffer_properties_t *pProperties,
@@ -645,11 +652,11 @@ ur_result_t urMemBufferCreate(ur_context_handle_t hContext,
   // 3. Host pointer can be imported - import it
   // 4. Otherwise - allocate USM and copy-back through map/unmap operations
   if (useHostBuffer(hContext)) {
-    *phBuffer = ur_mem_handle_t_::create<ur_integrated_buffer_handle_t>(
-        hContext, hostPtr, size, accessMode);
+    *phBuffer = reinterpret_cast<::ur_mem_handle_t>(ur_mem_handle_t_::create<ur_integrated_buffer_handle_t>(
+        hContext, hostPtr, size, accessMode));
   } else {
-    *phBuffer = ur_mem_handle_t_::create<ur_discrete_buffer_handle_t>(
-        hContext, hostPtr, size, accessMode);
+    *phBuffer = reinterpret_cast<::ur_mem_handle_t>(ur_mem_handle_t_::create<ur_discrete_buffer_handle_t>(
+        hContext, hostPtr, size, accessMode));
   }
 
   return UR_RESULT_SUCCESS;
@@ -661,7 +668,7 @@ ur_result_t urMemBufferPartition(ur_mem_handle_t hMem, ur_mem_flags_t flags,
                                  ur_buffer_create_type_t bufferCreateType,
                                  const ur_buffer_region_t *pRegion,
                                  ur_mem_handle_t *phMem) try {
-  auto hBuffer = hMem->getBuffer();
+  auto hBuffer = v2_cast(hMem)->getBuffer();
 
   UR_ASSERT(bufferCreateType == UR_BUFFER_CREATE_TYPE_REGION,
             UR_RESULT_ERROR_INVALID_ENUMERATION);
@@ -674,8 +681,8 @@ ur_result_t urMemBufferPartition(ur_mem_handle_t hMem, ur_mem_flags_t flags,
   UR_ASSERT(isAccessCompatible(accessMode, hBuffer->getDeviceAccessMode()),
             UR_RESULT_ERROR_INVALID_VALUE);
 
-  *phMem = ur_mem_handle_t_::create<ur_mem_sub_buffer_t>(
-      hMem, pRegion->origin, pRegion->size, accessMode);
+  *phMem = reinterpret_cast<::ur_mem_handle_t>(ur_mem_handle_t_::create<ur_mem_sub_buffer_t>(
+      hMem, pRegion->origin, pRegion->size, accessMode));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -692,13 +699,13 @@ ur_result_t urMemBufferCreateWithNativeHandle(
   void *base;
   size_t size;
   ZE2UR_CALL(zeMemGetAddressRange,
-             (hContext->getZeHandle(), ptr, &base, &size));
+             (v2_cast(hContext)->getZeHandle(), ptr, &base, &size));
   UR_ASSERT(ptr == base, UR_RESULT_ERROR_INVALID_VALUE);
 
   ze_device_handle_t zeDevice;
   ZeStruct<ze_memory_allocation_properties_t> memoryAttrs;
-  UR_CALL(
-      getMemoryAttrs(hContext->getZeHandle(), ptr, &zeDevice, &memoryAttrs));
+  UR_CALL(getMemoryAttrs(v2_cast(hContext)->getZeHandle(), ptr, &zeDevice,
+                         &memoryAttrs));
 
   if (memoryAttrs.type == ZE_MEMORY_TYPE_UNKNOWN) {
     return UR_RESULT_ERROR_INVALID_VALUE;
@@ -706,8 +713,8 @@ ur_result_t urMemBufferCreateWithNativeHandle(
 
   ur_device_handle_t hDevice{};
   if (zeDevice) {
-    hDevice = hContext->getPlatform()->getDeviceFromNativeHandle(zeDevice);
-    UR_ASSERT(hContext->isValidDevice(hDevice),
+    hDevice = v2_cast(hContext)->getPlatform()->getDeviceFromNativeHandle(zeDevice);
+    UR_ASSERT(v2_cast(hContext)->isValidDevice(hDevice),
               UR_RESULT_ERROR_INVALID_CONTEXT);
   }
 
@@ -715,25 +722,25 @@ ur_result_t urMemBufferCreateWithNativeHandle(
   auto accessMode = ur_mem_buffer_t::device_access_mode_t::read_write;
 
   if (useHostBuffer(hContext) && memoryAttrs.type == ZE_MEMORY_TYPE_HOST) {
-    *phMem = ur_mem_handle_t_::create<ur_integrated_buffer_handle_t>(
-        hContext, ptr, size, accessMode, ownNativeHandle);
+    *phMem = reinterpret_cast<::ur_mem_handle_t>(ur_mem_handle_t_::create<ur_integrated_buffer_handle_t>(
+        hContext, ptr, size, accessMode, ownNativeHandle));
     // if useHostBuffer(hContext) is true but the allocation is on device, we'll
     // treat it as discrete memory
   } else if (memoryAttrs.type == ZE_MEMORY_TYPE_SHARED) {
     // For shared allocation, we can use it directly
-    *phMem = ur_mem_handle_t_::create<ur_shared_buffer_handle_t>(
-        hContext, ptr, size, accessMode, ownNativeHandle);
+    *phMem = reinterpret_cast<::ur_mem_handle_t>(ur_mem_handle_t_::create<ur_shared_buffer_handle_t>(
+        hContext, ptr, size, accessMode, ownNativeHandle));
   } else {
     if (memoryAttrs.type == ZE_MEMORY_TYPE_HOST) {
       // For host allocation, we need to copy the data to a device buffer
       // and then copy it back on release
-      *phMem = ur_mem_handle_t_::create<ur_discrete_buffer_handle_t>(
-          hContext, hDevice, nullptr, size, accessMode, ptr, ownNativeHandle);
+      *phMem = reinterpret_cast<::ur_mem_handle_t>(ur_mem_handle_t_::create<ur_discrete_buffer_handle_t>(
+          hContext, hDevice, nullptr, size, accessMode, ptr, ownNativeHandle));
     } else {
       // For device allocation, we can use it directly
       assert(hDevice);
-      *phMem = ur_mem_handle_t_::create<ur_discrete_buffer_handle_t>(
-          hContext, hDevice, ptr, size, accessMode, nullptr, ownNativeHandle);
+      *phMem = reinterpret_cast<::ur_mem_handle_t>(ur_mem_handle_t_::create<ur_discrete_buffer_handle_t>(
+          hContext, hDevice, ptr, size, accessMode, nullptr, ownNativeHandle));
     }
   }
 
@@ -751,23 +758,23 @@ ur_result_t urMemGetInfo(ur_mem_handle_t hMem, ur_mem_info_t propName,
 
   switch (propName) {
   case UR_MEM_INFO_CONTEXT: {
-    if (hMem->isImage()) {
-      return returnValue(hMem->getImage()->getContext());
+    if (v2_cast(hMem)->isImage()) {
+      return returnValue(v2_cast(hMem)->getImage()->getContext());
     } else {
-      return returnValue(hMem->getBuffer()->getContext());
+      return returnValue(v2_cast(hMem)->getBuffer()->getContext());
     }
   }
   case UR_MEM_INFO_SIZE: {
-    if (hMem->isImage()) {
+    if (v2_cast(hMem)->isImage()) {
       // TODO: implement size calculation
       return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     // Get size of the allocation
-    return returnValue(size_t{hMem->getBuffer()->getSize()});
+    return returnValue(size_t{v2_cast(hMem)->getBuffer()->getSize()});
   }
   case UR_MEM_INFO_REFERENCE_COUNT: {
-    return returnValue(hMem->RefCount.getCount());
+    return returnValue(v2_cast(hMem)->RefCount.getCount());
   }
   default: {
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -780,17 +787,17 @@ ur_result_t urMemGetInfo(ur_mem_handle_t hMem, ur_mem_info_t propName,
 }
 
 ur_result_t urMemRetain(ur_mem_handle_t hMem) try {
-  hMem->RefCount.retain();
+  v2_cast(hMem)->RefCount.retain();
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urMemRelease(ur_mem_handle_t hMem) try {
-  if (!hMem->RefCount.release())
+  if (!v2_cast(hMem)->RefCount.release())
     return UR_RESULT_SUCCESS;
 
-  delete hMem;
+  delete v2_cast(hMem);
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -799,13 +806,13 @@ ur_result_t urMemRelease(ur_mem_handle_t hMem) try {
 ur_result_t urMemGetNativeHandle(ur_mem_handle_t hMem,
                                  ur_device_handle_t hDevice,
                                  ur_native_handle_t *phNativeMem) try {
-  if (hMem->isImage()) {
-    auto hImage = hMem->getImage();
+  if (v2_cast(hMem)->isImage()) {
+    auto hImage = v2_cast(hMem)->getImage();
     *phNativeMem = reinterpret_cast<ur_native_handle_t>(hImage->getZeImage());
     return UR_RESULT_SUCCESS;
   }
 
-  auto hBuffer = hMem->getBuffer();
+  auto hBuffer = v2_cast(hMem)->getBuffer();
 
   std::scoped_lock<ur_shared_mutex> lock(hBuffer->getMutex());
 
@@ -829,8 +836,8 @@ ur_result_t urMemImageCreate(ur_context_handle_t hContext, ur_mem_flags_t flags,
         "no read-only or write-only yet.");
   }
 
-  *phMem = ur_mem_handle_t_::create<ur_mem_image_t>(
-      hContext, flags, pImageFormat, pImageDesc, pHost);
+  *phMem = reinterpret_cast<::ur_mem_handle_t>(ur_mem_handle_t_::create<ur_mem_image_t>(
+      hContext, flags, pImageFormat, pImageDesc, pHost));
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -843,8 +850,8 @@ ur_result_t urMemImageCreateWithNativeHandle(
   auto zeImage = reinterpret_cast<ze_image_handle_t>(hNativeMem);
   bool ownNativeHandle = pProperties ? pProperties->isNativeHandleOwned : false;
 
-  *phMem = ur_mem_handle_t_::create<ur_mem_image_t>(
-      hContext, pImageFormat, pImageDesc, zeImage, ownNativeHandle);
+  *phMem = reinterpret_cast<::ur_mem_handle_t>(ur_mem_handle_t_::create<ur_mem_image_t>(
+      hContext, pImageFormat, pImageDesc, zeImage, ownNativeHandle));
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -890,8 +897,9 @@ ur_result_t urIPCOpenMemHandleExp(ur_context_handle_t hContext,
                                   ur_device_handle_t hDevice,
                                   void *pIPCMemHandleData,
                                   size_t ipcMemHandleDataSize, void **ppMem) {
-  auto *pool = hContext->getDefaultUSMPool()->getPool(
-      usm::pool_descriptor{hContext->getDefaultUSMPool(), hContext, hDevice,
+  auto *pool = v2_cast(v2_cast(hContext)->getDefaultUSMPool())->getPool(
+      usm::pool_descriptor{v2_cast(hContext)->getDefaultUSMPool(), hContext,
+                           hDevice,
                            UR_USM_TYPE_DEVICE, false});
   if (!pool)
     return UR_RESULT_ERROR_INVALID_CONTEXT;
@@ -920,4 +928,4 @@ ur_result_t urIPCCloseMemHandleExp(ur_context_handle_t, void *pMem) {
   return umf::umf2urResult(umfCloseIPCHandle(pMem));
 }
 
-} // namespace ur::level_zero
+} // namespace ur::level_zero::v2

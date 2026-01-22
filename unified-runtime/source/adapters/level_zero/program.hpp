@@ -12,7 +12,7 @@
 #include "common/ur_ref_count.hpp"
 #include "device.hpp"
 
-struct ur_program_handle_t_ : ur_object {
+struct ur_program_handle_t_ : ur_shared_handle_base_t {
   // ur_program_handle_t_() {}
 
   typedef enum {

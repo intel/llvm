@@ -14,9 +14,7 @@
 #include "../common.hpp"
 #include "logger/ur_logger.hpp"
 
-std::mutex ZeCall::GlobalLock;
-
-namespace ur::level_zero {
+namespace ur::level_zero::v2 {
 
 ur_result_t
 urContextSetExtendedDeleter(ur_context_handle_t hContext,
@@ -62,4 +60,4 @@ ur_result_t UR_APICALL urUSMPoolTrimToExp(ur_context_handle_t hContext,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-} // namespace ur::level_zero
+} // namespace ur::level_zero::v2

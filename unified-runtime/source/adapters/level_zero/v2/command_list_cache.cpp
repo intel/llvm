@@ -58,7 +58,7 @@ bool v2::regular_command_list_descriptor_t::operator==(
          IsInOrder == rhs.IsInOrder && Mutable == rhs.Mutable;
 }
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 inline size_t command_list_descriptor_hash_t::operator()(
     const command_list_descriptor_t &desc) const {
   if (auto ImmCmdDesc =
@@ -284,4 +284,4 @@ size_t command_list_cache_t::getNumRegularCommandLists() {
   return NumLists;
 }
 
-} // namespace v2
+} // namespace ur::level_zero::v2

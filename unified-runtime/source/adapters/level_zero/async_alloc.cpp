@@ -8,7 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "context.hpp"
-#include "enqueued_pool.hpp"
+#include "common/enqueued_pool.hpp"
 #include "event.hpp"
 
 #include "logger/ur_logger.hpp"
@@ -24,24 +24,28 @@ static ur_result_t enqueueUSMAllocHelper(
     const ur_event_handle_t *EventWaitList, void **RetMem,
     ur_event_handle_t *OutEvent, ur_usm_type_t Type) {
 
-  std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
+  std::scoped_lock<ur_shared_mutex> lock(ur::level_zero::v1::v1_cast(Queue)->Mutex);
 
   // Allocate USM memory
   ur_usm_pool_handle_t UrPool = nullptr;
   if (Pool) {
     UrPool = Pool;
   } else {
-    UrPool = &Queue->Context->AsyncPool;
+    UrPool = reinterpret_cast<::ur_usm_pool_handle_t>(
+        &ur::level_zero::v1::v1_cast(ur::level_zero::v1::v1_cast(Queue)->Context)
+             ->AsyncPool);
   }
 
-  auto Device = (Type == UR_USM_TYPE_HOST) ? nullptr : Queue->Device;
+  auto Device = (Type == UR_USM_TYPE_HOST) ? nullptr : ur::level_zero::v1::v1_cast(Queue)->Device;
 
   std::vector<ur_event_handle_t> ExtEventWaitList;
   ur_event_handle_t OriginAllocEvent = nullptr;
-  auto AsyncAlloc = UrPool->allocateEnqueued(Queue, Device, Type, Size);
+  auto AsyncAlloc = ur::level_zero::v1::v1_cast(UrPool)->allocateEnqueued(
+      Queue, Device, Type, Size);
   if (!AsyncAlloc) {
-    auto Ret =
-        UrPool->allocate(Queue->Context, Device, nullptr, Type, Size, RetMem);
+    auto Ret = ur::level_zero::v1::v1_cast(UrPool)->allocate(
+        ur::level_zero::v1::v1_cast(Queue)->Context, Device, nullptr, Type,
+        Size, RetMem);
     if (Ret) {
       return Ret;
     }
@@ -69,7 +73,7 @@ static ur_result_t enqueueUSMAllocHelper(
   bool OkToBatch = true;
   // Get a new command list to be used on this call
   ur_command_list_ptr_t CommandList{};
-  UR_CALL(Queue->Context->getAvailableCommandList(
+  UR_CALL(ur::level_zero::v1::v1_cast(ur::level_zero::v1::v1_cast(Queue)->Context)->getAvailableCommandList(
       Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
       OkToBatch, nullptr /*ForcedCmdQueue*/));
 
@@ -95,12 +99,12 @@ static ur_result_t enqueueUSMAllocHelper(
   }
   UR_CALL(createEventAndAssociateQueue(Queue, Event, CommandType, CommandList,
                                        IsInternal, false));
-  ZeEvent = (*Event)->ZeEvent;
-  (*Event)->WaitList = TmpWaitList;
-  (*Event)->OriginAllocEvent = OriginAllocEvent;
+  ZeEvent = ur::level_zero::v1::v1_cast(*Event)->ZeEvent;
+  ur::level_zero::v1::v1_cast(*Event)->WaitList = TmpWaitList;
+  ur::level_zero::v1::v1_cast(*Event)->OriginAllocEvent = OriginAllocEvent;
 
   const auto &ZeCommandList = CommandList->first;
-  const auto &WaitList = (*Event)->WaitList;
+  const auto &WaitList = ur::level_zero::v1::v1_cast(*Event)->WaitList;
   if (WaitList.Length) {
     ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
                (ZeCommandList, WaitList.Length, WaitList.ZeEventList));
@@ -109,7 +113,7 @@ static ur_result_t enqueueUSMAllocHelper(
   // Signal that USM allocation event was finished
   ZE2UR_CALL(zeCommandListAppendSignalEvent, (CommandList->first, ZeEvent));
 
-  UR_CALL(Queue->executeCommandList(CommandList, false, OkToBatch));
+  UR_CALL(ur::level_zero::v1::v1_cast(Queue)->executeCommandList(CommandList, false, OkToBatch));
 
   return UR_RESULT_SUCCESS;
 }
@@ -201,7 +205,7 @@ ur_result_t urEnqueueUSMFreeExp(
     ur_event_handle_t *OutEvent ///< [out][optional] return an event object that
                                 ///< identifies the async alloc
 ) {
-  std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
+  std::scoped_lock<ur_shared_mutex> lock(ur::level_zero::v1::v1_cast(Queue)->Mutex);
 
   bool UseCopyEngine = false;
   ur_ze_event_list_t TmpWaitList;
@@ -211,7 +215,7 @@ ur_result_t urEnqueueUSMFreeExp(
   bool OkToBatch = false;
   // Get a new command list to be used on this call
   ur_command_list_ptr_t CommandList{};
-  UR_CALL(Queue->Context->getAvailableCommandList(
+  UR_CALL(ur::level_zero::v1::v1_cast(ur::level_zero::v1::v1_cast(Queue)->Context)->getAvailableCommandList(
       Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
       OkToBatch, nullptr /*ForcedCmdQueue*/));
 
@@ -223,11 +227,11 @@ ur_result_t urEnqueueUSMFreeExp(
   UR_CALL(createEventAndAssociateQueue(Queue, Event,
                                        UR_COMMAND_ENQUEUE_USM_FREE_EXP,
                                        CommandList, IsInternal, false));
-  ZeEvent = (*Event)->ZeEvent;
-  (*Event)->WaitList = TmpWaitList;
+  ZeEvent = ur::level_zero::v1::v1_cast(*Event)->ZeEvent;
+  ur::level_zero::v1::v1_cast(*Event)->WaitList = TmpWaitList;
 
   const auto &ZeCommandList = CommandList->first;
-  const auto &WaitList = (*Event)->WaitList;
+  const auto &WaitList = ur::level_zero::v1::v1_cast(*Event)->WaitList;
   if (WaitList.Length) {
     ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
                (ZeCommandList, WaitList.Length, WaitList.ZeEventList));
@@ -236,28 +240,28 @@ ur_result_t urEnqueueUSMFreeExp(
   umf_memory_pool_handle_t UmfPool = nullptr;
   auto UmfRet = umfPoolByPtr(Mem, &UmfPool);
   if (UmfRet != UMF_RESULT_SUCCESS || !UmfPool) {
-    return USMFreeHelper(Queue->Context, Mem);
+    return USMFreeHelper(ur::level_zero::v1::v1_cast(Queue)->Context, Mem);
   }
 
   UsmPool *UsmPool = nullptr;
   UmfRet = umfPoolGetTag(UmfPool, (void **)&UsmPool);
   if (UmfRet != UMF_RESULT_SUCCESS || UsmPool == nullptr) {
-    return USMFreeHelper(Queue->Context, Mem);
+    return USMFreeHelper(ur::level_zero::v1::v1_cast(Queue)->Context, Mem);
   }
 
   size_t Size = 0;
   UmfRet = umfPoolMallocUsableSize(UmfPool, Mem, &Size);
   if (UmfRet != UMF_RESULT_SUCCESS) {
-    return USMFreeHelper(Queue->Context, Mem);
+    return USMFreeHelper(ur::level_zero::v1::v1_cast(Queue)->Context, Mem);
   }
 
-  (*Event)->RefCount.retain();
+  ur::level_zero::v1::v1_cast(*Event)->RefCount.retain();
   UsmPool->AsyncPool.insert(Mem, Size, *Event, Queue);
 
   // Signal that USM free event was finished
   ZE2UR_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
 
-  UR_CALL(Queue->executeCommandList(CommandList, false, OkToBatch));
+  UR_CALL(ur::level_zero::v1::v1_cast(Queue)->executeCommandList(CommandList, false, OkToBatch));
 
   return UR_RESULT_SUCCESS;
 }

@@ -22,6 +22,7 @@
 #include <zes_api.h>
 
 #include "common.hpp"
+#include "common/context_interface.hpp"
 #include "queue.hpp"
 #include "usm.hpp"
 
@@ -54,18 +55,35 @@ typedef struct _ze_intel_event_sync_mode_exp_desc_t {
 
 extern const bool UseUSMAllocator;
 
-struct ur_context_handle_t_ : ur_object {
+namespace ur::level_zero::v1 {
+
+// Dispatch table registered with the non-virtual `ur_context_interface_t`
+// base at construction. Defined in context.cpp.
+extern const ::ur_context_vfns_t v1_context_vfns;
+
+struct ur_context_handle_t_ : ur_context_interface_t,
+                              ur::level_zero::ur_object_t {
   ur_context_handle_t_(ze_context_handle_t ZeContext, uint32_t NumDevices,
                        const ur_device_handle_t *Devs, bool OwnZeContext)
-      : ZeContext{ZeContext}, Devices{Devs, Devs + NumDevices},
-        NumDevices{NumDevices}, DefaultPool{this, nullptr, !UseUSMAllocator},
-        AsyncPool{this, nullptr, !UseUSMAllocator} {
+      : ur_context_interface_t(ur::level_zero::ddi_getter::value(),
+                               &v1_context_vfns),
+        ZeContext{ZeContext}, Devices{Devs, Devs + NumDevices},
+        NumDevices{NumDevices},
+        DefaultPool{reinterpret_cast<::ur_context_handle_t>(this), nullptr,
+                    !UseUSMAllocator},
+        AsyncPool{reinterpret_cast<::ur_context_handle_t>(this), nullptr,
+                  !UseUSMAllocator} {
     OwnNativeHandle = OwnZeContext;
   }
 
   ur_context_handle_t_(ze_context_handle_t ZeContext)
-      : ZeContext{ZeContext}, DefaultPool{this, nullptr, !UseUSMAllocator},
-        AsyncPool{this, nullptr, !UseUSMAllocator} {}
+      : ur_context_interface_t(ur::level_zero::ddi_getter::value(),
+                               &v1_context_vfns),
+        ZeContext{ZeContext},
+        DefaultPool{reinterpret_cast<::ur_context_handle_t>(this), nullptr,
+                    !UseUSMAllocator},
+        AsyncPool{reinterpret_cast<::ur_context_handle_t>(this), nullptr,
+                  !UseUSMAllocator} {}
 
   // A L0 context handle is primarily used during creation and management of
   // resources that may be used by multiple devices.
@@ -357,6 +375,8 @@ struct ur_context_handle_t_ : ur_object {
   // Get handle to the L0 context
   ze_context_handle_t getZeHandle() const;
 
+  ur_shared_mutex &getMutex() { return ur::level_zero::ur_object_t::Mutex; }
+
   ur::RefCount RefCount;
 
 private:
@@ -406,6 +426,8 @@ private:
     return &EventCaches[index];
   }
 };
+
+} // namespace ur::level_zero::v1
 
 // Helper function to release the context, a caller must lock the platform-level
 // mutex guarding the container with contexts because the context can be removed

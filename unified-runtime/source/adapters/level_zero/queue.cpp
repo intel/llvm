@@ -16,6 +16,8 @@
 
 #include "adapter.hpp"
 #include "common.hpp"
+#include "common/device.hpp"
+#include "common/platform.hpp"
 #include "event.hpp"
 #include "queue.hpp"
 #include "ur_interface_loader.hpp"
@@ -64,7 +66,7 @@ ur_result_t ur_completion_batch::reset() {
 
   // we reuse the UR event handle but reset the internal level-zero one
   if (barrierEvent)
-    ZE2UR_CALL(zeEventHostReset, (barrierEvent->ZeEvent));
+    ZE2UR_CALL(zeEventHostReset, (ur::level_zero::v1::v1_cast(barrierEvent)->ZeEvent));
 
   return UR_RESULT_SUCCESS;
 }
@@ -90,7 +92,7 @@ bool ur_completion_batch::checkComplete() {
   if (st == COMPLETED)
     return true;
 
-  auto zeResult = ZE_CALL_NOCHECK(zeEventQueryStatus, (barrierEvent->ZeEvent));
+  auto zeResult = ZE_CALL_NOCHECK(zeEventQueryStatus, (ur::level_zero::v1::v1_cast(barrierEvent)->ZeEvent));
   if (zeResult == ZE_RESULT_SUCCESS) {
     st = COMPLETED;
   }
@@ -104,7 +106,7 @@ ur_result_t ur_completion_batch::seal(ur_queue_handle_t queue,
 
   if (!barrierEvent) {
     UR_CALL(EventCreate(
-        queue->Context, queue, false /*IsMultiDevice*/, true /*HostVisible*/,
+        ur::level_zero::v1::v1_cast(queue)->Context, queue, false /*IsMultiDevice*/, true /*HostVisible*/,
         &barrierEvent, false /*CounterBasedEventEnabled*/,
         false /*ForceDisableProfiling*/, false /*InterruptBasedEventEnabled*/));
   }
@@ -113,7 +115,7 @@ ur_result_t ur_completion_batch::seal(ur_queue_handle_t queue,
   // barrier for all prior events on the command list. This is simpler and
   // showed to be faster in practice.
   ZE2UR_CALL(zeCommandListAppendBarrier,
-             (cmdlist, barrierEvent->ZeEvent, 0, nullptr));
+             (cmdlist, ur::level_zero::v1::v1_cast(barrierEvent)->ZeEvent, 0, nullptr));
 
   st = SEALED;
 
@@ -122,7 +124,7 @@ ur_result_t ur_completion_batch::seal(ur_queue_handle_t queue,
 
 void ur_completion_batches::append(ur_event_handle_t event) {
   active->append();
-  event->completionBatch = active;
+  ur::level_zero::v1::v1_cast(event)->completionBatch = active;
 }
 
 void ur_completion_batches::moveCompletedEvents(
@@ -137,7 +139,7 @@ void ur_completion_batches::moveCompletedEvents(
   // smaller batch-sized ones, but that would require a significant refactor.
 
   auto end = std::remove_if(events.begin(), events.end(), [&](auto &event) {
-    if (event->completionBatch == it) {
+    if (ur::level_zero::v1::v1_cast(event)->completionBatch == it) {
       EventListToCleanup.push_back(event);
       return true;
     } else {
@@ -231,19 +233,19 @@ void ur_completion_batches::forceReset() {
 /// the call, in case of in-order queue it allows to cleanup all preceding
 /// events.
 /// @return PI_SUCCESS if successful, PI error code otherwise.
-ur_result_t CleanupEventsInImmCmdLists(ur_queue_handle_t UrQueue,
+ur_result_t ur::level_zero::v1::CleanupEventsInImmCmdLists(ur_queue_handle_t UrQueue,
                                        bool QueueLocked, bool QueueSynced,
                                        ur_event_handle_t CompletedEvent) {
   // Handle only immediate command lists here.
-  if (!UrQueue || !UrQueue->UsingImmCmdLists)
+  if (!UrQueue || !ur::level_zero::v1::v1_cast(UrQueue)->UsingImmCmdLists)
     return UR_RESULT_SUCCESS;
 
-  ur_event_handle_t_ *UrCompletedEvent =
+  ur::level_zero::v1::ur_event_handle_t_ *UrCompletedEvent =
       reinterpret_cast<ur_event_handle_t_ *>(CompletedEvent);
 
   std::vector<ur_event_handle_t> EventListToCleanup;
   {
-    std::unique_lock<ur_shared_mutex> QueueLock(UrQueue->Mutex,
+    std::unique_lock<ur_shared_mutex> QueueLock(ur::level_zero::v1::v1_cast(UrQueue)->Mutex,
                                                 std::defer_lock);
     if (!QueueLocked)
       QueueLock.lock();
@@ -251,17 +253,17 @@ ur_result_t CleanupEventsInImmCmdLists(ur_queue_handle_t UrQueue,
     // If queue is not locked then by this time there may be new submitted
     // commands so we can't do full cleanup.
     if (QueueLocked &&
-        (QueueSynced || (UrQueue->isInOrderQueue() &&
+        (QueueSynced || (ur::level_zero::v1::v1_cast(UrQueue)->isInOrderQueue() &&
                          (reinterpret_cast<ur_event_handle_t>(
-                              UrCompletedEvent) == UrQueue->LastCommandEvent ||
-                          !UrQueue->LastCommandEvent)))) {
-      UrQueue->LastCommandEvent = nullptr;
-      for (auto &&It = UrQueue->CommandListMap.begin();
-           It != UrQueue->CommandListMap.end(); ++It) {
-        UR_CALL(UrQueue->resetCommandList(It, true, EventListToCleanup,
+                              UrCompletedEvent) == ur::level_zero::v1::v1_cast(UrQueue)->LastCommandEvent ||
+                          !ur::level_zero::v1::v1_cast(UrQueue)->LastCommandEvent)))) {
+      ur::level_zero::v1::v1_cast(UrQueue)->LastCommandEvent = nullptr;
+      for (auto &&It = ur::level_zero::v1::v1_cast(UrQueue)->CommandListMap.begin();
+           It != ur::level_zero::v1::v1_cast(UrQueue)->CommandListMap.end(); ++It) {
+        UR_CALL(ur::level_zero::v1::v1_cast(UrQueue)->resetCommandList(It, true, EventListToCleanup,
                                           false /* CheckStatus */));
       }
-    } else if (UrQueue->isInOrderQueue() && UrCompletedEvent) {
+    } else if (ur::level_zero::v1::v1_cast(UrQueue)->isInOrderQueue() && UrCompletedEvent) {
       // If the queue is in-order and we have information about completed event
       // then cleanup all events in the command list preceding to CompletedEvent
       // including itself.
@@ -269,13 +271,14 @@ ur_result_t CleanupEventsInImmCmdLists(ur_queue_handle_t UrQueue,
       // Check that the comleted event has associated command list.
       if (!(UrCompletedEvent->CommandList &&
             UrCompletedEvent->CommandList.value() !=
-                UrQueue->CommandListMap.end()))
+                ur::level_zero::v1::v1_cast(UrQueue)->CommandListMap.end()))
         return UR_RESULT_SUCCESS;
 
       auto &CmdListEvents =
           UrCompletedEvent->CommandList.value()->second.EventList;
-      auto CompletedEventIt = std::find(CmdListEvents.begin(),
-                                        CmdListEvents.end(), UrCompletedEvent);
+      auto CompletedEventIt = std::find(
+          CmdListEvents.begin(), CmdListEvents.end(),
+          reinterpret_cast<ur_event_handle_t>(UrCompletedEvent));
       if (CompletedEventIt != CmdListEvents.end()) {
         // We can cleanup all events prior to the completed event in this
         // command list and completed event itself.
@@ -288,9 +291,9 @@ ur_result_t CleanupEventsInImmCmdLists(ur_queue_handle_t UrQueue,
       }
     } else {
       // Fallback to resetCommandList over all command lists.
-      for (auto &&It = UrQueue->CommandListMap.begin();
-           It != UrQueue->CommandListMap.end(); ++It) {
-        UR_CALL(UrQueue->resetCommandList(It, true, EventListToCleanup,
+      for (auto &&It = ur::level_zero::v1::v1_cast(UrQueue)->CommandListMap.begin();
+           It != ur::level_zero::v1::v1_cast(UrQueue)->CommandListMap.end(); ++It) {
+        UR_CALL(ur::level_zero::v1::v1_cast(UrQueue)->resetCommandList(It, true, EventListToCleanup,
                                           true /* CheckStatus */));
       }
     }
@@ -305,10 +308,10 @@ ur_result_t CleanupEventsInImmCmdLists(ur_queue_handle_t UrQueue,
 /// @param Queue Queue where we look for signalled command lists and cleanup
 /// events.
 /// @return PI_SUCCESS if successful, PI error code otherwise.
-ur_result_t resetCommandLists(ur_queue_handle_t Queue) {
+ur_result_t ur::level_zero::v1::resetCommandLists(ur_queue_handle_t Queue) {
   // Handle immediate command lists here, they don't need to be reset and we
   // only need to cleanup events.
-  if (Queue->UsingImmCmdLists) {
+  if (ur::level_zero::v1::v1_cast(Queue)->UsingImmCmdLists) {
     UR_CALL(CleanupEventsInImmCmdLists(Queue, true /*QueueLocked*/,
                                        false /*QueueSynced*/,
                                        nullptr /*CompletedEvent*/));
@@ -328,8 +331,8 @@ ur_result_t resetCommandLists(ur_queue_handle_t Queue) {
   // signalled, then the command list & fence are reset and command list is
   // returned to the command list cache. All events associated with command
   // list are cleaned up if command list was reset.
-  for (auto &&it = Queue->CommandListMap.begin();
-       it != Queue->CommandListMap.end(); ++it) {
+  for (auto &&it = ur::level_zero::v1::v1_cast(Queue)->CommandListMap.begin();
+       it != ur::level_zero::v1::v1_cast(Queue)->CommandListMap.end(); ++it) {
     // Immediate commandlists don't use a fence and are handled separately
     // above.
     assert(it->second.ZeFence != nullptr);
@@ -339,7 +342,7 @@ ur_result_t resetCommandLists(ur_queue_handle_t Queue) {
       ze_result_t ZeResult =
           ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
       if (ZeResult == ZE_RESULT_SUCCESS)
-        UR_CALL(Queue->resetCommandList(it, true, EventListToCleanup));
+        UR_CALL(ur::level_zero::v1::v1_cast(Queue)->resetCommandList(it, true, EventListToCleanup));
     }
   }
   CleanupEventListFromResetCmdList(EventListToCleanup, true /*locked*/);
@@ -359,25 +362,25 @@ ur_result_t urQueueGetInfo(
     void *ParamValue,
     /// [out] size in bytes returned in queue property value
     size_t *ParamValueSizeRet) {
-  std::shared_lock<ur_shared_mutex> Lock(Queue->Mutex);
+  std::shared_lock<ur_shared_mutex> Lock(ur::level_zero::v1::v1_cast(Queue)->Mutex);
   UrReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
   // TODO: consider support for queue properties and size
   switch ((uint32_t)ParamName) { // cast to avoid warnings on EXT enum values
   case UR_QUEUE_INFO_CONTEXT:
-    return ReturnValue(Queue->Context);
+    return ReturnValue(ur::level_zero::v1::v1_cast(Queue)->Context);
   case UR_QUEUE_INFO_DEVICE:
-    return ReturnValue(Queue->Device);
+    return ReturnValue(ur::level_zero::v1::v1_cast(Queue)->Device);
   case UR_QUEUE_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{Queue->RefCount.getCount()});
+    return ReturnValue(uint32_t{ur::level_zero::v1::v1_cast(Queue)->RefCount.getCount()});
   case UR_QUEUE_INFO_FLAGS:
-    return ReturnValue(Queue->Properties);
+    return ReturnValue(ur::level_zero::v1::v1_cast(Queue)->Properties);
   case UR_QUEUE_INFO_SIZE:
   case UR_QUEUE_INFO_DEVICE_DEFAULT:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_QUEUE_INFO_EMPTY: {
     // We can exit early if we have in-order queue.
-    if (Queue->isInOrderQueue()) {
-      if (!Queue->LastCommandEvent)
+    if (ur::level_zero::v1::v1_cast(Queue)->isInOrderQueue()) {
+      if (!ur::level_zero::v1::v1_cast(Queue)->LastCommandEvent)
         return ReturnValue(true);
 
       // We can check status of the event only if it isn't discarded otherwise
@@ -385,9 +388,9 @@ ur_result_t urQueueGetInfo(
       // zeEventQueryStatus will hang.
       // TODO: use more robust way to check that ZeEvent is not owned by
       // LastCommandEvent.
-      if (!Queue->LastCommandEvent->IsDiscarded) {
+      if (!ur::level_zero::v1::v1_cast(ur::level_zero::v1::v1_cast(Queue)->LastCommandEvent)->IsDiscarded) {
         ze_result_t ZeResult = ZE_CALL_NOCHECK(
-            zeEventQueryStatus, (Queue->LastCommandEvent->ZeEvent));
+            zeEventQueryStatus, (ur::level_zero::v1::v1_cast(ur::level_zero::v1::v1_cast(Queue)->LastCommandEvent)->ZeEvent));
         if (ZeResult == ZE_RESULT_NOT_READY) {
           return ReturnValue(false);
         } else if (ZeResult != ZE_RESULT_SUCCESS) {
@@ -399,7 +402,7 @@ ur_result_t urQueueGetInfo(
       // because immediate command lists are not associated with level zero
       // queue. Conservatively return false in this case because last event is
       // discarded and we can't check its status.
-      if (Queue->UsingImmCmdLists)
+      if (ur::level_zero::v1::v1_cast(Queue)->UsingImmCmdLists)
         return ReturnValue(false);
     }
 
@@ -407,26 +410,27 @@ ur_result_t urQueueGetInfo(
     // because it means that there are commands which are not even submitted for
     // execution yet.
     using IsCopy = bool;
-    if (Queue->hasOpenCommandList(IsCopy{true}) ||
-        Queue->hasOpenCommandList(IsCopy{false}))
+    if (ur::level_zero::v1::v1_cast(Queue)->hasOpenCommandList(IsCopy{true}) ||
+        ur::level_zero::v1::v1_cast(Queue)->hasOpenCommandList(IsCopy{false}))
       return ReturnValue(false);
 
     for (const auto &QueueMap :
-         {Queue->ComputeQueueGroupsByTID, Queue->CopyQueueGroupsByTID}) {
+         {ur::level_zero::v1::v1_cast(Queue)->ComputeQueueGroupsByTID, ur::level_zero::v1::v1_cast(Queue)->CopyQueueGroupsByTID}) {
       for (const auto &QueueGroup : QueueMap) {
-        if (Queue->UsingImmCmdLists) {
+        if (ur::level_zero::v1::v1_cast(Queue)->UsingImmCmdLists) {
           // Immediate command lists are not associated with any Level Zero
           // queue, that's why we have to check status of events in each
           // immediate command list. Start checking from the end and exit early
           // if some event is not completed.
           for (const auto &ImmCmdList : QueueGroup.second.ImmCmdLists) {
-            if (ImmCmdList == Queue->CommandListMap.end())
+            if (ImmCmdList == ur::level_zero::v1::v1_cast(Queue)->CommandListMap.end())
               continue;
 
             const auto &EventList = ImmCmdList->second.EventList;
             for (auto It = EventList.crbegin(); It != EventList.crend(); It++) {
-              ze_result_t ZeResult =
-                  ZE_CALL_NOCHECK(zeEventQueryStatus, ((*It)->ZeEvent));
+              ze_result_t ZeResult = ZE_CALL_NOCHECK(
+                  zeEventQueryStatus,
+                  (ur::level_zero::v1::v1_cast(*It)->ZeEvent));
               if (ZeResult == ZE_RESULT_NOT_READY) {
                 return ReturnValue(false);
               } else if (ZeResult != ZE_RESULT_SUCCESS) {
@@ -506,12 +510,12 @@ ur_result_t urQueueCreate(
     }
   }
 
-  UR_ASSERT(Context->isValidDevice(Device), UR_RESULT_ERROR_INVALID_DEVICE);
+  UR_ASSERT(ur::level_zero::v1::v1_cast(Context)->isValidDevice(Device), UR_RESULT_ERROR_INVALID_DEVICE);
 
   // Create placeholder queues in the compute queue group.
   // Actual L0 queues will be created at first use.
   std::vector<ze_command_queue_handle_t> ZeComputeCommandQueues(
-      Device->QueueGroup[ur_queue_handle_t_::queue_type::Compute]
+      Device->QueueGroup[ur::level_zero::v1::ur_queue_handle_t_::queue_type::Compute]
           .ZeProperties.numQueues,
       nullptr);
 
@@ -521,21 +525,22 @@ ur_result_t urQueueCreate(
   size_t NumCopyGroups = 0;
   if (Device->hasMainCopyEngine()) {
     NumCopyGroups +=
-        Device->QueueGroup[ur_queue_handle_t_::queue_type::MainCopy]
+        Device->QueueGroup[ur::level_zero::v1::ur_queue_handle_t_::queue_type::MainCopy]
             .ZeProperties.numQueues;
   }
   if (Device->hasLinkCopyEngine()) {
     NumCopyGroups +=
-        Device->QueueGroup[ur_queue_handle_t_::queue_type::LinkCopy]
+        Device->QueueGroup[ur::level_zero::v1::ur_queue_handle_t_::queue_type::LinkCopy]
             .ZeProperties.numQueues;
   }
   std::vector<ze_command_queue_handle_t> ZeCopyCommandQueues(NumCopyGroups,
                                                              nullptr);
 
   try {
-    *Queue =
-        new ur_queue_handle_t_(ZeComputeCommandQueues, ZeCopyCommandQueues,
-                               Context, Device, true, Flags, ForceComputeIndex);
+    *Queue = reinterpret_cast<::ur_queue_handle_t>(
+        new ur::level_zero::v1::ur_queue_handle_t_(
+            ZeComputeCommandQueues, ZeCopyCommandQueues, Context, Device, true,
+            Flags, ForceComputeIndex));
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -544,7 +549,7 @@ ur_result_t urQueueCreate(
 
   // Do eager initialization of Level Zero handles on request.
   if (doEagerInit) {
-    auto Q = *Queue;
+    auto Q = ur::level_zero::v1::v1_cast(*Queue);
     // Creates said number of command-lists.
     auto warmupQueueGroup = [Q](bool UseCopyEngine,
                                 uint32_t RepeatCount) -> ur_result_t {
@@ -589,10 +594,10 @@ ur_result_t urQueueRetain(
     /// [in] handle of the queue object to get access
     ur_queue_handle_t Queue) {
   {
-    std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
-    Queue->RefCountExternal++;
+    std::scoped_lock<ur_shared_mutex> Lock(ur::level_zero::v1::v1_cast(Queue)->Mutex);
+    ur::level_zero::v1::v1_cast(Queue)->RefCountExternal++;
   }
-  Queue->RefCount.retain();
+  ur::level_zero::v1::v1_cast(Queue)->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
@@ -604,14 +609,14 @@ ur_result_t urQueueRelease(
 
   std::vector<ur_event_handle_t> EventListToCleanup;
   {
-    std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
+    std::scoped_lock<ur_shared_mutex> Lock(ur::level_zero::v1::v1_cast(Queue)->Mutex);
 
-    if ((--Queue->RefCountExternal) != 0) {
+    if ((--ur::level_zero::v1::v1_cast(Queue)->RefCountExternal) != 0) {
       // When an External Reference exists one still needs to decrement the
       // internal reference count. When the External Reference count == 0, then
       // cleanup of the queue begins and the final decrement of the internal
       // reference count is completed.
-      static_cast<void>(Queue->RefCount.release());
+      static_cast<void>(ur::level_zero::v1::v1_cast(Queue)->RefCount.release());
       return UR_RESULT_SUCCESS;
     }
 
@@ -622,23 +627,23 @@ ur_result_t urQueueRelease(
     //
     // It is possible to get to here and still have an open command list
     // if no wait or finish ever occurred for this queue.
-    auto Res = Queue->executeAllOpenCommandLists();
+    auto Res = ur::level_zero::v1::v1_cast(Queue)->executeAllOpenCommandLists();
 
     // Make sure all commands get executed.
     if (Res == UR_RESULT_SUCCESS)
-      UR_CALL(Queue->synchronize());
+      UR_CALL(ur::level_zero::v1::v1_cast(Queue)->synchronize());
 
     // Cleanup the allocations from 'AsyncPool' made by this queue.
-    Queue->Context->AsyncPool.cleanupPoolsForQueue(Queue);
-    std::shared_lock<ur_shared_mutex> ContextLock(Queue->Context->Mutex);
-    for (auto &Pool : Queue->Context->UsmPoolHandles) {
-      Pool->cleanupPoolsForQueue(Queue);
+    ur::level_zero::v1::v1_cast(ur::level_zero::v1::v1_cast(Queue)->Context)->AsyncPool.cleanupPoolsForQueue(Queue);
+    std::shared_lock<ur_shared_mutex> ContextLock(ur::level_zero::v1::v1_cast(ur::level_zero::v1::v1_cast(Queue)->Context)->Mutex);
+    for (auto &Pool : ur::level_zero::v1::v1_cast(ur::level_zero::v1::v1_cast(Queue)->Context)->UsmPoolHandles) {
+      ur::level_zero::v1::v1_cast(Pool)->cleanupPoolsForQueue(Queue);
     }
     ContextLock.unlock();
 
     // Destroy all the fences created associated with this queue.
-    for (auto it = Queue->CommandListMap.begin();
-         it != Queue->CommandListMap.end(); ++it) {
+    for (auto it = ur::level_zero::v1::v1_cast(Queue)->CommandListMap.begin();
+         it != ur::level_zero::v1::v1_cast(Queue)->CommandListMap.end(); ++it) {
       // This fence wasn't yet signalled when we polled it for recycling
       // the command-list, so need to release the command-list too.
       // For immediate commandlists we don't need to do an L0 reset of the
@@ -651,13 +656,13 @@ ur_result_t urQueueRelease(
         // to happen prior to resetCommandList so that all events are
         // checked.
         it->second.completions.reset();
-        Queue->resetCommandList(it, true, EventListToCleanup);
+        ur::level_zero::v1::v1_cast(Queue)->resetCommandList(it, true, EventListToCleanup);
       }
       // TODO: remove "if" when the problem is fixed in the level zero
       // runtime. Destroy only if a queue is healthy. Destroying a fence may
       // cause a hang otherwise.
       // If the fence is a nullptr we are using immediate commandlists.
-      if (Queue->Healthy && it->second.ZeFence != nullptr &&
+      if (ur::level_zero::v1::v1_cast(Queue)->Healthy && it->second.ZeFence != nullptr &&
           checkL0LoaderTeardown()) {
         auto ZeResult = ZE_CALL_NOCHECK(zeFenceDestroy, (it->second.ZeFence));
         // Gracefully handle the case that L0 was already unloaded.
@@ -668,19 +673,21 @@ ur_result_t urQueueRelease(
           ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
         }
       }
-      if (Queue->UsingImmCmdLists && Queue->OwnZeCommandQueue) {
+      if (ur::level_zero::v1::v1_cast(Queue)->UsingImmCmdLists && ur::level_zero::v1::v1_cast(Queue)->OwnZeCommandQueue) {
         std::scoped_lock<ur_mutex> Lock(
-            Queue->Context->ZeCommandListCacheMutex);
+            ur::level_zero::v1::v1_cast(ur::level_zero::v1::v1_cast(Queue)->Context)->ZeCommandListCacheMutex);
         const ur_command_list_info_t &MapEntry = it->second;
         if (MapEntry.CanReuse) {
           // Add commandlist to the cache for future use.
           // It will be deleted when the context is destroyed.
           auto &ZeCommandListCache =
               MapEntry.isCopy(Queue)
-                  ? Queue->Context
-                        ->ZeCopyCommandListCache[Queue->Device->ZeDevice]
-                  : Queue->Context
-                        ->ZeComputeCommandListCache[Queue->Device->ZeDevice];
+                  ? ur::level_zero::v1::v1_cast(
+                        ur::level_zero::v1::v1_cast(Queue)->Context)
+                        ->ZeCopyCommandListCache[ur::level_zero::v1::v1_cast(Queue)->Device->ZeDevice]
+                  : ur::level_zero::v1::v1_cast(
+                        ur::level_zero::v1::v1_cast(Queue)->Context)
+                        ->ZeComputeCommandListCache[ur::level_zero::v1::v1_cast(Queue)->Device->ZeDevice];
           struct l0_command_list_cache_info ListInfo;
           ListInfo.ZeQueueDesc = it->second.ZeQueueDesc;
           ListInfo.InOrderList = it->second.IsInOrderList;
@@ -696,15 +703,15 @@ ur_result_t urQueueRelease(
         }
       }
     }
-    Queue->CommandListMap.clear();
+    ur::level_zero::v1::v1_cast(Queue)->CommandListMap.clear();
   }
 
   for (auto &Event : EventListToCleanup) {
     // We don't need to synchronize the events since the queue
     // synchronized above already does that.
     {
-      std::scoped_lock<ur_shared_mutex> EventLock(Event->Mutex);
-      Event->Completed = true;
+      std::scoped_lock<ur_shared_mutex> EventLock(ur::level_zero::v1::v1_cast(Event)->Mutex);
+      ur::level_zero::v1::v1_cast(Event)->Completed = true;
     }
     UR_CALL(CleanupCompletedEvent(Event, false /*QueueLocked*/,
                                   false /*SetEventCompleted*/));
@@ -722,14 +729,14 @@ ur_result_t urQueueGetNativeHandle(
     /// [out] a pointer to the native handle of the queue.
     ur_native_handle_t *NativeQueue) {
   // Lock automatically releases when this goes out of scope.
-  std::shared_lock<ur_shared_mutex> lock(Queue->Mutex);
+  std::shared_lock<ur_shared_mutex> lock(ur::level_zero::v1::v1_cast(Queue)->Mutex);
 
   int32_t NativeHandleDesc{};
 
   // Get handle to this thread's queue group.
-  auto &QueueGroup = Queue->getQueueGroup(false /*compute*/);
+  auto &QueueGroup = ur::level_zero::v1::v1_cast(Queue)->getQueueGroup(false /*compute*/);
 
-  if (Queue->UsingImmCmdLists) {
+  if (ur::level_zero::v1::v1_cast(Queue)->UsingImmCmdLists) {
     auto ZeCmdList = ur_cast<ze_command_list_handle_t *>(NativeQueue);
     // Extract the Level Zero command list handle from the given PI queue
     *ZeCmdList = QueueGroup.getImmCmdList()->first;
@@ -739,7 +746,7 @@ ur_result_t urQueueGetNativeHandle(
     auto ZeQueue = ur_cast<ze_command_queue_handle_t *>(NativeQueue);
 
     // Extract a Level Zero compute queue handle from the given PI queue
-    auto &QueueGroup = Queue->getQueueGroup(false /*compute*/);
+    auto &QueueGroup = ur::level_zero::v1::v1_cast(Queue)->getQueueGroup(false /*compute*/);
     uint32_t QueueGroupOrdinalUnused;
     *ZeQueue = QueueGroup.getZeQueue(&QueueGroupOrdinalUnused);
     // TODO: How to pass this up in the urQueueGetNativeHandle interface?
@@ -795,12 +802,12 @@ ur_result_t urQueueCreateWithNativeHandle(
   uint32_t NumEntries = 1;
   ur_platform_handle_t Platform{};
   ur_adapter_handle_t AdapterHandle = GlobalAdapter;
-  UR_CALL(ur::level_zero::urPlatformGet(AdapterHandle, NumEntries, &Platform,
+  UR_CALL(ur::level_zero::common::urPlatformGet(AdapterHandle, NumEntries, &Platform,
                                         nullptr));
 
   ur_device_handle_t UrDevice = Device;
   if (UrDevice == nullptr) {
-    UR_CALL(ur::level_zero::urDeviceGet(Platform, UR_DEVICE_TYPE_GPU,
+    UR_CALL(ur::level_zero::common::urDeviceGet(Platform, UR_DEVICE_TYPE_GPU,
                                         NumEntries, &UrDevice, nullptr));
   }
 
@@ -811,7 +818,7 @@ ur_result_t urQueueCreateWithNativeHandle(
     std::vector<ze_command_queue_handle_t> CopyQueues;
 
     try {
-      ur_queue_handle_t_ *Queue = new ur_queue_handle_t_(
+      ur::level_zero::v1::ur_queue_handle_t_ *Queue = new ur::level_zero::v1::ur_queue_handle_t_(
           ComputeQueues, CopyQueues, Context, UrDevice, OwnNativeHandle, Flags);
       *RetQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
     } catch (const std::bad_alloc &) {
@@ -819,7 +826,7 @@ ur_result_t urQueueCreateWithNativeHandle(
     } catch (...) {
       return UR_RESULT_ERROR_UNKNOWN;
     }
-    auto &InitialGroup = (*RetQueue)->ComputeQueueGroupsByTID.begin()->second;
+    auto &InitialGroup = ur::level_zero::v1::v1_cast(*RetQueue)->ComputeQueueGroupsByTID.begin()->second;
     InitialGroup.setImmCmdList(*RetQueue,
                                ur_cast<ze_command_list_handle_t>(NativeQueue));
   } else {
@@ -833,7 +840,7 @@ ur_result_t urQueueCreateWithNativeHandle(
     std::vector<ze_command_queue_handle_t> ZeroCopyQueues;
 
     try {
-      ur_queue_handle_t_ *Queue = new ur_queue_handle_t_(
+      ur::level_zero::v1::ur_queue_handle_t_ *Queue = new ur::level_zero::v1::ur_queue_handle_t_(
           ZeQueues, ZeroCopyQueues, Context, UrDevice, OwnNativeHandle, Flags);
       *RetQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
     } catch (const std::bad_alloc &) {
@@ -842,7 +849,7 @@ ur_result_t urQueueCreateWithNativeHandle(
       return UR_RESULT_ERROR_UNKNOWN;
     }
   }
-  (*RetQueue)->UsingImmCmdLists = (NativeHandleDesc == 1);
+  ur::level_zero::v1::v1_cast(*RetQueue)->UsingImmCmdLists = (NativeHandleDesc == 1);
 
   return UR_RESULT_SUCCESS;
 }
@@ -850,28 +857,28 @@ ur_result_t urQueueCreateWithNativeHandle(
 ur_result_t urQueueFinish(
     /// [in] handle of the queue to be finished.
     ur_queue_handle_t Queue) {
-  if (Queue->UsingImmCmdLists) {
+  if (ur::level_zero::v1::v1_cast(Queue)->UsingImmCmdLists) {
     // Lock automatically releases when this goes out of scope.
-    std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
+    std::scoped_lock<ur_shared_mutex> Lock(ur::level_zero::v1::v1_cast(Queue)->Mutex);
 
-    UR_CALL(Queue->synchronize());
+    UR_CALL(ur::level_zero::v1::v1_cast(Queue)->synchronize());
   } else {
-    std::unique_lock<ur_shared_mutex> Lock(Queue->Mutex);
+    std::unique_lock<ur_shared_mutex> Lock(ur::level_zero::v1::v1_cast(Queue)->Mutex);
     std::vector<ze_command_queue_handle_t> ZeQueues;
 
     // execute any command list that may still be open.
-    UR_CALL(Queue->executeAllOpenCommandLists());
+    UR_CALL(ur::level_zero::v1::v1_cast(Queue)->executeAllOpenCommandLists());
 
     // Make a copy of queues to sync and release the lock.
     for (auto &QueueMap :
-         {Queue->ComputeQueueGroupsByTID, Queue->CopyQueueGroupsByTID})
+         {ur::level_zero::v1::v1_cast(Queue)->ComputeQueueGroupsByTID, ur::level_zero::v1::v1_cast(Queue)->CopyQueueGroupsByTID})
       for (auto &QueueGroup : QueueMap)
         std::copy(QueueGroup.second.ZeQueues.begin(),
                   QueueGroup.second.ZeQueues.end(),
                   std::back_inserter(ZeQueues));
 
     // Remember the last command's event.
-    auto LastCommandEvent = Queue->LastCommandEvent;
+    auto LastCommandEvent = ur::level_zero::v1::v1_cast(Queue)->LastCommandEvent;
 
     // Don't hold a lock to the queue's mutex while waiting.
     // This allows continue working with the queue from other threads.
@@ -896,26 +903,26 @@ ur_result_t urQueueFinish(
     // We can only do so if nothing else was submitted to the queue
     // while we were synchronizing it.
     if (!HoldLock) {
-      std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
-      if (LastCommandEvent == Queue->LastCommandEvent) {
-        Queue->LastCommandEvent = nullptr;
+      std::scoped_lock<ur_shared_mutex> Lock(ur::level_zero::v1::v1_cast(Queue)->Mutex);
+      if (LastCommandEvent == ur::level_zero::v1::v1_cast(Queue)->LastCommandEvent) {
+        ur::level_zero::v1::v1_cast(Queue)->LastCommandEvent = nullptr;
       }
     } else {
-      Queue->LastCommandEvent = nullptr;
+      ur::level_zero::v1::v1_cast(Queue)->LastCommandEvent = nullptr;
     }
   }
   // Reset signalled command lists and return them back to the cache of
   // available command lists. Events in the immediate command lists are cleaned
   // up in synchronize().
-  if (!Queue->UsingImmCmdLists) {
-    std::unique_lock<ur_shared_mutex> Lock(Queue->Mutex);
+  if (!ur::level_zero::v1::v1_cast(Queue)->UsingImmCmdLists) {
+    std::unique_lock<ur_shared_mutex> Lock(ur::level_zero::v1::v1_cast(Queue)->Mutex);
     resetCommandLists(Queue);
   }
 
-  Queue->Context->AsyncPool.cleanupPoolsForQueue(Queue);
-  std::shared_lock<ur_shared_mutex> ContextLock(Queue->Context->Mutex);
-  for (auto &Pool : Queue->Context->UsmPoolHandles) {
-    Pool->cleanupPoolsForQueue(Queue);
+  ur::level_zero::v1::v1_cast(ur::level_zero::v1::v1_cast(Queue)->Context)->AsyncPool.cleanupPoolsForQueue(Queue);
+  std::shared_lock<ur_shared_mutex> ContextLock(ur::level_zero::v1::v1_cast(ur::level_zero::v1::v1_cast(Queue)->Context)->Mutex);
+  for (auto &Pool : ur::level_zero::v1::v1_cast(ur::level_zero::v1::v1_cast(Queue)->Context)->UsmPoolHandles) {
+    ur::level_zero::v1::v1_cast(Pool)->cleanupPoolsForQueue(Queue);
   }
   ContextLock.unlock();
 
@@ -925,8 +932,8 @@ ur_result_t urQueueFinish(
 ur_result_t urQueueFlush(
     /// [in] handle of the queue to be flushed.
     ur_queue_handle_t Queue) {
-  std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
-  return Queue->executeAllOpenCommandLists();
+  std::scoped_lock<ur_shared_mutex> Lock(ur::level_zero::v1::v1_cast(Queue)->Mutex);
+  return ur::level_zero::v1::v1_cast(Queue)->executeAllOpenCommandLists();
 }
 
 ur_result_t urQueueBeginGraphCaptureExp(ur_queue_handle_t /* hQueue */) {
@@ -1148,7 +1155,7 @@ static const zeCommandListBatchConfig ZeCommandListBatchCopyConfig = [] {
   return ZeCommandListBatchConfig(IsCopy{true});
 }();
 
-ur_queue_handle_t_::ur_queue_handle_t_(
+ur::level_zero::v1::ur_queue_handle_t_::ur_queue_handle_t_(
     std::vector<ze_command_queue_handle_t> &ComputeQueues,
     std::vector<ze_command_queue_handle_t> &CopyQueues,
     ur_context_handle_t Context, ur_device_handle_t Device,
@@ -1266,7 +1273,7 @@ ur_queue_handle_t_::ur_queue_handle_t_(
           true /*Only Allow Driver In Order List if requested*/);
 }
 
-void ur_queue_handle_t_::adjustBatchSizeForFullBatch(bool IsCopy) {
+void ur::level_zero::v1::ur_queue_handle_t_::adjustBatchSizeForFullBatch(bool IsCopy) {
   auto &CommandBatch = IsCopy ? CopyCommandBatch : ComputeCommandBatch;
   auto &ZeCommandListBatchConfig =
       IsCopy ? ZeCommandListBatchCopyConfig : ZeCommandListBatchComputeConfig;
@@ -1293,7 +1300,7 @@ void ur_queue_handle_t_::adjustBatchSizeForFullBatch(bool IsCopy) {
   }
 }
 
-void ur_queue_handle_t_::adjustBatchSizeForPartialBatch(bool IsCopy) {
+void ur::level_zero::v1::ur_queue_handle_t_::adjustBatchSizeForPartialBatch(bool IsCopy) {
   auto &CommandBatch = IsCopy ? CopyCommandBatch : ComputeCommandBatch;
   auto &ZeCommandListBatchConfig =
       IsCopy ? ZeCommandListBatchCopyConfig : ZeCommandListBatchComputeConfig;
@@ -1320,7 +1327,7 @@ void ur_queue_handle_t_::adjustBatchSizeForPartialBatch(bool IsCopy) {
 }
 
 ur_result_t
-ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
+ur::level_zero::v1::ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
                                        bool IsBlocking, bool OKToBatchCommand) {
   // Do nothing if command list is already closed.
   if (CommandList->second.IsClosed)
@@ -1428,7 +1435,9 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
       auto Result = std::find_if(
           CommandList->second.EventList.begin(),
           CommandList->second.EventList.end(),
-          [](ur_event_handle_t E) { return E->hasExternalRefs(); });
+          [](ur_event_handle_t E) {
+            return ur::level_zero::v1::v1_cast(E)->hasExternalRefs();
+          });
       if (Result != CommandList->second.EventList.end()) {
         // Create a "proxy" host-visible event.
         //
@@ -1444,15 +1453,15 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
         // Update each command's event in the command-list to "see" this
         // proxy event as a host-visible counterpart.
         for (auto &Event : CommandList->second.EventList) {
-          std::scoped_lock<ur_shared_mutex> EventLock(Event->Mutex);
+          std::scoped_lock<ur_shared_mutex> EventLock(ur::level_zero::v1::v1_cast(Event)->Mutex);
           // Internal event doesn't need host-visible proxy.
-          if (!Event->hasExternalRefs())
+          if (!ur::level_zero::v1::v1_cast(Event)->hasExternalRefs())
             continue;
 
-          if (!Event->HostVisibleEvent) {
-            Event->HostVisibleEvent =
+          if (!ur::level_zero::v1::v1_cast(Event)->HostVisibleEvent) {
+            ur::level_zero::v1::v1_cast(Event)->HostVisibleEvent =
                 reinterpret_cast<ur_event_handle_t>(HostVisibleEvent);
-            HostVisibleEvent->RefCount.retain();
+            ur::level_zero::v1::v1_cast(HostVisibleEvent)->RefCount.retain();
           }
         }
 
@@ -1476,23 +1485,23 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
           // cleanup is needed.
           // TODO: always treat this host event as a regular event.
           UR_CALL(urEventReleaseInternal(HostVisibleEvent));
-          HostVisibleEvent->CleanedUp = true;
+          ur::level_zero::v1::v1_cast(HostVisibleEvent)->CleanedUp = true;
         }
 
         // Finally set to signal the host-visible event at the end of the
         // command-list after a barrier that waits for all commands
         // completion.
         if (doReuseDiscardedEvents() && LastCommandEvent &&
-            LastCommandEvent->IsDiscarded) {
+            ur::level_zero::v1::v1_cast(LastCommandEvent)->IsDiscarded) {
           // If we the last event is discarded then we already have a barrier
           // inserted, so just signal the event.
           ZE2UR_CALL(zeCommandListAppendSignalEvent,
-                     (CommandList->first, HostVisibleEvent->ZeEvent));
+                     (CommandList->first, ur::level_zero::v1::v1_cast(HostVisibleEvent)->ZeEvent));
         } else {
           AppendBarrierNeeded = false;
           ZE2UR_CALL(
               zeCommandListAppendBarrier,
-              (CommandList->first, HostVisibleEvent->ZeEvent, 0, nullptr));
+              (CommandList->first, ur::level_zero::v1::v1_cast(HostVisibleEvent)->ZeEvent, 0, nullptr));
         }
       } else {
         // If we don't have host visible proxy then signal event if needed.
@@ -1512,14 +1521,14 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
         // completed. This functionality is only used if this command list is
         // out of order and there are events created that were not used as
         // signal events.
-        if (Event->IsInnerBatchedEvent) {
+        if (ur::level_zero::v1::v1_cast(Event)->IsInnerBatchedEvent) {
           if (AppendBarrierNeeded) {
             ZE2UR_CALL(zeCommandListAppendBarrier,
                        (CommandList->first, nullptr, 0, nullptr));
             AppendBarrierNeeded = false;
           }
           ZE2UR_CALL(zeCommandListAppendSignalEvent,
-                     (CommandList->first, Event->ZeEvent));
+                     (CommandList->first, ur::level_zero::v1::v1_cast(Event)->ZeEvent));
         }
       }
     }
@@ -1558,27 +1567,27 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
   return UR_RESULT_SUCCESS;
 }
 
-bool ur_queue_handle_t_::doReuseDiscardedEvents() {
+bool ur::level_zero::v1::ur_queue_handle_t_::doReuseDiscardedEvents() {
   return ReuseDiscardedEvents && isInOrderQueue() && isDiscardEvents();
 }
 
 ur_result_t
-ur_queue_handle_t_::resetDiscardedEvent(ur_command_list_ptr_t CommandList) {
-  if (LastCommandEvent && LastCommandEvent->IsDiscarded) {
+ur::level_zero::v1::ur_queue_handle_t_::resetDiscardedEvent(ur_command_list_ptr_t CommandList) {
+  if (LastCommandEvent && ur::level_zero::v1::v1_cast(LastCommandEvent)->IsDiscarded) {
     ZE2UR_CALL(zeCommandListAppendBarrier,
-               (CommandList->first, nullptr, 1, &(LastCommandEvent->ZeEvent)));
+               (CommandList->first, nullptr, 1, &(ur::level_zero::v1::v1_cast(LastCommandEvent)->ZeEvent)));
     if (!CounterBasedEventsEnabled) {
       ZE2UR_CALL(zeCommandListAppendEventReset,
-                 (CommandList->first, LastCommandEvent->ZeEvent));
+                 (CommandList->first, ur::level_zero::v1::v1_cast(LastCommandEvent)->ZeEvent));
     }
 
     // Create new ur_event_handle_t but with the same ze_event_handle_t. We are
     // going to use this ur_event_handle_t for the next command with discarded
     // event.
-    ur_event_handle_t_ *UREvent;
+    ur::level_zero::v1::ur_event_handle_t_ *UREvent;
     try {
-      UREvent = new ur_event_handle_t_(
-          LastCommandEvent->ZeEvent, LastCommandEvent->ZeEventPool,
+      UREvent = new ur::level_zero::v1::ur_event_handle_t_(
+          ur::level_zero::v1::v1_cast(LastCommandEvent)->ZeEvent, ur::level_zero::v1::v1_cast(LastCommandEvent)->ZeEventPool,
           reinterpret_cast<ur_context_handle_t>(Context),
           UR_EXT_COMMAND_TYPE_USER, true);
     } catch (const std::bad_alloc &) {
@@ -1587,7 +1596,7 @@ ur_queue_handle_t_::resetDiscardedEvent(ur_command_list_ptr_t CommandList) {
       return UR_RESULT_ERROR_UNKNOWN;
     }
 
-    if (LastCommandEvent->isHostVisible())
+    if (ur::level_zero::v1::v1_cast(LastCommandEvent)->isHostVisible())
       UREvent->HostVisibleEvent = reinterpret_cast<ur_event_handle_t>(UREvent);
 
     UR_CALL(addEventToQueueCache(reinterpret_cast<ur_event_handle_t>(UREvent)));
@@ -1596,9 +1605,9 @@ ur_queue_handle_t_::resetDiscardedEvent(ur_command_list_ptr_t CommandList) {
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_queue_handle_t_::addEventToQueueCache(ur_event_handle_t Event) {
-  if (!Event->IsMultiDevice) {
-    auto EventCachesMap = Event->isHostVisible() ? &EventCachesDeviceMap[0]
+ur_result_t ur::level_zero::v1::ur_queue_handle_t_::addEventToQueueCache(ur_event_handle_t Event) {
+  if (!ur::level_zero::v1::v1_cast(Event)->IsMultiDevice) {
+    auto EventCachesMap = ur::level_zero::v1::v1_cast(Event)->isHostVisible() ? &EventCachesDeviceMap[0]
                                                  : &EventCachesDeviceMap[1];
     if (EventCachesMap->find(Device) == EventCachesMap->end()) {
       EventCaches.emplace_back();
@@ -1606,25 +1615,25 @@ ur_result_t ur_queue_handle_t_::addEventToQueueCache(ur_event_handle_t Event) {
     }
     EventCaches[EventCachesMap->at(Device)].emplace_back(Event);
   } else {
-    auto Cache = Event->isHostVisible() ? &EventCaches[0] : &EventCaches[1];
+    auto Cache = ur::level_zero::v1::v1_cast(Event)->isHostVisible() ? &EventCaches[0] : &EventCaches[1];
     Cache->emplace_back(Event);
   }
   return UR_RESULT_SUCCESS;
 }
 
-void ur_queue_handle_t_::active_barriers::add(ur_event_handle_t &Event) {
-  Event->RefCount.retain();
+void ur::level_zero::v1::ur_queue_handle_t_::active_barriers::add(ur_event_handle_t &Event) {
+  ur::level_zero::v1::v1_cast(Event)->RefCount.retain();
   Events.push_back(Event);
 }
 
-ur_result_t ur_queue_handle_t_::active_barriers::clear() {
+ur_result_t ur::level_zero::v1::ur_queue_handle_t_::active_barriers::clear() {
   for (const auto &Event : Events)
     UR_CALL(urEventReleaseInternal(Event));
   Events.clear();
   return UR_RESULT_SUCCESS;
 }
 
-void ur_queue_handle_t_::clearEndTimeRecordings() {
+void ur::level_zero::v1::ur_queue_handle_t_::clearEndTimeRecordings() {
   const double ZeTimerResolution = Device->getTimerResolution();
   const uint64_t TimestampMaxValue = Device->getTimestampMask();
 
@@ -1640,29 +1649,29 @@ void ur_queue_handle_t_::clearEndTimeRecordings() {
     // Note, it will not report correct time if there were multiple wrap
     // arounds, and the longer term plan is to enlarge the capacity of the
     // HW timestamps.
-    if (ContextEndTime < Event->RecordEventStartTimestamp)
+    if (ContextEndTime < ur::level_zero::v1::v1_cast(Event)->RecordEventStartTimestamp)
       ContextEndTime += TimestampMaxValue * ZeTimerResolution;
 
     // Store it in the event.
-    Event->RecordEventEndTimestamp = ContextEndTime;
+    ur::level_zero::v1::v1_cast(Event)->RecordEventEndTimestamp = ContextEndTime;
   }
   EndTimeRecordings.clear();
   EvictedEndTimeRecordings.clear();
 }
 
 ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue) {
-  if (!Queue->RefCount.release())
+  if (!ur::level_zero::v1::v1_cast(Queue)->RefCount.release())
     return UR_RESULT_SUCCESS;
 
-  for (auto &Cache : Queue->EventCaches) {
+  for (auto &Cache : ur::level_zero::v1::v1_cast(Queue)->EventCaches) {
     for (auto &Event : Cache)
       UR_CALL(urEventReleaseInternal(Event));
     Cache.clear();
   }
 
-  if (Queue->OwnZeCommandQueue) {
+  if (ur::level_zero::v1::v1_cast(Queue)->OwnZeCommandQueue) {
     for (auto &QueueMap :
-         {Queue->ComputeQueueGroupsByTID, Queue->CopyQueueGroupsByTID})
+         {ur::level_zero::v1::v1_cast(Queue)->ComputeQueueGroupsByTID, ur::level_zero::v1::v1_cast(Queue)->CopyQueueGroupsByTID})
       for (auto &QueueGroup : QueueMap)
         for (auto &ZeQueue : QueueGroup.second.ZeQueues)
           if (ZeQueue) {
@@ -1679,62 +1688,62 @@ ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue) {
           }
   }
 
-  Queue->clearEndTimeRecordings();
+  ur::level_zero::v1::v1_cast(Queue)->clearEndTimeRecordings();
 
   UR_LOG(DEBUG,
          "urQueueRelease(compute) NumTimesClosedFull {}, "
          "NumTimesClosedEarly {}",
-         Queue->ComputeCommandBatch.NumTimesClosedFull,
-         Queue->ComputeCommandBatch.NumTimesClosedEarly);
+         ur::level_zero::v1::v1_cast(Queue)->ComputeCommandBatch.NumTimesClosedFull,
+         ur::level_zero::v1::v1_cast(Queue)->ComputeCommandBatch.NumTimesClosedEarly);
   UR_LOG(DEBUG,
          "urQueueRelease(copy) NumTimesClosedFull {}, NumTimesClosedEarly {}",
-         Queue->CopyCommandBatch.NumTimesClosedFull,
-         Queue->CopyCommandBatch.NumTimesClosedEarly);
+         ur::level_zero::v1::v1_cast(Queue)->CopyCommandBatch.NumTimesClosedFull,
+         ur::level_zero::v1::v1_cast(Queue)->CopyCommandBatch.NumTimesClosedEarly);
 
-  delete Queue;
+  delete ur::level_zero::v1::v1_cast(Queue);
 
   return UR_RESULT_SUCCESS;
 }
 
-bool ur_queue_handle_t_::isBatchingAllowed(bool IsCopy) const {
+bool ur::level_zero::v1::ur_queue_handle_t_::isBatchingAllowed(bool IsCopy) const {
   auto &CommandBatch = IsCopy ? CopyCommandBatch : ComputeCommandBatch;
   return (CommandBatch.QueueBatchSize > 0 &&
           ((UrL0Serialize & UrL0SerializeBlock) == 0));
 }
 
-bool ur_queue_handle_t_::isDiscardEvents() const {
+bool ur::level_zero::v1::ur_queue_handle_t_::isDiscardEvents() const {
   return ((this->Properties & UR_QUEUE_FLAG_DISCARD_EVENTS) != 0);
 }
 
-bool ur_queue_handle_t_::isPriorityLow() const {
+bool ur::level_zero::v1::ur_queue_handle_t_::isPriorityLow() const {
   return ((this->Properties & UR_QUEUE_FLAG_PRIORITY_LOW) != 0);
 }
 
-bool ur_queue_handle_t_::isPriorityHigh() const {
+bool ur::level_zero::v1::ur_queue_handle_t_::isPriorityHigh() const {
   return ((this->Properties & UR_QUEUE_FLAG_PRIORITY_HIGH) != 0);
 }
 
-bool ur_queue_handle_t_::isBatchedSubmission() const {
+bool ur::level_zero::v1::ur_queue_handle_t_::isBatchedSubmission() const {
   return ((this->Properties & UR_QUEUE_FLAG_SUBMISSION_BATCHED) != 0);
 }
 
-bool ur_queue_handle_t_::isImmediateSubmission() const {
+bool ur::level_zero::v1::ur_queue_handle_t_::isImmediateSubmission() const {
   return ((this->Properties & UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE) != 0);
 }
 
-bool ur_queue_handle_t_::isInOrderQueue() const {
+bool ur::level_zero::v1::ur_queue_handle_t_::isInOrderQueue() const {
   // If out-of-order queue property is not set, then this is a in-order queue.
   return ((this->Properties & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) ==
           0);
 }
 
-bool ur_queue_handle_t_::isLowPowerEvents() const {
+bool ur::level_zero::v1::ur_queue_handle_t_::isLowPowerEvents() const {
   return ((this->Properties & UR_QUEUE_FLAG_LOW_POWER_EVENTS_SUPPORT_EXP) != 0);
 }
 
 // Helper function to perform the necessary cleanup of the events from reset cmd
 // list.
-ur_result_t CleanupEventListFromResetCmdList(
+ur_result_t ur::level_zero::v1::CleanupEventListFromResetCmdList(
     std::vector<ur_event_handle_t> &EventListToCleanup, bool QueueLocked) {
   for (auto &Event : EventListToCleanup) {
     // We don't need to synchronize the events since the fence associated with
@@ -1757,11 +1766,11 @@ ur_result_t CleanupEventListFromResetCmdList(
 // TODO: Event release in immediate commandlist mode is driven by the SYCL
 // runtime. Need to investigate whether relase can be done earlier, at sync
 // points such as this, to reduce total number of active Events.
-ur_result_t ur_queue_handle_t_::synchronize() {
+ur_result_t ur::level_zero::v1::ur_queue_handle_t_::synchronize() {
   if (!Healthy)
     return UR_RESULT_SUCCESS;
 
-  auto syncImmCmdList = [](ur_queue_handle_t_ *Queue,
+  auto syncImmCmdList = [](ur::level_zero::v1::ur_queue_handle_t_ *Queue,
                            ur_command_list_ptr_t ImmCmdList) {
     if (ImmCmdList == Queue->CommandListMap.end())
       return UR_RESULT_SUCCESS;
@@ -1790,8 +1799,8 @@ ur_result_t ur_queue_handle_t_::synchronize() {
     // zero handle can have device scope, so we can't synchronize the last
     // event.
     auto savedLastCommandEvent = LastCommandEvent;
-    if (isInOrderQueue() && !LastCommandEvent->IsDiscarded) {
-      ZE2UR_CALL(zeHostSynchronize, (LastCommandEvent->ZeEvent));
+    if (isInOrderQueue() && !ur::level_zero::v1::v1_cast(LastCommandEvent)->IsDiscarded) {
+      ZE2UR_CALL(zeHostSynchronize, (ur::level_zero::v1::v1_cast(LastCommandEvent)->ZeEvent));
 
       // clean up all events known to have been completed as well,
       // so they can be reused later
@@ -1852,7 +1861,7 @@ ur_result_t ur_queue_handle_t_::synchronize() {
   return UR_RESULT_SUCCESS;
 }
 
-ur_event_handle_t ur_queue_handle_t_::getEventFromQueueCache(bool IsMultiDevice,
+ur_event_handle_t ur::level_zero::v1::ur_queue_handle_t_::getEventFromQueueCache(bool IsMultiDevice,
                                                              bool HostVisible) {
   std::list<ur_event_handle_t> *Cache;
 
@@ -1885,14 +1894,14 @@ ur_event_handle_t ur_queue_handle_t_::getEventFromQueueCache(bool IsMultiDevice,
 // at the end of a command list batch. This will only be true if the event does
 // not have dependencies or the dependencies are not for events which exist in
 // this batch.
-bool eventCanBeBatched(ur_queue_handle_t Queue, bool UseCopyEngine,
+bool ur::level_zero::v1::eventCanBeBatched(ur_queue_handle_t Queue, bool UseCopyEngine,
                        uint32_t NumEventsInWaitList,
                        const ur_event_handle_t *EventWaitList) {
   auto &CommandBatch =
-      UseCopyEngine ? Queue->CopyCommandBatch : Queue->ComputeCommandBatch;
+      UseCopyEngine ? ur::level_zero::v1::v1_cast(Queue)->CopyCommandBatch : ur::level_zero::v1::v1_cast(Queue)->ComputeCommandBatch;
   // First see if there is an command-list open for batching commands
   // for this queue.
-  if (Queue->hasOpenCommandList(UseCopyEngine)) {
+  if (ur::level_zero::v1::v1_cast(Queue)->hasOpenCommandList(UseCopyEngine)) {
     // If this command should be batched, but the command has a dependency on a
     // command in the current batch, then the command needs to have an event
     // to track its completion so this event cannot be batched to the end of the
@@ -1915,20 +1924,20 @@ bool eventCanBeBatched(ur_queue_handle_t Queue, bool UseCopyEngine,
 // dependencies, then this command can be enqueued without a signal event set in
 // a command list batch. The signal event will be appended at the end of the
 // batch to be signalled at the end of the command list.
-ur_result_t setSignalEvent(ur_queue_handle_t Queue, bool UseCopyEngine,
+ur_result_t ur::level_zero::v1::setSignalEvent(ur_queue_handle_t Queue, bool UseCopyEngine,
                            ze_event_handle_t *ZeEvent, ur_event_handle_t *Event,
                            uint32_t NumEventsInWaitList,
                            const ur_event_handle_t *EventWaitList,
                            ze_command_queue_handle_t ZeQueue) {
-  if (!UrL0OutOfOrderIntegratedSignalEvent && Queue->Device->isIntegrated() &&
+  if (!UrL0OutOfOrderIntegratedSignalEvent && ur::level_zero::v1::v1_cast(Queue)->Device->isIntegrated() &&
       eventCanBeBatched(Queue, UseCopyEngine, NumEventsInWaitList,
                         EventWaitList) &&
-      !Queue->isInOrderQueue() && !Queue->UsingImmCmdLists) {
+      !ur::level_zero::v1::v1_cast(Queue)->isInOrderQueue() && !ur::level_zero::v1::v1_cast(Queue)->UsingImmCmdLists) {
     ZeEvent = nullptr;
-    (*Event)->IsInnerBatchedEvent = true;
-    (*Event)->ZeBatchedQueue = ZeQueue;
+    ur::level_zero::v1::v1_cast(*Event)->IsInnerBatchedEvent = true;
+    ur::level_zero::v1::v1_cast(*Event)->ZeBatchedQueue = ZeQueue;
   } else {
-    (*ZeEvent) = (*Event)->ZeEvent;
+    (*ZeEvent) = ur::level_zero::v1::v1_cast(*Event)->ZeEvent;
   }
   return UR_RESULT_SUCCESS;
 }
@@ -1946,7 +1955,7 @@ ur_result_t setSignalEvent(ur_queue_handle_t Queue, bool UseCopyEngine,
 //        visible pool.
 // \param HostVisible tells if the event must be created in the
 //        host-visible pool. If not set then this function will decide.
-ur_result_t createEventAndAssociateQueue(ur_queue_handle_t Queue,
+ur_result_t ur::level_zero::v1::createEventAndAssociateQueue(ur_queue_handle_t Queue,
                                          ur_event_handle_t *Event,
                                          ur_command_t CommandType,
                                          ur_command_list_ptr_t CommandList,
@@ -1955,36 +1964,36 @@ ur_result_t createEventAndAssociateQueue(ur_queue_handle_t Queue,
 
   if (!HostVisible.has_value()) {
     // Internal/discarded events do not need host-scope visibility.
-    HostVisible = IsInternal ? false : Queue->ZeEventsScope == AllHostVisible;
+    HostVisible = IsInternal ? false : ur::level_zero::v1::v1_cast(Queue)->ZeEventsScope == AllHostVisible;
   }
 
   // If event is discarded then try to get event from the queue cache.
-  *Event = IsInternal ? Queue->getEventFromQueueCache(IsMultiDevice,
+  *Event = IsInternal ? ur::level_zero::v1::v1_cast(Queue)->getEventFromQueueCache(IsMultiDevice,
                                                       HostVisible.value())
                       : nullptr;
 
   if (*Event == nullptr)
     UR_CALL(EventCreate(
-        Queue->Context, Queue, IsMultiDevice, HostVisible.value(), Event,
-        Queue->CounterBasedEventsEnabled, false /*ForceDisableProfiling*/,
-        Queue->InterruptBasedEventsEnabled, IsInternal));
+        ur::level_zero::v1::v1_cast(Queue)->Context, Queue, IsMultiDevice, HostVisible.value(), Event,
+        ur::level_zero::v1::v1_cast(Queue)->CounterBasedEventsEnabled, false /*ForceDisableProfiling*/,
+        ur::level_zero::v1::v1_cast(Queue)->InterruptBasedEventsEnabled, IsInternal));
 
-  (*Event)->UrQueue = Queue;
-  (*Event)->CommandType = CommandType;
-  (*Event)->IsDiscarded = IsInternal;
-  (*Event)->IsMultiDevice = IsMultiDevice;
-  (*Event)->CommandList = CommandList;
+  ur::level_zero::v1::v1_cast(*Event)->UrQueue = Queue;
+  ur::level_zero::v1::v1_cast(*Event)->CommandType = CommandType;
+  ur::level_zero::v1::v1_cast(*Event)->IsDiscarded = IsInternal;
+  ur::level_zero::v1::v1_cast(*Event)->IsMultiDevice = IsMultiDevice;
+  ur::level_zero::v1::v1_cast(*Event)->CommandList = CommandList;
   // Discarded event doesn't own ze_event, it is used by multiple
   // ur_event_handle_t objects. We destroy corresponding ze_event by releasing
   // events from the events cache at queue destruction. Event in the cache owns
   // the Level Zero event.
   if (IsInternal)
-    (*Event)->OwnNativeHandle = false;
+    ur::level_zero::v1::v1_cast(*Event)->OwnNativeHandle = false;
 
   // Append this Event to the CommandList, if any
-  if (CommandList != Queue->CommandListMap.end()) {
+  if (CommandList != ur::level_zero::v1::v1_cast(Queue)->CommandListMap.end()) {
     CommandList->second.append(*Event);
-    (*Event)->RefCount.retain();
+    ur::level_zero::v1::v1_cast(*Event)->RefCount.retain();
   }
 
   // We need to increment the reference counter here to avoid ur_queue_handle_t
@@ -1992,7 +2001,7 @@ ur_result_t createEventAndAssociateQueue(ur_queue_handle_t Queue,
   // urEventRelease requires access to the associated ur_queue_handle_t.
   // In urEventRelease, the reference counter of the Queue is decremented
   // to release it.
-  Queue->RefCount.retain();
+  ur::level_zero::v1::v1_cast(Queue)->RefCount.retain();
 
   // SYCL RT does not track completion of the events, so it could
   // release a PI event as soon as that's not being waited in the app.
@@ -2008,15 +2017,15 @@ ur_result_t createEventAndAssociateQueue(ur_queue_handle_t Queue,
   return UR_RESULT_SUCCESS;
 }
 
-void ur_queue_handle_t_::CaptureIndirectAccesses() {
+void ur::level_zero::v1::ur_queue_handle_t_::CaptureIndirectAccesses() {
   for (auto &Kernel : KernelsToBeSubmitted) {
-    if (!Kernel->hasIndirectAccess())
+    if (!ur::level_zero::v1::v1_cast(Kernel)->hasIndirectAccess())
       continue;
 
     auto &Contexts = Device->Platform->Contexts;
     for (auto &Ctx : Contexts) {
-      for (auto &Elem : Ctx->MemAllocs) {
-        const auto &Pair = Kernel->MemAllocs.insert(&Elem);
+      for (auto &Elem : ur::level_zero::v1::v1_cast(Ctx)->MemAllocs) {
+        const auto &Pair = ur::level_zero::v1::v1_cast(Kernel)->MemAllocs.insert(&Elem);
         // Kernel is referencing this memory allocation from now.
         // If this memory allocation was already captured for this kernel, it
         // means that kernel is submitted several times. Increase reference
@@ -2027,17 +2036,17 @@ void ur_queue_handle_t_::CaptureIndirectAccesses() {
           Elem.second.RefCount.retain();
       }
     }
-    Kernel->SubmissionsCount++;
+    ur::level_zero::v1::v1_cast(Kernel)->SubmissionsCount++;
   }
   KernelsToBeSubmitted.clear();
 }
 
-ur_result_t ur_queue_handle_t_::signalEventFromCmdListIfLastEventDiscarded(
+ur_result_t ur::level_zero::v1::ur_queue_handle_t_::signalEventFromCmdListIfLastEventDiscarded(
     ur_command_list_ptr_t CommandList) {
   // We signal new event at the end of command list only if we have queue with
   // discard_events property and the last command event is discarded.
   if (!(doReuseDiscardedEvents() && LastCommandEvent &&
-        LastCommandEvent->IsDiscarded))
+        ur::level_zero::v1::v1_cast(LastCommandEvent)->IsDiscarded))
     return UR_RESULT_SUCCESS;
 
   // NOTE: We create this "glue" event not as internal so it is not
@@ -2054,11 +2063,11 @@ ur_result_t ur_queue_handle_t_::signalEventFromCmdListIfLastEventDiscarded(
   LastCommandEvent = Event;
 
   ZE2UR_CALL(zeCommandListAppendSignalEvent,
-             (CommandList->first, Event->ZeEvent));
+             (CommandList->first, ur::level_zero::v1::v1_cast(Event)->ZeEvent));
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_queue_handle_t_::executeOpenCommandList(bool IsCopy) {
+ur_result_t ur::level_zero::v1::ur_queue_handle_t_::executeOpenCommandList(bool IsCopy) {
   auto &CommandBatch = IsCopy ? CopyCommandBatch : ComputeCommandBatch;
   // If there are any commands still in the open command list for this
   // queue, then close and execute that command list now.
@@ -2074,10 +2083,11 @@ ur_result_t ur_queue_handle_t_::executeOpenCommandList(bool IsCopy) {
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_queue_handle_t_::resetCommandList(
+ur_result_t ur::level_zero::v1::ur_queue_handle_t_::resetCommandList(
     ur_command_list_ptr_t CommandList, bool MakeAvailable,
     std::vector<ur_event_handle_t> &EventListToCleanup, bool CheckStatus) {
-  bool UseCopyEngine = CommandList->second.isCopy(this);
+  bool UseCopyEngine = CommandList->second.isCopy(
+      reinterpret_cast<ur_queue_handle_t>(this));
 
   // Immediate commandlists do not have an associated fence.
   if (CommandList->second.ZeFence != nullptr) {
@@ -2105,11 +2115,11 @@ ur_result_t ur_queue_handle_t_::resetCommandList(
     // If events in the queue are discarded then we can't check their status.
     // Helper for checking of event completion
     auto EventCompleted = [](ur_event_handle_t Event) -> bool {
-      std::scoped_lock<ur_shared_mutex> EventLock(Event->Mutex);
+      std::scoped_lock<ur_shared_mutex> EventLock(ur::level_zero::v1::v1_cast(Event)->Mutex);
       ze_result_t ZeResult =
-          Event->Completed
+          ur::level_zero::v1::v1_cast(Event)->Completed
               ? ZE_RESULT_SUCCESS
-              : ZE_CALL_NOCHECK(zeEventQueryStatus, (Event->ZeEvent));
+              : ZE_CALL_NOCHECK(zeEventQueryStatus, (ur::level_zero::v1::v1_cast(Event)->ZeEvent));
       return ZeResult == ZE_RESULT_SUCCESS;
     };
     // Handle in-order specially as we can just in few checks (with binary
@@ -2136,8 +2146,9 @@ ur_result_t ur_queue_handle_t_::resetCommandList(
     }
 
     if (auto &completions = CommandList->second.completions; completions) {
-      if (completions->tryCleanup(this, CommandList->first, EventList,
-                                  EventListToCleanup) == UR_RESULT_SUCCESS) {
+      if (completions->tryCleanup(
+              reinterpret_cast<ur_queue_handle_t>(this), CommandList->first,
+              EventList, EventListToCleanup) == UR_RESULT_SUCCESS) {
         return UR_RESULT_SUCCESS;
       }
     }
@@ -2161,11 +2172,14 @@ ur_result_t ur_queue_handle_t_::resetCommandList(
   // Standard commandlists move in and out of the cache as they are recycled.
   // Immediate commandlists are always available.
   if (CommandList->second.ZeFence != nullptr && MakeAvailable) {
-    std::scoped_lock<ur_mutex> Lock(this->Context->ZeCommandListCacheMutex);
+    std::scoped_lock<ur_mutex> Lock(
+        ur::level_zero::v1::v1_cast(this->Context)->ZeCommandListCacheMutex);
     auto &ZeCommandListCache =
         UseCopyEngine
-            ? this->Context->ZeCopyCommandListCache[this->Device->ZeDevice]
-            : this->Context->ZeComputeCommandListCache[this->Device->ZeDevice];
+            ? ur::level_zero::v1::v1_cast(this->Context)
+                  ->ZeCopyCommandListCache[this->Device->ZeDevice]
+            : ur::level_zero::v1::v1_cast(this->Context)
+                  ->ZeComputeCommandListCache[this->Device->ZeDevice];
     struct l0_command_list_cache_info ListInfo;
     ListInfo.ZeQueueDesc = CommandList->second.ZeQueueDesc;
     ListInfo.InOrderList = CommandList->second.IsInOrderList;
@@ -2178,7 +2192,7 @@ ur_result_t ur_queue_handle_t_::resetCommandList(
 
 bool ur_command_list_info_t::isCopy(ur_queue_handle_t Queue) const {
   return ZeQueueDesc.ordinal !=
-         (uint32_t)Queue->Device
+         (uint32_t)ur::level_zero::v1::v1_cast(Queue)->Device
              ->QueueGroup
                  [ur_device_handle_t_::queue_group_info_t::type::Compute]
              .ZeOrdinal;
@@ -2192,7 +2206,7 @@ void ur_command_list_info_t::append(ur_event_handle_t Event) {
 }
 
 ur_command_list_ptr_t
-ur_queue_handle_t_::eventOpenCommandList(ur_event_handle_t Event) {
+ur::level_zero::v1::ur_queue_handle_t_::eventOpenCommandList(ur_event_handle_t Event) {
   using IsCopy = bool;
 
   if (UsingImmCmdLists) {
@@ -2217,7 +2231,7 @@ ur_queue_handle_t_::eventOpenCommandList(ur_event_handle_t Event) {
   return CommandListMap.end();
 }
 
-void ur_queue_handle_t_::ur_queue_group_t::setImmCmdList(
+void ur::level_zero::v1::ur_queue_handle_t_::ur_queue_group_t::setImmCmdList(
     ur_queue_handle_t queue, ze_command_list_handle_t ZeCommandList) {
   // An immediate command list was given to us but we don't have the queue
   // descriptor information. Create a dummy and note that it is not recycleable.
@@ -2225,24 +2239,24 @@ void ur_queue_handle_t_::ur_queue_group_t::setImmCmdList(
 
   ImmCmdLists = std::vector<ur_command_list_ptr_t>(
       1,
-      Queue->CommandListMap
+      ur::level_zero::v1::v1_cast(Queue)->CommandListMap
           .insert(std::pair<ze_command_list_handle_t, ur_command_list_info_t>{
               ZeCommandList,
               ur_command_list_info_t(nullptr, true, false, nullptr, ZeQueueDesc,
-                                     queue->useCompletionBatching(), false,
+                                     ur::level_zero::v1::v1_cast(queue)->useCompletionBatching(), false,
                                      false, true)})
           .first);
 }
 
-ur_queue_handle_t_::ur_queue_group_t &
-ur_queue_handle_t_::getQueueGroup(bool UseCopyEngine) {
+ur::level_zero::v1::ur_queue_handle_t_::ur_queue_group_t &
+ur::level_zero::v1::ur_queue_handle_t_::getQueueGroup(bool UseCopyEngine) {
   auto &Map = (UseCopyEngine ? CopyQueueGroupsByTID : ComputeQueueGroupsByTID);
   return Map.get();
 }
 
 // Return the index of the next queue to use based on a
 // round robin strategy and the queue group ordinal.
-uint32_t ur_queue_handle_t_::ur_queue_group_t::getQueueIndex(
+uint32_t ur::level_zero::v1::ur_queue_handle_t_::ur_queue_group_t::getQueueIndex(
     uint32_t *QueueGroupOrdinal, uint32_t *QueueIndex, bool QueryOnly) {
   auto CurrentIndex = NextIndex;
 
@@ -2256,16 +2270,16 @@ uint32_t ur_queue_handle_t_::ur_queue_group_t::getQueueIndex(
   // "link")
   auto QueueType = Type;
   if (QueueType != queue_type::Compute)
-    QueueType = (CurrentIndex == 0 && Queue->Device->hasMainCopyEngine())
+    QueueType = (CurrentIndex == 0 && ur::level_zero::v1::v1_cast(Queue)->Device->hasMainCopyEngine())
                     ? queue_type::MainCopy
                     : queue_type::LinkCopy;
 
-  *QueueGroupOrdinal = Queue->Device->QueueGroup[QueueType].ZeOrdinal;
+  *QueueGroupOrdinal = ur::level_zero::v1::v1_cast(Queue)->Device->QueueGroup[QueueType].ZeOrdinal;
   // Adjust the index to the L0 queue group since we represent "main" and
   // "link"
   // L0 groups with a single copy group ("main" would take "0" index).
   auto ZeCommandQueueIndex = CurrentIndex;
-  if (QueueType == queue_type::LinkCopy && Queue->Device->hasMainCopyEngine()) {
+  if (QueueType == queue_type::LinkCopy && ur::level_zero::v1::v1_cast(Queue)->Device->hasMainCopyEngine()) {
     ZeCommandQueueIndex -= 1;
   }
   *QueueIndex = ZeCommandQueueIndex;
@@ -2276,7 +2290,7 @@ uint32_t ur_queue_handle_t_::ur_queue_group_t::getQueueIndex(
 // This function will return one of possibly multiple available native
 // queues and the value of the queue group ordinal.
 ze_command_queue_handle_t &
-ur_queue_handle_t_::ur_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
+ur::level_zero::v1::ur_queue_handle_t_::ur_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
 
   // QueueIndex is the proper L0 index.
   // Index is the plugins concept of index, with main and link copy engines in
@@ -2293,10 +2307,10 @@ ur_queue_handle_t_::ur_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
   ZeCommandQueueDesc.index = QueueIndex;
   ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS;
   const char *Priority = "Normal";
-  if (Queue->isPriorityLow()) {
+  if (ur::level_zero::v1::v1_cast(Queue)->isPriorityLow()) {
     ZeCommandQueueDesc.priority = ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_LOW;
     Priority = "Low";
-  } else if (Queue->isPriorityHigh()) {
+  } else if (ur::level_zero::v1::v1_cast(Queue)->isPriorityHigh()) {
     ZeCommandQueueDesc.priority = ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_HIGH;
     Priority = "High";
   }
@@ -2313,7 +2327,7 @@ ur_queue_handle_t_::ur_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
          UpperIndex, Priority);
 
   auto ZeResult = ZE_CALL_NOCHECK(
-      zeCommandQueueCreate, (Queue->Context->ZeContext, Queue->Device->ZeDevice,
+      zeCommandQueueCreate, (ur::level_zero::v1::v1_cast(ur::level_zero::v1::v1_cast(Queue)->Context)->ZeContext, ur::level_zero::v1::v1_cast(Queue)->Device->ZeDevice,
                              &ZeCommandQueueDesc, &ZeQueue));
   if (ZeResult) {
     die("[L0] getZeQueue: failed to create queue");
@@ -2322,19 +2336,19 @@ ur_queue_handle_t_::ur_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
   return ZeQueue;
 }
 
-int32_t ur_queue_handle_t_::ur_queue_group_t::getCmdQueueOrdinal(
+int32_t ur::level_zero::v1::ur_queue_handle_t_::ur_queue_group_t::getCmdQueueOrdinal(
     ze_command_queue_handle_t CmdQueue) {
   // Find out the right queue group ordinal (first queue might be "main" or
   // "link")
   auto QueueType = Type;
   if (QueueType != queue_type::Compute)
-    QueueType = (ZeQueues[0] == CmdQueue && Queue->Device->hasMainCopyEngine())
+    QueueType = (ZeQueues[0] == CmdQueue && ur::level_zero::v1::v1_cast(Queue)->Device->hasMainCopyEngine())
                     ? queue_type::MainCopy
                     : queue_type::LinkCopy;
-  return Queue->Device->QueueGroup[QueueType].ZeOrdinal;
+  return ur::level_zero::v1::v1_cast(Queue)->Device->QueueGroup[QueueType].ZeOrdinal;
 }
 
-bool ur_queue_handle_t_::useCompletionBatching() {
+bool ur::level_zero::v1::ur_queue_handle_t_::useCompletionBatching() {
   static bool enabled = getenv_tobool(
       "UR_L0_IMMEDIATE_COMMANDLISTS_BATCH_EVENT_COMPLETIONS", false);
   return enabled && !isInOrderQueue() && UsingImmCmdLists;
@@ -2344,7 +2358,7 @@ bool ur_queue_handle_t_::useCompletionBatching() {
 // fence tracking its completion. This command list & fence are added to the
 // map of command lists in this queue with ZeFenceInUse = false.
 // The caller must hold a lock of the queue already.
-ur_result_t ur_queue_handle_t_::createCommandList(
+ur_result_t ur::level_zero::v1::ur_queue_handle_t_::createCommandList(
     bool UseCopyEngine, ur_command_list_ptr_t &CommandList,
     ze_command_queue_handle_t *ForcedCmdQueue) {
 
@@ -2375,7 +2389,7 @@ ur_result_t ur_queue_handle_t_::createCommandList(
       "create command list ordinal: {}, type: regular, device: {}, inOrder: {}",
       QueueGroupOrdinal, Device->ZeDevice, IsInOrderList);
 
-  ZE2UR_CALL(zeCommandListCreate, (Context->ZeContext, Device->ZeDevice,
+  ZE2UR_CALL(zeCommandListCreate, (ur::level_zero::v1::v1_cast(Context)->ZeContext, Device->ZeDevice,
                                    &ZeCommandListDesc, &ZeCommandList));
 
   ZE2UR_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
@@ -2396,7 +2410,7 @@ ur_result_t ur_queue_handle_t_::createCommandList(
 }
 
 ur_result_t
-ur_queue_handle_t_::insertActiveBarriers(ur_command_list_ptr_t &CmdList,
+ur::level_zero::v1::ur_queue_handle_t_::insertActiveBarriers(ur_command_list_ptr_t &CmdList,
                                          bool UseCopyEngine) {
   // Early exit if there are no active barriers.
   if (ActiveBarriers.empty())
@@ -2427,26 +2441,26 @@ ur_queue_handle_t_::insertActiveBarriers(ur_command_list_ptr_t &CmdList,
           /* IsInternal */ true, /* IsMultiDevice */ true))
     return Res;
 
-  Event->WaitList = ActiveBarriersWaitList;
-  Event->OwnNativeHandle = true;
+  ur::level_zero::v1::v1_cast(Event)->WaitList = ActiveBarriersWaitList;
+  ur::level_zero::v1::v1_cast(Event)->OwnNativeHandle = true;
 
   // If there are more active barriers, insert a barrier on the command-list.
   // We need to signal the current active barrier event otherwise we will leak
   // the Event object when we replace the active barrier.
   ZE2UR_CALL(zeCommandListAppendBarrier,
-             (CmdList->first, Event->ZeEvent, ActiveBarriersWaitList.Length,
+             (CmdList->first, ur::level_zero::v1::v1_cast(Event)->ZeEvent, ActiveBarriersWaitList.Length,
               ActiveBarriersWaitList.ZeEventList));
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_queue_handle_t_::insertStartBarrierIfDiscardEventsMode(
+ur_result_t ur::level_zero::v1::ur_queue_handle_t_::insertStartBarrierIfDiscardEventsMode(
     ur_command_list_ptr_t &CmdList) {
   // If current command list is different from the last command list then insert
   // a barrier waiting for the last command event.
   if (doReuseDiscardedEvents() && CmdList != LastUsedCommandList &&
       LastCommandEvent) {
     ZE2UR_CALL(zeCommandListAppendBarrier,
-               (CmdList->first, nullptr, 1, &(LastCommandEvent->ZeEvent)));
+               (CmdList->first, nullptr, 1, &(ur::level_zero::v1::v1_cast(LastCommandEvent)->ZeEvent)));
     LastCommandEvent = nullptr;
   }
   return UR_RESULT_SUCCESS;
@@ -2465,7 +2479,7 @@ static const bool UseCopyEngineForInOrderQueue = [] {
           (std::stoi(CopyEngineForInOrderQueue) != 0));
 }();
 
-bool ur_queue_handle_t_::useCopyEngine(bool PreferCopyEngine) const {
+bool ur::level_zero::v1::ur_queue_handle_t_::useCopyEngine(bool PreferCopyEngine) const {
   auto InitialCopyGroup = CopyQueueGroupsByTID.begin()->second;
   return PreferCopyEngine && InitialCopyGroup.ZeQueues.size() > 0 &&
          (!isInOrderQueue() || UseCopyEngineForInOrderQueue);
@@ -2473,14 +2487,14 @@ bool ur_queue_handle_t_::useCopyEngine(bool PreferCopyEngine) const {
 
 // This function will return one of po6ssibly multiple available
 // immediate commandlists associated with this Queue.
-ur_command_list_ptr_t &ur_queue_handle_t_::ur_queue_group_t::getImmCmdList() {
+ur_command_list_ptr_t &ur::level_zero::v1::ur_queue_handle_t_::ur_queue_group_t::getImmCmdList() {
 
   uint32_t QueueIndex, QueueOrdinal;
   auto Index = getQueueIndex(&QueueOrdinal, &QueueIndex);
 
-  if ((ImmCmdLists[Index] != Queue->CommandListMap.end()) &&
-      (!Queue->CounterBasedEventsEnabled ||
-       (Queue->CounterBasedEventsEnabled &&
+  if ((ImmCmdLists[Index] != ur::level_zero::v1::v1_cast(Queue)->CommandListMap.end()) &&
+      (!ur::level_zero::v1::v1_cast(Queue)->CounterBasedEventsEnabled ||
+       (ur::level_zero::v1::v1_cast(Queue)->CounterBasedEventsEnabled &&
         (ImmCmdLists[Index]->second.ZeQueueDesc.flags &
          ZE_COMMAND_QUEUE_FLAG_IN_ORDER))))
     return ImmCmdLists[Index];
@@ -2491,10 +2505,10 @@ ur_command_list_ptr_t &ur_queue_handle_t_::ur_queue_group_t::getImmCmdList() {
   ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS;
   bool isInOrderList = false;
   const char *Priority = "Normal";
-  if (Queue->isPriorityLow()) {
+  if (ur::level_zero::v1::v1_cast(Queue)->isPriorityLow()) {
     ZeCommandQueueDesc.priority = ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_LOW;
     Priority = "Low";
-  } else if (Queue->isPriorityHigh()) {
+  } else if (ur::level_zero::v1::v1_cast(Queue)->isPriorityHigh()) {
     ZeCommandQueueDesc.priority = ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_HIGH;
     Priority = "High";
   }
@@ -2504,9 +2518,9 @@ ur_command_list_ptr_t &ur_queue_handle_t_::ur_queue_group_t::getImmCmdList() {
     ZeCommandQueueDesc.flags |= ZE_COMMAND_QUEUE_FLAG_EXPLICIT_ONLY;
   }
 
-  if (Queue->Device->Platform->allowDriverInOrderLists(
+  if (ur::level_zero::v1::v1_cast(Queue)->Device->Platform->allowDriverInOrderLists(
           true /*Only Allow Driver In Order List if requested*/) &&
-      Queue->isInOrderQueue()) {
+      ur::level_zero::v1::v1_cast(Queue)->isInOrderQueue()) {
     isInOrderList = true;
     ZeCommandQueueDesc.flags |= ZE_COMMAND_QUEUE_FLAG_IN_ORDER;
   }
@@ -2516,14 +2530,17 @@ ur_command_list_ptr_t &ur_queue_handle_t_::ur_queue_group_t::getImmCmdList() {
   ze_command_list_handle_t ZeCommandList = nullptr;
   {
     // Acquire lock to avoid race conditions.
-    std::scoped_lock<ur_mutex> Lock(Queue->Context->ZeCommandListCacheMutex);
+    std::scoped_lock<ur_mutex> Lock(ur::level_zero::v1::v1_cast(ur::level_zero::v1::v1_cast(Queue)->Context)->ZeCommandListCacheMutex);
     // Under mutex since operator[] does insertion on the first usage for every
     // unique ZeDevice.
     auto &ZeCommandListCache =
         isCopy()
-            ? Queue->Context->ZeCopyCommandListCache[Queue->Device->ZeDevice]
-            : Queue->Context
-                  ->ZeComputeCommandListCache[Queue->Device->ZeDevice];
+            ? ur::level_zero::v1::v1_cast(
+                  ur::level_zero::v1::v1_cast(Queue)->Context)
+                  ->ZeCopyCommandListCache[ur::level_zero::v1::v1_cast(Queue)->Device->ZeDevice]
+            : ur::level_zero::v1::v1_cast(
+                  ur::level_zero::v1::v1_cast(Queue)->Context)
+                  ->ZeComputeCommandListCache[ur::level_zero::v1::v1_cast(Queue)->Device->ZeDevice];
     for (auto ZeCommandListIt = ZeCommandListCache.begin();
          ZeCommandListIt != ZeCommandListCache.end(); ++ZeCommandListIt) {
       const auto &Desc = (*ZeCommandListIt).second.ZeQueueDesc;
@@ -2548,20 +2565,20 @@ ur_command_list_ptr_t &ur_queue_handle_t_::ur_queue_group_t::getImmCmdList() {
     UR_LOG(DEBUG,
            "create command list ordinal: {}, type: immediate, device: "
            "{}, inOrder: {}",
-           ZeCommandQueueDesc.ordinal, Queue->Device->ZeDevice, isInOrderList);
+           ZeCommandQueueDesc.ordinal, ur::level_zero::v1::v1_cast(Queue)->Device->ZeDevice, isInOrderList);
 
     ZE_CALL_NOCHECK(zeCommandListCreateImmediate,
-                    (Queue->Context->ZeContext, Queue->Device->ZeDevice,
+                    (ur::level_zero::v1::v1_cast(ur::level_zero::v1::v1_cast(Queue)->Context)->ZeContext, ur::level_zero::v1::v1_cast(Queue)->Device->ZeDevice,
                      &ZeCommandQueueDesc, &ZeCommandList));
   }
 
   ImmCmdLists[Index] =
-      Queue->CommandListMap
+      ur::level_zero::v1::v1_cast(Queue)->CommandListMap
           .insert(std::pair<ze_command_list_handle_t, ur_command_list_info_t>{
               ZeCommandList,
               ur_command_list_info_t(
                   nullptr, true, false, nullptr, ZeCommandQueueDesc,
-                  Queue->useCompletionBatching(), true, isInOrderList, true)})
+                  ur::level_zero::v1::v1_cast(Queue)->useCompletionBatching(), true, isInOrderList, true)})
           .first;
 
   return ImmCmdLists[Index];
@@ -2590,7 +2607,7 @@ static const size_t ImmCmdListsEventCleanupThreshold = [] {
   return Threshold;
 }();
 
-size_t ur_queue_handle_t_::getImmdCmmdListsEventCleanupThreshold() {
+size_t ur::level_zero::v1::ur_queue_handle_t_::getImmdCmmdListsEventCleanupThreshold() {
   return useCompletionBatching() ? CompletionEventsPerBatch
                                  : ImmCmdListsEventCleanupThreshold;
 }

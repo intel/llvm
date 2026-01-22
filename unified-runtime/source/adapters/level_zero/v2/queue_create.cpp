@@ -18,7 +18,7 @@
 
 static const bool ForceBatched = getenv_tobool("UR_L0_V2_FORCE_BATCHED");
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 
 using queue_group_type = ur_device_handle_t_::queue_group_info_t::type;
 
@@ -54,14 +54,16 @@ static event_flags_t eventFlagsFromQueueFlags(ur_queue_flags_t flags) {
   return eventFlags;
 }
 
-} // namespace v2
+} // namespace ur::level_zero::v2
 
-namespace ur::level_zero {
+namespace ur::level_zero::v2 {
+
+using v2::v2_cast;
 ur_result_t urQueueCreate(ur_context_handle_t hContext,
                           ur_device_handle_t hDevice,
                           const ur_queue_properties_t *pProperties,
                           ur_queue_handle_t *phQueue) try {
-  if (!hContext->isValidDevice(hDevice)) {
+  if (!v2_cast(hContext)->isValidDevice(hDevice)) {
     return UR_RESULT_ERROR_INVALID_DEVICE;
   }
 
@@ -99,22 +101,25 @@ ur_result_t urQueueCreate(ur_context_handle_t hContext,
 
   if (isBatched) {
     // out of order not supported
-    *phQueue = ur_queue_handle_t_::create<v2::ur_queue_batched_t>(
-        hContext, hDevice, v2::getZeOrdinal(hDevice), v2::getZePriority(flags),
-        zeIndex, v2::eventFlagsFromQueueFlags(flags), flags);
+    *phQueue = reinterpret_cast<::ur_queue_handle_t>(
+        ur_queue_handle_t_::create<v2::ur_queue_batched_t>(
+            hContext, hDevice, v2::getZeOrdinal(hDevice),
+            v2::getZePriority(flags), zeIndex,
+            v2::eventFlagsFromQueueFlags(flags), flags));
   } else {
     if (isOutOfOrder) {
-      *phQueue =
+      *phQueue = reinterpret_cast<::ur_queue_handle_t>(
           ur_queue_handle_t_::create<v2::ur_queue_immediate_out_of_order_t>(
               hContext, hDevice, v2::getZeOrdinal(hDevice),
               v2::getZePriority(flags), zeIndex,
-              v2::eventFlagsFromQueueFlags(flags), flags);
+              v2::eventFlagsFromQueueFlags(flags), flags));
     } else {
       // immediate
-      *phQueue = ur_queue_handle_t_::create<v2::ur_queue_immediate_in_order_t>(
-          hContext, hDevice, v2::getZeOrdinal(hDevice),
-          v2::getZePriority(flags), zeIndex,
-          v2::eventFlagsFromQueueFlags(flags), flags);
+      *phQueue = reinterpret_cast<::ur_queue_handle_t>(
+          ur_queue_handle_t_::create<v2::ur_queue_immediate_in_order_t>(
+              hContext, hDevice, v2::getZeOrdinal(hDevice),
+              v2::getZePriority(flags), zeIndex,
+              v2::eventFlagsFromQueueFlags(flags), flags));
     }
   }
 
@@ -189,12 +194,12 @@ ur_result_t urQueueCreateWithNativeHandle(
         }
       });
 
-  *phQueue = ur_queue_handle_t_::create<v2::ur_queue_immediate_in_order_t>(
+  *phQueue = reinterpret_cast<::ur_queue_handle_t>(ur_queue_handle_t_::create<v2::ur_queue_immediate_in_order_t>(
       hContext, hDevice, std::move(commandListHandle),
-      v2::eventFlagsFromQueueFlags(flags), flags);
+      v2::eventFlagsFromQueueFlags(flags), flags));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
-} // namespace ur::level_zero
+} // namespace ur::level_zero::v2

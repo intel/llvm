@@ -44,7 +44,7 @@
 // ur_queue_flags_t or globally, through the environment variable
 // UR_L0_V2_FORCE_BATCHED=1.
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 
 // The limit of regular command lists stored for execution; if exceeded, the
 // vector is cleared as part of queueFinish and slots are renewed.
@@ -159,7 +159,7 @@ public:
   void setGraphCapture(bool active) { graphCaptureActive = active; }
 };
 
-struct ur_queue_batched_t : ur_object, ur_queue_t_ {
+struct ur_queue_batched_t : ur_handle_base_t, ur_queue_t_ {
 private:
   ur_context_handle_t hContext;
   ur_device_handle_t hDevice;
@@ -192,7 +192,7 @@ private:
   v2::raii::command_list_unique_handle getNewRegularCmdList() {
     TRACK_SCOPE_LATENCY("ur_queue_batched_t::getNewRegularCmdList");
 
-    return hContext->getCommandListCache().getRegularCommandList(
+    return v2_cast(hContext)->getCommandListCache().getRegularCommandList(
         hDevice->ZeDevice, regularCmdListDesc);
   }
 
@@ -497,4 +497,4 @@ public:
   ur::RefCount RefCount;
 };
 
-} // namespace v2
+} // namespace ur::level_zero::v2

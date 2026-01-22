@@ -56,11 +56,14 @@ struct ur_ze_external_memory_data {
   size_t size;
 };
 
-struct ur_device_handle_t_ : ur_object {
+struct ur_device_handle_t_ : ur_shared_handle_base_t {
   ur_device_handle_t_(ze_device_handle_t Device, ur_platform_handle_t Plt,
                       ur_device_handle_t ParentDevice = nullptr)
       : ZeDevice{Device}, Platform{Plt}, RootDevice{ParentDevice},
         ZeDeviceProperties{}, ZeDeviceComputeProperties{}, Id(std::nullopt) {
+    // Auto-populate ddi_table from the owning platform; the loader's
+    // intercept layer reads this field at offset 0 of the handle.
+    ddi_table = Plt->ddi_table;
     // NOTE: one must additionally call initialize() to complete
     // UR device creation.
   }

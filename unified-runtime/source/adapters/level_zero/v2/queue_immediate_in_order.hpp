@@ -24,9 +24,9 @@
 #include "command_list_manager.hpp"
 #include "lockable.hpp"
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 
-struct ur_queue_immediate_in_order_t : ur_object, ur_queue_t_ {
+struct ur_queue_immediate_in_order_t : ur_handle_base_t, ur_queue_t_ {
 private:
   ur_context_handle_t hContext;
   ur_device_handle_t hDevice;
@@ -585,4 +585,4 @@ public:
   ur::RefCount RefCount;
 };
 
-} // namespace v2
+} // namespace ur::level_zero::v2

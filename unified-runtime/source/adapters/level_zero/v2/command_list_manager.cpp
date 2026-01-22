@@ -8,16 +8,22 @@
 //===----------------------------------------------------------------------===//
 
 #include "command_list_manager.hpp"
-#include "../helpers/kernel_helpers.hpp"
-#include "../helpers/memory_helpers.hpp"
-#include "../sampler.hpp"
-#include "../ur_interface_loader.hpp"
+#include "../common/helpers/kernel_helpers.hpp"
+#include "../common/helpers/memory_helpers.hpp"
+#include "../common/sampler.hpp"
 #include "command_buffer.hpp"
 #include "common.hpp"
 #include "context.hpp"
 #include "graph.hpp"
 #include "kernel.hpp"
 #include "memory.hpp"
+#include "ur_interface_loader.hpp"
+
+// After chunk 2 wraps v2 concrete handle structs into `ur::level_zero::v2`,
+// this TU still names them unqualified (e.g. `ur_mem_buffer_t`, `v2_cast`).
+// Pull the namespace in so those names continue to resolve without having
+// to qualify every member function definition.
+using namespace ur::level_zero::v2;
 
 thread_local std::vector<ze_event_handle_t> waitList;
 // The wait_list_view is a wrapper for eventsWaitLists, which:
@@ -53,11 +59,11 @@ void getZeHandlesBuffer(const ur_event_handle_t *phWaitEvents,
     // checking if the current queue has created the given event applies only
     // to batched queues
     if constexpr (HasBatchedQueue) {
-      if (currentBatchedQueue != phWaitEvents[i]->getQueue()) {
-        phWaitEvents[i]->onWaitListUse();
+      if (currentBatchedQueue != v2::v2_cast(phWaitEvents[i])->getQueue()) {
+        v2::v2_cast(phWaitEvents[i])->onWaitListUse();
       }
     }
-    waitList[i] = phWaitEvents[i]->getZeEvent();
+    waitList[i] = v2::v2_cast(phWaitEvents[i])->getZeEvent();
   }
 }
 
@@ -100,11 +106,11 @@ void wait_list_view::addEvent(ur_event_handle_t phEvent) {
 
   if (handles) {
     assert(num != max_size);
-    handles[num] = phEvent->getZeEvent();
+    handles[num] = v2::v2_cast(phEvent)->getZeEvent();
     num++;
   } else {
     waitList.resize(0);
-    waitList.emplace_back(phEvent->getZeEvent());
+    waitList.emplace_back(v2::v2_cast(phEvent)->getZeEvent());
     num++;
     handles = waitList.data();
   }
@@ -222,14 +228,14 @@ ze_event_handle_t
 ur_command_list_manager::getSignalEvent(ur_event_handle_t hUserEvent,
                                         ur_command_t commandType) {
   if (hUserEvent) {
-    hUserEvent->setCommandType(commandType);
-    return hUserEvent->getZeEvent();
+    v2::v2_cast(hUserEvent)->setCommandType(commandType);
+    return v2::v2_cast(hUserEvent)->getZeEvent();
   } else {
     return nullptr;
   }
 }
 
-// must be called with hKernel->Mutex held
+// must be called with v2_cast(hKernel)->Mutex held
 ur_result_t ur_command_list_manager::appendKernelLaunchLocked(
     ur_kernel_handle_t hKernel, ze_kernel_handle_t hZeKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
@@ -245,7 +251,7 @@ ur_result_t ur_command_list_manager::appendKernelLaunchLocked(
 
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_KERNEL_LAUNCH);
 
-  UR_CALL(hKernel->prepareForSubmission(
+  UR_CALL(v2_cast(hKernel)->prepareForSubmission(
       hContext.get(), hDevice.get(), pGlobalWorkOffset, workDim, WG[0], WG[1],
       WG[2], getZeCommandList(), waitListView));
 
@@ -256,7 +262,7 @@ ur_result_t ur_command_list_manager::appendKernelLaunchLocked(
     ze_group_size_t groupSize = {WG[0], WG[1], WG[2]};
     ZE2UR_CALL(zeCommandListAppendLaunchKernelWithArguments,
                (getZeCommandList(), hZeKernel, zeThreadGroupDimensions,
-                groupSize, hKernel->kernelArgs.data(), pNext, zeSignalEvent,
+                groupSize, v2_cast(hKernel)->kernelArgs.data(), pNext, zeSignalEvent,
                 waitListView.num, waitListView.handles));
   } else if (cooperative) {
     // zeCommandListAppendLaunchCooperativeKernel
@@ -284,7 +290,7 @@ ur_result_t ur_command_list_manager::appendKernelLaunchLocked(
 static ur_result_t kernelLaunchChecks(ur_kernel_handle_t hKernel,
                                       uint32_t workDim) {
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hKernel->getProgramHandle(), UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(v2_cast(hKernel)->getProgramHandle(), UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
@@ -302,9 +308,9 @@ ur_result_t ur_command_list_manager::appendKernelLaunchUnlocked(
     return checkResult;
   }
 
-  ze_kernel_handle_t hZeKernel = hKernel->getZeHandle(hDevice.get());
+  ze_kernel_handle_t hZeKernel = v2_cast(hKernel)->getZeHandle(hDevice.get());
 
-  std::scoped_lock<ur_shared_mutex> Lock(hKernel->Mutex);
+  std::scoped_lock<ur_shared_mutex> Lock(v2_cast(hKernel)->Mutex);
 
   return appendKernelLaunchLocked(
       hKernel, hZeKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
@@ -377,7 +383,7 @@ ur_result_t ur_command_list_manager::appendMemBufferFill(
     ur_event_handle_t phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendMemBufferFill");
 
-  auto hBuffer = hMem->getBuffer();
+  auto hBuffer = v2_cast(hMem)->getBuffer();
   UR_ASSERT(offset + size <= hBuffer->getSize(), UR_RESULT_ERROR_INVALID_SIZE);
 
   std::scoped_lock<ur_shared_mutex> lock(hBuffer->getMutex());
@@ -464,7 +470,7 @@ ur_result_t ur_command_list_manager::appendMemBufferRead(
     void *pDst, wait_list_view &waitListView, ur_event_handle_t phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendMemBufferRead");
 
-  auto hBuffer = hMem->getBuffer();
+  auto hBuffer = v2_cast(hMem)->getBuffer();
   UR_ASSERT(offset + size <= hBuffer->getSize(), UR_RESULT_ERROR_INVALID_SIZE);
 
   ur_usm_handle_t dstHandle(hContext.get(), size, pDst);
@@ -481,7 +487,7 @@ ur_result_t ur_command_list_manager::appendMemBufferWrite(
     const void *pSrc, wait_list_view &waitListView, ur_event_handle_t phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendMemBufferWrite");
 
-  auto hBuffer = hMem->getBuffer();
+  auto hBuffer = v2_cast(hMem)->getBuffer();
   UR_ASSERT(offset + size <= hBuffer->getSize(), UR_RESULT_ERROR_INVALID_SIZE);
 
   ur_usm_handle_t srcHandle(hContext.get(), size, pSrc);
@@ -499,8 +505,8 @@ ur_result_t ur_command_list_manager::appendMemBufferCopy(
     ur_event_handle_t phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendMemBufferCopy");
 
-  auto hBufferSrc = hSrc->getBuffer();
-  auto hBufferDst = hDst->getBuffer();
+  auto hBufferSrc = v2_cast(hSrc)->getBuffer();
+  auto hBufferDst = v2_cast(hDst)->getBuffer();
 
   UR_ASSERT(srcOffset + size <= hBufferSrc->getSize(),
             UR_RESULT_ERROR_INVALID_SIZE);
@@ -522,7 +528,7 @@ ur_result_t ur_command_list_manager::appendMemBufferReadRect(
     void *pDst, wait_list_view &waitListView, ur_event_handle_t phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendMemBufferReadRect");
 
-  auto hBuffer = hMem->getBuffer();
+  auto hBuffer = v2_cast(hMem)->getBuffer();
   ur_usm_handle_t dstHandle(hContext.get(), 0, pDst);
 
   std::scoped_lock<ur_shared_mutex> lock(hBuffer->getMutex());
@@ -540,7 +546,7 @@ ur_result_t ur_command_list_manager::appendMemBufferWriteRect(
     void *pSrc, wait_list_view &waitListView, ur_event_handle_t phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendMemBufferWriteRect");
 
-  auto hBuffer = hMem->getBuffer();
+  auto hBuffer = v2_cast(hMem)->getBuffer();
   ur_usm_handle_t srcHandle(hContext.get(), 0, pSrc);
 
   std::scoped_lock<ur_shared_mutex> lock(hBuffer->getMutex());
@@ -558,8 +564,8 @@ ur_result_t ur_command_list_manager::appendMemBufferCopyRect(
     wait_list_view &waitListView, ur_event_handle_t phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendMemBufferCopyRect");
 
-  auto hBufferSrc = hSrc->getBuffer();
-  auto hBufferDst = hDst->getBuffer();
+  auto hBufferSrc = v2_cast(hSrc)->getBuffer();
+  auto hBufferDst = v2_cast(hDst)->getBuffer();
 
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> lock(
       hBufferSrc->getMutex(), hBufferDst->getMutex());
@@ -598,10 +604,10 @@ ur_result_t ur_command_list_manager::appendTimestampRecordingExp(
 
   auto [pWaitEvents, numWaitEvents, _] = waitListView;
 
-  phEvent->recordStartTimestamp();
+  v2::v2_cast(phEvent)->recordStartTimestamp();
 
   auto [timestampPtr, zeSignalEvent] =
-      (phEvent)->getEventEndTimestampAndHandle();
+      v2::v2_cast(phEvent)->getEventEndTimestampAndHandle();
 
   ZE2UR_CALL(zeCommandListAppendWriteGlobalTimestamp,
              (getZeCommandList(), timestampPtr, zeSignalEvent, numWaitEvents,
@@ -635,24 +641,24 @@ ur_result_t ur_command_list_manager::appendCommandBufferExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, wait_list_view &waitListView,
     ur_event_handle_t phEvent) {
 
-  auto bufferCommandListLocked = hCommandBuffer->commandListManager.lock();
+  auto bufferCommandListLocked = v2_cast(hCommandBuffer)->commandListManager.lock();
   ze_command_list_handle_t commandBufferCommandList =
       bufferCommandListLocked->zeCommandList.get();
 
   assert(phEvent);
 
   ur_event_handle_t executionEvent =
-      hCommandBuffer->getExecutionEventUnlocked();
+      v2_cast(hCommandBuffer)->getExecutionEventUnlocked();
 
   if (executionEvent != nullptr) {
     ZE2UR_CALL(zeEventHostSynchronize,
-               (executionEvent->getZeEvent(), UINT64_MAX));
+               (v2::v2_cast(executionEvent)->getZeEvent(), UINT64_MAX));
   }
 
   UR_CALL(appendGenericCommandListsExp(1, &commandBufferCommandList, phEvent,
                                        waitListView,
                                        UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP));
-  UR_CALL(hCommandBuffer->registerExecutionEventUnlocked(phEvent));
+  UR_CALL(v2_cast(hCommandBuffer)->registerExecutionEventUnlocked(phEvent));
 
   return UR_RESULT_SUCCESS;
 }
@@ -663,7 +669,7 @@ ur_result_t ur_command_list_manager::appendMemImageRead(
     wait_list_view &waitListView, ur_event_handle_t phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendMemImageRead");
 
-  auto hImage = hMem->getImage();
+  auto hImage = v2_cast(hMem)->getImage();
 
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_MEM_IMAGE_READ);
 
@@ -687,7 +693,7 @@ ur_result_t ur_command_list_manager::appendMemImageWrite(
     wait_list_view &waitListView, ur_event_handle_t phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendMemImageWrite");
 
-  auto hImage = hMem->getImage();
+  auto hImage = v2_cast(hMem)->getImage();
 
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_MEM_IMAGE_WRITE);
 
@@ -711,8 +717,8 @@ ur_result_t ur_command_list_manager::appendMemImageCopy(
     wait_list_view &waitListView, ur_event_handle_t phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendMemImageWrite");
 
-  auto hImageSrc = hSrc->getImage();
-  auto hImageDst = hDst->getImage();
+  auto hImageSrc = v2_cast(hSrc)->getImage();
+  auto hImageDst = v2_cast(hDst)->getImage();
 
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_MEM_IMAGE_COPY);
 
@@ -736,7 +742,7 @@ ur_result_t ur_command_list_manager::appendMemBufferMap(
     ur_event_handle_t phEvent, void **ppRetMap) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendMemBufferMap");
 
-  auto hBuffer = hMem->getBuffer();
+  auto hBuffer = v2_cast(hMem)->getBuffer();
 
   std::scoped_lock<ur_shared_mutex> lock(hBuffer->getMutex());
 
@@ -770,7 +776,7 @@ ur_command_list_manager::appendMemUnmap(ur_mem_handle_t hMem, void *pMappedPtr,
                                         ur_event_handle_t phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendMemUnmap");
 
-  auto hBuffer = hMem->getBuffer();
+  auto hBuffer = v2_cast(hMem)->getBuffer();
 
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_MEM_UNMAP);
 
@@ -874,17 +880,17 @@ ur_result_t ur_command_list_manager::appendUSMAllocHelper(
     const ur_exp_async_usm_alloc_properties_t *, wait_list_view &waitListView,
     void **ppMem, ur_event_handle_t phEvent, ur_usm_type_t type) {
   if (!pPool) {
-    pPool = hContext->getAsyncPool();
+    pPool = v2::v2_cast(hContext.get())->getAsyncPool();
   }
 
   auto device = (type == UR_USM_TYPE_HOST) ? nullptr : hDevice.get();
 
   ur_event_handle_t originAllocEvent = nullptr;
-  auto asyncAlloc = pPool->allocateEnqueued(
+  auto asyncAlloc = v2::v2_cast(pPool)->allocateEnqueued(
       hContext.get(), Queue, Queue->isInOrder(), device, type, size);
   if (!asyncAlloc) {
-    auto Ret =
-        pPool->allocate(hContext.get(), device, nullptr, type, size, ppMem);
+    auto Ret = v2::v2_cast(pPool)->allocate(hContext.get(), device, nullptr,
+                                            type, size, ppMem);
     if (Ret) {
       return Ret;
     }
@@ -923,7 +929,7 @@ ur_result_t ur_command_list_manager::appendUSMAllocHelper(
                (getZeCommandList(), zeSignalEvent));
   }
   if (originAllocEvent) {
-    originAllocEvent->release();
+    v2::v2_cast(originAllocEvent)->release();
   }
 
   return UR_RESULT_SUCCESS;
@@ -942,7 +948,7 @@ ur_result_t ur_command_list_manager::appendUSMFreeExp(
     return UR_RESULT_ERROR_INVALID_MEM_OBJECT;
   }
 
-  UsmPool *usmPool = nullptr;
+  v2::UsmPool *usmPool = nullptr;
   umfRet = umfPoolGetTag(hPool, (void **)&usmPool);
   if (umfRet != UMF_RESULT_SUCCESS || !usmPool) {
     // This should never happen
@@ -970,7 +976,7 @@ ur_result_t ur_command_list_manager::appendUSMFreeExp(
   // If event is specified, it's also going to be inserted
   // into the async pool, so it needs to be retained.
   if (phEvent) {
-    phEvent->retain();
+    v2_cast(phEvent)->retain();
   }
 
   // Insert must be done after the signal event is appended.
@@ -1002,7 +1008,7 @@ ur_result_t ur_command_list_manager::bindlessImagesWaitExternalSemaphoreExp(
     ur_exp_external_semaphore_handle_t hSemaphore, bool hasWaitValue,
     uint64_t waitValue, wait_list_view &waitListView,
     ur_event_handle_t phEvent) {
-  auto hPlatform = hContext->getPlatform();
+  auto hPlatform = v2::v2_cast(hContext.get())->getPlatform();
   if (hPlatform->ZeExternalSemaphoreExt.Supported == false) {
     UR_LOG_LEGACY(ERR,
                   logger::LegacyMessage("[UR][L0] {} function not supported!"),
@@ -1031,7 +1037,7 @@ ur_result_t ur_command_list_manager::bindlessImagesSignalExternalSemaphoreExp(
     ur_exp_external_semaphore_handle_t hSemaphore, bool hasSignalValue,
     uint64_t signalValue, wait_list_view &waitListView,
     ur_event_handle_t phEvent) {
-  auto hPlatform = hContext->getPlatform();
+  auto hPlatform = v2::v2_cast(hContext.get())->getPlatform();
   if (hPlatform->ZeExternalSemaphoreExt.Supported == false) {
     UR_LOG_LEGACY(ERR,
                   logger::LegacyMessage("[UR][L0] {} function not supported!"),
@@ -1072,7 +1078,7 @@ void ur_command_list_manager::recordSubmittedKernel(
     ur_kernel_handle_t hKernel) {
   auto [_, inserted] = submittedKernels.insert(hKernel);
   if (inserted) {
-    hKernel->RefCount.retain();
+    v2_cast(hKernel)->RefCount.retain();
   }
 }
 
@@ -1118,7 +1124,7 @@ ur_result_t ur_command_list_manager::appendEventsWaitWithBarrier(
 ur_result_t ur_command_list_manager::releaseSubmittedKernels() {
   // Free deferred kernels
   for (auto &hKernel : submittedKernels) {
-    UR_CALL(hKernel->release());
+    UR_CALL(v2_cast(hKernel)->release());
   }
   submittedKernels.clear();
   return UR_RESULT_SUCCESS;
@@ -1132,34 +1138,35 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpOld(
     const ur_kernel_launch_ext_properties_t *launchPropList,
     wait_list_view &waitListView, ur_event_handle_t phEvent) {
   {
-    std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
+    std::scoped_lock<ur_shared_mutex> guard(v2_cast(hKernel)->Mutex);
     ur_device_handle_t hDevice = this->hDevice.get();
     for (uint32_t argIndex = 0; argIndex < numArgs; argIndex++) {
       switch (pArgs[argIndex].type) {
       case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
-        UR_CALL(hKernel->setArgValue(hDevice, pArgs[argIndex].index,
+        UR_CALL(v2_cast(hKernel)->setArgValue(hDevice, pArgs[argIndex].index,
                                      pArgs[argIndex].size, nullptr, nullptr));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_VALUE:
-        UR_CALL(hKernel->setArgValue(hDevice, pArgs[argIndex].index,
+        UR_CALL(v2_cast(hKernel)->setArgValue(hDevice, pArgs[argIndex].index,
                                      pArgs[argIndex].size, nullptr,
                                      pArgs[argIndex].value.value));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_POINTER:
-        UR_CALL(hKernel->setArgPointer(hDevice, pArgs[argIndex].index, nullptr,
+        UR_CALL(v2_cast(hKernel)->setArgPointer(hDevice, pArgs[argIndex].index, nullptr,
                                        pArgs[argIndex].value.pointer));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ:
         // TODO: import helper for converting ur flags to internal equivalent
-        UR_CALL(hKernel->addPendingMemoryAllocation(
+        UR_CALL(v2_cast(hKernel)->addPendingMemoryAllocation(
             {pArgs[argIndex].value.memObjTuple.hMem,
              ur_mem_buffer_t::device_access_mode_t::read_write,
              pArgs[argIndex].index}));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
-        UR_CALL(
-            hKernel->setArgValue(hDevice, argIndex, sizeof(void *), nullptr,
-                                 &pArgs[argIndex].value.sampler->ZeSampler));
+        UR_CALL(v2_cast(hKernel)->setArgValue(
+            hDevice, argIndex, sizeof(void *), nullptr,
+            &ur::level_zero::common::cast(pArgs[argIndex].value.sampler)
+                 ->ZeSampler));
         break;
       }
       default:
@@ -1188,7 +1195,7 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpNew(
     return checkResult;
   }
 
-  if (numArgs != hKernel->getCommonProperties().numKernelArgs) {
+  if (numArgs != v2_cast(hKernel)->getCommonProperties().numKernelArgs) {
     setErrorMessage("Wrong number of kernel arguments",
                     UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX,
                     static_cast<int32_t>(ZE_RESULT_ERROR_INVALID_ARGUMENT));
@@ -1227,14 +1234,14 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpNew(
         _launchPropList->pNext);
   }
 
-  ze_kernel_handle_t hZeKernel = hKernel->getZeHandle(hDevice.get());
+  ze_kernel_handle_t hZeKernel = v2_cast(hKernel)->getZeHandle(hDevice.get());
 
-  std::scoped_lock<ur_shared_mutex> Lock(hKernel->Mutex);
+  std::scoped_lock<ur_shared_mutex> Lock(v2_cast(hKernel)->Mutex);
 
   // kernelMemObj contains kernel memory objects that
   // UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ kernelArgs pointers point to
-  hKernel->kernelMemObj.resize(numArgs, 0);
-  hKernel->kernelArgs.resize(numArgs, 0);
+  v2_cast(hKernel)->kernelMemObj.resize(numArgs, 0);
+  v2_cast(hKernel)->kernelArgs.resize(numArgs, 0);
 
   for (uint32_t argIndex = 0; argIndex < numArgs; argIndex++) {
     if (pArgs[argIndex].index != argIndex) {
@@ -1246,28 +1253,30 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpNew(
 
     switch (pArgs[argIndex].type) {
     case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
-      hKernel->kernelArgs[argIndex] =
+      v2_cast(hKernel)->kernelArgs[argIndex] =
           reinterpret_cast<void *>(const_cast<size_t *>(&pArgs[argIndex].size));
       break;
     case UR_EXP_KERNEL_ARG_TYPE_VALUE:
-      hKernel->kernelArgs[argIndex] =
+      v2_cast(hKernel)->kernelArgs[argIndex] =
           const_cast<void *>(pArgs[argIndex].value.value);
       break;
     case UR_EXP_KERNEL_ARG_TYPE_POINTER:
-      hKernel->kernelArgs[argIndex] = reinterpret_cast<void *>(
+      v2_cast(hKernel)->kernelArgs[argIndex] = reinterpret_cast<void *>(
           const_cast<void **>(&pArgs[argIndex].value.pointer));
       break;
     case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ:
       // compute zePtr for the given memory handle and store it in
-      // hKernel->kernelMemObj[argIndex]
-      UR_CALL(hKernel->computeZePtr(
+      // v2_cast(hKernel)->kernelMemObj[argIndex]
+      UR_CALL(v2_cast(hKernel)->computeZePtr(
           pArgs[argIndex].value.memObjTuple.hMem, hDevice.get(),
           ur_mem_buffer_t::device_access_mode_t::read_write, getZeCommandList(),
-          waitListView, &hKernel->kernelMemObj[argIndex]));
-      hKernel->kernelArgs[argIndex] = &hKernel->kernelMemObj[argIndex];
+          waitListView, &v2_cast(hKernel)->kernelMemObj[argIndex]));
+      v2_cast(hKernel)->kernelArgs[argIndex] = &v2_cast(hKernel)->kernelMemObj[argIndex];
       break;
     case UR_EXP_KERNEL_ARG_TYPE_SAMPLER:
-      hKernel->kernelArgs[argIndex] = &pArgs[argIndex].value.sampler->ZeSampler;
+      v2_cast(hKernel)->kernelArgs[argIndex] =
+          &ur::level_zero::common::cast(pArgs[argIndex].value.sampler)
+               ->ZeSampler;
       break;
     default:
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -1300,7 +1309,7 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExp(
     cooperativeKernelLaunchRequested = true;
   }
 
-  ur_platform_handle_t hPlatform = hContext->getPlatform();
+  ur_platform_handle_t hPlatform = v2::v2_cast(hContext.get())->getPlatform();
   bool KernelWithArgsSupported =
       hPlatform->ZeCommandListAppendLaunchKernelWithArgumentsExt.Supported;
   bool CooperativeCompatible =
@@ -1334,7 +1343,7 @@ ur_result_t ur_command_list_manager::beginGraphCapture() {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
-  ZE2UR_CALL(hContext.get()
+  ZE2UR_CALL(v2::v2_cast(hContext.get())
                  ->getPlatform()
                  ->ZeGraphExt.zeCommandListBeginGraphCaptureExp,
              (getZeCommandList(), nullptr));
@@ -1349,10 +1358,10 @@ ur_command_list_manager::beginCaptureIntoGraph(ur_exp_graph_handle_t hGraph) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
-  ZE2UR_CALL(hContext.get()
+  ZE2UR_CALL(v2::v2_cast(hContext.get())
                  ->getPlatform()
                  ->ZeGraphExt.zeCommandListBeginCaptureIntoGraphExp,
-             (getZeCommandList(), hGraph->getZeHandle(), nullptr));
+             (getZeCommandList(), v2_cast(hGraph)->getZeHandle(), nullptr));
   graphCapture.enableCapture(hGraph);
 
   return UR_RESULT_SUCCESS;
@@ -1366,17 +1375,21 @@ ur_command_list_manager::endGraphCapture(ur_exp_graph_handle_t *phGraph) {
 
   ze_graph_handle_t zeGraph = nullptr;
   ZE2UR_CALL(
-      hContext.get()->getPlatform()->ZeGraphExt.zeCommandListEndGraphCaptureExp,
+      v2::v2_cast(hContext.get())->getPlatform()->ZeGraphExt.zeCommandListEndGraphCaptureExp,
       (getZeCommandList(), &zeGraph, nullptr));
   auto graph = graphCapture.getGraph();
   graphCapture.disableCapture();
 
   if (!graph) {
-    std::scoped_lock<ur_shared_mutex> lock(hContext.get()->GraphMapMutex);
-    graph = hContext.get()->getGraphFromZeHandle(zeGraph);
+    auto *ctx = v2::v2_cast(hContext.get());
+    std::scoped_lock<ur_shared_mutex> lock(ctx->GraphMapMutex);
+    graph = ctx->getGraphFromZeHandle(zeGraph);
     if (!graph) {
-      graph = new ur_exp_graph_handle_t_(hContext.get(), zeGraph);
-      hContext.get()->registerGraph(zeGraph, graph);
+      auto *pGraph =
+          new ur::level_zero::v2::ur_exp_graph_handle_t_(hContext.get(),
+                                                        zeGraph);
+      graph = reinterpret_cast<::ur_exp_graph_handle_t>(pGraph);
+      ctx->registerGraph(zeGraph, graph);
     }
   }
   *phGraph = graph;
@@ -1394,8 +1407,8 @@ ur_command_list_manager::appendGraph(ur_exp_executable_graph_handle_t hGraph,
 
   auto zeSignalEvent = getSignalEvent(hEvent, UR_COMMAND_ENQUEUE_GRAPH_EXP);
   ZE2UR_CALL(
-      hContext.get()->getPlatform()->ZeGraphExt.zeCommandListAppendGraphExp,
-      (getZeCommandList(), hGraph->getZeHandle(), nullptr, zeSignalEvent,
+      v2::v2_cast(hContext.get())->getPlatform()->ZeGraphExt.zeCommandListAppendGraphExp,
+      (getZeCommandList(), v2_cast(hGraph)->getZeHandle(), nullptr, zeSignalEvent,
        waitListView.num, waitListView.handles));
 
   return UR_RESULT_SUCCESS;
@@ -1407,7 +1420,7 @@ ur_result_t ur_command_list_manager::queryGraphCaptureActive(bool *pResult) {
   }
 
   ze_result_t ZeResult =
-      ZE_CALL_NOCHECK(hContext.get()
+      ZE_CALL_NOCHECK(v2::v2_cast(hContext.get())
                           ->getPlatform()
                           ->ZeGraphExt.zeCommandListIsGraphCaptureEnabledExp,
                       (getZeCommandList()));
@@ -1418,8 +1431,9 @@ ur_result_t ur_command_list_manager::queryGraphCaptureActive(bool *pResult) {
 }
 
 ur_result_t ur_command_list_manager::getGraph(ur_exp_graph_handle_t *phGraph) {
+  auto *ctx = v2::v2_cast(hContext.get());
   auto zeGetGraph =
-      hContext.get()->getPlatform()->ZeGraphExt.zeCommandListGetGraphExp;
+      ctx->getPlatform()->ZeGraphExt.zeCommandListGetGraphExp;
   if (!checkGraphExtensionSupport(hContext.get()) || !zeGetGraph) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
@@ -1442,11 +1456,14 @@ ur_result_t ur_command_list_manager::getGraph(ur_exp_graph_handle_t *phGraph) {
 
   ur_exp_graph_handle_t hUrGraph = nullptr;
   {
-    std::scoped_lock<ur_shared_mutex> lock(hContext.get()->GraphMapMutex);
-    hUrGraph = hContext.get()->getGraphFromZeHandle(hZeGraph);
+    std::scoped_lock<ur_shared_mutex> lock(ctx->GraphMapMutex);
+    hUrGraph = ctx->getGraphFromZeHandle(hZeGraph);
     if (!hUrGraph) {
-      hUrGraph = new ur_exp_graph_handle_t_(hContext.get(), hZeGraph);
-      hContext.get()->registerGraph(hZeGraph, hUrGraph);
+      auto *pGraph =
+          new ur::level_zero::v2::ur_exp_graph_handle_t_(hContext.get(),
+                                                         hZeGraph);
+      hUrGraph = reinterpret_cast<::ur_exp_graph_handle_t>(pGraph);
+      ctx->registerGraph(hZeGraph, hUrGraph);
       if (graphCapture.isActive()) {
         graphCapture.enableCapture(hUrGraph);
       }
@@ -1462,7 +1479,7 @@ ur_result_t ur_command_list_manager::appendHostTaskExp(
     const ur_exp_host_task_properties_t *pProperties,
     wait_list_view &waitListView, ur_event_handle_t phEvent) {
 
-  ur_platform_handle_t hPlatform = hContext->getPlatform();
+  ur_platform_handle_t hPlatform = v2::v2_cast(hContext.get())->getPlatform();
 
   if (!hPlatform->ZeHostTaskExt.Supported) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;

@@ -23,7 +23,7 @@
 #include "event.hpp"
 #include "program.hpp"
 #include "queue.hpp"
-#include "sampler.hpp"
+#include "common/sampler.hpp"
 #include <umf/ipc.h>
 
 struct ur_device_handle_t_;
@@ -60,7 +60,9 @@ ur_result_t enqueueMemCopyRectHelper(
     uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
     ur_event_handle_t *OutEvent, bool PreferCopyEngine = false);
 
-struct ur_mem_handle_t_ : ur_object {
+namespace ur::level_zero::v1 {
+
+struct ur_mem_handle_t_ : ur::level_zero::ur_handle_base_t {
   // Keeps the PI context of this memory handle.
   ur_context_handle_t UrContext;
 
@@ -259,3 +261,11 @@ createUrMemFromZeImage(ur_context_handle_t Context, ze_image_handle_t ZeImage,
   }
   return UR_RESULT_SUCCESS;
 }
+
+} // namespace ur::level_zero::v1
+
+// Expose v1 mem helpers at global scope for v1 .cpp files that use them
+// unqualified.
+using ur::level_zero::v1::ur_buffer;
+using ur::level_zero::v1::ur_image;
+using ur::level_zero::v1::createUrMemFromZeImage;

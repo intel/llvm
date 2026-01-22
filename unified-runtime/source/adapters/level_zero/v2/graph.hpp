@@ -13,7 +13,9 @@
 #include "context.hpp"
 #include "unified-runtime/ur_api.h"
 
-struct ur_exp_graph_handle_t_ : ur_object {
+namespace ur::level_zero::v2 {
+
+struct ur_exp_graph_handle_t_ : v2::ur_handle_base_t {
 public:
   ur_exp_graph_handle_t_(ur_context_handle_t hContext);
   ur_exp_graph_handle_t_(ur_context_handle_t hContext,
@@ -31,7 +33,7 @@ private:
   ze_graph_handle_t zeGraph = nullptr;
 };
 
-struct ur_exp_executable_graph_handle_t_ : ur_object {
+struct ur_exp_executable_graph_handle_t_ : v2::ur_handle_base_t {
 public:
   ur_exp_executable_graph_handle_t_(ur_context_handle_t hContext,
                                     ur_exp_graph_handle_t hGraph);
@@ -51,5 +53,7 @@ private:
 };
 
 inline bool checkGraphExtensionSupport(ur_context_handle_t hContext) {
-  return hContext->getPlatform()->ZeGraphExt.Supported;
+  return v2::v2_cast(hContext)->getPlatform()->ZeGraphExt.Supported;
 }
+
+} // namespace ur::level_zero::v2

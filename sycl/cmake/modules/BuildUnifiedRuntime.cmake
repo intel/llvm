@@ -22,7 +22,7 @@ set(UR_ENABLE_ASSERTIONS "${SYCL_UR_ENABLE_ASSERTIONS}" CACHE BOOL "" FORCE)
 # Here we override the defaults to unified-runtime
 set(UR_BUILD_XPTI_LIBS OFF CACHE BOOL "")
 set(UR_ENABLE_SYMBOLIZER ON CACHE BOOL "Enable symbolizer for sanitizer layer.")
-set(UR_ENABLE_TRACING ON CACHE BOOL "")
+set(UR_ENABLE_TRACING OFF CACHE BOOL "")
 
 set(UR_EXTERNAL_DEPENDENCIES "sycl-headers" CACHE STRING
   "List of external CMake targets for executables/libraries to depend on" FORCE)

@@ -70,6 +70,8 @@ const bool FilterEventWaitList = [] {
   return RetVal;
 }();
 
+namespace ur::level_zero::v1 {
+
 struct ur_ze_event_list_t {
   // List of level zero events for this event list.
   ze_event_handle_t *ZeEventList = {nullptr};
@@ -126,7 +128,7 @@ struct ur_ze_event_list_t {
 
 void printZeEventList(const ur_ze_event_list_t &PiZeEventList);
 
-struct ur_event_handle_t_ : ur_object {
+struct ur_event_handle_t_ : ur::level_zero::ur_handle_base_t {
   ur_event_handle_t_(ze_event_handle_t ZeEvent,
                      ze_event_pool_handle_t ZeEventPool,
                      ur_context_handle_t Context, ur_command_t CommandType,
@@ -265,6 +267,15 @@ struct ur_event_handle_t_ : ur_object {
 
   ur::RefCount RefCount;
 };
+
+} // namespace ur::level_zero::v1
+
+// Expose v1 support types at global scope for v1 .cpp files that still use
+// these names unqualified. The concrete ur_<noun>_handle_t_ types stay
+// strictly namespaced (the public forward decl in ur_api.h uses the global
+// tag name), but these helper structs don't clash.
+using ur::level_zero::v1::ur_ze_event_list_t;
+using ur::level_zero::v1::printZeEventList;
 
 // Helper function to implement zeHostSynchronize.
 // The behavior is to avoid infinite wait during host sync under ZE_DEBUG.

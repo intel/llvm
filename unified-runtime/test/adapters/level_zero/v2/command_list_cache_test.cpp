@@ -36,7 +36,8 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(CommandListCacheTest);
 TEST_P(CommandListCacheTest, CanStoreAndRetriveImmediateAndRegularCmdLists) {
   v2::supported_extensions_descriptor_t supportedExtensions(false, false, false,
                                                             false);
-  v2::command_list_cache_t cache(context->getZeHandle(), supportedExtensions);
+  v2::command_list_cache_t cache(v2::v2_cast(context)->getZeHandle(),
+                                 supportedExtensions);
 
   bool IsInOrder = false;
   uint32_t Ordinal = 0;
@@ -93,7 +94,8 @@ TEST_P(CommandListCacheTest, CanStoreAndRetriveImmediateAndRegularCmdLists) {
 TEST_P(CommandListCacheTest, ImmediateCommandListsHaveProperAttributes) {
   v2::supported_extensions_descriptor_t supportedExtensions(false, false, false,
                                                             false);
-  v2::command_list_cache_t cache(context->getZeHandle(), supportedExtensions);
+  v2::command_list_cache_t cache(v2::v2_cast(context)->getZeHandle(),
+                                 supportedExtensions);
 
   uint32_t numQueueGroups = 0;
   ASSERT_EQ(zeDeviceGetCommandQueueGroupProperties(device->ZeDevice,
@@ -225,19 +227,19 @@ TEST_P(CommandListCacheTest, CommandListsAreReusedByQueues) {
         }
       }
 
-      ASSERT_EQ(context->getCommandListCache().getNumImmediateCommandLists(),
+      ASSERT_EQ(v2::v2_cast(context)->getCommandListCache().getNumImmediateCommandLists(),
                 0);
-      ASSERT_EQ(context->getCommandListCache().getNumRegularCommandLists(), 0);
+      ASSERT_EQ(v2::v2_cast(context)->getCommandListCache().getNumRegularCommandLists(), 0);
     } // Queues scope
 
-    ASSERT_EQ(context->getCommandListCache().getNumImmediateCommandLists(),
+    ASSERT_EQ(v2::v2_cast(context)->getCommandListCache().getNumImmediateCommandLists(),
               NumUniqueQueueTypes);
 
     if (isBatched) {
-      ASSERT_EQ(context->getCommandListCache().getNumRegularCommandLists(),
+      ASSERT_EQ(v2::v2_cast(context)->getCommandListCache().getNumRegularCommandLists(),
                 NumUniqueQueueTypes);
     } else {
-      ASSERT_EQ(context->getCommandListCache().getNumRegularCommandLists(), 0);
+      ASSERT_EQ(v2::v2_cast(context)->getCommandListCache().getNumRegularCommandLists(), 0);
     }
   }
 }
@@ -263,7 +265,7 @@ TEST_P(CommandListCacheTest, CommandListsCacheIsThreadSafe) {
         ASSERT_EQ(urQueueCreate(context, device, &QueueProps, Queue.ptr()),
                   UR_RESULT_SUCCESS);
 
-        ASSERT_LE(context->getCommandListCache().getNumImmediateCommandLists(),
+        ASSERT_LE(v2::v2_cast(context)->getCommandListCache().getNumImmediateCommandLists(),
                   NumThreads);
       }
     });
@@ -273,6 +275,6 @@ TEST_P(CommandListCacheTest, CommandListsCacheIsThreadSafe) {
     Thread.join();
   }
 
-  ASSERT_LE(context->getCommandListCache().getNumImmediateCommandLists(),
+  ASSERT_LE(v2::v2_cast(context)->getCommandListCache().getNumImmediateCommandLists(),
             NumThreads);
 }

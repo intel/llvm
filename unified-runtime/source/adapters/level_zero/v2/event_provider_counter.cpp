@@ -18,7 +18,7 @@
 #include "../device.hpp"
 #include "../platform.hpp"
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 
 provider_counter::provider_counter(ur_platform_handle_t platform,
                                    ur_context_handle_t context,
@@ -34,7 +34,7 @@ provider_counter::provider_counter(ur_platform_handle_t platform,
                      (void **)&this->eventCreateFunc));
 
   ZE2UR_CALL_THROWS(zelLoaderTranslateHandle,
-                    (ZEL_HANDLE_CONTEXT, context->getZeHandle(),
+                    (ZEL_HANDLE_CONTEXT, v2_cast(context)->getZeHandle(),
                      (void **)&translatedContext));
   ZE2UR_CALL_THROWS(
       zelLoaderTranslateHandle,
@@ -113,4 +113,4 @@ std::unique_ptr<event_provider> createProvider(ur_platform_handle_t platform,
   return std::make_unique<provider_normal>(context, queueType, flags);
 }
 
-} // namespace v2
+} // namespace ur::level_zero::v2

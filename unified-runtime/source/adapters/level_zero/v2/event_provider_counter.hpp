@@ -27,7 +27,7 @@
 #include <level_zero/driver_experimental/zex_event.h>
 #include <level_zero/ze_intel_gpu.h>
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 
 typedef ze_result_t (*zexCounterBasedEventCreate)(
     ze_context_handle_t hContext, ze_device_handle_t hDevice,
@@ -61,4 +61,4 @@ std::unique_ptr<event_provider> createProvider(ur_platform_handle_t platform,
                                                ur_device_handle_t device,
                                                event_flags_t flags);
 
-} // namespace v2
+} // namespace ur::level_zero::v2
