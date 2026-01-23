@@ -1370,6 +1370,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_ENQUEUE_HOST_TASK_EXP:
     os << "UR_FUNCTION_ENQUEUE_HOST_TASK_EXP";
     break;
+  case UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_WITH_ARGS_EXP:
+    os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_WITH_ARGS_EXP";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -20015,6 +20018,134 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the
+/// ur_command_buffer_append_kernel_launch_with_args_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os, [[maybe_unused]] const struct
+    ur_command_buffer_append_kernel_launch_with_args_exp_params_t *params) {
+
+  os << ".hCommandBuffer = ";
+
+  ur::details::printPtr(os, *(params->phCommandBuffer));
+
+  os << ", ";
+  os << ".hKernel = ";
+
+  ur::details::printPtr(os, *(params->phKernel));
+
+  os << ", ";
+  os << ".workDim = ";
+
+  os << *(params->pworkDim);
+
+  os << ", ";
+  os << ".pGlobalWorkOffset = ";
+
+  ur::details::printPtr(os, *(params->ppGlobalWorkOffset));
+
+  os << ", ";
+  os << ".pGlobalWorkSize = ";
+
+  ur::details::printPtr(os, *(params->ppGlobalWorkSize));
+
+  os << ", ";
+  os << ".pLocalWorkSize = ";
+
+  ur::details::printPtr(os, *(params->ppLocalWorkSize));
+
+  os << ", ";
+  os << ".numArgs = ";
+
+  os << *(params->pnumArgs);
+
+  os << ", ";
+  os << ".pArgs = ";
+  ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->ppArgs)));
+  if (*(params->ppArgs) != NULL) {
+    os << " {";
+    for (size_t i = 0; i < *params->pnumArgs; ++i) {
+      if (i != 0) {
+        os << ", ";
+      }
+
+      os << (*(params->ppArgs))[i];
+    }
+    os << "}";
+  }
+
+  os << ", ";
+  os << ".numKernelAlternatives = ";
+
+  os << *(params->pnumKernelAlternatives);
+
+  os << ", ";
+  os << ".phKernelAlternatives = ";
+  ur::details::printPtr(
+      os, reinterpret_cast<const void *>(*(params->pphKernelAlternatives)));
+  if (*(params->pphKernelAlternatives) != NULL) {
+    os << " {";
+    for (size_t i = 0; i < *params->pnumKernelAlternatives; ++i) {
+      if (i != 0) {
+        os << ", ";
+      }
+
+      ur::details::printPtr(os, (*(params->pphKernelAlternatives))[i]);
+    }
+    os << "}";
+  }
+
+  os << ", ";
+  os << ".numSyncPointsInWaitList = ";
+
+  os << *(params->pnumSyncPointsInWaitList);
+
+  os << ", ";
+  os << ".pSyncPointWaitList = ";
+
+  ur::details::printPtr(os, *(params->ppSyncPointWaitList));
+
+  os << ", ";
+  os << ".numEventsInWaitList = ";
+
+  os << *(params->pnumEventsInWaitList);
+
+  os << ", ";
+  os << ".phEventWaitList = ";
+  ur::details::printPtr(
+      os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+  if (*(params->pphEventWaitList) != NULL) {
+    os << " {";
+    for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+      if (i != 0) {
+        os << ", ";
+      }
+
+      ur::details::printPtr(os, (*(params->pphEventWaitList))[i]);
+    }
+    os << "}";
+  }
+
+  os << ", ";
+  os << ".pSyncPoint = ";
+
+  ur::details::printPtr(os, *(params->ppSyncPoint));
+
+  os << ", ";
+  os << ".phEvent = ";
+
+  ur::details::printPtr(os, *(params->pphEvent));
+
+  os << ", ";
+  os << ".phCommand = ";
+
+  ur::details::printPtr(os, *(params->pphCommand));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the
 /// ur_command_buffer_append_usm_memcpy_exp_params_t type
 /// @returns
 ///     std::ostream &
@@ -22858,6 +22989,11 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP: {
     os << (const struct ur_command_buffer_append_kernel_launch_exp_params_t *)
+            params;
+  } break;
+  case UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_WITH_ARGS_EXP: {
+    os << (const struct
+           ur_command_buffer_append_kernel_launch_with_args_exp_params_t *)
             params;
   } break;
   case UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP: {

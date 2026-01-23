@@ -1687,6 +1687,17 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendKernelLaunchExp_t)(
     ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urCommandBufferAppendKernelLaunchWithArgsExp
+typedef ur_result_t(
+    UR_APICALL *ur_pfnCommandBufferAppendKernelLaunchWithArgsExp_t)(
+    ur_exp_command_buffer_handle_t, ur_kernel_handle_t, uint32_t,
+    const size_t *, const size_t *, const size_t *, uint32_t,
+    const ur_exp_kernel_arg_properties_t *, uint32_t, ur_kernel_handle_t *,
+    uint32_t, const ur_exp_command_buffer_sync_point_t *, uint32_t,
+    const ur_event_handle_t *, ur_exp_command_buffer_sync_point_t *,
+    ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urCommandBufferAppendUSMMemcpyExp
 typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendUSMMemcpyExp_t)(
     ur_exp_command_buffer_handle_t, void *, const void *, size_t, uint32_t,
@@ -1826,6 +1837,8 @@ typedef struct ur_command_buffer_exp_dditable_t {
   ur_pfnCommandBufferReleaseExp_t pfnReleaseExp;
   ur_pfnCommandBufferFinalizeExp_t pfnFinalizeExp;
   ur_pfnCommandBufferAppendKernelLaunchExp_t pfnAppendKernelLaunchExp;
+  ur_pfnCommandBufferAppendKernelLaunchWithArgsExp_t
+      pfnAppendKernelLaunchWithArgsExp;
   ur_pfnCommandBufferAppendUSMMemcpyExp_t pfnAppendUSMMemcpyExp;
   ur_pfnCommandBufferAppendUSMFillExp_t pfnAppendUSMFillExp;
   ur_pfnCommandBufferAppendMemBufferCopyExp_t pfnAppendMemBufferCopyExp;
