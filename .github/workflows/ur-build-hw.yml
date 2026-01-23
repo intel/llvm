@@ -179,7 +179,7 @@ jobs:
     - name: Test adapter specific
       env:
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
-        LIT_OPTS: "--timeout 120"
+        LIT_OPTS: "--timeout 120 -j 50"
         # These tests cause timeouts on CI
         LIT_FILTER_OUT: "(adapters/level_zero/memcheck.test|adapters/level_zero/v2/deferred_kernel_memcheck.test)"
       run: cmake --build build -j $(($(nproc)/3)) -- check-unified-runtime-adapter
@@ -189,7 +189,7 @@ jobs:
     - name: Test adapters
       env:
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
-        LIT_OPTS: "--timeout 120"
+        LIT_OPTS: "--timeout 120 -j 50"
       run: cmake --build build -j $(($(nproc)/3)) -- check-unified-runtime-conformance
 
     - name: Get information about platform

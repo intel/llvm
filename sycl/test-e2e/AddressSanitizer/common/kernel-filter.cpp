@@ -2,7 +2,7 @@
 // RUN: %{build} %device_asan_flags -g -O2 -fsanitize-ignorelist=%p/ignorelist.txt -o %t1
 // RUN: %{run} %t1 2>&1 | FileCheck %s --check-prefixes CHECK-IGNORE
 // RUN: %{build} %device_asan_flags -g -O2 -o %t2
-// RUN: %{run} not %t2 2>&1 | FileCheck %s
+// RUN: %{run} not --crash %t2 2>&1 | FileCheck %s
 
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>

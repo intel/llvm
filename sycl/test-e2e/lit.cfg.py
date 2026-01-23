@@ -70,7 +70,7 @@ elif config.test_mode == "build-only":
     lit_config.note("build-only test mode enabled, only compiling tests")
     config.available_features.add("build-mode")
     config.sycl_devices = []
-    if not config.amd_arch:
+    if not getattr(config, "amd_arch", None):
         config.amd_arch = "gfx1030"
 else:
     lit_config.error("Invalid argument for test-mode")
@@ -1150,6 +1150,16 @@ for full_name, sycl_device in zip(
         config.intel_driver_ver[full_name] = intel_driver_ver
     else:
         config.intel_driver_ver[full_name] = {}
+
+# Add AMD architecture flags for HIP backend compilation.
+# Uses detected GPU architecture or defaults to gfx1030 in build-only mode.
+amd_arch_flags = ""
+amd_arch = getattr(config, "amd_arch", None)
+if amd_arch:
+    amd_arch_flags = (
+        f"-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch={amd_arch}"
+    )
+config.substitutions.append(("%amd_arch_options", amd_arch_flags))
 
 if lit_config.params.get("compatibility_testing", "False") != "False":
     config.substitutions.append(("%clangxx", " true "))

@@ -1,10 +1,11 @@
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "../fixtures.h"
+#include "uur/fixtures.h"
 #include <array>
 #include <cstring>
 
@@ -134,7 +135,7 @@ struct LocalMemoryUpdateTest : LocalMemoryUpdateTestBase {
   ur_exp_command_buffer_command_handle_t command_handle = nullptr;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(LocalMemoryUpdateTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(LocalMemoryUpdateTest);
 
 // Test updating A,X,Y parameters to new values and local memory parameters
 // to original values.
@@ -888,7 +889,7 @@ struct LocalMemoryMultiUpdateTest : LocalMemoryUpdateTestBase {
   std::array<ur_exp_command_buffer_command_handle_t, nodes> command_handles{};
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(LocalMemoryMultiUpdateTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(LocalMemoryMultiUpdateTest);
 
 // Test updating A,X,Y parameters to new values and local memory parameters
 // to original values.
@@ -1191,7 +1192,7 @@ struct LocalMemoryUpdateTestOutOfOrder : LocalMemoryUpdateTestBaseOutOfOrder {
   ur_exp_command_buffer_command_handle_t command_handle = nullptr;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(LocalMemoryUpdateTestOutOfOrder);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(LocalMemoryUpdateTestOutOfOrder);
 
 // Test updating A,X,Y parameters to new values and local memory to larger
 // values when the kernel arguments were added out of order.

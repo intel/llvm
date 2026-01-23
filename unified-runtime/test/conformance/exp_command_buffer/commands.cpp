@@ -1,10 +1,11 @@
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "fixtures.h"
+#include "uur/fixtures.h"
 #include <array>
 
 struct urCommandBufferCommandsTest
@@ -216,7 +217,9 @@ struct urCommandBufferAppendKernelLaunchExpTest
   std::array<void *, 3> shared_ptrs = {nullptr, nullptr, nullptr};
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urCommandBufferAppendKernelLaunchExpTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(
+    urCommandBufferAppendKernelLaunchExpTest);
+
 TEST_P(urCommandBufferAppendKernelLaunchExpTest, Basic) {
   ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
       cmd_buf_handle, kernel, n_dimensions, &global_offset, &global_size,
