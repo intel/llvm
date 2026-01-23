@@ -9,6 +9,7 @@
  *
  */
 #include "ur_lib_loader.hpp"
+
 #include "logger/ur_logger.hpp"
 
 namespace ur_loader {
@@ -28,7 +29,8 @@ void LibLoader::freeAdapterLibrary(HMODULE handle) {
 
 std::unique_ptr<HMODULE, LibLoader::lib_dtor>
 LibLoader::loadAdapterLibrary(const char *name) {
-  if (HMODULE handle = LoadLibraryExA(name, nullptr, 0)) {
+  if (HMODULE handle =
+          LoadLibraryExA(name, nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS)) {
     UR_LOG(INFO, "loaded adapter 0x{}: {}", handle, name);
     return std::unique_ptr<HMODULE, LibLoader::lib_dtor>{handle};
   } else {
