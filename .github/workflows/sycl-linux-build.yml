@@ -46,7 +46,7 @@ on:
 
       run_clang_tidy:
         type: boolean
-        default: "false"
+        default: false
 
       # Artifacts:
 
