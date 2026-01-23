@@ -56,7 +56,7 @@ ur_result_t urKernelGetSuggestedLocalWorkSize(
   return UR_RESULT_SUCCESS;
 }
 
-inline ur_result_t KernelSetArgValueHelper(
+ur_result_t urKernelSetArgValueHelper(
     ur_kernel_handle_t Kernel,
     /// [in] argument index in range [0, num args - 1]
     uint32_t ArgIndex,
@@ -100,7 +100,7 @@ inline ur_result_t KernelSetArgValueHelper(
   return ze2urResult(ZeResult);
 }
 
-inline ur_result_t KernelSetArgMemObjHelper(
+ur_result_t urKernelSetArgMemObjHelper(
     /// [in] handle of the kernel object
     ur_kernel_handle_t Kernel,
     /// [in] argument index in range [0, num args - 1]
@@ -184,28 +184,28 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
     for (uint32_t i = 0; i < NumArgs; i++) {
       switch (Args[i].type) {
       case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
-        UR_CALL(KernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,
-                                        nullptr));
+        UR_CALL(urKernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,
+                                          nullptr));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_VALUE:
-        UR_CALL(KernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,
-                                        Args[i].value.value));
+        UR_CALL(urKernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,
+                                          Args[i].value.value));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_POINTER:
-        UR_CALL(KernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,
-                                        &Args[i].value.pointer));
+        UR_CALL(urKernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,
+                                          &Args[i].value.pointer));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
         ur_kernel_arg_mem_obj_properties_t Properties = {
             UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES, nullptr,
             Args[i].value.memObjTuple.flags};
-        UR_CALL(KernelSetArgMemObjHelper(Kernel, Args[i].index, &Properties,
-                                         Args[i].value.memObjTuple.hMem));
+        UR_CALL(urKernelSetArgMemObjHelper(Kernel, Args[i].index, &Properties,
+                                           Args[i].value.memObjTuple.hMem));
         break;
       }
       case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
-        UR_CALL(KernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,
-                                        &Args[i].value.sampler->ZeSampler));
+        UR_CALL(urKernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,
+                                          &Args[i].value.sampler->ZeSampler));
         break;
       }
       default:
