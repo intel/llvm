@@ -225,7 +225,7 @@ jobs:
       continue-on-error: true
       id: clang_tidy
       run: |
-        # TODO: Need to check if source (c++) files were changed
+        # TODO: Need to check if source (c++) files were changed. Ignore test directories
         # TODO: make it possible to disable this step in case of big PRs like pulldown etc.
 
         # cmake --build $GITHUB_WORKSPACE/build --target clang-tidy
