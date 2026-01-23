@@ -324,9 +324,25 @@ graph_impl::graph_impl(const sycl::context &SyclContext,
     context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
     sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
 
+    // Check if the device supports graph record and replay
+    sycl::detail::device_impl &DeviceImpl =
+        *sycl::detail::getSyclObjImpl(MDevice);
+
+    ur_bool_t SupportsGraphRecordReplay = false;
     ur_result_t Result =
-        Adapter.call_nocheck<sycl::detail::UrApiKind::urGraphCreateExp>(
-            ContextImpl.getHandleRef(), &MNativeGraphHandle);
+        Adapter.call_nocheck<sycl::detail::UrApiKind::urDeviceGetInfo>(
+            DeviceImpl.getHandleRef(),
+            UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP,
+            sizeof(ur_bool_t), &SupportsGraphRecordReplay, nullptr);
+    if (Result == UR_RESULT_SUCCESS && !SupportsGraphRecordReplay) {
+      throw sycl::exception(
+          sycl::make_error_code(errc::invalid),
+          "Device does not support graph record and replay feature "
+          "(UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP).");
+    }
+
+    Result = Adapter.call_nocheck<sycl::detail::UrApiKind::urGraphCreateExp>(
+        ContextImpl.getHandleRef(), &MNativeGraphHandle);
     if (Result != UR_RESULT_SUCCESS) {
       throw sycl::exception(sycl::make_error_code(errc::runtime),
                             "Failed to create native UR graph");
@@ -777,7 +793,12 @@ void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
             "SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1.");
       }
 
-      Result = urQueueBeginCaptureIntoGraphExp(UrQueue, MNativeGraphHandle);
+      context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
+      sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
+
+      Result = Adapter.call_nocheck<
+          sycl::detail::UrApiKind::urQueueBeginCaptureIntoGraphExp>(
+          UrQueue, MNativeGraphHandle);
       if (Result != UR_RESULT_SUCCESS) {
         throw sycl::exception(sycl::make_error_code(errc::runtime),
                               "Failed to begin native UR graph capture");
