@@ -1,4 +1,4 @@
-// REQUIRES: level_zero_v2_adapter
+// REQUIRES: level_zero_v2_adapter && arch-intel_gpu_bmg_g21
 
 // RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 SYCL_GRAPH_ENABLE_NATIVE_RECORDING=1 %{build} -o %t.out
 // RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 SYCL_GRAPH_ENABLE_NATIVE_RECORDING=1 %{run} %t.out
