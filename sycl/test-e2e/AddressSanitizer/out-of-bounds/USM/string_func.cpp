@@ -1,10 +1,10 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
 // RUN: %{build} %device_asan_flags -O0 -g -o %t.out
-// RUN: %{run} not %t.out memset 2>&1 | FileCheck --check-prefixes CHECK-MEMSET %s
-// RUN: %{run} not %t.out memcpy src 2>&1 | FileCheck --check-prefixes CHECK-MEMCPY-SRC %s
-// RUN: %{run} not %t.out memcpy dst 2>&1 | FileCheck --check-prefixes CHECK-MEMCPY-DST %s
-// RUN: %{run} not %t.out memmove src 2>&1 | FileCheck --check-prefixes CHECK-MEMMOVE-SRC %s
-// RUN: %{run} not %t.out memmove dst 2>&1 | FileCheck --check-prefixes CHECK-MEMMOVE-DST %s
+// RUN: %{run} not --crash %t.out memset 2>&1 | FileCheck --check-prefixes CHECK-MEMSET %s
+// RUN: %{run} not --crash %t.out memcpy src 2>&1 | FileCheck --check-prefixes CHECK-MEMCPY-SRC %s
+// RUN: %{run} not --crash %t.out memcpy dst 2>&1 | FileCheck --check-prefixes CHECK-MEMCPY-DST %s
+// RUN: %{run} not --crash %t.out memmove src 2>&1 | FileCheck --check-prefixes CHECK-MEMMOVE-SRC %s
+// RUN: %{run} not --crash %t.out memmove dst 2>&1 | FileCheck --check-prefixes CHECK-MEMMOVE-DST %s
 #include <sycl/detail/core.hpp>
 
 #include <sycl/usm.hpp>
@@ -84,7 +84,7 @@ void test_memmove(sycl::queue &Q, bool is_src_oob) {
 }
 
 int main(int argc, char **argv) {
-  assert(argc > 1 && "test is not specified");
+  assert(argc > 1 && "test is not --crash specified");
   sycl::queue Q;
 
   if (!strcmp(argv[1], "memset")) {

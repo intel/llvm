@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -84,9 +84,9 @@ TEST_P(urEventWaitTest, Success) {
   ASSERT_SUCCESS(urEventRelease(event2));
 }
 
-using urEventWaitNegativeTest = uur::urQueueTest;
+using urEventWaitNegativeTest = uur::urMultiQueueTypeTest;
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEventWaitNegativeTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(urEventWaitNegativeTest);
 
 TEST_P(urEventWaitNegativeTest, ZeroSize) {
   ur_event_handle_t event = nullptr;
