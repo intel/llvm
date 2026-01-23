@@ -1,7 +1,9 @@
 name: Collect aggregated data 
 on:
   workflow_call:
-
+# on:
+#   schedule:
+#     - cron: '0 0 * * *'  # Runs daily at midnight UTC
 jobs:
   sycl-aggregate-data:
     runs-on: ubuntu-latest
@@ -9,7 +11,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
       
-      # change to today's date to match artifact names
+      # change to yesterday's date to match artifact names later
       - name: Calculate today's date
         id: date
         run: echo "TODAY=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
@@ -49,3 +51,8 @@ jobs:
           echo "}" >> aggregated_${{ steps.date.outputs.TODAY }}.json
           
           cat aggregated_${{ steps.date.outputs.TODAY }}.json
+      # czy gdzieś to dodać do artifactory czy na jfroga?
+      - name: Upload aggregated data artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: aggregated_${{ steps.date.outputs.TODAY }}_data
