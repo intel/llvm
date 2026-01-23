@@ -1,14 +1,15 @@
 name: Check load of the machine 
 
-#workflow_call
+# on:
+#   workflow_call:
 on:
   push:
     branches:
       - luszczewskakasia1_monitoring
-#zmienić date na dzisaj
-# echo ${{ runner.name }} > ${DATE}_${{ runner.name }}.txt
+
 jobs:
   health-check:
+    # zmienić na inną labelkę 
     runs-on: ["self-hosted"]
     steps:
       - name: Check load average
