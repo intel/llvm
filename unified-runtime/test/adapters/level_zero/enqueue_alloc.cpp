@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2025-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -160,7 +160,7 @@ struct urL0EnqueueAllocMultiQueueMultiDeviceTest
   std::vector<ur_queue_handle_t> queues;
 };
 
-UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+UUR_MULTI_QUEUE_TYPE_TEST_SUITE_WITH_PARAM(
     urL0EnqueueAllocTest,
     ::testing::ValuesIn({
         EnqueueAllocTestParam{urEnqueueUSMHostAllocExp,
@@ -170,13 +170,11 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
         EnqueueAllocTestParam{urEnqueueUSMDeviceAllocExp,
                               uur::GetDeviceUSMDeviceSupport},
     }),
-    uur::deviceTestWithParamPrinter<EnqueueAllocTestParam>);
+    uur::deviceTestWithParamPrinterMulti<EnqueueAllocTestParam>);
 
 TEST_P(urL0EnqueueAllocTest, Success) {
-  const auto enqueueUSMAllocFunc =
-      std::get<1>(this->GetParam()).enqueueUSMAllocFunc;
-  const auto checkUSMSupportFunc =
-      std::get<1>(this->GetParam()).checkUSMSupportFunc;
+  const auto enqueueUSMAllocFunc = getParam().enqueueUSMAllocFunc;
+  const auto checkUSMSupportFunc = getParam().checkUSMSupportFunc;
 
   ur_device_usm_access_capability_flags_t USMSupport = 0;
   ASSERT_SUCCESS(checkUSMSupportFunc(device, USMSupport));
@@ -200,10 +198,8 @@ TEST_P(urL0EnqueueAllocTest, Success) {
 }
 
 TEST_P(urL0EnqueueAllocTest, SuccessReuse) {
-  const auto enqueueUSMAllocFunc =
-      std::get<1>(this->GetParam()).enqueueUSMAllocFunc;
-  const auto checkUSMSupportFunc =
-      std::get<1>(this->GetParam()).checkUSMSupportFunc;
+  const auto enqueueUSMAllocFunc = getParam().enqueueUSMAllocFunc;
+  const auto checkUSMSupportFunc = getParam().checkUSMSupportFunc;
 
   ur_device_usm_access_capability_flags_t USMSupport = 0;
   ASSERT_SUCCESS(checkUSMSupportFunc(device, USMSupport));
@@ -238,10 +234,8 @@ TEST_P(urL0EnqueueAllocTest, SuccessReuse) {
 }
 
 TEST_P(urL0EnqueueAllocTest, SuccessFromPool) {
-  const auto enqueueUSMAllocFunc =
-      std::get<1>(this->GetParam()).enqueueUSMAllocFunc;
-  const auto checkUSMSupportFunc =
-      std::get<1>(this->GetParam()).checkUSMSupportFunc;
+  const auto enqueueUSMAllocFunc = getParam().enqueueUSMAllocFunc;
+  const auto checkUSMSupportFunc = getParam().checkUSMSupportFunc;
 
   ur_device_usm_access_capability_flags_t USMSupport = 0;
   ASSERT_SUCCESS(checkUSMSupportFunc(device, USMSupport));
@@ -269,10 +263,8 @@ TEST_P(urL0EnqueueAllocTest, SuccessFromPool) {
 }
 
 TEST_P(urL0EnqueueAllocTest, SuccessWithKernel) {
-  const auto enqueueUSMAllocFunc =
-      std::get<1>(this->GetParam()).enqueueUSMAllocFunc;
-  const auto checkUSMSupportFunc =
-      std::get<1>(this->GetParam()).checkUSMSupportFunc;
+  const auto enqueueUSMAllocFunc = getParam().enqueueUSMAllocFunc;
+  const auto checkUSMSupportFunc = getParam().checkUSMSupportFunc;
 
   ur_device_usm_access_capability_flags_t USMSupport = 0;
   ASSERT_SUCCESS(checkUSMSupportFunc(device, USMSupport));
@@ -294,10 +286,8 @@ TEST_P(urL0EnqueueAllocTest, SuccessWithKernel) {
 }
 
 TEST_P(urL0EnqueueAllocTest, SuccessWithKernelRepeat) {
-  const auto enqueueUSMAllocFunc =
-      std::get<1>(this->GetParam()).enqueueUSMAllocFunc;
-  const auto checkUSMSupportFunc =
-      std::get<1>(this->GetParam()).checkUSMSupportFunc;
+  const auto enqueueUSMAllocFunc = getParam().enqueueUSMAllocFunc;
+  const auto checkUSMSupportFunc = getParam().checkUSMSupportFunc;
 
   ur_device_usm_access_capability_flags_t USMSupport = 0;
   ASSERT_SUCCESS(checkUSMSupportFunc(device, USMSupport));

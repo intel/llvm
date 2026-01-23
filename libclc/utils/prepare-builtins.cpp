@@ -126,25 +126,6 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  // AMDGPU remove incompatible functions pass replaces all uses of functions
-  // that use GPU features incompatible with the current GPU with null then
-  // deletes the function. This didn't use to cause problems, as all of libclc
-  // functions were inlined prior to incompatible functions pass. Now that the
-  // inliner runs later in the pipeline we have to remove all of the target
-  // features, so libclc functions will not be earmarked for deletion.
-  //
-  // NativeCPU uses the same builtins for multiple host targets and should
-  // likewise not have features that limit the builtins to any particular
-  // target.
-  if (M->getTargetTriple().str().find("amdgcn") != std::string::npos ||
-      M->getTargetTriple().isNativeCPU()) {
-    AttributeMask AM;
-    AM.addAttribute("target-features");
-    AM.addAttribute("target-cpu");
-    for (auto &F : *M)
-      F.removeFnAttrs(AM);
-  }
-
   std::error_code EC;
   std::unique_ptr<ToolOutputFile> Out(
       new ToolOutputFile(OutputFilename, EC, sys::fs::OF_None));

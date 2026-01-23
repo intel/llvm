@@ -1,16 +1,19 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "helpers.h"
+#include "uur/utils.h"
 #include <uur/fixtures.h>
 #include <uur/known_failure.h>
 
-struct urEnqueueMemBufferCopyTestWithParam : uur::urQueueTestWithParam<size_t> {
+struct urEnqueueMemBufferCopyTestWithParam
+    : uur::urMultiQueueTypeTestWithParam<size_t> {
+
   void SetUp() override {
-    UUR_RETURN_ON_FATAL_FAILURE(urQueueTestWithParam::SetUp());
+    UUR_RETURN_ON_FATAL_FAILURE(urMultiQueueTypeTestWithParam::SetUp());
     ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_WRITE_ONLY, size,
                                      nullptr, &src_buffer));
     ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_ONLY, size,
@@ -27,10 +30,10 @@ struct urEnqueueMemBufferCopyTestWithParam : uur::urQueueTestWithParam<size_t> {
     if (src_buffer) {
       EXPECT_SUCCESS(urMemRelease(dst_buffer));
     }
-    urQueueTestWithParam::TearDown();
+    urMultiQueueTypeTestWithParam::TearDown();
   }
 
-  const size_t count = std::get<1>(this->GetParam());
+  const size_t count = this->getParam();
   const size_t size = sizeof(uint32_t) * count;
   ur_mem_handle_t src_buffer = nullptr;
   ur_mem_handle_t dst_buffer = nullptr;
@@ -39,9 +42,9 @@ struct urEnqueueMemBufferCopyTestWithParam : uur::urQueueTestWithParam<size_t> {
 
 static std::vector<size_t> test_parameters{1024, 2500, 4096, 6000};
 
-UUR_DEVICE_TEST_SUITE_WITH_PARAM(urEnqueueMemBufferCopyTestWithParam,
-                                 ::testing::ValuesIn(test_parameters),
-                                 uur::deviceTestWithParamPrinter<size_t>);
+UUR_MULTI_QUEUE_TYPE_TEST_SUITE_WITH_PARAM(
+    urEnqueueMemBufferCopyTestWithParam, ::testing::ValuesIn(test_parameters),
+    uur::deviceTestWithParamPrinterMulti<size_t>);
 
 TEST_P(urEnqueueMemBufferCopyTestWithParam, Success) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{});

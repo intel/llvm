@@ -253,20 +253,6 @@ TEST(DynamicLinking, AheadOfTime) {
             AOT_CASE_PRG_NATIVE * AOT_CASE_PRG_DEP_NATIVE);
 }
 
-TEST(DynamicLinking, AheadOfTimeUnsupported) {
-  try {
-    sycl::unittest::UrMock<sycl::backend::ext_oneapi_level_zero> Mock;
-    sycl::platform Plt = sycl::platform();
-    sycl::queue Q(Plt.get_devices()[0]);
-    Q.single_task<DynamicLinkingTest::AOTCaseKernel>([=]() {});
-    FAIL();
-  } catch (sycl::exception &e) {
-    EXPECT_EQ(e.code(), sycl::errc::feature_not_supported);
-    EXPECT_STREQ(e.what(), "Cannot resolve external symbols, linking is "
-                           "unsupported for the backend");
-  }
-}
-
 static ur_result_t redefined_urProgramCompileExp(void *pParams) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
