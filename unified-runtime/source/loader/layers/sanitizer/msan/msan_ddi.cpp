@@ -367,9 +367,11 @@ ur_result_t urProgramLink(
 
   auto UrRes = pfnProgramLink(hContext, count, phPrograms, pOptions, phProgram);
   if (UrRes != UR_RESULT_SUCCESS) {
-    auto Devices = GetDevices(hContext);
-    PrintUrBuildLogIfError(UrRes, *phProgram, Devices.data(), Devices.size());
-    UR_CALL(getMsanInterceptor()->insertProgram(*phProgram));
+    if (*phProgram) {
+      auto Devices = GetDevices(hContext);
+      PrintUrBuildLogIfError(UrRes, *phProgram, Devices.data(), Devices.size());
+      UR_CALL(getMsanInterceptor()->insertProgram(*phProgram));
+    }
     return UrRes;
   }
 
@@ -405,8 +407,10 @@ ur_result_t urProgramLinkExp(
   auto UrRes = pfnProgramLinkExp(hContext, numDevices, phDevices, flags, count,
                                  phPrograms, pOptions, phProgram);
   if (UrRes != UR_RESULT_SUCCESS) {
-    PrintUrBuildLogIfError(UrRes, *phProgram, phDevices, numDevices);
-    UR_CALL(getMsanInterceptor()->insertProgram(*phProgram));
+    if (*phProgram) {
+      PrintUrBuildLogIfError(UrRes, *phProgram, phDevices, numDevices);
+      UR_CALL(getMsanInterceptor()->insertProgram(*phProgram));
+    }
     return UrRes;
   }
 

@@ -19,6 +19,7 @@
 #include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/detail/kernel_launch_helper.hpp>
+#include <sycl/detail/nd_range_view.hpp>
 #include <sycl/detail/range_rounding.hpp>
 #include <sycl/detail/reduction_forward.hpp>
 #include <sycl/detail/string.hpp>
@@ -247,7 +248,6 @@ template <typename Type> struct get_kernel_wrapper_name_t {
 };
 
 __SYCL_EXPORT device getDeviceFromHandler(handler &);
-device_impl &getDeviceImplFromHandler(handler &);
 
 // Checks if a device_global has any registered kernel usage.
 __SYCL_EXPORT bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr);
@@ -278,6 +278,13 @@ template <int Dims> bool range_size_fits_in_size_t(const range<Dims> &r) {
   }
   return true;
 }
+
+template <int Dims, typename LambdaArgType> struct TransformUserItemType {
+  using type = std::conditional_t<
+      std::is_convertible_v<nd_item<Dims>, LambdaArgType>, nd_item<Dims>,
+      std::conditional_t<std::is_convertible_v<item<Dims>, LambdaArgType>,
+                         item<Dims>, LambdaArgType>>;
+};
 
 } // namespace detail
 
@@ -778,13 +785,6 @@ private:
 
   device get_device() const;
 
-  template <int Dims, typename LambdaArgType> struct TransformUserItemType {
-    using type = std::conditional_t<
-        std::is_convertible_v<nd_item<Dims>, LambdaArgType>, nd_item<Dims>,
-        std::conditional_t<std::is_convertible_v<item<Dims>, LambdaArgType>,
-                           item<Dims>, LambdaArgType>>;
-  };
-
   /// Defines and invokes a SYCL kernel function for the specified range.
   ///
   /// The SYCL kernel function is defined as a lambda function or a named
@@ -823,7 +823,7 @@ private:
     // sycl::item/sycl::nd_item to transport item information
     using TransformedArgType = std::conditional_t<
         std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
-        typename TransformUserItemType<Dims, LambdaArgType>::type>;
+        typename detail::TransformUserItemType<Dims, LambdaArgType>::type>;
 
     static_assert(!std::is_same_v<TransformedArgType, sycl::nd_item<Dims>>,
                   "Kernel argument cannot have a sycl::nd_item type in "
@@ -876,7 +876,7 @@ private:
       // __SYCL_ASSUME_INT can still be violated. So check the bounds
       // of the user range, instead of the rounded range.
       detail::checkValueRange<Dims>(UserRange);
-      setNDRangeDescriptor(RoundedRange);
+      convertToRangeViewAndSetDescriptor(RoundedRange);
       StoreLambda<KName, decltype(Wrapper), Dims, TransformedArgType>(
           std::move(Wrapper));
 #endif
@@ -905,7 +905,7 @@ private:
       SetKernelLaunchpropertiesIfNotEmpty(
           detail::extractKernelProperties<Info.IsESIMD>(Props));
       detail::checkValueRange<Dims>(UserRange);
-      setNDRangeDescriptor(std::move(UserRange));
+      convertToRangeViewAndSetDescriptor(std::move(UserRange));
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
           std::move(KernelFunc));
 #endif
@@ -931,7 +931,7 @@ private:
     throwIfActionIsCreated();
     setDeviceKernelInfo(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems);
-    setNDRangeDescriptor(std::move(NumWorkItems));
+    convertToRangeViewAndSetDescriptor(std::move(NumWorkItems));
     SetKernelLaunchpropertiesIfNotEmpty(detail::extractKernelProperties(Props));
     extractArgsAndReqs();
 #endif
@@ -954,7 +954,7 @@ private:
     throwIfActionIsCreated();
     setDeviceKernelInfo(std::move(Kernel));
     detail::checkValueRange<Dims>(NDRange);
-    setNDRangeDescriptor(std::move(NDRange));
+    convertToRangeViewAndSetDescriptor(std::move(NDRange));
     SetKernelLaunchpropertiesIfNotEmpty(detail::extractKernelProperties(Props));
     extractArgsAndReqs();
 #endif
@@ -992,10 +992,10 @@ private:
 
     detail::checkValueRange<Dims>(params...);
     if constexpr (SetNumWorkGroups) {
-      setNDRangeDescriptor(std::move(params)...,
-                           /*SetNumWorkGroups=*/true);
+      convertToRangeViewAndSetDescriptor(std::move(params)...,
+                                         /*SetNumWorkGroups=*/true);
     } else {
-      setNDRangeDescriptor(std::move(params)...);
+      convertToRangeViewAndSetDescriptor(std::move(params)...);
     }
 
     StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
@@ -1349,7 +1349,7 @@ public:
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
     using TransformedArgType = std::conditional_t<
         std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
-        typename TransformUserItemType<Dims, LambdaArgType>::type>;
+        typename detail::TransformUserItemType<Dims, LambdaArgType>::type>;
     wrap_kernel<detail::WrapAs::parallel_for, KernelName, TransformedArgType,
                 Dims>(KernelFunc, {} /*Props*/, NumWorkItems, WorkItemOffset);
   }
@@ -1409,7 +1409,7 @@ public:
     setHandlerKernelBundle(Kernel);
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant
-    setNDRangeDescriptor(range<1>{1});
+    convertToRangeViewAndSetDescriptor(range<1>{1});
     setDeviceKernelInfo(std::move(Kernel));
     extractArgsAndReqs();
   }
@@ -2639,7 +2639,6 @@ private:
             typename PropertyListT>
   friend class accessor;
   friend device detail::getDeviceFromHandler(handler &);
-  friend detail::device_impl &detail::getDeviceImplFromHandler(handler &);
 
   template <typename DataT, int Dimensions, access::mode AccessMode,
             access::target AccessTarget, access::placeholder IsPlaceholder>
@@ -2937,37 +2936,34 @@ private:
   bool HasAssociatedAccessor(detail::AccessorImplHost *Req,
                              access::target AccessTarget) const;
 
-  template <int Dims>
-  void setNDRangeDescriptor(sycl::range<Dims> N,
-                            bool SetNumWorkGroups = false) {
-    return setNDRangeDescriptor(N, SetNumWorkGroups);
-  }
-  template <int Dims>
-  void setNDRangeDescriptor(sycl::range<Dims> NumWorkItems,
-                            sycl::id<Dims> Offset) {
-    return setNDRangeDescriptor(NumWorkItems, Offset);
-  }
-  template <int Dims>
-  void setNDRangeDescriptor(sycl::nd_range<Dims> ExecutionRange) {
-    return setNDRangeDescriptor(ExecutionRange.get_global_range(),
-                                ExecutionRange.get_local_range(),
-                                ExecutionRange.get_offset());
+  void setNDRangeDescriptor(sycl::detail::nd_range_view rv,
+                            bool SetNumWorkGroups = false);
+
+  template <int _Dims>
+  inline void
+  convertToRangeViewAndSetDescriptor(sycl::range<_Dims> Range,
+                                     bool SetNumWorkGroups = false) {
+    setNDRangeDescriptor(Range, SetNumWorkGroups);
   }
 
-  void setNDRangeDescriptor(sycl::range<3> N, bool SetNumWorkGroups);
-  void setNDRangeDescriptor(sycl::range<3> NumWorkItems, sycl::id<3> Offset);
-  void setNDRangeDescriptor(sycl::range<3> NumWorkItems,
-                            sycl::range<3> LocalSize, sycl::id<3> Offset);
+  template <int _Dims>
+  inline void
+  convertToRangeViewAndSetDescriptor(sycl::nd_range<_Dims> Range,
+                                     bool SetNumWorkGroups = false) {
+    setNDRangeDescriptor(Range, SetNumWorkGroups);
+  }
 
-  void setNDRangeDescriptor(sycl::range<2> N, bool SetNumWorkGroups);
-  void setNDRangeDescriptor(sycl::range<2> NumWorkItems, sycl::id<2> Offset);
-  void setNDRangeDescriptor(sycl::range<2> NumWorkItems,
-                            sycl::range<2> LocalSize, sycl::id<2> Offset);
+  template <int _Dims>
+  inline void
+  convertToRangeViewAndSetDescriptor(sycl::range<_Dims> Range,
+                                     sycl::id<_Dims> Id,
+                                     bool SetNumWorkGroups = false) {
+    setNDRangeDescriptor(
+        sycl::detail::nd_range_view(&(Range[0]), nullptr, &(Id[0]),
+                                    static_cast<size_t>(_Dims)),
+        SetNumWorkGroups);
+  }
 
-  void setNDRangeDescriptor(sycl::range<1> N, bool SetNumWorkGroups);
-  void setNDRangeDescriptor(sycl::range<1> NumWorkItems, sycl::id<1> Offset);
-  void setNDRangeDescriptor(sycl::range<1> NumWorkItems,
-                            sycl::range<1> LocalSize, sycl::id<1> Offset);
   void setKernelFunc(void *KernelFuncPtr);
 
   void instantiateKernelOnHost(void *InstantiateKernelOnHostPtr);

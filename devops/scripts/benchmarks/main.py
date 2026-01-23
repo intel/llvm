@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright (C) 2024-2025 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -16,7 +16,6 @@ from benches.velocity import VelocityBench
 from benches.syclbench import *
 from benches.llamacpp import *
 from benches.umf import *
-from benches.test import TestSuite
 from benches.benchdnn import OneDnnBench
 from benches.base import TracingType
 from options import Compare, options
@@ -107,8 +106,8 @@ def run_iterations(
     Unless options.exit_on_failure is set, then exception is raised.
     """
 
+    log.info(f"Running '{benchmark.name()}' {iters}x iterations...")
     for iter in range(iters):
-        log.info(f"running {benchmark.name()}, iteration {iter}... ")
         try:
             bench_results = benchmark.run(
                 env_vars, run_trace=run_trace, force_trace=force_trace
@@ -145,7 +144,7 @@ def run_iterations(
                 log.error(f"{failure_label}: verification failed: {str(e)}.")
                 continue
 
-    # Iterations completed successfully
+    log.info(f"Completed '{benchmark.name()}' {iters}x iterations")
     return True
 
 
@@ -232,9 +231,9 @@ def process_results(
 def collect_metadata(suites):
     metadata = {}
 
-    for s in suites:
-        metadata.update(s.additional_metadata())
-        suite_benchmarks = s.benchmarks()
+    for suite in suites:
+        metadata.update(suite.additional_metadata())
+        suite_benchmarks = suite.benchmarks()
         for benchmark in suite_benchmarks:
             results = benchmark.get_metadata()
             metadata.update(results)
@@ -276,7 +275,6 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
         UMFSuite(),
         GromacsBench(),
         OneDnnBench(),
-        TestSuite(),
     ]
 
     # Collect metadata from all benchmarks without setting them up
@@ -289,23 +287,20 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
     benchmarks = []
     failures = {}
 
-    # TODO: rename "s", rename setup in suite to suite_setup, rename setup in benchmark to benchmark_setup
-    # TODO: do not add benchmarks whose suite setup failed
-    # TODO: add a mode where we fail entire script in case of setup (or other) failures and use in CI
-
-    for s in suites:
-        if s.name() not in enabled_suites(options.preset):
+    for suite in suites:
+        if suite.name() not in enabled_suites(options.preset):
             continue
 
-        # filter out benchmarks that are disabled
+        # Filter out benchmarks with filter given by user
         suite_benchmarks = [
-            benchmark for benchmark in s.benchmarks() if benchmark.enabled()
+            benchmark for benchmark in suite.benchmarks() if benchmark.enabled()
         ]
         if filter:
-            # log.info(f"all benchmarks:\n" + "\n".join([b.name() for b in suite_benchmarks]))
             log.debug(
-                f"Filtering {len(suite_benchmarks)} benchmarks in {s.name()} suite for {filter.pattern}"
+                f"All benchmarks in suite '{suite.name()}' ({len(suite_benchmarks)}):\n"
+                + "\n".join([b.name() for b in suite_benchmarks])
             )
+            log.debug(f"Filtering '{suite.name()}' suite for: '{filter.pattern}'")
             suite_benchmarks = [
                 benchmark
                 for benchmark in suite_benchmarks
@@ -313,19 +308,19 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
             ]
 
         if suite_benchmarks:
-            log.info(f"Setting up {type(s).__name__}")
+            log.info(f"Setting up {type(suite).__name__}")
             try:
-                s.setup()
+                suite.setup()
             except Exception as e:
                 if options.exit_on_failure:
                     raise e
-                failures[s.name()] = f"Suite '{s.name()}' setup failure: {e}"
+                failures[suite.name()] = f"Suite '{suite.name()}' setup failure: {e}"
                 log.error(
-                    f"Suite {type(s).__name__} setup failed. Benchmarks won't be added."
+                    f"Suite {type(suite).__name__} setup failed. Benchmarks won't be added."
                 )
                 log.error(f"failed: {e}")
             else:
-                log.info(f"{type(s).__name__} setup complete.")
+                log.info(f"{type(suite).__name__} setup complete.")
                 benchmarks += suite_benchmarks
 
     for benchmark in benchmarks:
@@ -489,7 +484,7 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
             html_path = os.path.normpath(
                 os.path.join(os.path.dirname(__file__), "html")
             )
-        log.info(f"Generating HTML with benchmark results in {html_path}...")
+        log.info(f"Generating HTML with benchmark results in '{html_path}'...")
 
         generate_html(history, compare_names, html_path, metadata)
         log.info(f"HTML with benchmark results has been generated")
@@ -886,8 +881,18 @@ if __name__ == "__main__":
         log.warning(f"Failed to fetch device architecture: {e}")
         log.warning("Defaulting to generic benchmark parameters.")
         execution_stats["warnings"] += 1
+    finally:
+        log.info(f"Selected device architecture: {options.device_architecture}")
 
-    log.info(f"Selected device architecture: {options.device_architecture}")
+    if options.ur_adapter:
+        log.info(f"Selected adapter (to force load): {options.ur_adapter}")
+
+    try:
+        if warn_if_level_zero_is_not_found(additional_env_vars):
+            execution_stats["warnings"] += 1
+    except Exception as e:
+        log.warning(f"Failed to check Level Zero and GPU presence: {e}")
+        execution_stats["warnings"] += 1
 
     main(
         args.benchmark_directory,

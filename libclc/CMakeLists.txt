@@ -591,7 +591,6 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
         # Enable SPIR-V builtin function declarations, so they don't have to be
         # explicity declared in the soruce.
         -Xclang -fdeclare-spirv-builtins
-        -I${CMAKE_CURRENT_SOURCE_DIR}/opencl/include
         -I${CMAKE_CURRENT_SOURCE_DIR}/libspirv/include/
       )
 
@@ -611,10 +610,12 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       )
     endif()
 
-    set( opencl_build_flags ${build_flags} )
-    list( APPEND opencl_build_flags
+     list( APPEND build_flags
+      -Xclang -fdeclare-opencl-builtins -Xclang -finclude-default-header
       -I${CMAKE_CURRENT_SOURCE_DIR}/opencl/include
-    )
+    )  
+    set( opencl_build_flags ${build_flags} )
+ 
 
     add_libclc_builtin_set(
       ARCH ${ARCH}

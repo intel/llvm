@@ -1,6 +1,3 @@
-// UNSUPPORTED: target-nvidia,cuda
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20109
-
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -45,7 +42,7 @@ int test(queue &Q, OptionalIdentity<T, HasIdentity> Identity, T Init,
 
   // Compute.
   Q.submit([&](handler &CGH) {
-     // Helper for creating the reductions depending on the existance of an
+     // Helper for creating the reductions depending on the existence of an
      // identity.
      auto CreateReduction = [&]() {
        if constexpr (HasIdentity) {

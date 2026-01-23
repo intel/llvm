@@ -144,7 +144,7 @@ void KernelData::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
         static_cast<detail::AccessorBaseHost *>(&S->GlobalFlushBuf);
     detail::Requirement *GFlushReq = &*detail::getSyclObjImpl(*GFlushBase);
 
-    // If work group size wasn't set explicitly then it must be recieved
+    // If work group size wasn't set explicitly then it must be received
     // from kernel attribute or set to default values.
     // For now we can't get this attribute here.
     // So we just suppose that WG size is always default for stream.

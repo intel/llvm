@@ -70,7 +70,7 @@ elif config.test_mode == "build-only":
     lit_config.note("build-only test mode enabled, only compiling tests")
     config.available_features.add("build-mode")
     config.sycl_devices = []
-    if not config.amd_arch:
+    if not getattr(config, "amd_arch", None):
         config.amd_arch = "gfx1030"
 else:
     lit_config.error("Invalid argument for test-mode")
@@ -235,9 +235,6 @@ if lit_config.params.get("gpu-intel-dg2", False):
 if lit_config.params.get("gpu-intel-pvc-vg", False):
     config.available_features.add("gpu-intel-pvc-vg")
 
-if lit_config.params.get("igc-dev", False):
-    config.available_features.add("igc-dev")
-
 # Map between device family and architecture types.
 device_family_arch_map = {
     # <Family name> : Set of architectures types (and aliases)
@@ -276,8 +273,6 @@ def check_igc_tag_and_add_feature():
     if os.path.isfile(config.igc_tag_file):
         with open(config.igc_tag_file, "r") as tag_file:
             contents = tag_file.read()
-            if "igc-dev" in contents:
-                config.available_features.add("igc-dev")
 
 
 def quote_path(path):
@@ -850,6 +845,8 @@ tools = [
     ToolSubst("sycl-post-link", unresolved="fatal"),
     ToolSubst("file-table-tform", unresolved="fatal"),
     ToolSubst("llvm-foreach", unresolved="fatal"),
+    ToolSubst("llvm-profdata", unresolved="ignore"),
+    ToolSubst("llvm-cov", unresolved="ignore"),
 ] + feature_tools
 
 # Try and find each of these tools in the DPC++ bin directory, in the llvm tools directory
@@ -986,6 +983,11 @@ if config.test_mode != "build-only":
         lit_config.note(
             "sycl-jit was not found. Tests requiring sycl-jit will be skipped."
         )
+
+# Check for enabled NewOffloadModel
+if lit_config.params.get("enable_new_offload_model", "False") != "False":
+    config.available_features.add("new-offload-model")
+    config.cxx_flags += " --offload-new-driver "
 
 # That has to be executed last so that all device-independent features have been
 # discovered already.
@@ -1148,6 +1150,16 @@ for full_name, sycl_device in zip(
         config.intel_driver_ver[full_name] = intel_driver_ver
     else:
         config.intel_driver_ver[full_name] = {}
+
+# Add AMD architecture flags for HIP backend compilation.
+# Uses detected GPU architecture or defaults to gfx1030 in build-only mode.
+amd_arch_flags = ""
+amd_arch = getattr(config, "amd_arch", None)
+if amd_arch:
+    amd_arch_flags = (
+        f"-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch={amd_arch}"
+    )
+config.substitutions.append(("%amd_arch_options", amd_arch_flags))
 
 if lit_config.params.get("compatibility_testing", "False") != "False":
     config.substitutions.append(("%clangxx", " true "))

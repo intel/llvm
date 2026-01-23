@@ -573,9 +573,8 @@ public:
 
       traceProgram("Program evicted.", CacheKey);
     } else
-      // This should never happen.
-      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                            "Program not found in the cache.");
+      // This can happen if we try to remove cache entries after early shutdown.
+      return 0;
 
     return MCachedPrograms.ProgramCacheSizeInBytes;
   }
@@ -684,9 +683,9 @@ public:
     std::lock_guard<std::mutex> L1(MProgramCacheMutex);
     std::lock_guard<std::mutex> L2(MKernelsPerProgramCacheMutex);
     FastKernelCacheWriteLockT L3(MFastKernelCacheMutex);
-    MCachedPrograms = ProgramCache{};
-    MKernelsPerProgramCache = KernelCacheT{};
-    MFastKernelCache = FastKernelCacheT{};
+    MCachedPrograms.Cache.clear();
+    MKernelsPerProgramCache.clear();
+    MFastKernelCache.clear();
     MProgramToFastKernelCacheKeyMap.clear();
     // Clear the eviction lists and its mutexes.
     MEvictionList.clear();

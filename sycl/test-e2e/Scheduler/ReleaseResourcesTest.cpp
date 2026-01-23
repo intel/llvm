@@ -55,6 +55,6 @@ int main() {
 // windows should handle the memory cleanup.
 
 // CHECK-RELEASE: <--- urQueueRelease
-// CHECK-RELEASE: <--- urContextRelease
-// CHECK-RELEASE: <--- urKernelRelease
 // CHECK-RELEASE: <--- urProgramRelease
+// CHECK-RELEASE: <--- urKernelRelease
+// CHECK-RELEASE: <--- urContextRelease

@@ -8,11 +8,12 @@
 // CHECK: SYCLConditionalCallOnDevicePass
 // CHECK: SYCLPropagateAspectsUsagePass
 // CHECK: SYCLPropagateJointMatrixUsagePass
-// CHECK: SYCLLowerWGLocalMemoryPass
 // CHECK: CompileTimePropertiesPass
 // CHECK: InferFunctionAttrsPass
 // CHECK: AlwaysInlinerPass
 // CHECK: ModuleInlinerWrapperPass
+// CHECK: SYCLLowerWGLocalMemoryPass
+// CHECK: EarlyCSEPass
 // CHECK: SYCLOptimizeBarriersPass
 // CHECK: ConstantMergePass
 // CHECK: SYCLMutatePrintfAddrspacePass

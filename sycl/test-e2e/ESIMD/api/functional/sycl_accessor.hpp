@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 ///
 /// \file
-/// Provides type packs and all neccessary helpers and wrappers to use with
+/// Provides type packs and all necessary helpers and wrappers to use with
 /// tests with sycl::accessor
 ///
 //===----------------------------------------------------------------------===//

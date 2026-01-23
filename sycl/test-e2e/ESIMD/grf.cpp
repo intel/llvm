@@ -5,8 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// This test verifies effect of the register_alloc_mode kernel property
-// API call in device code:
+// This test verifies effect of the "grf_size<num>" and "grf_size_automatic"
+// kernel properties API call in device code:
 // - ESIMD/SYCL splitting happens as usual
 // - ESIMD module is further split into callgraphs for entry points for
 //   each value
@@ -15,22 +15,14 @@
 
 // REQUIRES: arch-intel_gpu_pvc
 //             invokes 'urProgramBuild'/'urKernelCreate'
-// RUN: %{build} -o %t1.out
-// RUN: env SYCL_UR_TRACE=2 %{run} %t1.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t1.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
-// RUN: %{build} -DUSE_NEW_API=1 -o %t2.out
+// RUN: %{build} -o %t2.out
 // RUN: env SYCL_UR_TRACE=2 %{run} %t2.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
 // RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t2.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
 // RUN: %{build} -DUSE_AUTO -o %t3.out
 // RUN: env SYCL_UR_TRACE=2 %{run} %t3.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-NO-VAR
 // RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t3.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
 #include "esimd_test_utils.hpp"
-
-#if defined(USE_NEW_API) || defined(USE_AUTO)
 #include <sycl/ext/intel/experimental/grf_size_properties.hpp>
-#else
-#include <sycl/detail/kernel_properties.hpp>
-#endif
 
 using namespace sycl;
 using namespace sycl::detail;
@@ -119,11 +111,8 @@ int main(void) {
     buffer<float, 1> bufa(A.data(), range<1>(Size));
 #ifdef USE_AUTO
     sycl::ext::oneapi::experimental::properties prop{grf_size_automatic};
-#elif defined(USE_NEW_API)
-    sycl::ext::oneapi::experimental::properties prop{grf_size<256>};
 #else
-    sycl::ext::oneapi::experimental::properties prop{
-        register_alloc_mode<register_alloc_mode_enum::large>};
+    sycl::ext::oneapi::experimental::properties prop{grf_size<256>};
 #endif
     auto e = q.submit([&](handler &cgh) {
       auto PA = bufa.get_access<access::mode::read_write>(cgh);

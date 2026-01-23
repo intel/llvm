@@ -1,10 +1,11 @@
-// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2025-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "fixtures.h"
+#include "uur/fixtures.h"
 #include <array>
 
 // Virtual base class for tests verifying that if the `isInOrder` field is
@@ -146,7 +147,7 @@ struct urInOrderUSMCommandBufferExpTest : urInOrderCommandBufferExpTest {
   std::array<void *, 3> device_ptrs = {nullptr, nullptr, nullptr};
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urInOrderUSMCommandBufferExpTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(urInOrderUSMCommandBufferExpTest);
 
 // Tests USM Fill, Copy, and Kernel commands to a command-buffer
 TEST_P(urInOrderUSMCommandBufferExpTest, WithoutHints) {

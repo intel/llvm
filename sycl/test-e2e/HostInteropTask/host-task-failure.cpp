@@ -1,6 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: arch-intel_gpu_pvc || arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20961
+
 #include <sycl/detail/core.hpp>
 
 using namespace sycl;

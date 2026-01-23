@@ -48,6 +48,26 @@ def run(
         if isinstance(command, str):
             command = command.split()
 
+        is_gdb_mode = os.environ.get("LLVM_BENCHMARKS_USE_GDB", "") == "1"
+        if any("/compute-benchmarks-build/bin/" in x for x in command) and is_gdb_mode:
+            command = [
+                "gdb",
+                "-return-child-result",
+                "--batch",
+                "--ex",
+                "set auto-load safe-path /",
+                "--ex",
+                "set confirm off",
+                "--ex",
+                "run",
+                "--ex",
+                "bt",
+                "--ex",
+                "quit",
+                "--args",
+            ] + command
+            log.info(f"Running in gdb mode")
+
         env = os.environ.copy()
         for ldlib in ld_library:
             if os.path.isdir(ldlib):
@@ -71,7 +91,7 @@ def run(
         command_str = " ".join(command)
         env_str = " ".join(f"{key}={value}" for key, value in env_vars.items())
         full_command_str = f"{env_str} {command_str}".strip()
-        log.debug(f"Running: {full_command_str}")
+        log.info(f"Running: {full_command_str}")
 
         for key, value in env_vars.items():
             # Only PATH and LD_LIBRARY_PATH should be prepended to existing values
@@ -195,11 +215,42 @@ def get_device_architecture(additional_env_vars):
 
     if len(architectures) != 1:
         raise ValueError(
-            f"Expected exactly one device architecture, but found {len(architectures)}: {architectures}."
+            f"Expected exactly one device architecture, but found {len(architectures)}: {architectures}. "
             "Set ONEAPI_DEVICE_SELECTOR=backend:device_id to specify a single device."
         )
 
     return architectures.pop()
+
+
+def warn_if_level_zero_is_not_found(additional_env_vars) -> bool:
+    warning_found = False
+    sycl_ls_found_l0 = False
+
+    sycl_ls_output = run(
+        ["sycl-ls"], add_sycl=True, env_vars=additional_env_vars
+    ).stdout.decode()
+
+    for line in sycl_ls_output.splitlines():
+        if "level_zero" in line:
+            sycl_ls_found_l0 = True
+
+    if not "level_zero" in options.ur_adapter:
+        log.warning(
+            f"  None of Level Zero adapters were set in main.py '--adapter' param."
+        )
+        warning_found = True
+    if not sycl_ls_found_l0:
+        log.warning(f"  sycl-ls did not list any Level Zero devices.")
+        warning_found = True
+
+    if warning_found:
+        log.warning(
+            "  Please double check if proper setup is used for benchmarking!!! "
+            + "Perhaps check 'ONEAPI_DEVICE_SELECTOR' env var?"
+        )
+        return True
+
+    return False
 
 
 def prune_old_files(directory: str, keep_count: int = 10):

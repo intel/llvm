@@ -32,6 +32,7 @@
 #include "clang/Driver/SanitizerArgs.h"
 #include "clang/Driver/Types.h"
 #include "clang/Driver/XRayArgs.h"
+#include "clang/Options/OptionUtils.h"
 #include "clang/Options/Options.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallSet.h"
@@ -3880,6 +3881,7 @@ static void RenderHLSLOptions(const ArgList &Args, ArgStringList &CmdArgs,
       options::OPT_disable_llvm_passes,
       options::OPT_fnative_half_type,
       options::OPT_fnative_int16_type,
+      options::OPT_fmatrix_memory_layout_EQ,
       options::OPT_hlsl_entrypoint,
       options::OPT_fdx_rootsignature_define,
       options::OPT_fdx_rootsignature_version,
@@ -4613,6 +4615,10 @@ renderDebugOptions(const ToolChain &TC, const Driver &D, const llvm::Triple &T,
                         (DebuggerTuning != llvm::DebuggerKind::SCE &&
                          DebuggerTuning != llvm::DebuggerKind::DBX)))
     CmdArgs.push_back("-gno-column-info");
+
+  if (!Args.hasFlag(options::OPT_gcall_site_info,
+                    options::OPT_gno_call_site_info, true))
+    CmdArgs.push_back("-gno-call-site-info");
 
   // FIXME: Move backend command line options to the module.
   if (Args.hasFlag(options::OPT_gmodules, options::OPT_gno_modules, false)) {
@@ -5803,6 +5809,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     Args.ClaimAllArgs(options::OPT_femit_dwarf_unwind_EQ);
   }
 
+  bool IsAMDSPIRVForHIPDevice =
+      IsHIPDevice && getToolChain().getTriple().isSPIRV() &&
+      getToolChain().getTriple().getVendor() == llvm::Triple::AMD;
+
   if (isa<AnalyzeJobAction>(JA)) {
     assert(JA.getType() == types::TY_Plist && "Invalid output type.");
     CmdArgs.push_back("-analyze");
@@ -5910,6 +5920,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       rewriteKind = RK_Fragile;
     } else if (JA.getType() == types::TY_CIR) {
       CmdArgs.push_back("-emit-cir");
+    } else if (JA.getType() == types::TY_Image && IsAMDSPIRVForHIPDevice) {
+      CmdArgs.push_back("-emit-obj");
     } else {
       assert(JA.getType() == types::TY_PP_Asm && "Unexpected output type!");
     }
@@ -6471,6 +6483,18 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-fenable-matrix");
     CmdArgs.push_back("-mllvm");
     CmdArgs.push_back("-enable-matrix");
+    // Only handle default layout if matrix is enabled
+    if (const Arg *A = Args.getLastArg(options::OPT_fmatrix_memory_layout_EQ)) {
+      StringRef Val = A->getValue();
+      if (Val == "row-major" || Val == "column-major") {
+        CmdArgs.push_back(Args.MakeArgString("-fmatrix-memory-layout=" + Val));
+        CmdArgs.push_back("-mllvm");
+        CmdArgs.push_back(Args.MakeArgString("-matrix-default-layout=" + Val));
+
+      } else {
+        D.Diag(diag::err_drv_invalid_value) << A->getAsString(Args) << Val;
+      }
+    }
   }
 
   CodeGenOptions::FramePointerKind FPKeepKind =
@@ -7845,6 +7869,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       types::isCXX(InputType))
     CmdArgs.push_back("-fcoro-aligned-allocation");
 
+  if (Args.hasFlag(options::OPT_fdefer_ts, options::OPT_fno_defer_ts,
+                   /*Default=*/false))
+    CmdArgs.push_back("-fdefer-ts");
+
   Args.AddLastArg(CmdArgs, options::OPT_fdouble_square_bracket_attributes,
                   options::OPT_fno_double_square_bracket_attributes);
 
@@ -8621,6 +8649,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       TargetInfo += C.getDriver().getSYCLDeviceTriple().normalize();
     CmdArgs.push_back(Args.MakeArgString(TargetInfo.str()));
   }
+  if (Args.hasFlag(options::OPT_fdevirtualize_speculatively,
+                   options::OPT_fno_devirtualize_speculatively,
+                   /*Default value*/ false))
+    CmdArgs.push_back("-fdevirtualize-speculatively");
 
   bool VirtualFunctionElimination =
       Args.hasFlag(options::OPT_fvirtual_function_elimination,
@@ -10503,7 +10535,7 @@ static void getSPIRVBackendOpts(const llvm::opt::ArgList &TCArgs,
                               ",+SPV_EXT_shader_atomic_float_add"
                               ",+SPV_EXT_shader_atomic_float_min_max";
   std::string IntelExtArg = ",+SPV_INTEL_2d_block_io"
-                            ",+SPV_INTEL_arbitrary_precision_integers"
+                            ",+SPV_ALTERA_arbitrary_precision_integers"
                             ",+SPV_INTEL_bfloat16_conversion"
                             ",+SPV_INTEL_bindless_images"
                             ",+SPV_INTEL_cache_controls"
@@ -10515,7 +10547,8 @@ static void getSPIRVBackendOpts(const llvm::opt::ArgList &TCArgs,
                             ",+SPV_INTEL_long_composites"
                             ",+SPV_INTEL_subgroups"
                             ",+SPV_INTEL_tensor_float32_conversion"
-                            ",+SPV_INTEL_variable_length_array";
+                            ",+SPV_INTEL_variable_length_array"
+                            ",+SPV_INTEL_memory_access_aliasing";
   std::string KHRExtArg = ",+SPV_KHR_16bit_storage"
                           ",+SPV_KHR_cooperative_matrix"
                           ",+SPV_KHR_expect_assume"
@@ -10610,7 +10643,8 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
       ",+SPV_KHR_non_semantic_info"
       ",+SPV_KHR_cooperative_matrix"
       ",+SPV_EXT_shader_atomic_float16_add"
-      ",+SPV_INTEL_fp_max_error";
+      ",+SPV_INTEL_fp_max_error"
+      ",+SPV_INTEL_memory_access_aliasing";
 
   TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
 }
@@ -11180,6 +11214,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       OPT_R_value_Group,
       OPT_R_Group,
       OPT_Xcuda_ptxas,
+      OPT_ftarget_register_alloc_mode_EQ,
       OPT_ftime_report,
       OPT_ftime_trace,
       OPT_ftime_trace_EQ,
@@ -11200,7 +11235,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       OPT_fno_lto,
       OPT_flto,
       OPT_flto_partitions_EQ,
-      OPT_flto_EQ};
+      OPT_flto_EQ,
+      OPT_use_spirv_backend};
+
   const llvm::DenseSet<unsigned> LinkerOptions{OPT_mllvm, OPT_Zlinker_input};
   auto ShouldForwardForToolChain = [&](Arg *A, const ToolChain &TC) {
     // Don't forward -mllvm to toolchains that don't support LLVM.
@@ -11232,13 +11269,31 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       ArgStringList LinkerArgs;
       const DerivedArgList &ToolChainArgs =
           C.getArgsForToolChain(TC, /*BoundArch=*/"", Kind);
+      DerivedArgList BaseCompilerArgs(ToolChainArgs.getBaseArgs());
       for (Arg *A : ToolChainArgs) {
         if (A->getOption().matches(OPT_Zlinker_input))
           LinkerArgs.emplace_back(A->getValue());
         else if (ShouldForward(CompilerOptions, A, *TC))
-          A->render(Args, CompilerArgs);
+          BaseCompilerArgs.append(A);
         else if (ShouldForward(LinkerOptions, A, *TC))
           A->render(Args, LinkerArgs);
+      }
+
+      if (Kind == Action::OFK_SYCL) {
+        // Add implied SYCL target arguments to `CompilerArgs`
+        // based on the selected target.
+        const toolchains::SYCLToolChain &SYCLTC =
+            static_cast<const toolchains::SYCLToolChain &>(*TC);
+        const ToolChain *HostTC =
+            C.getSingleOffloadToolChain<Action::OFK_Host>();
+        SYCLTC.AddImpliedTargetArgs(SYCLTC.getTriple(), BaseCompilerArgs,
+                                    CompilerArgs, JA, *HostTC);
+      } else {
+        // For non-SYCL offload kinds (CUDA, OpenMP, HIP), directly convert
+        // the BaseCompilerArgs to CompilerArgs without additional processing.
+        for (Arg *A : BaseCompilerArgs) {
+          A->render(BaseCompilerArgs, CompilerArgs);
+        }
       }
 
       // If the user explicitly requested it via `--offload-arch` we should
@@ -11463,32 +11518,16 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(
           Args.MakeArgString("-sycl-allow-device-image-dependencies"));
 
-    // Formulate and add any offload-wrapper and AOT specific options. These
-    // are additional options passed in via -Xsycl-target-linker and
-    // -Xsycl-target-backend.
+    // Pass backend compiler and linker options specified at link time to
+    // clang-linker-wrapper. Link-time options passed via -Xsycl-target-backend
+    // are forwarded using --device-compiler, while options passed via
+    // -Xsycl-target-linker are forwarded using --device-linker.
     const toolchains::SYCLToolChain &SYCLTC =
         static_cast<const toolchains::SYCLToolChain &>(getToolChain());
-    // Only store compile/link opts in the image descriptor for the SPIR-V
-    // target.  For AOT, pass along the addition options via GPU or CPU
-    // specific clang-linker-wrapper options.
-    const ArgList &Args =
-        C.getArgsForToolChain(nullptr, StringRef(), Action::OFK_SYCL);
     for (auto &ToolChainMember :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       const ToolChain *TC = ToolChainMember.second;
-      bool IsJIT = false;
-      StringRef WrapperOption;
-      StringRef WrapperLinkOption;
-      if (TC->getTriple().isSPIROrSPIRV()) {
-        if (TC->getTriple().getSubArch() == llvm::Triple::NoSubArch) {
-          IsJIT = true;
-          WrapperOption = "--sycl-backend-compile-options=";
-        }
-        if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen)
-          WrapperOption = "--gpu-tool-arg=";
-        if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
-          WrapperOption = "--cpu-tool-arg=";
-      } else
+      if (!TC->getTriple().isSPIROrSPIRV())
         continue;
       ArgStringList BuildArgs;
       SmallString<128> BackendOptString;
@@ -11500,20 +11539,29 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       BuildArgs.clear();
       SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);
       for (const auto &A : BuildArgs) {
-        if (IsJIT)
+        if (TC->getTriple().getSubArch() == llvm::Triple::NoSubArch)
           appendOption(LinkOptString, A);
         else
           // For AOT, combine the Backend and Linker strings into one.
           appendOption(BackendOptString, A);
       }
-      if (!BackendOptString.empty())
-        CmdArgs.push_back(
-            Args.MakeArgString(Twine(WrapperOption) + BackendOptString));
-      if (!LinkOptString.empty())
-        CmdArgs.push_back(
-            Args.MakeArgString("--sycl-target-link-options=" + LinkOptString));
+
+      if (!BackendOptString.empty()) {
+        CmdArgs.push_back(Args.MakeArgString(
+            "--device-compiler=" +
+            Action::GetOffloadKindName(Action::OFK_SYCL) + ":" +
+            TC->getTripleString() + "=" + BackendOptString));
+      }
+      if (!LinkOptString.empty()) {
+        CmdArgs.push_back(Args.MakeArgString(
+            "--device-linker=" + Action::GetOffloadKindName(Action::OFK_SYCL) +
+            ":" + TC->getTripleString() + "=" + LinkOptString));
+      }
     }
+
     // Add option to enable creating of the .syclbin file.
+    const ArgList &Args =
+        C.getArgsForToolChain(nullptr, StringRef(), Action::OFK_SYCL);
     if (Arg *A = Args.getLastArg(options::OPT_fsyclbin_EQ))
       CmdArgs.push_back(
           Args.MakeArgString("--syclbin=" + StringRef{A->getValue()}));
