@@ -5377,7 +5377,7 @@ createSYCLCrossABIMangleContext(ASTContext &Ctx) {
   const TargetInfo *AuxTarget = Ctx.getAuxTargetInfo();
   
   // DEBUG: Log target information
-  llvm::errs() << "DEBUG createSYCLCrossABIMangleContext:\n";
+  llvm::errs() << "DEBUG createSYCLCrossABIMangleContext (ORIGINAL LOGIC - SHOULD FAIL):\n";
   llvm::errs() << "  Primary Target ABI: " << Ctx.getTargetInfo().getCXXABI().getKind() << "\n";
   llvm::errs() << "  Primary Target Triple: " << Ctx.getTargetInfo().getTriple().str() << "\n";
   if (AuxTarget) {
@@ -5386,13 +5386,14 @@ createSYCLCrossABIMangleContext(ASTContext &Ctx) {
   } else {
     llvm::errs() << "  Aux Target: nullptr\n";
   }
-  llvm::errs() << "  Aux isMicrosoft: " << (AuxTarget ? AuxTarget->getCXXABI().isMicrosoft() : 0) << "\n";
-  llvm::errs() << "  Primary isItaniumFamily: " << Ctx.getTargetInfo().getCXXABI().isItaniumFamily() << "\n";
+  llvm::errs() << "  Primary isMicrosoft: " << Ctx.getTargetInfo().getCXXABI().isMicrosoft() << "\n";
+  if (AuxTarget) {
+    llvm::errs() << "  Aux isItaniumFamily: " << AuxTarget->getCXXABI().isItaniumFamily() << "\n";
+  }
   
-  // During device compilation: Primary = device (Itanium), Aux = host (Microsoft on Windows)
-  // Check if aux target (host) is Microsoft ABI and primary target (device) is Itanium
-  if (AuxTarget && AuxTarget->getCXXABI().isMicrosoft() &&
-      Ctx.getTargetInfo().getCXXABI().isItaniumFamily()) {
+  // INTENTIONALLY WRONG LOGIC for testing - checking primary instead of aux
+  if (AuxTarget && Ctx.getTargetInfo().getCXXABI().isMicrosoft() &&
+      AuxTarget->getCXXABI().isItaniumFamily()) {
     llvm::errs() << "  -> Using device mangling context (cross-ABI scenario)\n";
     return std::unique_ptr<MangleContext>(
         Ctx.createDeviceMangleContext(*AuxTarget));
