@@ -16,6 +16,7 @@
 #include "kernel.hpp"
 #include "memory.hpp"
 #include "queue.hpp"
+#include "sampler.hpp"
 
 /// The ur_exp_command_buffer_handle_t_ destructor calls CL release
 /// command-buffer to free the underlying object.
@@ -136,6 +137,80 @@ urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
       clFinalizeCommandBufferKHR(hCommandBuffer->CLCommandBuffer));
   hCommandBuffer->IsFinalized = true;
   return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferAppendKernelLaunchWithArgsExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer, ur_kernel_handle_t hKernel,
+    uint32_t workDim, const size_t *pGlobalWorkOffset,
+    const size_t *pGlobalWorkSize, const size_t *pLocalWorkSize,
+    uint32_t numArgs, const ur_exp_kernel_arg_properties_t *pArgs,
+    uint32_t /*numKernelAlternatives*/,
+    ur_kernel_handle_t * /*phKernelAlternatives*/,
+    uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
+    ur_exp_command_buffer_command_handle_t *phCommandHandle) {
+  (void)numEventsInWaitList;
+  (void)phEventWaitList;
+  (void)phEvent;
+
+  // Command handles can only be obtained from updatable command-buffers
+  UR_ASSERT(!(phCommandHandle && !hCommandBuffer->IsUpdatable),
+            UR_RESULT_ERROR_INVALID_OPERATION);
+
+  cl_context CLContext = hCommandBuffer->hContext->CLContext;
+
+  clSetKernelArgMemPointerINTEL_fn SetKernelArgMemPointerPtr = nullptr;
+  UR_RETURN_ON_FAILURE(
+      cl_ext::getExtFuncFromContext<clSetKernelArgMemPointerINTEL_fn>(
+          CLContext,
+          ur::cl::getAdapter()->fnCache.clSetKernelArgMemPointerINTELCache,
+          cl_ext::SetKernelArgMemPointerName, &SetKernelArgMemPointerPtr));
+
+  for (uint32_t i = 0; i < numArgs; i++) {
+    switch (pArgs[i].type) {
+    case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
+      CL_RETURN_ON_FAILURE(clSetKernelArg(hKernel->CLKernel,
+                                          static_cast<cl_uint>(pArgs[i].index),
+                                          pArgs[i].size, nullptr));
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_VALUE:
+      CL_RETURN_ON_FAILURE(clSetKernelArg(hKernel->CLKernel,
+                                          static_cast<cl_uint>(pArgs[i].index),
+                                          pArgs[i].size, pArgs[i].value.value));
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
+      cl_mem mem = pArgs[i].value.memObjTuple.hMem
+                       ? pArgs[i].value.memObjTuple.hMem->CLMemory
+                       : nullptr;
+      CL_RETURN_ON_FAILURE(clSetKernelArg(hKernel->CLKernel,
+                                          static_cast<cl_uint>(pArgs[i].index),
+                                          pArgs[i].size, &mem));
+      break;
+    }
+    case UR_EXP_KERNEL_ARG_TYPE_POINTER:
+      CL_RETURN_ON_FAILURE(SetKernelArgMemPointerPtr(
+          hKernel->CLKernel, static_cast<cl_uint>(pArgs[i].index),
+          pArgs[i].value.pointer));
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
+      CL_RETURN_ON_FAILURE(clSetKernelArg(
+          hKernel->CLKernel, static_cast<cl_uint>(pArgs[i].index),
+          pArgs[i].size, &pArgs[i].value.sampler->CLSampler));
+      break;
+    }
+    default:
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+    }
+  }
+
+  return urCommandBufferAppendKernelLaunchExp(
+      hCommandBuffer, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+      pLocalWorkSize, 0, nullptr, numSyncPointsInWaitList, pSyncPointWaitList,
+      numEventsInWaitList, phEventWaitList, pSyncPoint, phEvent,
+      phCommandHandle);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(

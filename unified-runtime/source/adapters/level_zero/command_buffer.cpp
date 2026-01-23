@@ -1111,6 +1111,192 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
   return UR_RESULT_SUCCESS;
 }
 
+/**
+ * Sets the kernel arguments for a kernel command that will be appended to the
+ * command-buffer.
+ * @param[in] Device The Device associated with the command-buffer where the
+ * kernel command will be appended.
+ * @param[in] MemObjTuple Memory object tuple stored in the ur_kernel_handle_t
+ * object to be set on the /p ZeKernel object.
+ * @param[out] pZePtr stored in the ur_kernel_handle_t object to be set
+ * on the /p ZeKernel object.
+ * @return UR_RESULT_SUCCESS or an error code on failure
+ */
+ur_result_t
+getZePtrFromMemObjTuple(ur_device_handle_t Device,
+                        ur_exp_kernel_arg_mem_obj_tuple_t *pMemObjTuple,
+                        void **pZePtr) {
+  UR_ASSERT(pZePtr, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  *pZePtr = nullptr;
+
+  char **ZeHandlePtr = nullptr;
+
+  ur_mem_handle_t MemObj = pMemObjTuple->hMem;
+  if (MemObj) {
+    ur_mem_handle_t_::access_mode_t UrAccessMode = ur_mem_handle_t_::read_write;
+    switch (pMemObjTuple->flags) {
+    case UR_MEM_FLAG_READ_WRITE:
+      UrAccessMode = ur_mem_handle_t_::read_write;
+      break;
+    case UR_MEM_FLAG_WRITE_ONLY:
+      UrAccessMode = ur_mem_handle_t_::write_only;
+      break;
+    case UR_MEM_FLAG_READ_ONLY:
+      UrAccessMode = ur_mem_handle_t_::read_only;
+      break;
+    case 0:
+      break;
+    default:
+      return UR_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+
+    UR_CALL(
+        MemObj->getZeHandlePtr(ZeHandlePtr, UrAccessMode, Device, nullptr, 0u));
+  }
+
+  if (ZeHandlePtr) {
+    *pZePtr = *ZeHandlePtr;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urCommandBufferAppendKernelLaunchWithArgsExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer, ur_kernel_handle_t hKernel,
+    uint32_t workDim, const size_t *pGlobalWorkOffset,
+    const size_t *pGlobalWorkSize, const size_t *pLocalWorkSize,
+    uint32_t numArgs, const ur_exp_kernel_arg_properties_t *pArgs,
+    uint32_t numKernelAlternatives, ur_kernel_handle_t *phKernelAlternatives,
+    uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    uint32_t /* numEventsInWaitList */,
+    const ur_event_handle_t * /* phEventWaitList */,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    ur_event_handle_t * /* phEvent */,
+    ur_exp_command_buffer_command_handle_t *phCommand) {
+
+  UR_ASSERT(hKernel->Program, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  // Command handles can only be obtained from updatable command-buffers
+  UR_ASSERT(!(phCommand && !hCommandBuffer->IsUpdatable),
+            UR_RESULT_ERROR_INVALID_OPERATION);
+  // There must be no pending arguments at this point.
+  UR_ASSERT(hKernel->PendingArguments.empty(),
+            UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION);
+
+  ur_device_handle_t Device = hCommandBuffer->Device;
+
+  // Lock automatically releases when this goes out of scope.
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> Lock(
+      hKernel->Mutex, hKernel->Program->Mutex, hCommandBuffer->Mutex);
+
+  // kernelMemObj contains kernel memory objects that
+  // UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ kernelArgs pointers point to
+  hKernel->kernelMemObj.resize(numArgs, 0);
+  hKernel->kernelArgs.resize(numArgs, 0);
+
+  for (uint32_t argIndex = 0; argIndex < numArgs; argIndex++) {
+    switch (pArgs[argIndex].type) {
+    case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
+      hKernel->kernelArgs[argIndex] =
+          reinterpret_cast<void *>(const_cast<size_t *>(&pArgs[argIndex].size));
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_VALUE:
+      hKernel->kernelArgs[argIndex] =
+          const_cast<void *>(pArgs[argIndex].value.value);
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_POINTER:
+      hKernel->kernelArgs[argIndex] = reinterpret_cast<void *>(
+          const_cast<void **>(&pArgs[argIndex].value.pointer));
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ:
+      // compute zePtr for the given memory object tuple and store it in
+      // hKernel->kernelMemObj[argIndex]
+      UR_CALL(getZePtrFromMemObjTuple(
+          Device,
+          const_cast<ur_exp_kernel_arg_mem_obj_tuple_t *>(
+              &pArgs[argIndex].value.memObjTuple),
+          &hKernel->kernelMemObj[argIndex]));
+      hKernel->kernelArgs[argIndex] = &hKernel->kernelMemObj[argIndex];
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_SAMPLER:
+      hKernel->kernelArgs[argIndex] = &pArgs[argIndex].value.sampler->ZeSampler;
+      break;
+    default:
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+    }
+  }
+
+  ze_kernel_handle_t ZeKernel{};
+  UR_CALL(getZeKernel(Device->ZeDevice, hKernel, &ZeKernel));
+
+  if (pGlobalWorkOffset != NULL) {
+    UR_CALL(setKernelGlobalOffset(hCommandBuffer->Context, ZeKernel, workDim,
+                                  pGlobalWorkOffset));
+  }
+
+  ze_group_count_t ZeThreadGroupDimensions{1, 1, 1};
+  uint32_t WG[3];
+  UR_CALL(calculateKernelWorkDimensions(ZeKernel, Device,
+                                        ZeThreadGroupDimensions, WG, workDim,
+                                        pGlobalWorkSize, pLocalWorkSize));
+
+  ZE2UR_CALL(zeKernelSetGroupSize, (ZeKernel, WG[0], WG[1], WG[2]));
+
+  hCommandBuffer->KernelsList.push_back(hKernel);
+  for (size_t i = 0; i < numKernelAlternatives; i++) {
+    hCommandBuffer->KernelsList.push_back(phKernelAlternatives[i]);
+  }
+
+  UR_CALL(ur::level_zero::urKernelRetain(hKernel));
+  // Retain alternative kernels if provided
+  for (size_t i = 0; i < numKernelAlternatives; i++) {
+    UR_CALL(ur::level_zero::urKernelRetain(phKernelAlternatives[i]));
+  }
+
+  if (phCommand) {
+    assert(hCommandBuffer->IsUpdatable);
+    auto Platform = hCommandBuffer->Context->getPlatform();
+    ze_command_list_handle_t ZeCommandList =
+        hCommandBuffer->ZeComputeCommandListTranslated;
+    if (Platform->ZeMutableCmdListExt.LoaderExtension) {
+      ZeCommandList = hCommandBuffer->ZeComputeCommandList;
+    }
+
+    std::unique_ptr<kernel_command_handle> NewCommand;
+    UR_CALL(createCommandHandleUnlocked(
+        hCommandBuffer, ZeCommandList, hKernel, workDim, pGlobalWorkSize,
+        numKernelAlternatives, phKernelAlternatives, Platform,
+        getZeKernelWrapped, Device, NewCommand));
+    *phCommand = NewCommand.get();
+    hCommandBuffer->CommandHandles.push_back(std::move(NewCommand));
+  }
+  std::vector<ze_event_handle_t> ZeEventList;
+  ze_event_handle_t ZeLaunchEvent = nullptr;
+  UR_CALL(createSyncPointAndGetZeEvents(
+      UR_COMMAND_KERNEL_LAUNCH, hCommandBuffer,
+      hCommandBuffer->ZeComputeCommandList, numSyncPointsInWaitList,
+      pSyncPointWaitList, false, pSyncPoint, ZeEventList, ZeLaunchEvent));
+
+  // zeCommandListAppendLaunchKernelWithArguments
+  // TODO hKernel->kernelArgs.data()
+  // TODO pNext
+  ze_group_size_t groupSize = {WG[0], WG[1], WG[2]};
+  ZE2UR_CALL(zeCommandListAppendLaunchKernelWithArguments,
+             (hCommandBuffer->ZeComputeCommandList, ZeKernel,
+              ZeThreadGroupDimensions, groupSize, hKernel->kernelArgs.data(),
+              nullptr /*pNext*/, ZeLaunchEvent, ZeEventList.size(),
+              getPointerFromVector(ZeEventList)));
+
+  /* this is instead of
+  ZE2UR_CALL(zeCommandListAppendLaunchKernel,
+             (hCommandBuffer->ZeComputeCommandList, ZeKernel,
+              &ZeThreadGroupDimensions, ZeLaunchEvent, ZeEventList.size(),
+              getPointerFromVector(ZeEventList)));
+  */
+
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t urCommandBufferAppendUSMMemcpyExp(
     ur_exp_command_buffer_handle_t CommandBuffer, void *Dst, const void *Src,
     size_t Size, uint32_t NumSyncPointsInWaitList,
