@@ -747,6 +747,10 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
   // Validate Region depth for 1D arrays contains layer count
   UR_ASSERT(ZeImageDesc.type != ZE_IMAGE_TYPE_1DARRAY || Region->depth != 0,
             UR_RESULT_ERROR_INVALID_VALUE);
+
+  // Validate Region depth for 2D arrays contains layer count
+  UR_ASSERT(ZeImageDesc.type != ZE_IMAGE_TYPE_2DARRAY || Region->depth != 0,
+            UR_RESULT_ERROR_INVALID_VALUE);
 #endif // !NDEBUG
 
   uint32_t OriginX = ur_cast<uint32_t>(Origin->x);
