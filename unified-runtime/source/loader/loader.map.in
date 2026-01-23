@@ -31,6 +31,7 @@
 		urBindlessImagesUnsampledImageHandleDestroyExp;
 		urBindlessImagesWaitExternalSemaphoreExp;
 		urCommandBufferAppendKernelLaunchExp;
+		urCommandBufferAppendKernelLaunchWithArgsExp;
 		urCommandBufferAppendMemBufferCopyExp;
 		urCommandBufferAppendMemBufferCopyRectExp;
 		urCommandBufferAppendMemBufferFillExp;
@@ -241,6 +242,7 @@
 		urPrintCodeLocation;
 		urPrintCommand;
 		urPrintCommandBufferAppendKernelLaunchExpParams;
+		urPrintCommandBufferAppendKernelLaunchWithArgsExpParams;
 		urPrintCommandBufferAppendMemBufferCopyExpParams;
 		urPrintCommandBufferAppendMemBufferCopyRectExpParams;
 		urPrintCommandBufferAppendMemBufferFillExpParams;
