@@ -546,7 +546,7 @@ public:
   }
 
   ur_program_handle_t get_ur_program() const noexcept { return MProgram; }
-  void set_ur_program(Managed<ur_program_handle_t> &&Program) noexcept {
+  void set_ur_program(Managed<ur_program_handle_t> &&Program) {
     MProgram = std::move(Program);
   }
 
