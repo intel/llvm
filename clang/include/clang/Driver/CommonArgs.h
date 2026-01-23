@@ -280,6 +280,10 @@ bool shouldRecordCommandLine(const ToolChain &TC,
                              bool &FRecordCommandLine,
                              bool &GRecordCommandLine);
 
+void renderGlobalISelOptions(const Driver &D, const llvm::opt::ArgList &Args,
+                             llvm::opt::ArgStringList &CmdArgs,
+                             const llvm::Triple &Triple);
+
 void renderCommonIntegerOverflowOptions(const llvm::opt::ArgList &Args,
                                         llvm::opt::ArgStringList &CmdArgs);
 

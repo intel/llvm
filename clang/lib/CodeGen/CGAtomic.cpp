@@ -768,10 +768,12 @@ static void EmitAtomicOp(CodeGenFunction &CGF, AtomicExpr *E, Address Dest,
     Op = llvm::AtomicRMWInst::Nand;
     break;
 
-  case AtomicExpr::AO__scoped_atomic_uinc_wrap:
+  case AtomicExpr::AO__atomic_fetch_uinc:
+  case AtomicExpr::AO__scoped_atomic_fetch_uinc:
     Op = llvm::AtomicRMWInst::UIncWrap;
     break;
-  case AtomicExpr::AO__scoped_atomic_udec_wrap:
+  case AtomicExpr::AO__atomic_fetch_udec:
+  case AtomicExpr::AO__scoped_atomic_fetch_udec:
     Op = llvm::AtomicRMWInst::UDecWrap;
     break;
 
@@ -1047,6 +1049,8 @@ RValue CodeGenFunction::EmitAtomicExpr(AtomicExpr *E) {
   case AtomicExpr::AO__atomic_fetch_nand:
   case AtomicExpr::AO__atomic_fetch_or:
   case AtomicExpr::AO__atomic_fetch_xor:
+  case AtomicExpr::AO__atomic_fetch_uinc:
+  case AtomicExpr::AO__atomic_fetch_udec:
   case AtomicExpr::AO__atomic_and_fetch:
   case AtomicExpr::AO__atomic_nand_fetch:
   case AtomicExpr::AO__atomic_or_fetch:
@@ -1079,8 +1083,8 @@ RValue CodeGenFunction::EmitAtomicExpr(AtomicExpr *E) {
   case AtomicExpr::AO__scoped_atomic_xor_fetch:
   case AtomicExpr::AO__scoped_atomic_store_n:
   case AtomicExpr::AO__scoped_atomic_exchange_n:
-  case AtomicExpr::AO__scoped_atomic_uinc_wrap:
-  case AtomicExpr::AO__scoped_atomic_udec_wrap:
+  case AtomicExpr::AO__scoped_atomic_fetch_uinc:
+  case AtomicExpr::AO__scoped_atomic_fetch_udec:
     Val1 = EmitValToTemp(*this, E->getVal1());
     break;
   }
@@ -1279,10 +1283,12 @@ RValue CodeGenFunction::EmitAtomicExpr(AtomicExpr *E) {
     case AtomicExpr::AO__opencl_atomic_fetch_max:
     case AtomicExpr::AO__scoped_atomic_fetch_max:
     case AtomicExpr::AO__scoped_atomic_max_fetch:
-    case AtomicExpr::AO__scoped_atomic_uinc_wrap:
-    case AtomicExpr::AO__scoped_atomic_udec_wrap:
+    case AtomicExpr::AO__scoped_atomic_fetch_uinc:
+    case AtomicExpr::AO__scoped_atomic_fetch_udec:
     case AtomicExpr::AO__atomic_test_and_set:
     case AtomicExpr::AO__atomic_clear:
+    case AtomicExpr::AO__atomic_fetch_uinc:
+    case AtomicExpr::AO__atomic_fetch_udec:
       llvm_unreachable("Integral atomic operations always become atomicrmw!");
     }
 
