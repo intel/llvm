@@ -49,20 +49,7 @@ int main() {
     });
   };
 
-  // CHECK: <--- urKernelSetArgPointer(
-  // CHECK-SAME: .hKernel = [[KERNEL_HANDLE1:[0-9a-fA-Fx]+]]
-  // CHECL-SAME: .argIndex = 0
-
-  // CHECK:   <--- urKernelSetArgValue
-  // CHECK-SAME: .hKernel = [[KERNEL_HANDLE1]]
-  // CHECK-SAME: .argIndex = 1
-
-  // CHECK:   <--- urKernelSetArgValue
-  // CHECK-SAME: .hKernel = [[KERNEL_HANDLE1]]
-  // CHECK-SAME: .argIndex = 2
-
-  // CHECK: <--- urCommandBufferAppendKernelLaunchExp
-  // CHECK-SAME: .hKernel = [[KERNEL_HANDLE1]]
+  // CHECK: <--- urCommandBufferAppendKernelLaunchWithArgsExp
   // CHECK-SAME: .numKernelAlternatives = 3
   // CHECK-SAME: .phKernelAlternatives = {{[0-9a-fA-Fx]* ?}}{[[KERNEL_HANDLE2:[0-9a-fA-Fx]+]], [[KERNEL_HANDLE3:[0-9a-fA-Fx]+]], [[KERNEL_HANDLE4:[0-9a-fA-Fx]+]]}
   auto DynamicCG =
