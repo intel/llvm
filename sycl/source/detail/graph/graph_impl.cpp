@@ -761,7 +761,6 @@ void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
                                     bool LockQueue) {
   graph_impl::WriteLock Lock(MMutex);
   if (!Queue.hasCommandGraph()) {
-    addQueue(Queue);
 
     // Use native UR graph recording if enabled
     if (MEnableNativeRecording && MNativeGraphHandle) {
@@ -803,6 +802,7 @@ void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
         throw sycl::exception(sycl::make_error_code(errc::runtime),
                               "Failed to begin native UR graph capture");
       }
+      addQueue(Queue);
     } else {
       // Only set command graph for non-native recording
       if (LockQueue) {
