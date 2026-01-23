@@ -6,7 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_fmin_common(__CLC_GENTYPE x,
-                                                             __CLC_GENTYPE y) {
-  return (x < y) ? x : y;
+#include <libspirv/spirv.h>
+
+_CLC_OVERLOAD _CLC_DEF size_t __spirv_BuiltInGlobalOffset(int dim) {
+  uint *ptr = __builtin_amdgcn_implicit_offset();
+  switch (dim) {
+  case 0:
+    return ptr[0];
+  case 1:
+    return ptr[1];
+  case 2:
+    return ptr[2];
+  default:
+    return 0;
+  }
 }

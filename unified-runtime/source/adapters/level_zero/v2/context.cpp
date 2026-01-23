@@ -77,7 +77,8 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
       hDevices(uniqueDevices(numDevices, phDevices)),
       commandListCache(hContext,
                        {phDevices[0]->Platform->ZeCopyOffloadExtensionSupported,
-                        phDevices[0]->Platform->ZeMutableCmdListExt.Supported}),
+                        phDevices[0]->Platform->ZeMutableCmdListExt.Supported,
+                        phDevices[0]->Platform->ZeCopyOffloadFlagSupported}),
       eventPoolCacheImmediate(
           this, phDevices[0]->Platform->getNumDevices(),
           [context = this, platform = phDevices[0]->Platform](

@@ -618,7 +618,7 @@ static bool checkLinkingSupport(const device_impl &DeviceImpl,
     return true;
   }
   if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) {
-    return DeviceImpl.is_gpu() && DeviceImpl.getBackend() == backend::opencl;
+    return DeviceImpl.is_gpu();
   }
   return false;
 }
@@ -2685,10 +2685,6 @@ void ProgramManager::dynamicLink(device_images_range Imgs) {
                                                     URPrograms.data());
 }
 
-// The function duplicates most of the code from existing getBuiltPIProgram.
-// The differences are:
-// Different API - uses different objects to extract required info
-// Supports caching of a program built for multiple devices
 device_image_plain
 ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
                       devices_range Devs, const property_list &PropList) {

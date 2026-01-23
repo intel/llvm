@@ -1,9 +1,10 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include "helpers.h"
+#include "uur/fixtures.h"
 #include <numeric>
 #include <uur/known_failure.h>
 
@@ -70,12 +71,13 @@ static std::vector<uur::test_parameters_t> generateParameterizations() {
 }
 
 struct urEnqueueMemBufferWriteRectTestWithParam
-    : public uur::urQueueTestWithParam<uur::test_parameters_t> {};
+    : public uur::urMultiQueueTypeTestWithParam<uur::test_parameters_t> {};
 
-UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+UUR_MULTI_QUEUE_TYPE_TEST_SUITE_WITH_PARAM(
     urEnqueueMemBufferWriteRectTestWithParam,
     testing::ValuesIn(generateParameterizations()),
-    uur::printRectTestString<urEnqueueMemBufferWriteRectTestWithParam>);
+    uur::printRectTestStringMultiQueue<
+        urEnqueueMemBufferWriteRectTestWithParam>);
 
 TEST_P(urEnqueueMemBufferWriteRectTestWithParam, Success) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
@@ -139,7 +141,7 @@ struct urEnqueueMemBufferWriteRectTest : public uur::urMemBufferQueueTest {
   size_t host_slice_pitch = size;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueMemBufferWriteRectTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(urEnqueueMemBufferWriteRectTest);
 
 TEST_P(urEnqueueMemBufferWriteRectTest, InvalidNullHandleQueue) {
   std::vector<uint32_t> src(count);

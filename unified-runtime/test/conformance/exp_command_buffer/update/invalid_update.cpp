@@ -1,10 +1,11 @@
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "../fixtures.h"
+#include "uur/fixtures.h"
 #include <array>
 #include <cstring>
 #include <uur/known_failure.h>
@@ -69,7 +70,7 @@ struct InvalidUpdateTest
   bool finalized = false;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(InvalidUpdateTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(InvalidUpdateTest);
 
 // Test error code is returned if command-buffer not finalized
 TEST_P(InvalidUpdateTest, NotFinalizedCommandBuffer) {
@@ -392,7 +393,8 @@ struct InvalidUpdateCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
       0;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(InvalidUpdateCommandBufferExpExecutionTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(
+    InvalidUpdateCommandBufferExpExecutionTest);
 
 // Test error reported if device doesn't support updating kernel args
 TEST_P(InvalidUpdateCommandBufferExpExecutionTest, KernelArg) {
