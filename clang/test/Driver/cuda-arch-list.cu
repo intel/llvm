@@ -42,11 +42,11 @@
 // HOST-60-70-SAME: "-D__CUDA_ARCH_LIST__=600,700"
 
 // DEVICE52: "-cc1" "-triple" "nvptx64-nvidia-cuda"
-// DEVICE52-SAME: "-target-cpu" "sm_52"
-// DEVICE52-SAME: "-D__CUDA_ARCH_LIST__=520"
+// DEVICE52-SAME: "-target-cpu" "sm_75"
+// DEVICE52-SAME: "-D__CUDA_ARCH_LIST__=750"
 
 // HOST52: "-cc1" "-triple" "x86_64-unknown-linux-gnu"
-// HOST52-SAME: "-D__CUDA_ARCH_LIST__=520"
+// HOST52-SAME: "-D__CUDA_ARCH_LIST__=750"
 
 // DEVICE70-ONLY: "-cc1" "-triple" "nvptx64-nvidia-cuda"
 // DEVICE70-ONLY-SAME: "-target-cpu" "sm_70"
