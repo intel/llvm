@@ -55,6 +55,10 @@ inline constexpr uint64_t initialSlotsForBatches = 10;
 // regularGenerationNumber below
 inline constexpr ur_event_generation_t initialGenerationNumber = 0;
 
+// The limit of operations enqueued in the active batch (for definitions see the
+// comments below). If exceeded, the queue is flushed
+inline constexpr uint64_t maxNumberOfEnqueuedOperations = 120;
+
 struct batch_manager {
 private:
   // The currently active regular command list, which may be replaced in the
@@ -84,7 +88,7 @@ private:
   // additional submission of the current batch is not needed.
   ur_event_generation_t regularGenerationNumber;
   // Whether any operation has been enqueued on the current batch
-  bool isEmpty = true;
+  uint64_t enqueuedOperationsCounter = 0;
 
 public:
   batch_manager(ur_context_handle_t context, ur_device_handle_t device,
@@ -129,14 +133,18 @@ public:
     return activeBatch.getZeCommandList();
   }
 
-  bool isActiveBatchEmpty() { return isEmpty; }
+  bool isActiveBatchEmpty() { return enqueuedOperationsCounter == 0; }
 
-  void markIssuedCommand() { isEmpty = false; }
+  void markNextIssuedCommand() { enqueuedOperationsCounter++; }
 
-  void setBatchEmpty() { isEmpty = true; }
+  void setBatchEmpty() { enqueuedOperationsCounter = 0; }
 
   bool isLimitOfUsedCommandListsReached() {
     return initialSlotsForBatches <= runBatches.size();
+  }
+
+  bool isLimitOfEnqueuedCommandsReached() {
+    return maxNumberOfEnqueuedOperations <= enqueuedOperationsCounter;
   }
 };
 
@@ -192,6 +200,8 @@ private:
   ur_result_t queueFinishUnlocked(locked<batch_manager> &batchLocked);
 
   ur_result_t queueFlushUnlocked(locked<batch_manager> &batchLocked);
+
+  ur_result_t markIssuedCommandInBatch(locked<batch_manager> &batchLocked);
 
 public:
   ur_queue_batched_t(ur_context_handle_t, ur_device_handle_t, uint32_t ordinal,

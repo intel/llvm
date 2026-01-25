@@ -500,3 +500,46 @@ TEST_P(urBatchedQueueTest, ReuseCommandLists) {
     ASSERT_NO_FATAL_FAILURE(vectorOfSubmittedBatchesIsClearedHelper());
   }
 }
+
+TEST_P(urBatchedQueueTest, FlushBatchAfterEnqueuedOperationsLimitIsReached) {
+  // maxNumberOfEnqueuedOperations events from the first batch and one
+  // from the second batch
+  ur_event_handle_t events[v2::maxNumberOfEnqueuedOperations + 1];
+  std::vector<uint8_t> data(buffer_size, 42);
+
+  int64_t lastIdx = 0;
+  // Use all slots from the first batch
+  while ((uint64_t)lastIdx < v2::maxNumberOfEnqueuedOperations) {
+    ASSERT_SUCCESS(urEnqueueMemBufferWrite(
+        queue1, buffer, /* isBlocking */ false, 0, buffer_size, data.data(), 0,
+        nullptr, &events[lastIdx]));
+    ASSERT_NE(events[lastIdx]->getBatch(), std::nullopt);
+    ASSERT_NO_FATAL_FAILURE(assertEventIsSubmitted(events[lastIdx]));
+
+    lastIdx++;
+  }
+
+  int64_t idxFirstGeneration = lastIdx - 1;
+  ASSERT_EQ(events[idxFirstGeneration]->getBatch(),
+            v2::initialGenerationNumber);
+
+  // The next operation should exceed the allowed number of operations enqueued
+  // in a single batch. Therefore, the queue should be flushed: the current
+  // batch is enqueued for execution and the event associated with the current
+  // operation is assigned to the next batch.
+  ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue1, buffer, /* isBlocking */ false,
+                                         0, buffer_size, data.data(), 0,
+                                         nullptr, &events[lastIdx]));
+  ASSERT_NE(events[lastIdx]->getBatch(), std::nullopt);
+  ASSERT_NO_FATAL_FAILURE(assertEventIsSubmitted(events[lastIdx]));
+
+  int64_t idxNextGeneration = lastIdx;
+  ASSERT_EQ(events[idxNextGeneration]->getBatch(),
+            v2::initialGenerationNumber + 1);
+
+  ASSERT_SUCCESS(urQueueFinish(queue1));
+
+  for (uint64_t j = 0; j < v2::maxNumberOfEnqueuedOperations + 1; j++) {
+    ASSERT_SUCCESS(urEventRelease(events[j]));
+  }
+}
