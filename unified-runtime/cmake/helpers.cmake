@@ -201,7 +201,7 @@ function(add_ur_library name)
     add_ur_target_link_options(${name})
     if(MSVC)
         target_link_options(${name} PRIVATE
-            LINKER:/DEPENDENTLOADFLAG:0x2000
+            $<$<STREQUAL:$<TARGET_LINKER_FILE_NAME:${name}>,link.exe>:LINKER:/DEPENDENTLOADFLAG:0x2000>
         )
     endif()
     if(UR_USE_DEBUG_POSTFIX)
