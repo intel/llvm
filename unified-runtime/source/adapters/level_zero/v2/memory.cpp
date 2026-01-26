@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "memory.hpp"
+
 #include "../ur_interface_loader.hpp"
 #include "context.hpp"
 
@@ -53,80 +54,6 @@ void ur_usm_handle_t::unmapHostPtr(void * /*pMappedPtr*/,
   /* nop */
 }
 
-ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
-    ur_context_handle_t hContext, void *hostPtr, size_t size,
-    device_access_mode_t accessMode)
-    : ur_mem_buffer_t(hContext, size, accessMode) {
-  bool hostPtrImported =
-      maybeImportUSM(hContext->getPlatform()->ZeDriverHandleExpTranslated,
-                     hContext->getZeHandle(), hostPtr, size);
-
-  if (hostPtrImported) {
-    this->ptr = usm_unique_ptr_t(hostPtr, [hContext](void *ptr) {
-      ZeUSMImport.doZeUSMRelease(
-          hContext->getPlatform()->ZeDriverHandleExpTranslated, ptr);
-    });
-  } else {
-    void *rawPtr;
-    UR_CALL_THROWS(hContext->getDefaultUSMPool()->allocate(
-        hContext, nullptr, nullptr, UR_USM_TYPE_HOST, size, &rawPtr));
-
-    this->ptr = usm_unique_ptr_t(rawPtr, [hContext](void *ptr) {
-      auto ret = hContext->getDefaultUSMPool()->free(ptr);
-      if (ret != UR_RESULT_SUCCESS) {
-        UR_LOG(ERR, "Failed to free host memory: {}", ret);
-      }
-    });
-
-    if (hostPtr) {
-      std::memcpy(this->ptr.get(), hostPtr, size);
-      writeBackPtr = hostPtr;
-    }
-  }
-}
-
-ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
-    ur_context_handle_t hContext, void *hostPtr, size_t size,
-    device_access_mode_t accessMode, bool ownHostPtr)
-    : ur_mem_buffer_t(hContext, size, accessMode) {
-  this->ptr = usm_unique_ptr_t(hostPtr, [hContext, ownHostPtr](void *ptr) {
-    if (!ownHostPtr || !checkL0LoaderTeardown()) {
-      return;
-    }
-    ZE_CALL_NOCHECK(zeMemFree, (hContext->getZeHandle(), ptr));
-  });
-}
-
-ur_integrated_buffer_handle_t::~ur_integrated_buffer_handle_t() {
-  if (writeBackPtr) {
-    std::memcpy(writeBackPtr, this->ptr.get(), size);
-  }
-}
-
-void *ur_integrated_buffer_handle_t::getDevicePtr(
-    ur_device_handle_t /*hDevice*/, device_access_mode_t /*access*/,
-    size_t offset, size_t /*size*/, ze_command_list_handle_t /*cmdList*/,
-    wait_list_view & /*waitListView*/) {
-  return ur_cast<char *>(ptr.get()) + offset;
-}
-
-void *ur_integrated_buffer_handle_t::mapHostPtr(
-    ur_map_flags_t /*flags*/, size_t offset, size_t /*size*/,
-    ze_command_list_handle_t /*cmdList*/, wait_list_view & /*waitListView*/) {
-  // TODO: if writeBackPtr is set, we should map to that pointer
-  // because that's what SYCL expects, SYCL will attempt to call free
-  // on the resulting pointer leading to double free with the current
-  // implementation. Investigate the SYCL implementation.
-  return ur_cast<char *>(ptr.get()) + offset;
-}
-
-void ur_integrated_buffer_handle_t::unmapHostPtr(
-    void * /*pMappedPtr*/, ze_command_list_handle_t /*cmdList*/,
-    wait_list_view & /*waitListView*/) {
-  // TODO: if writeBackPtr is set, we should copy the data back
-  /* nop */
-}
-
 static v2::raii::command_list_unique_handle
 getSyncCommandListForCopy(ur_context_handle_t hContext,
                           ur_device_handle_t hDevice) {
@@ -153,6 +80,153 @@ static ur_result_t synchronousZeCopy(ur_context_handle_t hContext,
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
+}
+
+ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
+    ur_context_handle_t hContext, void *hostPtr, size_t size,
+    device_access_mode_t accessMode)
+    : ur_mem_buffer_t(hContext, size, accessMode) {
+  bool hostPtrImported =
+      maybeImportUSM(hContext->getPlatform()->ZeDriverHandleExpTranslated,
+                     hContext->getZeHandle(), hostPtr, size);
+
+  if (hostPtrImported) {
+    this->ptr = usm_unique_ptr_t(hostPtr, [hContext](void *ptr) {
+      ZeUSMImport.doZeUSMRelease(
+          hContext->getPlatform()->ZeDriverHandleExpTranslated, ptr);
+    });
+  } else {
+    void *rawPtr;
+    // Use HOST memory for integrated GPUs to enable zero-copy device access
+    UR_CALL_THROWS(hContext->getDefaultUSMPool()->allocate(
+        hContext, nullptr, nullptr, UR_USM_TYPE_HOST, size, &rawPtr));
+
+    this->ptr = usm_unique_ptr_t(rawPtr, [hContext](void *ptr) {
+      auto ret = hContext->getDefaultUSMPool()->free(ptr);
+      if (ret != UR_RESULT_SUCCESS) {
+        UR_LOG(ERR, "Failed to free host memory: {}", ret);
+      }
+    });
+
+    if (hostPtr) {
+      // Initial copy using Level Zero for USM HOST memory
+      auto hDevice = hContext->getDevices()[0];
+      UR_CALL_THROWS(
+          synchronousZeCopy(hContext, hDevice, this->ptr.get(), hostPtr, size));
+      // Store writeBackPtr for copy-back - needed when original pointer
+      // cannot be imported (e.g., misaligned, wrong allocation type)
+      writeBackPtr = hostPtr;
+    }
+  }
+}
+
+ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
+    ur_context_handle_t hContext, void *hostPtr, size_t size,
+    device_access_mode_t accessMode, bool ownHostPtr)
+    : ur_mem_buffer_t(hContext, size, accessMode) {
+  this->ptr = usm_unique_ptr_t(hostPtr, [hContext, ownHostPtr](void *ptr) {
+    if (!ownHostPtr || !checkL0LoaderTeardown()) {
+      return;
+    }
+    ZE_CALL_NOCHECK(zeMemFree, (hContext->getZeHandle(), ptr));
+  });
+}
+
+void *ur_integrated_buffer_handle_t::getDevicePtr(
+    ur_device_handle_t /*hDevice*/, device_access_mode_t /*access*/,
+    size_t offset, size_t /*size*/, ze_command_list_handle_t /*cmdList*/,
+    wait_list_view & /*waitListView*/) {
+  return ur_cast<char *>(ptr.get()) + offset;
+}
+
+void *ur_integrated_buffer_handle_t::mapHostPtr(
+    ur_map_flags_t flags, size_t offset, size_t mapSize,
+    ze_command_list_handle_t /*cmdList*/, wait_list_view & /*waitListView*/) {
+  if (writeBackPtr) {
+    // Copy-back path: user gets back their original pointer
+    void *mappedPtr = ur_cast<char *>(writeBackPtr) + offset;
+
+    if (flags & UR_MAP_FLAG_READ) {
+      // Use Level Zero copy for USM HOST memory to ensure GPU visibility
+      auto hDevice = hContext->getDevices()[0];
+      UR_CALL_THROWS(synchronousZeCopy(hContext, hDevice, mappedPtr,
+                                       ur_cast<char *>(ptr.get()) + offset,
+                                       mapSize));
+    }
+
+    // Track this mapping for unmap
+    mappedRegions.emplace_back(usm_unique_ptr_t(mappedPtr, [](void *) {}),
+                               mapSize, offset, flags);
+
+    return mappedPtr;
+  }
+
+  // Zero-copy path: for successfully imported or USM pointers
+  return ur_cast<char *>(ptr.get()) + offset;
+}
+
+void ur_integrated_buffer_handle_t::unmapHostPtr(
+    void *pMappedPtr, ze_command_list_handle_t /*cmdList*/,
+    wait_list_view & /*waitListView*/) {
+  if (writeBackPtr) {
+    // Copy-back path: find the mapped region and copy data back if needed
+    auto mappedRegion =
+        std::find_if(mappedRegions.begin(), mappedRegions.end(),
+                     [pMappedPtr](const host_allocation_desc_t &desc) {
+                       return desc.ptr.get() == pMappedPtr;
+                     });
+
+    if (mappedRegion == mappedRegions.end()) {
+      UR_DFAILURE("could not find pMappedPtr:" << pMappedPtr);
+      throw UR_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+
+    if (mappedRegion->flags &
+        (UR_MAP_FLAG_WRITE | UR_MAP_FLAG_WRITE_INVALIDATE_REGION)) {
+      // Use Level Zero copy for USM HOST memory to ensure GPU visibility
+      auto hDevice = hContext->getDevices()[0];
+      UR_CALL_THROWS(synchronousZeCopy(
+          hContext, hDevice, ur_cast<char *>(ptr.get()) + mappedRegion->offset,
+          mappedRegion->ptr.get(), mappedRegion->size));
+    }
+
+    mappedRegions.erase(mappedRegion);
+    return;
+  }
+  // No op for zero-copy path, memory is synced
+}
+
+void ur_integrated_buffer_handle_t::copyBackToHostIfNeeded() {
+  if (writeBackPtr) {
+    // Validate that the pointer is still valid before copy-back.
+    // SYCL might already do its own copy-back and free it.
+    ZeStruct<ze_memory_allocation_properties_t> memProps;
+    ze_device_handle_t device;
+    auto result = ZE_CALL_NOCHECK(
+        zeMemGetAllocProperties,
+        (hContext->getZeHandle(), writeBackPtr, &memProps, &device));
+
+    // If pointer is not a valid allocation (SYCL freed it), skip copy-back
+    if (result != ZE_RESULT_SUCCESS ||
+        memProps.type == ZE_MEMORY_TYPE_UNKNOWN) {
+      writeBackPtr = nullptr;
+      return;
+    }
+
+    // Pointer is valid, perform copy-back
+    auto hDevice = hContext->getDevices()[0];
+    auto result2 = synchronousZeCopy(hContext, hDevice, writeBackPtr,
+                                     this->ptr.get(), size);
+    if (result2 == UR_RESULT_SUCCESS) {
+      writeBackPtr = nullptr;
+    } else {
+      UR_LOG(ERR, "Failed to copy-back buffer data: {}", result2);
+    }
+  }
+}
+
+ur_integrated_buffer_handle_t::~ur_integrated_buffer_handle_t() {
+  copyBackToHostIfNeeded();
 }
 
 void *ur_discrete_buffer_handle_t::allocateOnDevice(ur_device_handle_t hDevice,
@@ -410,19 +484,16 @@ void ur_shared_buffer_handle_t::unmapHostPtr(
   // nop
 }
 
-static bool useHostBuffer(ur_context_handle_t /* hContext */) {
+static bool useHostBuffer(ur_context_handle_t hContext) {
   // We treat integrated devices (physical memory shared with the CPU)
   // differently from discrete devices (those with distinct memories).
   // For integrated devices, allocating the buffer in the host memory
   // enables automatic access from the device, and makes copying
   // unnecessary in the map/unmap operations. This improves performance.
 
-  // TODO: fix integrated buffer implementation
-  return false;
-
-  // return hContext->getDevices().size() == 1 &&
-  //        hContext->getDevices()[0]->ZeDeviceProperties->flags &
-  //            ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
+  return hContext->getDevices().size() == 1 &&
+         hContext->getDevices()[0]->ZeDeviceProperties->flags &
+             ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
 }
 
 ur_mem_sub_buffer_t::ur_mem_sub_buffer_t(ur_mem_handle_t hParent, size_t offset,
@@ -566,6 +637,12 @@ ur_result_t urMemBufferCreate(ur_context_handle_t hContext,
   void *hostPtr = pProperties ? pProperties->pHost : nullptr;
   auto accessMode = ur_mem_buffer_t::getDeviceAccessMode(flags);
 
+  // For integrated devices, use zero-copy host buffers. The integrated buffer
+  // constructor will handle all cases:
+  // 1. No host pointer - allocate USM host memory
+  // 2. Host pointer is already USM - use directly
+  // 3. Host pointer can be imported - import it
+  // 4. Otherwise - allocate USM and copy-back through map/unmap operations
   if (useHostBuffer(hContext)) {
     *phBuffer = ur_mem_handle_t_::create<ur_integrated_buffer_handle_t>(
         hContext, hostPtr, size, accessMode);

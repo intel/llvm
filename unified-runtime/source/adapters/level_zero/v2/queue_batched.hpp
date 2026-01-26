@@ -43,7 +43,7 @@
 //
 // Batched queues can be enabled by setting UR_QUEUE_FLAG_SUBMISSION_BATCHED in
 // ur_queue_flags_t or globally, through the environment variable
-// UR_L0_FORCE_BATCHED=1.
+// UR_L0_V2_FORCE_BATCHED=1.
 
 namespace v2 {
 
