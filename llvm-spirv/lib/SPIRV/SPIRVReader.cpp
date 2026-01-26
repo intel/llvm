@@ -3019,8 +3019,13 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
         BV, Builder.CreateIntrinsic(Intrinsic::arithmetic_fence, RetTy, Val));
   }
   case OpFmaKHR: {
+    IRBuilder<> Builder(BB);
     auto *BC = static_cast<SPIRVFmaKHR *>(BV);
-    return mapValue(BV, transBuiltinFromInst("fma", BC, BB));
+    return mapValue(
+        BV, Builder.CreateIntrinsic(Intrinsic::fma, transType(BC->getType()),
+                                    {transValue(BC->getOperand(0), F, BB),
+                                     transValue(BC->getOperand(1), F, BB),
+                                     transValue(BC->getOperand(2), F, BB)}));
   }
   case internal::OpMaskedGatherINTEL: {
     IRBuilder<> Builder(BB);
