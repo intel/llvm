@@ -477,6 +477,7 @@ namespace {
     SDValue visitSHLSAT(SDNode *N);
     SDValue visitRotate(SDNode *N);
     SDValue visitABS(SDNode *N);
+    SDValue visitCLMUL(SDNode *N);
     SDValue visitBSWAP(SDNode *N);
     SDValue visitBITREVERSE(SDNode *N);
     SDValue visitCTLZ(SDNode *N);
@@ -1979,6 +1980,9 @@ SDValue DAGCombiner::visit(SDNode *N) {
   case ISD::SSHLSAT:
   case ISD::USHLSAT:            return visitSHLSAT(N);
   case ISD::ABS:                return visitABS(N);
+  case ISD::CLMUL:
+  case ISD::CLMULR:
+  case ISD::CLMULH:             return visitCLMUL(N);
   case ISD::BSWAP:              return visitBSWAP(N);
   case ISD::BITREVERSE:         return visitBITREVERSE(N);
   case ISD::CTLZ:               return visitCTLZ(N);
@@ -4543,26 +4547,26 @@ SDValue DAGCombiner::visitSUB(SDNode *N) {
 
   // smax(a,b) - smin(a,b) --> abds(a,b)
   if ((!LegalOperations || hasOperation(ISD::ABDS, VT)) &&
-      sd_match(N0, m_SMaxLike(m_Value(A), m_Value(B))) &&
-      sd_match(N1, m_SMinLike(m_Specific(A), m_Specific(B))))
+      sd_match(N0, &DAG, m_SMaxLike(m_Value(A), m_Value(B))) &&
+      sd_match(N1, &DAG, m_SMinLike(m_Specific(A), m_Specific(B))))
     return DAG.getNode(ISD::ABDS, DL, VT, A, B);
 
   // smin(a,b) - smax(a,b) --> neg(abds(a,b))
   if (hasOperation(ISD::ABDS, VT) &&
-      sd_match(N0, m_SMinLike(m_Value(A), m_Value(B))) &&
-      sd_match(N1, m_SMaxLike(m_Specific(A), m_Specific(B))))
+      sd_match(N0, &DAG, m_SMinLike(m_Value(A), m_Value(B))) &&
+      sd_match(N1, &DAG, m_SMaxLike(m_Specific(A), m_Specific(B))))
     return DAG.getNegative(DAG.getNode(ISD::ABDS, DL, VT, A, B), DL, VT);
 
   // umax(a,b) - umin(a,b) --> abdu(a,b)
   if ((!LegalOperations || hasOperation(ISD::ABDU, VT)) &&
-      sd_match(N0, m_UMaxLike(m_Value(A), m_Value(B))) &&
-      sd_match(N1, m_UMinLike(m_Specific(A), m_Specific(B))))
+      sd_match(N0, &DAG, m_UMaxLike(m_Value(A), m_Value(B))) &&
+      sd_match(N1, &DAG, m_UMinLike(m_Specific(A), m_Specific(B))))
     return DAG.getNode(ISD::ABDU, DL, VT, A, B);
 
   // umin(a,b) - umax(a,b) --> neg(abdu(a,b))
   if (hasOperation(ISD::ABDU, VT) &&
-      sd_match(N0, m_UMinLike(m_Value(A), m_Value(B))) &&
-      sd_match(N1, m_UMaxLike(m_Specific(A), m_Specific(B))))
+      sd_match(N0, &DAG, m_UMinLike(m_Value(A), m_Value(B))) &&
+      sd_match(N1, &DAG, m_UMaxLike(m_Specific(A), m_Specific(B))))
     return DAG.getNegative(DAG.getNode(ISD::ABDU, DL, VT, A, B), DL, VT);
 
   return SDValue();
@@ -11826,6 +11830,29 @@ SDValue DAGCombiner::visitABS(SDNode *N) {
                       DAG.getNode(ISD::TRUNCATE, DL, ExtVT, N0.getOperand(0))));
     }
   }
+
+  return SDValue();
+}
+
+SDValue DAGCombiner::visitCLMUL(SDNode *N) {
+  unsigned Opcode = N->getOpcode();
+  SDValue N0 = N->getOperand(0);
+  SDValue N1 = N->getOperand(1);
+  EVT VT = N->getValueType(0);
+  SDLoc DL(N);
+
+  // fold (clmul c1, c2)
+  if (SDValue C = DAG.FoldConstantArithmetic(Opcode, DL, VT, {N0, N1}))
+    return C;
+
+  // canonicalize constant to RHS
+  if (DAG.isConstantIntBuildVectorOrConstantInt(N0) &&
+      !DAG.isConstantIntBuildVectorOrConstantInt(N1))
+    return DAG.getNode(Opcode, DL, VT, N1, N0);
+
+  // fold (clmul x, 0) -> 0
+  if (isNullConstant(N1) || ISD::isConstantSplatVectorAllZeros(N1.getNode()))
+    return DAG.getConstant(0, DL, VT);
 
   return SDValue();
 }
@@ -20685,8 +20712,9 @@ SDValue DAGCombiner::ForwardStoreValueToDirectLoad(LoadSDNode *LD) {
     if (STType.isInteger() && !STType.isVector() && LDType.isInteger() &&
         !LDType.isVector() && isTypeLegal(STType) &&
         TLI.isOperationLegal(ISD::SRL, STType)) {
-      Val = DAG.getNode(ISD::SRL, SDLoc(LD), STType, Val,
-                        DAG.getConstant(Offset * 8, SDLoc(LD), STType));
+      Val = DAG.getNode(
+          ISD::SRL, SDLoc(LD), STType, Val,
+          DAG.getShiftAmountConstant(Offset * 8, STType, SDLoc(LD)));
       Offset = 0;
     }
   }

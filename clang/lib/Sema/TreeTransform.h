@@ -5225,7 +5225,7 @@ bool TreeTransform<Derived>::TransformTemplateArguments(
     if (In.getArgument().isPackExpansion()) {
       UnexpandedInfo Info;
       TemplateArgumentLoc Prepared;
-      if (PreparePackForExpansion(In, Uneval, Prepared, Info))
+      if (getDerived().PreparePackForExpansion(In, Uneval, Prepared, Info))
         return true;
       if (!Info.Expand) {
         Outputs.addArgument(Prepared);

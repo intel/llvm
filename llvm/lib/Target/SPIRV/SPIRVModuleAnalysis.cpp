@@ -2129,6 +2129,9 @@ void addInstrRequirements(const MachineInstr &MI,
   case SPIRV::OpSUDotAccSat:
     AddDotProductRequirements(MI, Reqs, ST);
     break;
+  case SPIRV::OpImageSampleImplicitLod:
+    Reqs.addCapability(SPIRV::Capability::Shader);
+    break;
   case SPIRV::OpImageRead: {
     Register ImageReg = MI.getOperand(2).getReg();
     SPIRVType *TypeDef = ST.getSPIRVGlobalRegistry()->getResultType(
