@@ -11616,38 +11616,48 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       if (!TC->getTriple().isSPIROrSPIRV())
         continue;
       ArgStringList BuildArgs;
-      SmallVector<SmallString<128>, 4> BackendOptStrings;
+      llvm::SmallMapVector<StringRef, SmallString<128>, 4> BackendOptMap;
       SmallString<128> LinkOptString;
 
       // Process each -Xsycl-target-backend individually
       for (const Arg *A : Args.filtered(options::OPT_Xsycl_backend_EQ)) {
-        StringRef Device = SYCL::gen::resolveGenDevice(A->getValue(0));
-        SmallString<128> BackendString;
+        StringRef Device;
+        StringRef TargetBackend = A->getValue();
+        if((TargetBackend == "spir64_gen")) {
+          Device = SYCL::gen::extractDeviceFromArgSimple(A->getValue(1));
+          llvm::errs() << "[DEBUG] Resolved device: " << Device << "\n";
+        } else {
+          Device = SYCL::gen::resolveGenDevice(TargetBackend);
+        }
 
+        SmallString<128> &BackendString = BackendOptMap[Device];
         SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs, Device);
         for (const auto &BA : BuildArgs) {
           appendOption(BackendString, BA);
         }
 
         BuildArgs.clear();
-        BackendOptStrings.push_back(std::move(BackendString));
       }
 
       SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);
       for (const auto &A : BuildArgs) {
         if (TC->getTriple().getSubArch() == llvm::Triple::NoSubArch)
           appendOption(LinkOptString, A);
-        else
-        // For AOT, append linker args to every backend string
-        for (auto &BOS : BackendOptStrings)
-          appendOption(BOS, A);
+        else {
+          // For AOT, append linker args to every backend string
+          for (auto &KV : BackendOptMap)
+            appendOption(KV.second, A);
+        }
       }
 
-      for (auto &BOS : BackendOptStrings) {
-         CmdArgs.push_back(Args.MakeArgString(
+      for (auto &KV : BackendOptMap) {
+        llvm::StringRef Device = KV.first;
+        llvm::SmallString<128> &Opts = KV.second;
+
+        CmdArgs.push_back(Args.MakeArgString(
             "--device-compiler=" +
             Action::GetOffloadKindName(Action::OFK_SYCL) + ":" +
-            TC->getTripleString() + "=" + BOS));
+            TC->getTripleString() + ":" + Device + ":""=" + Opts));
       }
       if (!LinkOptString.empty()) {
         CmdArgs.push_back(Args.MakeArgString(
