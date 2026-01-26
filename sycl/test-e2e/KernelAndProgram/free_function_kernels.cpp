@@ -1,6 +1,8 @@
 // REQUIRES: aspect-usm_shared_allocations
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// UNSUPPORTED: windows
+// UNSUPPORTED-TRACKER: CMPLRLLVM-73028
 // This test tests free function kernel code generation and execution.
 
 #include <iostream>
