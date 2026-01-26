@@ -43,6 +43,13 @@ inputs:
   runner:
     type: string
     required: True
+  # It can be either a tag/branch/commit or a PR_<number>.
+  # If the latter is given, latest IGC release will be installed from debs.
+  # This assumes that the PR changes were based on the latest compute_runtime version.
+  custom_cr:
+    type: string
+    required: False
+    default: ""
 
 runs:
   # composite actions don't make use of 'name', so copy-paste steps' names as a comment in the first line of each step
@@ -164,6 +171,17 @@ runs:
 
       BENCHMARK_RESULTS_REPO_PATH="$(realpath ./llvm-ci-perf-results)"
       echo "BENCHMARK_RESULTS_REPO_PATH=$BENCHMARK_RESULTS_REPO_PATH" >> $GITHUB_OUTPUT
+
+      CR_BUILD_REF=""
+      if [ -n "${{ inputs.custom_cr }}" ] && [[ "${{ inputs.custom_cr }}" == PR_* ]]; then
+        pr_no="${{ inputs.custom_cr#PR_ }}"
+        CR_BUILD_REF="refs/pull/$pr_no/head"
+        echo "Using custom compute runtime ref: ${CR_BUILD_REF}"
+      elif [ -n "${{ inputs.custom_cr }}" ]; then
+        CR_BUILD_REF="${{ inputs.custom_cr }}"
+        echo "Using custom compute runtime ref: ${CR_BUILD_REF}"
+      fi
+      echo "CR_BUILD_REF=$CR_BUILD_REF" >> $GITHUB_OUTPUT
   - name: Checkout results repo
     uses: actions/checkout@v5
     with:
@@ -221,18 +239,10 @@ runs:
     shell: bash
     env:
       RUNNER_TAG: ${{ inputs.runner }}
+      GITHUB_TOKEN: ${{ github.token }}
+      CR_BUILD_REF: ${{ steps.establish_outputs.outputs.CR_BUILD_REF }}
     run: |
       # Install dependencies
-
-      echo "::group::use_compute_runtime_tag_cache"
-
-      # Cache the compute_runtime version from dependencies.json, but perform a
-      # check with L0 version before using it: This value is not guaranteed to
-      # accurately reflect the current compute_runtime version used, as the
-      # docker images are built nightly.
-      # export COMPUTE_RUNTIME_TAG_CACHE="$(cat ./devops/dependencies.json | jq -r .linux.compute_runtime.github_tag)"
-
-      echo "::endgroup::"
       echo "::group::install_perf"
 
       # Install perf in version matching the host kernel.
@@ -246,14 +256,40 @@ runs:
       fi
 
       sudo apt-get update
-      sudo apt-get install -y linux-tools-$(uname -r) bison flex ocl-icd-libopencl1
+      sudo apt-get install -y linux-tools-$(uname -r)
 
-      mkdir neo_debs
-      cd neo_debs
-      wget -q https://github.com/intel/intel-graphics-compiler/releases/download/v2.27.10/intel-igc-core-2_2.27.10+20617_amd64.deb
-      # wget -q https://github.com/intel/intel-graphics-compiler/releases/download/v2.27.10/intel-igc-opencl-2_2.27.10+20617_amd64.deb
-      sudo dpkg -i --force-all *.deb
-      cd ..
+      echo "::endgroup::"
+      echo "::group::install_igc"
+
+      # If a custom compute_runtime tag is provided points to a PR, then",
+      # install latest IGC release from debs.
+      if [[ "${CR_BUILD_REF}" != "" ]] && [[ "${CR_BUILD_REF}" == refs/pull/* ]]; then
+        # sudo apt-get install -y bison flex
+        # ocl-icd-libopencl1
+
+        # Find latest IGC release and download debs
+        curl --request GET \
+          --url https://api.github.com/repos/intel/intel-graphics-compiler/releases/latest \
+          --header "Authorization: Bearer ${GITHUB_TOKEN}" \
+          --header "X-GitHub-Api-Version: 2022-11-28" > latest_igc_release.json
+
+        IGC_CORE_DEB_URL=$(cat latest_igc_release.json | jq -r '.assets[] | select(.name | test("intel-igc-core-[0-9]+.*amd64.deb")) | .browser_download_url')
+        IGC_CORE_DEVEL_DEB_URL=$(cat latest_igc_release.json | jq -r '.assets[] | select(.name | test("intel-igc-core-devel_[0-9]+.*amd64.deb")) | .browser_download_url')
+
+        mkdir neo_debs && cd neo_debs
+        wget -q "$IGC_CORE_DEB_URL"
+        wget -q "$IGC_CORE_DEVEL_DEB_URL"
+        sudo dpkg -i --force-all *.deb
+        cd ..
+      elif [[ "${CR_BUILD_REF}" == "" ]]; then
+        # Cache the compute_runtime version from dependencies.json, but perform a
+        # check with L0 version before using it: This value is not guaranteed to
+        # accurately reflect the current compute_runtime version used, as the
+        # docker images are built nightly.
+        #
+        # TODO: FIXME - uncomment!
+        # export COMPUTE_RUNTIME_TAG_CACHE="$(cat ./devops/dependencies.json | jq -r .linux.compute_runtime.github_tag)"
+      fi
 
       echo "::endgroup::"
       echo "::group::install_python_deps"
@@ -279,6 +315,7 @@ runs:
       BENCH_WORKDIR: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}
       BENCHMARK_RESULTS_REPO_PATH: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_REPO_PATH }}
       LLVM_BENCHMARKS_USE_GDB: ${{ inputs.gdb_mode }}
+      CR_BUILD_REF: ${{ steps.establish_outputs.outputs.CR_BUILD_REF }}
     run: |
       # Build and run benchmarks
 
@@ -310,7 +347,7 @@ runs:
         --timestamp-override "$SAVE_TIMESTAMP" \
         --detect-version sycl,compute_runtime \
         --produce-github-summary \
-        --compute-runtime pr_882 \
+        [[ ${CR_BUILD_REF} != '' ]] && echo '--compute-runtime ' + ${CR_BUILD_REF} || '' \
         ${{ inputs.exit_on_failure == 'true' && '--exit-on-failure --iterations 1' || '' }}
       # TODO: add back: "--flamegraph inclusive" once works properly
 
