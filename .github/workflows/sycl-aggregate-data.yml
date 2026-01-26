@@ -28,13 +28,17 @@ jobs:
       - name: Process and aggregate data
         run: |
           echo "Processing artifacts from ${{ steps.date.outputs.TODAY }}"
-          ls -la ./artifacts/
+          pwd 
+          ls -la
+          ls -la /home/test-user
+          cd /home/test-user/artifacts
+          pwd
           echo "{" > aggregated_${{ steps.date.outputs.TODAY }}.json
           first_data=true
 
-          for dir in ./artifacts/*/; do
+          for dir in /home/test-user/artifacts/*/; do
             for file in "$dir"*.txt; do
-              if [[ -f "$file" && $(basename "$file") =~ ^${{ steps.date.outputs.TODAY }}_ ]]; then
+              if [[ -f "$file" ]]; then
                 filename=$(basename "$file" .txt)
                 load=$(tail -n1 "$file" | xargs)
                 
@@ -56,4 +60,4 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: aggregated_${{ steps.date.outputs.TODAY }}_data
-          path: aggregated_${{ steps.date.outputs.TODAY }}.json
+          path: /home/test-user/artifacts/aggregated_${{ steps.date.outputs.TODAY }}.json

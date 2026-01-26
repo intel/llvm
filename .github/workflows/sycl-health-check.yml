@@ -10,20 +10,22 @@ on:
 jobs:
   health-check:
     # zmienić na inną labelkę 
-    runs-on: ["self-hosted"]
+    runs-on: ["health-check"]
     steps:
       - name: Check load average
         id: check
         run: |
           DATE=$(date +"%Y-%m-%d_%H-%M-%S")
           echo "DATE=${DATE}" >> $GITHUB_OUTPUT
-          uptime | awk -F'load average:' '{ print $2 }' > ${DATE}_${{ runner.name }}.txt
-          echo uptime | awk -F'load average:' '{ print $2 }'
+          cd /home/test-user
+          mkdir -p artifacts
+          uptime | awk -F'load average:' '{ print $2 }' > artifacts/${DATE}_${{ runner.name }}.txt
+          uptime | awk -F'load average:' '{ print $2 }'
       - name: Upload load average artifact
         uses: actions/upload-artifact@v5
         with:
           name: ${{ steps.check.outputs.DATE }}_${{ runner.name }}_load-average
-          path: ${{ steps.check.outputs.DATE }}_${{ runner.name }}.txt
+          path: /home/test-user/artifacts/${{ steps.check.outputs.DATE }}_${{ runner.name }}.txt
   
   call-aggregate:
     needs: health-check
