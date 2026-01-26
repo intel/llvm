@@ -1296,7 +1296,7 @@ void MemorySanitizerOnSpirv::instrumentKernelsMetadata(int TrackOrigins) {
       "sycl-device-global-size", std::to_string(DL.getTypeAllocSize(ArrayTy)));
   MsanSpirKernelMetadata->addAttribute("sycl-device-image-scope");
   MsanSpirKernelMetadata->addAttribute("sycl-host-access",
-                                       "0"); // read only
+                                       "1"); // read only
   MsanSpirKernelMetadata->addAttribute(
       "sycl-unique-id",
       computeKernelMetadataUniqueId("__MsanKernelMetadata", KernelNamesBytes));
