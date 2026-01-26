@@ -6,6 +6,7 @@
 import csv
 import io
 import math
+import os
 from enum import Enum
 from itertools import product
 from pathlib import Path
@@ -89,6 +90,13 @@ class ComputeBench(Suite):
             f"-DCMAKE_CXX_COMPILER=clang++",
             f"-DCMAKE_C_COMPILER=clang",
         ]
+
+        is_gdb_mode = os.environ.get("LLVM_BENCHMARKS_USE_GDB", "") == "1"
+        if is_gdb_mode:
+            extra_args += [
+                f"-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=-O2 -g -DNDEBUG -fdebug-info-for-profiling",
+            ]
+
         if options.ur_adapter == "cuda":
             extra_args += [
                 "-DBUILD_SYCL_WITH_CUDA=ON",
@@ -738,6 +746,12 @@ class ComputeBenchmark(Benchmark):
         return runtimes
 
     def __parse_output(self, output: str) -> list[tuple[float, float]]:
+        is_gdb_mode = os.environ.get("LLVM_BENCHMARKS_USE_GDB", "") == "1"
+
+        if is_gdb_mode:
+            log.info(output)
+            return [(0.0, 0.0)]
+
         csv_file = io.StringIO(output)
         reader = csv.reader(csv_file)
         next(reader, None)

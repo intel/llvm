@@ -23,6 +23,10 @@ inputs:
     type: string
     required: False
     default: ""
+  gdb_mode:
+    type: string
+    required: False
+    default: "0"
   # dry-run is passed only to compare.py (to not fail on regression), not to main.py (where such flag would omit all benchmark runs)
   dry_run:
     type: string
@@ -267,6 +271,7 @@ runs:
     env:
       BENCH_WORKDIR: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}
       BENCHMARK_RESULTS_REPO_PATH: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_REPO_PATH }}
+      LLVM_BENCHMARKS_USE_GDB: ${{ inputs.gdb_mode }}
     run: |
       # Build and run benchmarks
 
@@ -299,17 +304,21 @@ runs:
       echo "::endgroup::"
       echo "::group::compare_results"
 
-      python3 ./devops/scripts/benchmarks/compare.py to_hist \
-        --avg-type EWMA \
-        --cutoff "$(date -u -d '7 days ago' +'%Y%m%d_%H%M%S')" \
-        --name "$SAVE_NAME" \
-        --compare-file "${BENCHMARK_RESULTS_REPO_PATH}/results/${SAVE_NAME}_${SAVE_TIMESTAMP}.json" \
-        --results-dir "${BENCHMARK_RESULTS_REPO_PATH}/results/" \
-        --regression-filter '^[a-z_]+_sycl .* CPU count' \
-        --regression-filter-type 'SYCL benchmark (measured using CPU cycle count)' \
-        --verbose \
-        --produce-github-summary \
-        ${{ inputs.dry_run == 'true' && '--dry-run' || '' }} \
+      if [ "$LLVM_BENCHMARKS_USE_GDB" == "0" ]; then
+        python3 ./devops/scripts/benchmarks/compare.py to_hist \
+          --avg-type EWMA \
+          --cutoff "$(date -u -d '7 days ago' +'%Y%m%d_%H%M%S')" \
+          --name "$SAVE_NAME" \
+          --compare-file "${BENCHMARK_RESULTS_REPO_PATH}/results/${SAVE_NAME}_${SAVE_TIMESTAMP}.json" \
+          --results-dir "${BENCHMARK_RESULTS_REPO_PATH}/results/" \
+          --regression-filter '^[a-z_]+_sycl .* CPU count' \
+          --regression-filter-type 'SYCL benchmark (measured using CPU cycle count)' \
+          --verbose \
+          --produce-github-summary \
+          ${{ inputs.dry_run == 'true' && '--dry-run' || '' }}
+      else
+        echo "Skipping regression comparison due to GDB mode enabled."
+      fi
 
       echo "::endgroup::"
   - name: Run benchmarks integration tests
@@ -341,7 +350,7 @@ runs:
         cp "$diff" "../cached_changes/$diff"
       done
   - name: Push benchmarks results
-    if: always() && inputs.upload_results == 'true'
+    if: always() && inputs.upload_results == 'true' &&  inputs.gdb_mode == '0'
     shell: bash
     env:
       BENCH_WORKDIR: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}

@@ -112,13 +112,12 @@ bool operator==(urEnqueueMemImageCopyTest::rgba_pixel lhs,
 template <typename T>
 inline std::string printImageCopyTestString(
     const testing::TestParamInfo<typename T::ParamType> &info) {
-  // ParamType will be std::tuple<ur_device_handle_t, ur_mem_type_t>
   const auto device_handle = std::get<0>(info.param).device;
   const auto platform_device_name =
       uur::GetPlatformAndDeviceName(device_handle);
 
   auto paramTuple = std::get<1>(info.param);
-  const auto image_type = std::get<0>(paramTuple); //std::get<1>(info.param);
+  const auto image_type = std::get<0>(paramTuple);
   const auto queue_mode = std::get<1>(paramTuple);
   auto test_name = (image_type == UR_MEM_TYPE_IMAGE1D)   ? "1D"
                    : (image_type == UR_MEM_TYPE_IMAGE2D) ? "2D"

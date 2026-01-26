@@ -160,8 +160,6 @@ public:
   ///
   /// \param UrDevice is the UrDevice whose impl is requested
   ///
-  /// \param PlatormImpl is the Platform for that Device
-  ///
   /// \return a device_impl* corresponding to the device
   device_impl &getOrMakeDeviceImpl(ur_device_handle_t UrDevice);
 

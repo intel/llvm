@@ -3,6 +3,9 @@
 // UNSUPPORTED: hip
 // UNSUPPORTED-INTENDED: Returning non fp[32/16] values from sampling fails.
 
+// UNSUPPORTED: linux && arch-intel_gpu_acm_g10 && level_zero_v2_adapter
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20004
+
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
