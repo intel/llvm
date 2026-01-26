@@ -29,7 +29,9 @@ apt update && apt install -yqq \
       linux-tools-generic \
       linux-tools-common \
       time \
-      numactl
+      numactl \
+      gcc-14 \
+      g++-14
 
 # To obtain latest release of spriv-tool.
 # Same as what's done in SPRIV-LLVM-TRANSLATOR:
