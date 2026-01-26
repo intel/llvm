@@ -34,15 +34,15 @@ jobs:
 
           for dir in ./artifacts/*/; do
             for file in "$dir"*.txt; do
-              if [[ -f "$file" && $(basename "$file") == ${{ steps.date.outputs.TODAY }}*.txt ]]; then
-                runner=$(basename "$file" | sed 's/^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}_//; s/\.txt$//')
+              if [[ -f "$file" && $(basename "$file") =~ ^${{ steps.date.outputs.TODAY }}_ ]]; then
+                filename=$(basename "$file" .txt)
                 load=$(tail -n1 "$file" | xargs)
                 
                 if [ "$first_data" = true ]; then
-                  echo "  \"$runner\": \"$load\"" >> aggregated_${{ steps.date.outputs.TODAY }}.json
+                  echo "  \"$filename\": \"$load\"" >> aggregated_${{ steps.date.outputs.TODAY }}.json
                   first_data=false
                 else
-                  echo "  ,\"$runner\": \"$load\"" >> aggregated_${{ steps.date.outputs.TODAY }}.json
+                  echo "  ,\"$filename\": \"$load\"" >> aggregated_${{ steps.date.outputs.TODAY }}.json
                 fi
               fi 
             done
@@ -51,8 +51,9 @@ jobs:
           echo "}" >> aggregated_${{ steps.date.outputs.TODAY }}.json
           
           cat aggregated_${{ steps.date.outputs.TODAY }}.json
-      # czy gdzieś to dodać do artifactory czy na jfroga?
+
       - name: Upload aggregated data artifact
         uses: actions/upload-artifact@v5
         with:
           name: aggregated_${{ steps.date.outputs.TODAY }}_data
+          path: aggregated_${{ steps.date.outputs.TODAY }}.json
