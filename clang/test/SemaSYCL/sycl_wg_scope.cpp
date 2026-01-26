@@ -58,6 +58,8 @@ public:
   B12() = default;
   ~B12() = default;
   T obj;
+  operator T&() {return obj;}
+  T *operator&() noexcept { return &obj; }
 };
 
 B12<Valid> b12;
@@ -84,6 +86,19 @@ struct Wrap {
   static G1 g18;
 };
 
+template<int Index, typename T>
+struct MyClass {
+  static B12<T> slm;
+  T *ptr() {
+    return &slm;
+  }
+};
+
+template <typename T>
+void foo() {
+  static T m;
+}
+
 __attribute__((sycl_device)) void ref_func() {
   G1 g19;
   static G1 g20;
@@ -91,4 +106,7 @@ __attribute__((sycl_device)) void ref_func() {
   (void)g16;
   (void)g17;
   (void)Wrap::g18;
+  MyClass<1, int> c1;
+  (void)c1.ptr();
+  foo<B12<int>>();
 }
