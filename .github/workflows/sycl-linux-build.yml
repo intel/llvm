@@ -220,7 +220,8 @@ jobs:
     # - run: $GITHUB_WORKSPACE/build/bin/clang++ --version
 
     - name: Run clang-tidy on modified files
-      if: ${{ !cancelled() && steps.build.conclusion == 'success' && github.base_ref == 'sycl' && inputs.run_clang_tidy }}
+      if: ${{ !cancelled() && github.base_ref == 'sycl' && inputs.run_clang_tidy }}
+      # if: ${{ !cancelled() && steps.build.conclusion == 'success' && github.base_ref == 'sycl' && inputs.run_clang_tidy }}
       # Exeprimental step, it won't affect the merge in case of failure.
       continue-on-error: true
       id: clang_tidy
