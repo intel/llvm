@@ -74,11 +74,15 @@ class GitProject:
         add_sycl: bool = False,
     ) -> None:
         """Configures the project."""
+
+        is_gdb_mode = os.environ.get("LLVM_BENCHMARKS_USE_GDB", "") == "1"
+        build_type = "RelWithDebInfo" if is_gdb_mode else "Release"
+
         cmd = [
             "cmake",
             f"-S {self.src_dir}",
             f"-B {self.build_dir}",
-            f"-DCMAKE_BUILD_TYPE=Release",
+            f"-DCMAKE_BUILD_TYPE={build_type}",
         ]
         if self._use_installdir:
             cmd.append(f"-DCMAKE_INSTALL_PREFIX={self.install_dir}")

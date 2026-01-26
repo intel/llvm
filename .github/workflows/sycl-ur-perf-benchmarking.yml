@@ -88,6 +88,13 @@ on:
           - 'false'
           - 'true'
         default: 'false'
+      gdb_mode:
+        description: Whether or not to run benchmarks under gdb.
+        type: choice
+        options:
+          - '0'
+          - '1'
+        default: '0'
 
 concurrency:
   # Cancel a currently running workflow for:
@@ -119,22 +126,24 @@ jobs:
       - id: sanitize
         run: |
           # Validate user inputs:
-          # usage: check_if_nonempty <var> <regex to check var against> <err message>
-          check_nonempty() {
+          # Usage: validate_if_nonempty <var> <regex to check var against> <err message>
+          # If <var> is empty we skip validation. Either of these vars can be left empty by the user.
+          validate_if_nonempty() {
             [ -z "$1" ] && return
             if [ -z "$(echo "$1" | grep -P "$2")" ]; then
               echo "$3"
               exit 1
             fi
           }
-          check_nonempty "$COMMIT_HASH" '^[0-9a-f]{7,}$' "Bad commit hash (or hash short)."
-          check_nonempty "$PR_NO" '^[0-9]+$' "Bad PR number."
-          check_nonempty "$SAVE_NAME" '^[A-Za-z][A-Za-z0-9_-]+$' "Bad save name."
+          validate_if_nonempty "$COMMIT_HASH" '^[0-9a-f]{7,}$' "Bad commit hash (or hash short)."
+          validate_if_nonempty "$PR_NO" '^[0-9]+$' "Bad PR number."
+          validate_if_nonempty "$SAVE_NAME" '^[A-Za-z][A-Za-z0-9_-]+$' "Bad save name. Use only alphanumerics, dash, underscore, and start with a letter."
+          validate_if_nonempty "$SAVE_NAME" '^(?![Bb]+aseline$)' "Save name cannot be 'Baseline' nor 'baseline' - it's reserved for nightly."
 
           BENCHMARK_SAVE_NAME=""
-          BUILD_REF="${{ github.ref }}"
+          BUILD_REF="$GITHUB_REF"
           if [ -n "$SAVE_NAME" ]; then
-            BENCHMARK_SAVE_NAME="$(echo "$SAVE_NAME" | tr -cd 'A-Za-z0-9_-')"
+            BENCHMARK_SAVE_NAME="$SAVE_NAME"
           fi;
           if [ -n "$COMMIT_HASH" ]; then
             echo "Using commit hash $COMMIT_HASH for build..."
@@ -146,7 +155,8 @@ jobs:
             BUILD_REF="refs/pull/$PR_NO/head"
             [ -z "$BENCHMARK_SAVE_NAME" ] && BENCHMARK_SAVE_NAME="PR_${PR_NO}"
           fi
-          [ -z "$BENCHMARK_SAVE_NAME" ] && BENCHMARK_SAVE_NAME="Baseline"
+          # Fall back to ref_name that triggered the workflow:
+          [ -z "$BENCHMARK_SAVE_NAME" ] && BENCHMARK_SAVE_NAME="$GITHUB_REF_NAME"
 
           echo "benchmark_save_name=$BENCHMARK_SAVE_NAME" >> $GITHUB_OUTPUT
           echo "build_ref=$BUILD_REF" >> $GITHUB_OUTPUT
@@ -185,7 +195,7 @@ jobs:
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     secrets: inherit
     with:
-      name: "Benchmarks (${{ matrix.runner }}, ${{ matrix.backend }}, preset: ${{ inputs.preset }})"
+      name: "Benchmarks (${{ matrix.runner }}, ${{ matrix.backend }}, preset: ${{ inputs.preset }}, gdb_mode: ${{ inputs.gdb_mode }})"
       runner: ${{ matrix.runner }}
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
@@ -195,6 +205,7 @@ jobs:
       benchmark_save_name: ${{ needs.sanitize_inputs_dispatch.outputs.benchmark_save_name }}
       benchmark_preset: ${{ inputs.preset }}
       benchmark_exit_on_failure: ${{ inputs.exit_on_failure }}
+      benchmark_gdb_mode: ${{ inputs.gdb_mode }}
       repo_ref: ${{ needs.sanitize_inputs_dispatch.outputs.build_ref }}
       toolchain_artifact: ${{ needs.build_sycl_dispatch.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.build_sycl_dispatch.outputs.toolchain_artifact_filename }}

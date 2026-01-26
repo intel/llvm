@@ -351,5 +351,12 @@ void device::ext_oneapi_wait() {
 
 void device::ext_oneapi_throw_asynchronous() { impl->throwAsynchronous(); }
 
+size_t device::ext_oneapi_index_within_platform() const {
+  if (!impl->isRootDevice())
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "this device is not a root device");
+  return impl->getIndexWithinPlatform();
+}
+
 } // namespace _V1
 } // namespace sycl
