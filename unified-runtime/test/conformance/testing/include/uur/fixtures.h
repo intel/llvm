@@ -373,9 +373,8 @@ struct urMemImageTest : urContextTest {
 
 #define UUR_DEVICE_TEST_SUITE_WITH_QUEUE_TYPES_AND_PARAM(FIXTURE, VALUES,      \
                                                          MODES, PRINTER)       \
-  UUR_DEVICE_TEST_SUITE_WITH_PARAM(                                            \
-      FIXTURE, testing::Combine(VALUES, ::testing::ValuesIn(queueModes)),      \
-      PRINTER)
+  UUR_DEVICE_TEST_SUITE_WITH_PARAM(FIXTURE, testing::Combine(VALUES, MODES),   \
+                                   PRINTER)
 
 #define UUR_DEVICE_TEST_SUITE_WITH_QUEUE_TYPES_PRINTER(FIXTURE, MODES,         \
                                                        PRINTER)                \
