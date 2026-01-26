@@ -1558,8 +1558,12 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
       StringRef GenDevice = SYCL::gen::resolveGenDevice(A->getValue());
       bool IsGenTriple = Triple.isSPIR() &&
                          Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
+      llvm::errs() << "[DEBUG] Args: " << A->getAsString(Args)
+                   << " OptTargetTriple: " << OptTargetTriple.str()
+                   << ", Triple: " << Triple.str() << ", Device: " << Device
+                   << ", GenDevice: " << GenDevice << "\n";
       if (IsGenTriple) {
-        if (Device != GenDevice && !Device.empty())
+        if (Device != GenDevice)
           continue;
         if (OptTargetTriple != Triple && GenDevice.empty())
           // Triples do not match, but only skip when we know we are not
@@ -1678,7 +1682,9 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     }
     // Check for any -device settings.
     std::string DevArg;
-    if (IsJIT || Device == "pvc" || hasPVCDevice(TargArgs, DevArg)) {
+    // if (IsJIT || Device == "pvc" || hasPVCDevice(TargArgs, DevArg)) {
+    llvm::errs() << "[DEBUG] AddImpliedTargetArgs Device " << Device << "\n";
+    if (IsJIT || Device == "pvc") {
       // The -device option passed in by the user may not be 'pvc'. Use the
       // value provided by the user if it was specified.
       StringRef DeviceName = "pvc";
