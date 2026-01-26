@@ -426,14 +426,14 @@ TEST_F(WholeGraphUpdateTest, EmptyNode) {
 
 // Vars and callbacks for tracking how many times mocked functions are called
 static int GetInfoCount = 0;
-static int AppendKernelLaunchCount = 0;
+static int AppendKernelLaunchWithArgsCount = 0;
 static ur_result_t redefinedCommandBufferGetInfoExpAfter(void *pParams) {
   GetInfoCount++;
   return UR_RESULT_SUCCESS;
 }
 static ur_result_t
-redefinedCommandBufferAppendKernelLaunchExpAfter(void *pParams) {
-  AppendKernelLaunchCount++;
+redefinedCommandBufferAppendKernelLaunchWithArgsExpAfter(void *pParams) {
+  AppendKernelLaunchWithArgsCount++;
   return UR_RESULT_SUCCESS;
 }
 
@@ -445,16 +445,16 @@ TEST_F(CommandGraphTest, CheckFinalizeBehavior) {
   mock::getCallbacks().set_after_callback(
       "urCommandBufferGetInfoExp", &redefinedCommandBufferGetInfoExpAfter);
   mock::getCallbacks().set_after_callback(
-      "urCommandBufferAppendKernelLaunchExp",
-      &redefinedCommandBufferAppendKernelLaunchExpAfter);
+      "urCommandBufferAppendKernelLaunchWithArgsExp",
+      &redefinedCommandBufferAppendKernelLaunchWithArgsExpAfter);
 
   ASSERT_NO_THROW(Graph.finalize(experimental::property::graph::updatable{}));
   // GetInfo and AppendKernelLaunch should be called once each time a node is
   // added to a command buffer during finalization
   ASSERT_EQ(GetInfoCount, 1);
-  ASSERT_EQ(AppendKernelLaunchCount, 1);
+  ASSERT_EQ(AppendKernelLaunchWithArgsCount, 1);
 
   ASSERT_NO_THROW(Graph.finalize());
   ASSERT_EQ(GetInfoCount, 2);
-  ASSERT_EQ(AppendKernelLaunchCount, 2);
+  ASSERT_EQ(AppendKernelLaunchWithArgsCount, 2);
 }
