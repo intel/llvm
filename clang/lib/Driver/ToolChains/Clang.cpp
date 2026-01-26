@@ -11614,27 +11614,38 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       if (!TC->getTriple().isSPIROrSPIRV())
         continue;
       ArgStringList BuildArgs;
-      SmallString<128> BackendOptString;
+      SmallVector<SmallString<128>, 4> BackendOptStrings;
       SmallString<128> LinkOptString;
-      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
-      for (const auto &A : BuildArgs)
-        appendOption(BackendOptString, A);
 
-      BuildArgs.clear();
+      // Process each -Xsycl-target-backend individually
+      for (const Arg *A : Args.filtered(options::OPT_Xsycl_backend_EQ)) {
+        StringRef Device = SYCL::gen::resolveGenDevice(A->getValue(0));
+        SmallString<128> BackendString;
+
+        SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs, Device);
+        for (const auto &BA : BuildArgs) {
+          appendOption(BackendString, BA);
+        }
+
+        BuildArgs.clear();
+        BackendOptStrings.push_back(std::move(BackendString));
+      }
+
       SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);
       for (const auto &A : BuildArgs) {
         if (TC->getTriple().getSubArch() == llvm::Triple::NoSubArch)
           appendOption(LinkOptString, A);
         else
-          // For AOT, combine the Backend and Linker strings into one.
-          appendOption(BackendOptString, A);
+        // For AOT, append linker args to every backend string
+        for (auto &BOS : BackendOptStrings)
+          appendOption(BOS, A);
       }
 
-      if (!BackendOptString.empty()) {
-        CmdArgs.push_back(Args.MakeArgString(
+      for (auto &BOS : BackendOptStrings) {
+         CmdArgs.push_back(Args.MakeArgString(
             "--device-compiler=" +
             Action::GetOffloadKindName(Action::OFK_SYCL) + ":" +
-            TC->getTripleString() + "=" + BackendOptString));
+            TC->getTripleString() + "=" + BOS));
       }
       if (!LinkOptString.empty()) {
         CmdArgs.push_back(Args.MakeArgString(
