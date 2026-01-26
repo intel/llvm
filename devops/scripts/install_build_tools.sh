@@ -29,9 +29,7 @@ apt update && apt install -yqq \
       linux-tools-generic \
       linux-tools-common \
       time \
-      numactl \
-      gcc-14 \
-      g++-14
+      numactl
 
 # To obtain latest release of spriv-tool.
 # Same as what's done in SPRIV-LLVM-TRANSLATOR:
@@ -43,5 +41,5 @@ apt update && apt install -yqq pkg-config
 if [[ "$VERSION_CODENAME" == "jammy" ]]; then
     apt-get install -yqq clang-14 libc++-14-dev
 else
-    apt-get install -yqq clang-18 libc++-18-dev
+    apt-get install -yqq clang-18 libc++-18-dev gcc-14 g++-14
 fi
