@@ -2,7 +2,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // UNSUPPORTED: windows
-// UNSUPPORTED-TRACKER: CMPLRLLVM-73028
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20244
 // This test tests free function kernel code generation and execution.
 
 #include <iostream>
