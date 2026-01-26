@@ -62,8 +62,5 @@ int main() {
 
   free(Data, Queue);
 
-  std::cout << "Test passed - native recording works with global immediate "
-               "command list setting"
-            << std::endl;
   return 0;
 }
