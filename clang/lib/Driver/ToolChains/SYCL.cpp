@@ -1616,6 +1616,18 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
   bool IsGen = Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
   bool IsJIT =
       Triple.isSPIROrSPIRV() && Triple.getSubArch() == llvm::Triple::NoSubArch;
+  const Arg *OptionO = Args.getLastArg(options::OPT_O_Group);
+  if (OptionO) {
+    if (IsJIT)
+      BeArgs.push_back(Args.MakeArgString(OptionO->getAsString(Args)));
+    else if (IsGen) {
+      // Pass -cl-opt-disable only for non-JIT compilations, as the runtime
+      // handles O0 for JIT compilations.
+      if (OptionO->getOption().matches(options::OPT_O0))
+        BeArgs.push_back("-cl-opt-disable");
+    }
+  }
+
   if (IsGen && Args.hasArg(options::OPT_fsycl_fp64_conv_emu))
     BeArgs.push_back("-ze-fp64-gen-conv-emu");
   if (Arg *A = Args.getLastArg(options::OPT_g_Group, options::OPT__SLASH_Z7))
