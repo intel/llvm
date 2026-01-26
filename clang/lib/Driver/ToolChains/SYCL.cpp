@@ -1633,12 +1633,6 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
   if (Arg *A = Args.getLastArg(options::OPT_g_Group, options::OPT__SLASH_Z7))
     if (!A->getOption().matches(options::OPT_g0))
       BeArgs.push_back("-g");
-  // Only pass -cl-opt-disable for non-JIT, as the runtime
-  // handles O0 for the JIT case.
-  if (Triple.getSubArch() != llvm::Triple::NoSubArch)
-    if (Arg *A = Args.getLastArg(options::OPT_O_Group))
-      if (A->getOption().matches(options::OPT_O0))
-        BeArgs.push_back("-cl-opt-disable");
   StringRef RegAllocModeOptName = "-ftarget-register-alloc-mode=";
   if (Arg *A = Args.getLastArg(options::OPT_ftarget_register_alloc_mode_EQ)) {
     StringRef RegAllocModeVal = A->getValue(0);
