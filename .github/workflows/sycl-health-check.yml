@@ -15,9 +15,10 @@ jobs:
       - name: Check load average
         id: check
         run: |
-          DATE=$(date +"%Y-%m-%d")
+          DATE=$(date +"%Y-%m-%d_%H-%M-%S")
           echo "DATE=${DATE}" >> $GITHUB_OUTPUT
           uptime | awk -F'load average:' '{ print $2 }' > ${DATE}_${{ runner.name }}.txt
+          echo uptime | awk -F'load average:' '{ print $2 }'
       - name: Upload load average artifact
         uses: actions/upload-artifact@v5
         with:
