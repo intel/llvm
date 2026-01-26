@@ -811,6 +811,7 @@ void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
         Queue.setCommandGraphUnlocked(shared_from_this());
       }
     }
+    addQueue(Queue);
   }
 }
 
