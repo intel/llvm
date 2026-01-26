@@ -1558,19 +1558,24 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
       StringRef GenDevice = SYCL::gen::resolveGenDevice(A->getValue());
       bool IsGenTriple = Triple.isSPIR() &&
                          Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
-      llvm::errs() << "[DEBUG] Args: " << A->getAsString(Args)
-                   << " OptTargetTriple: " << OptTargetTriple.str()
-                   << ", Triple: " << Triple.str() << ", Device: " << Device
-                   << ", GenDevice: " << GenDevice << "\n";
+      // llvm::errs() << "[DEBUG] Args: " << A->getAsString(Args)
+      //              << " OptTargetTriple: " << OptTargetTriple.str()
+      //              << ", Triple: " << Triple.str() << ", Device: " << Device
+      //              << ", GenDevice: " << GenDevice << "\n";
       if (IsGenTriple) {
-        if (Device != GenDevice)
-          continue;
+        if (Device != GenDevice) {
+          if(!GenDevice.empty()) {
+            continue;
+          }
+          SmallString<64> DeviceOpt("-device ");
+          DeviceOpt += Device;
+          if (A->getAsString(Args).find(DeviceOpt.str()) == std::string::npos)
+            continue;
+        }
+        // if (Device != GenDevice && !Device.empty())
         if (OptTargetTriple != Triple && GenDevice.empty())
           // Triples do not match, but only skip when we know we are not
           // comparing against intel_gpu_*
-          continue;
-        if (OptTargetTriple == Triple && !Device.empty())
-          // Triples match, but we are expecting a specific device to be set.
           continue;
       } else if (OptTargetTriple != Triple)
         continue;
@@ -1682,8 +1687,6 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     }
     // Check for any -device settings.
     std::string DevArg;
-    // if (IsJIT || Device == "pvc" || hasPVCDevice(TargArgs, DevArg)) {
-    llvm::errs() << "[DEBUG] AddImpliedTargetArgs Device " << Device << "\n";
     if (IsJIT || Device == "pvc") {
       // The -device option passed in by the user may not be 'pvc'. Use the
       // value provided by the user if it was specified.
