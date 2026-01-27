@@ -270,7 +270,7 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
     // out-of-process -cc1 invocations launched by the driver. For in-process
     // -cc1 invocations launched by the driver, the sandbox is enabled in
     // CC1Command::Execute() for better crash recovery.
-    // auto EnableSandbox = llvm::sys::sandbox::scopedEnable();
+    auto EnableSandbox = llvm::sys::sandbox::scopedEnable();
     return ExecuteCC1Tool(Args, ToolContext, VFS);
   }
 
