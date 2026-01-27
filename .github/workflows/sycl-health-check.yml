@@ -31,8 +31,8 @@ jobs:
           name: ${{ steps.check.outputs.DATE }}_${{ runner.name }}_load-average
           path: artifacts/${{ steps.check.outputs.DATE }}_${{ runner.name }}.txt
   
-  call-aggregate:
-    needs: health-check
-    uses: ./.github/workflows/sycl-aggregate-data.yml
+  # call-aggregate:
+  #   needs: health-check
+  #   uses: ./.github/workflows/sycl-aggregate-data.yml
   
 
