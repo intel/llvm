@@ -91,8 +91,7 @@ public:
     SmallVector<const OffloadBinary *> NativeDeviceCodeImages;
   };
 
-  // TODO: enough to keep 1 property set, not entire propertyset registry for global metadata.
-  std::unique_ptr<llvm::util::PropertySetRegistry> GlobalMetadata;
+  std::unique_ptr<llvm::util::PropertySet> GlobalMetadata;
   SmallVector<AbstractModule, 4> AbstractModules;
 
 private:
@@ -102,7 +101,9 @@ private:
   Error initAbstractModules();
 
   size_t getNumAbstractModules() const {
-    // TODO!!! reading global metadata.
+    return GlobalMetadata
+        ->at(llvm::util::PropertySet::key_type{"abstract_modules_num"})
+        .asUint32();
   }
 
   SmallVector<std::unique_ptr<OffloadBinary>> OffloadBinaries;
