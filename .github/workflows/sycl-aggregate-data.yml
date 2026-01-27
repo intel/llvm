@@ -16,37 +16,38 @@ jobs:
         id: date
         run: echo "TODAY=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
       
-      - name: Download artifacts from today's runs
-        uses: dawidd6/action-download-artifact@v6
+      - name: Download all load average artifacts from current run
+        uses: actions/download-artifact@v4
         with:
-          workflow: sycl-health-check.yml
-          name_is_regexp: true
-          name: '${{ steps.date.outputs.TODAY }}*'
-          path: ./artifacts
-          if_no_artifact_found: warn
+          pattern: '*_load-average'
+          path: artifacts
+          merge-multiple: false
       
       - name: Process and aggregate data
         run: |
           echo "Processing artifacts from ${{ steps.date.outputs.TODAY }}"
           pwd 
+          echo "Workspace contents:"
           ls -la
-          ls -la /home/test-user
-          cd /home/test-user/artifacts
-          pwd
+          echo "Downloaded artifacts structure:"
+          ls -laR artifacts/
+          
           echo "{" > aggregated_${{ steps.date.outputs.TODAY }}.json
           first_data=true
 
-          for dir in /home/test-user/artifacts/*/; do
-            for file in "$dir"*.txt; do
+          # Each artifact is downloaded to its own subdirectory
+          for artifact_dir in artifacts/*/; do
+            echo "Processing directory: $artifact_dir"
+            for file in "$artifact_dir"*.txt; do
               if [[ -f "$file" ]]; then
                 filename=$(basename "$file" .txt)
-                load=$(tail -n1 "$file" | xargs)
+                load=$(cat "$file" | xargs)
                 
                 if [ "$first_data" = true ]; then
                   echo "  \"$filename\": \"$load\"" >> aggregated_${{ steps.date.outputs.TODAY }}.json
                   first_data=false
                 else
-                  echo "  ,\"$filename\": \"$load\"" >> aggregated_${{ steps.date.outputs.TODAY }}.json
+                  echo ",  \"$filename\": \"$load\"" >> aggregated_${{ steps.date.outputs.TODAY }}.json
                 fi
               fi 
             done
@@ -60,4 +61,4 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: aggregated_${{ steps.date.outputs.TODAY }}_data
-          path: /home/test-user/artifacts/aggregated_${{ steps.date.outputs.TODAY }}.json
+          path: aggregated_${{ steps.date.outputs.TODAY }}.json
