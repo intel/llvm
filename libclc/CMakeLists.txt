@@ -121,12 +121,10 @@ else()
   # in-tree build we place the libraries in clang's resource driectory.
   include(GetClangResourceDir)
   get_clang_resource_dir( LIBCLC_INSTALL_DIR )
-  cmake_path( APPEND LIBCLC_INSTALL_DIR "lib" "libclc" )
+  cmake_path( APPEND LIBCLC_INSTALL_DIR "lib" )
 
-  # Note we do not adhere to LLVM_ENABLE_PER_TARGET_RUNTIME_DIR.
   cmake_path( GET LLVM_LIBRARY_OUTPUT_INTDIR PARENT_PATH LIBCLC_OUTPUT_LIBRARY_DIR )
   cmake_path( APPEND LIBCLC_OUTPUT_LIBRARY_DIR ${LIBCLC_INSTALL_DIR} )
-  file( MAKE_DIRECTORY ${LIBCLC_OUTPUT_LIBRARY_DIR} )
 endif()
 
 if( EXISTS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
@@ -544,6 +542,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     add_libclc_builtin_set(
       CLC_INTERNAL
       ARCH ${ARCH}
+      DEVICE ${d}
       ARCH_SUFFIX clc-${arch_suffix}
       TRIPLE ${clang_triple}
       COMPILE_FLAGS ${build_flags}
@@ -569,7 +568,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
         OPT_FLAGS ${opt_flags}
         LIB_FILES ${libspirv_lib_files}
         ALIASES ${${d}_aliases}
-        OUTPUT_NAME libspirv
+        OUTPUT_FILENAME libspirv
         PARENT_TARGET libspirv-builtins
         # Link in the CLC builtins and internalize their symbols
         INTERNAL_LINK_DEPENDENCIES builtins.link.clc-${arch_suffix}
@@ -585,13 +584,14 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 
     add_libclc_builtin_set(
       ARCH ${ARCH}
+      DEVICE ${d}
       ARCH_SUFFIX ${arch_suffix}
       TRIPLE ${clang_triple}
       COMPILE_FLAGS ${opencl_build_flags}
       OPT_FLAGS ${opt_flags}
       LIB_FILES ${opencl_lib_files}
       ALIASES ${${d}_aliases}
-      OUTPUT_NAME libclc
+      OUTPUT_FILENAME libclc
       PARENT_TARGET libclc-opencl-builtins
       # Link in the CLC builtins and internalize their symbols
       INTERNAL_LINK_DEPENDENCIES builtins.link.clc-${arch_suffix}
