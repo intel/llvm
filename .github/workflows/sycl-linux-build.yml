@@ -253,7 +253,7 @@ jobs:
           -p 1 \
           -path "$GITHUB_WORKSPACE/build" \
           -checks "clang-analyzer-*,bugprone-*,performance-*" \
-          < pr.diff
+          < "$GITHUB_WORKSPACE/pr.diff"
 
     # - name: check-llvm
     #   if: ${{ !cancelled() && contains(inputs.changes, 'llvm') }}
