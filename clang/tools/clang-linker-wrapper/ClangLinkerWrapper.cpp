@@ -481,9 +481,10 @@ fatbinary(ArrayRef<std::pair<StringRef, StringRef>> InputFiles,
   CmdArgs.push_back(Triple.isArch64Bit() ? "-64" : "-32");
   CmdArgs.push_back("--create");
   CmdArgs.push_back(*TempFileOrErr);
-  for (const auto &[File, Arch] : InputFiles)
-    CmdArgs.push_back(
-        Args.MakeArgString("--image=profile=" + Arch + ",file=" + File));
+  for (const auto &[File, Arch] : InputFiles) {
+    CmdArgs.push_back(Args.MakeArgString(
+        "--image3=kind=elf,sm=" + Arch.drop_front(3) + ",file=" + File));
+  }
 
   if (Error Err = executeCommands(*FatBinaryPath, CmdArgs))
     return std::move(Err);
@@ -2329,13 +2330,10 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         if (!ClangOutputOrErr)
           return ClangOutputOrErr.takeError();
         if (Triple.isNVPTX()) {
-          auto VirtualArch = StringRef(clang::OffloadArchToVirtualArchString(
-              clang::StringToOffloadArch(Arch)));
           auto PtxasOutputOrErr =
               nvptx::ptxas(*ClangOutputOrErr, LinkerArgs, Arch);
           if (!PtxasOutputOrErr)
             return PtxasOutputOrErr.takeError();
-          BundlerInputFiles.emplace_back(*ClangOutputOrErr, VirtualArch);
           BundlerInputFiles.emplace_back(*PtxasOutputOrErr, Arch);
           auto BundledFileOrErr =
               nvptx::fatbinary(BundlerInputFiles, LinkerArgs);
