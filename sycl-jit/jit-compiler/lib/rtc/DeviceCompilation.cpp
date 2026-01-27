@@ -623,7 +623,7 @@ private:
   std::string_view Prefix{jit_compiler::resource::ToolchainPrefix.S,
                           jit_compiler::resource::ToolchainPrefix.Size};
   std::string ClangXXExe = (Prefix + "/bin/clang++").str();
-  std::string LibclcDir = GetResourcesPath(ClangXXExe) + "/lib/libclc/";
+  std::string LibclcDir = GetResourcesPath(ClangXXExe) + "/lib/";
 
   PrecompiledPreambles Preambles;
 };
@@ -842,21 +842,23 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
     // Based on the OS and the format decide on the version of libspirv.
     // NOTE: this will be problematic if cross-compiling between OSes.
 #ifdef _WIN32
-    std::string Libclc = "remangled-l32-signed_char.libspirv-";
+    std::string Libclc = "remangled-l32-signed_char.libspirv.bc";
 #else
-    std::string Libclc = "remangled-l64-signed_char.libspirv-";
+    std::string Libclc = "remangled-l64-signed_char.libspirv.bc";
 #endif
-    Libclc.append(Format == BinaryFormat::PTX ? "nvptx64-nvidia-cuda.bc"
-                                              : "amdgcn-amd-amdhsa.bc");
     LibNames.push_back(Libclc);
   }
 
   LLVMContext &Context = Module.getContext();
   SYCLToolchain &TC = SYCLToolchain::instance();
   for (const std::string &LibName : LibNames) {
-    std::string LibPath = (LibName.find("libspirv") != std::string::npos)
-                              ? (TC.getLibclcDir() + LibName).str()
-                              : (TC.getPrefix() + "/lib/" + LibName).str();
+    std::string TripleName = (Format == BinaryFormat::PTX)
+                                 ? "nvptx64-nvidia-cuda"
+                                 : "amdgcn-amd-amdhsa";
+    std::string LibPath =
+        (LibName.find("libspirv") != std::string::npos)
+            ? (TC.getLibclcDir() + TripleName + "/" + LibName).str()
+            : (TC.getPrefix() + "/lib/" + LibName).str();
 
     ModuleUPtr LibModule;
     if (auto Error =

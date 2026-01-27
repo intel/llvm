@@ -121,12 +121,10 @@ else()
   # in-tree build we place the libraries in clang's resource driectory.
   include(GetClangResourceDir)
   get_clang_resource_dir( LIBCLC_INSTALL_DIR )
-  cmake_path( APPEND LIBCLC_INSTALL_DIR "lib" "libclc" )
+  cmake_path( APPEND LIBCLC_INSTALL_DIR "lib" )
 
-  # Note we do not adhere to LLVM_ENABLE_PER_TARGET_RUNTIME_DIR.
   cmake_path( GET LLVM_LIBRARY_OUTPUT_INTDIR PARENT_PATH LIBCLC_OUTPUT_LIBRARY_DIR )
   cmake_path( APPEND LIBCLC_OUTPUT_LIBRARY_DIR ${LIBCLC_INSTALL_DIR} )
-  file( MAKE_DIRECTORY ${LIBCLC_OUTPUT_LIBRARY_DIR} )
 endif()
 
 if( EXISTS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
@@ -184,7 +182,7 @@ set( LIBCLC_TARGETS_ALL
   nvptx64-nvidia-cuda
 )
 set( LIBCLC_TEST_TARGETS_ALL
-  nvptx64--nvidiacl
+  nvptx64-nvidia-cuda
   amdgcn-amd-amdhsa
 )
 
@@ -230,6 +228,8 @@ if( LIBCLC_NATIVECPU_HOST_TARGET )
 endif()
 
 list( SORT LIBCLC_TARGETS_TO_BUILD )
+
+message(STATUS "DEBUG: LIBCLC_TARGETS_TO_BUILD = ${LIBCLC_TARGETS_TO_BUILD}")
 
 set(LIBCLC_TARGET_TO_TEST)
 
@@ -409,7 +409,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
   )
 
   set( BUILD_LIBSPIRV_${t} FALSE )
-  if ( t STREQUAL amdgcn-amd-amdhsa OR t STREQUAL nvptx64--nvidiacl OR t STREQUAL native_cpu )
+  if ( t STREQUAL amdgcn-amd-amdhsa OR t STREQUAL nvptx64-nvidia-cuda OR t STREQUAL native_cpu )
     set( libspirv_lib_files )
     set( BUILD_LIBSPIRV_${t} TRUE )
 
@@ -542,6 +542,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     add_libclc_builtin_set(
       CLC_INTERNAL
       ARCH ${ARCH}
+      CPU ${cpu}
       ARCH_SUFFIX clc-${arch_suffix}
       TRIPLE ${clang_triple}
       COMPILE_FLAGS ${build_flags}
@@ -567,6 +568,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
         OPT_FLAGS ${opt_flags}
         LIB_FILES ${libspirv_lib_files}
         ALIASES ${${d}_aliases}
+        OUTPUT_NAME libspirv
         PARENT_TARGET libspirv-builtins
         # Link in the CLC builtins and internalize their symbols
         INTERNAL_LINK_DEPENDENCIES builtins.link.clc-${arch_suffix}
@@ -588,6 +590,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       OPT_FLAGS ${opt_flags}
       LIB_FILES ${opencl_lib_files}
       ALIASES ${${d}_aliases}
+      OUTPUT_NAME libclc
       PARENT_TARGET libclc-opencl-builtins
       # Link in the CLC builtins and internalize their symbols
       INTERNAL_LINK_DEPENDENCIES builtins.link.clc-${arch_suffix}

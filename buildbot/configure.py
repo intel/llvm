@@ -29,7 +29,7 @@ def do_configure(args, passthrough_args):
         llvm_external_projects += ";libdevice"
 
     libclc_amd_target_names = ";amdgcn-amd-amdhsa"
-    libclc_nvidia_target_names = ";nvptx64--nvidiacl"
+    libclc_nvidia_target_names = ";nvptx64-nvidia-cuda"
 
     sycl_enable_jit = "OFF"
     if not args.disable_jit and sys.platform != "darwin":

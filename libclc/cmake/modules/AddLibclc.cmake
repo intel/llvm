@@ -232,36 +232,6 @@ function(get_libclc_device_info)
   endif()
 endfunction()
 
-# Install libclc artifacts.
-#
-# Arguments:
-#  * COMPONENT <string>
-#      Installation component name.
-#  * FILES <string> ...
-#      List of libclc artifact files to be installed.
-function(libclc_install)
-  cmake_parse_arguments(ARG "" "COMPONENT" "FILES" ${ARGN})
-
-  if( NOT ARG_FILES )
-    message( FATAL_ERROR "Must provide FILES" )
-  endif()
-
-  if( NOT CMAKE_CFG_INTDIR STREQUAL "." )
-    # Replace CMAKE_CFG_INTDIR with CMAKE_INSTALL_CONFIG_NAME for multiple-
-    # configuration generators.
-    string( REPLACE ${CMAKE_CFG_INTDIR} "\$\{CMAKE_INSTALL_CONFIG_NAME\}"
-            files ${ARG_FILES} )
-  else()
-    set( files ${ARG_FILES} )
-  endif()
-
-  install(
-    FILES ${files}
-    DESTINATION ${LIBCLC_INSTALL_DIR}
-    COMPONENT ${ARG_COMPONENT}
-  )
-endfunction()
-
 # Compiles a list of library source files (provided by LIB_FILES) and compiles
 # them to LLVM bytecode (or SPIR-V), links them together and optimizes them.
 #
@@ -271,10 +241,14 @@ endfunction()
 # Arguments:
 #  * ARCH <string>
 #      libclc architecture being built
+#  * CPU <string>
+#      libclc microarchitecture being built
 #  * ARCH_SUFFIX <string>
 #      libclc architecture/triple suffix
 #  * TRIPLE <string>
 #      Triple used to compile
+#  * OUTPUT_NAME <string>
+#      libclc output library name
 #  * PARENT_TARGET <string>
 #      Target into which to group the target builtins
 #
@@ -299,7 +273,7 @@ endfunction()
 function(add_libclc_builtin_set)
   cmake_parse_arguments(ARG
     "CLC_INTERNAL"
-    "ARCH;TRIPLE;ARCH_SUFFIX;REMANGLE;PARENT_TARGET"
+    "ARCH;TRIPLE;ARCH_SUFFIX;REMANGLE;OUTPUT_NAME;PARENT_TARGET"
     "LIB_FILES;COMPILE_FLAGS;OPT_FLAGS;ALIASES;INTERNAL_LINK_DEPENDENCIES"
     ${ARGN}
   )
@@ -410,13 +384,21 @@ function(add_libclc_builtin_set)
     return()
   endif()
 
+  set( LIBCLC_OUTPUT_FILENAME ${ARG_OUTPUT_NAME} )
   set( builtins_link_lib $<TARGET_PROPERTY:${builtins_link_lib_tgt},TARGET_FILE> )
+
+  # We store the library according to its triple and cpu if present.
+  if (ARG_CPU)
+    set (library_dir ${LIBCLC_OUTPUT_LIBRARY_DIR}/${ARG_TRIPLE}/${ARG_CPU})
+  else()
+    set (library_dir ${LIBCLC_OUTPUT_LIBRARY_DIR}/${ARG_TRIPLE})
+  endif()
+  file( MAKE_DIRECTORY ${library_dir} )
 
   # For SPIR-V targets we diverage at this point and generate SPIR-V using the
   # llvm-spirv tool.
   if( ARG_ARCH STREQUAL spirv OR ARG_ARCH STREQUAL spirv64 )
-    set( obj_suffix ${ARG_ARCH_SUFFIX}.spv )
-    set( libclc_builtins_lib ${LIBCLC_OUTPUT_LIBRARY_DIR}/${obj_suffix} )
+    set( libclc_builtins_lib ${library_dir}/${LIBCLC_OUTPUT_FILENAME}.spv )
     if ( LIBCLC_USE_SPIRV_BACKEND )
       add_custom_command( OUTPUT ${libclc_builtins_lib}
         COMMAND ${clang_exe} -c --target=${ARG_TRIPLE} -x ir -o ${libclc_builtins_lib} ${builtins_link_lib}
@@ -430,8 +412,7 @@ function(add_libclc_builtin_set)
     endif()
   else()
     # Non-SPIR-V targets add an extra step to optimize the bytecode
-    set( obj_suffix ${ARG_ARCH_SUFFIX}.bc )
-    set( libclc_builtins_lib ${LIBCLC_OUTPUT_LIBRARY_DIR}/${obj_suffix} )
+    set( libclc_builtins_lib ${library_dir}/${LIBCLC_OUTPUT_FILENAME}.bc )
 
     add_custom_command( OUTPUT ${libclc_builtins_lib}
       COMMAND ${opt_exe} ${ARG_OPT_FLAGS} -o ${libclc_builtins_lib}
@@ -441,8 +422,8 @@ function(add_libclc_builtin_set)
   endif()
 
   # Add a 'library' target
-  add_custom_target( library-${obj_suffix} ALL DEPENDS ${libclc_builtins_lib} )
-  set_target_properties( "library-${obj_suffix}" PROPERTIES
+  add_custom_target( library-${ARG_ARCH_SUFFIX} ALL DEPENDS ${libclc_builtins_lib} )
+  set_target_properties( "library-${ARG_ARCH_SUFFIX}" PROPERTIES
     TARGET_FILE ${libclc_builtins_lib}
     FOLDER "libclc/Device IR/Library"
   )
@@ -450,15 +431,19 @@ function(add_libclc_builtin_set)
   # Also add a 'library' target for the triple. Since a triple may have
   # multiple devices, ensure we only try to create the triple target once. The
   # triple's target will build all of the bytecode for its constituent devices.
-  if( NOT TARGET library-${ARG_TRIPLE} )
-    add_custom_target( library-${ARG_TRIPLE} ALL )
+  if( NOT TARGET libclc-${ARG_TRIPLE} )
+    add_custom_target( libclc-${ARG_TRIPLE} ALL )
   endif()
-  add_dependencies( library-${ARG_TRIPLE} library-${obj_suffix} )
+  add_dependencies( libclc-${ARG_TRIPLE} library-${ARG_ARCH_SUFFIX} )
   # Add dependency to top-level pseudo target to ease making other
   # targets dependent on libclc.
-  add_dependencies( ${ARG_PARENT_TARGET} library-${ARG_TRIPLE} )
+  add_dependencies( ${ARG_PARENT_TARGET} libclc-${ARG_TRIPLE} )
 
-  libclc_install( COMPONENT ${ARG_PARENT_TARGET} FILES ${libclc_builtins_lib} )
+  # Install the created library.
+  install(
+    FILES ${libclc_builtins_lib}
+    DESTINATION ${LIBCLC_INSTALL_DIR}/${ARG_TRIPLE}
+  )
 
   # SPIR-V targets can exit early here
   if( ARG_ARCH STREQUAL spirv OR ARG_ARCH STREQUAL spirv64 )
@@ -467,25 +452,20 @@ function(add_libclc_builtin_set)
 
   # Generate remangled variants if requested
   if( ARG_REMANGLE )
-    set( dummy_in ${LIBCLC_OUTPUT_LIBRARY_DIR}/libclc_dummy_in.cc )
+    set( dummy_in ${library_dir}/libclc_dummy_in.cc )
     add_custom_command( OUTPUT ${dummy_in}
       COMMAND ${CMAKE_COMMAND} -E touch ${dummy_in}
     )
     set(long_widths l32 l64)
     set(char_signedness signed unsigned)
-    if( ${obj_suffix} STREQUAL "libspirv-nvptx64--nvidiacl.bc")
-      set( obj_suffix_mangled "libspirv-nvptx64-nvidia-cuda.bc")
-    elseif( ${obj_suffix} STREQUAL "libspirv-amdgcn-amd-amdhsa.bc")
-      set( obj_suffix_mangled "libspirv-amdgcn-amd-amdhsa.bc")
-    else()
-      set( obj_suffix_mangled "${obj_suffix}")
-    endif()
+
     # All permutations of [l32, l64] and [signed, unsigned]
     foreach(long_width ${long_widths})
       foreach(signedness ${char_signedness})
         # Remangle
-        set( remangled_filename remangled-${long_width}-${signedness}_char.${obj_suffix_mangled} )
-        set( builtins_remangle_path "${LIBCLC_OUTPUT_LIBRARY_DIR}/${remangled_filename}" )
+        set( remangled_filename remangled-${long_width}-${signedness}_char.${LIBCLC_OUTPUT_FILENAME}.bc )
+        set( builtins_remangle_path "${library_dir}/${remangled_filename}" )
+
         add_custom_command( OUTPUT "${builtins_remangle_path}"
           COMMAND ${libclc-remangler_exe}
           -o "${builtins_remangle_path}"
@@ -494,18 +474,22 @@ function(add_libclc_builtin_set)
           --char-signedness=${signedness}
           --input-ir=${libclc_builtins_lib}
           ${dummy_in}
-          DEPENDS library-${obj_suffix} ${libclc_builtins_lib} ${libclc-remangler_target} ${dummy_in})
-        add_custom_target( ${remangled_filename} ALL
+          DEPENDS library-${ARG_ARCH_SUFFIX} ${libclc_builtins_lib} ${libclc-remangler_target} ${dummy_in})
+        set( remangled_target ${remangled_filename}.${ARG_TRIPLE} )
+        add_custom_target( ${remangled_target} ALL
           DEPENDS "${builtins_remangle_path}" "${dummy_in}" )
-        set_target_properties( ${remangled_filename}
+        set_target_properties( ${remangled_target}
           PROPERTIES TARGET_FILE "${builtins_remangle_path}" )
 
         # Add dependency to top-level pseudo target to ease making other
         # targets dependent on libclc.
-        add_dependencies( ${ARG_PARENT_TARGET} ${remangled_filename} )
+        add_dependencies( ${ARG_PARENT_TARGET} ${remangled_target} )
 
         # Keep remangled variants
-        libclc_install( COMPONENT ${ARG_PARENT_TARGET} FILES ${builtins_remangle_path} )
+        install(
+          FILES ${builtins_remangle_path}
+          DESTINATION ${LIBCLC_INSTALL_DIR}/${ARG_TRIPLE}
+        )
       endforeach()
     endforeach()
 
@@ -517,7 +501,7 @@ function(add_libclc_builtin_set)
     set(libclc-remangler-test-no 0)
     foreach(target-ir ${builtins_opt_lib} ${builtins_link_lib} ${libclc_builtins_lib})
       math(EXPR libclc-remangler-test-no "${libclc-remangler-test-no}+1")
-      set(current-test "libclc-remangler-test-${obj_suffix}-${libclc-remangler-test-no}")
+      set(current-test "libclc-remangler-test-${ARG_ARCH_SUFFIX}-${libclc-remangler-test-no}")
       add_custom_target(${current-test}
         COMMAND ${libclc-remangler_exe}
         --long-width=l32
@@ -535,7 +519,7 @@ function(add_libclc_builtin_set)
   # * nvptx64-- targets don't include workitem builtins
   # * clspv targets don't include all OpenCL builtins
   if( NOT ARG_ARCH MATCHES "^(nvptx|clspv)(64)?$" )
-    add_test( NAME external-funcs-${obj_suffix}
+    add_test( NAME external-funcs-${ARG_ARCH_SUFFIX}
       COMMAND ./check_external_funcs.sh ${libclc_builtins_lib} ${LLVM_TOOLS_BINARY_DIR}
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} )
   endif()
@@ -551,21 +535,25 @@ function(add_libclc_builtin_set)
       set(LIBCLC_LINK_OR_COPY copy)
     endif()
 
-    set( alias_suffix "${a}-${ARG_TRIPLE}.bc" )
+    file( MAKE_DIRECTORY ${LIBCLC_OUTPUT_LIBRARY_DIR}/${ARG_TRIPLE}/${a} )
+    set( libclc_alias_lib ${LIBCLC_OUTPUT_LIBRARY_DIR}/${ARG_TRIPLE}/${a}/${LIBCLC_OUTPUT_FILENAME}.bc )
     add_custom_command(
-      OUTPUT ${LIBCLC_OUTPUT_LIBRARY_DIR}/${alias_suffix}
-      COMMAND ${CMAKE_COMMAND} -E ${LIBCLC_LINK_OR_COPY} ${LIBCLC_LINK_OR_COPY_SOURCE} ${LIBCLC_OUTPUT_LIBRARY_DIR}/${alias_suffix}
-      DEPENDS library-${obj_suffix}
+      OUTPUT ${libclc_alias_lib}
+      COMMAND ${CMAKE_COMMAND} -E ${LIBCLC_LINK_OR_COPY} ${LIBCLC_LINK_OR_COPY_SOURCE} ${libclc_alias_lib}
+      DEPENDS library-${ARG_ARCH_SUFFIX}
     )
-    add_custom_target( alias-${alias_suffix} ALL
-      DEPENDS ${LIBCLC_OUTPUT_LIBRARY_DIR}/${alias_suffix}
+    add_custom_target( alias-${a}-${ARG_TRIPLE} ALL
+      DEPENDS ${libclc_alias_lib}
     )
-    add_dependencies( ${ARG_PARENT_TARGET} alias-${alias_suffix} )
-    set_target_properties( alias-${alias_suffix}
+    add_dependencies( ${ARG_PARENT_TARGET} alias-${a}-${ARG_TRIPLE} )
+    set_target_properties( alias-${a}-${ARG_TRIPLE}
       PROPERTIES FOLDER "libclc/Device IR/Aliases"
     )
-    libclc_install( COMPONENT ${ARG_PARENT_TARGET}
-      FILES ${LIBCLC_OUTPUT_LIBRARY_DIR}/${alias_suffix}
+
+    # Install the library
+    install(
+      FILES ${libclc_alias_lib}
+      DESTINATION ${LIBCLC_INSTALL_DIR}/${ARG_TRIPLE}/${a}
     )
   endforeach( a )
 endfunction(add_libclc_builtin_set)

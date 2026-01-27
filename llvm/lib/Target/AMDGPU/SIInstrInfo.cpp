@@ -1372,6 +1372,24 @@ bool SIInstrInfo::getConstValDefinedInReg(const MachineInstr &MI,
   }
 }
 
+std::optional<int64_t>
+SIInstrInfo::getImmOrMaterializedImm(MachineOperand &Op) const {
+  if (Op.isImm())
+    return Op.getImm();
+
+  if (!Op.isReg() || !Op.getReg().isVirtual())
+    return std::nullopt;
+  MachineRegisterInfo &MRI = Op.getParent()->getMF()->getRegInfo();
+  const MachineInstr *Def = MRI.getVRegDef(Op.getReg());
+  if (Def && Def->isMoveImmediate()) {
+    const MachineOperand &ImmSrc = Def->getOperand(1);
+    if (ImmSrc.isImm())
+      return extractSubregFromImm(ImmSrc.getImm(), Op.getSubReg());
+  }
+
+  return std::nullopt;
+}
+
 unsigned SIInstrInfo::getMovOpcode(const TargetRegisterClass *DstRC) const {
 
   if (RI.isAGPRClass(DstRC))
@@ -10221,6 +10239,8 @@ static unsigned subtargetEncodingFamily(const GCNSubtarget &ST) {
   case AMDGPUSubtarget::GFX12:
     return ST.hasGFX1250Insts() ? SIEncodingFamily::GFX1250
                                 : SIEncodingFamily::GFX12;
+  case AMDGPUSubtarget::GFX13:
+    return SIEncodingFamily::GFX13;
   }
   llvm_unreachable("Unknown subtarget generation!");
 }
@@ -11242,7 +11262,7 @@ bool SIInstrInfo::isXDLWMMA(const MachineInstr &MI) const {
   if (!isWMMA(MI) && !isSWMMAC(MI))
     return false;
 
-  if (AMDGPU::isGFX1250(ST))
+  if (ST.hasGFX1250Insts())
     return AMDGPU::getWMMAIsXDL(MI.getOpcode());
 
   return true;

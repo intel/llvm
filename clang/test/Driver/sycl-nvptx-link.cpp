@@ -42,7 +42,7 @@
 
 // CHECK: llvm-link
 // CHECK-SAME: -only-needed
-// CHECK-SAME: libspirv-nvptx64-nvidia-cuda.bc
+// CHECK-SAME: remangled-l64-signed_char.libspirv.bc
 // LIBDEVICE10-SAME: libdevice.10.bc
 // LIBDEVICE30-SAME: libdevice.compute_30.10.bc
 // LIBDEVICE35-SAME: libdevice.compute_35.10.bc

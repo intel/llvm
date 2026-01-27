@@ -33,20 +33,15 @@ SYCLInstallationDetector::SYCLInstallationDetector(
     : SYCLInstallationDetector(D) {}
 
 static llvm::SmallString<64>
-getLibSpirvBasename(const llvm::Triple &DeviceTriple,
-                    const llvm::Triple &HostTriple) {
+getLibSpirvBasename(const llvm::Triple &HostTriple) {
   // Select remangled libclc variant.
   // Decide long size based on host triple, because offloading targets are going
   // to match that.
   // All known windows environments except Cygwin use 32-bit long.
   llvm::SmallString<64> Result(HostTriple.isOSWindows() &&
                                        !HostTriple.isWindowsCygwinEnvironment()
-                                   ? "remangled-l32-signed_char.libspirv-"
-                                   : "remangled-l64-signed_char.libspirv-");
-
-  Result.append(DeviceTriple.getTriple());
-  Result.append(".bc");
-
+                                   ? "remangled-l32-signed_char.libspirv.bc"
+                                   : "remangled-l64-signed_char.libspirv.bc");
   return Result;
 }
 
@@ -62,10 +57,10 @@ const char *SYCLInstallationDetector::findLibspirvPath(
     return nullptr;
   }
 
-  const SmallString<64> Basename =
-      getLibSpirvBasename(DeviceTriple, HostTriple);
+  const SmallString<64> Basename = getLibSpirvBasename(HostTriple);
   SmallString<256> LibclcPath(D.ResourceDir);
-  llvm::sys::path::append(LibclcPath, "lib", "libclc", Basename);
+  llvm::sys::path::append(LibclcPath, "lib", DeviceTriple.getTriple(),
+                          Basename);
   if (D.getVFS().exists(LibclcPath))
     return Args.MakeArgString(LibclcPath);
 
@@ -90,8 +85,7 @@ void SYCLInstallationDetector::addLibspirvLinkArgs(
     return;
   }
 
-  D.Diag(diag::err_drv_no_sycl_libspirv)
-      << getLibSpirvBasename(DeviceTriple, HostTriple);
+  D.Diag(diag::err_drv_no_sycl_libspirv) << getLibSpirvBasename(HostTriple);
 }
 
 void SYCLInstallationDetector::getSYCLDeviceLibPath(

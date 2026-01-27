@@ -172,6 +172,7 @@ Improvements to Coverage Mapping
 
 Bug Fixes in This Version
 -------------------------
+- Fixed a failed assertion in the preprocessor when ``__has_embed`` parameters are missing parentheses. (#GH175088)
 
 - Fix lifetime extension of temporaries in for-range-initializers in templates. (#GH165182)
 
@@ -198,6 +199,7 @@ Miscellaneous Clang Crashes Fixed
 - Fixed a crash when attempting to jump over initialization of a variable with variably modified type. (#GH175540)
 - Fixed a crash when using loop hint with a value dependent argument inside a
   generic lambda. (#GH172289)
+- Fixed a crash in C++ overload resolution with ``_Atomic``-qualified argument types. (#GH170433)
 
 OpenACC Specific Changes
 ------------------------
@@ -302,6 +304,13 @@ Sanitizers
 
 Python Binding Changes
 ----------------------
+- Add deprecation warnings to ``CompletionChunk.isKind...`` methods.
+  These will be removed in a future release. Existing uses should be adapted
+  to directly compare equality of the ``CompletionChunk`` kind with
+  the corresponding ``CompletionChunkKind`` variant.
+
+  Affected methods: ``isKindOptional``, ``isKindTypedText``, ``isKindPlaceHolder``,
+  ``isKindInformative`` and ``isKindResultType``.
 
 OpenMP Support
 --------------
