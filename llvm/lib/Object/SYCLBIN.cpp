@@ -133,8 +133,8 @@ Error SYCLBIN::write(const SYCLBIN::SYCLBINDesc &Desc, raw_ostream &OS) {
 
   // For each abstract module: 1 for AbstractModuleID + metadata entries.
   for (const SYCLBINDesc::AbstractModuleDesc &AMD : Desc.AbstractModuleDescs) {
-    // AbstractModuleID, NumJITBinaries, NumNativeBinaries.
-    TotalBuffersNeeded += 3;
+    // AbstractModuleID.
+    TotalBuffersNeeded += 1;
     // Each IR module and native device code image needs metadata entries.
     size_t NumImages =
         AMD.IRModuleDescs.size() + AMD.NativeDeviceCodeImageDescs.size();
@@ -154,10 +154,6 @@ Error SYCLBIN::write(const SYCLBIN::SYCLBINDesc &Desc, raw_ostream &OS) {
   for (const SYCLBINDesc::AbstractModuleDesc &AMD : Desc.AbstractModuleDescs) {
     SmallString<128> &AbstractModuleID =
         Buffers.emplace_back(std::to_string(AbstractModuleIndex));
-    SmallString<128> &NumIRModules =
-        Buffers.emplace_back(std::to_string(AMD.IRModuleDescs.size()));
-    SmallString<128> &NumNativeImages = Buffers.emplace_back(
-        std::to_string(AMD.NativeDeviceCodeImageDescs.size()));
 
     // Store IR modules.
     for (const SYCLBINDesc::ImageDesc &IRMD : AMD.IRModuleDescs) {
@@ -167,8 +163,6 @@ Error SYCLBIN::write(const SYCLBIN::SYCLBINDesc &Desc, raw_ostream &OS) {
       OI.TheOffloadKind = OffloadKind::OFK_SYCL;
 
       OI.StringData["syclbin_abstract_module_id"] = AbstractModuleID;
-      OI.StringData["syclbin_num_ir_modules"] = NumIRModules;
-      OI.StringData["syclbin_num_native_images"] = NumNativeImages;
       OI.StringData["triple"] = IRMD.TargetTriple.str();
       AMD.Metadata->write(OI.StringData, Buffers);
 
@@ -190,8 +184,6 @@ Error SYCLBIN::write(const SYCLBIN::SYCLBINDesc &Desc, raw_ostream &OS) {
 
       OI.StringData["syclbin_abstract_module_id"] = AbstractModuleID;
       // TODO: this maybe not needed after all...
-      OI.StringData["syclbin_num_ir_modules"] = NumIRModules;
-      OI.StringData["syclbin_num_native_images"] = NumNativeImages;
       OI.StringData["triple"] = NDCID.TargetTriple.str();
       OI.StringData["arch"] = NDCID.ArchString;
       AMD.Metadata->write(OI.StringData, Buffers);
@@ -315,8 +307,8 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
 
   // For each abstract module: 1 for AbstractModuleID + metadata entries.
   for (uint32_t I = 0; I < FileHeader->AbstractModuleCount; ++I) {
-    // AbstractModuleID, NumJITBinaries, NumNativeBinaries.
-    TotalBuffersNeeded += 3;
+    // AbstractModuleID.
+    TotalBuffersNeeded += 1;
 
     // Each IR module and native device code image needs metadata entries.
     size_t NumImages =
@@ -339,10 +331,6 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
   for (uint32_t I = 0; I < FileHeader->AbstractModuleCount; ++I) {
     SmallString<128> &AbstractModuleID =
         Buffers.emplace_back(std::to_string(AbstractModuleIndex));
-    SmallString<128> &NumIRModules =
-        Buffers.emplace_back(std::to_string(AMHeaders[I]->IRModuleCount));
-    SmallString<128> &NumNativeImages = Buffers.emplace_back(
-        std::to_string(AMHeaders[I]->NativeDeviceCodeImageCount));
 
     // Read the IR modules of the current abstract module.
     for (uint32_t J = 0; J < AMHeaders[I]->IRModuleCount; ++J) {
@@ -353,8 +341,6 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
 
       OI.TheOffloadKind = OffloadKind::OFK_SYCL;
       OI.StringData["syclbin_abstract_module_id"] = AbstractModuleID;
-      OI.StringData["syclbin_num_ir_modules"] = NumIRModules;
-      OI.StringData["syclbin_num_native_images"] = NumNativeImages;
       AMMetadataVector[I]->write(OI.StringData, Buffers);
 
       // Read the header for the current IR module.
@@ -400,8 +386,6 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
       OI.TheImageKind = ImageKind::IMG_Object;
       OI.TheOffloadKind = OffloadKind::OFK_SYCL;
       OI.StringData["syclbin_abstract_module_id"] = AbstractModuleID;
-      OI.StringData["syclbin_num_ir_modules"] = NumIRModules;
-      OI.StringData["syclbin_num_native_images"] = NumNativeImages;
       AMMetadataVector[I]->write(OI.StringData, Buffers);
 
       // Read the header for the current native device code image.
@@ -472,15 +456,19 @@ bool SYCLBIN::isSYCLBIN(
 Error SYCLBIN::initAbstractModules() {
   // First init global metadata.
   for (const std::unique_ptr<OffloadBinary> &OBPtr : OffloadBinaries) {
-    if (OBPtr->getFlags() & OIF_NoImage) {
-      auto ErrorOrProperties =
-          llvm::util::PropertySetRegistry::read(OBPtr->strings());
-      if (!ErrorOrProperties)
-        return ErrorOrProperties.takeError();
+    if ((OBPtr->getFlags() & OIF_NoImage) == 0)
+      continue;
+    auto ErrorOrProperties =
+        llvm::util::PropertySetRegistry::read(OBPtr->strings());
+    if (!ErrorOrProperties)
+      return ErrorOrProperties.takeError();
 
-      GlobalMetadata = std::move(*ErrorOrProperties);
-      break;
-    }
+    std::unique_ptr<llvm::util::PropertySetRegistry> GlobalMetadataRegistry =
+        std::move(*ErrorOrProperties);
+    GlobalMetadata = std::make_unique<llvm::util::PropertySet>(
+        (*GlobalMetadataRegistry)
+            [llvm::util::PropertySetRegistry::SYCLBIN_GLOBAL_METADATA]);
+    break;
   }
 
   // If no global metadata entry was found - it is not SYCLBIN...
@@ -488,14 +476,28 @@ Error SYCLBIN::initAbstractModules() {
     return createStringError(inconvertibleErrorCode(),
                              "Unexpected SYCLBIN: no global metadata found.");
 
-  // TODO: implement reading abstract modules...
-  for (const std::unique_ptr<OffloadBinary> &OBPtr : OffloadBinaries) {
-    auto ErrorOrProperties =
-        llvm::util::PropertySetRegistry::read(OBPtr->strings());
-    if (!ErrorOrProperties)
-      return ErrorOrProperties.takeError();
+  // Pre-allocate AbstractModules vector with the correct size.
+  size_t NumAbstractModules = getNumAbstractModules();
+  AbstractModules.resize(NumAbstractModules);
 
-    Metadata[OBPtr.get()] = std::move(*ErrorOrProperties);
+  for (const std::unique_ptr<OffloadBinary> &OBPtr : OffloadBinaries) {
+    if (OBPtr->getFlags() & OIF_NoImage)
+      continue;
+
+    uint32_t ID;
+    OBPtr->getString("syclbin_abstract_module_id").getAsInteger(10, ID);
+    AbstractModule &AM = AbstractModules[ID];
+
+    if (!AM.Metadata) {
+      auto ErrorOrProperties =
+          llvm::util::PropertySetRegistry::read(OBPtr->strings());
+      if (!ErrorOrProperties)
+        return ErrorOrProperties.takeError();
+
+      AM.Metadata = std::move(*ErrorOrProperties);
+    }
+
+    // TODO: populate either ir or native module with pointer.
   }
 
   return Error::success();
