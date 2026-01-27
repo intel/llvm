@@ -490,39 +490,6 @@ fatbinary(ArrayRef<std::pair<StringRef, StringRef>> InputFiles,
 
   return *TempFileOrErr;
 }
-
-// ptxas binary
-Expected<StringRef> ptxas(StringRef InputFile, const ArgList &Args,
-                          StringRef Arch) {
-  llvm::TimeTraceScope TimeScope("NVPTX ptxas");
-  // NVPTX uses the ptxas program to process assembly files.
-  Expected<std::string> PtxasPath =
-      findProgram("ptxas", {CudaBinaryPath + "/bin"});
-  if (!PtxasPath)
-    return PtxasPath.takeError();
-
-  llvm::Triple Triple(
-      Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
-
-  // Create a new file to write the output to.
-  auto TempFileOrErr =
-      createOutputFile(sys::path::filename(ExecutableName), "cubin");
-  if (!TempFileOrErr)
-    return TempFileOrErr.takeError();
-
-  SmallVector<StringRef, 16> CmdArgs;
-  CmdArgs.push_back(*PtxasPath);
-  CmdArgs.push_back(Triple.isArch64Bit() ? "-m64" : "-m32");
-  // Pass -v to ptxas if it was passed to the driver.
-  CmdArgs.push_back("--gpu-name");
-  CmdArgs.push_back(Arch);
-  CmdArgs.push_back("--output-file");
-  CmdArgs.push_back(*TempFileOrErr);
-  CmdArgs.push_back(InputFile);
-  if (Error Err = executeCommands(*PtxasPath, CmdArgs))
-    return std::move(Err);
-  return *TempFileOrErr;
-}
 } // namespace nvptx
 
 namespace amdgcn {
@@ -1668,9 +1635,6 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
 
   if (!Triple.isNVPTX() && !Triple.isSPIRV() && !Triple.isNativeCPU())
     CmdArgs.push_back("-Wl,--no-undefined");
-
-  if (IsSYCLKind && Triple.isNVPTX())
-    CmdArgs.push_back("-S");
 
   if (IsSYCLKind && Triple.isNativeCPU()) {
     CmdArgs.push_back("-Wno-override-module");
