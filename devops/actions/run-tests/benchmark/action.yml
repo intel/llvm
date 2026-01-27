@@ -263,6 +263,7 @@ runs:
 
       # If a custom compute_runtime tag is provided points to a PR, then",
       # install latest IGC release from debs.
+      echo "CR_BUILD_REF='${CR_BUILD_REF}'"
       if [[ "${CR_BUILD_REF}" != "" ]] && [[ "${CR_BUILD_REF}" == refs/pull/* ]]; then
         # sudo apt-get install -y bison flex
         # ocl-icd-libopencl1
@@ -275,6 +276,8 @@ runs:
 
         IGC_CORE_DEB_URL=$(cat latest_igc_release.json | jq -r '.assets[] | select(.name | test("intel-igc-core-[0-9]+.*amd64.deb")) | .browser_download_url')
         IGC_CORE_DEVEL_DEB_URL=$(cat latest_igc_release.json | jq -r '.assets[] | select(.name | test("intel-igc-core-devel_[0-9]+.*amd64.deb")) | .browser_download_url')
+        echo "IGC_CORE_DEB_URL=$IGC_CORE_DEB_URL"
+        echo "IGC_CORE_DEVEL_DEB_URL=$IGC_CORE_DEVEL_DEB_URL"
 
         mkdir neo_debs && cd neo_debs
         wget -q "$IGC_CORE_DEB_URL"
@@ -286,9 +289,7 @@ runs:
         # check with L0 version before using it: This value is not guaranteed to
         # accurately reflect the current compute_runtime version used, as the
         # docker images are built nightly.
-        #
-        # TODO: FIXME - uncomment!
-        # export COMPUTE_RUNTIME_TAG_CACHE="$(cat ./devops/dependencies.json | jq -r .linux.compute_runtime.github_tag)"
+        export COMPUTE_RUNTIME_TAG_CACHE="$(cat ./devops/dependencies.json | jq -r .linux.compute_runtime.github_tag)"
       fi
 
       echo "::endgroup::"
