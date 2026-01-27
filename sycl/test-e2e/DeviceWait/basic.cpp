@@ -3,8 +3,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: windows && run-mode && gpu-intel-gen12
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20927
+// UNSUPPORTED: windows && run-mode && gpu-intel-gen12
+// UNSUPPORTED-INTENDED: Won't be fixed. See comments at https://github.com/intel/llvm/issues/20927
 
 #include <sycl/detail/core.hpp>
 #include <sycl/properties/all_properties.hpp>
