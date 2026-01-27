@@ -33,6 +33,14 @@ RUN apt update && apt install -yqq rocm-dev && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/*
 
+# Fix Vulkan install inside container
+# https://stackoverflow.com/questions/74965945/vulkan-is-unable-to-detect-nvidia-gpu-from-within-a-docker-container-when-using
+RUN apt update && \
+    apt download libnvidia-gl-565 && \
+    dpkg-deb --extract libnvidia-gl-565*.deb extracted && \
+    cp -R ./extracted/usr/* /usr/ && \
+    rm -rf libnvidia-gl-565*.deb ./extracted
+
 COPY scripts/create-sycl-user.sh /user-setup.sh
 RUN /user-setup.sh
 
