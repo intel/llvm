@@ -497,7 +497,17 @@ Error SYCLBIN::initAbstractModules() {
       AM.Metadata = std::move(*ErrorOrProperties);
     }
 
-    // TODO: populate either ir or native module with pointer.
+    switch (OBPtr->getImageKind()) {
+    case ImageKind::IMG_SPIRV:
+      AM.IRModules.emplace_back(OBPtr.get());
+      break;
+    case ImageKind::IMG_Object:
+      AM.NativeDeviceCodeImages.emplace_back(OBPtr.get());
+      break;
+    default:
+      return createStringError(inconvertibleErrorCode(),
+                               "Unexpected Image Kind in SYCLBIN.");
+    }
   }
 
   return Error::success();
