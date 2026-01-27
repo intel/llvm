@@ -10,3 +10,4 @@ cd ..
 rm vulkan.tar.xz
 sudo rm /etc/apt/apt.conf.d/90forceyes
 sudo mv vulkan /opt/
+sudo bash -c 'echo "CMAKE_PREFIX_PATH=/opt/vulkan/x86_64/lib/cmake/" >> /etc/environment'
