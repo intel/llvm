@@ -83,5 +83,5 @@ jobs:
       - name: Upload aggregated data artifact
         uses: actions/upload-artifact@v5
         with:
-          name: aggregated_${{ steps.date.outputs.TODAY }}_data
+          name: aggregated_data_${{ steps.date.outputs.TODAY }}
           path: aggregated_${{ steps.date.outputs.TODAY }}.json

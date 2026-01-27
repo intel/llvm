@@ -9,8 +9,10 @@ on:
 
 jobs:
   health-check:
-    # zmienić na inną labelkę 
-    runs-on: ["health-check"]
+    strategy:
+      matrix:
+        runner: [health-check, build]
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Check load average
         id: check
