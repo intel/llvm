@@ -174,7 +174,7 @@ runs:
 
       CR_BUILD_REF=""
       if [ -n "${{ inputs.custom_cr }}" ] && [[ "${{ inputs.custom_cr }}" == PR_* ]]; then
-        pr_no="${{ inputs.custom_cr#PR_ }}"
+        pr_no="$(echo "${{ inputs.custom_cr }}" | sed 's/PR_//')"
         CR_BUILD_REF="refs/pull/$pr_no/head"
         echo "Using custom compute runtime ref: ${CR_BUILD_REF}"
       elif [ -n "${{ inputs.custom_cr }}" ]; then
@@ -333,7 +333,6 @@ runs:
       # git config user.name "github-actions[bot]"
       # git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      # --verbose \
       numactl --cpunodebind "$NUMA_NODE" --membind "$NUMA_NODE" \
       ./devops/scripts/benchmarks/main.py "$BENCH_WORKDIR" \
         --sycl "$(realpath $CMPLR_ROOT)" \
@@ -347,6 +346,7 @@ runs:
         --timestamp-override "$SAVE_TIMESTAMP" \
         --detect-version sycl,compute_runtime \
         --produce-github-summary \
+        --verbose \
         [[ ${CR_BUILD_REF} != '' ]] && echo '--compute-runtime ' + ${CR_BUILD_REF} || '' \
         ${{ inputs.exit_on_failure == 'true' && '--exit-on-failure --iterations 1' || '' }}
       # TODO: add back: "--flamegraph inclusive" once works properly
