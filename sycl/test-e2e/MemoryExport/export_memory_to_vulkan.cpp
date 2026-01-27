@@ -5,6 +5,13 @@
 // XFAIL: windows && run-mode
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/21125
 
+// clang-format off
+
+// UNSUPPORTED: arch-intel_gpu_pvc
+// UNSUPPORTED-INTENDED: Our PVC runners don't have the userspace Vulkan driver installed
+
+// clang-format on
+
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.out
 

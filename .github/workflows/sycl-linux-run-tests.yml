@@ -261,8 +261,6 @@ jobs:
     - name: Source OneAPI TBB vars.sh
       uses: ./devops/actions/source-tbb
     - name: Setup Vulkan environment
-      # Don't use Vulkan for PVC because it requires an out-of-tree userspace driver    
-      if: contains(fromJSON(inputs.runner), 'pvc') == false
       uses: ./devops/actions/setup-vulkan/linux
     - name: Download SYCL toolchain
       if: inputs.toolchain_artifact != '' && github.event_name != 'workflow_run'
