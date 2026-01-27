@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - luszczewskakasia1_monitoring
+      
 # on:
 #   schedule:
 #     - cron: '0 0 * * *'  # Runs daily at midnight UTC
