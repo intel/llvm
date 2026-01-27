@@ -3,6 +3,9 @@
 // REQUIRES: aspect-ext_oneapi_mipmap
 // REQUIRES: vulkan
 
+// XFAIL: linux
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21131
+
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.out
 
