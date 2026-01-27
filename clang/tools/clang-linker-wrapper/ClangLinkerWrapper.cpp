@@ -2293,9 +2293,7 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         if (!ClangOutputOrErr)
           return ClangOutputOrErr.takeError();
         if (Triple.isNVPTX()) {
-          auto VirtualArch = StringRef(clang::OffloadArchToVirtualArchString(
-              clang::StringToOffloadArch(Arch)));
-          BundlerInputFiles.emplace_back(*ClangOutputOrErr, VirtualArch);
+          BundlerInputFiles.emplace_back(*ClangOutputOrErr, Arch);
           auto BundledFileOrErr =
               nvptx::fatbinary(BundlerInputFiles, LinkerArgs);
           if (!BundledFileOrErr)
