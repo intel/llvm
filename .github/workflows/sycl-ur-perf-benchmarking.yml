@@ -211,8 +211,7 @@ jobs:
       benchmark_preset: ${{ inputs.preset }}
       benchmark_exit_on_failure: ${{ inputs.exit_on_failure }}
       benchmark_gdb_mode: ${{ inputs.gdb_mode }}
-      # TODO: FIXME!
-      benchmark_custom_cr: 'PR_882'
+      benchmark_custom_cr: ${{ inputs.custom_cr }}
       repo_ref: ${{ needs.sanitize_inputs_dispatch.outputs.build_ref }}
       toolchain_artifact: ${{ needs.build_sycl_dispatch.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.build_sycl_dispatch.outputs.toolchain_artifact_filename }}

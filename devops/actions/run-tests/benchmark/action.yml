@@ -265,10 +265,7 @@ runs:
       # install latest IGC release from debs.
       echo "CR_BUILD_REF='${CR_BUILD_REF}'"
       if [[ "${CR_BUILD_REF}" != "" ]] && [[ "${CR_BUILD_REF}" == refs/pull/* ]]; then
-        # sudo apt-get install -y bison flex
-        # ocl-icd-libopencl1
-
-        # Find latest IGC release and download debs
+        # Find latest IGC release, download debs, and install them
         curl --request GET \
           --url https://api.github.com/repos/intel/intel-graphics-compiler/releases/latest \
           --header "Authorization: Bearer ${GITHUB_TOKEN}" \

@@ -824,7 +824,7 @@ if __name__ == "__main__":
         parser.error("--build-igc requires --compute-runtime to be set")
     if args.compute_runtime is not None:
         options.build_compute_runtime = True
-        # options.compute_runtime_tag = args.compute_runtime
+        options.compute_runtime_tag = args.compute_runtime
     if args.output_dir is not None:
         if not os.path.isdir(args.output_dir):
             parser.error("Specified --output-dir is not a valid path")
