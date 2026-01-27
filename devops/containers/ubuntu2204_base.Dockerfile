@@ -8,6 +8,9 @@ USER root
 COPY scripts/install_build_tools.sh /install.sh
 RUN /install.sh
 
+COPY scripts/install_vulkan.sh /install_vulkan.sh
+RUN /install_vulkan.sh
+
 COPY scripts/create-sycl-user.sh /user-setup.sh
 RUN /user-setup.sh
 

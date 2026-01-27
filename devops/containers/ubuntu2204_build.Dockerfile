@@ -12,6 +12,9 @@ RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/
 COPY scripts/install_build_tools.sh /install.sh
 RUN /install.sh
 
+COPY scripts/install_vulkan.sh /install_vulkan.sh
+RUN /install_vulkan.sh
+
 # Install ROCM
 
 # Make the directory if it doesn't exist yet.

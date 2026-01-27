@@ -2,6 +2,9 @@
 // REQUIRES: target-spir
 // REQUIRES: vulkan
 
+// XFAIL: windows && run-mode
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21125
+
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.out
 
