@@ -727,7 +727,10 @@ etors:
 - name: ENQUEUE_HOST_TASK_EXP
   desc: Enumerator for $xEnqueueHostTaskExp
   value: '309'
-max_id: '309'
+- name: COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_WITH_ARGS_EXP
+  desc: Enumerator for $xCommandBufferAppendKernelLaunchWithArgsExp
+  value: '310'
+max_id: '310'
 ---
 type: enum
 desc: Defines structure types

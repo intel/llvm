@@ -112,6 +112,11 @@ struct ur_kernel_handle_t_ : ur_object {
   ZeCache<ZeStruct<ze_kernel_properties_t>> ZeKernelProperties;
   ZeCache<std::string> ZeKernelName;
 
+  // kernelMemObj contains kernel memory objects that
+  // UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ kernelArgs pointers point to
+  std::vector<void *> kernelMemObj;
+  std::vector<void *> kernelArgs;
+
   ur::RefCount RefCount;
 };
 
