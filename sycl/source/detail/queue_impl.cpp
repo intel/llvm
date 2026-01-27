@@ -10,6 +10,7 @@
 #include <detail/event_impl.hpp>
 #include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
+#include <detail/scheduler/commands.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/ur.hpp>
@@ -468,61 +469,6 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
   return ResultEvent;
 }
 
-// Get UR handles for dependency events, remove NOPs and host events.
-std::vector<ur_event_handle_t>
-getUREventsForBarrierDependencies(sycl::span<const event> &DepEvents,
-                                  queue_impl &Queue,
-                                  detail::CG::StorageInitHelper &CGData) {
-
-  std::vector<ur_event_handle_t> RetUrEvents;
-  for (const event &Event : DepEvents) {
-    const auto &EventPtr = detail::getSyclObjImpl(Event);
-
-    // This is equivalent to handler::depends_on() and is required
-    // to handle events associated with graphs correctly.
-    if (EventPtr->isHost()) {
-      detail::registerEventDependency(
-          EventPtr, CGData.MEvents, &Queue, Queue.getContextImpl(),
-          Queue.getDeviceImpl(), Queue.getCommandGraph().get(),
-          CGType::BarrierWaitlist);
-      continue;
-    }
-
-    // Throwaway events created with empty constructor will not have a context
-    // (which is set lazily) calling getContextImpl() would set that
-    // context, which we wish to avoid as it is expensive.
-    // Skip NOP events also.
-    if (EventPtr->isDefaultConstructed() || EventPtr->isNOP())
-      continue;
-
-    // If command has not been enqueued then we have to enqueue it.
-    // It may happen if async enqueue in a host task is involved.
-    // Interoperability events are special cases and they are not enqueued, as
-    // they don't have an associated queue and command.
-    if (!EventPtr->isInterop() && !EventPtr->isEnqueued()) {
-      if (!EventPtr->getCommand() || !EventPtr->getCommand()->producesPiEvent())
-        continue;
-      std::vector<Command *> AuxCmds;
-      Scheduler::getInstance().enqueueCommandForCG(*EventPtr, AuxCmds,
-                                                   BLOCKING);
-    }
-
-    // Do not add redundant event dependencies for in-order queues.
-    // At this stage dependency is definitely UR task and need to check if
-    // current one is a host task. In this case we should not skip UR event
-    // due to different sync mechanisms for different task types on in-order
-    // queue. If the resulting event is supposed to have a specific event
-    // mode, redundant events may still differ from the resulting event, so
-    // they are kept.
-    if (EventPtr->getWorkerQueue().get() == &Queue && Queue.isInOrder())
-      continue;
-
-    RetUrEvents.push_back(EventPtr->getHandle());
-  }
-
-  return RetUrEvents;
-}
-
 // TODO: Not sure what to do with CodeLoc here?
 EventImplPtr queue_impl::submit_barrier_direct_impl(
     sycl::span<const event> DepEvents,
@@ -532,7 +478,24 @@ EventImplPtr queue_impl::submit_barrier_direct_impl(
   std::vector<ur_event_handle_t> UrDepEvents;
 
   if (!DepEvents.empty()) {
-    UrDepEvents = getUREventsForBarrierDependencies(DepEvents, *this, CGData);
+    std::vector<EventImplPtr> DepEventImpls;
+    for (const event &Event : DepEvents) {
+      const auto &EventPtr = detail::getSyclObjImpl(Event);
+      DepEventImpls.emplace_back(EventPtr);
+
+      // Register HostEvents.
+      if (EventPtr->isHost()) {
+        detail::registerEventDependency(
+            EventPtr, CGData.MEvents, this, getContextImpl(), getDeviceImpl(),
+            getCommandGraph().get(), CGType::BarrierWaitlist);
+      }
+    }
+
+    auto CGBarrier = std::make_unique<detail::CGBarrier>(
+        DepEventImpls, ext::oneapi::experimental::event_mode_enum::none, CGData,
+        CGType::BarrierWaitlist, CodeLoc);
+    detail::ExecCGCommand cmd(std::move(CGBarrier), this, false);
+    UrDepEvents = cmd.getUrEventsBlocking(DepEventImpls, false);
   }
 
   auto ResEvent = detail::event_impl::create_device_event(*this);
