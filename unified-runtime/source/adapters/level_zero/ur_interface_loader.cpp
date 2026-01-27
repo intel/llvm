@@ -540,6 +540,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
   pDdiTable->pfnPoolTrimToExp = ur::level_zero::urUSMPoolTrimToExp;
   pDdiTable->pfnPitchedAllocExp = ur::level_zero::urUSMPitchedAllocExp;
   pDdiTable->pfnContextMemcpyExp = ur::level_zero::urUSMContextMemcpyExp;
+  pDdiTable->pfnHostAllocUnregisterExp =
+      ur::level_zero::urUSMHostAllocUnregisterExp;
+  pDdiTable->pfnHostAllocRegisterExp =
+      ur::level_zero::urUSMHostAllocRegisterExp;
   pDdiTable->pfnImportExp = ur::level_zero::urUSMImportExp;
   pDdiTable->pfnReleaseExp = ur::level_zero::urUSMReleaseExp;
 

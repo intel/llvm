@@ -513,6 +513,10 @@ typedef enum ur_function_t {
   UR_FUNCTION_ENQUEUE_GRAPH_EXP = 308,
   /// Enumerator for ::urEnqueueHostTaskExp
   UR_FUNCTION_ENQUEUE_HOST_TASK_EXP = 309,
+  /// Enumerator for ::urUSMHostAllocRegisterExp
+  UR_FUNCTION_USM_HOST_ALLOC_REGISTER_EXP = 310,
+  /// Enumerator for ::urUSMHostAllocUnregisterExp
+  UR_FUNCTION_USM_HOST_ALLOC_UNREGISTER_EXP = 311,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -636,6 +640,8 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES = 0x5000,
   /// ::ur_exp_host_task_properties_t
   UR_STRUCTURE_TYPE_EXP_HOST_TASK_PROPERTIES = 0x6000,
+  /// ::ur_exp_usm_host_alloc_register_properties_t
+  UR_STRUCTURE_TYPE_EXP_USM_HOST_ALLOC_REGISTER_PROPERTIES = 0x7000,
   /// @cond
   UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2496,6 +2502,9 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] Returns true if the device supports graph record and replay
   /// functionality.
   UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP = 0x2080,
+  /// [::ur_bool_t] returns true if the device supports registering host
+  /// memory ranges.
+  UR_DEVICE_INFO_USM_HOST_ALLOC_REGISTER_SUPPORT_EXP = 0x2090,
   /// [::ur_bool_t] Returns true if the device supports the USM P2P
   /// experimental feature.
   UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP = 0x4000,
@@ -12969,6 +12978,90 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
+// Host Memory Registration Extension Experimental APIs
+#if !defined(__GNUC__)
+#pragma region usm_host_alloc_register_(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief USM host memory registration flags.
+typedef uint32_t ur_exp_usm_host_alloc_register_flags_t;
+typedef enum ur_exp_usm_host_alloc_register_flag_t {
+  /// Reserved for future use.
+  UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_TBD = UR_BIT(0),
+  /// @cond
+  UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_exp_usm_host_alloc_register_flag_t;
+/// @brief Bit Mask for validating ur_exp_usm_host_alloc_register_flags_t
+#define UR_EXP_USM_HOST_ALLOC_REGISTER_FLAGS_MASK 0xfffffffe
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief USM host memory registration properties.
+typedef struct ur_exp_usm_host_alloc_register_properties_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_EXP_USM_HOST_ALLOC_REGISTER_PROPERTIES
+  ur_structure_type_t stype;
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
+  /// [in] Host memory registration flags.
+  ur_exp_usm_host_alloc_register_flags_t flags;
+
+} ur_exp_usm_host_alloc_register_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Maps a host memory range to make it recognizable by the underlying
+///        adapter. The host memory must remain valid throughout the
+///        registration lifetime.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pHostMem`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `NULL != pProperties &&
+///         ::UR_EXP_USM_HOST_ALLOC_REGISTER_FLAGS_MASK & pProperties->flags`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + `size == 0`
+UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAllocRegisterExp(
+    /// [in] Handle of the context.
+    ur_context_handle_t hContext,
+    /// [in] Pointer to the host memory range to register.
+    void *pHostMem,
+    /// [in] Size in bytes of the host memory range to register, must be
+    /// page-aligned.
+    size_t size,
+    /// [in][optional] Pointer to host memory registration properties.
+    const ur_exp_usm_host_alloc_register_properties_t *pProperties);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Unregister a previously registered host memory range.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pHostMem`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + Invalid host memory range.
+UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAllocUnregisterExp(
+    /// [in] Handle of the context.
+    ur_context_handle_t hContext,
+    /// [in][release] Pointer to the registered host memory range.
+    void *pHostMem);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
 // Intel 'oneAPI' USM Import/Release Extension APIs
 #if !defined(__GNUC__)
 #pragma region usm_import_release_(experimental)
@@ -15655,6 +15748,26 @@ typedef struct ur_usm_context_memcpy_exp_params_t {
   const void **ppSrc;
   size_t *psize;
 } ur_usm_context_memcpy_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urUSMHostAllocUnregisterExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_host_alloc_unregister_exp_params_t {
+  ur_context_handle_t *phContext;
+  void **ppHostMem;
+} ur_usm_host_alloc_unregister_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urUSMHostAllocRegisterExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_host_alloc_register_exp_params_t {
+  ur_context_handle_t *phContext;
+  void **ppHostMem;
+  size_t *psize;
+  const ur_exp_usm_host_alloc_register_properties_t **ppProperties;
+} ur_usm_host_alloc_register_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urUSMImportExp

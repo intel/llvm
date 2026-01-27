@@ -382,6 +382,8 @@
 		urPrintExpSamplerCubemapFilterMode;
 		urPrintExpSamplerCubemapProperties;
 		urPrintExpSamplerMipProperties;
+		urPrintExpUsmHostAllocRegisterFlags;
+		urPrintExpUsmHostAllocRegisterProperties;
 		urPrintExpWin32Handle;
 		urPrintFunction;
 		urPrintFunctionParams;
@@ -552,6 +554,8 @@
 		urPrintUsmFreeParams;
 		urPrintUsmGetMemAllocInfoParams;
 		urPrintUsmHostAllocParams;
+		urPrintUsmHostAllocRegisterExpParams;
+		urPrintUsmHostAllocUnregisterExpParams;
 		urPrintUsmHostDesc;
 		urPrintUsmHostMemFlags;
 		urPrintUsmImportExpParams;
@@ -631,6 +635,8 @@
 		urUSMFree;
 		urUSMGetMemAllocInfo;
 		urUSMHostAlloc;
+		urUSMHostAllocRegisterExp;
+		urUSMHostAllocUnregisterExp;
 		urUSMImportExp;
 		urUSMPitchedAllocExp;
 		urUSMPoolCreate;
