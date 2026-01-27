@@ -335,7 +335,7 @@
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS %s
 // RUN:   %clang_cl -### -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -Zi -Od -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS %s
-// CHK-TOOLS-IMPLIED-OPTS: llvm-offload-binary{{.*}} {{.*}}compile-opts=-g{{.*}}-DFOO1 -DFOO2"
+// CHK-TOOLS-IMPLIED-OPTS: llvm-offload-binary{{.*}} {{.*}}compile-opts=-O0 -g{{.*}}-DFOO1 -DFOO2"
 
 /// Check for implied options (-O0)
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64 -O0 %s 2>&1 \
