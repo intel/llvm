@@ -30,7 +30,9 @@ jobs:
           name_is_regexp: true
           name: '${{ steps.date.outputs.TODAY }}*'
           path: artifacts
-      
+          merge_multiple: true
+          search_artifacts: true
+
       - name: Process and aggregate data
         run: |
           echo "Processing artifacts from ${{ steps.date.outputs.TODAY }}"
