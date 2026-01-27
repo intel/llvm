@@ -4,7 +4,9 @@
 // RUN: %{run} %t.out
 
 // UNSUPPORTED: windows && run-mode && gpu-intel-gen12
-// UNSUPPORTED-INTENDED: Won't be fixed. See comments at https://github.com/intel/llvm/issues/20927
+// UNSUPPORTED-INTENDED: gen12 doesn't support aspect-ext_oneapi_device_wait.
+// Adding UNSUPPORTED until UR does report lack of
+// aspect-ext_oneapi_device_wait support on gen12.
 
 #include <sycl/detail/core.hpp>
 #include <sycl/properties/all_properties.hpp>
