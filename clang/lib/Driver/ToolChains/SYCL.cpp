@@ -1619,7 +1619,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
   const Arg *OptionO = Args.getLastArg(options::OPT_O_Group);
   if (OptionO) {
     if (IsJIT)
-      BeArgs.push_back(Args.MakeArgString(OptionO->getAsString(Args)));
+      OptionO->render(Args, BeArgs);
     else if (IsGen) {
       // Pass -cl-opt-disable only for non-JIT compilations, as the runtime
       // handles O0 for JIT compilations.
