@@ -2,7 +2,9 @@ name: Collect aggregated data
 
 on:
   workflow_call:
-  workflow_dispatch:
+  push:
+    branches:
+      - luszczewskakasia1_monitoring
 # on:
 #   schedule:
 #     - cron: '0 0 * * *'  # Runs daily at midnight UTC
