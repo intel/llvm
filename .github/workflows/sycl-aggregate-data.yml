@@ -1,6 +1,8 @@
 name: Collect aggregated data 
+
 on:
   workflow_call:
+  workflow_dispatch:
 # on:
 #   schedule:
 #     - cron: '0 0 * * *'  # Runs daily at midnight UTC
@@ -14,30 +16,27 @@ jobs:
       # change to yesterday's date to match artifact names later
       - name: Calculate today's date
         id: date
-        run: echo "TODAY=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+        run: |
+          TODAY=$(date +'%Y-%m-%d')
+          echo "TODAY=$TODAY" >> $GITHUB_OUTPUT
+          echo "Date for artifact search: $TODAY"
       
-      - name: Download all load average artifacts from current run
-        uses: actions/download-artifact@v4
+      - name: Download all artifacts from today's health-check runs
+        uses: dawidd6/action-download-artifact@v6
         with:
-          pattern: '*_load-average'
+          workflow: sycl-health-check.yml
+          name_is_regexp: true
+          name: '${{ steps.date.outputs.TODAY }}*'
           path: artifacts
-          merge-multiple: false
       
       - name: Process and aggregate data
         run: |
           echo "Processing artifacts from ${{ steps.date.outputs.TODAY }}"
-          pwd 
-          echo "Workspace contents:"
-          ls -la
-          echo "Downloaded artifacts structure:"
           ls -laR artifacts/
-          
           echo "{" > aggregated_${{ steps.date.outputs.TODAY }}.json
           first_data=true
 
-          # Each artifact is downloaded to its own subdirectory
           for artifact_dir in artifacts/*/; do
-            echo "Processing directory: $artifact_dir"
             for file in "$artifact_dir"*.txt; do
               if [[ -f "$file" ]]; then
                 filename=$(basename "$file" .txt)
