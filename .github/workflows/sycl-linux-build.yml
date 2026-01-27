@@ -247,10 +247,10 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target clang-tidy
         echo '::endgroup::'
 
-        python3 "$GITHUB_WORKSPACE/src/clang-tools-extra/clang-tidy/tool/clang-tidy-diff.py" \
-          -clang-tidy-binary "$GITHUB_WORKSPACE/build/bin/clang-tidy" \
+        python3 $GITHUB_WORKSPACE/src/clang-tools-extra/clang-tidy/tool/clang-tidy-diff.py \
+          -clang-tidy-binary $GITHUB_WORKSPACE/build/bin/clang-tidy \
           -p 1 \
-          -path "$GITHUB_WORKSPACE/build" \
+          -path $GITHUB_WORKSPACE/build \
           -checks "clang-analyzer-*,bugprone-*,performance-*" \
           < pr.diff
 
