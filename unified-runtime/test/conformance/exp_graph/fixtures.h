@@ -22,6 +22,15 @@ struct urGraphSupportedExpTest : uur::urQueueTest {
   }
 };
 
+struct urGraphSupportedExpMultiQueueTest : uur::urMultiQueueTest {
+  void SetUp() override {
+    UUR_RETURN_ON_FATAL_FAILURE(urMultiQueueTest::SetUp());
+
+    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{}, uur::NativeCPU{},
+                         uur::OpenCL{}, uur::LevelZero{});
+  }
+};
+
 struct urGraphExpTest : urGraphSupportedExpTest {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urGraphSupportedExpTest::SetUp());

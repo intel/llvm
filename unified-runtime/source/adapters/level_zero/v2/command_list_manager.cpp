@@ -1374,7 +1374,13 @@ ur_result_t ur_command_list_manager::isGraphCaptureActive(bool *pResult) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
-  *pResult = graphCapture.isActive();
+  ze_result_t ZeResult =
+      ZE_CALL_NOCHECK(hContext.get()
+                          ->getPlatform()
+                          ->ZeGraphExt.zeCommandListIsGraphCaptureEnabledExp,
+                      (getZeCommandList()));
+
+  *pResult = (ZeResult == ZE_RESULT_QUERY_TRUE);
 
   return UR_RESULT_SUCCESS;
 }
