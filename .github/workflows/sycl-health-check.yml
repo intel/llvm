@@ -17,15 +17,19 @@ jobs:
         run: |
           DATE=$(date +"%Y-%m-%d_%H-%M-%S")
           echo "DATE=${DATE}" >> $GITHUB_OUTPUT
-          cd /home/test-user
           mkdir -p artifacts
+          echo "Directory created, verifying..."
+          ls -la artifacts/
           uptime | awk -F'load average:' '{ print $2 }' > artifacts/${DATE}_${{ runner.name }}.txt
-          uptime | awk -F'load average:' '{ print $2 }'
+          echo "File created, verifying contents..."
+          cat artifacts/${DATE}_${{ runner.name }}.txt
+          echo "File path: artifacts/${DATE}_${{ runner.name }}.txt"
+          ls -lh artifacts/${DATE}_${{ runner.name }}.txt
       - name: Upload load average artifact
         uses: actions/upload-artifact@v5
         with:
           name: ${{ steps.check.outputs.DATE }}_${{ runner.name }}_load-average
-          path: /home/test-user/artifacts/${{ steps.check.outputs.DATE }}_${{ runner.name }}.txt
+          path: artifacts/${{ steps.check.outputs.DATE }}_${{ runner.name }}.txt
   
   call-aggregate:
     needs: health-check
