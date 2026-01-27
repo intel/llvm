@@ -50,9 +50,6 @@ constexpr sycl::specialization_id<Composite> composite_spec(Composite{3.14f, 42,
 
 int main() {
   sycl::queue q;
-  sycl::device dev = q.get_device();
-  sycl::context ctx = q.get_context();
-
   char char_out0 = 0, char_out1 = 0, char_out2 = 0;
   Composite comp_out{0.0f, 0, 0};
 
@@ -114,41 +111,35 @@ int main() {
     }
 
     // Validate results
-    bool pass = true;
-    if (char_out0 != char_vals[0])
-      pass = false;
-    if (char_out1 != char_vals[1])
-      pass = false;
-    if (char_out2 != char_vals[2])
-      pass = false;
-    if (!(comp_out == set_comp))
-      pass = false;
+    bool fail = (char_out0 != char_vals[0]) || (char_out1 != char_vals[1]) ||
+                (char_out2 != char_vals[2]) || !(comp_out == set_comp);
 
-    if (!pass) {
+    if (fail) {
       all_pass = false;
       std::cerr << "FAIL: permutation " << perm_index
-                << " produced wrong values\n";
+                << " produced wrong values" << std::endl;
       std::cerr << " permutation order: ";
       for (int x : items)
         std::cerr << x << ' ';
-      std::cerr << "\n  char_outs: " << char_out0 << ' ' << char_out1 << ' '
-                << char_out2 << "\n";
+      std::cerr << std::endl;
+      std::cerr << "  char_outs: " << char_out0 << ' ' << char_out1 << ' '
+                << char_out2 << std::endl;
       std::cerr << "  comp_out: f=" << comp_out.f << " i=" << comp_out.i
-                << " c='" << comp_out.c << "'\n";
+                << " c='" << comp_out.c << std::endl;
       break;
     }
 
   } while (std::next_permutation(items.begin(), items.end()));
 
   if (all_pass) {
-    std::cout << "PASS: all permutations produced expected values\n";
+    std::cout << "PASS: all permutations produced expected values" << std::endl;
     return 0;
-  } else {
-    std::cerr << "Some permutation failed - this likely indicates a bug"
-                 "sensitive to ordering and placement of specialization"
-                 "constants values in the specialization constants"
-                 "buffer, like incorrect alignment assumptions when"
-                 "loading/storing the values, missing padding etc.\n";
-    return 1;
   }
+  std::cerr << "Some permutation failed - this likely indicates a bug"
+               "sensitive to ordering and placement of specialization"
+               "constants values in the specialization constants"
+               "buffer, like incorrect alignment assumptions when"
+               "loading/storing the values, missing padding etc."
+            << std::endl;
+  return 1;
 }
