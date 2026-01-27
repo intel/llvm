@@ -67,8 +67,7 @@ TEST_P(urQueueIsGraphCaptureEnabledExpTest, InvalidNullPtrResult) {
 struct urQueueIsGraphCaptureEnabledExpMultiQueueTest
     : uur::urGraphSupportedExpMultiQueueTest {
   void SetUp() override {
-    UUR_RETURN_ON_FATAL_FAILURE(
-        urGraphSupportedExpMultiQueueTest::SetUp());
+    UUR_RETURN_ON_FATAL_FAILURE(urGraphSupportedExpMultiQueueTest::SetUp());
 
     // Start capturing on queue1
     ASSERT_SUCCESS(urQueueBeginGraphCaptureExp(queue1));
@@ -84,8 +83,7 @@ struct urQueueIsGraphCaptureEnabledExpMultiQueueTest
       }
     }
 
-    UUR_RETURN_ON_FATAL_FAILURE(
-        urGraphSupportedExpMultiQueueTest::TearDown());
+    UUR_RETURN_ON_FATAL_FAILURE(urGraphSupportedExpMultiQueueTest::TearDown());
   }
 
   bool isCapturing = false;
