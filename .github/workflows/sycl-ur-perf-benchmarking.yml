@@ -95,6 +95,11 @@ on:
           - '0'
           - '1'
         default: '0'
+      custom_cr:
+        description: Custom Compute Runtime to use in benchmarks.
+        type: string
+        required: false
+        default: ''
 
 concurrency:
   # Cancel a currently running workflow for:
@@ -206,11 +211,12 @@ jobs:
       benchmark_preset: ${{ inputs.preset }}
       benchmark_exit_on_failure: ${{ inputs.exit_on_failure }}
       benchmark_gdb_mode: ${{ inputs.gdb_mode }}
+      # TODO: FIXME!
+      benchmark_custom_cr: 'PR_882'
       repo_ref: ${{ needs.sanitize_inputs_dispatch.outputs.build_ref }}
       toolchain_artifact: ${{ needs.build_sycl_dispatch.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.build_sycl_dispatch.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.build_sycl_dispatch.outputs.toolchain_decompress_command }}
-      custom_cr: 'PR_882'
   # END manual trigger (dispatch) path
 
   # Nightly benchmarking path:
