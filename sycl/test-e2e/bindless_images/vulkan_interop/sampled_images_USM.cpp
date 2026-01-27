@@ -2,7 +2,7 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: vulkan
 
-// RUN: %{build} %link-vulkan -o %t.out
+// RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.out
 
 #include "../../CommonUtils/vulkan_common.hpp"

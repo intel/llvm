@@ -260,6 +260,8 @@ jobs:
         sudo -E bash devops/scripts/install_drivers.sh devops/dependencies.json --all
     - name: Source OneAPI TBB vars.sh
       uses: ./devops/actions/source-tbb
+    - name: Setup Vulkan environment
+      uses: ./devops/actions/setup-vulkan/linux
     - name: Download SYCL toolchain
       if: inputs.toolchain_artifact != '' && github.event_name != 'workflow_run'
       uses: actions/download-artifact@v7

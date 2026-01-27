@@ -8,6 +8,9 @@ USER root
 COPY scripts/install_build_tools.sh /install.sh
 RUN /install.sh
 
+COPY scripts/install_vulkan.sh /install_vulkan.sh
+RUN /install_vulkan.sh
+
 # libzstd-dev installed by default on Ubuntu 24.04 is not compiled with -fPIC flag.
 # This causes linking errors when building SYCL runtime.
 # Bug: https://github.com/intel/llvm/issues/15935
