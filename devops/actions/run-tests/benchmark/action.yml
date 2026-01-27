@@ -348,7 +348,7 @@ runs:
         --detect-version sycl,compute_runtime \
         --produce-github-summary \
         --verbose \
-        [[ ${CR_BUILD_REF} != '' ]] && echo '--compute-runtime ' + ${CR_BUILD_REF} || '' \
+        ${{ env.CR_BUILD_REF != '' && '--compute-runtime ' + env.CR_BUILD_REF || '' }} \
         ${{ inputs.exit_on_failure == 'true' && '--exit-on-failure --iterations 1' || '' }}
       # TODO: add back: "--flamegraph inclusive" once works properly
 
