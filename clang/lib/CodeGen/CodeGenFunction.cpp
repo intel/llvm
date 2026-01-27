@@ -826,33 +826,6 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
 
-  if (const auto *A = FD->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
-    const auto *CE = cast<ConstantExpr>(A->getValue());
-    std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
-    llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
-        Builder.getInt32(ArgVal->getZExtValue()))};
-    Fn->setMetadata("num_simd_work_items",
-                    llvm::MDNode::get(Context, AttrMDArgs));
-  }
-
-  if (const auto *A = FD->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>()) {
-    const auto *CE = cast<ConstantExpr>(A->getValue());
-    std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
-    llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
-        Builder.getInt32(ArgVal->getSExtValue()))};
-    Fn->setMetadata("scheduler_target_fmax_mhz",
-                    llvm::MDNode::get(Context, AttrMDArgs));
-  }
-
-  if (const auto *A = FD->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
-    const auto *CE = cast<ConstantExpr>(A->getValue());
-    std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
-    llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
-        Builder.getInt32(ArgVal->getSExtValue()))};
-    Fn->setMetadata("max_global_work_dim",
-                    llvm::MDNode::get(Context, AttrMDArgs));
-  }
-
   auto attrAsMDArg = [&](Expr *E) {
     const auto *CE = cast<ConstantExpr>(E);
     std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
@@ -869,50 +842,6 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
           FD->getAttr<SYCLIntelMaxWorkGroupsPerMultiprocessorAttr>()) {
     Fn->setMetadata("max_work_groups_per_mp",
                     llvm::MDNode::get(Context, {attrAsMDArg(A->getValue())}));
-  }
-
-  if (const SYCLIntelMaxWorkGroupSizeAttr *A =
-          FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-
-    // Attributes arguments (first and third) are reversed on SYCLDevice.
-    if (getLangOpts().SYCLIsDevice) {
-      llvm::Metadata *AttrMDArgs[] = {
-          llvm::ConstantAsMetadata::get(Builder.getInt32(A->getZDimVal())),
-          llvm::ConstantAsMetadata::get(Builder.getInt32(A->getYDimVal())),
-          llvm::ConstantAsMetadata::get(Builder.getInt32(A->getXDimVal()))};
-      Fn->setMetadata("max_work_group_size",
-                      llvm::MDNode::get(Context, AttrMDArgs));
-    }
-  }
-
-  if (const auto *A = FD->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>()) {
-    const auto *CE = cast<ConstantExpr>(A->getValue());
-    std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
-    if (ArgVal->getBoolValue())
-      Fn->setMetadata("no_global_work_offset", llvm::MDNode::get(Context, {}));
-  }
-
-  if (const auto *A = FD->getAttr<SYCLIntelMaxConcurrencyAttr>()) {
-    const auto *CE = cast<ConstantExpr>(A->getNExpr());
-    llvm::APSInt ArgVal = CE->getResultAsAPSInt();
-    llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Builder.getInt32(ArgVal.getSExtValue()))};
-    Fn->setMetadata("max_concurrency", llvm::MDNode::get(Context, AttrMDArgs));
-  }
-
-  if (FD->hasAttr<SYCLIntelDisableLoopPipeliningAttr>()) {
-    llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Builder.getInt32(0))};
-    Fn->setMetadata("pipeline_kernel", llvm::MDNode::get(Context, AttrMDArgs));
-  }
-
-  if (const auto *A = FD->getAttr<SYCLIntelInitiationIntervalAttr>()) {
-    const auto *CE = cast<ConstantExpr>(A->getNExpr());
-    llvm::APSInt ArgVal = CE->getResultAsAPSInt();
-    llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Builder.getInt32(ArgVal.getSExtValue()))};
-    Fn->setMetadata("initiation_interval",
-                    llvm::MDNode::get(Context, AttrMDArgs));
   }
 }
 
@@ -1260,18 +1189,6 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   }
 
   if (getLangOpts().SYCLIsDevice && D) {
-    if (const auto *A = D->getAttr<SYCLIntelLoopFuseAttr>()) {
-      const auto *CE = cast<ConstantExpr>(A->getValue());
-      std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
-      llvm::Metadata *AttrMDArgs[] = {
-          llvm::ConstantAsMetadata::get(
-              Builder.getInt32(ArgVal->getZExtValue())),
-          llvm::ConstantAsMetadata::get(
-              A->isIndependent() ? Builder.getInt32(1) : Builder.getInt32(0))};
-      Fn->setMetadata("loop_fuse",
-                      llvm::MDNode::get(getLLVMContext(), AttrMDArgs));
-    }
-
     // Source location of functions is required to emit required diagnostics in
     // SYCLPropagateAspectsUsagePass. Save the token in a srcloc metadata node.
     llvm::ConstantInt *Line =
@@ -1279,14 +1196,6 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     llvm::ConstantAsMetadata *SrcLocMD = llvm::ConstantAsMetadata::get(Line);
     llvm::MDTuple *SrcLocMDT = llvm::MDNode::get(getLLVMContext(), {SrcLocMD});
     Fn->setMetadata("srcloc", SrcLocMDT);
-  }
-
-  if (getLangOpts().SYCLIsDevice && D &&
-      D->hasAttr<SYCLIntelUseStallEnableClustersAttr>()) {
-    llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Builder.getInt32(1))};
-    Fn->setMetadata("stall_enable",
-                    llvm::MDNode::get(getLLVMContext(), AttrMDArgs));
   }
 
   if (getLangOpts().SYCLIsDevice && D &&

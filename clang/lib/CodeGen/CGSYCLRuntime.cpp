@@ -118,19 +118,6 @@ bool CGSYCLRuntime::actOnAutoVarEmit(CodeGenFunction &CGF, const VarDecl &D,
   return true;
 }
 
-bool CGSYCLRuntime::actOnGlobalVarEmit(CodeGenModule &CGM, const VarDecl &D,
-                                       llvm::Value *Addr) {
-  SYCLRegisterNumAttr *RegAttr = D.getAttr<SYCLRegisterNumAttr>();
-  if (!RegAttr)
-    return false;
-  auto *GlobVar = cast<llvm::GlobalVariable>(Addr);
-  GlobVar->addAttribute(ATTR_GENX_VOLATILE);
-  GlobVar->addAttribute(ATTR_GENX_BYTE_OFFSET,
-                        Twine(RegAttr->getNumber()).str());
-  // TODO consider reversing the error/success return values
-  return true;
-}
-
 bool Util::matchQualifiedTypeName(const CXXRecordDecl *RecTy,
                                   ArrayRef<Util::DeclContextDesc> Scopes) {
   // The idea: check the declaration context chain starting from the type

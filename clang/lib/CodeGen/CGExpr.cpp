@@ -5583,11 +5583,6 @@ LValue CodeGenFunction::EmitLValueForField(LValue base, const FieldDecl *field,
   if (getLangOpts().SYCLIsDevice) {
     if (field->hasAttr<SYCLAddIRAnnotationsMemberAttr>())
       addr = EmitFieldSYCLAnnotations(field, addr);
-
-    SmallString<256> AnnotStr;
-    CGM.generateIntelFPGAAnnotation(field, AnnotStr);
-    if (!AnnotStr.empty())
-      addr = EmitIntelFPGAFieldAnnotations(field, addr, AnnotStr);
   }
 
   LValue LV = MakeAddrLValue(addr, FieldType, FieldBaseInfo, FieldTBAAInfo);

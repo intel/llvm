@@ -11,17 +11,3 @@ __attribute__((opencl_private)) __attribute__((sycl_explicit_simd)) int esimdPri
 
 // No error expected. ESIMD private globals without initializers are OK
 __attribute__((opencl_private)) __attribute__((sycl_explicit_simd)) int esimdPrivGlob;
-
-// no error expected
-__attribute__((opencl_private)) __attribute__((register_num(17))) int privGlob;
-
-// expected-error@+1{{'register_num' attribute takes one argument}}
-__attribute__((opencl_private)) __attribute__((register_num())) int privGlob1;
-
-// expected-error@+1{{'register_num' attribute takes one argument}}
-__attribute__((opencl_private)) __attribute__((register_num(10, 11))) int privGlob2;
-
-void foo() {
-  // expected-warning@+1{{'register_num' attribute only applies to global variables}}
-  __attribute__((register_num(17))) int privLoc;
-}
