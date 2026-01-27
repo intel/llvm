@@ -777,21 +777,6 @@ void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
                               "Failed to query queue flags");
       }
 
-      bool isImmediateQueue =
-          (queueFlags & UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE) != 0;
-      bool isBatchedQueue =
-          (queueFlags & UR_QUEUE_FLAG_SUBMISSION_BATCHED) != 0;
-
-      if (isBatchedQueue || !isImmediateQueue) {
-        throw sycl::exception(
-            sycl::make_error_code(errc::invalid),
-            "Native recording requires queues with immediate command lists. "
-            "Either set ext::intel::property::queue::immediate_command_list on "
-            "queue creation "
-            "or use environment variable "
-            "SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1.");
-      }
-
       context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
       sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
 
