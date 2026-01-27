@@ -24,14 +24,34 @@ jobs:
           echo "Date for artifact search: $TODAY"
       
       - name: Download all artifacts from today's health-check runs
-        uses: dawidd6/action-download-artifact@v6
-        with:
-          workflow: sycl-health-check.yml
-          name_is_regexp: true
-          name: '${{ steps.date.outputs.TODAY }}*'
-          path: artifacts
-          merge_multiple: true
-          search_artifacts: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TODAY="${{ steps.date.outputs.TODAY }}"
+          echo "Searching for all workflow runs from $TODAY"
+          
+          # Get all successful workflow runs from today
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/actions/workflows/sycl-health-check.yml/runs?status=success&created=>=${TODAY}" \
+            --jq '.workflow_runs[].id' > run_ids.txt
+          
+          echo "Found workflow run IDs:"
+          cat run_ids.txt
+          
+          mkdir -p artifacts
+          
+          # Download artifacts from each run
+          while read run_id; do
+            echo "Downloading artifacts from run $run_id"
+            gh run download "$run_id" \
+              --dir artifacts \
+              --pattern "${TODAY}*" \
+              --repo "${{ github.repository }}" || echo "No matching artifacts in run $run_id"
+          done < run_ids.txt
+          
+          echo "All artifacts downloaded:"
+          ls -laR artifacts/
 
       - name: Process and aggregate data
         run: |
