@@ -5369,9 +5369,24 @@ void SemaSYCL::copyDeviceKernelAttrs(CXXMethodDecl *CallOperator) {
   }
 }
 
+static std::unique_ptr<MangleContext>
+createSYCLCrossABIMangleContext(ASTContext &Ctx) {
+  // For SYCL offload compilation with cross-ABI scenarios (e.g., Microsoft
+  // host + Itanium device on Windows+CUDA), use device mangling context to
+  // ensure consistent kernel name mangling between host and device.
+  const TargetInfo *AuxTarget = Ctx.getAuxTargetInfo();
+  if (AuxTarget && Ctx.getTargetInfo().getCXXABI().isMicrosoft() &&
+      AuxTarget->getCXXABI().isItaniumFamily()) {
+    return std::unique_ptr<MangleContext>(
+        Ctx.createDeviceMangleContext(*AuxTarget));
+  }
+  // Same ABI or no offload target: use standard mangling
+  return std::unique_ptr<MangleContext>(Ctx.createMangleContext());
+}
+
 void SemaSYCL::SetSYCLKernelNames() {
   std::unique_ptr<MangleContext> MangleCtx(
-      getASTContext().createMangleContext());
+      createSYCLCrossABIMangleContext(getASTContext()));
   // We assume the list of KernelDescs is the complete list of kernels needing
   // to be rewritten.
   for (const std::pair<const FunctionDecl *, FunctionDecl *> &Pair :
@@ -5890,7 +5905,7 @@ void SemaSYCL::finalizeFreeFunctionKernels() {
     KernelObjVisitor Visitor{*this};
     Visitor.VisitFunctionParameters(kernel, IntHeader);
     std::unique_ptr<MangleContext> MangleCtx(
-        getASTContext().createMangleContext());
+        createSYCLCrossABIMangleContext(getASTContext()));
     std::string Name, MangledName;
     std::tie(Name, MangledName) =
         constructFreeFunctionKernelName(kernel, *MangleCtx);
