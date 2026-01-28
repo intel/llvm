@@ -1162,6 +1162,22 @@ ur_result_t urPrintExpProgramFlags(enum ur_exp_program_flag_t value,
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintExpUsmHostAllocRegisterFlags(
+    enum ur_exp_usm_host_alloc_register_flag_t value, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintExpUsmHostAllocRegisterProperties(
+    const struct ur_exp_usm_host_alloc_register_properties_t params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintExpPeerInfo(enum ur_exp_peer_info_t value, char *buffer,
                                const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
@@ -3042,6 +3058,22 @@ ur_result_t urPrintUsmPitchedAllocExpParams(
 
 ur_result_t urPrintUsmContextMemcpyExpParams(
     const struct ur_usm_context_memcpy_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintUsmHostAllocUnregisterExpParams(
+    const struct ur_usm_host_alloc_unregister_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintUsmHostAllocRegisterExpParams(
+    const struct ur_usm_host_alloc_register_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;

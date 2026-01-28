@@ -10122,6 +10122,89 @@ __urdlllocal ur_result_t UR_APICALL urUSMContextMemcpyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMHostAllocRegisterExp
+__urdlllocal ur_result_t UR_APICALL urUSMHostAllocRegisterExp(
+    /// [in] Handle of the context.
+    ur_context_handle_t hContext,
+    /// [in] Pointer to the host memory range to register.
+    void *pHostMem,
+    /// [in] Size in bytes of the host memory range to register, must be
+    /// page-aligned.
+    size_t size,
+    /// [in][optional] Pointer to host memory registration properties.
+    const ur_exp_usm_host_alloc_register_properties_t *pProperties) {
+  auto pfnHostAllocRegisterExp =
+      getContext()->urDdiTable.USMExp.pfnHostAllocRegisterExp;
+
+  if (nullptr == pfnHostAllocRegisterExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_usm_host_alloc_register_exp_params_t params = {&hContext, &pHostMem, &size,
+                                                    &pProperties};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_USM_HOST_ALLOC_REGISTER_EXP,
+                                 "urUSMHostAllocRegisterExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urUSMHostAllocRegisterExp\n");
+
+  ur_result_t result =
+      pfnHostAllocRegisterExp(hContext, pHostMem, size, pProperties);
+
+  getContext()->notify_end(UR_FUNCTION_USM_HOST_ALLOC_REGISTER_EXP,
+                           "urUSMHostAllocRegisterExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_USM_HOST_ALLOC_REGISTER_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urUSMHostAllocRegisterExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMHostAllocUnregisterExp
+__urdlllocal ur_result_t UR_APICALL urUSMHostAllocUnregisterExp(
+    /// [in] Handle of the context.
+    ur_context_handle_t hContext,
+    /// [in][release] Pointer to the registered host memory range.
+    void *pHostMem) {
+  auto pfnHostAllocUnregisterExp =
+      getContext()->urDdiTable.USMExp.pfnHostAllocUnregisterExp;
+
+  if (nullptr == pfnHostAllocUnregisterExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_usm_host_alloc_unregister_exp_params_t params = {&hContext, &pHostMem};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_USM_HOST_ALLOC_UNREGISTER_EXP,
+                                 "urUSMHostAllocUnregisterExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urUSMHostAllocUnregisterExp\n");
+
+  ur_result_t result = pfnHostAllocUnregisterExp(hContext, pHostMem);
+
+  getContext()->notify_end(UR_FUNCTION_USM_HOST_ALLOC_UNREGISTER_EXP,
+                           "urUSMHostAllocUnregisterExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_USM_HOST_ALLOC_UNREGISTER_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urUSMHostAllocUnregisterExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMImportExp
 __urdlllocal ur_result_t UR_APICALL urUSMImportExp(
     /// [in] handle of the context object
@@ -12318,6 +12401,14 @@ __urdlllocal ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
 
   dditable.pfnContextMemcpyExp = pDdiTable->pfnContextMemcpyExp;
   pDdiTable->pfnContextMemcpyExp = ur_tracing_layer::urUSMContextMemcpyExp;
+
+  dditable.pfnHostAllocUnregisterExp = pDdiTable->pfnHostAllocUnregisterExp;
+  pDdiTable->pfnHostAllocUnregisterExp =
+      ur_tracing_layer::urUSMHostAllocUnregisterExp;
+
+  dditable.pfnHostAllocRegisterExp = pDdiTable->pfnHostAllocRegisterExp;
+  pDdiTable->pfnHostAllocRegisterExp =
+      ur_tracing_layer::urUSMHostAllocRegisterExp;
 
   dditable.pfnImportExp = pDdiTable->pfnImportExp;
   pDdiTable->pfnImportExp = ur_tracing_layer::urUSMImportExp;
