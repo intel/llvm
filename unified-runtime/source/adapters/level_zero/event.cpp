@@ -1427,6 +1427,15 @@ EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
 }
 
 ur_result_t ur_event_handle_t_::reset() {
+  // Clean up timestamp recording entry from queue if this was a timestamped
+  // event
+  if (IsTimestamped && UrQueue) {
+    auto Entry = UrQueue->EndTimeRecordings.find(this);
+    if (Entry != UrQueue->EndTimeRecordings.end()) {
+      UrQueue->EndTimeRecordings.erase(Entry);
+    }
+  }
+
   UrQueue = nullptr;
   CleanedUp = false;
   Completed = false;
@@ -1439,6 +1448,8 @@ ur_result_t ur_event_handle_t_::reset() {
   completionBatch = std::nullopt;
   OriginAllocEvent = nullptr;
   IsTimestamped = false;
+  RecordEventStartTimestamp = 0;
+  RecordEventEndTimestamp = 0;
 
   if (!isHostVisible())
     HostVisibleEvent = nullptr;
