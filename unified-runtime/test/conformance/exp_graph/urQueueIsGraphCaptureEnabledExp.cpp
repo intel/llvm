@@ -66,27 +66,14 @@ TEST_P(urQueueIsGraphCaptureEnabledExpTest, InvalidNullPtrResult) {
 
 struct urQueueIsGraphCaptureEnabledExpMultiQueueTest
     : uur::urGraphSupportedExpMultiQueueTest {
-  void SetUp() override {
-    UUR_RETURN_ON_FATAL_FAILURE(urGraphSupportedExpMultiQueueTest::SetUp());
-
-    // Start capturing on queue1
-    ASSERT_SUCCESS(urQueueBeginGraphCaptureExp(queue1));
-    isCapturing = true;
-  }
-
   void TearDown() override {
-    if (isCapturing) {
-      ur_exp_graph_handle_t graph = nullptr;
-      EXPECT_SUCCESS(urQueueEndGraphCaptureExp(queue1, &graph));
-      if (graph) {
-        EXPECT_SUCCESS(urGraphDestroyExp(graph));
-      }
+    if (graph) {
+      EXPECT_SUCCESS(urGraphDestroyExp(graph));
     }
-
     UUR_RETURN_ON_FATAL_FAILURE(urGraphSupportedExpMultiQueueTest::TearDown());
   }
 
-  bool isCapturing = false;
+  ur_exp_graph_handle_t graph = nullptr;
 };
 
 UUR_DEVICE_TEST_SUITE_WITH_QUEUE_TYPES(
@@ -96,34 +83,31 @@ UUR_DEVICE_TEST_SUITE_WITH_QUEUE_TYPES(
 
 // Tests the fork-join pattern: When an operation is submitted to queue2 which
 // is not recording with a dependent event from queue1 that is recording,
-// queue2 temporarily transitions to a recording state (fork) until an event
-// synchronization back to queue1 is performed (join).
+// queue2 temporarily transitions to a recording state (fork) which then must
+// be joined back to queue1.
 TEST_P(urQueueIsGraphCaptureEnabledExpMultiQueueTest, ForkJoinPattern) {
   bool isEnabled = false;
-  ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue1, &isEnabled));
+
+  ASSERT_SUCCESS(urQueueBeginGraphCaptureExp(queue1));
+
+  uur::raii::Event forkEvent = nullptr;
+  ASSERT_SUCCESS(
+      urEnqueueEventsWaitWithBarrier(queue1, 0, nullptr, forkEvent.ptr()));
+
+  uur::raii::Event joinEvent = nullptr;
+  ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue2, 1, forkEvent.ptr(),
+                                                joinEvent.ptr()));
+  ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue2, &isEnabled));
   ASSERT_TRUE(isEnabled);
+
+  ASSERT_SUCCESS(
+      urEnqueueEventsWaitWithBarrier(queue1, 1, joinEvent.ptr(), nullptr));
+
+  ASSERT_SUCCESS(urQueueEndGraphCaptureExp(queue1, &graph));
+
+  ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue1, &isEnabled));
+  ASSERT_FALSE(isEnabled);
 
   ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue2, &isEnabled));
   ASSERT_FALSE(isEnabled);
-
-  uur::raii::Event event1 = nullptr;
-  ASSERT_SUCCESS(
-      urEnqueueEventsWaitWithBarrier(queue1, 0, nullptr, event1.ptr()));
-
-  // Queue 2 submits a barrier with dependency on queue 1's event
-  // This causes queue 2 to temporarily enter recording state (the "fork")
-  uur::raii::Event event2 = nullptr;
-  ASSERT_SUCCESS(
-      urEnqueueEventsWaitWithBarrier(queue2, 1, event1.ptr(), event2.ptr()));
-  ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue2, &isEnabled));
-  ASSERT_TRUE(isEnabled);
-
-  // Queue 1 submits another barrier with dependency on queue 2's event (join)
-  ASSERT_SUCCESS(
-      urEnqueueEventsWaitWithBarrier(queue1, 1, event2.ptr(), nullptr));
-  ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue2, &isEnabled));
-  ASSERT_FALSE(isEnabled);
-
-  ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue1, &isEnabled));
-  ASSERT_TRUE(isEnabled);
 }
