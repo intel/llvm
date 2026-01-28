@@ -1616,23 +1616,17 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
   bool IsGen = Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
   bool IsJIT =
       Triple.isSPIROrSPIRV() && Triple.getSubArch() == llvm::Triple::NoSubArch;
-  const Arg *OptionO = Args.getLastArg(options::OPT_O_Group);
-  if (OptionO) {
-    if (IsJIT)
-      OptionO->render(Args, BeArgs);
-    else {
-      // Pass -cl-opt-disable only for non-JIT compilations, as the runtime
-      // handles O0 for JIT compilations.
-      if (OptionO->getOption().matches(options::OPT_O0))
-        BeArgs.push_back("-cl-opt-disable");
-    }
-  }
-
   if (IsGen && Args.hasArg(options::OPT_fsycl_fp64_conv_emu))
     BeArgs.push_back("-ze-fp64-gen-conv-emu");
   if (Arg *A = Args.getLastArg(options::OPT_g_Group, options::OPT__SLASH_Z7))
     if (!A->getOption().matches(options::OPT_g0))
       BeArgs.push_back("-g");
+  // Only pass -cl-opt-disable for non-JIT, as the runtime
+  // handles O0 for the JIT case.
+  if (Triple.getSubArch() != llvm::Triple::NoSubArch)
+    if (Arg *A = Args.getLastArg(options::OPT_O_Group))
+      if (A->getOption().matches(options::OPT_O0))
+        BeArgs.push_back("-cl-opt-disable");
   StringRef RegAllocModeOptName = "-ftarget-register-alloc-mode=";
   if (Arg *A = Args.getLastArg(options::OPT_ftarget_register_alloc_mode_EQ)) {
     StringRef RegAllocModeVal = A->getValue(0);

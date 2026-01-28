@@ -11280,6 +11280,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       }
 
       if (Kind == Action::OFK_SYCL) {
+        // Append device compiler arguments and their values to `CompilerArgs`.
+        for (Arg *A : BaseCompilerArgs)
+          A->render(BaseCompilerArgs, CompilerArgs);
         // Add implied SYCL target arguments to `CompilerArgs`
         // based on the selected target.
         const toolchains::SYCLToolChain &SYCLTC =
