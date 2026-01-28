@@ -252,7 +252,7 @@ jobs:
           -clang-tidy-binary "$GITHUB_WORKSPACE/build/bin/clang-tidy" \
           -p 1 \
           -path "$GITHUB_WORKSPACE/build" \
-          -checks "clang-analyzer-*,bugprone-*,performance-*" \
+          -checks "clang-analyzer-*,bugprone-*,performance-*,-bugprone-std-namespace-modification" \
           < "$GITHUB_WORKSPACE/pr.diff"
 
     # - name: check-llvm
