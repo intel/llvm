@@ -139,17 +139,17 @@ devops/actions/run-tests/benchmark/ @intel/llvm-reviewers-benchmarking
 .github/workflows/sycl-ur-perf-benchmarking.yml @intel/llvm-reviewers-benchmarking
 
 # JIT compiler
-sycl-jit/ @intel/llvm-reviewers-runtime @cperkinsintel @aelovikov-intel
-sycl/doc/design/KernelFusionJIT.md @intel/llvm-reviewers-runtime @cperkinsintel @aelovikov-intel
-sycl/doc/extensions/experimental/sycl_ext_codeplay_kernel_fusion.asciidoc @intel/llvm-reviewers-runtime @cperkinsintel @aelovikov-intel
-sycl/include/sycl/ext/codeplay/experimental/fusion_properties.hpp  @intel/llvm-reviewers-runtime @cperkinsintel @aelovikov-intel
-sycl/include/sycl/ext/codeplay/experimental/fusion_wrapper.hpp @intel/llvm-reviewers-runtime @cperkinsintel @aelovikov-intel
-sycl/source/detail/fusion/ @intel/llvm-reviewers-runtime @cperkinsintel @aelovikov-intel
-sycl/source/detail/jit_compiler.hpp @intel/llvm-reviewers-runtime @cperkinsintel @aelovikov-intel
-sycl/source/detail/jit_compiler.cpp @intel/llvm-reviewers-runtime @cperkinsintel @aelovikov-intel
-sycl/source/detail/jit_device_binaries.hpp @intel/llvm-reviewers-runtime @cperkinsintel @aelovikov-intel
-sycl/source/detail/jit_device_binaries.cpp @intel/llvm-reviewers-runtime @cperkinsintel @aelovikov-intel
-sycl/test-e2e/KernelFusion @intel/llvm-reviewers-runtime @cperkinsintel @aelovikov-intel
+sycl-jit/ @intel/llvm-reviewers-runtime @cperkinsintel
+sycl/doc/design/KernelFusionJIT.md @intel/llvm-reviewers-runtime @cperkinsintel
+sycl/doc/extensions/experimental/sycl_ext_codeplay_kernel_fusion.asciidoc @intel/llvm-reviewers-runtime @cperkinsintel
+sycl/include/sycl/ext/codeplay/experimental/fusion_properties.hpp  @intel/llvm-reviewers-runtime @cperkinsintel
+sycl/include/sycl/ext/codeplay/experimental/fusion_wrapper.hpp @intel/llvm-reviewers-runtime @cperkinsintel
+sycl/source/detail/fusion/ @intel/llvm-reviewers-runtime @cperkinsintel
+sycl/source/detail/jit_compiler.hpp @intel/llvm-reviewers-runtime @cperkinsintel
+sycl/source/detail/jit_compiler.cpp @intel/llvm-reviewers-runtime @cperkinsintel
+sycl/source/detail/jit_device_binaries.hpp @intel/llvm-reviewers-runtime @cperkinsintel
+sycl/source/detail/jit_device_binaries.cpp @intel/llvm-reviewers-runtime @cperkinsintel
+sycl/test-e2e/KernelFusion @intel/llvm-reviewers-runtime @cperkinsintel
 
 # Matrix
 sycl/include/sycl/ext/oneapi/matrix/ @intel/sycl-matrix-reviewers
@@ -219,4 +219,4 @@ sycl/test-e2e/ThreadSanitizer/ @intel/dpcpp-sanitizers-review
 
 # ABI compatibility
 devops/compat_ci_exclude.sycl-rel-** @gmlueck @xtian-github
-sycl/test/abi/*sycl-rel*.dump @AlexeySachkov @KornevNikita
+sycl/test/abi/*sycl-rel*.dump @KornevNikita
