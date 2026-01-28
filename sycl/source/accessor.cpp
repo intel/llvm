@@ -40,8 +40,7 @@ static void verifyAccessorProps(const property_list &Props) {
                                                 NoAllowedPropertiesCheck);
 }
 
-AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
-                                   range<3> MemoryRange,
+AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                                    access::mode AccessMode, void *SYCLMemObject,
                                    int Dims, int ElemSize, size_t OffsetInBytes,
                                    bool IsSubBuffer,
