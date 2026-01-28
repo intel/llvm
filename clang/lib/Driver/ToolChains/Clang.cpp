@@ -11278,11 +11278,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         else if (ShouldForward(LinkerOptions, A, *TC))
           A->render(Args, LinkerArgs);
       }
-
+      // Append device compiler arguments and their values to `CompilerArgs`.
+      for (Arg *A : BaseCompilerArgs)
+        A->render(BaseCompilerArgs, CompilerArgs);
       if (Kind == Action::OFK_SYCL) {
-        // Append device compiler arguments and their values to `CompilerArgs`.
-        for (Arg *A : BaseCompilerArgs)
-          A->render(BaseCompilerArgs, CompilerArgs);
         // Add implied SYCL target arguments to `CompilerArgs`
         // based on the selected target.
         const toolchains::SYCLToolChain &SYCLTC =
@@ -11291,12 +11290,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
             C.getSingleOffloadToolChain<Action::OFK_Host>();
         SYCLTC.AddImpliedTargetArgs(SYCLTC.getTriple(), BaseCompilerArgs,
                                     CompilerArgs, JA, *HostTC);
-      } else {
-        // For non-SYCL offload kinds (CUDA, OpenMP, HIP), directly convert
-        // the BaseCompilerArgs to CompilerArgs without additional processing.
-        for (Arg *A : BaseCompilerArgs) {
-          A->render(BaseCompilerArgs, CompilerArgs);
-        }
       }
 
       // If the user explicitly requested it via `--offload-arch` we should
