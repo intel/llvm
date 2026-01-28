@@ -41,5 +41,5 @@ apt update && apt install -yqq pkg-config
 if [[ "$VERSION_CODENAME" == "jammy" ]]; then
     apt-get install -yqq clang-14 libc++-14-dev
 else
-    apt-get install -yqq clang-18 libc++-18-dev
+    apt-get install -yqq clang-18 libc++-18-dev gcc-14 g++-14
 fi
