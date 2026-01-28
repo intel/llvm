@@ -316,6 +316,64 @@ void FunctionDecl3(){};
 [[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr3", false)]]
 void FunctionDecl4(){};
 
+// CHECK:      FunctionDecl {{.*}} TemplateDecl1 'void ()'
+// CHECK-NEXT:   CompoundStmt
+// CHECK-NEXT:   SYCLAddIRAttributesFunctionAttr
+// CHECK-NEXT:     ConstantExpr {{.*}} 'const char[6]' lvalue
+// CHECK-NEXT:       value: LValue
+// CHECK-NEXT:       StringLiteral {{.*}} 'const char[6]' lvalue "Attr1"
+// CHECK-NEXT:     DeclRefExpr {{.*}} <col:56> 'int' NonTypeTemplateParm {{.*}} 'X' 'int'
+// CHECK-NEXT:   SYCLAddIRAttributesFunctionAttr
+// CHECK-NEXT:     ConstantExpr {{.*}} 'const char[6]' lvalue
+// CHECK-NEXT:       value: LValue
+// CHECK-NEXT:       StringLiteral {{.*}} 'const char[6]' lvalue "Attr2"
+// CHECK-NEXT:     ConstantExpr {{.*}} 'int'
+// CHECK-NEXT:       value: Int 1
+// CHECK-NEXT:       IntegerLiteral {{.*}} 'int' 1
+template <int X>
+[[__sycl_detail__::add_ir_attributes_function("Attr1", X)]]
+[[__sycl_detail__::add_ir_attributes_function("Attr2", 1)]]
+void TemplateDecl1(){};
+
+// CHECK:      FunctionDecl {{.*}} TemplateDecl2 'void ()'
+// CHECK-NEXT:   CompoundStmt
+// CHECK-NEXT:   SYCLAddIRAttributesFunctionAttr
+// CHECK-NEXT:     ConstantExpr {{.*}} 'const char[6]' lvalue
+// CHECK-NEXT:       value: LValue
+// CHECK-NEXT:       StringLiteral {{.*}} 'const char[6]' lvalue "Attr1"
+// CHECK-NEXT:     ConstantExpr {{.*}} 'int'
+// CHECK-NEXT:       value: Int 1
+// CHECK-NEXT:       IntegerLiteral {{.*}} 'int' 1
+// CHECK-NEXT:   SYCLAddIRAttributesFunctionAttr
+// CHECK-NEXT:     ConstantExpr {{.*}} 'const char[6]' lvalue
+// CHECK-NEXT:       value: LValue
+// CHECK-NEXT:       StringLiteral {{.*}} 'const char[6]' lvalue "Attr2"
+// CHECK-NEXT:     DeclRefExpr {{.*}} <col:56> 'int' NonTypeTemplateParm {{.*}} 'X' 'int'
+template <int X>
+[[__sycl_detail__::add_ir_attributes_function("Attr1", 1)]]
+[[__sycl_detail__::add_ir_attributes_function("Attr2", X)]]
+void TemplateDecl2(){};
+
+// CHECK:      FunctionDecl {{.*}} TemplateDecl3 'void ()'
+// CHECK-NEXT:   CompoundStmt
+// CHECK-NEXT:   SYCLAddIRAttributesFunctionAttr
+// CHECK-NEXT:     ConstantExpr {{.*}} 'const char[6]' lvalue
+// CHECK-NEXT:       value: LValue
+// CHECK-NEXT:       StringLiteral {{.*}} 'const char[6]' lvalue "Attr2"
+// CHECK-NEXT:     ConstantExpr {{.*}} 'const char[6]' lvalue
+// CHECK-NEXT:       value: LValue
+// CHECK-NEXT:       StringLiteral {{.*}} 'const char[6]' lvalue "Attr1"
+// CHECK-NEXT:     ConstantExpr {{.*}} 'int'
+// CHECK-NEXT:       value: Int 2
+// CHECK-NEXT:       IntegerLiteral {{.*}} 'int' 2
+// CHECK-NEXT:     ConstantExpr {{.*}} 'int'
+// CHECK-NEXT:       value: Int 1
+// CHECK-NEXT:       IntegerLiteral {{.*}} 'int' 1
+template <int X>
+[[__sycl_detail__::add_ir_attributes_function("Attr1", 1)]]
+[[__sycl_detail__::add_ir_attributes_function("Attr2", 2)]]
+void TemplateDecl3(){};
+
 // CHECK:      CXXRecordDecl [[GlobalVarStructRedecl1ID1:0x[0-9a-f]+]] {{.*}} struct GlobalVarStructRedecl1
 // CHECK-NEXT:   SYCLAddIRAttributesGlobalVariableAttr
 // CHECK-NEXT:     ConstantExpr {{.*}} 'const char[6]' lvalue
