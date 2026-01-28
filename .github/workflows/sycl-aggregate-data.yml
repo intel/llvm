@@ -38,43 +38,18 @@ jobs:
             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/sycl-health-check.yml/runs?status=success&created=>=${TODAY}" \
             | jq -r '.workflow_runs[].id' > run_ids.txt
           
-          echo "Found workflow run IDs:"
-          cat run_ids.txt
-          
           mkdir -p artifacts
           
-          # Download artifacts from each run using API
+          # Download artifacts from each run
           while read run_id; do
-            echo "Processing run $run_id"
-            
-            # Get artifacts for this run
-            artifact_list=$(curl -L \
-              -H "Accept: application/vnd.github+json" \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "https://api.github.com/repos/${{ github.repository }}/actions/runs/${run_id}/artifacts")
-            
-            # Download each artifact matching the date pattern
-            echo "$artifact_list" | jq -r ".artifacts[] | select(.name | startswith(\"${TODAY}\")) | \"\(.id) \(.name)\"" | while read artifact_id artifact_name; do
-              echo "Downloading artifact: $artifact_name (ID: $artifact_id)"
-              
-              # Download the artifact zip
-              curl -L \
-                -H "Accept: application/vnd.github+json" \
-                -H "Authorization: Bearer $GH_TOKEN" \
-                -H "X-GitHub-Api-Version: 2022-11-28" \
-                "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/${artifact_id}/zip" \
-                -o "${artifact_name}.zip"
-              
-              # Extract to artifacts directory
-              mkdir -p "artifacts/${artifact_name}"
-              unzip -q "${artifact_name}.zip" -d "artifacts/${artifact_name}"
-              rm "${artifact_name}.zip"
-            done
+            echo "Downloading artifacts from run $run_id"
+            gh run download "$run_id" \
+              --dir artifacts \
+              --pattern "${TODAY}*" \
+              --repo "${{ github.repository }}" || echo "No matching artifacts in run $run_id"
           done < run_ids.txt
           
           echo "All artifacts downloaded:"
-          ls -laR artifacts/
 
       - name: Process and aggregate data
         run: |
