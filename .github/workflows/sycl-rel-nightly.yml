@@ -34,17 +34,21 @@ jobs:
     secrets: inherit
     with:
       build_cache_root: "/__w/"
-      build_artifact_suffix: default
       build_configure_extra_args: '-DSYCL_BUILD_INFO="${{ needs.get_build_info.outputs.info }}" -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_INSTALL_LIBDIR=lib --disable-jit --no-assertions --add_security_flags=sanitize --hip --cuda'
       build_image: ghcr.io/intel/llvm/release_build:latest
-      pack_release: 'true'
 
+      toolchain_artifact: sycl_linux_default
       # We upload the build for people to download/use, override its name and
       # prefer widespread gzip compression.
-      artifact_archive_name: sycl_linux.tar.gz
+      toolchain_artifact_filename: sycl_linux.tar.gz
+
+      release_toolchain_artifact: sycl_linux_release
 
   ubuntu2204_test:
     needs: [ubuntu2204_build]
+    permissions:
+      contents: write
+      packages: read
     if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
@@ -62,6 +66,10 @@ jobs:
 
           - name: Intel L0 Gen12 GPU
             runner: '["Linux", "gen12"]'
+            target_devices: level_zero:gpu
+
+          - name: Intel L0 Ponte Vecchio GPU
+            runner: '["Linux", "pvc"]'
             target_devices: level_zero:gpu
 
           - name: Intel L0 Battlemage GPU
@@ -91,9 +99,9 @@ jobs:
       tests_selector: e2e
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
       repo_ref: ${{ github.sha }}
-      sycl_toolchain_artifact: sycl_linux_default
-      sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
-      sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
+      toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
 
   build-win:
     needs: get_build_info
@@ -101,9 +109,9 @@ jobs:
     with:
       # We upload both Linux/Windows build via Github's "Releases"
       # functionality, make sure Linux/Windows names follow the same pattern.
-      artifact_archive_name: sycl_windows.tar.gz
+      toolchain_artifact_filename: sycl_windows.tar.gz
       build_configure_extra_args: '-DSYCL_BUILD_INFO="${{ needs.get_build_info.outputs.info }}" -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off -DCMAKE_POSITION_INDEPENDENT_CODE=ON --disable-jit --no-assertions --add_security_flags=sanitize'
-      pack_release: 'true'
+      release_toolchain_artifact: sycl_windows_release
 
   e2e-win:
     needs: build-win
@@ -129,17 +137,19 @@ jobs:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
       target_devices: level_zero:gpu
-      sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
-      extra_lit_opts: ${{ matrix.extra_lit_opts }}
+      toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
 
   build-sycl-cts-linux:
     needs: ubuntu2204_build
+    permissions:
+      contents: write
+      packages: read
     if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: Build SYCL-CTS
       runner: '["Linux", "build"]'
-      cts_testing_mode: 'build-only'
+      testing_mode: 'build-only'
       image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps-a123482f30cdadfa45ea627557d46fea0f0220d5
       image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
       tests_selector: cts
@@ -149,13 +159,16 @@ jobs:
       # Merge pull request #1172 from frengels/crosscompile-target
       # Placeholder should be used for link executable
       tests_ref: d534667b7b5445d7c49f5e38f4ac045909d928ac
-      sycl_toolchain_artifact: sycl_linux_default
-      sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
-      sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
-      sycl_cts_artifact: sycl_cts_bin_linux
+      toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
+      binaries_artifact: sycl_cts_bin_linux
 
   run-sycl-cts-linux:
     needs: [ubuntu2204_build, build-sycl-cts-linux]
+    permissions:
+      contents: write
+      packages: read
     if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
@@ -174,16 +187,16 @@ jobs:
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
-      cts_testing_mode: 'run-only'
+      testing_mode: 'run-only'
       image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps-a123482f30cdadfa45ea627557d46fea0f0220d5
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
       tests_selector: cts
       repo_ref: ${{ github.sha }}
-      sycl_toolchain_artifact: sycl_linux_default
-      sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
-      sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
-      sycl_cts_artifact: sycl_cts_bin_linux
+      toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
+      binaries_artifact: sycl_cts_bin_linux
 
   build-sycl-cts-win:
     needs: build-win
@@ -192,7 +205,7 @@ jobs:
     with:
       name: Build SYCL-CTS for Windows
       runner: '["Windows", "build"]'
-      cts_testing_mode: 'build-only'
+      testing_mode: 'build-only'
       tests_selector: cts
       repo_ref: ${{ github.sha }}
       # Author: Alexey Bader <alexey.bader@intel.com>
@@ -200,8 +213,8 @@ jobs:
       # Merge pull request #1172 from frengels/crosscompile-target
       # Placeholder should be used for link executable
       tests_ref: d534667b7b5445d7c49f5e38f4ac045909d928ac
-      sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
-      sycl_cts_artifact: sycl_cts_bin_win
+      toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
+      binaries_artifact: sycl_cts_bin_win
 
   run-sycl-cts-win:
     needs: [build-win, build-sycl-cts-win]
@@ -217,12 +230,12 @@ jobs:
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
-      cts_testing_mode: 'run-only'
+      testing_mode: 'run-only'
       target_devices: ${{ matrix.target_devices }}
       tests_selector: cts
       repo_ref: ${{ github.sha }}
-      sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
-      sycl_cts_artifact: sycl_cts_bin_win
+      toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
+      binaries_artifact: sycl_cts_bin_win
 
   hardening-check:
     needs: [ubuntu2204_build, build-win]
@@ -232,9 +245,9 @@ jobs:
       && needs.build-win.outputs.build_conclusion == 'success'
     uses: ./.github/workflows/sycl-hardening-check.yml
     with:
-      sycl_linux_artifact: sycl_linux_release
-      sycl_linux_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
-      sycl_linux_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
+      sycl_linux_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
+      sycl_linux_archive: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
+      sycl_linux_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
 
-      sycl_windows_artifact: sycl_windows_release
-      sycl_windows_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
+      sycl_windows_artifact: ${{ needs.build-win.outputs.toolchain_artifact }}
+      sycl_windows_archive: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
