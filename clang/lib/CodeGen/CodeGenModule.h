@@ -1923,6 +1923,9 @@ public:
     return TrapReasonBuilder(&getDiags(), DiagID, TR);
   }
 
+  std::optional<llvm::Attribute::AttrKind>
+  StackProtectorAttribute(const Decl *D) const;
+
 private:
   bool shouldDropDLLAttribute(const Decl *D, const llvm::GlobalValue *GV) const;
 

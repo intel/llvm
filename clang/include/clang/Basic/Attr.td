@@ -3693,6 +3693,13 @@ def NoStackProtector : InheritableAttr {
   let SimpleHandler = 1;
 }
 
+def StackProtectorIgnore : InheritableAttr {
+  let Spellings = [Clang<"stack_protector_ignore">];
+  let Subjects = SubjectList<[LocalVar]>;
+  let Documentation = [StackProtectorIgnoreDocs];
+  let SimpleHandler = 1;
+}
+
 def StrictGuardStackCheck : InheritableAttr {
   let Spellings = [Declspec<"strict_gs_check">];
   let Subjects = SubjectList<[Function]>;
