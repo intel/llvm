@@ -41,7 +41,7 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 10 specification.
+This extension is written against the SYCL 2020 revision 11 specification.
 All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
@@ -212,8 +212,7 @@ bits and three mantissa bits.
 In order to extend the range, the format deviates from the IEEE-754 style.
 Unlike IEEE-754, an exponent with all 1's is considered a normal value unless
 the mantissa is also all 1's.
-The format cannot represent Infinity, and the value produced when converting an
-infinite result depends on the saturation and rounding mode.
+The format cannot represent Infinity.
 
 The following table provides the special values of the E4M3 type.
 
@@ -247,13 +246,8 @@ The following table provides the special values of the E4M3 type.
 
 This extension adds the `fp8_e4m3` type, which represents a set of packed E4M3
 values and provides various conversions to other types.
-The number of packed elements is defined by the `N` template parameter.
-
-[_Note:_ Although the `fp8_e4m3` type can be instantiated with any value of `N`,
-most operations on `fp8_e4m3` support only certain values of `N` according to
-the target device architecture.
-See the _Target Support_ clauses in the descriptions below for more details.
-_{endnote}_]
+The number of packed elements is defined by the `N` template parameter, which
+must be either 1 or 2.
 
 [source,c++]
 ----
@@ -288,43 +282,17 @@ class fp8_e4m3 {
 
   // Construct from an array of half, bfloat16, float, double.
 
-  explicit fp8_e4m3(half const (&vals)[N], rounding r = rounding::to_even,
-                    saturation s = saturation::finite);
-  explicit fp8_e4m3(bfloat16 const (&vals)[N], rounding r = rounding::to_even,
-                    saturation s = saturation::finite);
-  explicit fp8_e4m3(float const (&vals)[N], rounding r = rounding::to_even,
-                    saturation s = saturation::finite);
+  explicit fp8_e4m3(half const (&vals)[N], rounding r = rounding::to_even);
+  explicit fp8_e4m3(bfloat16 const (&vals)[N], rounding r = rounding::to_even);
+  explicit fp8_e4m3(float const (&vals)[N], rounding r = rounding::to_even);
   explicit fp8_e4m3(double const (&vals)[N]);
 
   // Construct from an marray of half, bfloat16, float, double.
 
-  explicit fp8_e4m3(const marray<half,N>& vals, rounding r = rounding::to_even,
-                    saturation s = saturation::finite);
-  explicit fp8_e4m3(const marray<bfloat16,N>& vals, rounding r = rounding::to_even,
-                    saturation s = saturation::finite);
-  explicit fp8_e4m3(const marray<float,N>& vals, rounding r = rounding::to_even,
-                    saturation s = saturation::finite);
+  explicit fp8_e4m3(const marray<half,N>& vals, rounding r = rounding::to_even);
+  explicit fp8_e4m3(const marray<bfloat16,N>& vals, rounding r = rounding::to_even);
+  explicit fp8_e4m3(const marray<float,N>& vals, rounding r = rounding::to_even);
   explicit fp8_e4m3(const marray<double,N>& vals);
-
-  // Construct with stochastic rounding with user provided seed from an array of
-  // half, bfloat16, float.
-
-  explicit fp8_e4m3(half const (&vals)[N], const stochastic_seed& seed,
-                    saturation s = saturation::finite);
-  explicit fp8_e4m3(bfloat16 const (&vals)[N], const stochastic_seed& seed,
-                    saturation s = saturation::finite);
-  explicit fp8_e4m3(float const (&vals)[N], const stochastic_seed& seed,
-                    saturation s = saturation::finite);
-
-  // Construct with stochastic rounding with user provided seed from an marray
-  // of half, bfloat16, float.
-
-  explicit fp8_e4m3(const marray<half,N>& vals, const stochastic_seed& seed,
-                    saturation s = saturation::finite);
-  explicit fp8_e4m3(const marray<bfloat16,N>& vals, const stochastic_seed& seed,
-                    saturation s = saturation::finite);
-  explicit fp8_e4m3(const marray<float,N>& vals, const stochastic_seed& seed,
-                    saturation s = saturation::finite);
 
   // Construct from integer types.
   // Available only when N==1.
@@ -447,150 +415,51 @@ corresponding value in the `vals` pack.
 Each value is converted using the `rounding::to_even` rounding mode and the
 `saturation::finite` saturation mode.
 
-_Target Support:_ The number of elements in this `fp8_e4m3` (the `N` template
-parameter) has the following restrictions:
-
-* Host code supports all values of `N`.
-* Device code compiled for Intel Xe3p (CRI) supports only the
-  following `N` values: 1, 2, 3, 4, 8, 16.
-
 '''
 
 [source,c++]
 ----
-explicit fp8_e4m3(half const (&vals)[N], rounding r = rounding::to_even,      (1)
-                  saturation s = saturation::finite);
-explicit fp8_e4m3(bfloat16 const (&vals)[N], rounding r = rounding::to_even,  (2)
-                  saturation s = saturation::finite);
-explicit fp8_e4m3(float const (&vals)[N], rounding r = rounding::to_even,     (3)
-                  saturation s = saturation::finite);
-explicit fp8_e4m3(double const (&vals)[N]);                                   (4)
+explicit fp8_e4m3(half const (&vals)[N], rounding r = rounding::to_even);      (1)
+explicit fp8_e4m3(bfloat16 const (&vals)[N], rounding r = rounding::to_even);  (2)
+explicit fp8_e4m3(float const (&vals)[N], rounding r = rounding::to_even);     (3)
+explicit fp8_e4m3(double const (&vals)[N]);                                    (4)
 ----
 
 _Effects:_ Initializes each element of this `fp8_e4m3` object from the
 corresponding element in the array `vals`.
 In overloads (1) - (3), each value is converted using the `r` rounding mode and
-the `s` saturation mode.
+the `saturation::finite` saturation mode.
 In overload (4), each value is converted using the `rounding::to_even` rounding
 mode and the `saturation::finite` saturation mode.
 
-_Target Support:_ The rounding mode `r` and saturation mode `s` values have the
-following restrictions:
+_Target Support:_ The rounding mode `r` value has the following restrictions:
 
-* Host code supports only `rounding::to_even` and `saturation::finite`.
+* Host code supports only `rounding::to_even`.
 * Device code compiled for Intel Xe3p (CRI) supports only
-  `rounding::to_even` (with either saturation mode).
-
-The number of elements in this `fp8_e4m3` (the `N` template parameter) has the
-following restrictions:
-
-* Host code supports all values of `N`.
-* Device code compiled for Intel Xe3p (CRI) supports only the
-  following `N` values: 1, 2, 3, 4, 8, 16.
+  `rounding::to_even`.
 
 '''
 
 [source,c++]
 ----
-explicit fp8_e4m3(const marray<half,N>& vals, rounding r = rounding::to_even,      (1)
-                  saturation s = saturation::finite);
-explicit fp8_e4m3(const marray<bfloat16,N>& vals, rounding r = rounding::to_even,  (2)
-                  saturation s = saturation::finite);
-explicit fp8_e4m3(const marray<float,N>& vals, rounding r = rounding::to_even,     (3)
-                  saturation s = saturation::finite);
-explicit fp8_e4m3(const marray<double,N>& vals);                                   (4)
+explicit fp8_e4m3(const marray<half,N>& vals, rounding r = rounding::to_even);      (1)
+explicit fp8_e4m3(const marray<bfloat16,N>& vals, rounding r = rounding::to_even);  (2)
+explicit fp8_e4m3(const marray<float,N>& vals, rounding r = rounding::to_even);     (3)
+explicit fp8_e4m3(const marray<double,N>& vals);                                    (4)
 ----
 
 _Effects:_ Initializes each element of this `fp8_e4m3` object from the
 corresponding element in the `marray` object `vals`.
 In overloads (1) - (3), each value is converted using the `r` rounding mode and
-the `s` saturation mode.
+the `saturation::finite` saturation mode.
 In overload (4), each value is converted using the `rounding::to_even` rounding
 mode and the `saturation::finite` saturation mode.
 
-_Target Support:_ The rounding mode `r` and saturation mode `s` values have the
-following restrictions:
+_Target Support:_ The rounding mode `r` value has the following restrictions:
 
-* Host code supports only `rounding::to_even` and `saturation::finite`.
+* Host code supports only `rounding::to_even`.
 * Device code compiled for Intel Xe3p (CRI) supports only
-  `rounding::to_even` (with either saturation mode).
-
-The number of elements in this `fp8_e4m3` (the `N` template parameter) has the
-following restrictions:
-
-* Host code supports all values of `N`.
-* Device code compiled for Intel Xe3p (CRI) supports only the
-  following `N` values: 1, 2, 3, 4, 8, 16.
-
-'''
-
-[source,c++]
-----
-explicit fp8_e4m3(half const (&vals)[N], const stochastic_seed& seed,
-                  saturation s = saturation::finite);
-explicit fp8_e4m3(bfloat16 const (&vals)[N], const stochastic_seed& seed,
-                  saturation s = saturation::finite);
-explicit fp8_e4m3(float const (&vals)[N], const stochastic_seed& seed,
-                  saturation s = saturation::finite);
-----
-
-_Effects:_ Initializes each element of this `fp8_e4m3` object from the
-corresponding value in the array `vals` using stochastic rounding.
-The pseudo-random biases are created deterministically using the seed value
-referenced by the helper object `seed`.
-The saturation mode is `s`.
-
-The referenced seed value is also deterministically updated to a new
-pseudo-random value.
-This update is done with a non-atomic operation, so each work-item should
-reference a different seed value to avoid a race condition.
-
-_Target Support:_ These functions are not supported in host code.
-They are only supported in device code as follows:
-
-* Device code compiled for Intel Xe3p (CRI) supports these
-  functions.
-
-The number of elements in this `fp8_e4m3` (the `N` template parameter) has the
-following restrictions:
-
-* Device code compiled for Intel Xe3p (CRI) supports only the
-  following `N` values: 1, 2, 3, 4, 8, 16.
-
-'''
-
-[source,c++]
-----
-explicit fp8_e4m3(const marray<half,N>& vals, const stochastic_seed& seed,
-                  saturation s = saturation::finite);
-explicit fp8_e4m3(const marray<bfloat16,N>& vals, const stochastic_seed& seed,
-                  saturation s = saturation::finite);
-explicit fp8_e4m3(const marray<float,N>& vals, const stochastic_seed& seed,
-                  saturation s = saturation::finite);
-----
-
-_Effects:_ Initializes each element of this `fp8_e4m3` object from the
-corresponding value in the `marray` object `vals` using stochastic rounding.
-The pseudo-random biases are created deterministically using the seed value
-referenced by the helper object `seed`.
-The saturation mode is `s`.
-
-The referenced seed value is also deterministically updated to a new
-pseudo-random value.
-This update is done with a non-atomic operation, so each work-item should
-reference a different seed value to avoid a race condition.
-
-_Target Support:_ These functions are not supported in host code.
-They are only supported in device code as follows:
-
-* Device code compiled for Intel Xe3p (CRI) supports these
-  functions.
-
-The number of elements in this `fp8_e4m3` (the `N` template parameter) has the
-following restrictions:
-
-* Device code compiled for Intel Xe3p (CRI) supports only the
-  following `N` values: 1, 2, 3, 4, 8, 16.
+  `rounding::to_even`.
 
 '''
 
@@ -655,8 +524,7 @@ _Constraints:_ `N == 1`.
 _Returns_: The single element of this `fp8_e4m3` object is converted to the
 operator's respective type.
 
-[_Note:_ These conversions are exact, so there is no rounding or saturation
-mode.
+[_Note:_ These conversions are exact, so there is no rounding mode.
 _{endnote}_]
 
 '''
@@ -706,15 +574,7 @@ explicit operator marray<float,N>() const;     (3)
 _Returns:_ The values of this `fp8_e4m3` object are converted to an `marray` of
 `half`, `ext::oneapi::bfloat16`, or `float`.
 
-_Target Support:_ The number of elements in this `fp8_e4m3` (the `N` template
-parameter) has the following restrictions:
-
-* Host code supports all values of `N`.
-* Device code compiled for Intel Xe3p (CRI) supports only the
-  following `N` values: 1, 2, 3, 4, 8, 16.
-
-[_Note:_ These conversions are exact, so there is no rounding or saturation
-mode.
+[_Note:_ These conversions are exact, so there is no rounding mode.
 _{endnote}_]
 
 '''
@@ -749,51 +609,6 @@ Conversions to E4M3 using one of the non-stochastic rounding modes and with
 * Other values are rounded according to the rounding mode.
 * If the resulting value is larger in magnitude than the max normal value, it is
   converted to the max normal value while preserving the sign.
-
-==== Non-stochastic rounding modes without saturation
-
-Conversions to E4M3 using one of the non-stochastic rounding modes and with
-`saturation::none` work as follows:
-
-* Infinity is converted to NaN while preserving the sign.
-* NaN is converted to NaN with an implementation-defined sign.
-* Other values are rounded according to the rounding mode.
-* If the resulting value is larger in magnitude than the max normal value, it is
-  converted to NaN while preserving the sign.
-
-==== Stochastic rounding with saturation
-
-Conversions to E4M3 using stochastic rounding and with `saturation::finite` work
-as follows:
-
-* Infinity is converted to the max normal value while preserving the sign.
-* NaN is converted to NaN with an implementation-defined sign.
-
-For other values, a pseudo-random bias is added to the mantissa.
-If this overflows the mantissa, the exponent is incremented by 1 and the
-mantissa is shifted to the right.
-The resulting value is then converted as follows:
-
-* The value is rounded using IEEE 754 "roundTowardZero".
-* If the resulting value is larger in magnitude than the max normal value, it is
-  converted to the max normal value while preserving the sign.
-
-==== Stochastic rounding without saturation
-
-Conversions to E4M3 using stochastic rounding and with `saturation::none` work
-as follows:
-
-* Infinity is converted to NaN while preserving the sign.
-* NaN is converted to NaN with an implementation-defined sign.
-
-For other values, a pseudo-random bias is added to the mantissa.
-If this overflows the mantissa, the exponent is incremented by 1 and the
-mantissa is shifted to the right.
-The resulting value is then converted as follows:
-
-* The value is rounded using IEEE 754 "roundTowardZero".
-* If the resulting value is larger in magnitude than the max normal value,
-  it is converted to NaN while preserving the sign.
 
 ==== Integer conversions
 
@@ -847,13 +662,8 @@ The following table provides the special values of the E5M2 type.
 
 This extension adds the `fp8_e5m2` type, which represents a set of packed E5M2
 values and provides various conversions to other types.
-The number of packed elements is defined by the `N` template parameter.
-
-[_Note:_ Although the `fp8_e5m2` type can be instantiated with any value of `N`,
-most operations on `fp8_e5m2` support only certain values of `N` according to
-the target device architecture.
-See the _Target Support_ clauses in the descriptions below for more details.
-_{endnote}_]
+The number of packed elements is defined by the `N` template parameter, which
+must be either 1 or 2.
 
 [source,c++]
 ----
@@ -1047,13 +857,6 @@ corresponding value in the `vals` pack.
 Each value is converted using the `rounding::to_even` rounding mode and the
 `saturation::finite` saturation mode.
 
-_Target Support:_ The number of elements in this `fp8_e5m2` (the `N` template
-parameter) has the following restrictions:
-
-* Host code supports all values of `N`.
-* Device code compiled for Intel Xe3p (CRI) supports only the
-  following `N` values: 1, 2, 3, 4, 8, 16.
-
 '''
 
 [source,c++]
@@ -1081,13 +884,6 @@ following restrictions:
 * Device code compiled for Intel Xe3p (CRI) supports only
   `rounding::to_even` (with either saturation mode).
 
-The number of elements in this `fp8_e5m2` (the `N` template parameter) has the
-following restrictions:
-
-* Host code supports all values of `N`.
-* Device code compiled for Intel Xe3p (CRI) supports only the
-  following `N` values: 1, 2, 3, 4, 8, 16.
-
 '''
 
 [source,c++]
@@ -1114,13 +910,6 @@ following restrictions:
 * Host code supports only `rounding::to_even` and `saturation::finite`.
 * Device code compiled for Intel Xe3p (CRI) supports only
   `rounding::to_even` (with either saturation mode).
-
-The number of elements in this `fp8_e5m2` (the `N` template parameter) has the
-following restrictions:
-
-* Host code supports all values of `N`.
-* Device code compiled for Intel Xe3p (CRI) supports only the
-  following `N` values: 1, 2, 3, 4, 8, 16.
 
 '''
 
@@ -1151,12 +940,6 @@ They are only supported in device code as follows:
 * Device code compiled for Intel Xe3p (CRI) supports these
   functions.
 
-The number of elements in this `fp8_e5m2` (the `N` template parameter) has the
-following restrictions:
-
-* Device code compiled for Intel Xe3p (CRI) supports only the
-  following `N` values: 1, 2, 3, 4, 8, 16.
-
 '''
 
 [source,c++]
@@ -1185,12 +968,6 @@ They are only supported in device code as follows:
 
 * Device code compiled for Intel Xe3p (CRI) supports these
   functions.
-
-The number of elements in this `fp8_e5m2` (the `N` template parameter) has the
-following restrictions:
-
-* Device code compiled for Intel Xe3p (CRI) supports only the
-  following `N` values: 1, 2, 3, 4, 8, 16.
 
 '''
 
@@ -1305,13 +1082,6 @@ explicit operator marray<float,N>() const;     (3)
 
 _Returns:_ The values of this `fp8_e5m2` object are converted to an `marray` of
 `half`, `ext::oneapi::bfloat16`, or `float`.
-
-_Target Support:_ The number of elements in this `fp8_e5m2` (the `N` template
-parameter) has the following restrictions:
-
-* Host code supports all values of `N`.
-* Device code compiled for Intel Xe3p (CRI) supports only the
-  following `N` values: 1, 2, 3, 4, 8, 16.
 
 [_Note:_ These conversions are exact, so there is no rounding or saturation
 mode.
@@ -1450,13 +1220,8 @@ The following table provides the special values of the E8M0 type.
 
 This extension adds the `fp8_e8m0` type, which represents a set of packed E8M0
 values and provides various conversions to other types.
-The number of packed elements is defined by the `N` template parameter.
-
-[_Note:_ Although the `fp8_e8m0` type can be instantiated with any value of `N`,
-most operations on `fp8_e8m0` support only certain values of `N` according to
-the target device architecture.
-See the _Target Support_ clauses in the descriptions below for more details.
-_{endnote}_]
+The number of packed elements is defined by the `N` template parameter, which
+must be either 1 or 2.
 
 [source,c++]
 ----
@@ -1630,13 +1395,6 @@ corresponding value in the `vals` pack.
 Each value is converted using the `rounding::upward` rounding mode and the
 `saturation::finite` saturation mode.
 
-_Target Support:_ The number of elements in this `fp8_e8m0` (the `N` template
-parameter) has the following restrictions:
-
-* Host code supports all values of `N`.
-* Device code compiled for Intel Xe3p (CRI) supports only the
-  following `N` values: 1, 2, 3, 4, 8, 16.
-
 '''
 
 [source,c++]
@@ -1660,13 +1418,6 @@ mode and the `saturation::finite` saturation mode.
 _Target Support:_ Host and device code support only `rounding::upward` and
 `saturation::finite`.
 
-The number of elements in this `fp8_e8m0` (the `N` template parameter) has the
-following restrictions:
-
-* Host code supports all values of `N`.
-* Device code compiled for Intel Xe3p (CRI) supports only the
-  following `N` values: 1, 2, 3, 4, 8, 16.
-
 '''
 
 [source,c++]
@@ -1689,13 +1440,6 @@ mode and the `saturation::finite` saturation mode.
 
 _Target Support:_ Host and device code support only `rounding::upward` and
 `saturation::finite`.
-
-The number of elements in this `fp8_e8m0` (the `N` template parameter) has the
-following restrictions:
-
-* Host code supports all values of `N`.
-* Device code compiled for Intel Xe3p (CRI) supports only the
-  following `N` values: 1, 2, 3, 4, 8, 16.
 
 '''
 
@@ -1826,13 +1570,6 @@ Infinity.
 [_Note:_ Conversions (2) - (3) are exact, so there is no rounding or saturation
 mode.
 _{endnote}_]
-
-_Target Support:_ The number of elements in this `fp8_e8m0` (the `N` template
-parameter) has the following restrictions:
-
-* Host code supports all values of `N`.
-* Device code compiled for Intel Xe3p (CRI) supports only the
-  following `N` values: 1, 2, 3, 4, 8, 16.
 
 '''
 
