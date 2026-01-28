@@ -17,6 +17,14 @@ struct urGraphSupportedExpTest : uur::urQueueTest {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
 
+    ur_bool_t graph_supported = false;
+    ASSERT_SUCCESS(urDeviceGetInfo(
+        device, UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP,
+        sizeof(graph_supported), &graph_supported, nullptr));
+    if (!graph_supported) {
+      GTEST_SKIP();
+    }
+
     UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{}, uur::NativeCPU{},
                          uur::OpenCL{}, uur::LevelZero{});
   }
