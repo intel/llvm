@@ -93,7 +93,7 @@ jobs:
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
-      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps-a123482f30cdadfa45ea627557d46fea0f0220d5
+      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps-111f18b3477aef0c4c30cd61f06058912171c127
       image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
       target_devices: ${{ matrix.target_devices }}
       tests_selector: e2e
@@ -150,7 +150,7 @@ jobs:
       name: Build SYCL-CTS
       runner: '["Linux", "build"]'
       testing_mode: 'build-only'
-      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps-a123482f30cdadfa45ea627557d46fea0f0220d5
+      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps-111f18b3477aef0c4c30cd61f06058912171c127
       image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
       tests_selector: cts
       repo_ref: ${{ github.sha }}
@@ -188,7 +188,7 @@ jobs:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
       testing_mode: 'run-only'
-      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps-a123482f30cdadfa45ea627557d46fea0f0220d5
+      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps-111f18b3477aef0c4c30cd61f06058912171c127
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
       tests_selector: cts

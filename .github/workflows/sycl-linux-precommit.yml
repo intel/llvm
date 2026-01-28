@@ -168,7 +168,7 @@ jobs:
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
-      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps-57a456ab30d222aa7794e89496b029f8c8bd4ddb
+      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps-111f18b3477aef0c4c30cd61f06058912171c127
       image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
       target_devices: ${{ matrix.target_devices }}
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
@@ -226,7 +226,7 @@ jobs:
     with:
       name: ${{ matrix.name }} with NewOffloadModel
       runner: ${{ matrix.runner }}
-      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps-57a456ab30d222aa7794e89496b029f8c8bd4ddb
+      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps-111f18b3477aef0c4c30cd61f06058912171c127
       image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
       target_devices: ${{ matrix.target_devices }}
       extra_lit_opts: ${{ matrix.extra_lit_opts }} --param enable_new_offload_model=True
