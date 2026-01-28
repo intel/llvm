@@ -23,7 +23,7 @@ jobs:
           echo "info=${{ inputs.sycl_build_info }}" >> $GITHUB_OUTPUT
         else
           date=$(date +'%Y-%m-%d')
-          version="6.3.0"
+          version="7.0.0"
           info="Nightly $date $version pre-release"
           echo "info=$info" >> $GITHUB_OUTPUT
         fi
