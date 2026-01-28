@@ -122,29 +122,8 @@ jobs:
 
       toolchain_artifact: sycl_linux_ubuntu22
 
-  compat_read_exclude:
-    name: Read compatibility testing exclude list
-    runs-on: [Linux, aux-tasks]
-    outputs:
-      FILTER_6_2: ${{ steps.result.outputs.FILTER_6_2 }}
-      FILTER_6_3: ${{ steps.result.outputs.FILTER_6_3 }}
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        sparse-checkout: |
-          devops/
-    - name: Register cleanup after job is finished
-      uses: ./devops/actions/cleanup
-    - id: result
-      shell: bash
-      run: |
-        # Transform to format expected by `llvm-lit --filter-out "pattern1|pattern2|..."`.
-        # First, remove comments/empty lines, then join lines with "|" as separator.
-        echo FILTER_6_2="$(grep -v '^#\|^\W*$' devops/compat_ci_exclude.sycl-rel-6_2 | paste -sd '|')" >> $GITHUB_OUTPUT
-        echo FILTER_6_3="$(grep -v '^#\|^\W*$' devops/compat_ci_exclude.sycl-rel-6_3 | paste -sd '|')" >> $GITHUB_OUTPUT
-
   E2E:
-    needs: [build, detect_changes, compat_read_exclude]
+    needs: [build, detect_changes]
     if: ${{ !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
     permissions:
       contents: write
@@ -185,27 +164,11 @@ jobs:
             target_devices: level_zero_v2:arch-intel_gpu_mtl_u
             extra_lit_opts: --param test-preview-mode=True
 
-          # We're in an ABI-breaking window, so these don't make sense for now.
-          - name: ABI compatibility / sycl-rel-6_2
-            runner: '["Linux", "pvc"]'
-            image: ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_2
-            target_devices: level_zero:gpu
-            extra_lit_opts: '--param test-preview-mode=False --filter-out "${{ needs.compat_read_exclude.outputs.FILTER_6_2 }}"'
-            binaries_artifact: 'in-container'
-            skip_run: true
-          - name: ABI compatibility / sycl-rel-6_3
-            runner: '["Linux", "pvc"]'
-            image: ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_3
-            target_devices: level_zero:gpu
-            extra_lit_opts: '--param test-preview-mode=False --filter-out "${{ needs.compat_read_exclude.outputs.FILTER_6_3 }}"'
-            binaries_artifact: 'in-container'
-            skip_run: true
-
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
-      image: ${{ matrix.image }}
+      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps-57a456ab30d222aa7794e89496b029f8c8bd4ddb
       image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
       target_devices: ${{ matrix.target_devices }}
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
@@ -225,7 +188,7 @@ jobs:
       env: ${{ matrix.env || (contains(needs.detect_changes.outputs.filters, 'esimd') && '{}' || '{"LIT_FILTER_OUT":"ESIMD/"}') }}
 
   E2E-with-new-offload-model:
-    needs: [build, detect_changes, compat_read_exclude]
+    needs: [build, detect_changes]
     if: |
       !cancelled() &&
       needs.build.outputs.build_conclusion == 'success' &&
@@ -263,7 +226,7 @@ jobs:
     with:
       name: ${{ matrix.name }} with NewOffloadModel
       runner: ${{ matrix.runner }}
-      image: ${{ matrix.image }}
+      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps-57a456ab30d222aa7794e89496b029f8c8bd4ddb
       image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
       target_devices: ${{ matrix.target_devices }}
       extra_lit_opts: ${{ matrix.extra_lit_opts }} --param enable_new_offload_model=True
