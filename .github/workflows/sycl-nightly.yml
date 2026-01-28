@@ -214,6 +214,7 @@ jobs:
 
   e2e-win:
     needs: build-win
+    name: E2E win with ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
     # Continue if build was successful.
     if: |
       !cancelled()
@@ -221,14 +222,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        enable_new_offload_model: ['False', 'True']
+        gpu_type: ['gen12', 'arc', 'bmg']
         include:
-          - name: Intel Gen12 GPU
+          - gpu_type: 'gen12'
+            name: Intel Gen12 GPU
             runner: '["Windows", "gen12"]'
 
-          - name: Intel Arc GPU
+          - gpu_type: 'arc'
+            name: Intel Arc GPU
             runner: '["Windows", "arc"]'
 
-          - name: Intel Battlemage GPU
+          - gpu_type: 'bmg'
+            name: Intel Battlemage GPU
             runner: '["Windows", "bmg"]'
 
     uses: ./.github/workflows/sycl-windows-run-tests.yml
@@ -237,6 +243,7 @@ jobs:
       runner: ${{ matrix.runner }}
       target_devices: level_zero:gpu
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
+      extra_lit_opts: --param enable_new_offload_model=${{ matrix.enable_new_offload_model }}
 
   cuda-aws-start:
     needs: [ubuntu2204_build]
