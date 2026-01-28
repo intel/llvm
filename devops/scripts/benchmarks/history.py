@@ -171,7 +171,7 @@ class BenchmarkHistory:
         if options.build_compute_runtime:
             compute_runtime = options.compute_runtime_tag
         elif options.detect_versions.compute_runtime:
-            log.info("Auto-detecting compute_runtime version...")
+            log.info(f"Auto-detecting compute_runtime version...")
             detect_res = DetectVersion.instance()
             compute_runtime = detect_res.get_compute_runtime_ver()
             if detect_res.get_compute_runtime_ver_cached() is None:

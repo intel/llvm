@@ -261,7 +261,7 @@ runs:
       echo "::endgroup::"
       echo "::group::install_igc"
 
-      # If a custom compute_runtime tag is provided points to a PR, then",
+      # If a custom compute_runtime tag is provided and it points to a PR,
       # install latest IGC release from debs.
       echo "CR_BUILD_REF='${CR_BUILD_REF}'"
       if [[ "${CR_BUILD_REF}" != "" ]] && [[ "${CR_BUILD_REF}" == refs/pull/* ]]; then
@@ -276,7 +276,8 @@ runs:
         echo "IGC_CORE_DEB_URL=$IGC_CORE_DEB_URL"
         echo "IGC_CORE_DEVEL_DEB_URL=$IGC_CORE_DEVEL_DEB_URL"
 
-        mkdir neo_debs && cd neo_debs
+        mkdir neo_debs || true
+        cd neo_debs
         wget -q "$IGC_CORE_DEB_URL"
         wget -q "$IGC_CORE_DEVEL_DEB_URL"
         sudo dpkg -i --force-all *.deb
@@ -327,10 +328,6 @@ runs:
       echo "::endgroup::"
       echo "::group::run_benchmarks"
 
-      # export IGC_OPTION__ARCHITECTURE_TARGET=Linux64
-      # git config user.name "github-actions[bot]"
-      # git config user.email "github-actions[bot]@users.noreply.github.com"
-
       numactl --cpunodebind "$NUMA_NODE" --membind "$NUMA_NODE" \
       ./devops/scripts/benchmarks/main.py "$BENCH_WORKDIR" \
         --sycl "$(realpath $CMPLR_ROOT)" \
@@ -344,7 +341,6 @@ runs:
         --timestamp-override "$SAVE_TIMESTAMP" \
         --detect-version sycl,compute_runtime \
         --produce-github-summary \
-        --verbose \
         ${{ env.CR_BUILD_REF != '' && format('--compute-runtime {0}', env.CR_BUILD_REF) || '' }} \
         ${{ inputs.exit_on_failure == 'true' && '--exit-on-failure --iterations 1' || '' }}
       # TODO: add back: "--flamegraph inclusive" once works properly
