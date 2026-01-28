@@ -71,7 +71,7 @@ jobs:
       matrix:
         include:
           - name: Intel GEN12 Graphics with Level Zero
-            runner: '["Windows","gen12"]'
+            runner: '["Windows","nick_using"]'
           - name: Intel Arc Graphics with Level Zero
             runner: '["Windows","arc"]'
           - name: Intel Battlemage Graphics with Level Zero
@@ -97,7 +97,7 @@ jobs:
       matrix:
         include:
           - name: New Offload Model / Intel GEN12 Graphics with Level Zero
-            runner: '["Windows","gen12"]'
+            runner: '["Windows","nick_using"]'
           - name: New Offload Model / Intel Arc Graphics with Level Zero
             runner: '["Windows","arc"]'
           - name: New Offload Model / Intel Battlemage Graphics with Level Zero

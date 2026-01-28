@@ -127,7 +127,7 @@ jobs:
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: Intel GEN12 Graphics with Level Zero
-      runner: '["Windows","gen12"]'
+      runner: '["Windows","nick_using"]'
       target_devices: "level_zero:gpu"
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
       cxx: icx
