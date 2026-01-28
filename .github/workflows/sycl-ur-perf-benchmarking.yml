@@ -124,9 +124,11 @@ jobs:
       COMMIT_HASH: ${{ inputs.commit_hash }}
       PR_NO: ${{ inputs.pr_no }}
       SAVE_NAME: ${{ inputs.save_name }}
+      CUSTOM_CR: ${{ inputs.custom_cr }}
     outputs:
       benchmark_save_name: ${{ steps.sanitize.outputs.benchmark_save_name }}
       build_ref: ${{ steps.sanitize.outputs.build_ref }}
+      custom_cr: ${{ steps.sanitize.outputs.custom_cr }}
     steps:
       - id: sanitize
         run: |
@@ -144,6 +146,7 @@ jobs:
           validate_if_nonempty "$PR_NO" '^[0-9]+$' "Bad PR number."
           validate_if_nonempty "$SAVE_NAME" '^[A-Za-z][A-Za-z0-9_-]+$' "Bad save name. Use only alphanumerics, dash, underscore, and start with a letter."
           validate_if_nonempty "$SAVE_NAME" '^(?![Bb]+aseline$)' "Save name cannot be 'Baseline' nor 'baseline' - it's reserved for nightly."
+          validate_if_nonempty "$CUSTOM_CR" '^[A-Za-z0-9._/-]+$' "Custom Compute Runtime can be either a proper git ref or 'PR_<no.>'."
 
           BENCHMARK_SAVE_NAME=""
           BUILD_REF="$GITHUB_REF"
@@ -165,6 +168,7 @@ jobs:
 
           echo "benchmark_save_name=$BENCHMARK_SAVE_NAME" >> $GITHUB_OUTPUT
           echo "build_ref=$BUILD_REF" >> $GITHUB_OUTPUT
+          echo "custom_cr='$CUSTOM_CR'" >> $GITHUB_OUTPUT
 
           echo "Final sanitized values:"
           cat $GITHUB_OUTPUT
@@ -211,7 +215,7 @@ jobs:
       benchmark_preset: ${{ inputs.preset }}
       benchmark_exit_on_failure: ${{ inputs.exit_on_failure }}
       benchmark_gdb_mode: ${{ inputs.gdb_mode }}
-      benchmark_custom_cr: ${{ inputs.custom_cr }}
+      benchmark_custom_cr: ${{ needs.sanitize_inputs_dispatch.outputs.custom_cr }}
       repo_ref: ${{ needs.sanitize_inputs_dispatch.outputs.build_ref }}
       toolchain_artifact: ${{ needs.build_sycl_dispatch.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.build_sycl_dispatch.outputs.toolchain_artifact_filename }}
