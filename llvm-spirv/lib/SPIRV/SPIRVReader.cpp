@@ -3452,6 +3452,9 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF, unsigned AS) {
     return Loc->second;
 
   auto IsKernel = isKernel(BF);
+
+  // Backward compatibility: need to correctly translate entry point wrapper
+  // produced by an older writer.
   if (IsKernel) {
     // search for a previous function with the same name
     // upgrade it to a kernel and drop this if it's found

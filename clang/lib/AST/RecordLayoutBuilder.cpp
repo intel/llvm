@@ -3366,8 +3366,11 @@ void MicrosoftRecordLayoutBuilder::computeVtorDispSet(
 }
 
 bool ASTContext::defaultsToMsStruct() const {
+
   return getTargetInfo().hasMicrosoftRecordLayout() ||
-         getTargetInfo().getTriple().isWindowsGNUEnvironment();
+         getTargetInfo().getTriple().isWindowsGNUEnvironment() ||
+         (getLangOpts().SYCLIsDevice && getAuxTargetInfo() &&
+          getAuxTargetInfo()->hasMicrosoftRecordLayout());
 }
 
 /// getASTRecordLayout - Get or compute information about the layout of the

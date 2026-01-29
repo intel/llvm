@@ -5,6 +5,9 @@
 // UNSUPPORTED-INTENDED: Unknown issue with integrated GPU failing
 //                       when importing memory
 
+// UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21159
+
 // XFAIL: windows && arch-intel_gpu_bmg_g21
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20384
 

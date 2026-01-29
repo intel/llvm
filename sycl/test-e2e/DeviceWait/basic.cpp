@@ -3,8 +3,10 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: windows && run-mode && gpu-intel-gen12
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20927
+// UNSUPPORTED: windows && run-mode && gpu-intel-gen12
+// UNSUPPORTED-INTENDED: gen12 doesn't support aspect-ext_oneapi_device_wait.
+// Adding UNSUPPORTED until UR does report lack of
+// aspect-ext_oneapi_device_wait support on gen12.
 
 #include <sycl/detail/core.hpp>
 #include <sycl/properties/all_properties.hpp>
