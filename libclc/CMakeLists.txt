@@ -505,6 +505,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       -D${CLC_TARGET_DEFINE}
       # All libclc builtin libraries see CLC headers
       -I${CMAKE_CURRENT_SOURCE_DIR}/clc/include
+      -include opencl-c-base.h
       # Error on undefined macros
       -Werror=undef
       -fdiscard-value-names
@@ -550,6 +551,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       LIB_FILES ${clc_lib_files}
     )
 
+<<<<<<< HEAD
     if( BUILD_LIBSPIRV_${t} )
       set( spirv_build_flags ${build_flags} )
       list( APPEND spirv_build_flags
@@ -577,6 +579,10 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 
      list( APPEND build_flags
       -Xclang -fdeclare-opencl-builtins -Xclang -finclude-default-header
+=======
+    list( APPEND build_flags
+      -Xclang -fdeclare-opencl-builtins
+>>>>>>> 5b4f424454a0b83411111224b349e3e28f8d58f8
       -I${CMAKE_CURRENT_SOURCE_DIR}/opencl/include
     )  
     set( opencl_build_flags ${build_flags} )
