@@ -546,6 +546,9 @@ public:
   }
 
   ur_program_handle_t get_ur_program() const noexcept { return MProgram; }
+  void set_ur_program(Managed<ur_program_handle_t> &&Program) {
+    MProgram = std::move(Program);
+  }
 
   const RTDeviceBinaryImage *const &get_bin_image_ref() const {
     return std::get<const RTDeviceBinaryImage *>(MBinImage);

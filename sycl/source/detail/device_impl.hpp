@@ -424,9 +424,14 @@ public:
   // Must be called through `platform_impl::getOrMakeDeviceImpl` only.
   // `private_tag` ensures that is true.
   explicit device_impl(ur_device_handle_t Device, platform_impl &Platform,
-                       private_tag);
+                       private_tag, size_t idx);
 
   ~device_impl();
+
+  /// Get the index of the device within the device vector of its platform.
+  ///
+  /// \return the index if the device
+  size_t getIndexWithinPlatform() const { return MIndexWithinPlatform; }
 
   /// Get instance of OpenCL device
   ///
@@ -2291,6 +2296,8 @@ private:
           aspect::ext_oneapi_bindless_images_2d_usm,
           aspect::ext_oneapi_is_composite, aspect::ext_oneapi_is_component>>
       MCache;
+
+  const size_t MIndexWithinPlatform = 0;
 
 }; // class device_impl
 

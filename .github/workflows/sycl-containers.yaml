@@ -13,6 +13,7 @@ on:
       - 'devops/dependencies.json'
       - 'devops/scripts/install_drivers.sh'
       - 'devops/scripts/install_build_tools.sh'
+      - 'devops/scripts/install_vulkan.sh'
       - '.github/workflows/sycl-containers.yaml'
   pull_request:
     paths:
@@ -21,6 +22,7 @@ on:
       - 'devops/dependencies.json'
       - 'devops/scripts/install_drivers.sh'
       - 'devops/scripts/install_build_tools.sh'
+      - 'devops/scripts/install_vulkan.sh'
       - '.github/workflows/sycl-containers.yaml'
 
 concurrency:
