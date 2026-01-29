@@ -45,10 +45,10 @@ unified-runtime/source/adapters/**/command_buffer.* @intel/sycl-graphs-reviewers
 unified-runtime/scripts/core/EXP-COMMAND-BUFFER.rst @intel/sycl-graphs-reviewers
 unified-runtime/scripts/core/exp-command-buffer.yml @intel/sycl-graphs-reviewers
 unified-runtime/test/conformance/exp_command_buffer** @intel/sycl-graphs-reviewers
-unified-runtime/source/adapters/**/image.* @intel/bindless-images-reviewers
-unified-runtime/scripts/core/EXP-BINDLESS-IMAGES.rst @intel/bindless-images-reviewers
-unified-runtime/scripts/core/exp-bindless-images.yml @intel/bindless-images-reviewers
-unified-runtime/test/conformance/exp_bindless_images** @intel/bindless-images-reviewers
+unified-runtime/source/adapters/**/image.* @intel/bindless-images-reviewers @intel/llvm-reviewers-runtime
+unified-runtime/scripts/core/EXP-BINDLESS-IMAGES.rst @intel/bindless-images-reviewers @intel/llvm-reviewers-runtime
+unified-runtime/scripts/core/exp-bindless-images.yml @intel/bindless-images-reviewers @intel/llvm-reviewers-runtime
+unified-runtime/test/conformance/exp_bindless_images** @intel/bindless-images-reviewers @intel/llvm-reviewers-runtime
 sycl/cmake/modules/FetchUnifiedRuntime.cmake @intel/unified-runtime-reviewers
 sycl/cmake/modules/UnifiedRuntimeTag.cmake @intel/unified-runtime-reviewers
 sycl/include/sycl/detail/ur.hpp @intel/unified-runtime-reviewers
@@ -178,11 +178,11 @@ sycl/doc/extensions/**/sycl_ext_oneapi_graph.asciidoc @intel/sycl-graphs-reviewe
 sycl/doc/syclgraph/ @intel/sycl-graphs-reviewers
 
 # bindless images
-sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc @intel/bindless-images-reviewers
-sycl/include/sycl/ext/oneapi/bindless* @intel/bindless-images-reviewers
-sycl/source/detail/bindless* @intel/bindless-images-reviewers
-sycl/test/check_device_code/extensions/bindless_images.cpp @intel/bindless-images-reviewers
-sycl/test-e2e/bindless_images/ @intel/bindless-images-reviewers
+sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc @intel/bindless-images-reviewers @intel/llvm-reviewers-runtime
+sycl/include/sycl/ext/oneapi/bindless* @intel/bindless-images-reviewers @intel/llvm-reviewers-runtime
+sycl/source/detail/bindless* @intel/bindless-images-reviewers @intel/llvm-reviewers-runtime
+sycl/test/check_device_code/extensions/bindless_images.cpp @intel/bindless-images-reviewers @intel/llvm-reviewers-runtime
+sycl/test-e2e/bindless_images/ @intel/bindless-images-reviewers @intel/llvm-reviewers-runtime
 
 # Miscellaneous sycl e2e tests
 sycl/test-e2e/BFloat16/ @intel/dpcpp-tools-reviewers @intel/llvm-reviewers-runtime
