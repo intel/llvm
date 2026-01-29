@@ -1,4 +1,4 @@
-# Copyright (C) 2024-2025 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -40,6 +40,7 @@ def run(
     ld_library=[],
     timeout=None,
     input=None,
+    gdb_mode=False,
 ):
     try:
         if timeout is None:
@@ -48,8 +49,7 @@ def run(
         if isinstance(command, str):
             command = command.split()
 
-        is_gdb_mode = os.environ.get("LLVM_BENCHMARKS_USE_GDB", "") == "1"
-        if any("/compute-benchmarks-build/bin/" in x for x in command) and is_gdb_mode:
+        if gdb_mode:
             command = [
                 "gdb",
                 "-return-child-result",

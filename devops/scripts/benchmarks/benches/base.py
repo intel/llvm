@@ -1,4 +1,4 @@
-# Copyright (C) 2024-2025 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -164,6 +164,7 @@ class Benchmark(ABC):
                 add_sycl=add_sycl,
                 cwd=options.benchmark_cwd,
                 ld_library=ld_libraries,
+                gdb_mode=options.gdb_mode,
             )
         except subprocess.CalledProcessError:
             if run_trace == TracingType.UNITRACE and unitrace_output:
@@ -296,3 +297,10 @@ class Suite(ABC):
 
     def additional_metadata(self) -> dict[str, BenchmarkMetadata]:
         return {}
+
+    @property
+    def _cmake_gdb_args(self) -> str:
+        if options.gdb_mode:
+            return "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=-O2 -g -DNDEBUG -fdebug-info-for-profiling"
+        else:
+            return ""

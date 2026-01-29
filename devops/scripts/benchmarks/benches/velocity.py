@@ -125,7 +125,7 @@ class VelocityBase(Benchmark):
             f"-B {self.build_dir}",
             "-DCMAKE_BUILD_TYPE=Release",
         ]
-        cmd += self.extra_cmake_args()
+        cmd += self.suite._cmake_gdb_args
         run(cmd, {"CC": "clang", "CXX": "clang++"}, add_sycl=True)
 
     def build(self) -> None:
