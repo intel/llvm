@@ -13,6 +13,9 @@
 // XFAIL: windows && intel_gpu_lnl_m
 // XFAIL-TRACKER: CMPLRLLVM-72111
 
+// XFAIL: windows && intel_gpu_lnl_m && O0
+// XFAIL-TRACKER: CMPLRLLVM-72111
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
