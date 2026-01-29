@@ -9,6 +9,7 @@
 #include <sycl/detail/image_ocl_types.hpp>
 #endif
 
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
