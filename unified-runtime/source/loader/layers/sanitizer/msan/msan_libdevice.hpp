@@ -78,6 +78,9 @@ struct MsanRuntimeData {
 // variable have changed
 constexpr std::size_t MSAN_PRIVATE_SIZE = 0xffffffULL + 1;
 
+constexpr uint8_t kMemInitializedMagic = 0;
+constexpr uint8_t kMemUninitializedMagic = 0xff;
+
 constexpr auto kSPIR_MsanDeviceGlobalMetadata = "__MsanDeviceGlobalMetadata";
 constexpr auto kSPIR_MsanSpirKernelMetadata = "__MsanKernelMetadata";
 

@@ -107,12 +107,14 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
 
   // Update shadow memory
   auto EnqueuePoison = [&](const std::vector<ur_device_handle_t> &Devices) {
-    u8 Value = DontCheckHostOrSharedUSM ? 0 : 0xff;
     for (ur_device_handle_t Device : Devices) {
       ManagedQueue Queue(Context, Device);
       std::shared_ptr<DeviceInfo> DI = getDeviceInfo(Device);
       DI->Shadow->EnqueuePoisonShadowWithOrigin(Queue, (uptr)Allocated, Size,
-                                                Value, HeapOrigin.rawId());
+                                                DontCheckHostOrSharedUSM
+                                                    ? &kMemInitializedMagic
+                                                    : &kMemUninitializedMagic,
+                                                HeapOrigin.rawId());
     }
   };
   if (Device) { // shared/device USM
@@ -310,8 +312,8 @@ MsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
            MsanShadowMemoryPVC::IsDeviceUSM(GVInfo.Addr)) ||
           (DeviceInfo->Type == DeviceType::GPU_DG2 &&
            MsanShadowMemoryDG2::IsDeviceUSM(GVInfo.Addr))) {
-        UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, GVInfo.Addr,
-                                                        GVInfo.Size, 0));
+        UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(
+            Queue, GVInfo.Addr, GVInfo.Size, &kMemInitializedMagic));
         ContextInfo->CleanShadowSize =
             std::max(ContextInfo->CleanShadowSize, GVInfo.Size);
       }
@@ -502,9 +504,8 @@ ur_result_t MsanInterceptor::prepareLaunch(
                        ContextInfo->CleanShadowSize, nullptr, nullptr,
                        AllocType::DEVICE_USM,
                        (void **)&LaunchInfo.Data.Host.CleanShadow));
-  UR_CALL(EnqueueUSMSet(Queue, (void *)LaunchInfo.Data.Host.CleanShadow,
-                        (char)0, ContextInfo->CleanShadowSize, 0, nullptr,
-                        nullptr));
+  UR_CALL(EnqueueUSMSetZero(Queue, (void *)LaunchInfo.Data.Host.CleanShadow,
+                            ContextInfo->CleanShadowSize));
 
   if (LaunchInfo.LocalWorkSize.empty()) {
     LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
