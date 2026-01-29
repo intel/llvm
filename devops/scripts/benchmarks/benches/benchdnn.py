@@ -83,6 +83,7 @@ class OneDnnBench(Suite):
             "-DDNNL_CPU_RUNTIME=NONE",  # Disable SYCL CPU support
             "-DDNNL_GPU_RUNTIME=SYCL",  # Enable SYCL GPU support
         ]
+        extra_cmake_args += self._cmake_gdb_args
         self.project.configure(
             extra_cmake_args,
             add_sycl=True,

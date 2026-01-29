@@ -80,6 +80,7 @@ class GromacsBench(Suite):
             "-DGMX_GPU_NB_NUM_CLUSTER_PER_CELL_X=1",
             "-DGMX_OPENMP=OFF",
         ]
+        extra_args += self._cmake_gdb_args
 
         if options.unitrace:
             extra_args.append("-DGMX_USE_ITT=ON")

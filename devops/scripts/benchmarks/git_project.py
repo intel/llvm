@@ -1,4 +1,4 @@
-# Copyright (C) 2025 Intel Corporation
+# Copyright (C) 2025-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -75,8 +75,7 @@ class GitProject:
     ) -> None:
         """Configures the project."""
 
-        is_gdb_mode = os.environ.get("LLVM_BENCHMARKS_USE_GDB", "") == "1"
-        build_type = "RelWithDebInfo" if is_gdb_mode else "Release"
+        build_type = "RelWithDebInfo" if options.gdb_mode else "Release"
 
         cmd = [
             "cmake",

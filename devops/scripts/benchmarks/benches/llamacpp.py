@@ -5,7 +5,6 @@
 
 import csv
 import io
-import os
 from pathlib import Path
 
 from utils.utils import download
@@ -69,6 +68,7 @@ class LlamaCppBench(Suite):
             f"-DSYCL_COMPILER=ON",
             f"-DMKL_DIR={self.oneapi.mkl_cmake()}",
         ]
+        extra_args += self._cmake_gdb_args
         self.project.configure(extra_args, add_sycl=True)
         self.project.build(add_sycl=True, ld_library=self.oneapi.ld_libraries())
 

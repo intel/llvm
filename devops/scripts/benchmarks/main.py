@@ -849,6 +849,7 @@ if __name__ == "__main__":
             parser.error("--github-repo and --git_commit must both be defined together")
         options.github_repo_override = args.github_repo
         options.git_commit_override = args.git_commit
+    options.gdb_mode = os.environ.get("LLVM_BENCHMARKS_USE_GDB", "").lower() in ("1", "on")
 
     # Automatically detect versions:
     if args.detect_version is not None:

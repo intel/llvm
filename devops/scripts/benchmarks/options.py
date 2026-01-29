@@ -1,4 +1,4 @@
-# Copyright (C) 2025 Intel Corporation
+# Copyright (C) 2025-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -108,6 +108,8 @@ class Options:
     # ie. when archiving data older than 7 days, runs older than 21 days are not included.
     archive_baseline_days: int = 30  # Archive Baseline_* runs after 30 days
     archive_pr_days: int = 7  # Archive other (PR/dev) runs after 7 days
+
+    gdb_mode: bool = False
 
     # EWMA Options:
 
