@@ -144,13 +144,8 @@ void CommonCheck() {
   ASSERT_NE(SYCLBINObj, nullptr);
 
   ASSERT_NE(SYCLBINObj->GlobalMetadata.get(), nullptr);
-  SmallString<16> GlobalMetadataKey{
-      PropertySetRegistry::SYCLBIN_GLOBAL_METADATA};
-  const auto &GlobalMetadataIt =
-      SYCLBINObj->GlobalMetadata->getPropSets().find(GlobalMetadataKey);
-  ASSERT_NE(GlobalMetadataIt, SYCLBINObj->GlobalMetadata->end());
-  const PropertySet &GlobalMetadata = GlobalMetadataIt->second;
-  EXPECT_EQ(GlobalMetadata.size(), size_t{1});
+  const PropertySet &GlobalMetadata = *SYCLBINObj->GlobalMetadata;
+  EXPECT_EQ(GlobalMetadata.size(), size_t{2});
 
   SmallString<16> GlobalMetadataStateKey{"state"};
   const auto &GlobalMetadataStateIt =
@@ -162,52 +157,55 @@ void CommonCheck() {
 
   // Currently we have an abstract module per image + 1 entry for global
   // metadata.
-  ASSERT_EQ(SYCLBINObj->getOffloadBinaries().size(), size_t{NumImages + 1});
-  ASSERT_EQ(SYCLBINObj->Metadata.size(), size_t{NumImages});
+  ASSERT_EQ(SYCLBINObj->AbstractModules.size(), size_t{NumImages});
 
   std::vector<decltype(Images)::const_iterator> ImageIts;
   ImageIts.reserve(NumImages);
   size_t ObservedIRModules = 0, ObservedNativeDeviceCodeImages = 0;
-  for (const std::unique_ptr<OffloadBinary> &OBPtr :
-       SYCLBINObj->getOffloadBinaries()) {
-
-    // Skip Global metadata entry.
-    if (OBPtr->getFlags() & OIF_NoImage)
-      continue;
+  for (size_t I = 0; I < NumImages; ++I) {
+    const SYCLBIN::AbstractModule &AM = SYCLBINObj->AbstractModules[I];
 
     // This metadata should be the same as in the corresponding split module,
     // so testing should be expanded to ensure preservation.
-    std::unique_ptr<llvm::util::PropertySetRegistry> &PSR =
-        SYCLBINObj->Metadata[OBPtr.get()];
-    ASSERT_NE(PSR.get(), nullptr);
-    EXPECT_TRUE(PSR->getPropSets().empty());
+    ASSERT_NE(AM.Metadata.get(), nullptr);
+    EXPECT_TRUE(AM.Metadata->getPropSets().empty());
 
-    switch (OBPtr->getImageKind()) {
-    case ImageKind::IMG_SPIRV:
-      // The kind is currently locked to SPIR-V. This will change in the future.
-      ++ObservedIRModules;
+    ObservedIRModules += AM.IRModules.size();
+    for (size_t J = 0; J < AM.IRModules.size(); ++J) {
+      const OffloadBinary *IRM = AM.IRModules[J];
+
+      // The type is currently locked to SPIR-V. This will change in the future.
+      EXPECT_EQ(IRM->getImageKind(), ImageKind::IMG_SPIRV);
+
       // Make sure the triple string is preserved.
-      EXPECT_EQ(OBPtr->getString("triple"), StringRef(IRMTarget));
-      break;
-    case ImageKind::IMG_Object:
-      ++ObservedNativeDeviceCodeImages;
-      // Make sure the arch string is preserved.
-      EXPECT_EQ(OBPtr->getString("arch"), StringRef(Arch));
-      // Make sure the triple string is preserved.
-      EXPECT_EQ(OBPtr->getString("triple"), StringRef(NDCITarget));
-      break;
-    default:
-      FAIL() << "Unexpected ImageKind: "
-             << static_cast<int>(OBPtr->getImageKind());
-      break;
+      EXPECT_EQ(IRM->getString("triple"), StringRef(IRMTarget));
+
+      // Find the image that matches.
+      std::vector<uint8_t> IRImage{IRM->getImage().begin(),
+                                   IRM->getImage().end()};
+      auto ImageMatchIt = std::find(Images.begin(), Images.end(), IRImage);
+      ASSERT_NE(ImageMatchIt, Images.end());
+      ImageIts.push_back(ImageMatchIt);
     }
 
-    // Find the image that matches.
-    std::vector<uint8_t> IRImage{OBPtr->getImage().begin(),
-                                 OBPtr->getImage().end()};
-    auto ImageMatchIt = std::find(Images.begin(), Images.end(), IRImage);
-    ASSERT_NE(ImageMatchIt, Images.end());
-    ImageIts.push_back(ImageMatchIt);
+    ObservedNativeDeviceCodeImages += AM.NativeDeviceCodeImages.size();
+    for (size_t J = 0; J < AM.NativeDeviceCodeImages.size(); ++J) {
+      const OffloadBinary *NDCI = AM.NativeDeviceCodeImages[J];
+
+      // Make sure the arch string is preserved.
+      EXPECT_EQ(NDCI->getString("arch"), StringRef(Arch));
+
+      // Make sure the triple string is preserved.
+      EXPECT_EQ(NDCI->getString("triple"), StringRef(NDCITarget));
+
+      // Find the image that matches.
+      std::vector<uint8_t> RawDeviceCodeImage{NDCI->getImage().begin(),
+                                              NDCI->getImage().end()};
+      auto ImageMatchIt =
+          std::find(Images.begin(), Images.end(), RawDeviceCodeImage);
+      ASSERT_NE(ImageMatchIt, Images.end());
+      ImageIts.push_back(ImageMatchIt);
+    }
   }
   ASSERT_EQ(NumIRModules, ObservedIRModules);
   ASSERT_EQ(NumNativeDeviceCodeImages, ObservedNativeDeviceCodeImages);
