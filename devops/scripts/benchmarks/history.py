@@ -1,4 +1,4 @@
-# Copyright (C) 2024-2025 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -155,15 +155,13 @@ class BenchmarkHistory:
 
         # Check if RUNNER_NAME environment variable has been declared.
         #
-        # Github runners obfusicate hostnames, thus running socket.gethostname()
+        # Github runners obfuscate hostnames, thus running socket.gethostname()
         # twice produces two different hostnames. Since github runners always
         # define a RUNNER_NAME variable, use RUNNER_NAME instead if it exists:
         hostname = os.getenv("RUNNER_NAME")
         if hostname is None:
             hostname = socket.gethostname()
         else:
-            # Ensure RUNNER_NAME has not been tampered with:
-            # TODO is this overkill?
             Validate.runner_name(
                 hostname,
                 throw=ValueError("Illegal characters found in specified RUNNER_NAME."),
@@ -173,7 +171,7 @@ class BenchmarkHistory:
         if options.build_compute_runtime:
             compute_runtime = options.compute_runtime_tag
         elif options.detect_versions.compute_runtime:
-            log.info(f"Auto-detecting compute_runtime version...")
+            log.info("Auto-detecting compute_runtime version...")
             detect_res = DetectVersion.instance()
             compute_runtime = detect_res.get_compute_runtime_ver()
             if detect_res.get_compute_runtime_ver_cached() is None:
