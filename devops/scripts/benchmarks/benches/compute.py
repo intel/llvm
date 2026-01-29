@@ -1455,7 +1455,7 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         self._use_host_tasks = useHostTasks
         self._emulate_graphs = emulate_graphs
         self._native_str = (
-            " native,"
+            " native recording"
             if self._emulate_graphs == 0
             and (runtime == RUNTIMES.UR or runtime == RUNTIMES.LEVEL_ZERO)
             else ""
