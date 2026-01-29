@@ -1,5 +1,5 @@
 ARG base_tag=latest
-ARG base_image=ghcr.io/intel/llvm/ubuntu2404_build
+ARG base_image=ghcr.io/intel/llvm/ubuntu2404_base
 
 FROM $base_image:$base_tag
 
