@@ -107,15 +107,15 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   # Feature-specific compilation and link step setup
 
-  # Unlike for sycl library, for LLVMSupport we have only one version for a given build,
-  # so, we link LLVMSupport lib to matching sycl version only.
+  # Link LLVM libraries (required for SYCLBIN and other LLVM utilities)
+  if(NOT MSVC OR (CMAKE_BUILD_TYPE STREQUAL "Debug" AND ARG_COMPILE_OPTIONS MATCHES ".*MDd.*") OR
+    (NOT CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ARG_COMPILE_OPTIONS MATCHES ".*MDd.*"))
+      add_dependencies(${LIB_NAME} LLVMSupport LLVMObject)
+      target_link_libraries(${LIB_NAME} PRIVATE LLVMSupport LLVMObject)
+  endif()
+
   if (SYCL_ENABLE_STACK_PRINTING)
-    if(NOT MSVC OR (CMAKE_BUILD_TYPE STREQUAL "Debug" AND ARG_COMPILE_OPTIONS MATCHES ".*MDd.*") OR
-      (NOT CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ARG_COMPILE_OPTIONS MATCHES ".*MDd.*"))
-        add_dependencies(${LIB_NAME} LLVMSupport)
-        target_compile_definitions(${LIB_OBJ_NAME} PUBLIC ENABLE_STACK_TRACE)
-        target_link_libraries(${LIB_NAME} PRIVATE LLVMSupport)
-    endif()
+    target_compile_definitions(${LIB_OBJ_NAME} PUBLIC ENABLE_STACK_TRACE)
   endif()
 
   # TODO: Enabled for MSVC
