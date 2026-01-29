@@ -51,8 +51,7 @@ const char *getDeviceTargetSpecFromTriple(std::string_view Triple) {
 } // namespace
 
 SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
-    : SYCLBINContentCopy{ContentCopy(SYCLBINContent, SYCLBINSize)},
-      SYCLBINContentCopySize{SYCLBINSize} {
+    : SYCLBINContentCopy{ContentCopy(SYCLBINContent, SYCLBINSize)} {
   llvm::MemoryBufferRef ContentRef(
       llvm::StringRef(SYCLBINContentCopy.get(), SYCLBINSize), "");
   llvm::Expected<std::unique_ptr<llvm::object::SYCLBIN>> SYCLBINOrErr =
