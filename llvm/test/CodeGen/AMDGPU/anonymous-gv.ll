@@ -1,4 +1,4 @@
-; RUN: llc < %s -mtriple=amdgcn--amdhsa -mcpu=fiji | FileCheck %s
+; RUN: llc < %s -mtriple=amdgcn-amd-amdhsa -mcpu=fiji | FileCheck %s
 
 ; Make sure we don't crash on a global variable with no name.
 @0 = external addrspace(1) global i32

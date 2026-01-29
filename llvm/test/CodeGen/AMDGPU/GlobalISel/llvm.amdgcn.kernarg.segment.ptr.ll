@@ -1,4 +1,4 @@
-; RUN: llc -global-isel -new-reg-bank-select -mtriple=amdgcn--amdhsa -mcpu=kaveri < %s | FileCheck -check-prefixes=CO-V4,HSA,ALL %s
+; RUN: llc -global-isel -new-reg-bank-select -mtriple=amdgcn-amd-amdhsa -mcpu=kaveri < %s | FileCheck -check-prefixes=CO-V4,HSA,ALL %s
 ; RUN: llc -global-isel -new-reg-bank-select -mtriple=amdgcn-mesa-mesa3d -mcpu=hawaii -mattr=+flat-for-global < %s | FileCheck -check-prefixes=CO-V4,OS-MESA3D,ALL %s
 ; RUN: llc -global-isel -new-reg-bank-select -mtriple=amdgcn-mesa-unknown -mcpu=hawaii -mattr=+flat-for-global < %s | FileCheck -check-prefixes=OS-UNKNOWN,ALL %s
 

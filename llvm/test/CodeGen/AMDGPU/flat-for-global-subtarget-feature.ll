@@ -1,5 +1,5 @@
-; RUN: llc < %s -mtriple=amdgcn--amdhsa -mcpu=kaveri -mattr=+flat-for-global | FileCheck -check-prefix=HSA -check-prefix=HSA-DEFAULT -check-prefix=ALL %s
-; RUN: llc < %s -mtriple=amdgcn--amdhsa -mcpu=kaveri -mattr=-flat-for-global | FileCheck -check-prefix=HSA -check-prefix=HSA-NODEFAULT -check-prefix=ALL %s
+; RUN: llc < %s -mtriple=amdgcn-amd-amdhsa -mcpu=kaveri -mattr=+flat-for-global | FileCheck -check-prefix=HSA -check-prefix=HSA-DEFAULT -check-prefix=ALL %s
+; RUN: llc < %s -mtriple=amdgcn-amd-amdhsa -mcpu=kaveri -mattr=-flat-for-global | FileCheck -check-prefix=HSA -check-prefix=HSA-NODEFAULT -check-prefix=ALL %s
 ; RUN: llc < %s -mtriple=amdgcn-- -mcpu=tonga | FileCheck -check-prefix=HSA-NOADDR64 -check-prefix=ALL %s
 ; RUN: llc < %s -mtriple=amdgcn-- -mcpu=kaveri -mattr=-flat-for-global | FileCheck -check-prefix=NOHSA-DEFAULT -check-prefix=ALL %s
 ; RUN: llc < %s -mtriple=amdgcn-- -mcpu=kaveri -mattr=+flat-for-global | FileCheck -check-prefix=NOHSA-NODEFAULT -check-prefix=ALL %s

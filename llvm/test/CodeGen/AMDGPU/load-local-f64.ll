@@ -1,5 +1,5 @@
 ; RUN: llc -mtriple=amdgcn < %s | FileCheck -check-prefixes=GCN,FUNC %s
-; RUN: llc -mtriple=amdgcn--amdhsa -mcpu=kaveri -mattr=-enable-ds128 < %s | FileCheck -check-prefixes=GCN,FUNC %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=kaveri -mattr=-enable-ds128 < %s | FileCheck -check-prefixes=GCN,FUNC %s
 ; RUN: llc -mtriple=amdgcn -mcpu=tonga -mattr=-enable-ds128 < %s | FileCheck -check-prefixes=GCN,FUNC %s
 ; RUN: llc -mtriple=amdgcn -mcpu=gfx900 -mattr=-enable-ds128 < %s | FileCheck -check-prefixes=GCN,GFX9,FUNC %s
 ; RUN: llc -mtriple=r600 -mcpu=redwood < %s | FileCheck -check-prefixes=EG,FUNC %s

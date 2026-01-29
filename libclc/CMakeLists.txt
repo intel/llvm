@@ -45,7 +45,12 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
 
 set( LIBCLC_MIN_LLVM 3.9.0 )
 
-set( LIBCLC_TARGETS_TO_BUILD "all"
+# A runtimes cross-build should only use the requested target.
+set( LIBCLC_DEFAULT_TARGET "all" )
+if( LLVM_RUNTIMES_BUILD AND LLVM_DEFAULT_TARGET_TRIPLE MATCHES "^nvptx|^amdgcn" )
+  set( LIBCLC_DEFAULT_TARGET ${LLVM_DEFAULT_TARGET_TRIPLE} )
+endif()
+set( LIBCLC_TARGETS_TO_BUILD ${LIBCLC_DEFAULT_TARGET}
     CACHE STRING "Semicolon-separated list of libclc targets to build, or 'all'." )
 
 option( ENABLE_RUNTIME_SUBNORMAL "Enable runtime linking of subnormal support." OFF )
@@ -92,7 +97,10 @@ else()
   # In-tree configuration
   set( LIBCLC_STANDALONE_BUILD FALSE )
 
-  set( LLVM_PACKAGE_VERSION ${LLVM_VERSION} )
+  if( NOT LLVM_PACKAGE_VERSION )
+    set( LLVM_PACKAGE_VERSION ${LLVM_VERSION} )
+  endif()
+  set( PACKAGE_VERSION ${LLVM_PACKAGE_VERSION} )
 
   # Note that we check this later (for both build types) but we can provide a
   # more useful error message when built in-tree. We assume that LLVM tools are
@@ -167,19 +175,17 @@ endif()
 # List of all targets. Note that some are added dynamically below.
 set( LIBCLC_TARGETS_ALL
   amdgcn--
-  amdgcn--amdhsa
+  amdgcn-amd-amdhsa
   clspv--
   clspv64--
   r600--
-  nvptx--
   nvptx64--
-  nvptx--nvidiacl
   nvptx64--nvidiacl
+  nvptx64-nvidia-cuda
 )
 set( LIBCLC_TEST_TARGETS_ALL
-  nvptx--nvidiacl
   nvptx64--nvidiacl
-  amdgcn--amdhsa
+  amdgcn-amd-amdhsa
 )
 
 # The mesa3d environment is only available since LLVM 4.0
@@ -239,20 +245,19 @@ endforeach(t)
 # headers are not $build/include/ which is what LLVM_INCLUDE_DIR is set to.
 include_directories( ${LLVM_INCLUDE_DIRS} )
 
-# Configure prepare_builtins
+# Configure libclc-remangler tool
 add_subdirectory( utils )
 
 # Setup arch devices
 set( r600--_devices cedar cypress barts cayman )
 set( amdgcn--_devices tahiti )
 set( amdgcn-mesa-mesa3d_devices ${amdgcn--_devices} )
-set( amdgcn--amdhsa_devices none )
+set( amdgcn-amd-amdhsa_devices none )
 set( clspv--_devices none )
 set( clspv64--_devices none )
-set( nvptx--_devices none )
 set( nvptx64--_devices none )
-set( nvptx--nvidiacl_devices none )
 set( nvptx64--nvidiacl_devices none )
+set( nvptx64-nvidia-cuda_devices none )
 set( spirv-mesa3d-_devices none )
 set( spirv64-mesa3d-_devices none )
 set( native_cpu_devices none )
@@ -345,7 +350,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
   endif()
 
   # Some targets' directories alias others
-  if( ${ARCH} STREQUAL nvptx OR ${ARCH} STREQUAL nvptx64 )
+  if( ${ARCH} STREQUAL nvptx64 )
     set( DARCH ptx )
   elseif( ${ARCH} STREQUAL clspv OR ${ARCH} STREQUAL clspv64 )
     set( DARCH clspv )
@@ -355,6 +360,9 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     set( DARCH amdgcn-amdhsa )
   else()
     set( DARCH ${ARCH} )
+  endif()
+  if ( "${OS}" STREQUAL cuda )
+    set( OS nvidiacl )
   endif()
 
   # Append a variety of target- and triple-based directories to search,
@@ -400,7 +408,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
   )
 
   set( BUILD_LIBSPIRV_${t} FALSE )
-  if ( t STREQUAL amdgcn--amdhsa OR t STREQUAL nvptx64--nvidiacl OR t STREQUAL native_cpu )
+  if ( t STREQUAL amdgcn-amd-amdhsa OR t STREQUAL nvptx64--nvidiacl OR t STREQUAL native_cpu )
     set( libspirv_lib_files )
     set( BUILD_LIBSPIRV_${t} TRUE )
 
@@ -459,7 +467,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       # Disable NVVM reflection to deferring to after linking
       list( APPEND build_flags -Xclang -target-feature -Xclang +ptx72
            -march=sm_86 -mllvm --nvvm-reflect-enable=false )
-    elseif( t STREQUAL amdgcn--amdhsa )
+    elseif( t STREQUAL amdgcn-amd--amdhsa )
       # Disable AMDGPU reflection, deferring to after linking
       list( APPEND build_flags -mllvm --amdgpu-oclc-reflect-enable=false )
     endif()

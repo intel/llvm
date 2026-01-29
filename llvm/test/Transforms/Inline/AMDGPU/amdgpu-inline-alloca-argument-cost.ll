@@ -1,4 +1,4 @@
-; RUN: opt -mtriple=amdgcn--amdhsa -S -passes=inline -inline-threshold=0 -debug-only=inline-cost %s 2>&1 | FileCheck %s
+; RUN: opt -mtriple=amdgcn-amd-amdhsa -S -passes=inline -inline-threshold=0 -debug-only=inline-cost %s 2>&1 | FileCheck %s
 
 ; REQUIRES: asserts
 

@@ -78,7 +78,13 @@ FunctionPass *createX86FixupLEAsLegacyPass();
 
 /// Return a pass that replaces equivalent slower instructions with faster
 /// ones.
-FunctionPass *createX86FixupInstTuning();
+class X86FixupInstTuningPass : public PassInfoMixin<X86FixupInstTuningPass> {
+public:
+  PreservedAnalyses run(MachineFunction &MF,
+                        MachineFunctionAnalysisManager &MFAM);
+};
+
+FunctionPass *createX86FixupInstTuningLegacyPass();
 
 /// Return a pass that reduces the size of vector constant pool loads.
 FunctionPass *createX86FixupVectorConstants();
@@ -94,7 +100,13 @@ public:
 FunctionPass *createX86OptimizeLEAsLegacyPass();
 
 /// Return a pass that transforms setcc + movzx pairs into xor + setcc.
-FunctionPass *createX86FixupSetCC();
+class X86FixupSetCCPass : public PassInfoMixin<X86FixupSetCCPass> {
+public:
+  PreservedAnalyses run(MachineFunction &MF,
+                        MachineFunctionAnalysisManager &MFAM);
+};
+
+FunctionPass *createX86FixupSetCCLegacyPass();
 
 /// Return a pass that avoids creating store forward block issues in the
 /// hardware.
@@ -141,7 +153,13 @@ public:
 FunctionPass *createX86FastPreTileConfigLegacyPass();
 
 /// Return a pass that config the tile registers after fast reg allocation.
-FunctionPass *createX86FastTileConfigPass();
+class X86FastTileConfigPass : public PassInfoMixin<X86FastTileConfigPass> {
+public:
+  PreservedAnalyses run(MachineFunction &MF,
+                        MachineFunctionAnalysisManager &MFAM);
+};
+
+FunctionPass *createX86FastTileConfigLegacyPass();
 
 /// Return a pass that insert pseudo tile config instruction.
 FunctionPass *createX86PreTileConfigPass();
@@ -204,7 +222,13 @@ FunctionPass *createX86CmovConversionLegacyPass();
 /// certain byte and word instructions by equivalent 32 bit instructions,
 /// in order to eliminate partial register usage, false dependences on
 /// the upper portions of registers, and to save code size.
-FunctionPass *createX86FixupBWInsts();
+class X86FixupBWInstsPass : public PassInfoMixin<X86FixupBWInstsPass> {
+public:
+  PreservedAnalyses run(MachineFunction &MF,
+                        MachineFunctionAnalysisManager &MFAM);
+};
+
+FunctionPass *createX86FixupBWInstsLegacyPass();
 
 /// Return a Machine IR pass that reassigns instruction chains from one domain
 /// to another, when profitable.
@@ -296,11 +320,11 @@ FunctionPass *createX86ArgumentStackSlotPass();
 FunctionPass *createX86SuppressAPXForRelocationPass();
 
 void initializeCompressEVEXLegacyPass(PassRegistry &);
-void initializeFixupBWInstPassPass(PassRegistry &);
+void initializeX86FixupBWInstLegacyPass(PassRegistry &);
 void initializeFixupLEAsLegacyPass(PassRegistry &);
 void initializeX86ArgumentStackSlotPassPass(PassRegistry &);
 void initializeX86AsmPrinterPass(PassRegistry &);
-void initializeX86FixupInstTuningPassPass(PassRegistry &);
+void initializeX86FixupInstTuningLegacyPass(PassRegistry &);
 void initializeX86FixupVectorConstantsPassPass(PassRegistry &);
 void initializeWinEHStatePassPass(PassRegistry &);
 void initializeX86AvoidSFBLegacyPass(PassRegistry &);
@@ -314,8 +338,8 @@ void initializeX86ExecutionDomainFixPass(PassRegistry &);
 void initializeX86ExpandPseudoLegacyPass(PassRegistry &);
 void initializeX86FPStackifierLegacyPass(PassRegistry &);
 void initializeX86FastPreTileConfigLegacyPass(PassRegistry &);
-void initializeX86FastTileConfigPass(PassRegistry &);
-void initializeX86FixupSetCCPassPass(PassRegistry &);
+void initializeX86FastTileConfigLegacyPass(PassRegistry &);
+void initializeX86FixupSetCCLegacyPass(PassRegistry &);
 void initializeX86FlagsCopyLoweringLegacyPass(PassRegistry &);
 void initializeX86LoadValueInjectionLoadHardeningPassPass(PassRegistry &);
 void initializeX86LoadValueInjectionRetHardeningPassPass(PassRegistry &);

@@ -1,4 +1,4 @@
-; RUN: llc -mtriple=amdgcn--amdhsa -mcpu=kaveri < %s | FileCheck -check-prefix=GCN %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=kaveri < %s | FileCheck -check-prefix=GCN %s
 ; RUN: not llc -mtriple=amdgcn-unknown-unknown -mcpu=kaveri < %s 2>&1 | FileCheck -check-prefix=ERROR %s
 
 ; ERROR: in function test{{.*}}: unsupported hsa intrinsic without hsa target

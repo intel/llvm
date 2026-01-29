@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -emit-llvm -o - -triple amdgcn--amdhsa %s | FileCheck --check-prefix=AMDGCN %s
+// RUN: %clang_cc1 -emit-llvm -o - -triple amdgcn-amd-amdhsa %s | FileCheck --check-prefix=AMDGCN %s
 // RUN: %clang_cc1 -emit-llvm -o - -triple x86_64-unknown-unknown %s | FileCheck --check-prefix=X86 %s
 
 #ifdef __AMDGCN__
