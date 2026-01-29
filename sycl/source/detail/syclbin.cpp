@@ -83,33 +83,27 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
   }
 
   ParsedSYCLBIN = std::move(*SYCLBINOrErr);
-  // look again at this code.
-  GlobalMetadata =
-      &((*(ParsedSYCLBIN->GlobalMetadata))
-            [llvm::util::PropertySetRegistry::SYCLBIN_GLOBAL_METADATA]);
 
   AbstractModuleDescriptors = std::unique_ptr<AbstractModuleDesc[]>(
-      new AbstractModuleDesc[getNumAbstractModules()]);
+      new AbstractModuleDesc[ParsedSYCLBIN->AbstractModules.size()]);
 
-  DeviceBinaries.reserve(ParsedSYCLBIN->Metadata.size());
+  size_t NumBinaries = 0;
+  for (const llvm::object::SYCLBIN::AbstractModule &AM :
+       ParsedSYCLBIN->AbstractModules)
+    NumBinaries += AM.IRModules.size() + AM.NativeDeviceCodeImages.size();
+  DeviceBinaries.reserve(NumBinaries);
   BinaryImages = std::unique_ptr<RTDeviceBinaryImage[]>(
-      new RTDeviceBinaryImage[ParsedSYCLBIN->Metadata.size()]);
+      new RTDeviceBinaryImage[NumBinaries]);
 
   RTDeviceBinaryImage *CurrentBinaryImagesStart = BinaryImages.get();
-  for (const auto &OBPtr : ParsedSYCLBIN->getOffloadBinaries()) {
-    if (OBPtr->getFlags() & llvm::object::OIF_NoImage)
-      continue;
-    
-    uint32_t I;
-    OBPtr->getString("syclbin_abstract_module_id").getAsInteger(10, I);
-
+  for (size_t I = 0; I < ParsedSYCLBIN->AbstractModules.size(); ++I) {
+    llvm::object::SYCLBIN::AbstractModule &AM =
+        ParsedSYCLBIN->AbstractModules[I];
     AbstractModuleDesc &AMDesc = AbstractModuleDescriptors[I];
 
-    // Set up the abstract module descriptor if it was not setup yet.
-    if (AMDesc.NumJITBinaries == 0 && AMDesc.NumNativeBinaries == 0) {
-      OBPtr->getString("syclbin_num_ir_modules").getAsInteger(10, AMDesc.NumJITBinaries);
-      OBPtr->getString("syclbin_num_native_images").getAsInteger(10, AMDesc.NumNativeBinaries);
-    }
+    // Set up the abstract module descriptor.
+    AMDesc.NumJITBinaries = AM.IRModules.size();
+    AMDesc.NumNativeBinaries = AM.NativeDeviceCodeImages.size();
     AMDesc.JITBinaries = CurrentBinaryImagesStart;
     AMDesc.NativeBinaries = CurrentBinaryImagesStart + AMDesc.NumJITBinaries;
     CurrentBinaryImagesStart +=
@@ -120,7 +114,7 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
         convertAbstractModuleProperties(AM);
 
     for (size_t J = 0; J < AM.IRModules.size(); ++J) {
-      SYCLBIN::IRModule &IRM = AM.IRModules[J];
+      const llvm::object::OffloadBinary *IRM = AM.IRModules[J];
 
       sycl_device_binary_struct &DeviceBinary = DeviceBinaries.emplace_back();
       DeviceBinary.Version = SYCL_DEVICE_BINARY_VERSION;
@@ -131,9 +125,9 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
       DeviceBinary.CompileOptions = nullptr;
       DeviceBinary.LinkOptions = nullptr;
       DeviceBinary.BinaryStart =
-          reinterpret_cast<const unsigned char *>(IRM.RawIRBytes.data());
+          reinterpret_cast<const unsigned char *>(IRM->getImage().data());
       DeviceBinary.BinaryEnd = reinterpret_cast<const unsigned char *>(
-          IRM.RawIRBytes.data() + IRM.RawIRBytes.size());
+          IRM->getImage().data() + IRM->getImage().size());
       DeviceBinary.EntriesBegin = nullptr;
       DeviceBinary.EntriesEnd = nullptr;
       DeviceBinary.PropertySetsBegin = BinPropertySets.data();
@@ -144,30 +138,20 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
     }
 
     for (size_t J = 0; J < AM.NativeDeviceCodeImages.size(); ++J) {
-      const SYCLBIN::NativeDeviceCodeImage &NDCI = AM.NativeDeviceCodeImages[J];
-
-      assert(NDCI.Metadata != nullptr);
-      PropertySet &NDCIMetadataProps = (*NDCI.Metadata)
-          [PropertySetRegistry::SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA];
-
-      auto &TargetTripleProp = NDCIMetadataProps["target"];
-      std::string_view TargetTriple = std::string_view{
-          reinterpret_cast<const char *>(TargetTripleProp.asByteArray()),
-          TargetTripleProp.getByteArraySize()};
+      const llvm::object::OffloadBinary *NDCI = AM.NativeDeviceCodeImages[J];
 
       sycl_device_binary_struct &DeviceBinary = DeviceBinaries.emplace_back();
       DeviceBinary.Version = SYCL_DEVICE_BINARY_VERSION;
       DeviceBinary.Kind = 4;
       DeviceBinary.Format = SYCL_DEVICE_BINARY_TYPE_NATIVE;
       DeviceBinary.DeviceTargetSpec =
-          getDeviceTargetSpecFromTriple(TargetTriple);
+          getDeviceTargetSpecFromTriple(NDCI->getTriple());
       DeviceBinary.CompileOptions = nullptr;
       DeviceBinary.LinkOptions = nullptr;
-      DeviceBinary.BinaryStart = reinterpret_cast<const unsigned char *>(
-          NDCI.RawDeviceCodeImageBytes.data());
+      DeviceBinary.BinaryStart =
+          reinterpret_cast<const unsigned char *>(NDCI->getImage().data());
       DeviceBinary.BinaryEnd = reinterpret_cast<const unsigned char *>(
-          NDCI.RawDeviceCodeImageBytes.data() +
-          NDCI.RawDeviceCodeImageBytes.size());
+          NDCI->getImage().data() + NDCI->getImage().size());
       DeviceBinary.EntriesBegin = nullptr;
       DeviceBinary.EntriesEnd = nullptr;
       DeviceBinary.PropertySetsBegin = BinPropertySets.data();
@@ -180,7 +164,8 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
 }
 
 std::vector<_sycl_device_binary_property_set_struct> &
-SYCLBINBinaries::convertAbstractModuleProperties(std::unique_ptr<llvm::util::PropertySetRegistry> Metadata) {
+SYCLBINBinaries::convertAbstractModuleProperties(
+    llvm::object::SYCLBIN::AbstractModule &AM) {
   std::vector<_sycl_device_binary_property_set_struct> &BinPropertySets =
       BinaryPropertySets.emplace_back();
   BinPropertySets.reserve(AM.Metadata->getPropSets().size());
@@ -234,7 +219,7 @@ SYCLBINBinaries::getBestCompatibleImages(device_impl &Dev, bundle_state State) {
   };
 
   std::vector<const RTDeviceBinaryImage *> Images;
-  for (size_t I = 0; I < getNumAbstractModules(); ++I) {
+  for (size_t I = 0; I < ParsedSYCLBIN->AbstractModules.size(); ++I) {
     const AbstractModuleDesc &AMDesc = AbstractModuleDescriptors[I];
     // If the target state is executable, try with native images first.
     if (State == bundle_state::executable) {
@@ -268,7 +253,7 @@ SYCLBINBinaries::getBestCompatibleImages(devices_range Devs,
 std::vector<const RTDeviceBinaryImage *>
 SYCLBINBinaries::getNativeBinaryImages(device_impl &Dev) {
   std::vector<const RTDeviceBinaryImage *> Images;
-  for (size_t I = 0; I < getNumAbstractModules(); ++I) {
+  for (size_t I = 0; I < ParsedSYCLBIN->AbstractModules.size(); ++I) {
     const AbstractModuleDesc &AMDesc = AbstractModuleDescriptors[I];
     // If the target state is executable, try with native images first.
 

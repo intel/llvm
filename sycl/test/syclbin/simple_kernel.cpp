@@ -25,10 +25,9 @@ void TestKernel(int *Ptr, int Size) {
 // CHECK-INPUT:            state: 0
 // CHECK-OBJECT:           state: 1
 // CHECK-EXECUTABLE:       state: 2
-// CHECK-GENERAL:      Abstract Module ID: 0
-// CHECK-GENERAL-NEXT: Image Kind: spv
-// CHECK-GENERAL-NEXT: Triple: spir64-unknown-unknown
-// CHECK-GENERAL-NEXT: Arch:
+// CHECK-GENERAL:          abstract_modules_num: 1
+// CHECK-GENERAL-NEXT: Number of Abstract Modules: 1
+// CHECK-GENERAL-NEXT: Abstract Module 0:
 // CHECK-GENERAL-NEXT: Metadata:
 // CHECK-GENERAL-NEXT:   SYCL/device requirements:
 // CHECK-GENERAL-NEXT:     aspects:
@@ -36,4 +35,10 @@ void TestKernel(int *Ptr, int Size) {
 // CHECK-GENERAL-NEXT:     __sycl_kernel_TestKernel: 1
 // CHECK-GENERAL-NEXT:   SYCL/misc properties:
 // CHECK-GENERAL-NEXT:     optLevel: 2
-// CHECK-GENERAL-NEXT: Raw bytes: <Binary blob of {{.*}} bytes>
+// CHECK-GENERAL-NEXT:  Number of IR Modules: 1
+// CHECK-GENERAL-NEXT:  IR module 0:
+// CHECK-GENERAL-NEXT:    Image Kind: spv
+// CHECK-GENERAL-NEXT:    Triple: spir64-unknown-unknown
+// CHECK-GENERAL-NEXT:    Arch:
+// CHECK-GENERAL-NEXT:    Raw bytes: <Binary blob of {{.*}} bytes>
+// CHECK-GENERAL-NEXT:  Number of Native Device Code Images: 0

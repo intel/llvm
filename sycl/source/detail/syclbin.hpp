@@ -52,28 +52,19 @@ struct SYCLBINBinaries {
 
   uint8_t getState() const {
     return static_cast<uint8_t>(
-        GlobalMetadata->at(llvm::util::PropertySet::key_type{"state"})
+        ParsedSYCLBIN->GlobalMetadata
+            ->at(llvm::util::PropertySet::key_type{"state"})
             .asUint32());
   }
 
 private:
   std::vector<_sycl_device_binary_property_set_struct> &
-  convertAbstractModuleProperties(
-      std::unique_ptr<llvm::util::PropertySetRegistry> Metadata);
-
-  // this maybe not needed after all
-      size_t getNumAbstractModules() const {
-    return GlobalMetadata
-        ->at(llvm::util::PropertySet::key_type{"abstract_modules_num"})
-        .asUint32();
-  }
+  convertAbstractModuleProperties(llvm::object::SYCLBIN::AbstractModule &AM);
 
   std::unique_ptr<char[]> SYCLBINContentCopy = nullptr;
   size_t SYCLBINContentCopySize = 0;
 
   std::unique_ptr<llvm::object::SYCLBIN> ParsedSYCLBIN;
-  // this maybe not needed after all.
-  llvm::util::PropertySet* GlobalMetadata;
 
   // Buffers for holding entries in the binary structs alive.
   std::vector<std::vector<_sycl_offload_entry_struct>> BinaryOffloadEntries;

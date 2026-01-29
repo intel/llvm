@@ -62,27 +62,32 @@ std::string PropertyValueToString(const llvm::util::PropertyValue &PropVal) {
   return "!UNKNOWN PROPERTY VALUE TYPE!";
 }
 
+void PrintPropertySet(raw_ostream &OS, StringRef Name,
+                      const llvm::util::PropertySet &PropertySet) {
+  ScopedIndent Ind;
+  OS << Ind << Name << ":\n";
+  for (auto &PropertyValue : PropertySet) {
+    ScopedIndent Ind;
+    std::string PropValStr = PropertyValueToString(PropertyValue.second);
+    // If there is a newline in the value, start at next line and do
+    // proper indentation.
+    std::regex NewlineRegex{"\r\n|\r|\n"};
+    if (std::smatch Match;
+        std::regex_search(PropValStr, Match, NewlineRegex)) {
+      ScopedIndent Ind;
+      PropValStr = "\n" + Ind.str() + PropValStr;
+      // Add indentation to newlines in the returned string.
+      PropValStr =
+          std::regex_replace(PropValStr, NewlineRegex, "\n" + Ind.str());
+    }
+    OS << Ind << PropertyValue.first << ": " << PropValStr << "\n";
+  }
+}
+
 void PrintProperties(raw_ostream &OS,
                      llvm::util::PropertySetRegistry &Properties) {
   for (auto &PropertySet : Properties) {
-    ScopedIndent Ind;
-    OS << Ind << PropertySet.first << ":\n";
-    for (auto &PropertyValue : PropertySet.second) {
-      ScopedIndent Ind;
-      std::string PropValStr = PropertyValueToString(PropertyValue.second);
-      // If there is a newline in the value, start at next line and do
-      // proper indentation.
-      std::regex NewlineRegex{"\r\n|\r|\n"};
-      if (std::smatch Match;
-          std::regex_search(PropValStr, Match, NewlineRegex)) {
-        ScopedIndent Ind;
-        PropValStr = "\n" + Ind.str() + PropValStr;
-        // Add indentation to newlines in the returned string.
-        PropValStr =
-            std::regex_replace(PropValStr, NewlineRegex, "\n" + Ind.str());
-      }
-      OS << Ind << PropertyValue.first << ": " << PropValStr << "\n";
-    }
+    PrintPropertySet(OS, PropertySet.first, PropertySet.second);
   }
 }
 
@@ -145,23 +150,60 @@ int main(int argc, char **argv) {
       std::move(*SYCLBINPtrOrErr);
 
   OS << "Global metadata:\n";
-  PrintProperties(OS, *(ParsedSYCLBIN->GlobalMetadata));
+  PrintPropertySet(OS, "SYCLBIN/global metadata",
+                   *(ParsedSYCLBIN->GlobalMetadata));
 
-  for (const auto &OBPtr : ParsedSYCLBIN->getOffloadBinaries()) {
-    if (OBPtr->getFlags() & llvm::object::OIF_NoImage)
-      continue;
-    OS << "Abstract Module ID: "
-       << OBPtr->getString("syclbin_abstract_module_id") << "\n";
-    OS << "Image Kind: "
-       << llvm::object::getImageKindName(OBPtr->getImageKind()).str() << "\n";
-    OS << "Triple: " << OBPtr->getString("triple").str() << "\n";
-    OS << "Arch: " << OBPtr->getString("arch").str() << "\n";
+  OS << "Number of Abstract Modules: " << ParsedSYCLBIN->AbstractModules.size()
+     << "\n";
 
-    OS << "Metadata:\n";
-    PrintProperties(OS, *ParsedSYCLBIN->Metadata[OBPtr.get()]);
+  for (size_t I = 0; I < ParsedSYCLBIN->AbstractModules.size(); ++I) {
+    const llvm::object::SYCLBIN::AbstractModule &AM =
+        ParsedSYCLBIN->AbstractModules[I];
 
-    OS << "Raw bytes: <Binary blob of " << OBPtr->getImage().size()
-       << " bytes>\n";
+    OS << "Abstract Module " << I << ":\n";
+
+    ScopedIndent Ind;
+
+    // Metadata.
+    OS << Ind << "Metadata:\n";
+    PrintProperties(OS, *AM.Metadata);
+
+    // IR Modules.
+    OS << Ind << "Number of IR Modules: " << AM.IRModules.size() << "\n";
+    for (size_t J = 0; J < AM.IRModules.size(); ++J) {
+      const llvm::object::OffloadBinary *IRM = AM.IRModules[J];
+      OS << Ind << "IR module " << J << ":\n";
+      {
+        ScopedIndent Ind;
+        OS << Ind << "Image Kind: "
+           << llvm::object::getImageKindName(IRM->getImageKind()).str()
+           << "\n";
+        OS << Ind << "Triple: " << IRM->getString("triple").str() << "\n";
+        OS << Ind << "Arch: " << IRM->getString("arch").str() << "\n";
+
+        OS << Ind << "Raw bytes: <Binary blob of " << IRM->getImage().size()
+           << " bytes>\n";
+      }
+    }
+
+    // Native device code images.
+    OS << Ind << "Number of Native Device Code Images: "
+       << AM.NativeDeviceCodeImages.size() << "\n";
+    for (size_t J = 0; J < AM.NativeDeviceCodeImages.size(); ++J) {
+      const llvm::object::OffloadBinary *NDCI = AM.NativeDeviceCodeImages[J];
+      OS << Ind << "Native device code image " << J << ":\n";
+      {
+        ScopedIndent Ind;
+        OS << Ind << "Image Kind: "
+           << llvm::object::getImageKindName(NDCI->getImageKind()).str()
+           << "\n";
+        OS << Ind << "Triple: " << NDCI->getString("triple").str() << "\n";
+        OS << Ind << "Arch: " << NDCI->getString("arch").str() << "\n";
+
+        OS << Ind << "Raw bytes: <Binary blob of " << NDCI->getImage().size()
+           << " bytes>\n";
+      }
+    }
   }
 
   return 0;
