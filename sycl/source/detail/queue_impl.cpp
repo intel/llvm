@@ -491,11 +491,7 @@ EventImplPtr queue_impl::submit_barrier_direct_impl(
       }
     }
 
-    auto CGBarrier = std::make_unique<detail::CGBarrier>(
-        DepEventImpls, ext::oneapi::experimental::event_mode_enum::none, CGData,
-        CGType::BarrierWaitlist, CodeLoc);
-    detail::ExecCGCommand cmd(std::move(CGBarrier), this, false);
-    UrDepEvents = cmd.getUrEventsBlocking(DepEventImpls, false);
+    UrDepEvents = getUrEventsBlocking(DepEventImpls, false, *this, false);
   }
 
   auto ResEvent = detail::event_impl::create_device_event(*this);
