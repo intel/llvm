@@ -68,17 +68,16 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
           "Failed to parse SYCLBIN file: " +
               llvm::toString(std::move(FirstError)) +
               " Failed to parse Offload Binary: " +
-              llvm::toString(std::move(OffloadBinaryVecOrError.takeError())));
+              llvm::toString(OffloadBinaryVecOrError.takeError()));
     }
 
     consumeError(std::move(FirstError));
     SYCLBINOrErr = llvm::object::SYCLBIN::read(llvm::MemoryBufferRef(
         OffloadBinaryVecOrError->front()->getImage(), ""));
     if (!SYCLBINOrErr) {
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "Failed to parse SYCLBIN file: " +
-              llvm::toString(std::move(SYCLBINOrErr.takeError())));
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Failed to parse SYCLBIN file: " +
+                                llvm::toString(SYCLBINOrErr.takeError()));
     }
   }
 

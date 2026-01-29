@@ -2357,7 +2357,7 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
             // Add to WrappedOutput directly rather than combining this with the
             // below because WrappedOutput holds references and
             // SplitModules[I].ModuleFilePath will go out of scope too soon.
-            std::scoped_lock Guard(ImageMtx);
+            std::scoped_lock<std::mutex> Guard(ImageMtx);
             WrappedOutput.push_back(*ClangOutputOrErr);
           }
         }
@@ -2382,7 +2382,7 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         // separate path inside 'linkDevice' call seen above.
         // This will eventually be refactored to use the 'common' wrapping logic
         // that is used for other offload kinds.
-        std::scoped_lock Guard(ImageMtx);
+        std::scoped_lock<std::mutex> Guard(ImageMtx);
         WrappedOutput.push_back(*OutputFile);
       }
     }

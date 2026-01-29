@@ -435,7 +435,7 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
   OffloadBinariesOrErr = OffloadBinary::create(
       MemoryBufferRef(NewSYCLBIN, Source.getBufferIdentifier()));
   if (!OffloadBinariesOrErr)
-    return std::move(OffloadBinariesOrErr.takeError());
+    return OffloadBinariesOrErr.takeError();
 
   return create(std::move(*OffloadBinariesOrErr));
 }

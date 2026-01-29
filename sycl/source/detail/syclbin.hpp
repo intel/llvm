@@ -62,8 +62,6 @@ private:
   convertAbstractModuleProperties(llvm::object::SYCLBIN::AbstractModule &AM);
 
   std::unique_ptr<char[]> SYCLBINContentCopy = nullptr;
-  size_t SYCLBINContentCopySize = 0;
-
   std::unique_ptr<llvm::object::SYCLBIN> ParsedSYCLBIN;
 
   // Buffers for holding entries in the binary structs alive.

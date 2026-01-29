@@ -72,8 +72,7 @@ void PrintPropertySet(raw_ostream &OS, StringRef Name,
     // If there is a newline in the value, start at next line and do
     // proper indentation.
     std::regex NewlineRegex{"\r\n|\r|\n"};
-    if (std::smatch Match;
-        std::regex_search(PropValStr, Match, NewlineRegex)) {
+    if (std::smatch Match; std::regex_search(PropValStr, Match, NewlineRegex)) {
       ScopedIndent Ind;
       PropValStr = "\n" + Ind.str() + PropValStr;
       // Add indentation to newlines in the returned string.
@@ -176,8 +175,7 @@ int main(int argc, char **argv) {
       {
         ScopedIndent Ind;
         OS << Ind << "Image Kind: "
-           << llvm::object::getImageKindName(IRM->getImageKind()).str()
-           << "\n";
+           << llvm::object::getImageKindName(IRM->getImageKind()).str() << "\n";
         OS << Ind << "Triple: " << IRM->getString("triple").str() << "\n";
         OS << Ind << "Arch: " << IRM->getString("arch").str() << "\n";
 
