@@ -3,6 +3,10 @@
 // UNSUPPORTED: level_zero && windows
 // UNSUPPORTED-TRACKER: UMFW-348
 
+// Disable on gen12, PVC & DG2
+// UNSUPPORTED: linux && level_zero && (arch-intel_gpu_tgllp || arch-intel_gpu_pvc || arch-intel_gpu_acm_g10)
+// UNSUPPORTED-TRACKER: CMPLRLLVM-72226
+
 // DEFINE: %{cpp20} = %if cl_options %{/clang:-std=c++20%} %else %{-std=c++20%}
 
 // RUN: %{build} -o %t.out
