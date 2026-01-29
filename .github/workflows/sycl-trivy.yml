@@ -9,7 +9,7 @@ on:
     paths:
       - 'devops/containers/**'
       - 'devops/.trivyignore.yaml'
-      - '.github/workflows/trivy.yml'
+      - '.github/workflows/sycl-trivy.yml'
   workflow_dispatch:
 
 jobs:
