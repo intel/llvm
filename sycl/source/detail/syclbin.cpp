@@ -54,33 +54,28 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
     : SYCLBINContentCopy{ContentCopy(SYCLBINContent, SYCLBINSize)} {
   llvm::MemoryBufferRef ContentRef(
       llvm::StringRef(SYCLBINContentCopy.get(), SYCLBINSize), "");
-  llvm::Expected<std::unique_ptr<llvm::object::SYCLBIN>> SYCLBINOrErr =
-      llvm::object::SYCLBIN::read(ContentRef);
-  if (!SYCLBINOrErr) {
+
+  // Try to parse as SYCLBIN first
+  auto NewSYCLBINOrErr = llvm::object::SYCLBIN::read(ContentRef);
+  if (NewSYCLBINOrErr) {
+    ParsedSYCLBIN = std::move(*NewSYCLBINOrErr);
+  } else {
     // Try legacy format for backward compatibility.
-    llvm::Error FirstError = SYCLBINOrErr.takeError();
     auto OffloadBinaryVecOrError =
         llvm::object::OffloadBinary::create(ContentRef);
     if (!OffloadBinaryVecOrError) {
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "Failed to parse SYCLBIN file: " +
-              llvm::toString(std::move(FirstError)) +
-              " Failed to parse Offload Binary: " +
-              llvm::toString(OffloadBinaryVecOrError.takeError()));
-    }
-
-    consumeError(std::move(FirstError));
-    SYCLBINOrErr = llvm::object::SYCLBIN::read(llvm::MemoryBufferRef(
-        OffloadBinaryVecOrError->front()->getImage(), ""));
-    if (!SYCLBINOrErr) {
       throw sycl::exception(make_error_code(errc::invalid),
-                            "Failed to parse SYCLBIN file: " +
-                                llvm::toString(SYCLBINOrErr.takeError()));
+                            "Failed to parse SYCLBIN file: invalid format");
     }
-  }
 
-  ParsedSYCLBIN = std::move(*SYCLBINOrErr);
+    auto OldSYCLBINOrErr = llvm::object::SYCLBIN::read(llvm::MemoryBufferRef(
+        OffloadBinaryVecOrError->front()->getImage(), ""));
+    if (!OldSYCLBINOrErr) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Failed to parse SYCLBIN file: invalid format");
+    }
+    ParsedSYCLBIN = std::move(*OldSYCLBINOrErr);
+  }
 
   AbstractModuleDescriptors = std::unique_ptr<AbstractModuleDesc[]>(
       new AbstractModuleDesc[ParsedSYCLBIN->AbstractModules.size()]);
