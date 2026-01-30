@@ -177,7 +177,9 @@ SYCLBINBinaries::convertAbstractModuleProperties(
       auto &PropName = PropIt.first;
       auto &PropVal = PropIt.second;
       _sycl_device_binary_property_struct &BinProp = PropsList.emplace_back();
-      BinProp.Name = const_cast<char *>(PropName.data());
+      // Copy property name to stable storage to prevent dangling pointers
+      PropertyNames.emplace_back(PropName);
+      BinProp.Name = const_cast<char *>(PropertyNames.back().data());
       BinProp.Type = PropVal.getType();
       if (BinProp.Type == SYCL_PROPERTY_TYPE_UINT32) {
         // UINT32 properties have their value stored in the size instead.
@@ -192,7 +194,9 @@ SYCLBINBinaries::convertAbstractModuleProperties(
     // Add a new property set to the list.
     _sycl_device_binary_property_set_struct &BinPropSet =
         BinPropertySets.emplace_back();
-    BinPropSet.Name = const_cast<char *>(PropSetName.data());
+    // Copy property set name to stable storage to prevent dangling pointers
+    PropertyNames.emplace_back(PropSetName);
+    BinPropSet.Name = const_cast<char *>(PropertyNames.back().data());
     BinPropSet.PropertiesBegin = PropsList.data();
     BinPropSet.PropertiesEnd = PropsList.data() + PropsList.size();
   }
