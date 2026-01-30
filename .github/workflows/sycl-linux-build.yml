@@ -289,6 +289,9 @@ jobs:
       if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target install-sycl-test-utilities
+    - name: Install clang-tidy
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' && contains(inputs.build_configure_extra_args, '-DSYCL_BUILD_CLANG_TIDY=ON') }}
+      run: cmake --build $GITHUB_WORKSPACE/build --target install-clang-tidy
 
     - name: Additional Install for "--shared-libs" build
       if: ${{ !cancelled() && steps.build.conclusion == 'success' && contains(inputs.build_configure_extra_args, '--shared-libs') }}

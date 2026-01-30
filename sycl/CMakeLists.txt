@@ -617,3 +617,9 @@ add_custom_target(install-sycl-test-utilities
   # sycl/test-e2e/Basic/device_config_file_consistency.cpp.
   COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR} --component DeviceConfigFile
 )
+
+if (SYCL_BUILD_CLANG_TIDY)
+  if (TARGET clang-tidy)
+    add_dependencies(sycl-toolchain clang-tidy)
+  endif()
+endif()
