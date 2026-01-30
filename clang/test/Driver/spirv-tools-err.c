@@ -1,4 +1,8 @@
 // UNSUPPORTED: spirv-tools
+
+// The RUN command doesn't work on some Windows shells.
+// UNSUPPORTED: system-windows
+
 // REQUIRES: spirv-registered-target
 // REQUIRES: shell
 
