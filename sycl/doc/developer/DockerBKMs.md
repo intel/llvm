@@ -39,31 +39,29 @@ development containers:
 
 ### Ubuntu 22.04-based Dockerfiles
 
+- `devops/containers/ubuntu2204_build`: has development kits installed for
+   NVidia/AMD and can be used for building DPC++
+   compiler from source with all backends enabled or for end-to-end testing
+   with HIP/CUDA on machines with corresponding GPUs available.
 - `devops/containers/ubuntu2204_intel_drivers`: contains everything from the
    build Dockerfile + pre-installed Intel drivers.
    Intel drivers are downloaded from release/tag and saved in
    dependencies.json. The drivers are tested/validated everytime we upgrade
    the driver. Also includes the development kits for NVidia/AMD.
    The drivers are installed as it is, not tested or validated.
-- `devops/containers/ubuntu2204_build`: has development kits installed for
-   NVidia/AMD and can be used for building DPC++
-   compiler from source with all backends enabled or for end-to-end testing
-   with HIP/CUDA on machines with corresponding GPUs available.  
- - `devops/containers/nightly`: contains the latest successfully
-   built nightly build of DPC++ compiler.
 
 ### Ubuntu 24.04-based Dockerfiles
 
+- `devops/containers/ubuntu2404_build`: has development kits installed for
+   NVidia/AMD and can be used for building DPC++
+   compiler from source with all backends enabled or for end-to-end testing
+   with HIP/CUDA on machines with corresponding GPUs available.
 - `devops/containers/ubuntu2404_intel_drivers`: contains everything from the
    build Dockerfile + pre-installed Intel drivers.
    Intel drivers are downloaded from release/tag and saved in
    dependencies.json. The drivers are tested/validated everytime we upgrade
    the driver. Also includes the development kits for NVidia/AMD.
    The drivers are installed as it is, not tested or validated.
-- `devops/containers/ubuntu2404_build`: has development kits installed for
-   NVidia/AMD and can be used for building DPC++
-   compiler from source with all backends enabled or for end-to-end testing
-   with HIP/CUDA on machines with corresponding GPUs available.  
  - `devops/containers/nightly`: contains the latest successfully
    built nightly build of DPC++ compiler.
 
