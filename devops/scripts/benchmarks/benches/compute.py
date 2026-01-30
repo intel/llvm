@@ -62,8 +62,8 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        # Jan 13, 2026
-        return "ca382c152aa54931acb868c2624386277266da3c"
+        # Jan 28, 2026
+        return "1cd76b970710b807463291974e41095c94baf354"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -277,14 +277,10 @@ class ComputeBench(Suite):
             )
             benches.append(QueueMemcpy(self, "Device", "Device", 1024, profiler_type))
             benches.append(
-                ExecImmediateCopyQueue(
-                    self, 0, 1, "Device", "Device", 1024, profiler_type
-                )
+                ExecImmCopy(self, 0, 1, "Device", "Device", 1024, profiler_type)
             )
             benches.append(
-                ExecImmediateCopyQueue(
-                    self, 1, 1, "Device", "Host", 1024, profiler_type
-                )
+                ExecImmCopy(self, 1, 1, "Device", "Host", 1024, profiler_type)
             )
 
         # Add RecordAndReplay benchmarks
@@ -394,7 +390,7 @@ class ComputeBench(Suite):
 
         # Add TorchMultiQueue benchmarks
         for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
-            for profiler_type in list(PROFILERS):
+            for profiler_type, measure_completion in product(list(PROFILERS), [0, 1]):
 
                 def createTorchMultiQueueBench(variant_name: str, **kwargs):
                     return TorchMultiQueue(
@@ -411,24 +407,30 @@ class ComputeBench(Suite):
                         kernelWGCount=4096,
                         kernelWGSize=512,
                         kernelsPerQueue=20,
+                        useProfiling=0,
+                        measureCompletion=measure_completion,
                     ),
                     createTorchMultiQueueBench(
                         "medium",
                         kernelWGCount=512,
                         kernelWGSize=256,
                         kernelsPerQueue=10,
+                        useProfiling=0,
+                        measureCompletion=measure_completion,
                     ),
                     createTorchMultiQueueBench(
                         "small",
                         kernelWGCount=256,
                         kernelWGSize=128,
                         kernelsPerQueue=4,
+                        useProfiling=0,
+                        measureCompletion=measure_completion,
                     ),
                 ]
 
         # Add TorchSlmSize benchmarks
         for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
-            for profiler_type in list(PROFILERS):
+            for profiler_type, measure_completion in product(list(PROFILERS), [0, 1]):
 
                 def createTorchSlmSizeBench(variant_name: str, **kwargs):
                     return TorchSlmSize(
@@ -444,16 +446,22 @@ class ComputeBench(Suite):
                         "small",
                         kernelBatchSize=512,
                         slmNum=1,
+                        useProfiling=0,
+                        measureCompletion=measure_completion,
                     ),
                     createTorchSlmSizeBench(
                         "medium",
                         kernelBatchSize=512,
                         slmNum=1024,
+                        useProfiling=0,
+                        measureCompletion=measure_completion,
                     ),
                     createTorchSlmSizeBench(
                         "large",
                         kernelBatchSize=512,
                         slmNum=16384,
+                        useProfiling=0,
+                        measureCompletion=measure_completion,
                     ),
                 ]
 
@@ -899,7 +907,7 @@ class SubmitKernel(ComputeBenchmark):
         ]
 
 
-class ExecImmediateCopyQueue(ComputeBenchmark):
+class ExecImmCopy(ComputeBenchmark):
     def __init__(
         self, bench, ioq, isCopyOnly, source, destination, size, profiler_type
     ):
@@ -914,17 +922,17 @@ class ExecImmediateCopyQueue(ComputeBenchmark):
         super().__init__(
             bench,
             "api_overhead_benchmark_sycl",
-            "ExecImmediateCopyQueue",
+            "ExecImmCopy",
             profiler_type=profiler_type,
         )
 
     def name(self):
         order = "in order" if self._ioq else "out of order"
-        return f"api_overhead_benchmark_sycl ExecImmediateCopyQueue {order} from {self._source} to {self._destination}, size {self._size}{self._cpu_count_str()}"
+        return f"api_overhead_benchmark_sycl ExecImmCopy {order} from {self._source} to {self._destination}, size {self._size}{self._cpu_count_str()}"
 
     def display_name(self) -> str:
         order = "in order" if self._ioq else "out of order"
-        return f"SYCL ExecImmediateCopyQueue {order} from {self._source} to {self._destination}, size {self._size}{self._cpu_count_str(separator=',')}"
+        return f"SYCL ExecImmCopy {order} from {self._source} to {self._destination}, size {self._size}{self._cpu_count_str(separator=',')}"
 
     def description(self) -> str:
         order = "in-order" if self._ioq else "out-of-order"
@@ -947,7 +955,7 @@ class ExecImmediateCopyQueue(ComputeBenchmark):
             f"--src={self._source}",
             f"--dst={self._destination}",
             f"--size={self._size}",
-            "--withCopyOffload=0",
+            "--CopyOffload=0",
             f"--profilerType={self._profiler_type.value}",
         ]
 
@@ -1247,7 +1255,6 @@ class StreamMemory(ComputeBenchmark):
             "--multiplier=1",
             "--vectorSize=1",
             "--lws=256",
-            "--prefetch=0",
         ]
 
 
