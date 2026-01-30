@@ -21,7 +21,8 @@ def do_configure(args, passthrough_args):
     if not os.path.isdir(abs_obj_dir):
         os.makedirs(abs_obj_dir)
 
-    llvm_external_projects = "sycl;llvm-spirv;opencl;xpti;xptifw;compiler-rt"
+    llvm_enable_runtimes = ""
+    llvm_external_projects = "sycl;llvm-spirv;opencl;xpti;xptifw;"
 
     # libdevice build requires a working SYCL toolchain, which is not the case
     # with macOS target right now.
@@ -147,7 +148,8 @@ def do_configure(args, passthrough_args):
             print("#############################################")
 
         # For clang-format, clang-tidy and code coverage
-        llvm_enable_projects += ";clang-tools-extra;compiler-rt"
+        llvm_enable_projects += ";clang-tools-extra"
+        llvm_enable_runtimes = "compiler-rt"
         if sys.platform != "darwin":
             # libclc is required for CI validation
             libclc_enabled = True
@@ -215,6 +217,14 @@ def do_configure(args, passthrough_args):
         "-DSYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB={}".format(sycl_preview_lib),
         "-DBUG_REPORT_URL=https://github.com/intel/llvm/issues",
     ]
+
+    if llvm_enable_runtimes:
+        cmake_cmd.extend(
+            [
+                "-DLLVM_ENABLE_RUNTIMES={}".format(llvm_enable_runtimes),
+            ]
+        )
+
     if args.offload:
         cmake_cmd.extend(
             [
