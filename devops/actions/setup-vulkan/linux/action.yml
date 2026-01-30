@@ -1,0 +1,18 @@
+name: "Setup Vulkan environment"
+description: "Sources the Vulkan environment script and updates GITHUB_ENV."
+runs:
+  using: "composite"
+  steps:
+    - shell: bash
+      run: |
+        # https://github.com/actions/runner/issues/1964 prevents us from using
+        # the ENTRYPOINT in the image.
+        env | sort > env_before
+        if [ -e /opt/vulkan/setup-env.sh ]; then
+          source /opt/vulkan/setup-env.sh;
+        else
+          echo "Could not find Vulkan environment setup script"
+        fi
+        env | sort > env_after
+        comm -13 env_before env_after >> $GITHUB_ENV
+        rm env_before env_after

@@ -618,7 +618,7 @@ static bool checkLinkingSupport(const device_impl &DeviceImpl,
     return true;
   }
   if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) {
-    return DeviceImpl.is_gpu() && DeviceImpl.getBackend() == backend::opencl;
+    return DeviceImpl.is_gpu();
   }
   return false;
 }
@@ -2292,8 +2292,12 @@ ProgramManager::createDependencyImage(const context &Ctx, devices_range Devs,
     if (DepIt != m_BinImg2KernelIDs.end())
       DepKernelIDs = DepIt->second;
   }
-
-  assert(DepState == getBinImageState(DepImage) &&
+  // The only difference between object and executable images is whether they
+  // have external dependencies, so executable images are valid dependencies for
+  // object ones.
+  assert((DepState == getBinImageState(DepImage) ||
+          (DepState == bundle_state::object &&
+           getBinImageState(DepImage) == bundle_state::executable)) &&
          "State mismatch between main image and its dependency");
 
   return createSyclObjFromImpl<device_image_plain>(device_image_impl::create(
@@ -2568,7 +2572,6 @@ ProgramManager::link(device_images_range Imgs, devices_range Devs,
         PropList, NoAllowedPropertiesCheck, NoAllowedPropertiesCheck);
   }
 
-  auto URPrograms = Imgs.to<std::vector<ur_program_handle_t>>();
   auto URDevices = Devs.to<std::vector<ur_device_handle_t>>();
 
   // FIXME: Linker options are picked from the first object, but is that safe?
@@ -2583,6 +2586,16 @@ ProgramManager::link(device_images_range Imgs, devices_range Devs,
   const context &Context = FirstImgImpl.get_context();
   context_impl &ContextImpl = *getSyclObjImpl(Context);
   adapter_impl &Adapter = ContextImpl.getAdapter();
+
+  // We create UR programs lazily, so device_images that started off in the
+  // object state might not have a UR program associated with them.
+  for (auto &Img : Imgs) {
+    if (Img.get_ur_program() == nullptr) {
+      Img.set_ur_program(
+          createURProgram(*Img.get_bin_image_ref(), ContextImpl, Devs));
+    }
+  }
+  auto URPrograms = Imgs.to<std::vector<ur_program_handle_t>>();
 
   ur_exp_program_flags_t UrLinkFlags{};
   if (AllowUnresolvedSymbols)
@@ -2685,10 +2698,6 @@ void ProgramManager::dynamicLink(device_images_range Imgs) {
                                                     URPrograms.data());
 }
 
-// The function duplicates most of the code from existing getBuiltPIProgram.
-// The differences are:
-// Different API - uses different objects to extract required info
-// Supports caching of a program built for multiple devices
 device_image_plain
 ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
                       devices_range Devs, const property_list &PropList) {

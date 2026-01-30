@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -13,7 +13,8 @@ struct urProgramGetBuildInfoTest : uur::urProgramTest {
     ASSERT_SUCCESS(urProgramBuild(this->context, program, nullptr));
   }
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urProgramGetBuildInfoTest);
+
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urProgramGetBuildInfoTest);
 
 TEST_P(urProgramGetBuildInfoTest, SuccessStatus) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});

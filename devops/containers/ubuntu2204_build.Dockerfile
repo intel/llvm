@@ -12,6 +12,9 @@ RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/
 COPY scripts/install_build_tools.sh /install.sh
 RUN /install.sh
 
+COPY scripts/install_vulkan.sh /install_vulkan.sh
+RUN /install_vulkan.sh
+
 # Install ROCM
 
 # Make the directory if it doesn't exist yet.
@@ -29,6 +32,14 @@ printf 'Package: *\nPin: release o=repo.radeon.com\nPin-Priority: 600' | tee /et
 RUN apt update && apt install -yqq rocm-dev && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/*
+
+# Fix Vulkan install inside container
+# https://stackoverflow.com/questions/74965945/vulkan-is-unable-to-detect-nvidia-gpu-from-within-a-docker-container-when-using
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends --download-only libnvidia-gl-565 && \
+    dpkg-deb --extract /var/cache/apt/archives/libnvidia-gl-565_*.deb extracted && \
+    cp -R ./extracted/usr/* /usr/ && \
+    rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*.deb ./extracted
 
 COPY scripts/create-sycl-user.sh /user-setup.sh
 RUN /user-setup.sh

@@ -2952,8 +2952,8 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   };
 
   for (const Arg *A : Args) {
-    auto CheckMathErrnoForVecLib =
-        llvm::make_scope_exit([&, MathErrnoBeforeArg = MathErrno] {
+    llvm::scope_exit CheckMathErrnoForVecLib(
+        [&, MathErrnoBeforeArg = MathErrno] {
           if (NoMathErrnoWasImpliedByVecLib && !MathErrnoBeforeArg && MathErrno)
             ArgThatEnabledMathErrnoAfterVecLib = A;
         });
@@ -3871,6 +3871,7 @@ static void RenderOpenCLOptions(const ArgList &Args, ArgStringList &CmdArgs,
 static void RenderHLSLOptions(const ArgList &Args, ArgStringList &CmdArgs,
                               types::ID InputType) {
   const unsigned ForwardedArguments[] = {
+      options::OPT_hlsl_all_resources_bound,
       options::OPT_dxil_validator_version,
       options::OPT_res_may_alias,
       options::OPT_D,
@@ -6705,9 +6706,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (KernelOrKext && RawTriple.isOSDarwin())
     CmdArgs.push_back("-fforbid-guard-variables");
 
-  if (Args.hasFlag(options::OPT_mms_bitfields, options::OPT_mno_ms_bitfields,
-                   Triple.isWindowsGNUEnvironment())) {
-    CmdArgs.push_back("-mms-bitfields");
+  if (Arg *A = Args.getLastArg(options::OPT_mms_bitfields,
+                               options::OPT_mno_ms_bitfields)) {
+    if (A->getOption().matches(options::OPT_mms_bitfields))
+      CmdArgs.push_back("-fms-layout-compatibility=microsoft");
+    else
+      CmdArgs.push_back("-fms-layout-compatibility=itanium");
   }
 
   if (Triple.isOSCygMing()) {
@@ -8083,9 +8087,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
        Std->containsValue("c++20") || Std->containsValue("gnu++20") ||
        Std->containsValue("c++2b") || Std->containsValue("gnu++2b") ||
        Std->containsValue("c++23") || Std->containsValue("gnu++23") ||
-       Std->containsValue("c++2c") || Std->containsValue("gnu++2c") ||
-       Std->containsValue("c++26") || Std->containsValue("gnu++26") ||
-       Std->containsValue("c++latest") || Std->containsValue("gnu++latest"));
+       Std->containsValue("c++23preview") || Std->containsValue("c++2c") ||
+       Std->containsValue("gnu++2c") || Std->containsValue("c++26") ||
+       Std->containsValue("gnu++26") || Std->containsValue("c++latest") ||
+       Std->containsValue("gnu++latest"));
   bool HaveModules =
       RenderModulesOptions(C, D, Args, Input, Output, HaveCxx20, CmdArgs);
 

@@ -1,3 +1,8 @@
+# Copyright (C) 2025-2026 Intel Corporation
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 import re
 
 
@@ -27,7 +32,7 @@ class Validate:
         """
         Returns True if runner_name is clean (no illegal characters).
         """
-        return Validate.on_re(runner_name, r"^[a-zA-Z0-9_]+$", throw=throw)
+        return Validate.on_re(runner_name, r"^[a-zA-Z0-9_-]+$", throw=throw)
 
     @staticmethod
     def timestamp(t: str, throw: Exception = None):

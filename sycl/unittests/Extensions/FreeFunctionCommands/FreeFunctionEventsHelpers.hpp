@@ -25,7 +25,7 @@ inline ur_result_t after_urKernelGetInfo(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-static thread_local size_t counter_urEnqueueKernelLaunchWithArgsExp = 0;
+static size_t counter_urEnqueueKernelLaunchWithArgsExp = 0;
 inline ur_result_t redefined_urEnqueueKernelLaunchWithArgsExp(void *pParams) {
   ++counter_urEnqueueKernelLaunchWithArgsExp;
   auto params =
@@ -34,7 +34,7 @@ inline ur_result_t redefined_urEnqueueKernelLaunchWithArgsExp(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-static thread_local size_t counter_urEnqueueKernelLaunchWithEvent = 0;
+static size_t counter_urEnqueueKernelLaunchWithEvent = 0;
 inline ur_result_t redefined_urEnqueueKernelLaunchWithEvent(void *pParams) {
   ++counter_urEnqueueKernelLaunchWithEvent;
   auto params =
@@ -43,7 +43,7 @@ inline ur_result_t redefined_urEnqueueKernelLaunchWithEvent(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-static thread_local size_t counter_urUSMEnqueueMemcpy = 0;
+static size_t counter_urUSMEnqueueMemcpy = 0;
 inline ur_result_t redefined_urUSMEnqueueMemcpy(void *pParams) {
   ++counter_urUSMEnqueueMemcpy;
   auto params = *static_cast<ur_enqueue_usm_memcpy_params_t *>(pParams);
@@ -51,7 +51,7 @@ inline ur_result_t redefined_urUSMEnqueueMemcpy(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-static thread_local size_t counter_urUSMEnqueueFill = 0;
+static size_t counter_urUSMEnqueueFill = 0;
 inline ur_result_t redefined_urUSMEnqueueFill(void *pParams) {
   ++counter_urUSMEnqueueFill;
   auto params = *static_cast<ur_enqueue_usm_fill_params_t *>(pParams);
@@ -59,7 +59,7 @@ inline ur_result_t redefined_urUSMEnqueueFill(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-static thread_local size_t counter_urUSMEnqueuePrefetch = 0;
+static size_t counter_urUSMEnqueuePrefetch = 0;
 inline ur_result_t redefined_urUSMEnqueuePrefetch(void *pParams) {
   ++counter_urUSMEnqueuePrefetch;
   auto params = *static_cast<ur_enqueue_usm_prefetch_params_t *>(pParams);
@@ -67,7 +67,7 @@ inline ur_result_t redefined_urUSMEnqueuePrefetch(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-static thread_local size_t counter_urUSMEnqueueMemAdvise = 0;
+static size_t counter_urUSMEnqueueMemAdvise = 0;
 inline ur_result_t redefined_urUSMEnqueueMemAdvise(void *pParams) {
   ++counter_urUSMEnqueueMemAdvise;
   auto params = *static_cast<ur_enqueue_usm_advise_params_t *>(pParams);
@@ -75,8 +75,8 @@ inline ur_result_t redefined_urUSMEnqueueMemAdvise(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-static thread_local size_t counter_urEnqueueEventsWaitWithBarrier = 0;
-static thread_local std::chrono::time_point<std::chrono::steady_clock>
+static size_t counter_urEnqueueEventsWaitWithBarrier = 0;
+static std::chrono::time_point<std::chrono::steady_clock>
     timestamp_urEnqueueEventsWaitWithBarrier;
 inline ur_result_t after_urEnqueueEventsWaitWithBarrier(void *pParams) {
   ++counter_urEnqueueEventsWaitWithBarrier;

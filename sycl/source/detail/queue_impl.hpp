@@ -295,9 +295,6 @@ public:
   /// \return an associated SYCL device.
   device get_device() const { return createSyclObjFromImpl<device>(MDevice); }
 
-  /// \return true if this queue allows for discarded events.
-  bool supportsDiscardingPiEvents() const { return MIsInorder; }
-
   bool isInOrder() const { return MIsInorder; }
 
   /// Queries SYCL queue for information.

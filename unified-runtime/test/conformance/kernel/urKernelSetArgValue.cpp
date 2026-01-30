@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -15,7 +15,7 @@ struct urKernelSetArgValueTest : uur::urKernelTest {
 
   uint32_t arg_value = 42;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelSetArgValueTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urKernelSetArgValueTest);
 
 TEST_P(urKernelSetArgValueTest, Success) {
   ASSERT_SUCCESS(

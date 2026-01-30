@@ -107,9 +107,9 @@ public:
 
   bool operator!=(const device &rhs) const { return !(*this == rhs); }
 
-  device(const device &rhs) = default;
+  device(const device &rhs);
 
-  device(device &&rhs) = default;
+  device(device &&rhs);
 
   device &operator=(const device &rhs) = default;
 
@@ -365,6 +365,15 @@ public:
   ///
   /// \return the default context
   context ext_oneapi_get_default_context();
+
+  /// If this device is a root device as defined by the core SYCL specification,
+  /// returns the index that it has in the std::vector that is returned when
+  /// calling platform::get_devices() on the platform that contains this device,
+  /// otherwise throws an exception.
+  ///
+  /// \return the index that it has in the std::vector that is returned when
+  /// calling platform::get_devices() on the platform that contains this device.
+  size_t ext_oneapi_index_within_platform() const;
 
   // Definitions are in `<sycl/ext/oneapi/weak_object.hpp>` to avoid circular
   // dependencies:

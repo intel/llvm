@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -7,7 +7,9 @@
 #ifndef UUR_ENQUEUE_RECT_HELPERS_H_INCLUDED
 #define UUR_ENQUEUE_RECT_HELPERS_H_INCLUDED
 
+#include "ur_api.h"
 #include <cstring>
+#include <sstream>
 #include <uur/fixtures.h>
 
 namespace uur {
@@ -31,8 +33,33 @@ printRectTestString(const testing::TestParamInfo<typename T::ParamType> &info) {
   // ParamType will be std::tuple<ur_device_handle_t, test_parameters_t>
   const auto device_handle = std::get<0>(info.param).device;
   const auto platform_device_name = GetPlatformAndDeviceName(device_handle);
-  const auto &test_name = std::get<1>(info.param).name;
-  return platform_device_name + "__" + test_name;
+
+  std::stringstream ss;
+  auto param_tuple = std::get<1>(info.param);
+  auto test_name = std::get<0>(param_tuple).name;
+  auto queue_mode = std::get<1>(param_tuple);
+
+  ss << platform_device_name << "__" << test_name << "__" << queue_mode;
+
+  return ss.str();
+}
+
+template <typename T>
+inline std::string printRectTestStringMultiQueue(
+    const testing::TestParamInfo<typename T::ParamType> &info) {
+  // ParamType will be std::tuple<ur_device_handle_t, test_parameters_t>
+  const auto device_handle = std::get<0>(info.param).device;
+  const auto platform_device_name = GetPlatformAndDeviceName(device_handle);
+  auto paramTuple = std::get<1>(info.param);
+  auto param = std::get<0>(paramTuple);
+
+  auto queueMode = std::get<1>(paramTuple);
+
+  std::stringstream test_name;
+  test_name << platform_device_name;
+  test_name << param.name << "__" << queueMode;
+
+  return test_name.str();
 }
 
 // Performs host side equivalent of urEnqueueMemBufferReadRect,
@@ -74,13 +101,18 @@ print2DTestString(const testing::TestParamInfo<typename T::ParamType> &info) {
   const auto platform_device_name =
       uur::GetPlatformAndDeviceName(device_handle);
   std::stringstream test_name;
-  const auto src_kind = std::get<1>(std::get<1>(info.param));
-  const auto dst_kind = std::get<2>(std::get<1>(info.param));
-  test_name << platform_device_name << "__pitch__"
-            << std::get<0>(std::get<1>(info.param)).pitch << "__width__"
-            << std::get<0>(std::get<1>(info.param)).width << "__height__"
-            << std::get<0>(std::get<1>(info.param)).height << "__src__"
-            << src_kind << "__dst__" << dst_kind;
+
+  auto paramTuple = std::get<1>(info.param);
+  auto param = std::get<0>(paramTuple);
+  auto queueMode = std::get<1>(paramTuple);
+  const auto src_kind = std::get<1>(param);
+  const auto dst_kind = std::get<2>(param);
+  TestParameters2D testParams = std::get<0>(param);
+  test_name << platform_device_name << "__pitch__" << testParams.pitch
+            << "__width__" << testParams.width << "__height__"
+            << testParams.height << "__src__" << src_kind << "__dst__"
+            << dst_kind << "__" << queueMode;
+
   return test_name.str();
 }
 
@@ -122,10 +154,16 @@ inline std::string printMemBufferTestString(
   const auto device_handle = std::get<0>(info.param).device;
   const auto platform_device_name = GetPlatformAndDeviceName(device_handle);
 
+  auto paramTuple = std::get<1>(info.param);
+  auto param = std::get<0>(paramTuple);
+  auto queueMode = std::get<1>(paramTuple);
+
   std::stringstream ss;
-  ss << std::get<1>(info.param).count;
+  ss << param.count;
   ss << "_";
-  ss << std::get<1>(info.param).mem_flag;
+  ss << param.mem_flag;
+  ss << "__";
+  ss << queueMode;
 
   return platform_device_name + "__" + ss.str();
 }
@@ -138,22 +176,31 @@ inline std::string printMemBufferMapWriteTestString(
   const auto device_handle = std::get<0>(info.param).device;
   const auto platform_device_name = GetPlatformAndDeviceName(device_handle);
 
+  auto paramTuple = std::get<1>(info.param);
+  auto param = std::get<0>(paramTuple);
+  auto queueMode = std::get<1>(paramTuple);
+
   std::stringstream ss;
-  ss << std::get<1>(info.param).map_flag;
+  ss << param.map_flag << "__" << queueMode;
 
   return platform_device_name + "__" + ss.str();
 }
 
 template <typename T>
-inline std::string
-printFillTestString(const testing::TestParamInfo<typename T::ParamType> &info) {
+inline std::string printFillTestStringMultiQueueType(
+    const testing::TestParamInfo<typename T::ParamType> &info) {
   const auto device_handle = std::get<0>(info.param).device;
   const auto platform_device_name =
       uur::GetPlatformAndDeviceName(device_handle);
+  auto paramTuple = std::get<1>(info.param);
+  auto param = std::get<0>(paramTuple);
+
+  auto queueMode = std::get<1>(paramTuple);
+
   std::stringstream test_name;
-  test_name << platform_device_name << "__size__"
-            << std::get<1>(info.param).size << "__patternSize__"
-            << std::get<1>(info.param).pattern_size;
+  test_name << platform_device_name << "__size__" << param.size
+            << "__patternSize__" << param.pattern_size << "__" << queueMode;
+
   return test_name.str();
 }
 

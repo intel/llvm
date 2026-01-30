@@ -20,9 +20,7 @@
 
 namespace logger {
 
-#if defined(_WIN32)
 inline bool isTearDowned = false;
-#endif
 
 class Sink {
 public:
@@ -45,21 +43,17 @@ public:
 
     std::string message = buffer.str();
 
-// This is a temporary workaround on windows, where UR adapter is teardowned
+// This is a temporary workaround, where UR adapter is teardowned
 // before the UR loader, which will result in access violation when we use print
 // function as the overrided print function was already released with the UR
 // adapter.
 // TODO: Change adapters to use a common sink class in the loader instead of
 // using thier own sink class that inherit from logger::Sink.
-#if defined(_WIN32)
-    if (isTearDowned) {
-      std::cerr << message;
-    } else {
-      print(level, message);
-    }
-#else
-    print(level, message);
-#endif
+   if (isTearDowned) {
+     std::cerr << message;
+   } else {
+     print(level, message);
+   }
   }
 
   void setFileLine(bool fileline) { add_fileline = fileline; }
@@ -194,9 +188,7 @@ public:
   }
 
   ~StderrSink() {
-#if defined(_WIN32)
     logger::isTearDowned = true;
-#endif
   }
 };
 

@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2025-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -25,7 +25,7 @@ struct urEnqueueCommandBufferExpTest
         urCommandBufferExpExecutionTestWithParam::SetUp());
 
     // Create an in-order or out-of-order queue, depending on the passed parameter
-    ur_queue_flags_t queue_type = std::get<1>(GetParam());
+    ur_queue_flags_t queue_type = getParam();
     ur_queue_properties_t queue_properties = {
         UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr, queue_type};
     ASSERT_SUCCESS(urQueueCreate(context, device, &queue_properties,
@@ -112,9 +112,12 @@ struct urEnqueueCommandBufferExpTest
 
 std::string deviceTestWithQueueTypePrinter(
     const ::testing::TestParamInfo<
-        std::tuple<uur::DeviceTuple, ur_queue_flags_t>> &info) {
+        std::tuple<uur::DeviceTuple, uur::MultiQueueParam<ur_queue_flags_t>>>
+        &info) {
   auto device = std::get<0>(info.param).device;
-  auto queue_type = std::get<1>(info.param);
+
+  auto paramTuple = std::get<1>(info.param);
+  auto queue_type = std::get<0>(paramTuple);
 
   std::stringstream ss;
 
@@ -131,11 +134,13 @@ std::string deviceTestWithQueueTypePrinter(
     ss << "UnspecifiedQueueType" << queue_type;
   }
 
+  ss << "__basic_queue_mode__" << std::get<1>(paramTuple);
+
   return uur::GetPlatformAndDeviceName(device) + "__" +
          uur::GTestSanitizeString(ss.str());
 }
 
-UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+UUR_MULTI_QUEUE_TYPE_TEST_SUITE_WITH_PARAM(
     urEnqueueCommandBufferExpTest,
     testing::Values(0, UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE),
     deviceTestWithQueueTypePrinter);

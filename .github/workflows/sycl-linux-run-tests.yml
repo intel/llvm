@@ -131,6 +131,12 @@ on:
         type: string
         default: 'false'
         required: False
+      benchmark_gdb_mode:
+        description: |
+          Whether or not to run benchmarks under gdb.
+        type: string
+        required: False
+        default: '0'
 
       in_workflow_call_mode:
         description: |
@@ -254,6 +260,8 @@ jobs:
         sudo -E bash devops/scripts/install_drivers.sh devops/dependencies.json --all
     - name: Source OneAPI TBB vars.sh
       uses: ./devops/actions/source-tbb
+    - name: Setup Vulkan environment
+      uses: ./devops/actions/setup-vulkan/linux
     - name: Download SYCL toolchain
       if: inputs.toolchain_artifact != '' && github.event_name != 'workflow_run'
       uses: actions/download-artifact@v7
@@ -319,7 +327,7 @@ jobs:
 
     - name: Run E2E Tests
       if: inputs.tests_selector == 'e2e'
-      uses: ./devops/actions/run-tests/e2e
+      uses: ./devops/actions/run-tests/linux/e2e
       timeout-minutes: 60
       with:
         ref: ${{ inputs.tests_ref || inputs.repo_ref || github.sha }}
@@ -334,7 +342,7 @@ jobs:
 
     - name: Run SYCL CTS Tests
       if: inputs.tests_selector == 'cts'
-      uses: ./devops/actions/run-tests/cts
+      uses: ./devops/actions/run-tests/linux/cts
       # Normally this job takes less than 10m. But sometimes it hangs up and
       # reaches the 360m limit. Set a lower limit to free up the runner earlier.
       timeout-minutes: 35
@@ -360,3 +368,4 @@ jobs:
         exit_on_failure: ${{ inputs.benchmark_exit_on_failure }}
         build_ref: ${{ inputs.repo_ref }}
         runner: ${{ inputs.runner }}
+        gdb_mode: ${{ inputs.benchmark_gdb_mode }}

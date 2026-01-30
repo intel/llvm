@@ -1320,7 +1320,8 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
 
   // If we are checking function types, emit a function type signature as
   // prologue data.
-  if (FD && SanOpts.has(SanitizerKind::Function)) {
+  if (FD && SanOpts.has(SanitizerKind::Function) &&
+      !FD->getType()->isCFIUncheckedCalleeFunctionType()) {
     if (llvm::Constant *PrologueSig = getPrologueSignature(CGM, FD)) {
       llvm::LLVMContext &Ctx = Fn->getContext();
       llvm::MDBuilder MDB(Ctx);
@@ -1802,7 +1803,7 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
     DebugInfo = nullptr;
   }
   // Finalize function debug info on exit.
-  auto Cleanup = llvm::make_scope_exit([this] {
+  llvm::scope_exit Cleanup([this] {
     if (CGDebugInfo *DI = getDebugInfo())
       DI->completeFunction();
   });
@@ -3573,6 +3574,10 @@ void CodeGenFunction::EmitAArch64MultiVersionResolver(
       AArch64CpuInitialized = true;
       Builder.SetInsertPoint(CurBlock);
     }
+
+    // Skip unreachable versions.
+    if (RO.Function == nullptr)
+      continue;
 
     llvm::BasicBlock *RetBlock = createBasicBlock("resolver_return", Resolver);
     CGBuilderTy RetBuilder(*this, RetBlock);
