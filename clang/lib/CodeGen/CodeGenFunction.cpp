@@ -57,10 +57,6 @@
 using namespace clang;
 using namespace CodeGen;
 
-namespace llvm {
-extern cl::opt<bool> EnableSingleByteCoverage;
-} // namespace llvm
-
 /// shouldEmitLifetimeMarkers - Decide whether we need emit the life-time
 /// markers.
 static bool shouldEmitLifetimeMarkers(const CodeGenOptions &CGOpts,
@@ -1673,10 +1669,7 @@ void CodeGenFunction::EmitFunctionBody(const Stmt *Body) {
 void CodeGenFunction::EmitBlockWithFallThrough(llvm::BasicBlock *BB,
                                                const Stmt *S) {
   llvm::BasicBlock *SkipCountBB = nullptr;
-  // Do not skip over the instrumentation when single byte coverage mode is
-  // enabled.
-  if (HaveInsertPoint() && CGM.getCodeGenOpts().hasProfileClangInstr() &&
-      !llvm::EnableSingleByteCoverage) {
+  if (HaveInsertPoint() && CGM.getCodeGenOpts().hasProfileClangInstr()) {
     // When instrumenting for profiling, the fallthrough to certain
     // statements needs to skip over the instrumentation code so that we
     // get an accurate count.
@@ -1685,7 +1678,7 @@ void CodeGenFunction::EmitBlockWithFallThrough(llvm::BasicBlock *BB,
   }
   EmitBlock(BB);
   uint64_t CurrentCount = getCurrentProfileCount();
-  incrementProfileCounter(S);
+  incrementProfileCounter(UseExecPath, S);
   setCurrentProfileCount(getCurrentProfileCount() + CurrentCount);
   if (SkipCountBB)
     EmitBlock(SkipCountBB);
@@ -2385,7 +2378,7 @@ void CodeGenFunction::EmitBranchOnBoolExpr(
 
     cond.begin(*this);
     EmitBlock(LHSBlock);
-    incrementProfileCounter(CondOp);
+    incrementProfileCounter(UseExecPath, CondOp);
     {
       ApplyDebugLocation DL(*this, Cond);
       EmitBranchOnBoolExpr(CondOp->getLHS(), TrueBlock, FalseBlock,
@@ -2395,6 +2388,7 @@ void CodeGenFunction::EmitBranchOnBoolExpr(
 
     cond.begin(*this);
     EmitBlock(RHSBlock);
+    incrementProfileCounter(UseSkipPath, CondOp);
     EmitBranchOnBoolExpr(CondOp->getRHS(), TrueBlock, FalseBlock,
                          TrueCount - LHSScaledTrueCount, LH, CondOp);
     cond.end(*this);

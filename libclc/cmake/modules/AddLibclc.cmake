@@ -38,9 +38,7 @@ function(compile_to_bc)
     set( PP_OPTS -E;-P )
     set( TMP_SUFFIX .tmp )
     set( XCL_OPT -x;cl )
-    string( REPLACE "-Xclang;-fdeclare-opencl-builtins;-Xclang;-finclude-default-header"
-      "" EXTRA_OPTS "${ARG_EXTRA_OPTS}"
-    )
+    string( REPLACE "-include;opencl-c-base.h" "" EXTRA_OPTS "${ARG_EXTRA_OPTS}")
   endif()
 
 

@@ -505,6 +505,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       -D${CLC_TARGET_DEFINE}
       # All libclc builtin libraries see CLC headers
       -I${CMAKE_CURRENT_SOURCE_DIR}/clc/include
+      -include opencl-c-base.h
       # Error on undefined macros
       -Werror=undef
       -fdiscard-value-names
@@ -575,8 +576,8 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       )
     endif()
 
-     list( APPEND build_flags
-      -Xclang -fdeclare-opencl-builtins -Xclang -finclude-default-header
+    list( APPEND build_flags
+      -Xclang -fdeclare-opencl-builtins
       -I${CMAKE_CURRENT_SOURCE_DIR}/opencl/include
     )  
     set( opencl_build_flags ${build_flags} )
