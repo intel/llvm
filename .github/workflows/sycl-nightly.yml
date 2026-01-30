@@ -91,7 +91,7 @@ jobs:
       toolchain_artifact: sycl_linux_libcxx
       toolchain_artifact_filename: sycl_linux_libcxx.tar.zst
 
-  ubuntu2204_test_AMD_NVIDIA_INTELGen12GPU:
+  ubuntu2204_test_amd_nvidia_gen12:
     needs: [ubuntu2204_build]
     permissions:
       contents: write
@@ -152,7 +152,7 @@ jobs:
       toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
 
-  ubuntu2204_test_INTEL_AMD_opencl_cpu:
+  ubuntu2204_test_intel_amd_opencl_cpu:
     needs: [ubuntu2204_build]
     permissions:
       contents: write
