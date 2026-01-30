@@ -21,26 +21,31 @@ dependencies.
 
 ## Official releases
 
-Official release branches are occasionally created to provide
-stable and validated commits for end users. The list below is
-ordered from the newest to the oldest.
+Official release branches are created to provide stable and validated commits
+for end users. The list below is ordered from the newest to the oldest.
 
-Release branches are prefixed with `sycl-rel-`
+Release branches are prefixed with `sycl-rel-`.
 
-### _[Upcoming]_ `6.3.0` release
+### _[Upcoming]_ `7.0.0` release
 
-This release will be made from the
+This release will be made from the sycl-rel-7_0 branch around the end of
+Q2'2026.
+
+### **[Latest]** `6.3.0` release
+
+This release was made from the
 [`sycl-rel-6_3`](https://github.com/intel/llvm/tree/sycl-rel-6_3) branch and we
 have the following tags published:
+- [`v6.3.0`](https://github.com/intel/llvm/releases/tag/v6.3.0)
 - [`v6.3.0-rc1`](https://github.com/intel/llvm/releases/tag/v6.3.0-rc1) -
   release candidate 1 for 6.3.0 release
 
-### **[Latest]** `6.2.0` release
+### `6.2.0` release
 
 This release was made from
 the [`sycl-rel-6_2`](https://github.com/intel/llvm/tree/sycl-rel-6_2) branch and
 we have the following tags published:
-- **[Latest]** [`v6.2.0`](https://github.com/intel/llvm/releases/tag/v6.2.0)
+- [`v6.2.0`](https://github.com/intel/llvm/releases/tag/v6.2.0)
 - [`v6.2.0-rc1`](https://github.com/intel/llvm/releases/tag/v6.2.0-rc1) -
   release candidate 1 for 6.2.0 release
 
