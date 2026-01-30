@@ -220,7 +220,7 @@ TEST_P(urEnqueueMemBufferFillMultiDeviceTest, FillReadDifferentQueues) {
       queues[0], buffer, &input, sizeof(input), 0, size, 0, nullptr, nullptr));
 
   // Wait for the queue to finish executing.
-  EXPECT_SUCCESS(urEnqueueEventsWait(queues[0], 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urQueueFinish(queues[0]));
 
   // Then the remaining queues do blocking reads from the buffer. Since the
   // queues target different devices this checks that any devices memory has

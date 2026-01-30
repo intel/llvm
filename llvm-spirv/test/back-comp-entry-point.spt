@@ -1,0 +1,37 @@
+; Test verifies backward compatibility:
+; correct translation of entry point wrapper produced by an
+; older writer.
+
+; RUN: llvm-spirv -spirv-text -r %s -o %t.bc
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
+
+; CHECK-LLVM: define spir_kernel void @Test()
+
+119734787 65536 393230 9 0 
+2 Capability Addresses 
+2 Capability Linkage 
+2 Capability Kernel 
+5 ExtInstImport 1 "OpenCL.std" 
+3 MemoryModel 2 2 
+5 EntryPoint 6 6 "Test" 
+3 Source 3 300000 
+4 Name 4 "Test" 
+6 Decorate 4 LinkageAttributes "Test" Export 
+2 TypeVoid 2 
+3 TypeFunction 3 2 
+
+
+5 Function 2 4 0 3 
+
+2 Label 5 
+1 Return 
+
+1 FunctionEnd 
+
+5 Function 2 6 0 3 
+
+2 Label 7 
+4 FunctionCall 2 8 4 
+1 Return 
+
+1 FunctionEnd 

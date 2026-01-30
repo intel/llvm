@@ -35,14 +35,15 @@ struct MsanShadowMemory {
   virtual uptr MemToOrigin(uptr Ptr) = 0;
 
   virtual ur_result_t
-  EnqueuePoisonShadow(ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value,
-                      uint32_t NumEvents = 0,
+  EnqueuePoisonShadow(ur_queue_handle_t Queue, uptr Ptr, uptr Size,
+                      const u8 *Value, uint32_t NumEvents = 0,
                       const ur_event_handle_t *EventWaitList = nullptr,
                       ur_event_handle_t *OutEvent = nullptr) = 0;
 
   virtual ur_result_t EnqueuePoisonShadowWithOrigin(
-      ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value, uint32_t Origin,
-      uint32_t NumEvents = 0, const ur_event_handle_t *EventWaitList = nullptr,
+      ur_queue_handle_t Queue, uptr Ptr, uptr Size, const u8 *Value,
+      const uint32_t *Origin, uint32_t NumEvents = 0,
+      const ur_event_handle_t *EventWaitList = nullptr,
       ur_event_handle_t *OutEvent = nullptr) = 0;
 
   virtual ur_result_t ReleaseShadow(std::shared_ptr<MsanAllocInfo>) {
@@ -95,14 +96,15 @@ struct MsanShadowMemoryCPU final : public MsanShadowMemory {
   uptr MemToOrigin(uptr Ptr) override;
 
   ur_result_t
-  EnqueuePoisonShadow(ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value,
-                      uint32_t NumEvents = 0,
+  EnqueuePoisonShadow(ur_queue_handle_t Queue, uptr Ptr, uptr Size,
+                      const u8 *Value, uint32_t NumEvents = 0,
                       const ur_event_handle_t *EventWaitList = nullptr,
                       ur_event_handle_t *OutEvent = nullptr) override;
 
   ur_result_t EnqueuePoisonShadowWithOrigin(
-      ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value, uint32_t Origin,
-      uint32_t NumEvents = 0, const ur_event_handle_t *EventWaitList = nullptr,
+      ur_queue_handle_t Queue, uptr Ptr, uptr Size, const u8 *Value,
+      const uint32_t *Origin, uint32_t NumEvents = 0,
+      const ur_event_handle_t *EventWaitList = nullptr,
       ur_event_handle_t *OutEvent = nullptr) override;
 
   ur_result_t AllocLocalShadow(ur_queue_handle_t, uint32_t, uptr &Begin,
@@ -131,14 +133,15 @@ struct MsanShadowMemoryGPU : public MsanShadowMemory {
   ur_result_t Destory() override;
 
   ur_result_t
-  EnqueuePoisonShadow(ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value,
-                      uint32_t NumEvents = 0,
+  EnqueuePoisonShadow(ur_queue_handle_t Queue, uptr Ptr, uptr Size,
+                      const u8 *Value, uint32_t NumEvents = 0,
                       const ur_event_handle_t *EventWaitList = nullptr,
                       ur_event_handle_t *OutEvent = nullptr) override final;
 
   ur_result_t EnqueuePoisonShadowWithOrigin(
-      ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value, uint32_t Origin,
-      uint32_t NumEvents = 0, const ur_event_handle_t *EventWaitList = nullptr,
+      ur_queue_handle_t Queue, uptr Ptr, uptr Size, const u8 *Value,
+      const uint32_t *Origin, uint32_t NumEvents = 0,
+      const ur_event_handle_t *EventWaitList = nullptr,
       ur_event_handle_t *OutEvent = nullptr) override;
 
   ur_result_t ReleaseShadow(std::shared_ptr<MsanAllocInfo> AI) override final;

@@ -104,8 +104,8 @@ jobs:
       - name: Build
         run: |
           cd build
-          make llvm-spirv -j2
+          make llvm-spirv -j$(nproc)
       - name: Build tests & test
         run: |
           cd build
-          make check-llvm-spirv -j2
+          make check-llvm-spirv -j$(nproc)

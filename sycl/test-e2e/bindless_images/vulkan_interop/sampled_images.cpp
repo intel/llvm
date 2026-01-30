@@ -5,7 +5,7 @@
 // XFAIL: linux
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/21131
 
-// XFAIL: linux && gpu-intel-dg2
+// XFAIL: linux && (gpu-intel-dg2 || arch-intel_gpu_bmg_g21)
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/21136
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes -DENABLE_LINEAR_TILING -DTEST_L0_SUPPORTED_VK_FORMAT %}
