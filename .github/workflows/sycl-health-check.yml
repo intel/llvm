@@ -1,18 +1,21 @@
 name: Check load of the machine 
 
-# on:
-#   workflow_call:
 on:
-  push:
-    branches:
-      - luszczewskakasia1_monitoring
+  workflow_call:
+    runner_name:
+    required: true
+    type: string
+# on:
+#   push:
+#     branches:
+#       - luszczewskakasia1_monitoring
 
 jobs:
   health-check:
-    strategy:
-      matrix:
-        runner: [health-check]
-    runs-on: ${{ matrix.runner }}
+    # strategy:
+    #   matrix:
+    #     runner: [health-check]
+    runs-on: ${{inputs.runner_name}}
     steps:
       - name: Check load average
         id: check
