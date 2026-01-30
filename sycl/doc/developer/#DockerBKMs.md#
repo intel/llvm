@@ -46,9 +46,9 @@ development containers:
 - `devops/containers/ubuntu2204_intel_drivers`: contains everything from the
    build Dockerfile + pre-installed Intel drivers.
    Intel drivers are downloaded from release/tag and saved in
-   dependencies.json. The Intel drivers are tested/validated everytime we
-   upgrade the driver. NVidia/AMD drivers are installed as it is,
-   not tested or validated.
+   dependencies.json. The drivers are tested/validated everytime we upgrade
+   the driver. Also includes the development kits for NVidia/AMD.
+   The Intel drivers are installed as it is, not tested or validated.
 
 ### Ubuntu 24.04-based Dockerfiles
 
@@ -59,9 +59,9 @@ development containers:
 - `devops/containers/ubuntu2404_intel_drivers`: contains everything from the
    build Dockerfile + pre-installed Intel drivers.
    Intel drivers are downloaded from release/tag and saved in
-   dependencies.json. The Intel drivers are tested/validated everytime we
-   upgrade the driver. NVidia/AMD drivers are installed as it is,
-   not tested or validated.
+   dependencies.json. The drivers are tested/validated everytime we upgrade
+   the driver. Also includes the development kits for NVidia/AMD.
+   The drivers are installed as it is, not tested or validated.
  - `devops/containers/nightly`: contains the latest successfully
    built nightly build of DPC++ compiler.
 
