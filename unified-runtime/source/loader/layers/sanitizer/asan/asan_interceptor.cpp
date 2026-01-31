@@ -21,6 +21,7 @@
 #include "sanitizer_common/sanitizer_options.hpp"
 #include "sanitizer_common/sanitizer_stacktrace.hpp"
 #include "sanitizer_common/sanitizer_utils.hpp"
+#include <numeric>
 
 namespace ur_sanitizer_layer {
 namespace asan {
@@ -339,22 +340,22 @@ AsanInterceptor::enqueueAllocInfo(std::shared_ptr<DeviceInfo> &DeviceInfo,
                                   ur_queue_handle_t Queue,
                                   std::shared_ptr<AllocInfo> &AI) {
   if (AI->IsReleased) {
-    int ShadowByte;
+    const int8_t *ShadowByte;
     switch (AI->Type) {
     case AllocType::HOST_USM:
-      ShadowByte = kUsmHostDeallocatedMagic;
+      ShadowByte = &kUsmHostDeallocatedMagic;
       break;
     case AllocType::DEVICE_USM:
-      ShadowByte = kUsmDeviceDeallocatedMagic;
+      ShadowByte = &kUsmDeviceDeallocatedMagic;
       break;
     case AllocType::SHARED_USM:
-      ShadowByte = kUsmSharedDeallocatedMagic;
+      ShadowByte = &kUsmSharedDeallocatedMagic;
       break;
     case AllocType::MEM_BUFFER:
-      ShadowByte = kMemBufferDeallocatedMagic;
+      ShadowByte = &kMemBufferDeallocatedMagic;
       break;
     default:
-      ShadowByte = 0xff;
+      ShadowByte = &kUnknownMagic;
       assert(false && "Unknow AllocInfo Type");
     }
     UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, AI->AllocBegin,
@@ -363,39 +364,45 @@ AsanInterceptor::enqueueAllocInfo(std::shared_ptr<DeviceInfo> &DeviceInfo,
   }
 
   // Init zero
+  static const int8_t Zero = 0;
   UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, AI->AllocBegin,
-                                                  AI->AllocSize, 0));
+                                                  AI->AllocSize, &Zero));
 
   uptr TailBegin = RoundUpTo(AI->UserEnd, ASAN_SHADOW_GRANULARITY);
   uptr TailEnd = AI->AllocBegin + AI->AllocSize;
 
   // User tail
   if (TailBegin != AI->UserEnd) {
+    static const std::array<int8_t, 16> TailMagic = [] {
+      std::array<int8_t, 16> a{};
+      std::iota(a.begin(), a.end(), 0);
+      return a;
+    }();
     auto Value =
         AI->UserEnd - RoundDownTo(AI->UserEnd, ASAN_SHADOW_GRANULARITY);
     UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, AI->UserEnd, 1,
-                                                    static_cast<u8>(Value)));
+                                                    &TailMagic[Value]));
   }
 
-  int ShadowByte;
+  const int8_t *ShadowByte;
   switch (AI->Type) {
   case AllocType::HOST_USM:
-    ShadowByte = kUsmHostRedzoneMagic;
+    ShadowByte = &kUsmHostRedzoneMagic;
     break;
   case AllocType::DEVICE_USM:
-    ShadowByte = kUsmDeviceRedzoneMagic;
+    ShadowByte = &kUsmDeviceRedzoneMagic;
     break;
   case AllocType::SHARED_USM:
-    ShadowByte = kUsmSharedRedzoneMagic;
+    ShadowByte = &kUsmSharedRedzoneMagic;
     break;
   case AllocType::MEM_BUFFER:
-    ShadowByte = kMemBufferRedzoneMagic;
+    ShadowByte = &kMemBufferRedzoneMagic;
     break;
   case AllocType::DEVICE_GLOBAL:
-    ShadowByte = kDeviceGlobalRedzoneMagic;
+    ShadowByte = &kDeviceGlobalRedzoneMagic;
     break;
   default:
-    ShadowByte = 0xff;
+    ShadowByte = &kUnknownMagic;
     assert(false && "Unknow AllocInfo Type");
   }
 

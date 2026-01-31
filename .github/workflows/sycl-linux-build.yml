@@ -352,7 +352,7 @@ jobs:
         extra_lit_opts: --param spirv-backend=True
 
     - name: Build E2E tests in Preview Mode
-      if: ${{ inputs.e2e_binaries_preview_artifact && !cancelled() && steps.build.conclusion == 'success' }}
+      if: ${{ inputs.e2e_binaries_preview_artifact && !cancelled() && steps.build.conclusion == 'success' && !startsWith(github.base_ref, 'sycl-rel-') }}
       uses: ./devops/actions/run-tests/linux/e2e
       with:
         ref: ${{ inputs.ref || github.sha }}
