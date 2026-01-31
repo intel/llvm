@@ -5,16 +5,16 @@
 
 // DEFINE: %{compile} = %{build} -DFNAME=%basename_t -ldl -Wl,-rpath=%t.dir
 
-// RUN: %{compile} -o %t1.out -DRUN_FIRST
+// RUN: %{run-aux} %{compile} -o %t1.out -DRUN_FIRST
 // RUN: env SYCL_UR_TRACE=2 %{run} %t1.out 2>&1 | FileCheck %s --check-prefixes=CHECK-FIRST,CHECK --implicit-check-not=piProgramBuild
 
-// RUN: %{compile} -o %t2.out -DRUN_MIDDLE_BEFORE
+// RUN: %{run-aux} %{compile} -o %t2.out -DRUN_MIDDLE_BEFORE
 // RUN: env SYCL_UR_TRACE=2 %{run} %t2.out 2>&1 | FileCheck %s --check-prefixes=CHECK-MIDDLE-BEFORE,CHECK --implicit-check-not=piProgramBuild
 
-// RUN: %{compile} -o %t3.out -DRUN_MIDDLE_AFTER
+// RUN: %{run-aux} %{compile} -o %t3.out -DRUN_MIDDLE_AFTER
 // RUN: env SYCL_UR_TRACE=2 %{run} %t3.out 2>&1 | FileCheck %s --check-prefixes=CHECK-MIDDLE-AFTER,CHECK --implicit-check-not=piProgramBuild
 
-// RUN: %{compile} -o %t4.out -DRUN_LAST
+// RUN: %{run-aux} %{compile} -o %t4.out -DRUN_LAST
 // RUN: env SYCL_UR_TRACE=2 %{run} %t4.out 2>&1 | FileCheck %s --check-prefixes=CHECK-LAST,CHECK --implicit-check-not=piProgramBuild
 // clang-format on
 
