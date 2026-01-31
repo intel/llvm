@@ -9,7 +9,7 @@
 // RUN: %clangxx %{dynamic_lib_options} %S/Inputs/b.cpp %if windows %{%t.dir/libdevice_c.lib%} -o %t.dir/libdevice_b.%{dynamic_lib_suffix}
 // RUN: %clangxx %{dynamic_lib_options} %S/Inputs/a.cpp %if windows %{%t.dir/libdevice_b.lib%} -o %t.dir/libdevice_a.%{dynamic_lib_suffix}
 
-// RUN: %if !windows %{%{run-aux}%} \
+// RUN: %if !windows %{%{run-aux}%}                                                       \
 // RUN: %clangxx -fsycl %{sycl_target_opts} -fsycl-allow-device-image-dependencies -fsycl-device-code-split=per_kernel %S/Inputs/basic.cpp -o %t.dir/%{t:stem}.out            \
 // RUN: %if windows                                                                       \
 // RUN:   %{%t.dir/libdevice_a.lib%}                                                          \

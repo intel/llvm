@@ -9,7 +9,7 @@
 // RUN: %clangxx --offload-new-driver %{dynamic_lib_options} %S/Inputs/b.cpp %if windows %{%t.dir/libdevice_c.lib%} -o %t.dir/libdevice_b.%{dynamic_lib_suffix}
 // RUN: %clangxx --offload-new-driver %{dynamic_lib_options} %S/Inputs/a.cpp %if windows %{%t.dir/libdevice_b.lib%} -o %t.dir/libdevice_a.%{dynamic_lib_suffix}
 
-// RUN: %if !windows %{%{run-aux}%} \
+// RUN: %if !windows %{%{run-aux}%}                                                       \
 // RUN: %{build} --offload-new-driver -fsycl-allow-device-image-dependencies -I %S/Inputs -o %t.dir/%{t:stem}.out            \
 // RUN: %if windows                                                                       \
 // RUN:   %{%t.dir/libdevice_a.lib%}                                                          \
