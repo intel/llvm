@@ -184,7 +184,7 @@ set( LIBCLC_TARGETS_ALL
   nvptx64-nvidia-cuda
 )
 set( LIBCLC_TEST_TARGETS_ALL
-  nvptx64--nvidiacl
+  nvptx64-nvidia-cuda
   amdgcn-amd-amdhsa
 )
 
@@ -408,7 +408,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
   )
 
   set( BUILD_LIBSPIRV_${t} FALSE )
-  if ( t STREQUAL amdgcn-amd-amdhsa OR t STREQUAL nvptx64--nvidiacl OR t STREQUAL native_cpu )
+  if ( t STREQUAL amdgcn-amd-amdhsa OR t STREQUAL nvptx64-nvidia-cuda OR t STREQUAL native_cpu )
     set( libspirv_lib_files )
     set( BUILD_LIBSPIRV_${t} TRUE )
 
