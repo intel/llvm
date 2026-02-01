@@ -68,11 +68,14 @@ private:
   // Buffers for holding entries in the binary structs alive.
   // Use std::deque to ensure stable pointers - elements never move when growing
   std::vector<std::vector<_sycl_offload_entry_struct>> BinaryOffloadEntries;
-  std::deque<std::vector<_sycl_device_binary_property_struct>>
-      BinaryProperties;
+  std::deque<std::vector<_sycl_device_binary_property_struct>> BinaryProperties;
   std::deque<std::vector<_sycl_device_binary_property_set_struct>>
       BinaryPropertySets;
-  std::deque<std::string> PropertyNames; // Stable storage for name strings
+
+  // Stable storage for name strings.
+  // TODO: see if we can avoid creating local storage by
+  // changing PropertySet design to keep proper pointers.
+  std::deque<std::string> PropertyNames;
 
   std::vector<sycl_device_binary_struct> DeviceBinaries;
 
