@@ -106,7 +106,7 @@ jobs:
         python3 scripts/run_gen.py --target dpcpp --std sycl -t 60 -j 2
     - name: Pack results
       run: tar -czf yarpgen_results.tar.gz yarpgen/testing
-    - uses: actions/upload-artifact@v5
+    - uses: actions/upload-artifact@v6
       with:
         name: yarpgen_results
         path: yarpgen_results.tar.gz
