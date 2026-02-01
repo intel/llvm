@@ -186,7 +186,14 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
       !HostTarget) {
     // Set __CUDA_ARCH__ for the GPU specified.
     unsigned ArchID = CudaArchToID(GPU);
-    Builder.defineMacro("__CUDA_ARCH__", llvm::Twine(ArchID));
+
+    if (Opts.SYCLIsDevice)
+      Builder.defineMacro("__SYCL_CUDA_ARCH__", llvm::Twine(ArchID));
+    // Don't define __CUDA_ARCH__ if in SYCL device mode unless we are in
+    // SYCL-CUDA compatibility mode.
+    // For all other cases, define the macro.
+    if (!Opts.SYCLIsDevice || Opts.SYCLCUDACompat)
+      Builder.defineMacro("__CUDA_ARCH__", llvm::Twine(ArchID));
 
     if (IsNVIDIAAcceleratedOffloadArch(GPU))
       Builder.defineMacro(
