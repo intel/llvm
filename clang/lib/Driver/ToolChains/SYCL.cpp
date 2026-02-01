@@ -1577,10 +1577,6 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
 
       bool IsGenTriple = Triple.isSPIR() &&
                          Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
-      llvm::errs() << "[DEBUG] Args: " << A->getAsString(Args)
-                   << " OptTargetTriple: " << OptTargetTriple.str()
-                   << ", Triple: " << Triple.str() << ", Device: " << Device
-                   << ", GenDevice: " << GenDevice << "\n";
       if (IsGenTriple) {
         if (Device != GenDevice)
           continue;
