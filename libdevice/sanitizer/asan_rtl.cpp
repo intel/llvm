@@ -485,7 +485,7 @@ void ReportAccessError(uptr poisoned_addr, uint32_t as, bool is_recover,
   // Check Error Type
   auto *shadow_address =
       (__SYCL_GLOBAL__ s8 *)MemToShadow(poisoned_addr, as, debug);
-  int shadow_value = *shadow_address;
+  s8 shadow_value = *shadow_address;
   if (shadow_value > 0) {
     shadow_value = *(shadow_address + 1);
   }
@@ -531,7 +531,7 @@ void ReportMisalignError(uptr addr, uint32_t as, bool is_recover,
   while (*shadow >= 0) {
     ++shadow;
   }
-  int shadow_value = *shadow;
+  s8 shadow_value = *shadow;
 
   SaveReport(ErrorType::MISALIGNED, GetMemoryTypeByShadowValue(shadow_value),
              is_recover, debug);
@@ -564,7 +564,7 @@ inline int IsAddressPoisoned(uptr a, uint32_t as, size_t size,
                              const DebugInfo *debug) {
   auto *shadow_address = (__SYCL_GLOBAL__ s8 *)MemToShadow(a, as, debug);
   if (shadow_address) {
-    auto shadow_value = *shadow_address;
+    s8 shadow_value = *shadow_address;
     if (shadow_value) {
       if (size == ASAN_SHADOW_GRANULARITY)
         return true;
