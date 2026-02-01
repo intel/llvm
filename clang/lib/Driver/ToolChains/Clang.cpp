@@ -11616,26 +11616,27 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       if (!TC->getTriple().isSPIROrSPIRV())
         continue;
       ArgStringList BuildArgs;
-      llvm::SmallMapVector<StringRef, SmallString<128>, 4> BackendOptMap;
+      std::vector<SmallString<128>> BackendOptVec;
       SmallString<128> LinkOptString;
 
       // Process each -Xsycl-target-backend individually
       for (const Arg *A : Args.filtered(options::OPT_Xsycl_backend_EQ)) {
         StringRef Device;
         StringRef TargetBackend = A->getValue();
+        SmallString<128> BackendArgs;
         if((TargetBackend == "spir64_gen")) {
           Device = SYCL::gen::extractDeviceFromArgSimple(A->getValue(1));
-          llvm::errs() << "[DEBUG] Resolved device: " << Device << "\n";
         } else {
           Device = SYCL::gen::resolveGenDevice(TargetBackend);
+          appendOption(BackendArgs, "-device " + Device.str());
         }
 
-        SmallString<128> &BackendString = BackendOptMap[Device];
         SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs, Device);
         for (const auto &BA : BuildArgs) {
-          appendOption(BackendString, BA);
+          appendOption(BackendArgs, BA);
         }
 
+        BackendOptVec.push_back(std::move(BackendArgs));
         BuildArgs.clear();
       }
 
@@ -11645,19 +11646,16 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
           appendOption(LinkOptString, A);
         else {
           // For AOT, append linker args to every backend string
-          for (auto &KV : BackendOptMap)
-            appendOption(KV.second, A);
+          for (auto &BackendArgs : BackendOptVec)
+            appendOption(BackendArgs, A);
         }
       }
 
-      for (auto &KV : BackendOptMap) {
-        llvm::StringRef Device = KV.first;
-        llvm::SmallString<128> &Opts = KV.second;
-
+      for (auto &BackendArgs : BackendOptVec) {
         CmdArgs.push_back(Args.MakeArgString(
             "--device-compiler=" +
             Action::GetOffloadKindName(Action::OFK_SYCL) + ":" +
-            TC->getTripleString() + ":" + Device + ":""=" + Opts));
+            TC->getTripleString() + "=" + BackendArgs));
       }
       if (!LinkOptString.empty()) {
         CmdArgs.push_back(Args.MakeArgString(
