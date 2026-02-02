@@ -52,7 +52,6 @@ jobs:
   build:
     name: Self build
     needs: [detect_changes]
-    if: success()
     uses: ./.github/workflows/sycl-linux-build.yml
     with:
       build_ref: ${{ github.sha }}
