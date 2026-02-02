@@ -67,6 +67,22 @@ add_l0_v2_devices_test(memory_residency
     ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/ur_level_zero.cpp
 )
 
+add_l0_v2_devices_test(batched_queue
+    batched_queue_test.cpp
+   ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/adapter.cpp
+    ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/common.cpp
+    ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/device.cpp
+    ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/platform.cpp
+    ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/ur_level_zero.cpp
+    ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/v2/event_pool_cache.cpp
+    ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/v2/event_pool.cpp
+    ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/v2/event_provider_counter.cpp
+    ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/v2/event_provider_normal.cpp
+    ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/v2/event.cpp
+    ${PROJECT_SOURCE_DIR}/source/ur/ur.cpp
+     ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/v2/command_list_cache.cpp
+)
+
 if(NOT UR_FOUND_DPCXX)
     # Tests that require kernels can't be used if we aren't generating
     # device binaries
