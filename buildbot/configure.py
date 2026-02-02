@@ -149,7 +149,7 @@ def do_configure(args, passthrough_args):
 
         # For clang-format, clang-tidy and code coverage
         llvm_enable_projects += ";clang-tools-extra"
-        llvm_enable_runtimes = "compiler-rt"
+        llvm_enable_runtimes += "compiler-rt"
         if sys.platform != "darwin":
             # libclc is required for CI validation
             libclc_enabled = True
