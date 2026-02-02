@@ -490,6 +490,10 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     # Add platform specific flags
     if(WIN32)
       list(APPEND build_flags -D_WIN32)
+      # wchar is not used in libclc,however,llvm ir contains wchar_size in attr
+      # the default on windows is 2 vs 4 in clang
+      # set it to 2 to avoid linking failures due to conflicts.
+      list(APPEND build_flags -fshort-wchar)
     elseif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
       list(APPEND build_flags -D__APPLE__)
     elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
