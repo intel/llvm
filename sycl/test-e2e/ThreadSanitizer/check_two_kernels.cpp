@@ -17,10 +17,10 @@ int main() {
 
   Q.submit([&](sycl::handler &h) {
      h.parallel_for<class Test1>(sycl::nd_range<1>(128, 8),
-                                [=](sycl::nd_item<1> it) {
-                                  *array += it.get_global_linear_id();
-                                  foo(array, it.get_local_linear_id());
-                                });
+                                 [=](sycl::nd_item<1> it) {
+                                   *array += it.get_global_linear_id();
+                                   foo(array, it.get_local_linear_id());
+                                 });
    }).wait();
   // CHECK: WARNING: DeviceSanitizer: data race
   // CHECK-NEXT: When write of size 4 at 0x{{.*}} in kernel <{{.*}}Test1>
@@ -28,10 +28,10 @@ int main() {
 
   Q.submit([&](sycl::handler &h) {
      h.parallel_for<class Test2>(sycl::nd_range<1>(256, 16),
-                                [=](sycl::nd_item<1> it) {
-                                  *array += it.get_global_linear_id();
-                                  foo(array, it.get_local_linear_id());
-                                });
+                                 [=](sycl::nd_item<1> it) {
+                                   *array += it.get_global_linear_id();
+                                   foo(array, it.get_local_linear_id());
+                                 });
    }).wait();
   // CHECK: WARNING: DeviceSanitizer: data race
   // CHECK-NEXT: When write of size 4 at 0x{{.*}} in kernel <{{.*}}Test2>

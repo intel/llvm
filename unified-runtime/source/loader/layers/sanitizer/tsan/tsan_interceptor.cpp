@@ -26,8 +26,7 @@ TsanRuntimeDataWrapper::~TsanRuntimeDataWrapper() {
     assert(Result == UR_RESULT_SUCCESS);
   }
   if (Host.Clock) {
-    Result =
-        getContext()->urDdiTable.USM.pfnFree(Context, (void *)Host.Clock);
+    Result = getContext()->urDdiTable.USM.pfnFree(Context, (void *)Host.Clock);
     assert(Result == UR_RESULT_SUCCESS);
   }
   if (DevicePtr) {
