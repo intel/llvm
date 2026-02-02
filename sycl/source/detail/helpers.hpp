@@ -30,6 +30,8 @@ namespace detail {
 class CGExecKernel;
 class queue_impl;
 class RTDeviceBinaryImage;
+class event_impl;
+using EventImplPtr = std::shared_ptr<event_impl>;
 
 const RTDeviceBinaryImage *
 retrieveKernelBinary(queue_impl &Queue, std::string_view KernelName,
@@ -193,6 +195,13 @@ private:
     return std::none_of(R.begin(), R.end(), std::forward<Pred>(P));
   }
 };
+
+// Collect UR events from EventImpls and filter out some of them in case of
+// in order queue. Does blocking enqueue if event is expected to produce ur
+// event but has empty native handle.
+std::vector<ur_event_handle_t>
+getUrEventsBlocking(std::vector<EventImplPtr> &Events, bool HasEventMode,
+                    queue_impl &queue, bool isHostTask);
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
