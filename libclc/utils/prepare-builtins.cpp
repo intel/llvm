@@ -74,7 +74,6 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-
   SmallVector<Metadata *, 2> BannedFlags;
   // wchar_size flag can cause a mismatch between libclc libraries and
   // modules using them. Since wchar is not used by libclc we drop the flag
