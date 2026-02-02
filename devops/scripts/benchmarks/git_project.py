@@ -49,6 +49,9 @@ class GitProject:
         return self._directory / f"{self._name}-install"
 
     def needs_rebuild(self) -> bool:
+        if options.no_rebuild:
+            log.debug("Rebuild is disabled due to --no-rebuild option.")
+            return False
         if self._rebuild_needed:
             log.debug(
                 f"Rebuild needed because new sources were detected for project {self._name}."
@@ -174,6 +177,11 @@ class GitProject:
         if os.environ.get("LLVM_BENCHMARKS_UNIT_TESTING") == "1":
             log.debug(
                 f"Skipping git operations during unit testing of {self._name} (LLVM_BENCHMARKS_UNIT_TESTING=1)."
+            )
+            return False
+        if options.no_rebuild:
+            log.debug(
+                f"Skipping git operations for {self._name} due to --no-rebuild option."
             )
             return False
         if not self.src_dir.exists():
