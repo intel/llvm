@@ -1461,7 +1461,12 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         self._use_events = useEvents
         self._use_host_tasks = useHostTasks
         self._emulate_graphs = emulate_graphs
-        self._emulate_str = " with graph emulation" if self._emulate_graphs else ""
+        self._native_str = (
+            " native recording"
+            if self._emulate_graphs == 0
+            and (runtime == RUNTIMES.UR or runtime == RUNTIMES.LEVEL_ZERO)
+            else ""
+        )
         self._ioq_str = "in order" if self._in_order_queue else "out of order"
         self._measure_str = (
             " with measure completion" if self._measure_completion_time else ""
@@ -1480,13 +1485,13 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         )
 
     def name(self):
-        return f"graph_api_benchmark_{self._runtime.value} SubmitGraph{self._use_events_str}{self._host_tasks_str}{self._emulate_str} numKernels:{self._num_kernels} ioq {self._in_order_queue} measureCompletion {self._measure_completion_time}{self._cpu_count_str()}"
+        return f"graph_api_benchmark_{self._runtime.value} SubmitGraph{self._native_str}{self._use_events_str}{self._host_tasks_str} numKernels:{self._num_kernels} ioq {self._in_order_queue} measureCompletion {self._measure_completion_time}{self._cpu_count_str()}"
 
     def display_name(self) -> str:
-        return f"{self._runtime.value.upper()} SubmitGraph {self._ioq_str}{self._measure_str}{self._use_events_str}{self._host_tasks_str}{self._emulate_str}, {self._num_kernels} kernels{self._cpu_count_str(separator=',')}"
+        return f"{self._runtime.value.upper()} SubmitGraph{self._native_str} {self._ioq_str}{self._measure_str}{self._use_events_str}{self._host_tasks_str}, {self._num_kernels} kernels{self._cpu_count_str(separator=',')}"
 
     def explicit_group(self):
-        return f"SubmitGraph {self._ioq_str}{self._measure_str}{self._use_events_str}{self._host_tasks_str}, {self._num_kernels} kernels{self._cpu_count_str(separator=',')}"
+        return f"SubmitGraph{self._native_str} {self._ioq_str}{self._measure_str}{self._use_events_str}{self._host_tasks_str}, {self._num_kernels} kernels{self._cpu_count_str(separator=',')}"
 
     def description(self) -> str:
         return (
