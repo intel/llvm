@@ -223,7 +223,7 @@ bool run_sycl(sycl::queue syclQueue, sycl::range<NDims> globalSize,
 
   printString("Validating\n");
   bool validated = true;
-  auto getExpectedValue = [&](int i) -> OutType {
+  auto getExpectedValue = [&](int i) -> auto {
     if (CType == sycl::image_channel_type::unorm_int8)
       return 0.5f;
     if constexpr (std::is_integral_v<OutType> ||
