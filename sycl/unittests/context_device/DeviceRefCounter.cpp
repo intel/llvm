@@ -101,7 +101,12 @@ TEST(SubDevRefCounter, SubDevRefCounter) {
     mock::getCallbacks().set_after_callback("urDeviceGetInfo",
                                             &redefinedDeviceGetInfoAfter);
     sycl::platform Plt = sycl::platform();
-
+    // Skip for Windows OpenCL.
+#ifdef _WIN32
+    if (Plt.get_backend() == sycl::backend::opencl) {
+      GTEST_SKIP();
+    }
+#endif
     auto Devs = Plt.get_devices();
     if (!Devs.empty()) {
       auto Subdevs = Devs[0]
