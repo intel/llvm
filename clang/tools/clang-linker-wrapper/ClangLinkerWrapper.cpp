@@ -754,10 +754,19 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
 
-  if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen && !Arch.empty() &&
-      !IsDevicePassedWithSyclTargetBackend && Arch != "*")
-    OutputPathWithArch = "intel_gpu_" + Arch.str() + "," + OutputPathWithArch;
-  else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
+  if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen && !Arch.empty() && Arch != "*") {
+    SmallVector<StringRef, 4> ArchList;
+    Arch.split(ArchList, ',');
+
+    std::string ArchPaths;
+    for (StringRef SingleArch : ArchList) {
+      if (!ArchPaths.empty())
+        ArchPaths += ",";
+      ArchPaths += "intel_gpu_" + SingleArch.str();
+    }
+    if (!ArchPaths.empty())
+      OutputPathWithArch = ArchPaths + "," + OutputPathWithArch;
+  } else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
     OutputPathWithArch = "spir64_x86_64," + OutputPathWithArch;
 
   SmallVector<StringRef, 8> CmdArgs;
@@ -2188,8 +2197,13 @@ static void appendSYCLDeviceOptionsAtLinkTime(const DerivedArgList &LinkerArgs,
                                               std::string &CompileOptions,
                                               std::string &LinkOptions) {
   const StringRef TripleStr = LinkerArgs.getLastArgValue(OPT_triple_EQ);
-  auto processDeviceArgs = [&](unsigned OptID, std::string &Options) {
+  auto processDeviceArgs = [&](unsigned OptID, std::string &Options, StringRef TargetArch = StringRef()) {
     for (StringRef Arg : LinkerArgs.getAllArgValues(OptID)) {
+      if (!TargetArch.empty()) {
+        std::string DeviceArchPattern = "-device " + TargetArch.str();
+        if (Arg.find(DeviceArchPattern) == StringRef::npos)
+          continue;
+      }
       size_t ColonPos = Arg.find(':');
       if (ColonPos != StringRef::npos) {
         StringRef Kind = Arg.substr(0, ColonPos);
@@ -2211,7 +2225,7 @@ static void appendSYCLDeviceOptionsAtLinkTime(const DerivedArgList &LinkerArgs,
     }
   };
 
-  processDeviceArgs(OPT_device_compiler_args_EQ, CompileOptions);
+  processDeviceArgs(OPT_device_compiler_args_EQ, CompileOptions, LinkerArgs.getLastArgValue(OPT_arch_EQ));
   processDeviceArgs(OPT_device_linker_args_EQ, LinkOptions);
 }
 

@@ -1578,7 +1578,7 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
       bool IsGenTriple = Triple.isSPIR() &&
                          Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
       if (IsGenTriple) {
-        if (Device != GenDevice)
+        if (Device != GenDevice && !Device.empty())
           continue;
         if (OptTargetTriple != Triple && GenDevice.empty())
           // Triples do not match, but only skip when we know we are not
