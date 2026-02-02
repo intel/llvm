@@ -25,6 +25,11 @@ TsanRuntimeDataWrapper::~TsanRuntimeDataWrapper() {
         getContext()->urDdiTable.USM.pfnFree(Context, (void *)Host.LocalArgs);
     assert(Result == UR_RESULT_SUCCESS);
   }
+  if (Host.Clock) {
+    Result =
+        getContext()->urDdiTable.USM.pfnFree(Context, (void *)Host.Clock);
+    assert(Result == UR_RESULT_SUCCESS);
+  }
   if (DevicePtr) {
     Result = getContext()->urDdiTable.USM.pfnFree(Context, DevicePtr);
     assert(Result == UR_RESULT_SUCCESS);
@@ -42,6 +47,19 @@ TsanRuntimeData *TsanRuntimeDataWrapper::getDevicePtr() {
     }
   }
   return DevicePtr;
+}
+
+VectorClock *TsanRuntimeDataWrapper::getClockPtr() {
+  if (!Host.Clock) {
+    ur_result_t URes = getContext()->urDdiTable.USM.pfnDeviceAlloc(
+        Context, Device, nullptr, {},
+        sizeof(VectorClock) * (kThreadSlotCount + 1), (void **)&Host.Clock);
+    if (URes != UR_RESULT_SUCCESS) {
+      UR_LOG(ERR, "Failed to allocate memory for vector clock: {}", URes);
+      return nullptr;
+    }
+  }
+  return Host.Clock;
 }
 
 ur_result_t TsanRuntimeDataWrapper::syncFromDevice(ur_queue_handle_t Queue) {
@@ -162,16 +180,6 @@ ur_result_t TsanInterceptor::allocateMemory(ur_context_handle_t Context,
 ur_result_t TsanInterceptor::releaseMemory(ur_context_handle_t Context,
                                            void *Ptr) {
   auto CI = getContextInfo(Context);
-  auto Addr = reinterpret_cast<uptr>(Ptr);
-
-  for (const auto &Device : CI->DeviceList) {
-    auto DI = getDeviceInfo(Device);
-    std::scoped_lock<ur_shared_mutex> Guard(DI->AllocInfosMutex);
-    auto It = std::find_if(DI->AllocInfos.begin(), DI->AllocInfos.end(),
-                           [&](auto &P) { return P.AllocBegin == Addr; });
-    if (It != DI->AllocInfos.end())
-      DI->AllocInfos.erase(It);
-  }
 
   UR_CALL(getContext()->urDdiTable.USM.pfnFree(Context, Ptr));
   return UR_RESULT_SUCCESS;
@@ -360,6 +368,20 @@ ur_result_t TsanInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
   // urEventSetCallback
   UR_CALL(getContext()->urDdiTable.Queue.pfnFinish(Queue));
 
+  // Sync vector clock
+  UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+      Queue, true, GlobalClock, LaunchInfo.Data.Host.Clock,
+      sizeof(VectorClock) * (kThreadSlotCount + 1), 0, nullptr, nullptr));
+
+  for (unsigned i = 0; i < kThreadSlotCount; i++) {
+    GlobalClock[kThreadSlotCount].clk_[i] = GlobalClock[i].clk_[i];
+  }
+
+  for (unsigned i = 0; i < kThreadSlotCount; i++) {
+    std::memcpy(GlobalClock[i].clk_, GlobalClock[kThreadSlotCount].clk_,
+                sizeof(Epoch) * kThreadSlotCount);
+  }
+
   if (!LaunchInfo.Data.hasReport(Queue))
     return UR_RESULT_SUCCESS;
 
@@ -455,6 +477,10 @@ ur_result_t TsanInterceptor::prepareLaunch(std::shared_ptr<ContextInfo> &,
     }
   }
 
+  UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+      Queue, true, LaunchInfo.Data.getClockPtr(), GlobalClock,
+      sizeof(VectorClock) * (kThreadSlotCount + 1), 0, nullptr, nullptr));
+
   LaunchInfo.Data.syncToDevice(Queue);
 
   // EnqueueWrite __TsanLaunchInfo
@@ -486,6 +512,8 @@ ur_result_t TsanInterceptor::updateShadowMemory(std::shared_ptr<DeviceInfo> &DI,
     UR_CALL(DI->Shadow->CleanShadow(Queue, AllocInfo.AllocBegin,
                                     AllocInfo.AllocSize));
   }
+  DI->AllocInfos.clear();
+  PI.AllocInfoForGlobals.clear();
   return UR_RESULT_SUCCESS;
 }
 
