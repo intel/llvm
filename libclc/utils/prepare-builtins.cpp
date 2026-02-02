@@ -74,23 +74,11 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  // Strip the OpenCL version metadata. There are a lot of linked
-  // modules in the library build, each spamming the same
-  // version. This may also report a different version than the user
-  // program is using. This should probably be uniqued when linking.
-  if (NamedMDNode *OCLVersion = M->getNamedMetadata("opencl.ocl.version"))
-      M->eraseNamedMetadata(OCLVersion);
 
   SmallVector<Metadata *, 2> BannedFlags;
   // wchar_size flag can cause a mismatch between libclc libraries and
   // modules using them. Since wchar is not used by libclc we drop the flag
   if (Metadata *F = M->getModuleFlag("wchar_size")) {
-    BannedFlags.push_back(F);
-  }
-
-  // amdhsa_code_object_version will be provided by the kernel module and may
-  // be changed by a command line flag.
-  if (Metadata *F = M->getModuleFlag("amdhsa_code_object_version")) {
     BannedFlags.push_back(F);
   }
 
@@ -107,18 +95,6 @@ int main(int argc, char **argv) {
       M->addModuleFlag(ModuleFlag.Behavior, ModuleFlag.Key->getString(),
                        ModuleFlag.Val);
     }
-  }
-
-  // Set linkage of every external definition to linkonce_odr.
-  for (Module::iterator i = M->begin(), e = M->end(); i != e; ++i) {
-    if (!i->isDeclaration() && i->getLinkage() == GlobalValue::ExternalLinkage)
-      i->setLinkage(GlobalValue::LinkOnceODRLinkage);
-  }
-
-  for (Module::global_iterator i = M->global_begin(), e = M->global_end();
-       i != e; ++i) {
-    if (!i->isDeclaration() && i->getLinkage() == GlobalValue::ExternalLinkage)
-      i->setLinkage(GlobalValue::LinkOnceODRLinkage);
   }
 
   if (OutputFilename.empty()) {
