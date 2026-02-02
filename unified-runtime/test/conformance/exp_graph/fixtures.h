@@ -22,6 +22,23 @@ struct urGraphSupportedExpTest : uur::urQueueTest {
   }
 };
 
+struct urGraphSupportedExpMultiQueueTest : uur::urMultiQueueTest {
+  void SetUp() override {
+    UUR_RETURN_ON_FATAL_FAILURE(urMultiQueueTest::SetUp());
+
+    ur_bool_t graph_supported = false;
+    ur_result_t result = urDeviceGetInfo(
+        device, UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP,
+        sizeof(graph_supported), &graph_supported, nullptr);
+    if (result == UR_RESULT_SUCCESS && !graph_supported) {
+      GTEST_SKIP();
+    }
+
+    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{}, uur::NativeCPU{},
+                         uur::OpenCL{}, uur::LevelZero{});
+  }
+};
+
 struct urGraphExpTest : urGraphSupportedExpTest {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urGraphSupportedExpTest::SetUp());
