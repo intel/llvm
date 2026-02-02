@@ -107,15 +107,23 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   # Feature-specific compilation and link step setup
 
-  # Link LLVM libraries (required for SYCLBIN and other LLVM utilities)
+  # Unlike for sycl library, for LLVM libraries we have only one version for a given build,
+  # so, we link LLVM libraries to matching sycl version only.
+  if (SYCL_ENABLE_STACK_PRINTING)
+    if(NOT MSVC OR (CMAKE_BUILD_TYPE STREQUAL "Debug" AND ARG_COMPILE_OPTIONS MATCHES ".*MDd.*") OR
+      (NOT CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ARG_COMPILE_OPTIONS MATCHES ".*MDd.*"))
+        add_dependencies(${LIB_NAME} LLVMSupport)
+        target_compile_definitions(${LIB_OBJ_NAME} PUBLIC ENABLE_STACK_TRACE)
+        target_link_libraries(${LIB_NAME} PRIVATE LLVMSupport)
+    endif()
+  endif()
+  # Link LLVMObject for SYCLBIN support.
+  # Note: LLVMObject automatically brings in LLVMSupport as a transitive dependency.
+  # Note: Use of API from LLVMObject avoids classes with virtual methods, so no RTTI is needed.
   if(NOT MSVC OR (CMAKE_BUILD_TYPE STREQUAL "Debug" AND ARG_COMPILE_OPTIONS MATCHES ".*MDd.*") OR
     (NOT CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ARG_COMPILE_OPTIONS MATCHES ".*MDd.*"))
-      add_dependencies(${LIB_NAME} LLVMSupport LLVMObject)
-      target_link_libraries(${LIB_NAME} PRIVATE LLVMSupport LLVMObject)
-  endif()
-
-  if (SYCL_ENABLE_STACK_PRINTING)
-    target_compile_definitions(${LIB_OBJ_NAME} PUBLIC ENABLE_STACK_TRACE)
+      add_dependencies(${LIB_NAME} LLVMObject)
+      target_link_libraries(${LIB_NAME} PRIVATE LLVMObject)
   endif()
 
   # TODO: Enabled for MSVC
@@ -314,7 +322,6 @@ set(SYCL_COMMON_SOURCES
     "detail/sampler_impl.cpp"
     "detail/stream_impl.cpp"
     "detail/syclbin.cpp"
-    "detail/llvm_error_stub.cpp"
     "detail/scheduler/commands.cpp"
     "detail/scheduler/leaves_collection.cpp"
     "detail/scheduler/scheduler.cpp"
