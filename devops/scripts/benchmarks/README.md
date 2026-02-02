@@ -124,6 +124,8 @@ The available benchmarks options are:
 
 For example `--filter "graph_api_*"`
 
+`--no-rebuild` - disables rebuilding of git projects. When specified, the scripts will skip fetching updates from git repositories and rebuilding benchmark dependencies. This is useful when you want to run benchmarks with existing builds without checking for updates or recompiling. Note that if build artifacts don't exist, the benchmarks will fail to run.
+
 ## Running in CI
 
 The benchmarks scripts are used in a GitHub Actions workflow, and can be automatically executed on a preconfigured system against any Pull Request.

@@ -54,6 +54,7 @@ class Options:
     ur: str = None
     ur_adapter: str = None
     umf: str = None
+    no_rebuild: bool = False
     redownload: bool = False
     benchmark_cwd: str = "INVALID"
     timeout: float = 600
