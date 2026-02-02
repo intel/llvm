@@ -1,4 +1,4 @@
-# Copyright (C) 2025 Intel Corporation
+# Copyright (C) 2025-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -64,6 +64,9 @@ class GromacsBench(Suite):
         # TODO: Detect the GPU architecture and set the appropriate flags
 
         # Build GROMACS
+        if options.offline:
+            log.info("Skipping GROMACS build due to --offline option.")
+            return
 
         self.oneapi = get_oneapi()
 
