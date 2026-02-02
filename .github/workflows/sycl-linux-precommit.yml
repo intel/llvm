@@ -69,6 +69,14 @@ jobs:
       e2e_binaries_preview_artifact: e2e_bin_preview
       e2e_binaries_new_offload_model_artifact: e2e_bin_new_offload_model
 
+      # For clang-tidy
+      build_configure_extra_args: -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+  clang-tidy:
+    needs: build
+    if: ${{ !cancelled() && needs.build.outputs.build_conclusion == 'success' && github.base_ref == 'sycl' !contains(github.event.pull_request.labels.*.name, 'disable-lint') }}
+    uses: ./.github/workflows/sycl-clang-tidy.yml
+
   # Build and run native cpu e2e tests separately as cannot currently
   # build all the e2e tests
   build_run_native_cpu_e2e_tests:
