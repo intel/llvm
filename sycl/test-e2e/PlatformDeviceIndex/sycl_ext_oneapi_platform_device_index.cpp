@@ -1,3 +1,5 @@
+// REQUIRES: level_zero_dev_kit, opencl_icd
+
 // RUN: %{build} %level_zero_options %opencl_lib -o %t.out
 // RUN: %{run} %t.out
 
