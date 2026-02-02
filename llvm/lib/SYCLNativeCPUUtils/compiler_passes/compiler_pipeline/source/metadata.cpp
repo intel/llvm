@@ -214,11 +214,11 @@ void encodeLocalSizeMetadata(Function &f, const std::array<uint64_t, 3> &size) {
   // We may be truncating i64 to i32 but we don't expect local sizes to ever
   // exceed 32 bits.
   auto *const i32Ty = Type::getInt32Ty(f.getContext());
-  auto *const mdTuple =
-      MDTuple::get(f.getContext(),
-                   {ConstantAsMetadata::get(ConstantInt::get(i32Ty, size[0])),
-                    ConstantAsMetadata::get(ConstantInt::get(i32Ty, size[1])),
-                    ConstantAsMetadata::get(ConstantInt::get(i32Ty, size[2]))});
+  auto *const mdTuple = MDTuple::get(
+      f.getContext(),
+      {ConstantAsMetadata::get(ConstantInt::get(i32Ty, size[0], false, true)),
+       ConstantAsMetadata::get(ConstantInt::get(i32Ty, size[1], false, true)),
+       ConstantAsMetadata::get(ConstantInt::get(i32Ty, size[2], false, true))});
   f.setMetadata(ReqdWGSizeMD, mdTuple);
 }
 
