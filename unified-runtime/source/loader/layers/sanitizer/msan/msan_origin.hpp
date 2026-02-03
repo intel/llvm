@@ -34,7 +34,7 @@ namespace msan {
 
 class Origin {
 public:
-  uint32_t rawId() const { return raw_id_; }
+  const uint32_t *rawId() const { return &raw_id_; }
 
   bool isHeapOrigin() const {
     return isDeviceUSMOrigin() || isHostUSMOrigin() || isSharedUSMOrigin() ||

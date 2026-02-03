@@ -597,6 +597,13 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
 ur_event_handle_t ur_context_handle_t_::getEventFromContextCache(
     bool HostVisible, bool WithProfiling, ur_device_handle_t Device,
     bool CounterBasedEventEnabled, bool InterruptBasedEventEnabled) {
+  // Don't reuse events with profiling enabled because zeEventHostReset
+  // does not clear the profiling timestamps, causing stale timestamp data
+  // to be returned by zeEventQueryKernelTimestamp after the event is reused.
+  if (WithProfiling) {
+    return nullptr;
+  }
+
   std::scoped_lock<ur_mutex> Lock(EventCacheMutex);
   auto Cache =
       getEventCache(HostVisible, WithProfiling, Device,
