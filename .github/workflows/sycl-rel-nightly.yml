@@ -245,9 +245,9 @@ jobs:
       && needs.build-win.outputs.build_conclusion == 'success'
     uses: ./.github/workflows/sycl-hardening-check.yml
     with:
-      sycl_linux_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
+      sycl_linux_artifact: sycl_linux_release
       sycl_linux_archive: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
       sycl_linux_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
 
-      sycl_windows_artifact: ${{ needs.build-win.outputs.toolchain_artifact }}
+      sycl_windows_artifact: sycl_windows_release
       sycl_windows_archive: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
