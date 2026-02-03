@@ -174,7 +174,7 @@ on:
           - 'ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest'
           - 'ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_2'
           - 'ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_3'
-          - 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'
+          - 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest'
       image_options:
         description: |
           Use option with "--device=/dev/kfd" for AMDGPU, without it for the rest.
@@ -245,7 +245,7 @@ jobs:
       contents: write
       packages: read
     container:
-      image: ${{ inputs.image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'}}
+      image: ${{ inputs.image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest'}}
       options: ${{ inputs.image_options }}
     env: ${{ fromJSON(inputs.env) }}
     steps:
