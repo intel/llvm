@@ -94,11 +94,10 @@ class ComputeRuntime:
             # Repos with commit hashes as refs can't be cloned shallowly.
             GitProject(
                 "https://github.com/intel/vc-intrinsics",
-                "3d76a9b8f87a29272f9ef90cbe0b7aef66cd3648",
+                "v0.24.2",
                 Path(options.workdir),
                 "vc-intrinsics",
                 no_suffix_src=True,
-                shallow_clone=False,
             )
             llvm_project = GitProject(
                 "https://github.com/llvm/llvm-project",
@@ -124,7 +123,7 @@ class ComputeRuntime:
             )
             GitProject(
                 "https://github.com/KhronosGroup/SPIRV-Tools.git",
-                "049de81a0f8ac3f5c092f56a103b66c90bc90ec3",
+                "28a883ba4c67f58a9540fb0651c647bb02883622",
                 Path(options.workdir),
                 "SPIRV-Tools",
                 no_suffix_src=True,
@@ -132,7 +131,7 @@ class ComputeRuntime:
             )
             GitProject(
                 "https://github.com/KhronosGroup/SPIRV-Headers.git",
-                "6146b3d9ad4fcc5fb512209d348e97ce03749169",
+                "01e0577914a75a2569c846778c2f93aa8e6feddd",
                 Path(options.workdir),
                 "SPIRV-Headers",
                 no_suffix_src=True,

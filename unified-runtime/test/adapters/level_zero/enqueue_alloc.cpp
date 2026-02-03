@@ -10,6 +10,7 @@
 #include <thread>
 
 #include "ur_api.h"
+#include "uur/utils.h"
 #include <uur/fixtures.h>
 
 struct EnqueueAllocTestParam {
@@ -81,6 +82,7 @@ struct urL0EnqueueAllocMultiQueueSameDeviceTest
     for (size_t i = 0; i < param.numQueues; i++) {
       ur_queue_handle_t queue = nullptr;
       ASSERT_SUCCESS(urQueueCreate(context, device, 0, &queue));
+      SKIP_IF_BATCHED_QUEUE(queue);
       queues.push_back(queue);
     }
   }
@@ -342,6 +344,10 @@ TEST_P(urL0EnqueueAllocMultiQueueSameDeviceTest, SuccessMt) {
       std::get<1>(this->GetParam()).funcParams.enqueueUSMAllocFunc;
   const auto checkUSMSupportFunc =
       std::get<1>(this->GetParam()).funcParams.checkUSMSupportFunc;
+
+  if (numQueues > 0) {
+    SKIP_IF_BATCHED_QUEUE(queues[0]);
+  }
 
   ur_device_usm_access_capability_flags_t USMSupport = 0;
   ASSERT_SUCCESS(checkUSMSupportFunc(device, USMSupport));

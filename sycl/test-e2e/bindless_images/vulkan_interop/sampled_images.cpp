@@ -5,8 +5,8 @@
 // XFAIL: linux
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/21131
 
-// XFAIL: linux && (gpu-intel-dg2 || arch-intel_gpu_bmg_g21)
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21136
+// UNSUPPORTED: linux && (gpu-intel-dg2 || arch-intel_gpu_bmg_g21)
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21136
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes -DENABLE_LINEAR_TILING -DTEST_L0_SUPPORTED_VK_FORMAT %}
 // RUN: %{run} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
@@ -223,7 +223,7 @@ bool run_sycl(sycl::queue syclQueue, sycl::range<NDims> globalSize,
 
   printString("Validating\n");
   bool validated = true;
-  auto getExpectedValue = [&](int i) -> OutType {
+  auto getExpectedValue = [&](int i) -> auto {
     if (CType == sycl::image_channel_type::unorm_int8)
       return 0.5f;
     if constexpr (std::is_integral_v<OutType> ||
