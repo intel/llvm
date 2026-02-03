@@ -9289,7 +9289,9 @@ InputInfoList Driver::BuildJobsForActionNoCache(
                                              AtTopLevel, MultipleArchs,
                                              OffloadingPrefix),
                        BaseInput);
-    if (T->canEmitIR() && OffloadingPrefix.empty())
+    // Enable time tracing capability for SYCL applications as well.
+    if (T->canEmitIR() && (OffloadingPrefix.empty() ||
+                           TargetDeviceOffloadKind == Action::OFK_SYCL))
       handleTimeTrace(C, Args, JA, BaseInput, Result);
   }
 
