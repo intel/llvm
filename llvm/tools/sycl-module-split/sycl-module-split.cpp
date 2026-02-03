@@ -126,11 +126,26 @@ int main(int argc, char *argv[]) {
   Settings.OutputAssembly = OutputAssembly;
   Settings.OutputPrefix = OutputFilenamePrefix;
   Settings.AllowDeviceImageDependencies = AllowDeviceImageDependencies;
-  auto SplitModulesOrErr = splitSYCLModule(std::move(M), Settings);
-  if (!SplitModulesOrErr) {
+  std::vector<SplitModule> SplitModules;
+  auto PostSplitCallback = [&SplitModules,
+                            Settings](std::unique_ptr<ModuleDesc> MD) -> Error {
+    size_t ID = SplitModules.size();
+    // MD->fixupLinkageOfDirectInvokeSimdTargets();
+    std::string OutIRFileName = (Settings.OutputPrefix + "_" + Twine(ID)).str();
+    Expected<SplitModule> SplitImageOrErr =
+        saveModuleDesc(*MD, OutIRFileName, Settings.OutputAssembly);
+    if (!SplitImageOrErr)
+      return SplitImageOrErr.takeError();
+
+    SplitModules.emplace_back(std::move(*SplitImageOrErr));
+    return Error::success();
+  };
+
+  Error E = splitSYCLModule(std::move(M), Settings, PostSplitCallback);
+  if (E) {
     Err.print(argv[0], errs());
     return 1;
   }
 
-  dumpModulesAsTable(*SplitModulesOrErr, OutputFilenamePrefix);
+  dumpModulesAsTable(SplitModules, OutputFilenamePrefix);
 }

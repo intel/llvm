@@ -36,6 +36,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/LineIterator.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Transforms/IPO.h"
@@ -1204,8 +1205,8 @@ static Error saveModuleIRInFile(Module &M, StringRef FilePath,
   return Error::success();
 }
 
-static Expected<SplitModule> saveModuleDesc(ModuleDesc &MD, std::string Prefix,
-                                            bool OutputAssembly) {
+Expected<SplitModule> saveModuleDesc(ModuleDesc &MD, std::string Prefix,
+                                     bool OutputAssembly) {
   SplitModule SM;
   Prefix += OutputAssembly ? ".ll" : ".bc";
   MD.saveSplitInformationAsMetadata();
@@ -1314,8 +1315,9 @@ bool runPreSplitProcessingPipeline(Module &M) {
   return !MPM.run(M, MAM).areAllPreserved();
 }
 
-Expected<std::vector<SplitModule>>
-splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
+Error splitSYCLModule(
+    std::unique_ptr<Module> M, ModuleSplitterSettings Settings,
+    function_ref<Error(std::unique_ptr<ModuleDesc>)> PostSplitCallback) {
   auto MD = std::make_unique<ModuleDesc>(std::move(M));
   // FIXME: false arguments are temporary for now.
   auto Splitter = getDeviceCodeSplitter(std::move(MD), Settings.Mode,
@@ -1324,22 +1326,27 @@ splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
                                         Settings.AllowDeviceImageDependencies);
 
   size_t ID = 0;
-  std::vector<SplitModule> OutputImages;
+  // std::vector<SplitModule> OutputImages;
   while (Splitter->hasMoreSplits()) {
     std::unique_ptr<ModuleDesc> MD2 = Splitter->nextSplit();
-    MD2->fixupLinkageOfDirectInvokeSimdTargets();
+    if (Error E = PostSplitCallback(std::move(MD2)); E)
+      return createStringError(formatv(
+          "SYCL Module split failed for part index {0}. error: {1}", ID, E));
 
-    std::string OutIRFileName = (Settings.OutputPrefix + "_" + Twine(ID)).str();
-    auto SplittedImageOrErr =
-        saveModuleDesc(*MD2, OutIRFileName, Settings.OutputAssembly);
-    if (!SplittedImageOrErr)
-      return SplittedImageOrErr.takeError();
-
-    OutputImages.emplace_back(std::move(*SplittedImageOrErr));
     ++ID;
+    // MD2->fixupLinkageOfDirectInvokeSimdTargets();
+    // std::string OutIRFileName = (Settings.OutputPrefix + "_" +
+    // Twine(ID)).str(); auto SplittedImageOrErr =
+    //     saveModuleDesc(*MD2, OutIRFileName, Settings.OutputAssembly);
+    // if (!SplittedImageOrErr)
+    //   return SplittedImageOrErr.takeError();
+
+    // OutputImages.emplace_back(std::move(*SplittedImageOrErr));
+    // ++ID;
   }
 
-  return OutputImages;
+  // return OutputImages;
+  return Error::success();
 }
 
 bool canBeImportedFunction(const Function &F,

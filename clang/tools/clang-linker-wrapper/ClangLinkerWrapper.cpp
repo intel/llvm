@@ -43,7 +43,9 @@
 #include "llvm/Option/Option.h"
 #include "llvm/Plugins/PassPlugin.h"
 #include "llvm/Remarks/HotnessThresholdParser.h"
+#include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/SYCLPostLink/ModuleSplitter.h"
+#include "llvm/SYCLPostLink/SpecializationConstants.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/FileOutputBuffer.h"
@@ -830,6 +832,63 @@ runSYCLSplitLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   Settings.Mode = Mode;
   Settings.OutputPrefix = "";
 
+  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+
+  bool SpecConstsSupported = (!Triple.isNVPTX() && !Triple.isAMDGCN() &&
+                              !Triple.isSPIRAOT() && !Triple.isNativeCPU());
+  SpecConstantsPass::HandlingMode SpecConstantMode =
+      SpecConstsSupported ? SpecConstantsPass::HandlingMode::native
+                          : SpecConstantsPass::HandlingMode::emulation;
+
+  bool GenerateModuleDescWithDefaultSpecConsts = false;
+  bool IsAOT = Triple.isNVPTX() || Triple.isAMDGCN() || Triple.isSPIRAOT();
+  if (Args.hasFlag(OPT_sycl_add_default_spec_consts_image,
+                   OPT_no_sycl_add_default_spec_consts_image, false) &&
+      IsAOT)
+    GenerateModuleDescWithDefaultSpecConsts = true;
+
+  auto PostSplitProcessing =
+      [&SplitModules, SpecConstantMode, Settings,
+       GenerateModuleDescWithDefaultSpecConsts](
+          std::unique_ptr<module_split::ModuleDesc> M) -> Error {
+    // TODO: perform spec constant processing.
+    // 2 mods at least.
+
+    SmallVector<std::unique_ptr<module_split::ModuleDesc>> Modules;
+    Modules.push_back(std::move(M));
+    SmallVector<std::unique_ptr<module_split::ModuleDesc>> NewModules;
+    llvm::handleSpecializationConstants(
+        Modules, SpecConstantMode, NewModules,
+        GenerateModuleDescWithDefaultSpecConsts);
+
+    for (std::unique_ptr<module_split::ModuleDesc> &MD : Modules) {
+      size_t ID = SplitModules.size();
+      std::string OutIRFileName =
+          (Settings.OutputPrefix + "_" + Twine(ID)).str();
+      Expected<module_split::SplitModule> SplitImageOrErr =
+          saveModuleDesc(*MD, OutIRFileName, Settings.OutputAssembly);
+      if (!SplitImageOrErr)
+        return SplitImageOrErr.takeError();
+
+      SplitModules.push_back(std::move(*SplitImageOrErr));
+    }
+
+    for (std::unique_ptr<module_split::ModuleDesc> &MD : NewModules) {
+      // TODO: remove duplication.
+      size_t ID = SplitModules.size();
+      std::string OutIRFileName =
+          (Settings.OutputPrefix + "_" + Twine(ID)).str();
+      Expected<module_split::SplitModule> SplitImageOrErr =
+          saveModuleDesc(*MD, OutIRFileName, Settings.OutputAssembly);
+      if (!SplitImageOrErr)
+        return SplitImageOrErr.takeError();
+
+      SplitModules.push_back(std::move(*SplitImageOrErr));
+    }
+
+    return Error::success();
+  };
+
   for (StringRef InputFile : InputFiles) {
     SMDiagnostic Err;
     LLVMContext C;
@@ -837,14 +896,16 @@ runSYCLSplitLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     if (!M)
       return createStringError(inconvertibleErrorCode(), Err.getMessage());
 
-    auto SplitModulesOrErr =
-        module_split::splitSYCLModule(std::move(M), Settings);
-    if (!SplitModulesOrErr)
-      return SplitModulesOrErr.takeError();
+    Error E = module_split::splitSYCLModule(std::move(M), Settings,
+                                            PostSplitProcessing);
+    if (Error E = module_split::splitSYCLModule(std::move(M), Settings,
+                                                PostSplitProcessing);
+        E)
+      return E;
 
-    auto &NewSplitModules = *SplitModulesOrErr;
-    SplitModules.insert(SplitModules.end(), NewSplitModules.begin(),
-                        NewSplitModules.end());
+    // auto &NewSplitModules = *SplitModulesOrErr;
+    // SplitModules.insert(SplitModules.end(), NewSplitModules.begin(),
+    //                     NewSplitModules.end());
   }
 
   if (Verbose) {
