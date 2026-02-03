@@ -1,6 +1,6 @@
 ; RUN: llc -mtriple=amdgcn -mcpu=tahiti < %s | FileCheck -check-prefixes=CHECK,NOHSA %s
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=kaveri < %s | FileCheck -check-prefixes=CHECK,HSA %s
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=fiji < %s | FileCheck -check-prefixes=CHECK,HSA %s
+; RUN: llc -mtriple=amdgcn--amdhsa -mcpu=kaveri < %s | FileCheck -check-prefixes=CHECK,HSA %s
+; RUN: llc -mtriple=amdgcn--amdhsa -mcpu=fiji < %s | FileCheck -check-prefixes=CHECK,HSA %s
 
 ; RUN: llc -global-isel -new-reg-bank-select -mtriple=amdgcn -mcpu=tahiti < %s | FileCheck -check-prefixes=CHECK,NOHSA %s
 ; RUN: llc -global-isel -new-reg-bank-select -mtriple=amdgcn--amdhsa -mcpu=kaveri < %s | FileCheck -check-prefixes=CHECK,HSA %s

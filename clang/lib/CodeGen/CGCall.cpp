@@ -1998,7 +1998,7 @@ void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
       assert(!FPAccuracyVal.empty() && "A valid accuracy value is expected");
       FuncAttrs.addAttribute("fpbuiltin-max-error", FPAccuracyVal);
       MD = llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
-          Int32Ty, convertFPAccuracyToAspect(FuncMapIt->second)));
+          Int32Ty, convertFPAccuracyToAspect(FuncMapIt->second), true));
     }
   }
   if (FuncAttrs.attrs().size() == 0) {
@@ -2014,7 +2014,8 @@ void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
       assert(!FPAccuracyVal.empty() && "A valid accuracy value is expected");
       FuncAttrs.addAttribute("fpbuiltin-max-error", FPAccuracyVal);
       MD = llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
-          Int32Ty, convertFPAccuracyToAspect(getLangOpts().FPAccuracyVal)));
+          Int32Ty, convertFPAccuracyToAspect(getLangOpts().FPAccuracyVal),
+          true));
     } else {
       if (!getLangOpts().OffloadFP32PrecDiv && Name == "fdiv") {
         FuncAttrs.addAttribute("fpbuiltin-max-error", "2.5");
