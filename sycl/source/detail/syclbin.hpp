@@ -72,11 +72,6 @@ private:
   std::deque<std::vector<_sycl_device_binary_property_set_struct>>
       BinaryPropertySets;
 
-  // Stable storage for name strings.
-  // TODO: see if we can avoid creating local storage by
-  // changing PropertySet design to keep proper pointers.
-  std::deque<std::string> PropertyNames;
-
   std::vector<sycl_device_binary_struct> DeviceBinaries;
 
   struct AbstractModuleDesc {

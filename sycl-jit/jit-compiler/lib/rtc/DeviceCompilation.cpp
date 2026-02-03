@@ -970,18 +970,17 @@ static void encodeProperties(PropertySetRegistry &Properties,
        zip_equal(PropertySets, DevImgInfo.Properties)) {
     const auto &PropertySetName = KV.first;
     const auto &PropertySet = KV.second;
-    FrozenPropSet =
-        FrozenPropertySet{PropertySetName.str(), PropertySet.size()};
+    FrozenPropSet = FrozenPropertySet{PropertySetName, PropertySet.size()};
     for (auto [KV2, FrozenProp] :
          zip_equal(PropertySet, FrozenPropSet.Values)) {
       const auto &PropertyName = KV2.first;
       const auto &PropertyValue = KV2.second;
-      FrozenProp = PropertyValue.getType() == PropertyValue::Type::UINT32
-                       ? FrozenPropertyValue{PropertyName.str(),
-                                             PropertyValue.asUint32()}
-                       : FrozenPropertyValue{
-                             PropertyName.str(), PropertyValue.asRawByteArray(),
-                             PropertyValue.getRawByteArraySize()};
+      FrozenProp =
+          PropertyValue.getType() == PropertyValue::Type::UINT32
+              ? FrozenPropertyValue{PropertyName, PropertyValue.asUint32()}
+              : FrozenPropertyValue{PropertyName,
+                                    PropertyValue.asRawByteArray(),
+                                    PropertyValue.getRawByteArraySize()};
     }
   };
 }

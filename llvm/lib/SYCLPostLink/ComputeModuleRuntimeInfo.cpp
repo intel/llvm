@@ -173,8 +173,9 @@ PropSetRegTy computeModuleProperties(const Module &M,
       const unsigned char *Data =
           reinterpret_cast<const unsigned char *>(Arr.begin());
       llvm::util::PropertyValue::SizeTy DataBitSize = Bits.size();
-      Props.insert(std::make_pair(
-          NameInfoPair.first, llvm::util::PropertyValue(Data, DataBitSize)));
+      Props.insert(
+          std::make_pair(NameInfoPair.first.str(),
+                         llvm::util::PropertyValue(Data, DataBitSize)));
     }
   }
   if (GlobProps.EmitExportedSymbols) {

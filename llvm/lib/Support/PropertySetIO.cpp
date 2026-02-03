@@ -29,7 +29,7 @@ using byte = Base64::byte;
 }
 
 // Helper function to parse a single property line.
-Expected<std::pair<SmallString<16>, PropertyValue>>
+Expected<std::pair<std::string, PropertyValue>>
 parsePropertyLine(StringRef Line) {
   // Parse name and type+value.
   auto Parts = Line.split('=');
@@ -76,7 +76,7 @@ parsePropertyLine(StringRef Line) {
                              "unsupported property type: ", Ttag.get());
   }
 
-  return std::make_pair(SmallString<16>(Parts.first), std::move(Prop));
+  return std::make_pair(std::string(Parts.first), std::move(Prop));
 }
 
 } // anonymous namespace
