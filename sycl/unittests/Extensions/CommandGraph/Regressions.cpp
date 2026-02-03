@@ -130,3 +130,51 @@ TEST_F(CommandGraphTest, LastRecordedQueueAfterCleanup) {
   EXPECT_NE(ExecQueueImpl, nullptr);
   EXPECT_EQ(ExecQueueImpl, getSyclObjImpl(Queue));
 }
+
+// Regression test for infinite loop previously in tryReuseExistingAllocation
+// in the graph memory pool implementation. When an unusable node
+// from the dependency graph of a malloc node is visited twice in the search,
+// then the implementation infinitely looped over this node. This occurs
+// in the last malloc call below, where the diamond dependency caused by E1 & E2
+// cause the allocation associated with FreeEvent to be visited twice in the
+// search.
+TEST_F(CommandGraphTest, AsyncAllocInfiniteLoop) {
+  const size_t SmallSize = 1 << 16; // 64KB
+  const size_t BigSize = 1 << 17;   // 128KB
+
+  experimental::command_graph<experimental::graph_state::modifiable> Graph{
+      Queue.get_context(), Dev};
+
+  Graph.begin_recording(Queue);
+
+  void *Ptr1 = nullptr;
+  void *Ptr2 = nullptr;
+  void *Ptr3 = nullptr;
+
+  // An unreachable allocation of SmallSize to trigger the dependency node
+  // search on the next allocation of SmallSize.
+  Queue.submit([&](handler &CGH) {
+    Ptr1 = experimental::async_malloc(CGH, usm::alloc::device, SmallSize);
+  });
+  Queue.submit([&](handler &CGH) { experimental::async_free(CGH, Ptr1); });
+
+  // Incompatible allocation that will get visited twice.
+  Queue.submit([&](handler &CGH) {
+    Ptr2 = experimental::async_malloc(CGH, usm::alloc::device, BigSize);
+  });
+  auto FreeEvent =
+      Queue.submit([&](handler &CGH) { experimental::async_free(CGH, Ptr2); });
+
+  // Create diamond dependency to last allocation
+  auto E1 = Queue.submit([&](handler &CGH) { CGH.depends_on(FreeEvent); });
+  auto E2 = Queue.submit([&](handler &CGH) { CGH.depends_on(FreeEvent); });
+
+  // Triggers infinite loop prior to fix
+  Queue.submit([&](handler &CGH) {
+    CGH.depends_on({E1, E2});
+    Ptr3 = experimental::async_malloc(CGH, usm::alloc::device, SmallSize);
+  });
+  Queue.submit([&](handler &CGH) { experimental::async_free(CGH, Ptr3); });
+
+  Graph.end_recording(Queue);
+}
