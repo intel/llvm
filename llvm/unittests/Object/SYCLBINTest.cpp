@@ -147,9 +147,7 @@ void CommonCheck() {
   const PropertySet &GlobalMetadata = *SYCLBINObj->GlobalMetadata;
   EXPECT_EQ(GlobalMetadata.size(), size_t{2});
 
-  SmallString<16> GlobalMetadataStateKey{"state"};
-  const auto &GlobalMetadataStateIt =
-      GlobalMetadata.find(GlobalMetadataStateKey);
+  const auto &GlobalMetadataStateIt = GlobalMetadata.find("state");
   ASSERT_NE(GlobalMetadataStateIt, GlobalMetadata.end());
   const PropertyValue &GlobalMetadataState = GlobalMetadataStateIt->second;
   ASSERT_EQ(GlobalMetadataState.getType(), PropertyValue::Type::UINT32);
