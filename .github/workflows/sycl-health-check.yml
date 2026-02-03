@@ -2,9 +2,10 @@ name: Check load of the machine
 
 on:
   workflow_call:
-    runner_name:
-    required: true
-    type: string
+    inputs:
+      runner_name:
+        required: true
+        type: string
 # on:
 #   push:
 #     branches:
@@ -12,9 +13,6 @@ on:
 
 jobs:
   health-check:
-    # strategy:
-    #   matrix:
-    #     runner: [health-check]
     runs-on: ${{inputs.runner_name}}
     steps:
       - name: Check load average

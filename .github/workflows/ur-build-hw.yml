@@ -76,6 +76,12 @@ env:
   UR_LOG_OPENCL: "level:error;flush:error"
 
 jobs:
+  health-check:
+    name: Health Check
+    uses: ./.github/workflows/sycl-health-check.yml
+    with:
+      runner_name: ${{ inputs.runner_name }}
+      
   adapter_build_hw:
     name: Build & CTS
     # run only on upstream; forks won't have the HW

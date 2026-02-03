@@ -2,9 +2,9 @@ name: Collect aggregated data
 
 on:
   workflow_call:
-  push:
-    branches:
-      - luszczewskakasia1_monitoring
+  # push:
+  #   branches:
+  #     - luszczewskakasia1_monitoring
 
 # on:
 #   schedule:
@@ -78,7 +78,20 @@ jobs:
           
           cat aggregated_${{ steps.date.outputs.TODAY }}.json
 
+      - name: Check if data exists
+        id: check_data
+        run: |
+          content=$(cat aggregated_${{ steps.date.outputs.TODAY }}.json | tr -d ' \n')
+          if [ "$content" = "{}" ]; then
+            echo "has_data=false" >> $GITHUB_OUTPUT
+            echo "No data found, skipping artifact upload"
+          else
+            echo "has_data=true" >> $GITHUB_OUTPUT
+            echo "Data found, will upload artifact"
+          fi
+
       - name: Upload aggregated data artifact
+        if: steps.check_data.outputs.has_data == 'true'
         uses: actions/upload-artifact@v5
         with:
           name: aggregated_data_${{ steps.date.outputs.TODAY }}
