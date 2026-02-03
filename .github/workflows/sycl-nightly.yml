@@ -93,6 +93,7 @@ jobs:
 
   ubuntu2204_test_amd_nvidia_gen12:
     needs: [ubuntu2204_build]
+    name: E2E AMD, NVIDIA and GEN12 with ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
     permissions:
       contents: write
       packages: read
@@ -129,6 +130,7 @@ jobs:
 
   ubuntu2204_test_intel_level_zero:
     needs: [ubuntu2204_build]
+    name: E2E L0 with ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
     permissions:
       contents: write
       packages: read
@@ -154,6 +156,7 @@ jobs:
 
   ubuntu2204_test_intel_amd_opencl_cpu:
     needs: [ubuntu2204_build]
+    name: E2E OpenCL for Intel and AMD with ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
     permissions:
       contents: write
       packages: read
