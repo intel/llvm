@@ -20,7 +20,7 @@ jobs:
     strategy:
       # Keep the matrix even if there is only one branch.
       matrix:
-        branch: [sycl-rel-6_2, sycl-rel-6_3]
+        branch: [sycl-rel-6_2, sycl-rel-6_3, sycl-rel-7_0]
     steps:
       - name: Launch for ${{ matrix.branch }}
         env:
