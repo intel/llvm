@@ -130,8 +130,17 @@ std::vector<device> device_impl::create_sub_devices(
   // incremented. Each device_impl wrapper increments the reference count and
   // decrements it on destruction (shared ownership). So, we have to decrement
   // the reference count once here to release temporary handles.
-  for (ur_device_handle_t &SubDevice : SubDevices)
-    Adapter.call<UrApiKind::urDeviceRelease>(SubDevice);
+#ifdef _WIN32
+  // On Windows OpenCL backend, releasing the sub-devices here leads to a crash
+  // during late shutdown. There have been issues observed with premature
+  // unloading of opencl related dlls and seems like that might be the case. So,
+  // intentionally leak sub-devices on Windows OpenCL backend for now.
+  // TODO: Remove this workaround.
+  if (getAdapter().getBackend() != backend::opencl)
+#endif
+    for (ur_device_handle_t &SubDevice : SubDevices)
+      Adapter.call<UrApiKind::urDeviceRelease>(SubDevice);
+
   return res;
 }
 
