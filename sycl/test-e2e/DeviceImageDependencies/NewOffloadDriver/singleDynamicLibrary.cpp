@@ -10,6 +10,7 @@
 // RUN:    %S/Inputs/wrapper.cpp                                                        \
 // RUN:    -o %if windows %{%t.dir/device_single.dll%} %else %{%t.dir/libdevice_single.so%}
 
+// RUN: %if !windows %{%{run-aux}%}              \
 // RUN: %{build} --offload-new-driver -I%S/Inputs -o %t.dir/%{t:stem}.out           \
 // RUN: %if windows                              \
 // RUN:   %{%t.dir/device_single.lib%}               \
