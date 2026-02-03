@@ -11631,6 +11631,7 @@ void Sema::CheckExplicitObjectMemberFunction(Declarator &D,
     Diag(ExplicitObjectParam->getLocation(),
          diag::err_explicit_object_default_arg)
         << ExplicitObjectParam->getSourceRange();
+    D.setInvalidType();
   }
 
   if (D.getDeclSpec().getStorageClassSpec() == DeclSpec::SCS_static ||
