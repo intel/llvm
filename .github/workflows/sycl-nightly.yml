@@ -315,6 +315,9 @@ jobs:
       toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
 
+      # The AWS runner is not set up to use vulkan and it's out of our control.
+      extra_lit_opts: --filter-out bindless_images/vulkan_interop
+
   cuda-aws-stop:
     needs: [cuda-aws-start, cuda-run-tests]
     if: ${{ needs.cuda-aws-start.result != 'skipped' }}
