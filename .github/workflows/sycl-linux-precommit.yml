@@ -1,317 +1,94 @@
-name: SYCL Pre Commit on Linux
+name: clang-tidy 2
 
 on:
-  # We rely on "Fork pull request workflows from outside collaborators" -
-  # "Require approval for all outside collaborators" at
-  # https://github.com/intel/llvm/settings/actions for security.
-  pull_request:
+  pull_requests:
     branches:
     - sycl
-    - sycl-rel-**
-    # Do not run builds if changes are only in the following locations
-    # Note: benchmark-related paths are the same as in sycl-ur-perf-benchmarking.yml (to run there instead)
-    paths-ignore:
-    - '.github/ISSUE_TEMPLATE/**'
-    - '.github/CODEOWNERS'
-    - 'sycl/cts_exclude_filter/**'
-    - 'sycl/doc/**'
-    - 'sycl/gdb/**'
-    - 'clang/docs/**'
-    - '**.md'
-    - '**.rst'
-    - '.github/workflows/sycl-windows-*.yml'
-    - '.github/workflows/sycl-macos-*.yml'
-    - '.github/workflows/sycl-nightly.yml'
-    - '.github/workflows/sycl-rel-nightly.yml'
-    - '.github/workflows/sycl-rel-nightly-launch.yml'
-    - '.github/workflows/sycl-trivy.yml'
-    - '.github/workflows/sycl-coverity.yml'
-    - '.github/workflows/sycl-weekly.yml'
-    - 'devops/containers/**'
-    - 'devops/actions/build_container/**'
-    - 'unified-runtime/examples/**'
-    - 'unified-runtime/scripts/**'
-    - 'unified-runtime/test/**'
-    - 'unified-runtime/third_party/**'
-    - 'unified-runtime/tools/**'
-    - 'devops/scripts/benchmarks/**'
-    - 'devops/actions/run-tests/benchmark/**'
-    - '.github/workflows/sycl-ur-perf-benchmarking.yml'
-
-concurrency:
-  #  Cancel a currently running workflow from the same PR, branch or tag.
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
 
 permissions: read-all
 
 jobs:
-  detect_changes:
-    uses: ./.github/workflows/sycl-detect-changes.yml
-
-  build:
-    name: Self build
-    needs: [detect_changes]
-    uses: ./.github/workflows/sycl-linux-build.yml
-    with:
-      build_ref: ${{ github.sha }}
-      build_cache_root: "/__w/"
-      build_cache_suffix: "default"
-      # Docker image has last nightly pre-installed and added to the PATH
-      build_image: "ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest"
-      cc: clang
-      cxx: clang++
-      changes: ${{ needs.detect_changes.outputs.filters }}
-
-      toolchain_artifact: sycl_linux_default
-      e2e_binaries_artifact: e2e_bin
-      e2e_binaries_preview_artifact: e2e_bin_preview
-      e2e_binaries_new_offload_model_artifact: e2e_bin_new_offload_model
-
-  # Build and run native cpu e2e tests separately as cannot currently
-  # build all the e2e tests
-  build_run_native_cpu_e2e_tests:
-    if: ${{ !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+  run-clang-tidy:
+    # Add more conditions
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'disable-lint') }}
     runs-on: [Linux, build]
-    needs: [build]
     container:
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       options: -u 1001:1001
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           sparse-checkout: |
-            devops/
+            devops/actions
+            devops/scripts/should_run_clang-tidy.py
+      - name: Register cleanup after job is finished
+        uses: ./devops/actions/cleanup
 
-      # download build artefact
-      - name: Download toolchain
-        uses: actions/download-artifact@v7
-        with:
-          name: sycl_linux_default
-      - name: Extract SYCL toolchain
-        shell: bash
+      - name: Check diff
+        id: should_run_tidy
         run: |
-          mkdir toolchain
-          tar -xf llvm_sycl.tar.zst -C toolchain
-          rm llvm_sycl.tar.zst
-      - name: Build and run E2E tests
-        uses: ./devops/actions/run-tests/linux/e2e
+          echo "Downloading the diff"
+          curl -L "${{ github.server_url }}/${{ github.repository }}/pull/${{ github.event.pull_request.number }}.diff" -o pr.diff
+          # DEBUG
+          pwd
+          ls -lR
+
+          if python3 devops/scripts/should_run_clang-tidy.py pr.diff; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.should_run_tidy.outputs.run == 'true'
+        uses: ./devops/actions/cached_checkout
         with:
-          ref: ${{ inputs.ref || github.sha }}
-          testing_mode: full
-          target_devices: native_cpu:cpu
-          sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
-          extra_lit_opts: --param sycl_build_targets="native_cpu"
-          extra_cmake_args: -DSYCL_TEST_E2E_TARGETS="native_cpu:cpu" -DSYCL_TEST_E2E_STANDALONE=ON
+          path: src
+          ref: ${{ github.sha }}
+          cache_path: "/__w/repo_cache/"
+      - name: Configure
+        if: steps.should_run_tidy.outputs.run == 'true'
+        env:
+          CC: ${{ inputs.cc }}
+          CXX: ${{ inputs.cxx }}
+          CUDA_LIB_PATH: "/usr/local/cuda/lib64/stubs"
+        run: |
+          mkdir -p $CCACHE_DIR
+          mkdir -p $GITHUB_WORKSPACE/build
+          cd $GITHUB_WORKSPACE/build
+          python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
+            -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build \
+            -DCMAKE_INSTALL_PREFIX=$GITHUB_WORKSPACE/toolchain \
+            -t Release \
+            --ci-defaults --use-zstd ${{ inputs.build_configure_extra_args }} \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DLLVM_INSTALL_UTILS=ON \
+            -DSYCL_UR_FORCE_FETCH_LEVEL_ZERO=ON \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
-  # If a PR changes CUDA adapter, run the build on Ubuntu 22.04 as well.
-  # Ubuntu 22.04 container has CUDA 12.1 installed while Ubuntu 24.0 image
-  # has CUDA 12.6.1 installed.
-  # The idea is to ensure that the code works with both CUDA versions.
-  build_ubuntu2204:
-    needs: [detect_changes]
-    if: ${{ !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur_cuda_adapter') }}
-    uses: ./.github/workflows/sycl-linux-build.yml
-    with:
-      build_ref: ${{ github.sha }}
-      build_cache_root: "/__w/"
-      build_cache_suffix: "ubuntu22"
-      build_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
-      changes: ${{ needs.detect_changes.outputs.filters }}
+      - name: Preprocess compile_commands.json
+        if: steps.should_run_tidy.outputs.run == 'true'
+        run: |
+          # Remove commands containing "-D__INTEL_PREVIEW_BREAKING_CHANGES" to avoid running on the same file twice.
+          jq '[ .[] | select(.command | contains("-D__INTEL_PREVIEW_BREAKING_CHANGES") | not) ]' $GITHUB_WORKSPACE/build/compile_commands.json > $GITHUB_WORKSPACE/build/compile_commands.temp.json
+          mv $GITHUB_WORKSPACE/build/compile_commands.temp.json $GITHUB_WORKSPACE/build/compile_commands.json
 
-      toolchain_artifact: sycl_linux_ubuntu22
+      - name: Run clang-tidy on modified files
+        if: steps.should_run_tidy.outputs.run == 'true'
+        # Exeprimental workflow, it won't affect the pre-commit status in case of failure.
+        continue-on-error: true
+        run: |
+          cd "$GITHUB_WORKSPACE/src"
+          strace -vf -s500 -o CTD.strace python3 "$GITHUB_WORKSPACE/src/clang-tools-extra/clang-tidy/tool/clang-tidy-diff.py" \
+            -clang-tidy-binary "/opt/sycl/bin/clang-tidy" \
+            -p 1 \
+            -path "$GITHUB_WORKSPACE/build" \
+            -checks "clang-analyzer-*,bugprone-*,performance-*,-bugprone-std-namespace-modification" \
+            < "$GITHUB_WORKSPACE/pr.diff"
 
-  compat_read_exclude:
-    name: Read compatibility testing exclude list
-    runs-on: [Linux, aux-tasks]
-    outputs:
-      FILTER_6_2: ${{ steps.result.outputs.FILTER_6_2 }}
-      FILTER_6_3: ${{ steps.result.outputs.FILTER_6_3 }}
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        sparse-checkout: |
-          devops/
-    - name: Register cleanup after job is finished
-      uses: ./devops/actions/cleanup
-    - id: result
-      shell: bash
-      run: |
-        # Transform to format expected by `llvm-lit --filter-out "pattern1|pattern2|..."`.
-        # First, remove comments/empty lines, then join lines with "|" as separator.
-        echo FILTER_6_2="$(grep -v '^#\|^\W*$' devops/compat_ci_exclude.sycl-rel-6_2 | paste -sd '|')" >> $GITHUB_OUTPUT
-        echo FILTER_6_3="$(grep -v '^#\|^\W*$' devops/compat_ci_exclude.sycl-rel-6_3 | paste -sd '|')" >> $GITHUB_OUTPUT
-
-  E2E:
-    needs: [build, detect_changes, compat_read_exclude]
-    if: ${{ !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
-    permissions:
-      contents: write
-      packages: read
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Intel / GEN 12 Integrated
-            runner: '["Linux", "gen12"]'
-            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
-          - name: NVIDIA/CUDA
-            runner: '["Linux", "cuda"]'
-            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
-            target_devices: cuda:gpu
-          - name: AMD/HIP
-            runner: '["Linux", "amdgpu"]'
-            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
-            target_devices: hip:gpu
-            extra_lit_opts: -j 1
-          - name: Intel / Arc A-Series Graphics
-            runner: '["Linux", "arc"]'
-            target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu         
-            env: '{"LIT_FILTER":"Matrix/"}'
-          - name: Intel / Ponte Vecchio GPU
-            runner: '["Linux", "pvc"]'
-            target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
-          - name: Intel / Battlemage Graphics
-            runner: '["Linux", "bmg"]'
-            target_devices: level_zero_v1:gpu;level_zero_v2:gpu
-          - name: Preview Mode
-            runner: '["Linux", "gen12"]'
-            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
-            extra_lit_opts: --param test-preview-mode=True
-            binaries_artifact: e2e_bin_preview
-          - name: Intel / ARL with L0 v2
-            runner: '["Linux", "arl"]'
-            target_devices: level_zero_v2:arch-intel_gpu_mtl_u
-            extra_lit_opts: --param test-preview-mode=True
-
-          # We're in an ABI-breaking window, so these don't make sense for now.
-          - name: ABI compatibility / sycl-rel-6_2
-            runner: '["Linux", "pvc"]'
-            image: ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_2
-            target_devices: level_zero:gpu
-            extra_lit_opts: '--param test-preview-mode=False --filter-out "${{ needs.compat_read_exclude.outputs.FILTER_6_2 }}"'
-            binaries_artifact: 'in-container'
-            skip_run: true
-          - name: ABI compatibility / sycl-rel-6_3
-            runner: '["Linux", "pvc"]'
-            image: ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_3
-            target_devices: level_zero:gpu
-            extra_lit_opts: '--param test-preview-mode=False --filter-out "${{ needs.compat_read_exclude.outputs.FILTER_6_3 }}"'
-            binaries_artifact: 'in-container'
-            skip_run: true
-
-    uses: ./.github/workflows/sycl-linux-run-tests.yml
-    with:
-      name: ${{ matrix.name }}
-      runner: ${{ matrix.runner }}
-      image: ${{ matrix.image }}
-      image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
-      target_devices: ${{ matrix.target_devices }}
-      extra_lit_opts: ${{ matrix.extra_lit_opts }}
-      repo_ref: ${{ github.sha }}
-      toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
-      toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
-      toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}
-      binaries_artifact: ${{ matrix.binaries_artifact || 'e2e_bin' }}
-      testing_mode: 'run-only'
-
-      # Do not install drivers on AMD and CUDA runners.
-      install_igc_driver: >-
-        ${{ !contains(matrix.target_devices, 'cuda') &&
-        !contains(matrix.target_devices, 'hip') &&
-        contains(needs.detect_changes.outputs.filters, 'drivers') }}
-      skip_run: ${{ matrix.skip_run || 'false' }}
-      env: ${{ matrix.env || (contains(needs.detect_changes.outputs.filters, 'esimd') && '{}' || '{"LIT_FILTER_OUT":"ESIMD/"}') }}
-
-  E2E-with-new-offload-model:
-    needs: [build, detect_changes]
-    if: |
-      !cancelled() &&
-      needs.build.outputs.build_conclusion == 'success' &&
-      contains(github.event.pull_request.labels.*.name, 'new-offload-model')
-    permissions:
-      contents: write
-      packages: read
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Intel / GEN 12 Integrated
-            runner: '["Linux", "gen12"]'
-            target_devices: opencl:cpu;opencl:gpu
-          - name: Intel / Arc A-Series Graphics
-            runner: '["Linux", "arc"]'
-            target_devices: level_zero:gpu
-          - name: Intel / Ponte Vecchio GPU
-            runner: '["Linux", "pvc"]'
-            target_devices: level_zero:gpu
-          - name: Intel / Battlemage Graphics
-            runner: '["Linux", "bmg"]'
-            target_devices: level_zero_v2:gpu
-          - name: NVIDIA/CUDA
-            runner: '["Linux", "cuda"]'
-            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
-            target_devices: cuda:gpu
-          - name: AMD/HIP
-            runner: '["Linux", "amdgpu"]'
-            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
-            target_devices: hip:gpu
-            extra_lit_opts: -j 1
-
-    uses: ./.github/workflows/sycl-linux-run-tests.yml
-    with:
-      name: ${{ matrix.name }} with NewOffloadModel
-      runner: ${{ matrix.runner }}
-      image: ${{ matrix.image }}
-      image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
-      target_devices: ${{ matrix.target_devices }}
-      extra_lit_opts: ${{ matrix.extra_lit_opts }} --param enable_new_offload_model=True
-      repo_ref: ${{ github.sha }}
-      toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
-      toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
-      toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}
-      binaries_artifact: 'e2e_bin_new_offload_model'
-      testing_mode: 'run-only'
-
-
-  test-perf:
-    needs: [build, detect_changes]
-    permissions:
-      contents: write
-      packages: read
-    if: |
-      !cancelled()
-      && needs.build.outputs.build_conclusion == 'success'
-      && (contains(github.event.pull_request.labels.*.name, 'run-perf-tests')
-          || contains(needs.detect_changes.outputs.filters, 'perf-tests'))
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Intel GEN12 Graphics system
-            runner: '["Linux", "gen12"]'
-            image_extra_opts: --device=/dev/dri
-          - name: Intel Arc A-Series Graphics system
-            runner: '["Linux", "arc"]'
-            image_extra_opts: --device=/dev/dri
-          - name: AMD system
-            runner: '["Linux", "amdgpu"]'
-            image_extra_opts: --device=/dev/dri --device=/dev/kfd
-          - name: CUDA system
-            runner: '["Linux", "cuda"]'
-            image_extra_opts: --gpus all
-    uses: ./.github/workflows/sycl-linux-run-tests.yml
-    with:
-      name: Perf tests on ${{ matrix.name }}
-      runner: ${{ matrix. runner }}
-      image_options: -u 1001 --privileged --cap-add SYS_ADMIN ${{ matrix.image_extra_opts }}
-      target_devices: all
-
-      env: '{"LIT_FILTER":"PerformanceTests/"}'
-      extra_lit_opts: -a -j 1 --param enable-perf-tests=True
-
-      repo_ref: ${{ github.sha }}
-
-      toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
-      toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
-      toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}
+      - name: upload CTD.strace
+        uses: actions/upload-artifact@v6
+        with:
+          name: CTD.strace
+          path: "$GITHUB_WORKSPACE/CTD.strace"
+          retention-days: 1
