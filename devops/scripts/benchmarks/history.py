@@ -141,7 +141,7 @@ class BenchmarkHistory:
 
         if options.git_commit_override is None or options.github_repo_override is None:
             if options.detect_versions.sycl:
-                log.info(f"Auto-detecting sycl version...")
+                log.info("Auto-detecting sycl version...")
                 github_repo, git_hash = DetectVersion.instance().get_dpcpp_git_info()
             else:
                 git_hash, github_repo = git_info_from_path(
@@ -180,6 +180,9 @@ class BenchmarkHistory:
                 )
         else:
             compute_runtime = "unknown"
+
+        log.debug(f"Compute runtime version read: {compute_runtime}")
+        log.debug(f"Sycl repository info read: {github_repo}, ref: {git_hash}")
 
         # Get platform information
         platform_info = get_platform_info()

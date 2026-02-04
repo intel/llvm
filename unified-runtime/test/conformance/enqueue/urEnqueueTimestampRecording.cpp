@@ -4,16 +4,16 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include "ur_api.h"
 #include "uur/checks.h"
 #include <gtest/gtest.h>
 #include <uur/fixtures.h>
 #include <uur/known_failure.h>
 
-struct urEnqueueTimestampRecordingExpTest : uur::urQueueTest {
+struct urEnqueueTimestampRecordingExpTest : uur::urMultiQueueTypeTest {
   void SetUp() override {
-    UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
+    UUR_RETURN_ON_FATAL_FAILURE(urMultiQueueTypeTest::SetUp());
 
-    SKIP_IF_BATCHED_QUEUE(queue);
     bool timestamp_recording_support = false;
     ASSERT_SUCCESS(
         uur::GetTimestampRecordingSupport(device, timestamp_recording_support));
@@ -22,9 +22,10 @@ struct urEnqueueTimestampRecordingExpTest : uur::urQueueTest {
     }
   }
 
-  void TearDown() override { urQueueTest::TearDown(); }
+  void TearDown() override { urMultiQueueTypeTest::TearDown(); }
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueTimestampRecordingExpTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(
+    urEnqueueTimestampRecordingExpTest);
 
 void common_check(ur_event_handle_t event) {
   // All successful runs should return a non-zero profiling results.
@@ -90,12 +91,19 @@ TEST_P(urEnqueueTimestampRecordingExpTest,
   ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(uint8_t), &pattern,
                                   1024 * 1024, 0, nullptr, &event2));
 
+  // We are not guaranteed that the enqueued operations run before a flush.
+  urQueueFlush(queue);
+
   // Make sure the new event does not contain profiling info (in case it's reused
   // by the adapter)
   ASSERT_EQ(urEventGetProfilingInfo(event2, UR_PROFILING_INFO_COMMAND_QUEUED,
                                     sizeof(uint64_t), nullptr, nullptr),
             UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE);
   ASSERT_SUCCESS(urEventRelease(event2));
+
+  // ptr can't be freed until enqueue usm fill ends, otherwise we run a risk of use-after-free.
+  urQueueFinish(queue);
+
   ASSERT_SUCCESS(urUSMFree(context, ptr));
 }
 

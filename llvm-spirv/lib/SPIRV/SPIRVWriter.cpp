@@ -5773,7 +5773,7 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
             transScavengedType(CI),
             BM->getIds(transValue(getArguments(CI), BB)), BB);
       }
-    } else if (DemangledName.find("__spirv_ocl_fma") != StringRef::npos) {
+    } else if (DemangledName == "__spirv_ocl_fma") {
       if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_fma))
         return BM->addInstTemplate(OpFmaKHR,
                                    BM->getIds(transValue(getArguments(CI), BB)),

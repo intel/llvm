@@ -1,4 +1,4 @@
-# Copyright (C) 2025 Intel Corporation
+# Copyright (C) 2025-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -54,6 +54,7 @@ class Options:
     ur: str = None
     ur_adapter: str = None
     umf: str = None
+    no_rebuild: bool = False
     redownload: bool = False
     benchmark_cwd: str = "INVALID"
     timeout: float = 600
@@ -67,10 +68,10 @@ class Options:
     dry_run: bool = False
     stddev_threshold: float = 0.02
     iterations_stddev: int = 5
-    build_compute_runtime: bool = False
     extra_ld_libraries: list[str] = field(default_factory=list)
     extra_env_vars: dict = field(default_factory=dict)
-    compute_runtime_tag: str = "25.27.34303.5"
+    compute_runtime_tag: str = "26.01.36711.4"
+    build_compute_runtime: bool = False
     build_igc: bool = False
     current_run_name: str = "This PR"
     preset: str = "Full"

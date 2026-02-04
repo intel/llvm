@@ -137,6 +137,7 @@ graph_mem_pool::tryReuseExistingAllocation(size_t Size, usm::alloc AllocType,
     node_impl &CurrentNode = *NodesToCheck.front();
 
     if (CurrentNode.MTotalVisitedEdges > 0) {
+      NodesToCheck.pop();
       continue;
     }
 

@@ -96,7 +96,7 @@ jobs:
       static_loader: ${{ matrix.static || 'OFF' }}
       static_adapter: ${{ matrix.static || 'OFF' }}
       other_adapter_name: ${{ matrix.other_adapter || '' }}
-      docker_image: ${{ matrix.docker_image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'}}
+      docker_image: ${{ matrix.docker_image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest'}}
       image_options: ${{ matrix.image_options || '' }}
       install_igc_driver: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
 
@@ -120,7 +120,7 @@ jobs:
     - name: Checkout LLVM
       uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
-    - uses: actions/setup-python@4f41a90a1f38628c7ccc608d05fbafe701bc20ae # v6.1.0
+    - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.1.0
       with:
         python-version: "3.10"
 

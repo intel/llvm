@@ -131,9 +131,9 @@ public:
 };
 
 TEST_F(SchedulerTest, StreamAUXCmdsWait) {
+  sycl::unittest::UrMock<> Mock;
 
   {
-    sycl::unittest::UrMock<> Mock;
     sycl::platform Plt = sycl::platform();
     sycl::queue Q(Plt.get_devices()[0]);
     auto &QueueImpl =
@@ -164,7 +164,6 @@ TEST_F(SchedulerTest, StreamAUXCmdsWait) {
   }
 
   {
-    sycl::unittest::UrMock<> Mock;
     sycl::platform Plt = sycl::platform();
     sycl::queue Q(Plt.get_devices()[0]);
     auto &QueueImpl =
