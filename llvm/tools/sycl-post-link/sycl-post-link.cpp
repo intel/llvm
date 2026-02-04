@@ -350,7 +350,7 @@ void saveModuleSymbolTable(const module_split::ModuleDesc &MD,
   writeToFile(Filename, SymT);
 }
 
-bool isTargetCompatibleWithModule(const std::string &Target,
+bool isTargetCompatibleWithModule(const std::vector<std::string> &Targets,
                                   module_split::ModuleDesc &IrMD);
 
 void addTableRow(util::SimpleTable &Table,
@@ -394,19 +394,7 @@ void saveModule(
   }
 
   for (const auto &[Table, OutputFile] : zip_equal(OutTables, OutputFiles)) {
-    bool Compatible = false;
-    if (OutputFile.Targets.empty()) {
-      Compatible = true;
-    } else {
-      for (const auto &T : OutputFile.Targets) {
-        if (isTargetCompatibleWithModule(T, MD)) {
-          Compatible = true;
-          break;
-        }
-      }
-    }
-
-    if (!Compatible)
+    if (!isTargetCompatibleWithModule(OutputFile.Targets, MD))
       continue;
     auto CopyTriple = BaseTriple;
     if (DoPropGen) {
@@ -476,44 +464,47 @@ void addTableRow(util::SimpleTable &Table,
 // information comes from the device config file (DeviceConfigFile.td).
 // For example, the intel_gpu_tgllp target does not support fp64 - therefore,
 // a module using fp64 would *not* be compatible with intel_gpu_tgllp.
-bool isTargetCompatibleWithModule(const std::string &Target,
+bool isTargetCompatibleWithModule(const std::vector<std::string> &Targets,
                                   module_split::ModuleDesc &IrMD) {
   // When the user does not specify a target,
   // (e.g. -o out.table compared to -o intel_gpu_pvc,out-pvc.table)
   // Target will be empty and we will not want to perform any filtering, so
   // we return true here.
-  llvm::errs() << "[DEBUG] target: '" << Target << "'\n";
-  if (Target.empty())
+  if (Targets.empty())
     return true;
+  
+  for (const std::string &Target : Targets) {
+    llvm::errs() << "[DEBUG] Checking compatibility of target '" << Target
+             << "' with module '" << IrMD.Name << "'\n";
+    // TODO: If a target not found in the device config file is passed,
+    // to sycl-post-link, then we should probably throw an error. However,
+    // since not all the information for all the targets is filled out
+    // right now, we return true, having the affect that unrecognized
+    // targets have no filtering applied to them.
+    if (!is_contained(DeviceConfigFile::TargetTable, Target))
+      continue;
 
-  // TODO: If a target not found in the device config file is passed,
-  // to sycl-post-link, then we should probably throw an error. However,
-  // since not all the information for all the targets is filled out
-  // right now, we return true, having the affect that unrecognized
-  // targets have no filtering applied to them.
-  if (!is_contained(DeviceConfigFile::TargetTable, Target))
-    return true;
+    const DeviceConfigFile::TargetInfo &TargetInfo =
+        DeviceConfigFile::TargetTable[Target];
+    const SYCLDeviceRequirements &ModuleReqs =
+        IrMD.getOrComputeDeviceRequirements();
 
-  const DeviceConfigFile::TargetInfo &TargetInfo =
-      DeviceConfigFile::TargetTable[Target];
-  const SYCLDeviceRequirements &ModuleReqs =
-      IrMD.getOrComputeDeviceRequirements();
+    // Check to see if all the requirements of the input module
+    // are compatbile with the target.
+    for (const auto &Aspect : ModuleReqs.Aspects) {
+      if (!is_contained(TargetInfo.aspects, Aspect.Name))
+        return false;
+    }
 
-  // Check to see if all the requirements of the input module
-  // are compatbile with the target.
-  for (const auto &Aspect : ModuleReqs.Aspects) {
-    if (!is_contained(TargetInfo.aspects, Aspect.Name))
+    // Check if module sub group size is compatible with the target.
+    // For ESIMD, the reqd_sub_group_size will be 1; this is not
+    // a supported by any backend (e.g. no backend can support a kernel
+    // with sycl::reqd_sub_group_size(1)), but for ESIMD, this is
+    // a special case.
+    if (!IrMD.isESIMD() && ModuleReqs.SubGroupSize.has_value() &&
+        !is_contained(TargetInfo.subGroupSizes, *ModuleReqs.SubGroupSize))
       return false;
   }
-
-  // Check if module sub group size is compatible with the target.
-  // For ESIMD, the reqd_sub_group_size will be 1; this is not
-  // a supported by any backend (e.g. no backend can support a kernel
-  // with sycl::reqd_sub_group_size(1)), but for ESIMD, this is
-  // a special case.
-  if (!IrMD.isESIMD() && ModuleReqs.SubGroupSize.has_value() &&
-      !is_contained(TargetInfo.subGroupSizes, *ModuleReqs.SubGroupSize))
-    return false;
 
   return true;
 }
