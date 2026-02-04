@@ -15,6 +15,9 @@ jobs:
     container:
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       options: -u 1001:1001
+    env:
+      CCACHE_DIR: ${{ inputs.build_cache_root }}/build_cache_${{ inputs.build_cache_suffix }}
+      CCACHE_MAXSIZE: 8G
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
