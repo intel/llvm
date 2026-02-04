@@ -80,13 +80,12 @@ if(umf_FOUND)
   add_library(umf::headers ALIAS umf::umf_headers)
 else()
   set(UMF_REPO "https://github.com/oneapi-src/unified-memory-framework.git")
-
-  # commit 32421ebe1fec714392e711f307df4574af89158f
-  # Author: Rafał Rudnicki <rafal.rudnicki@intel.com>
-  # Date:   Thu Nov 13 15:23:28 2025 +0100
-  # Merge pull request #1543 from bratpiorka/rrudnick_fix_dp_free_chunk
-  # fix Disjoint Pool bucket_free_chunk
-  set(UMF_TAG v1.1.0-dev4)
+  
+  # commit 6c97f3de424fa5d852f2e1c0d8f0dfbbc9b419b6 
+  # Author: Łukasz Stolarczuk <lukasz.stolarczuk@intel.com>
+  # Date:   Tue Feb 3 14:28:16 2026 +0100
+  # 1.1.0 release
+  set(UMF_TAG v1.1.0)
 
   if(NOT FETCHCONTENT_SOURCE_DIR_UNIFIED-MEMORY-FRAMEWORK)
     message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
