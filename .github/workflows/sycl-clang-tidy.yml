@@ -1,12 +1,16 @@
 name: clang-tidy
 
 on:
-  workflow_call:
+  pull_requests:
+    branches:
+    - sycl
 
 permissions: read-all
 
 jobs:
   run-clang-tidy:
+    # Add more conditions
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'disable-lint') }}
     runs-on: [Linux, build]
     container:
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
@@ -41,18 +45,33 @@ jobs:
           path: src
           ref: ${{ github.sha }}
           cache_path: "/__w/repo_cache/"
-
-      - name: Get compile_commands.json
+      - name: Configure
         if: steps.should_run_tidy.outputs.run == 'true'
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
-        with:
-          name: compile_commands
+        env:
+          CC: ${{ inputs.cc }}
+          CXX: ${{ inputs.cxx }}
+          CUDA_LIB_PATH: "/usr/local/cuda/lib64/stubs"
+        run: |
+          mkdir -p $CCACHE_DIR
+          mkdir -p $GITHUB_WORKSPACE/build
+          cd $GITHUB_WORKSPACE/build
+          python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
+            -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build \
+            -DCMAKE_INSTALL_PREFIX=$GITHUB_WORKSPACE/toolchain \
+            -t Release \
+            --ci-defaults --use-zstd ${{ inputs.build_configure_extra_args }} \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DLLVM_INSTALL_UTILS=ON \
+            -DSYCL_UR_FORCE_FETCH_LEVEL_ZERO=ON \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
       - name: Preprocess compile_commands.json
         if: steps.should_run_tidy.outputs.run == 'true'
         run: |
           # Remove commands containing "-D__INTEL_PREVIEW_BREAKING_CHANGES" to avoid running on the same file twice.
-          jq '[ .[] | select(.command | contains("-D__INTEL_PREVIEW_BREAKING_CHANGES") | not) ]' $GITHUB_WORKSPACE/compile_commands.json > $GITHUB_WORKSPACE/compile_commands.temp.json
-          mv $GITHUB_WORKSPACE/compile_commands.temp.json $GITHUB_WORKSPACE/compile_commands.json
+          jq '[ .[] | select(.command | contains("-D__INTEL_PREVIEW_BREAKING_CHANGES") | not) ]' $GITHUB_WORKSPACE/build/compile_commands.json > $GITHUB_WORKSPACE/build/compile_commands.temp.json
+          mv $GITHUB_WORKSPACE/build/compile_commands.temp.json $GITHUB_WORKSPACE/build/compile_commands.json
 
       - name: Run clang-tidy on modified files
         if: steps.should_run_tidy.outputs.run == 'true'
@@ -63,7 +82,7 @@ jobs:
           strace -vf -s500 -o CTD.strace python3 "$GITHUB_WORKSPACE/src/clang-tools-extra/clang-tidy/tool/clang-tidy-diff.py" \
             -clang-tidy-binary "/opt/sycl/bin/clang-tidy" \
             -p 1 \
-            -path "$GITHUB_WORKSPACE" \
+            -path "$GITHUB_WORKSPACE/build" \
             -checks "clang-analyzer-*,bugprone-*,performance-*,-bugprone-std-namespace-modification" \
             < "$GITHUB_WORKSPACE/pr.diff"
 
