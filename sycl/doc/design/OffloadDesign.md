@@ -107,7 +107,7 @@ to be taken.
 For example, when an embedded device binary is of the `OFK_SYCL` kind and of
 the `spir64_gen` architecture triple, the resulting extracted binary is linked,
 post-link processed and converted to SPIR-V before being passed to `ocloc` to
-generate the final device binary.  Options passed via `--device-compiler=sycl:spir64_gen-unknown-unknown=<arg>` will
+generate the final device binary.  Options passed via `--device--device <Arch> <arg>` will
 be applied to the `ocloc` step as well.
 
 Binaries generated during the offload compilation will be 'bundled' together
@@ -239,7 +239,7 @@ are needed to pass along this information.
 | Target | Triple        | Offline Tool   | Option for Additional Args                                       |
 |--------|---------------|----------------|------------------------------------------------------------------|
 | CPU    | spir64_x86_64 | opencl-aot     | `--device-compiler=sycl:spir64_x86_64-unknown-unknown=<arg>`     |
-| GPU    | spir64_gen    | ocloc          | `--device-compiler=sycl:spir64_gen-unknown-unknown=<arg>`        |
+| GPU    | spir64_gen    | ocloc          | `--device-compiler=sycl:spir64_gen-unknown-unknown=-device <arch> <arg>`        |
 
 *Table: Ahead of Time Info*
 
@@ -289,8 +289,8 @@ list to be passed along.
 
 *Example: spir64_gen enabling options*
 
-> "--device-compiler=sycl:spir64_gen-unknown-unknown=-device pvc -options extraopt_pvc"
-"--device-compiler=sycl:spir64_gen-unknown-unknown=-options -extraopt_skl"
+> "--device-compiler=sycl:spir64_gen-unknown-unknown=-device pvc -options -extraopt_pvc"
+"--device-compiler=sycl:spir64_gen-unknown-unknown=-device skl -options -extraopt_skl"
 
 *Example: clang-linker-wrapper options*
 
@@ -299,7 +299,7 @@ individually wrapped and linked into the final executable.
 
 Additionally, the syntax can be expanded to enable the ability to pass specific
 options to a specific device GPU target for spir64_gen.  The syntax will
-resemble `--device-compiler=sycl:spir64_gen-unknown-unknown==<arch> <arg>`.  This corresponds to the existing
+resemble `--device-compiler=sycl:spir64_gen-unknown-unknown==-device <arch> <arg>`.  This corresponds to the existing
 option syntax of `-fsycl-targets=intel_gpu_arch` where `arch` can be a fixed
 set of targets.
 
