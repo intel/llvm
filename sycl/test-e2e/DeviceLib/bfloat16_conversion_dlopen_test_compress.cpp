@@ -14,7 +14,7 @@
 // REQUIRES: linux, zstd
 // RUN: rm -rf %t.dir; mkdir -p %t.dir
 // RUN: %{build} --offload-compress -DBUILD_LIB -fPIC -shared -o %t.dir/lib%basename_t_compress.so
-// RUN: %{build} --offload-compress -DFNAME=%basename_t_compress -ldl -o %t1.out -Wl,-rpath=%t.dir
+// RUN: %{run-aux} %{build} --offload-compress -DFNAME=%basename_t_compress -ldl -o %t1.out -Wl,-rpath=%t.dir
 // RUN: %{run} %t1.out
 
 // UNSUPPORTED: target-nvidia || target-amd

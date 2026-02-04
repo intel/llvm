@@ -15,7 +15,7 @@ jobs:
 
     runs-on: [ "Linux", "build" ]
     container:
-      image: 'ghcr.io/intel/llvm/ubuntu2404_base'
+      image: 'ghcr.io/intel/llvm/ubuntu2404_build'
 
     steps:
     - name: Checkout LLVM
