@@ -60,9 +60,16 @@ jobs:
         continue-on-error: true
         run: |
           cd "$GITHUB_WORKSPACE/src"
-          python3 "$GITHUB_WORKSPACE/src/clang-tools-extra/clang-tidy/tool/clang-tidy-diff.py" \
+          strace -vf -s500 -o CTD.strace python3 "$GITHUB_WORKSPACE/src/clang-tools-extra/clang-tidy/tool/clang-tidy-diff.py" \
             -clang-tidy-binary "/opt/sycl/bin/clang-tidy" \
             -p 1 \
             -path "$GITHUB_WORKSPACE" \
             -checks "clang-analyzer-*,bugprone-*,performance-*,-bugprone-std-namespace-modification" \
             < "$GITHUB_WORKSPACE/pr.diff"
+
+      - name: upload CTD.strace
+        uses: actions/upload-artifact@v6
+        with:
+          name: CTD.strace
+          path: "$GITHUB_WORKSPACE/CTD.strace"
+          retention-days: 1
