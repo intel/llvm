@@ -436,7 +436,6 @@ ur_result_t urProgramLinkExp(
           return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
         }
       }
-
     }
 
     // For SPIR-V input programs, previous calls to urProgramCompile did not
