@@ -222,7 +222,7 @@ function(link_bc)
   )
 endfunction()
 
-# Runs opt and prepare-builtins on a bitcode file specified by lib_tgt
+# Runs opt on a bitcode file specified by lib_tgt
 #
 # ARGUMENTS:
 # * LIB_TGT string
@@ -253,17 +253,17 @@ function(process_bc out_file)
 
   set( builtins_opt_lib $<TARGET_PROPERTY:${ARG_LIB_TGT},TARGET_FILE> )
 
-  # Add prepare target
-  # FIXME: prepare_builtins_exe comes from having included libclc before this.
-  # This is brittle.
+  # Copy the optimized library to the output directory
+  # Note: prepare_builtins utility was removed upstream as it's no longer
+  # necessary - linkage is handled by -mlink-builtin-bitcode and metadata
+  # deduplication is handled by llvm-link
   add_custom_command( OUTPUT ${ARG_OUT_DIR}/${out_file}
-    COMMAND ${prepare_builtins_exe} -o ${ARG_OUT_DIR}/${out_file}
-      ${builtins_opt_lib}
-      DEPENDS ${builtins_opt_lib} ${ARG_LIB_TGT} ${prepare_builtins_target} )
-  add_custom_target( prepare-${out_file} ALL
+    COMMAND ${CMAKE_COMMAND} -E copy ${builtins_opt_lib} ${ARG_OUT_DIR}/${out_file}
+      DEPENDS ${builtins_opt_lib} ${ARG_LIB_TGT} )
+  add_custom_target( library-${out_file} ALL
     DEPENDS ${ARG_OUT_DIR}/${out_file}
   )
-  set_target_properties( prepare-${out_file}
+  set_target_properties( library-${out_file}
     PROPERTIES TARGET_FILE ${ARG_OUT_DIR}/${out_file}
   )
 endfunction()
@@ -811,9 +811,9 @@ foreach(arch IN LISTS full_build_archs)
     OUT_DIR ${bc_binary_dir}
     OPT_FLAGS ${opt_flags_${arch}}
     DEPENDENCIES device_lib_device_${arch})
-  add_dependencies(libsycldevice-bc prepare-devicelib-${arch}.bc)
+  add_dependencies(libsycldevice-bc library-devicelib-${arch}.bc)
   set(complete_${arch}_libdev
-    $<TARGET_PROPERTY:prepare-devicelib-${arch}.bc,TARGET_FILE>)
+    $<TARGET_PROPERTY:library-devicelib-${arch}.bc,TARGET_FILE>)
   install( FILES ${complete_${arch}_libdev}
            DESTINATION ${install_dest_bc}
            COMPONENT libsycldevice)

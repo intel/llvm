@@ -755,8 +755,8 @@ TEST_P(urL0EnqueueAllocMultiQueueMultiDeviceTest,
   }
 }
 
-using urL0EnqueueAllocStandaloneTest = uur::urQueueTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urL0EnqueueAllocStandaloneTest);
+using urL0EnqueueAllocStandaloneTest = uur::urMultiQueueTypeTest;
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(urL0EnqueueAllocStandaloneTest);
 
 TEST_P(urL0EnqueueAllocStandaloneTest, ReuseFittingAllocation) {
   ur_usm_pool_handle_t pool = nullptr;
