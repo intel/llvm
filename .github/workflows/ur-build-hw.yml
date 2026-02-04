@@ -190,6 +190,7 @@ jobs:
       env:
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
         LIT_OPTS: "--timeout 120 -j 50"
+        UR_L0_V2_DISABLE_ZE_LAUNCH_KERNEL_WITH_ARGS: 1
       run: cmake --build build -j $(($(nproc)/3)) -- check-unified-runtime-conformance
 
     - name: Get information about platform
