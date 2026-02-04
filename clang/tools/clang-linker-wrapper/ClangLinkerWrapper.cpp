@@ -1324,7 +1324,7 @@ runWrapperAndCompile(std::vector<module_split::SplitModule> &SplitModules,
 /// code and will be parsed to generate options required to be passed into the
 /// llvm-link tool.
 static Expected<StringRef>
-linkDeviceInputFiles(ArrayRef<StringRef> &InputFiles,
+linkDeviceInputFiles(ArrayRef<StringRef> InputFiles,
                      const ArgList &Args) {
   llvm::TimeTraceScope TimeScope("SYCL LinkDeviceInputFiles");
 
