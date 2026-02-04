@@ -220,7 +220,7 @@ jobs:
       uses: actions/upload-artifact@v6
       with:
         name: compile_commands
-        path: "$GITHUB_WORKSPACE/build/compile_commands.json"
+        path: $GITHUB_WORKSPACE/build/compile_commands.json
         retention-days: ${{ inputs.retention-days }}
 
     - name: check-llvm
