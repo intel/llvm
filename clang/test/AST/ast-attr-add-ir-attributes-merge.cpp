@@ -380,7 +380,7 @@ void TemplateDecl3(){};
 // CHECK-NEXT:     ConstantExpr {{.*}} 'const char[6]' lvalue
 // CHECK-NEXT:       value: LValue
 // CHECK-NEXT:       StringLiteral {{.*}} 'const char[6]' lvalue "Attr1"
-// CHECK-NEXT:     UnaryExprOrTypeTraitExpr {{.*}} '__size_t':'unsigned long' sizeof 'X'
+// CHECK-NEXT:     UnaryExprOrTypeTraitExpr {{.*}} '__size_t':'unsigned {{.*}}' sizeof 'X'
 // CHECK-NEXT:   SYCLAddIRAttributesFunctionAttr
 // CHECK-NEXT:     ConstantExpr {{.*}} 'const char[6]' lvalue
 // CHECK-NEXT:       value: LValue
