@@ -742,7 +742,9 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   // when Intel GPU targets are passed in -fsycl-targets.
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
-
+  
+  // Prefix the output path with the target architecture(s),
+  // e.g. intel_gpu_dg2,intel_gpu_pvc for arch = "dg2,pvc".
   if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen && !Arch.empty() && Arch != "*") {
     SmallVector<StringRef, 8> ArchList;
     Arch.split(ArchList, ',');
@@ -2173,7 +2175,7 @@ extractSYCLCompileLinkOptions(ArrayRef<OffloadFile> OffloadFiles) {
 }
 
 // Append SYCL device compiler and linker options specified at link time,
-// filtering by target triple and offload kind.
+// filtering by target triple, offload kind, and device architecture.
 // TODO: Consider how to refactor this function to merge it with getLinkerArgs()
 // and determine if it's possible to use OPT_compiler_arg_EQ and
 // OPT_linker_arg_EQ to handle device compiler/linker options
