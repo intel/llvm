@@ -1540,16 +1540,32 @@ void SemaSYCL::addSYCLAddIRAttributesFunctionAttr(
 
   // There could be multiple of the same attribute applied to the same
   // declaration. If so, we want to merge them.
-  // If there are still dependent expressions in the attribute, we delay merging
-  // till after instantiation.
-  if (!hasDependentExpr(Attr->args_begin(), Attr->args_size()) &&
-      D->hasAttr<SYCLAddIRAttributesFunctionAttr>()) {
-    Attr = mergeSYCLAddIRAttributesFunctionAttr(D, *Attr);
+  if (D->hasAttr<SYCLAddIRAttributesFunctionAttr>()) {
+    // Check if any of the existing attributes have dependent expressions.
+    bool ExistingAttrHasDependent = false;
+    for (const auto *ExistingAttr :
+         D->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
+      if (hasDependentExpr(ExistingAttr->args_begin(),
+                           ExistingAttr->args_size())) {
+        ExistingAttrHasDependent = true;
+        break;
+      }
+    }
 
-    // If null is returned, the attribute did not change after merge and we can
-    // exit.
-    if (!Attr)
-      return;
+    // Check if the new attribute has dependent expressions.
+    bool NewAttrHasDependent =
+        hasDependentExpr(Attr->args_begin(), Attr->args_size());
+
+    // If there are still dependent expressions in either attribute, we delay
+    // merging till after instantiation.
+    if (!ExistingAttrHasDependent && !NewAttrHasDependent) {
+      Attr = mergeSYCLAddIRAttributesFunctionAttr(D, *Attr);
+
+      // If null is returned, the attribute did not change after merge and we
+      // can exit.
+      if (!Attr)
+        return;
+    }
   }
   D->addAttr(Attr);
 
