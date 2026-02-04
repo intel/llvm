@@ -97,7 +97,7 @@ cl::opt<std::string> DeviceLibDir{
     cl::value_desc("dirname"), cl::cat(PostLinkCat)};
 
 struct TargetFilenamePair {
-  std::string Target;
+  std::vector<std::string> Targets;
   std::string Filename;
 };
 
@@ -105,10 +105,16 @@ struct TargetFilenamePairParser : public cl::basic_parser<TargetFilenamePair> {
   using cl::basic_parser<TargetFilenamePair>::basic_parser;
   bool parse(cl::Option &O, StringRef ArgName, StringRef &ArgValue,
              TargetFilenamePair &Val) const {
-    auto [Target, Filename] = ArgValue.split(",");
-    if (Filename == "")
-      std::swap(Target, Filename);
-    Val = {Target.str(), Filename.str()};
+    SmallVector<StringRef, 8> Parts;
+    ArgValue.split(Parts, ",");
+    if (Parts.size() == 1) {
+      Val.Targets = {};
+      Val.Filename = Parts[0].str();
+      return false;
+    }
+    Val.Filename = Parts.back().str();
+    for (size_t i = 0; i + 1 < Parts.size(); ++i)
+      Val.Targets.push_back(Parts[i].str());
     return false;
   }
 };
@@ -285,7 +291,10 @@ static void writeToFile(const StringRef Filename, const StringRef Content) {
 void saveModuleIR(Module &M, const StringRef Filename) {
   std::error_code EC;
   raw_fd_ostream Out{Filename, EC, sys::fs::OF_None};
+  llvm::errs() << "[DEBUG] trying to open file: " << Filename << "\n";
   checkError(EC, "error opening the file '" + Filename + "'");
+  llvm::errs() << "[DEBUG] successfully open file: " << Filename << "\n";
+
 
   ModulePassManager MPM;
   ModuleAnalysisManager MAM;
@@ -300,7 +309,7 @@ void saveModuleIR(Module &M, const StringRef Filename) {
 
 void saveModuleProperties(const module_split::ModuleDesc &MD,
                           const GlobalBinImageProps &GlobProps,
-                          const StringRef Filename, StringRef Target = "") {
+                          const StringRef Filename, const std::vector<std::string> &Targets) {
 
   PropSetRegTy PropSet;
 
@@ -323,9 +332,9 @@ void saveModuleProperties(const module_split::ModuleDesc &MD,
     PropSet.remove(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS,
                    PropSetRegTy::PROPERTY_REQD_WORK_GROUP_SIZE);
 
-  if (!Target.empty())
-    PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS, "compile_target",
-                Target);
+  for (const auto &T : Targets)
+    PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS,
+                "compile_target", T);
 
   std::error_code EC;
   raw_fd_ostream SCOut(Filename, EC);
@@ -337,6 +346,7 @@ void saveModuleProperties(const module_split::ModuleDesc &MD,
 void saveModuleSymbolTable(const module_split::ModuleDesc &MD,
                            const StringRef Filename) {
   std::string SymT = computeModuleSymbolTable(MD.getModule(), MD.entries());
+  llvm::errs() << "[DEBUG] Saving module symbol table to file: " << Filename << "\n";
   writeToFile(Filename, SymT);
 }
 
@@ -384,21 +394,36 @@ void saveModule(
   }
 
   for (const auto &[Table, OutputFile] : zip_equal(OutTables, OutputFiles)) {
-    if (!isTargetCompatibleWithModule(OutputFile.Target, MD))
+    bool Compatible = false;
+    if (OutputFile.Targets.empty()) {
+      Compatible = true;
+    } else {
+      for (const auto &T : OutputFile.Targets) {
+        if (isTargetCompatibleWithModule(T, MD)) {
+          Compatible = true;
+          break;
+        }
+      }
+    }
+
+    if (!Compatible)
       continue;
     auto CopyTriple = BaseTriple;
     if (DoPropGen) {
       GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
                                    EmitKernelNames,     EmitExportedSymbols,
                                    EmitImportedSymbols, DeviceGlobals};
-      StringRef Target = OutputFile.Target;
       std::string NewSuff = Suffix.str();
-      if (!Target.empty())
-        NewSuff = (Twine("_") + Target).str();
+      if (!OutputFile.Targets.empty()) {
+        std::string Joined;
+        for (auto &T : OutputFile.Targets)
+          Joined += "_" + T;
+        NewSuff = Joined;
+      }
 
       CopyTriple.Prop =
           (OutputPrefix + NewSuff + "_" + Twine(I) + ".prop").str();
-      saveModuleProperties(MD, Props, CopyTriple.Prop, Target);
+      saveModuleProperties(MD, Props, CopyTriple.Prop, OutputFile.Targets);
     }
     addTableRow(*Table, CopyTriple);
   }
@@ -457,6 +482,7 @@ bool isTargetCompatibleWithModule(const std::string &Target,
   // (e.g. -o out.table compared to -o intel_gpu_pvc,out-pvc.table)
   // Target will be empty and we will not want to perform any filtering, so
   // we return true here.
+  llvm::errs() << "[DEBUG] target: '" << Target << "'\n";
   if (Target.empty())
     return true;
 
