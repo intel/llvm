@@ -755,17 +755,12 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
 
   if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen && !Arch.empty() && Arch != "*") {
-    SmallVector<StringRef, 4> ArchList;
+    SmallVector<StringRef, 8> ArchList;
     Arch.split(ArchList, ',');
-
-    std::string ArchPaths;
-    for (StringRef SingleArch : ArchList) {
-      if (!ArchPaths.empty())
-        ArchPaths += ",";
-      ArchPaths += "intel_gpu_" + SingleArch.str();
-    }
-    if (!ArchPaths.empty())
-      OutputPathWithArch = ArchPaths + "," + OutputPathWithArch;
+    std::string ArchString;
+    for (StringRef SingleArch : ArchList)
+      ArchString += "intel_gpu_" + SingleArch.str() + ",";
+    OutputPathWithArch = ArchString + OutputPathWithArch;
   } else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
     OutputPathWithArch = "spir64_x86_64," + OutputPathWithArch;
 

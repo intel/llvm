@@ -105,16 +105,11 @@ struct TargetFilenamePairParser : public cl::basic_parser<TargetFilenamePair> {
   using cl::basic_parser<TargetFilenamePair>::basic_parser;
   bool parse(cl::Option &O, StringRef ArgName, StringRef &ArgValue,
              TargetFilenamePair &Val) const {
-    SmallVector<StringRef, 8> Parts;
-    ArgValue.split(Parts, ",");
-    if (Parts.size() == 1) {
-      Val.Targets = {};
-      Val.Filename = Parts[0].str();
-      return false;
-    }
-    Val.Filename = Parts.back().str();
-    for (size_t i = 0; i + 1 < Parts.size(); ++i)
-      Val.Targets.push_back(Parts[i].str());
+    SmallVector<StringRef, 8> ArgList;
+    ArgValue.split(ArgList, ",");
+    Val.Filename = ArgList.back().str();
+    for (size_t i = 0; i + 1 < ArgList.size(); ++i)
+      Val.Targets.push_back(ArgList[i].str());
     return false;
   }
 };
@@ -291,10 +286,7 @@ static void writeToFile(const StringRef Filename, const StringRef Content) {
 void saveModuleIR(Module &M, const StringRef Filename) {
   std::error_code EC;
   raw_fd_ostream Out{Filename, EC, sys::fs::OF_None};
-  llvm::errs() << "[DEBUG] trying to open file: " << Filename << "\n";
   checkError(EC, "error opening the file '" + Filename + "'");
-  llvm::errs() << "[DEBUG] successfully open file: " << Filename << "\n";
-
 
   ModulePassManager MPM;
   ModuleAnalysisManager MAM;
@@ -346,7 +338,6 @@ void saveModuleProperties(const module_split::ModuleDesc &MD,
 void saveModuleSymbolTable(const module_split::ModuleDesc &MD,
                            const StringRef Filename) {
   std::string SymT = computeModuleSymbolTable(MD.getModule(), MD.entries());
-  llvm::errs() << "[DEBUG] Saving module symbol table to file: " << Filename << "\n";
   writeToFile(Filename, SymT);
 }
 
@@ -401,17 +392,18 @@ void saveModule(
       GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
                                    EmitKernelNames,     EmitExportedSymbols,
                                    EmitImportedSymbols, DeviceGlobals};
+      std::vector<std::string> Targets = OutputFile.Targets;
       std::string NewSuff = Suffix.str();
-      if (!OutputFile.Targets.empty()) {
+      if (!Targets.empty()) {
         std::string Joined;
-        for (auto &T : OutputFile.Targets)
+        for (auto &T : Targets)
           Joined += "_" + T;
         NewSuff = Joined;
       }
 
       CopyTriple.Prop =
           (OutputPrefix + NewSuff + "_" + Twine(I) + ".prop").str();
-      saveModuleProperties(MD, Props, CopyTriple.Prop, OutputFile.Targets);
+      saveModuleProperties(MD, Props, CopyTriple.Prop, Targets);
     }
     addTableRow(*Table, CopyTriple);
   }
@@ -473,7 +465,7 @@ bool isTargetCompatibleWithModule(const std::vector<std::string> &Targets,
   if (Targets.empty())
     return true;
   
-  for (const std::string &Target : Targets) {
+  for (const std::string Target : Targets) {
     llvm::errs() << "[DEBUG] Checking compatibility of target '" << Target
              << "' with module '" << IrMD.Name << "'\n";
     // TODO: If a target not found in the device config file is passed,

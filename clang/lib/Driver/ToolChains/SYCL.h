@@ -84,7 +84,7 @@ public:
                     const char *LinkingOutput) const override;
 };
 
-StringRef extractDeviceFromArgSimple(StringRef Arg);
+StringRef extractDeviceFromArg(StringRef Arg);
 StringRef resolveGenDevice(StringRef DeviceName);
 SmallString<64> getGenDeviceMacro(StringRef DeviceName);
 StringRef getGenGRFFlag(StringRef GRFMode);

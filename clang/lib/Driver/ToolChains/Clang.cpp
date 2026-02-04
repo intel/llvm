@@ -10455,7 +10455,7 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
       SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs, OffloadAction->getOffloadingArch());
       createArgString("compile-opts=");
       BuildArgs.clear();
-      SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs, OffloadAction->getOffloadingArch());
+      SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);
       createArgString("link-opts=");
     }
 
@@ -11619,21 +11619,17 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
       // Process each -Xsycl-target-backend individually
       for (const Arg *A : Args.filtered(options::OPT_Xsycl_backend_EQ)) {
-        StringRef Device;
-        StringRef TargetBackend = A->getValue();
         SmallString<128> BackendArgs;
-        if((TargetBackend == "spir64_gen")) {
-          Device = SYCL::gen::extractDeviceFromArgSimple(A->getValue(1));
-        } else {
-          Device = SYCL::gen::resolveGenDevice(TargetBackend);
+        StringRef Device = SYCL::gen::resolveGenDevice(A->getValue());
+        if(!Device.empty())
           appendOption(BackendArgs, "-device " + Device.str());
-        }
+        else 
+          Device = SYCL::gen::extractDeviceFromArg(A->getValue(1));
 
         SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs, Device);
         for (const auto &BA : BuildArgs) {
           appendOption(BackendArgs, BA);
         }
-
         BackendOptVec.push_back(std::move(BackendArgs));
         BuildArgs.clear();
       }
@@ -11643,13 +11639,13 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         if (TC->getTriple().getSubArch() == llvm::Triple::NoSubArch)
           appendOption(LinkOptString, A);
         else {
-          // For AOT, append linker args to every backend string
-          for (auto &BackendArgs : BackendOptVec)
+          // For AOT, combine the Backend and Linker strings into one.
+          for (SmallString<128> &BackendArgs : BackendOptVec)
             appendOption(BackendArgs, A);
         }
       }
 
-      for (auto &BackendArgs : BackendOptVec) {
+      for (SmallString<128> &BackendArgs : BackendOptVec) {
         CmdArgs.push_back(Args.MakeArgString(
             "--device-compiler=" +
             Action::GetOffloadKindName(Action::OFK_SYCL) + ":" +
