@@ -231,6 +231,12 @@ fill_image_desc(const ext::oneapi::experimental::image_descriptor &ImgDesc) {
   UrDesc.height = ImgDesc.height;
   UrDesc.depth = ImgDesc.depth;
   UrDesc.arraySize = ImgDesc.array_size;
+
+  UrDesc.rowPitch = ImgDesc.row_pitch;
+  UrDesc.slicePitch = ImgDesc.slice_pitch;
+  UrDesc.numSamples = ImgDesc.num_samples;
+  UrDesc.numMipLevel = ImgDesc.num_levels;
+
   return UrDesc;
 }
 
