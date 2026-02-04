@@ -59,8 +59,7 @@ device::device(const device_selector &deviceSelector) {
 
 std::vector<device> device::get_devices(info::device_type deviceType) {
   std::vector<device> devices;
-  detail::ods_target_list *OdsTargetList =
-      detail::SYCLConfig<detail::ONEAPI_DEVICE_SELECTOR>::get();
+  detail::ods_target_list *OdsTargetList = detail::SYCLConfig<detail::ONEAPI_DEVICE_SELECTOR>::get();
 
   auto thePlatforms = platform::get_platforms();
   for (const auto &plt : thePlatforms) {

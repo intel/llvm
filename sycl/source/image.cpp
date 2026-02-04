@@ -16,8 +16,7 @@ image_plain::image_plain(image_channel_order Order, image_channel_type Type,
                          const range<3> &Range,
                          std::unique_ptr<SYCLMemObjAllocator> Allocator,
                          uint8_t Dimensions, const property_list &PropList) {
-  impl = std::make_shared<detail::image_impl>(
-      Order, Type, Range, std::move(Allocator), Dimensions, PropList);
+  impl = std::make_shared<detail::image_impl>(Order, Type, Range, std::move(Allocator), Dimensions, PropList);
 }
 
 image_plain::image_plain(image_channel_order Order, image_channel_type Type,

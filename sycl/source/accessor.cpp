@@ -102,8 +102,7 @@ LocalAccessorBaseHost::LocalAccessorBaseHost(
     sycl::range<3> Size, int Dims, int ElemSize,
     const property_list &PropertyList) {
   verifyAccessorProps(PropertyList);
-  impl = std::shared_ptr<LocalAccessorImplHost>(
-      new LocalAccessorImplHost(Size, Dims, ElemSize, PropertyList));
+  impl = std::shared_ptr<LocalAccessorImplHost>(new LocalAccessorImplHost(Size, Dims, ElemSize, PropertyList));
 }
 sycl::range<3> &LocalAccessorBaseHost::getSize() { return impl->MSize; }
 const sycl::range<3> &LocalAccessorBaseHost::getSize() const {
