@@ -5,6 +5,9 @@
 // XFAIL: linux
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/21131
 
+// UNSUPPORTED: cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21131
+
 // UNSUPPORTED: linux && (gpu-intel-dg2 || arch-intel_gpu_bmg_g21)
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21136
 
