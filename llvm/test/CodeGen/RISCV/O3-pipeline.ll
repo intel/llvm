@@ -99,6 +99,8 @@
 ; CHECK-NEXT:       Lazy Block Frequency Analysis
 ; CHECK-NEXT:       RISC-V DAG->DAG Pattern Instruction Selection
 ; CHECK-NEXT:       Finalize ISel and expand pseudo-instructions
+; CHECK-NEXT:       MachineDominator Tree Construction
+; CHECK-NEXT:       RISC-V VL Optimizer
 ; CHECK-NEXT:       RISC-V Vector Peephole Optimization
 ; CHECK-NEXT:       RISC-V Fold Memory Offset
 ; CHECK-NEXT:       Lazy Machine Block Frequency Analysis
@@ -127,7 +129,6 @@
 ; CHECK-NEXT:       RISC-V Pre-RA pseudo instruction expansion pass
 ; CHECK-NEXT:       RISC-V Merge Base Offset
 ; CHECK-NEXT:       MachineDominator Tree Construction
-; CHECK-NEXT:       RISC-V VL Optimizer
 ; CHECK-NEXT:       RISC-V pre-allocation Zilsd load/store optimization
 ; CHECK-NEXT:       RISC-V Insert Read/Write CSR Pass
 ; CHECK-NEXT:       RISC-V Insert Write VXRM Pass
