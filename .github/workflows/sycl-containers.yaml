@@ -33,7 +33,7 @@ concurrency:
 permissions: read-all
 
 jobs:
-  # First build "Base" and "Build" images
+  # First build "Build" images
   build_and_push_non_driver_images:
     if: github.repository == 'intel/llvm'
     name: "Containers"
@@ -43,14 +43,6 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: Base Ubuntu 22.04 Docker image
-            file: ubuntu2204_base
-            tag: latest
-            build_args: ""
-          - name: Base Ubuntu 24.04 Docker image
-            file: ubuntu2404_base
-            tag: latest
-            build_args: ""
           - name: Build Ubuntu 22.04 Docker image
             file: ubuntu2204_build
             tag: latest
@@ -78,7 +70,7 @@ jobs:
 
   # Then build "Intel Drivers" images that depend on previous images.
   #
-  # Note: Building these images on PR means using old "Base" and "Build" images,
+  # Note: Building these images on PR means using old "Build" images,
   # as the ones above were not yet pushed.
   build_and_push_driver_images:
     needs: build_and_push_non_driver_images
@@ -89,26 +81,12 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: Intel Drivers Ubuntu 22.04 Docker image
-            file: ubuntu2204_intel_drivers
-            tag: latest
-            build_args: ""
-          - name: Intel Drivers Ubuntu 24.04 Docker image
-            file: ubuntu2404_intel_drivers
-            tag: latest
-            build_args: ""
           - name: Build + Intel Drivers Ubuntu 22.04 Docker image
             file: ubuntu2204_intel_drivers
-            tag: alldeps
-            build_args: |
-              base_image=ghcr.io/intel/llvm/ubuntu2204_build
-              base_tag=latest
+            tag: latest
           - name: Build + Intel Drivers Ubuntu 24.04 Docker image
             file: ubuntu2404_intel_drivers
-            tag: alldeps
-            build_args: |
-              base_image=ghcr.io/intel/llvm/ubuntu2404_build
-              base_tag=latest
+            tag: latest
     steps:
       - name: Checkout
         uses: actions/checkout@v6
