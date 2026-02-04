@@ -1472,7 +1472,8 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
     return *LinkedFile;
   }
 
-  SmallVector<StringRef, 16> InputFilesVec(ExtractedDeviceLibFiles.size() + 1 /*LinkedFile*/);
+  SmallVector<StringRef, 16> InputFilesVec;
+  InputFilesVec.reserve(ExtractedDeviceLibFiles.size() + 1 /*LinkedFile*/);
   InputFilesVec.emplace_back(*LinkedFile);
   for (auto &File : ExtractedDeviceLibFiles)
     InputFilesVec.emplace_back(File);
