@@ -74,7 +74,7 @@ jobs:
 
   clang-tidy:
     needs: build
-    if: ${{ !cancelled() && needs.build.outputs.build_conclusion == 'success' && github.base_ref == 'sycl' !contains(github.event.pull_request.labels.*.name, 'disable-lint') }}
+    if: ${{ !cancelled() && needs.build.outputs.build_conclusion == 'success' && github.base_ref == 'sycl' && !contains(github.event.pull_request.labels.*.name, 'disable-lint') }}
     uses: ./.github/workflows/sycl-clang-tidy.yml
 
   # Build and run native cpu e2e tests separately as cannot currently
