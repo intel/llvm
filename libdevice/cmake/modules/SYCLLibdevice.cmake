@@ -222,7 +222,7 @@ function(link_bc)
   )
 endfunction()
 
-# Runs opt and prepare-builtins on a bitcode file specified by lib_tgt
+# Runs opt on a bitcode file specified by lib_tgt
 #
 # ARGUMENTS:
 # * LIB_TGT string
@@ -784,10 +784,8 @@ foreach(arch IN LISTS full_build_archs)
   set( builtins_link_lib_${arch}
     $<TARGET_PROPERTY:device_lib_device_${arch},TARGET_FILE>)
   add_dependencies(libsycldevice-bc device_lib_device_${arch})
-  set( builtins_opt_lib_tgt_${arch} builtins_${arch}.opt)
 
-  # Run the optimizer on the resulting bitcode file and call prepare_builtins
-  # on it, which strips away debug and arch information.
+  # Run the optimizer on the resulting bitcode file.
   process_bc(devicelib-${arch}.bc
     IN_FILE ${builtins_link_lib_${arch}}
     OUT_DIR ${bc_binary_dir}

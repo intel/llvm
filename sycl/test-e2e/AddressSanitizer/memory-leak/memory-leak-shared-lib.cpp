@@ -1,6 +1,6 @@
 // REQUIRES: linux, cpu
 // RUN: %{build} %device_asan_flags -O0 -g -fPIC -shared -DSHARED_LIB -o %t.so
-// RUN: %{build} %device_asan_flags -O0 -g -fPIC -Wl,-rpath,. %t.so -o %t
+// RUN: %{run-aux} %{build} %device_asan_flags -O0 -g -fPIC -Wl,-rpath,. %t.so -o %t
 // RUN: %{run} %t 2>&1 | FileCheck %s
 #include <sycl/detail/core.hpp>
 

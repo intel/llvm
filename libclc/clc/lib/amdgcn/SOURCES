@@ -1,5 +1,5 @@
 math/clc_exp.cl
-math/clc_ldexp_override.cl
+math/clc_ldexp.cl
 math/clc_lgamma.cl
 math/clc_log.cl
 math/clc_sinpi.cl
