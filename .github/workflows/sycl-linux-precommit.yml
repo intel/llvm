@@ -1,7 +1,7 @@
 name: clang-tidy 2
 
 on:
-  pull_requests:
+  pull_request:
     branches:
     - sycl
 
