@@ -1324,7 +1324,7 @@ runWrapperAndCompile(std::vector<module_split::SplitModule> &SplitModules,
 /// code and will be parsed to generate options required to be passed into the
 /// llvm-link tool.
 static Expected<StringRef>
-linkDeviceInputFiles(SmallVectorImpl<StringRef> &InputFiles,
+linkDeviceInputFiles(ArrayRef<StringRef> &InputFiles,
                      const ArgList &Args) {
   llvm::TimeTraceScope TimeScope("SYCL LinkDeviceInputFiles");
 
@@ -1413,16 +1413,10 @@ linkDeviceLibFiles(SmallVectorImpl<StringRef> &InputFiles,
 /// llvm-link tool.
 static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
                                       const ArgList &Args) {
-  SmallVector<StringRef, 16> InputFilesVec;
-  for (StringRef InputFile : InputFiles)
-    InputFilesVec.emplace_back(InputFile);
   // First llvm-link step.
-  auto LinkedFile = sycl::linkDeviceInputFiles(InputFilesVec, Args);
+  auto LinkedFile = sycl::linkDeviceInputFiles(InputFiles, Args);
   if (!LinkedFile)
     reportError(LinkedFile.takeError());
-
-  InputFilesVec.clear();
-  InputFilesVec.emplace_back(*LinkedFile);
 
   // Gathering device library files
   SmallVector<std::string, 16> DeviceLibFiles;
@@ -1478,6 +1472,8 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
     return *LinkedFile;
   }
 
+  SmallVector<StringRef, 16> InputFilesVec(ExtractedDeviceLibFiles.size() + 1 /*LinkedFile*/);
+  InputFilesVec.emplace_back(*LinkedFile);
   for (auto &File : ExtractedDeviceLibFiles)
     InputFilesVec.emplace_back(File);
   // second llvm-link step
