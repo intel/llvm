@@ -1083,6 +1083,8 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
     C.addCommand(std::move(Cmd));
 }
 
+// Extracts the device specified after "-device" from the backend
+// argument string provided via -Xsycl-target-backend.
 StringRef SYCL::gen::extractDeviceFromArg(llvm::StringRef Arg) {
   llvm::SmallVector<StringRef, 8> Arglist;
   Arg.split(Arglist, ' ');
@@ -1564,12 +1566,10 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
     if (A->getOption().matches(Opt_EQ)) {
       const llvm::Triple OptTargetTriple =
           getDriver().getSYCLDeviceTriple(A->getValue(), A);
-      
       // Passing device args: -X<Opt>=<triple> -opt=val.
       StringRef GenDevice = SYCL::gen::resolveGenDevice(A->getValue());
       if(GenDevice.empty())
         GenDevice = SYCL::gen::extractDeviceFromArg(A->getValue(1));
-
       bool IsGenTriple = Triple.isSPIR() &&
                          Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
       if (IsGenTriple) {
