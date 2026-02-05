@@ -83,3 +83,4 @@
 // CHECK-CPU-SAME:,+SPV_KHR_non_semantic_info
 // CHECK-CPU-SAME:,+SPV_KHR_cooperative_matrix
 // CHECK-CPU-SAME:,+SPV_INTEL_fp_max_error
+// CHECK-CPU-SAME:,+SPV_INTEL_global_variable_host_access

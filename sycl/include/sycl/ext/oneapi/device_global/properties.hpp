@@ -26,7 +26,14 @@ struct device_image_scope_key
   using value_t = property_value<device_image_scope_key>;
 };
 
-enum class host_access_enum : std::uint16_t { read, write, read_write, none };
+// Values of host_access_enum correspond to the access qualifiers in
+// SPV_INTEL_global_variable_host_access.
+enum class host_access_enum : std::uint16_t {
+  none = 0,
+  read = 1,
+  write = 2,
+  read_write = 3
+};
 
 struct host_access_key
     : detail::compile_time_property_key<detail::PropKind::HostAccess> {

@@ -48,11 +48,11 @@ declare spir_func align 4 dereferenceable(4) ptr addrspace(4) @_ZNK2cl4sycl3ext6
 ; Function Attrs: convergent mustprogress noinline norecurse nounwind optnone
 declare spir_func align 1 dereferenceable(1) ptr addrspace(4) @_ZNK2cl4sycl3ext6oneapi13device_globalIbJNS2_8PropertyIXadsoKcL_ZL5Name1EEEXadsoS5_L_ZL6Value1EEEEENS4_IXadsoS5_L_ZL5Name2EEEXadsoS5_L_ZL6Value2EEEEENS4_IXadsoS5_L_ZL5Name3EEEXadsoS5_L_ZL6Value3EEEEENS4_IXadsoS5_L_ZL5Name4EEEXadsoS5_L_ZL6Value4EEEEEEE3getEv(ptr addrspace(4) align 1 dereferenceable_or_null(1)) #5 align 2
 
-attributes #0 = { "sycl-device-global-size"="4" "sycl-device-image-scope"="false" "sycl-host-access"="1" "sycl-implement-in-csr"="true" "sycl-init-mode"="0" "sycl-unique-id"="6da74a122db9f35d____ZL7dg_int1" }
-attributes #1 = { "sycl-device-global-size"="4" "sycl-implement-in-csr"="false" "sycl-init-mode"="1" "sycl-unique-id"="7da74a1187b9f35d____ZL7dg_int2" }
-attributes #2 = { "sycl-device-global-size"="1" "sycl-device-image-scope"="true" "sycl-host-access"="0" "sycl-implement-in-csr" "sycl-init-mode"="0" "sycl-unique-id"="9d329ad59055e972____ZL8dg_bool3" }
-attributes #3 = { "sycl-device-global-size"="1" "sycl-device-image-scope" "sycl-host-access"="2" "sycl-unique-id"="dda2bad52c45c432____ZL8dg_bool4" }
-attributes #4 = { "sycl-device-global-size"="4" "sycl-device-image-scope"="false" "sycl-host-access"="1" "sycl-implement-in-csr"="true" "sycl-init-mode"="0" "sycl-unique-id"="6da74a122db9f35d____ZL7no_dg_int1" }
+attributes #0 = { "sycl-device-global-size"="4" "sycl-device-image-scope"="false" "sycl-host-access"="2" "sycl-implement-in-csr"="true" "sycl-init-mode"="0" "sycl-unique-id"="6da74a122db9f35d____ZL7dg_int1" }
+attributes #1 = { "sycl-device-global-size"="4" "sycl-implement-in-csr"="false" "sycl-init-mode"="2" "sycl-unique-id"="7da74a1187b9f35d____ZL7dg_int2" }
+attributes #2 = { "sycl-device-global-size"="1" "sycl-device-image-scope"="true" "sycl-host-access"="1" "sycl-implement-in-csr" "sycl-init-mode"="0" "sycl-unique-id"="9d329ad59055e972____ZL8dg_bool3" }
+attributes #3 = { "sycl-device-global-size"="1" "sycl-device-image-scope" "sycl-host-access"="3" "sycl-unique-id"="dda2bad52c45c432____ZL8dg_bool4" }
+attributes #4 = { "sycl-device-global-size"="4" "sycl-device-image-scope"="false" "sycl-host-access"="2" "sycl-implement-in-csr"="true" "sycl-init-mode"="0" "sycl-unique-id"="6da74a122db9f35d____ZL7no_dg_int1" }
 attributes #5 = { convergent mustprogress noinline norecurse nounwind optnone "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 attributes #6 = { convergent nounwind }
 
@@ -65,16 +65,16 @@ attributes #6 = { convergent nounwind }
 !0 = !{!1, !2, !3}
 !1 = !{i32 6149, i32 1}
 !2 = !{i32 6148, i32 0}
-!3 = !{i32 6147, i32 1, !"6da74a122db9f35d____ZL7dg_int1"}
+!3 = !{i32 6188, i32 2, !"6da74a122db9f35d____ZL7dg_int1"}
 !4 = !{!5, !6, !7}
 !5 = !{i32 6149, i32 0}
 !6 = !{i32 6148, i32 1}
-!7 = !{i32 6147, i32 2, !"7da74a1187b9f35d____ZL7dg_int2"}
+!7 = !{i32 6188, i32 3, !"7da74a1187b9f35d____ZL7dg_int2"}
 !8 = !{!1, !2, !9}
-!9 = !{i32 6147, i32 0, !"9d329ad59055e972____ZL8dg_bool3"}
+!9 = !{i32 6188, i32 1, !"9d329ad59055e972____ZL8dg_bool3"}
 !10 = !{!11}
-!11 = !{i32 6147, i32 2, !"dda2bad52c45c432____ZL8dg_bool4"}
-!12 = !{i32 6147, i32 1, !"6da74a122db9f35d____ZL7no_dg_int1"}
+!11 = !{i32 6188, i32 3, !"dda2bad52c45c432____ZL8dg_bool4"}
+!12 = !{i32 6188, i32 2, !"6da74a122db9f35d____ZL7no_dg_int1"}
 !13 = !{!"libcpmt"}
 !14 = !{i32 1, !"wchar_size", i32 2}
 !15 = !{i32 7, !"frame-pointer", i32 2}
