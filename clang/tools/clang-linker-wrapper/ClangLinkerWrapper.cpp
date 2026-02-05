@@ -536,8 +536,19 @@ Expected<StringRef> ptxas(StringRef InputFile, const ArgList &Args,
 } // namespace nvptx
 
 namespace amdgcn {
+
+// Constructs a triple string for clang offload bundler.
+// NOTE: copied from HIPUtility.cpp.
+static std::string normalizeForBundler(const llvm::Triple &T,
+                                       bool HasTargetID) {
+  return HasTargetID ? (T.getArchName() + "-" + T.getVendorName() + "-" +
+                        T.getOSName() + "-" + T.getEnvironmentName())
+                           .str()
+                     : T.normalize(llvm::Triple::CanonicalForm::FOUR_IDENT);
+}
+
 Expected<StringRef>
-fatbinary(ArrayRef<std::pair<StringRef, StringRef>> InputFiles,
+fatbinary(ArrayRef<std::tuple<StringRef, StringRef, StringRef>> InputFiles,
           const ArgList &Args) {
   llvm::TimeTraceScope TimeScope("AMDGPU Fatbinary");
 
@@ -568,10 +579,10 @@ fatbinary(ArrayRef<std::pair<StringRef, StringRef>> InputFiles,
         Args.MakeArgString(Twine("-compression-level=") + Arg->getValue()));
 
   SmallVector<StringRef> Targets = {"-targets=host-x86_64-unknown-linux-gnu"};
-  for (const auto &[File, Arch] : InputFiles) {
-    Targets.push_back(Saver.save(Arch == "amdgcnspirv"
-                                     ? "hip-spirv64-amd-amdhsa--" + Arch
-                                     : "hip-amdgcn-amd-amdhsa--" + Arch));
+  for (const auto &[File, TripleRef, Arch] : InputFiles) {
+    std::string NormalizedTriple =
+        normalizeForBundler(Triple(TripleRef), !Arch.empty());
+    Targets.push_back(Saver.save("hip-" + NormalizedTriple + "-" + Arch));
   }
   CmdArgs.push_back(Saver.save(llvm::join(Targets, ",")));
 
@@ -580,7 +591,7 @@ fatbinary(ArrayRef<std::pair<StringRef, StringRef>> InputFiles,
 #else
   CmdArgs.push_back("-input=/dev/null");
 #endif
-  for (const auto &[File, Arch] : InputFiles)
+  for (const auto &[File, Triple, Arch] : InputFiles)
     CmdArgs.push_back(Saver.save("-input=" + File));
 
   CmdArgs.push_back(Saver.save("-output=" + *TempFileOrErr));
@@ -2017,10 +2028,11 @@ bundleCuda(ArrayRef<OffloadingImage> Images, const ArgList &Args) {
 
 Expected<SmallVector<std::unique_ptr<MemoryBuffer>>>
 bundleHIP(ArrayRef<OffloadingImage> Images, const ArgList &Args) {
-  SmallVector<std::pair<StringRef, StringRef>, 4> InputFiles;
+  SmallVector<std::tuple<StringRef, StringRef, StringRef>, 4> InputFiles;
   for (const OffloadingImage &Image : Images)
-    InputFiles.emplace_back(std::make_pair(Image.Image->getBufferIdentifier(),
-                                           Image.StringData.lookup("arch")));
+    InputFiles.emplace_back(std::make_tuple(Image.Image->getBufferIdentifier(),
+                                            Image.StringData.lookup("triple"),
+                                            Image.StringData.lookup("arch")));
 
   auto FileOrErr = amdgcn::fatbinary(InputFiles, Args);
   if (!FileOrErr)
@@ -2328,7 +2340,9 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       }
       for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
         SmallVector<StringRef> Files = {SplitModules[I].ModuleFilePath};
-        SmallVector<std::pair<StringRef, StringRef>, 4> BundlerInputFiles;
+        SmallVector<std::pair<StringRef, StringRef>, 4> BundlerInputFilesNVPTX;
+        SmallVector<std::tuple<StringRef, StringRef, StringRef>, 4>
+                                                        BundlerInputFilesAMDGCN;
         auto ClangOutputOrErr =
             linkDevice(Files, LinkerArgs, true /* IsSYCLKind */,
                        CompileLinkOptionsOrErr->first);
@@ -2341,17 +2355,18 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
               nvptx::ptxas(*ClangOutputOrErr, LinkerArgs, Arch);
           if (!PtxasOutputOrErr)
             return PtxasOutputOrErr.takeError();
-          BundlerInputFiles.emplace_back(*ClangOutputOrErr, VirtualArch);
-          BundlerInputFiles.emplace_back(*PtxasOutputOrErr, Arch);
+          BundlerInputFilesNVPTX.emplace_back(*ClangOutputOrErr, VirtualArch);
+          BundlerInputFilesNVPTX.emplace_back(*PtxasOutputOrErr, Arch);
           auto BundledFileOrErr =
-              nvptx::fatbinary(BundlerInputFiles, LinkerArgs);
+              nvptx::fatbinary(BundlerInputFilesNVPTX, LinkerArgs);
           if (!BundledFileOrErr)
             return BundledFileOrErr.takeError();
           SplitModules[I].ModuleFilePath = *BundledFileOrErr;
         } else if (Triple.isAMDGCN()) {
-          BundlerInputFiles.emplace_back(*ClangOutputOrErr, Arch);
+          BundlerInputFilesAMDGCN.emplace_back(*ClangOutputOrErr,
+                                               Triple.getTriple(), Arch);
           auto BundledFileOrErr =
-              amdgcn::fatbinary(BundlerInputFiles, LinkerArgs);
+              amdgcn::fatbinary(BundlerInputFilesAMDGCN, LinkerArgs);
           if (!BundledFileOrErr)
             return BundledFileOrErr.takeError();
           SplitModules[I].ModuleFilePath = *BundledFileOrErr;
