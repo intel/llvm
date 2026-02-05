@@ -18,8 +18,7 @@ using namespace sycl;
 // trivially default constructible.
 // Don't use std::is_pod as it is deprecated in C++20 or std::is_trivial
 // as it will be deprecated in C++26.
-template <typename T>
-void check_type_traits() {
+template <typename T> void check_type_traits() {
   std::cout << "Type: " << typeid(T).name() << "\n";
   std::cout << "Trivially copyable: "
             << std::is_trivially_copyable_v<T> << "\n";
@@ -47,7 +46,7 @@ int main() {
   // CHECK-NEXT: Trivially default constructible: 0
   // CHECK-NEXT: Standard layout: 0
   check_type_traits<
-  accessor<int, 1, access::mode::read_write, access::target::device>>();
+      accessor<int, 1, access::mode::read_write, access::target::device>>();
 
   // CHECK-NEXT: Type: N4sycl3_V114local_accessorIiLi1EEE
   // CHECK-NEXT: Trivially copyable: 0
@@ -90,7 +89,7 @@ int main() {
   // CHECK-NEXT: Trivially default constructible: 0
   // CHECK-NEXT: Standard layout: 1
   check_type_traits<
-  detail::compile_time_kernel_info_v1::CompileTimeKernelInfoTy>();
+      detail::compile_time_kernel_info_v1::CompileTimeKernelInfoTy>();
 
   // CHECK-NEXT: Type: N4sycl3_V19exceptionE
   // CHECK-NEXT: Trivially copyable: 0
