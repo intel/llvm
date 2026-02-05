@@ -9,8 +9,8 @@
 #include <uur/fixtures.h>
 #include <uur/known_failure.h>
 
-using urUSMFreeTest = uur::urQueueTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urUSMFreeTest);
+using urUSMFreeTest = uur::urMultiQueueTypeTest;
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(urUSMFreeTest);
 
 TEST_P(urUSMFreeTest, SuccessDeviceAlloc) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});

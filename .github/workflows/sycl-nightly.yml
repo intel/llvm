@@ -91,7 +91,99 @@ jobs:
       toolchain_artifact: sycl_linux_libcxx
       toolchain_artifact_filename: sycl_linux_libcxx.tar.zst
 
-  ubuntu2204_test:
+  ubuntu2204_test_amd_nvidia_gen12:
+    needs: [ubuntu2204_build]
+    name: E2E AMD, NVIDIA and GEN12 OCL with ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
+    permissions:
+      contents: write
+      packages: read
+    if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        enable_new_offload_model: ['False', 'True']
+        arch: ['amdgpu', 'cuda', 'gen12']
+        include:
+          - arch: 'amdgpu'
+            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
+            target_devices: 'hip:gpu'
+
+          - arch: 'cuda'
+            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
+            target_devices: 'cuda:gpu'
+
+          - arch: 'gen12'
+            target_devices: 'opencl:gpu'
+
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    with:
+      name: ${{ matrix.arch }} (${{ matrix.target_devices }}) with ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
+      runner: '["Linux", "${{ matrix.arch }}"]'
+      image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
+      target_devices: ${{ matrix.target_devices }}
+      tests_selector: e2e
+      extra_lit_opts: "--param 'cxx_flags=-D_GLIBCXX_USE_CXX11_ABI=0' --param enable_new_offload_model=${{ matrix.enable_new_offload_model }}"
+      repo_ref: ${{ github.sha }}
+      toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
+
+  ubuntu2204_test_intel_level_zero:
+    needs: [ubuntu2204_build]
+    name: E2E L0 with ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
+    permissions:
+      contents: write
+      packages: read
+    if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        enable_new_offload_model: ['False', 'True']
+        arch: ['gen12', 'pvc', 'bmg', 'arc']
+
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    with:
+      name: Intel L0 ${{ matrix.arch }} with ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
+      runner: '["Linux", "${{ matrix.arch }}"]'
+      image_options: '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN'
+      target_devices: level_zero:gpu
+      tests_selector: e2e
+      extra_lit_opts: "--param 'cxx_flags=-D_GLIBCXX_USE_CXX11_ABI=0' --param enable_new_offload_model=${{ matrix.enable_new_offload_model }}"
+      repo_ref: ${{ github.sha }}
+      toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
+
+  ubuntu2204_test_intel_amd_opencl_cpu:
+    needs: [ubuntu2204_build]
+    name: E2E OpenCL CPU for Intel and AMD with ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
+    permissions:
+      contents: write
+      packages: read
+    if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        enable_new_offload_model: ['False', 'True']
+        arch: ['amdcpu', 'gen12', 'arc']
+        include:
+          - arch: 'gen12'
+            image_options: --privileged --cap-add SYS_ADMIN
+
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    with:
+      name: ${{ matrix.arch }} with ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
+      runner: '["Linux", "${{ matrix.arch }}"]'
+      image_options: -u 1001 ${{ matrix.image_options }}
+      target_devices: opencl:cpu
+      tests_selector: e2e
+      extra_lit_opts: "--param 'cxx_flags=-D_GLIBCXX_USE_CXX11_ABI=0' --param enable_new_offload_model=${{ matrix.enable_new_offload_model }}"
+      repo_ref: ${{ github.sha }}
+      toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
+
+  ubuntu2204_test_preview_mode:
     needs: [ubuntu2204_build]
     permissions:
       contents: write
@@ -101,72 +193,23 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: AMD/HIP
-            runner: '["Linux", "amdgpu"]'
-            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
-            target_devices: hip:gpu
-
           - name: Preview mode on AMD/HIP
             runner: '["Linux", "amdgpu"]'
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: hip:gpu
-            extra_lit_opts: --param test-preview-mode=True
-
-          - name: NVIDIA/CUDA
-            runner: '["Linux", "cuda"]'
-            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
-            target_devices: cuda:gpu
 
           - name: Preview mode on NVIDIA/CUDA
             runner: '["Linux", "cuda"]'
             image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
             target_devices: cuda:gpu
-            extra_lit_opts: --param test-preview-mode=True
-
-          - name: Intel L0 Gen12 GPU
-            runner: '["Linux", "gen12"]'
-            target_devices: level_zero:gpu
-
-          - name: Intel L0 Ponte Vecchio GPU
-            runner: '["Linux", "pvc"]'
-            target_devices: level_zero:gpu
-
-          - name: Intel L0 Battlemage GPU
-            runner: '["Linux", "bmg"]'
-            target_devices: level_zero:gpu
 
           - name: Preview mode on Intel L0 Battlemage GPU
             runner: '["Linux", "bmg"]'
             target_devices: level_zero:gpu
-            extra_lit_opts: --param test-preview-mode=True
-
-          - name: Intel L0 Arc A-Series GPU
-            runner: '["Linux", "arc"]'
-            target_devices: level_zero:gpu
-
-          - name: Intel OCL Gen12 GPU
-            runner: '["Linux", "gen12"]'
-            target_devices: opencl:gpu
-
-          - name: OCL CPU (AMD)
-            runner: '["Linux", "amdcpu"]'
-            image_options: -u 1001
-            target_devices: opencl:cpu
-
-          - name: OCL CPU (Intel/GEN12)
-            runner: '["Linux", "gen12"]'
-            image_options: -u 1001 --privileged --cap-add SYS_ADMIN
-            target_devices: opencl:cpu
-
-          - name: OCL CPU (Intel/Arc)
-            runner: '["Linux", "arc"]'
-            image_options: -u 1001
-            target_devices: opencl:cpu
 
           - name: Preview mode on SPR/PVC
             runner: '["Linux", "pvc"]'
             target_devices: level_zero:gpu
-            extra_lit_opts: --param test-preview-mode=True
 
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
@@ -175,7 +218,7 @@ jobs:
       image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
       target_devices: ${{ matrix.target_devices }}
       tests_selector: e2e
-      extra_lit_opts: "--param 'cxx_flags=-D_GLIBCXX_USE_CXX11_ABI=0' ${{ matrix.extra_lit_opts }}"
+      extra_lit_opts: "--param 'cxx_flags=-D_GLIBCXX_USE_CXX11_ABI=0' --param test-preview-mode=True"
       repo_ref: ${{ github.sha }}
       toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
@@ -214,6 +257,7 @@ jobs:
 
   e2e-win:
     needs: build-win
+    name: E2E win with ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
     # Continue if build was successful.
     if: |
       !cancelled()
@@ -221,14 +265,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        enable_new_offload_model: ['False', 'True']
+        gpu_type: ['gen12', 'arc', 'bmg']
         include:
-          - name: Intel Gen12 GPU
+          - gpu_type: 'gen12'
+            name: Intel Gen12 GPU
             runner: '["Windows", "gen12"]'
 
-          - name: Intel Arc GPU
+          - gpu_type: 'arc'
+            name: Intel Arc GPU
             runner: '["Windows", "arc"]'
 
-          - name: Intel Battlemage GPU
+          - gpu_type: 'bmg'
+            name: Intel Battlemage GPU
             runner: '["Windows", "bmg"]'
 
     uses: ./.github/workflows/sycl-windows-run-tests.yml
@@ -237,6 +286,7 @@ jobs:
       runner: ${{ matrix.runner }}
       target_devices: level_zero:gpu
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
+      extra_lit_opts: --param enable_new_offload_model=${{ matrix.enable_new_offload_model }}
 
   cuda-aws-start:
     needs: [ubuntu2204_build]
@@ -264,6 +314,9 @@ jobs:
       toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
+
+      # The AWS runner is not set up to use vulkan and it's out of our control.
+      extra_lit_opts: --filter-out bindless_images/vulkan_interop
 
   cuda-aws-stop:
     needs: [cuda-aws-start, cuda-run-tests]
