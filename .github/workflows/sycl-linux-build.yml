@@ -44,6 +44,10 @@ on:
         default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc]'
         required: false
 
+      build_clang_tidy:
+        type: boolean
+        default: false
+
       # Artifacts:
 
       retention-days:
@@ -289,8 +293,9 @@ jobs:
       if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target install-sycl-test-utilities
+
     - name: Install clang-tidy
-      if: ${{ !cancelled() && steps.build.conclusion == 'success' && contains(inputs.build_configure_extra_args, '-DSYCL_BUILD_CLANG_TIDY=ON') }}
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.build_clang_tidy == 'true' }}
       run: cmake --build $GITHUB_WORKSPACE/build --target install-clang-tidy
 
     - name: Additional Install for "--shared-libs" build

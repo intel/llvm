@@ -40,7 +40,7 @@ jobs:
     secrets: inherit
     with:
       build_cache_root: "/__w/"
-      build_configure_extra_args: '--hip --cuda -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}" -DSYCL_BUILD_CLANG_TIDY=ON'
+      build_configure_extra_args: '--hip --cuda -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}"'
       build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
 
       retention-days: 90
@@ -48,6 +48,9 @@ jobs:
       # We upload the build for people to download/use, override its name and
       # prefer widespread gzip compression.
       toolchain_artifact_filename: sycl_linux.tar.gz
+
+      build_target: "sycl-toolchain clang-tidy"
+      build_clang_tidy: true
 
   # Build used for performance testing only: not intended for testing
   linux_shared_build:
