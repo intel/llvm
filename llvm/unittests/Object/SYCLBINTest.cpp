@@ -124,22 +124,18 @@ void CommonCheck() {
         SYCLBIN::SYCLBINModuleDesc{ArchStr, Target, std::move(SplitModules)});
   }
 
-  // Create IR modules.
+  // Create modules.
   SYCLBIN::SYCLBINDesc Desc{State, MDs};
-  size_t SYCLBINByteSize = 0;
-  if (Error E = Desc.getSYCLBINByteSize().moveInto(SYCLBINByteSize))
-    FAIL() << "Failed to get SYCLBIN byte size.";
 
   // Serialize the SYCLBIN.
-  SmallString<0> SYCLBINImage;
-  SYCLBINImage.reserve(SYCLBINByteSize);
-  raw_svector_ostream SYCLBINImageOS{SYCLBINImage};
-  if (Error E = SYCLBIN::write(Desc, SYCLBINImageOS))
+  SmallString<0> SYCLBinary;
+  raw_svector_ostream SYCLBinaryOS{SYCLBinary};
+  if (Error E = SYCLBIN::write(Desc, SYCLBinaryOS))
     FAIL() << "Failed to write SYCLBIN.";
 
   // Deserialize the SYCLBIN.
   std::unique_ptr<MemoryBuffer> SYCBINDataBuffer =
-      MemoryBuffer::getMemBuffer(SYCLBINImage, /*BufferName=*/"",
+      MemoryBuffer::getMemBuffer(SYCLBinary, /*BufferName=*/"",
                                  /*RequiresNullTerminator=*/false);
   Expected<std::unique_ptr<SYCLBIN>> SYCLBINObjOrError =
       SYCLBIN::read(*SYCBINDataBuffer);
@@ -147,26 +143,18 @@ void CommonCheck() {
   SYCLBIN *SYCLBINObj = SYCLBINObjOrError->get();
   ASSERT_NE(SYCLBINObj, nullptr);
 
-  EXPECT_EQ(SYCLBINObj->Version, SYCLBIN::CurrentVersion);
-
   ASSERT_NE(SYCLBINObj->GlobalMetadata.get(), nullptr);
-  SmallString<16> GlobalMetadataKey{
-      PropertySetRegistry::SYCLBIN_GLOBAL_METADATA};
-  const auto &GlobalMetadataIt =
-      SYCLBINObj->GlobalMetadata->getPropSets().find(GlobalMetadataKey);
-  ASSERT_NE(GlobalMetadataIt, SYCLBINObj->GlobalMetadata->end());
-  const PropertySet &GlobalMetadata = GlobalMetadataIt->second;
-  EXPECT_EQ(GlobalMetadata.size(), size_t{1});
+  const PropertySet &GlobalMetadata = *SYCLBINObj->GlobalMetadata;
+  EXPECT_EQ(GlobalMetadata.size(), size_t{2});
 
-  SmallString<16> GlobalMetadataStateKey{"state"};
-  const auto &GlobalMetadataStateIt =
-      GlobalMetadata.find(GlobalMetadataStateKey);
+  const auto &GlobalMetadataStateIt = GlobalMetadata.find("state");
   ASSERT_NE(GlobalMetadataStateIt, GlobalMetadata.end());
   const PropertyValue &GlobalMetadataState = GlobalMetadataStateIt->second;
   ASSERT_EQ(GlobalMetadataState.getType(), PropertyValue::Type::UINT32);
   EXPECT_EQ(GlobalMetadataState.asUint32(), static_cast<uint32_t>(State));
 
-  // Currently we have an abstract module per image.
+  // Currently we have an abstract module per image + 1 entry for global
+  // metadata.
   ASSERT_EQ(SYCLBINObj->AbstractModules.size(), size_t{NumImages});
 
   std::vector<decltype(Images)::const_iterator> ImageIts;
@@ -175,45 +163,24 @@ void CommonCheck() {
   for (size_t I = 0; I < NumImages; ++I) {
     const SYCLBIN::AbstractModule &AM = SYCLBINObj->AbstractModules[I];
 
-    // This metadata should be the same as in the corresponding split module, so
-    // testing should be expanded to ensure preservation.
+    // This metadata should be the same as in the corresponding split module,
+    // so testing should be expanded to ensure preservation.
     ASSERT_NE(AM.Metadata.get(), nullptr);
     EXPECT_TRUE(AM.Metadata->getPropSets().empty());
 
     ObservedIRModules += AM.IRModules.size();
     for (size_t J = 0; J < AM.IRModules.size(); ++J) {
-      const SYCLBIN::IRModule &IRM = AM.IRModules[J];
-      ASSERT_NE(IRM.Metadata.get(), nullptr);
-      SmallString<16> IRMMetadataKey{
-          PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA};
-      const auto &IRMMetadataIt =
-          IRM.Metadata->getPropSets().find(IRMMetadataKey);
-      ASSERT_NE(IRMMetadataIt, IRM.Metadata->end());
-      const PropertySet &IRMMetadata = IRMMetadataIt->second;
-      EXPECT_EQ(IRMMetadata.size(), size_t{2});
+      const OffloadBinary *IRM = AM.IRModules[J];
 
       // The type is currently locked to SPIR-V. This will change in the future.
-      SmallString<16> IRMMetadataTypeKey{"type"};
-      const auto &IRMMetadataTypeIt = IRMMetadata.find(IRMMetadataTypeKey);
-      ASSERT_NE(IRMMetadataTypeIt, IRMMetadata.end());
-      const PropertyValue &IRMMetadataType = IRMMetadataTypeIt->second;
-      ASSERT_EQ(IRMMetadataType.getType(), PropertyValue::Type::UINT32);
-      EXPECT_EQ(IRMMetadataType.asUint32(), uint32_t{0});
+      EXPECT_EQ(IRM->getImageKind(), ImageKind::IMG_SPIRV);
 
       // Make sure the triple string is preserved.
-      SmallString<16> IRMMetadataTargetKey{"target"};
-      const auto &IRMMetadataTargetIt = IRMMetadata.find(IRMMetadataTargetKey);
-      ASSERT_NE(IRMMetadataTargetIt, IRMMetadata.end());
-      const PropertyValue &IRMMetadataTarget = IRMMetadataTargetIt->second;
-      ASSERT_EQ(IRMMetadataTarget.getType(), PropertyValue::Type::BYTE_ARRAY);
-      ASSERT_EQ(IRMMetadataTarget.getByteArraySize(), strlen(IRMTarget));
-      EXPECT_EQ(std::memcmp(IRMMetadataTarget.asByteArray(), IRMTarget,
-                            strlen(IRMTarget)),
-                0);
+      EXPECT_EQ(IRM->getString("triple"), StringRef(IRMTarget));
 
       // Find the image that matches.
-      std::vector<uint8_t> IRImage{IRM.RawIRBytes.begin(),
-                                   IRM.RawIRBytes.end()};
+      std::vector<uint8_t> IRImage{IRM->getImage().begin(),
+                                   IRM->getImage().end()};
       auto ImageMatchIt = std::find(Images.begin(), Images.end(), IRImage);
       ASSERT_NE(ImageMatchIt, Images.end());
       ImageIts.push_back(ImageMatchIt);
@@ -221,43 +188,17 @@ void CommonCheck() {
 
     ObservedNativeDeviceCodeImages += AM.NativeDeviceCodeImages.size();
     for (size_t J = 0; J < AM.NativeDeviceCodeImages.size(); ++J) {
-      const SYCLBIN::NativeDeviceCodeImage &NDCI = AM.NativeDeviceCodeImages[J];
-
-      ASSERT_NE(NDCI.Metadata.get(), nullptr);
-      SmallString<16> NDCIMetadataKey{
-          PropertySetRegistry::SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA};
-      const auto &NDCIMetadataIt =
-          NDCI.Metadata->getPropSets().find(NDCIMetadataKey);
-      ASSERT_NE(NDCIMetadataIt, NDCI.Metadata->end());
-      const PropertySet &NDCIMetadata = NDCIMetadataIt->second;
-      ASSERT_EQ(NDCIMetadata.size(), size_t{2});
+      const OffloadBinary *NDCI = AM.NativeDeviceCodeImages[J];
 
       // Make sure the arch string is preserved.
-      SmallString<16> NDCIMetadataArchKey{"arch"};
-      const auto &NDCIMetadataArchIt = NDCIMetadata.find(NDCIMetadataArchKey);
-      ASSERT_NE(NDCIMetadataArchIt, NDCIMetadata.end());
-      const PropertyValue &NDCIMetadataArch = NDCIMetadataArchIt->second;
-      ASSERT_EQ(NDCIMetadataArch.getType(), PropertyValue::Type::BYTE_ARRAY);
-      ASSERT_EQ(NDCIMetadataArch.getByteArraySize(), strlen(Arch));
-      EXPECT_EQ(std::memcmp(NDCIMetadataArch.asByteArray(), Arch, strlen(Arch)),
-                0);
+      EXPECT_EQ(NDCI->getString("arch"), StringRef(Arch));
 
       // Make sure the triple string is preserved.
-      SmallString<16> NDCIMetadataTargetKey{"target"};
-      const auto &NDCIMetadataTargetIt =
-          NDCIMetadata.find(NDCIMetadataTargetKey);
-      ASSERT_NE(NDCIMetadataTargetIt, NDCIMetadata.end());
-      const PropertyValue &NDCIMetadataTarget = NDCIMetadataTargetIt->second;
-      ASSERT_EQ(NDCIMetadataTarget.getType(), PropertyValue::Type::BYTE_ARRAY);
-      ASSERT_EQ(NDCIMetadataTarget.getByteArraySize(), strlen(NDCITarget));
-      EXPECT_EQ(std::memcmp(NDCIMetadataTarget.asByteArray(), NDCITarget,
-                            strlen(NDCITarget)),
-                0);
+      EXPECT_EQ(NDCI->getString("triple"), StringRef(NDCITarget));
 
       // Find the image that matches.
-      std::vector<uint8_t> RawDeviceCodeImage{
-          NDCI.RawDeviceCodeImageBytes.begin(),
-          NDCI.RawDeviceCodeImageBytes.end()};
+      std::vector<uint8_t> RawDeviceCodeImage{NDCI->getImage().begin(),
+                                              NDCI->getImage().end()};
       auto ImageMatchIt =
           std::find(Images.begin(), Images.end(), RawDeviceCodeImage);
       ASSERT_NE(ImageMatchIt, Images.end());

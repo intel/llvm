@@ -22,6 +22,7 @@
 #define __SYCL_DEVICE_BINARY_TARGET_SPIRV32 "spir"
 /// SPIR-V 64-bit image <-> "spir64", 64-bit OpenCL device
 #define __SYCL_DEVICE_BINARY_TARGET_SPIRV64 "spir64"
+#define __SYCL_DEVICE_BINARY_TARGET_SPIRV64_NEW "spirv64-unknown-unknown"
 /// Device-specific binary images produced from SPIR-V 64-bit <->
 /// various "spir64_*" triples for specific 64-bit OpenCL devices
 #define __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64 "spir64_x86_64"
@@ -173,12 +174,13 @@ using sycl_device_binary_property_set =
     _sycl_device_binary_property_set_struct *;
 
 /// Types of device binary.
+/// TODO: should be replaced with ImageKind from OffloadBinary.h
 enum sycl_device_binary_type : uint8_t {
-  SYCL_DEVICE_BINARY_TYPE_NONE = 0,   // undetermined
-  SYCL_DEVICE_BINARY_TYPE_NATIVE = 1, // specific to a device
-  SYCL_DEVICE_BINARY_TYPE_SPIRV = 2,
-  SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE = 3,
-  SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NONE = 4
+  SYCL_DEVICE_BINARY_TYPE_NONE = 0,            // undetermined
+  SYCL_DEVICE_BINARY_TYPE_NATIVE = 1,          // specific to a device
+  SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE = 2,  // LLVM IR bitcode
+  SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NONE = 4, // should be separate flag
+  SYCL_DEVICE_BINARY_TYPE_SPIRV = 6,           // SPIR-V format
 };
 
 // Device binary descriptor version supported by this library.

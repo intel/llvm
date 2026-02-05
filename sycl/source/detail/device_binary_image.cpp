@@ -114,7 +114,8 @@ void RTDeviceBinaryImage::print() const {
     return;
   std::cerr << "    Version  : " << (int)Bin->Version << "\n";
   std::cerr << "    Kind     : " << (int)Bin->Kind << "\n";
-  std::cerr << "    Format   : " << (int)Bin->Format << "\n";
+  std::cerr << "    Format   : " << (int)Bin->Format << " ("
+            << getFormatStr((ur::DeviceBinaryType)Bin->Format) << ")\n";
   std::cerr << "    Target   : " << Bin->DeviceTargetSpec << "\n";
   std::cerr << "    Bin size : "
             << ((intptr_t)Bin->BinaryEnd - (intptr_t)Bin->BinaryStart) << "\n";

@@ -260,7 +260,7 @@ Expected<OffloadFile> getInputBitcodeLibrary(StringRef Input) {
   auto NewBinaryOrErr = OffloadBinary::create(*Binary);
   if (!NewBinaryOrErr)
     return NewBinaryOrErr.takeError();
-  return OffloadFile(std::move(*NewBinaryOrErr), std::move(Binary));
+  return OffloadFile(std::move(NewBinaryOrErr.get()[0]), std::move(Binary));
 }
 
 std::string getMainExecutable(const char *Name) {
@@ -1238,24 +1238,10 @@ static Expected<StringRef>
 packageSYCLBIN(SYCLBIN::BundleState State,
                const ArrayRef<SYCLBIN::SYCLBINModuleDesc> Modules) {
   SYCLBIN::SYCLBINDesc SYCLBIND{State, Modules};
-  size_t SYCLBINByteSize = 0;
-  if (Error E = SYCLBIND.getSYCLBINByteSize().moveInto(SYCLBINByteSize))
+  SmallString<0> Binary;
+  raw_svector_ostream BinaryOS{Binary};
+  if (Error E = SYCLBIN::write(SYCLBIND, BinaryOS))
     return std::move(E);
-
-  SmallString<0> SYCLBINImage;
-  SYCLBINImage.reserve(SYCLBINByteSize);
-  raw_svector_ostream SYCLBINImageOS{SYCLBINImage};
-  if (Error E = SYCLBIN::write(SYCLBIND, SYCLBINImageOS))
-    return std::move(E);
-
-  OffloadingImage Image{};
-  Image.TheImageKind = IMG_SYCLBIN;
-  Image.TheOffloadKind = OFK_SYCL;
-  Image.Image = MemoryBuffer::getMemBuffer(SYCLBINImage, /*BufferName=*/"",
-                                           /*RequiresNullTerminator=*/false);
-
-  std::unique_ptr<MemoryBuffer> Binary = MemoryBuffer::getMemBufferCopy(
-      OffloadBinary::write(Image), Image.Image->getBufferIdentifier());
 
   auto OutFileOrErr =
       createOutputFile(sys::path::filename(ExecutableName), "syclbin");
@@ -1263,11 +1249,11 @@ packageSYCLBIN(SYCLBIN::BundleState State,
     return OutFileOrErr.takeError();
 
   Expected<std::unique_ptr<FileOutputBuffer>> OutputOrErr =
-      FileOutputBuffer::create(*OutFileOrErr, Binary->getBufferSize());
+      FileOutputBuffer::create(*OutFileOrErr, Binary.size());
   if (!OutputOrErr)
     return OutputOrErr.takeError();
   std::unique_ptr<FileOutputBuffer> Output = std::move(*OutputOrErr);
-  llvm::copy(Binary->getBuffer(), Output->getBufferStart());
+  llvm::copy(Binary, Output->getBufferStart());
   if (Error E = Output->commit())
     return std::move(E);
 
@@ -1288,6 +1274,7 @@ Error copyFileToFinalExecutable(StringRef File, const ArgList &Args) {
   return Error::success();
 }
 
+// if we use OffloadBinary instead of SYCLBIN, do we get merging for free???
 Error mergeSYCLBIN(ArrayRef<StringRef> Files, const ArgList &Args) {
   // Fast path for the general case where there's only one file. In this case we
   // do not need to parse it and can instead simply copy it.
@@ -2366,7 +2353,7 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
             // Add to WrappedOutput directly rather than combining this with the
             // below because WrappedOutput holds references and
             // SplitModules[I].ModuleFilePath will go out of scope too soon.
-            std::scoped_lock Guard(ImageMtx);
+            std::scoped_lock<std::mutex> Guard(ImageMtx);
             WrappedOutput.push_back(*ClangOutputOrErr);
           }
         }
@@ -2391,7 +2378,7 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         // separate path inside 'linkDevice' call seen above.
         // This will eventually be refactored to use the 'common' wrapping logic
         // that is used for other offload kinds.
-        std::scoped_lock Guard(ImageMtx);
+        std::scoped_lock<std::mutex> Guard(ImageMtx);
         WrappedOutput.push_back(*OutputFile);
       }
     }

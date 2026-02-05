@@ -7701,7 +7701,7 @@ def fsycl_dump_device_code_EQ : Joined<["-"], "fsycl-dump-device-code=">,
   Flags<[NoXarchOption, Deprecated]>,
   HelpText<"Dump device code into the user provided directory. (deprecated)">;
 def fsyclbin_EQ : Joined<["-"], "fsyclbin=">, Values<"executable,object,input">,
-  HelpText<"Output in the SYCLBIN binary format in the state specified by <arg> (input, object or executable (default))">;
+  HelpText<"Output the SYCL binary in the state specified by <arg> (input, object or executable (default))">;
 def fsyclbin : Flag<["-"], "fsyclbin">, Alias<fsyclbin_EQ>,
   AliasArgs<["executable"]>;
 } // let Group = sycl_Group
