@@ -9,6 +9,12 @@
 
 // REQUIRES: aspect-ext_intel_matrix
 
+// INTEL_CUSTOMIZATION
+// test still fails with xmain. Divergence is due to driver version
+// XFAIL: run-mode && arch-intel_gpu_pvc
+// XFAIL-TRACKER: GSD-10510, GSD-11778
+// end INTEL_CUSTOMIZATION
+
 // RUN: %{build} -o %t_runtime_dim_vnni.out %fp-model-precise -DRUNTIME_DIM -DVNNI
 // RUN: %{run} %t_runtime_dim_vnni.out 256
 
