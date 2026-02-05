@@ -74,7 +74,18 @@ runs:
     env:
       LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests --param print_features=True --param test-mode=${{ inputs.testing_mode }} --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
     run: |
-      ninja -C build-e2e check-sycl-e2e > e2e.log 2>&1 || ( echo "###########################################" >> e2e.log 2>&1 && env SYCL_UR_TRACE=-2 SYCL_UR_USE_LEVEL_ZERO_V2=1 ONEAPI_DEVICE_SELECTOR=level_zero:gpu /__w/llvm/llvm/build-e2e/Graph/Update/Output/update_with_indices_accessor_spv.cpp.tmp.out /__w/llvm/llvm/llvm/sycl/test-e2e/Graph/Update/../Inputs/Kernels/update_with_indices_accessor.spv >> e2e.log 2>&1 && ( echo "######### PASSED #########" && exit 1 ) || ( echo "######### FAILED RV=$? #########" && exit 1 ) )
+      ninja -C build-e2e check-sycl-e2e > e2e.log 2>&1 && export RV=$? || export RV=$?
+      echo "########################################### regression_accessor_spv.cpp" >> e2e.log 2>&1
+      env SYCL_UR_TRACE=-2 ONEAPI_DEVICE_SELECTOR=level_zero:gpu  /__w/llvm/llvm/build-e2e/Graph/Explicit/Output/regression_accessor_spv.cpp.tmp.out /__w/llvm/llvm/llvm/sycl/test-e2e/Graph/Explicit/../Inputs/Kernels/update_with_indices_accessor.spv >> e2e.log 2>&1 && echo "########################################### regression_accessor_spv.cpp PASSED" >> e2e.log 2>&1 || echo "########################################### regression_accessor_spv.cpp FAILED" >> e2e.log 2>&1
+      echo "########################################### update_with_indices_accessor_spv.cpp " >> e2e.log 2>&1
+      env SYCL_UR_TRACE=-2 ONEAPI_DEVICE_SELECTOR=level_zero:gpu  /__w/llvm/llvm/build-e2e/Graph/Update/Output/update_with_indices_accessor_spv.cpp.tmp.out /__w/llvm/llvm/llvm/sycl/test-e2e/Graph/Update/../Inputs/Kernels/update_with_indices_accessor.spv >> e2e.log 2>&1 && echo "########################################### update_with_indices_accessor_spv.cpp PASSED" >> e2e.log 2>&1 || echo "########################################### update_with_indices_accessor_spv.cpp FAILED" >> e2e.log 2>&1
+      exit $RV
+      # echo "r"  >> /__w/llvm/llvm/gdb.cmd
+      # echo "bt" >> /__w/llvm/llvm/gdb.cmd
+      # echo "q"  >> /__w/llvm/llvm/gdb.cmd
+      # echo "q"  >> /__w/llvm/llvm/gdb.cmd
+      # echo "####### GDB #################################### update_with_indices_accessor_spv.cpp " >> e2e.log 2>&1
+      # echo "y" | env SYCL_UR_TRACE=-2 ONEAPI_DEVICE_SELECTOR=level_zero:gpu gdb -x /__w/llvm/llvm/gdb.cmd --args /__w/llvm/llvm/build-e2e/Graph/Update/Output/update_with_indices_accessor_spv.cpp.tmp.out /__w/llvm/llvm/llvm/sycl/test-e2e/Graph/Update/../Inputs/Kernels/update_with_indices_accessor.spv >> e2e.log 2>&1 || true
   # Two steps below are duplicated between Lin/Win actions, updates must change both
   - name: E2E logs
     if: ${{ always() }}
