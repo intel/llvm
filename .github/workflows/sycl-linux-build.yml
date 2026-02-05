@@ -214,15 +214,6 @@ jobs:
       # Emulate default value for manual dispatch as we've run out of available arguments.
       run: cmake --build $GITHUB_WORKSPACE/build --target ${{ inputs.build_target || 'sycl-toolchain' }}
     - run: $GITHUB_WORKSPACE/build/bin/clang++ --version
-
-    - name: Upload compile_commands
-      if: ${{ !cancelled() && steps.build.conclusion == 'success' && contains(inputs.build_configure_extra_args, '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON') }}
-      uses: actions/upload-artifact@v6
-      with:
-        name: compile_commands
-        path: $GITHUB_WORKSPACE/build/compile_commands.json
-        retention-days: ${{ inputs.retention-days }}
-
     - name: check-llvm
       if: ${{ !cancelled() && contains(inputs.changes, 'llvm') }}
       env:
