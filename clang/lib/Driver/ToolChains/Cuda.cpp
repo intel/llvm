@@ -981,13 +981,6 @@ void CudaToolChain::addClangTargetOptions(
                     "-enable-memcpyopt-without-libcalls",
                     "-fno-threadsafe-statics"});
 
-    // Unsized function arguments used for variadics were introduced in CUDA-9.0
-    // We still do not support generating code that actually uses variadic
-    // arguments yet, but we do need to allow parsing them as recent CUDA
-    // headers rely on that. https://github.com/llvm/llvm-project/issues/58410
-    if (CudaInstallation.version() >= CudaVersion::CUDA_90)
-      CC1Args.push_back("-fcuda-allow-variadic-functions");
-
     // Add these flags for .cu SYCL compilation.
     if (DeviceOffloadingKind == Action::OFK_Cuda &&
         DriverArgs.hasArg(options::OPT_fsycl))
