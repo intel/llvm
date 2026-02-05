@@ -118,7 +118,6 @@ ur_result_t ur_queue_immediate_out_of_order_t::queueFinish() {
       usedCommandListsMask.exchange(0, std::memory_order_relaxed);
   for (size_t i = 0; i < numCommandLists; i++) {
     if (usedMask & (1u << i)) {
-      TRACK_SCOPE_LATENCY_CNT("zeCommandListHostSynchronize", __COUNTER__);
       ZE2UR_CALL(zeCommandListHostSynchronize,
                  (commandListManagersLocked[i].getZeCommandList(), UINT64_MAX));
       UR_CALL(commandListManagersLocked[i].releaseSubmittedKernels());
