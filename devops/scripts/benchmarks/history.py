@@ -186,6 +186,9 @@ class BenchmarkHistory:
 
         # Get platform information
         platform_info = get_platform_info()
+        if platform_info.gpu_info is None:
+            log.warning("GPU information detection failed.")
+            platform_info.gpu_info = []
 
         return BenchmarkRun(
             name=name,

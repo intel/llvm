@@ -1,4 +1,4 @@
-# Copyright (C) 2024-2025 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -80,13 +80,17 @@ def run(
         # order is important, we want provided sycl rt libraries to be first
         if add_sycl:
             sycl_bin_path = os.path.join(options.sycl, "bin")
-            env_vars["PATH"] = os.pathsep.join(
-                filter(None, [sycl_bin_path, env_vars.get("PATH", "")])
-            )
             sycl_lib_path = os.path.join(options.sycl, "lib")
-            env_vars["LD_LIBRARY_PATH"] = os.pathsep.join(
-                filter(None, [sycl_lib_path, env_vars.get("LD_LIBRARY_PATH", "")])
-            )
+
+            # add them only if not already added
+            if sycl_bin_path not in env_vars.get("PATH", ""):
+                env_vars["PATH"] = os.pathsep.join(
+                    filter(None, [sycl_bin_path, env_vars.get("PATH", "")])
+                )
+            if sycl_lib_path not in env_vars.get("LD_LIBRARY_PATH", ""):
+                env_vars["LD_LIBRARY_PATH"] = os.pathsep.join(
+                    filter(None, [sycl_lib_path, env_vars.get("LD_LIBRARY_PATH", "")])
+                )
 
         command_str = " ".join(command)
         env_str = " ".join(f"{key}={value}" for key, value in env_vars.items())
