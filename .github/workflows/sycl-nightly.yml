@@ -49,9 +49,6 @@ jobs:
       # prefer widespread gzip compression.
       toolchain_artifact_filename: sycl_linux.tar.gz
 
-      build_target: "sycl-toolchain clang-tidy"
-      build_clang_tidy: true
-
   # Build used for performance testing only: not intended for testing
   linux_shared_build:
     if: github.repository == 'intel/llvm'
