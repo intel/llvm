@@ -10,7 +10,6 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
 #include <sycl/vector.hpp>
 
 namespace sycl {
