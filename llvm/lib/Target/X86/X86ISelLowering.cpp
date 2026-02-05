@@ -18347,6 +18347,16 @@ static SDValue lower1BitShuffle(const SDLoc &DL, ArrayRef<int> Mask,
           DAG.getVectorShuffle(OpVT, DL, Op1, DAG.getUNDEF(OpVT), Mask), CC);
   }
 
+  // If this is a sequential shuffle with zero'd elements - then lower to AND.
+  bool IsBlendWithZero = all_of(enumerate(Mask), [&Zeroable](auto M) {
+    return Zeroable[M.index()] || (M.value() == (int)M.index());
+  });
+  if (IsBlendWithZero) {
+    EVT IntVT = EVT::getIntegerVT(*DAG.getContext(), NumElts);
+    SDValue BlendMask = DAG.getConstant(~Zeroable, DL, IntVT);
+    return DAG.getNode(ISD::AND, DL, VT, V1, DAG.getBitcast(VT, BlendMask));
+  }
+
   MVT ExtVT;
   switch (VT.SimpleTy) {
   default:
@@ -54157,8 +54167,8 @@ static SDValue combineMaskedLoad(SDNode *N, SelectionDAG &DAG,
   return SDValue();
 }
 
-/// If exactly one element of the mask is set for a non-truncating masked store,
-/// it is a vector extract and scalar store.
+/// If exactly one element of the mask is set for a masked store, it is a vector
+/// extract, truncate (iff truncating store) and scalar store.
 /// Note: It is expected that the degenerate cases of an all-zeros or all-ones
 /// mask have already been optimized in IR, so we don't bother with those here.
 static SDValue reduceMaskedStoreToScalarStore(MaskedStoreSDNode *MS,
@@ -54186,6 +54196,14 @@ static SDValue reduceMaskedStoreToScalarStore(MaskedStoreSDNode *MS,
   }
   SDValue Extract =
       DAG.getNode(ISD::EXTRACT_VECTOR_ELT, DL, EltVT, Value, VecIndex);
+
+  if (MS->isTruncatingStore()) {
+    if (EltVT.isFloatingPoint())
+      return SDValue();
+
+    Extract = DAG.getNode(ISD::TRUNCATE, DL,
+                          MS->getMemoryVT().getVectorElementType(), Extract);
+  }
 
   // Store that element at the appropriate offset from the base pointer.
   return DAG.getStore(MS->getChain(), DL, Extract, Addr,
