@@ -344,6 +344,10 @@ struct ModuleSplitterSettings {
   bool AllowDeviceImageDependencies = false;
 };
 
+// TODO: add doc
+Expected<SplitModule> saveModuleDesc(ModuleDesc &MD, std::string Prefix,
+                                     bool OutputAssembly);
+
 /// Parses the output table file from sycl-post-link tool.
 Expected<std::vector<SplitModule>> parseSplitModulesFromFile(StringRef File);
 
@@ -353,8 +357,9 @@ Expected<std::vector<SplitModule>> parseSplitModulesFromFile(StringRef File);
 bool runPreSplitProcessingPipeline(Module &M);
 
 /// Splits the given module \p M according to the given \p Settings.
-Expected<std::vector<SplitModule>>
-splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings);
+Error splitSYCLModule(
+    std::unique_ptr<Module> M, ModuleSplitterSettings Settings,
+    function_ref<Error(std::unique_ptr<ModuleDesc>)> PostSplitCallback);
 
 bool isESIMDFunction(const Function &F);
 bool canBeImportedFunction(const Function &F,
