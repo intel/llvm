@@ -480,7 +480,7 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
         build-args: |
           base_image=ghcr.io/intel/llvm/ubuntu2404_intel_drivers
-          base_tag=alldeps
+          base_tag=latest
         tags: |
           ghcr.io/${{ github.repository }}/sycl_ubuntu2404_nightly:${{ github.sha }}
           ghcr.io/${{ github.repository }}/sycl_ubuntu2404_nightly:latest
