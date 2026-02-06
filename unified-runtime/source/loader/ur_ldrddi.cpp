@@ -5758,6 +5758,47 @@ __urdlllocal ur_result_t UR_APICALL urUSMContextMemcpyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMHostAllocRegisterExp
+__urdlllocal ur_result_t UR_APICALL urUSMHostAllocRegisterExp(
+    /// [in] Handle of the context.
+    ur_context_handle_t hContext,
+    /// [in] Pointer to the host memory range to register.
+    void *pHostMem,
+    /// [in] Size in bytes of the host memory range to register, must be
+    /// page-aligned.
+    size_t size,
+    /// [in][optional] Pointer to host memory registration properties.
+    const ur_exp_usm_host_alloc_register_properties_t *pProperties) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnHostAllocRegisterExp = dditable->USMExp.pfnHostAllocRegisterExp;
+  if (nullptr == pfnHostAllocRegisterExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnHostAllocRegisterExp(hContext, pHostMem, size, pProperties);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMHostAllocUnregisterExp
+__urdlllocal ur_result_t UR_APICALL urUSMHostAllocUnregisterExp(
+    /// [in] Handle of the context.
+    ur_context_handle_t hContext,
+    /// [in][release] Pointer to the registered host memory range.
+    void *pHostMem) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnHostAllocUnregisterExp = dditable->USMExp.pfnHostAllocUnregisterExp;
+  if (nullptr == pfnHostAllocUnregisterExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnHostAllocUnregisterExp(hContext, pHostMem);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMImportExp
 __urdlllocal ur_result_t UR_APICALL urUSMImportExp(
     /// [in] handle of the context object
@@ -7612,6 +7653,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
       pDdiTable->pfnPoolTrimToExp = ur_loader::urUSMPoolTrimToExp;
       pDdiTable->pfnPitchedAllocExp = ur_loader::urUSMPitchedAllocExp;
       pDdiTable->pfnContextMemcpyExp = ur_loader::urUSMContextMemcpyExp;
+      pDdiTable->pfnHostAllocUnregisterExp =
+          ur_loader::urUSMHostAllocUnregisterExp;
+      pDdiTable->pfnHostAllocRegisterExp = ur_loader::urUSMHostAllocRegisterExp;
       pDdiTable->pfnImportExp = ur_loader::urUSMImportExp;
       pDdiTable->pfnReleaseExp = ur_loader::urUSMReleaseExp;
     } else {

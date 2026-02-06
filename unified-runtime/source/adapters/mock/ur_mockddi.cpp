@@ -11952,6 +11952,100 @@ __urdlllocal ur_result_t UR_APICALL urUSMContextMemcpyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMHostAllocRegisterExp
+__urdlllocal ur_result_t UR_APICALL urUSMHostAllocRegisterExp(
+    /// [in] Handle of the context.
+    ur_context_handle_t hContext,
+    /// [in] Pointer to the host memory range to register.
+    void *pHostMem,
+    /// [in] Size in bytes of the host memory range to register, must be
+    /// page-aligned.
+    size_t size,
+    /// [in][optional] Pointer to host memory registration properties.
+    const ur_exp_usm_host_alloc_register_properties_t *pProperties) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_usm_host_alloc_register_exp_params_t params = {&hContext, &pHostMem, &size,
+                                                    &pProperties};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urUSMHostAllocRegisterExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urUSMHostAllocRegisterExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urUSMHostAllocRegisterExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMHostAllocUnregisterExp
+__urdlllocal ur_result_t UR_APICALL urUSMHostAllocUnregisterExp(
+    /// [in] Handle of the context.
+    ur_context_handle_t hContext,
+    /// [in][release] Pointer to the registered host memory range.
+    void *pHostMem) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_usm_host_alloc_unregister_exp_params_t params = {&hContext, &pHostMem};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urUSMHostAllocUnregisterExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urUSMHostAllocUnregisterExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urUSMHostAllocUnregisterExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMImportExp
 __urdlllocal ur_result_t UR_APICALL urUSMImportExp(
     /// [in] handle of the context object
@@ -14015,6 +14109,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
   pDdiTable->pfnPitchedAllocExp = driver::urUSMPitchedAllocExp;
 
   pDdiTable->pfnContextMemcpyExp = driver::urUSMContextMemcpyExp;
+
+  pDdiTable->pfnHostAllocUnregisterExp = driver::urUSMHostAllocUnregisterExp;
+
+  pDdiTable->pfnHostAllocRegisterExp = driver::urUSMHostAllocRegisterExp;
 
   pDdiTable->pfnImportExp = driver::urUSMImportExp;
 
