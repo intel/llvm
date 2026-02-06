@@ -30,7 +30,6 @@ void populate_ur_structs(const image_descriptor &desc, ur_image_desc_t &urDesc,
   urDesc.depth = desc.depth;
 
   if (desc.array_size > 1) {
-    // Image array or cubemap
     urDesc.type =
         desc.type == image_type::cubemap  ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
         : desc.type == image_type::gather ? UR_MEM_TYPE_IMAGE_GATHER_EXP
@@ -42,11 +41,13 @@ void populate_ur_structs(const image_descriptor &desc, ur_image_desc_t &urDesc,
                                                     : UR_MEM_TYPE_IMAGE1D);
   }
 
-  urDesc.rowPitch = pitch;
+  // Use 'pitch' arg if provided, otherwise use descriptor row_pitch
+  urDesc.rowPitch = (pitch != 0) ? pitch : desc.row_pitch;
+
   urDesc.arraySize = desc.array_size;
-  urDesc.slicePitch = 0;
+  urDesc.slicePitch = desc.slice_pitch;
   urDesc.numMipLevel = desc.num_levels;
-  urDesc.numSamples = 0;
+  urDesc.numSamples = desc.num_samples;
 
   urFormat = {};
   urFormat.channelType = sycl::detail::convertChannelType(desc.channel_type);
