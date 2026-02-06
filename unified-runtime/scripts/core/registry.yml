@@ -727,7 +727,13 @@ etors:
 - name: ENQUEUE_HOST_TASK_EXP
   desc: Enumerator for $xEnqueueHostTaskExp
   value: '309'
-max_id: '309'
+- name: USM_HOST_ALLOC_REGISTER_EXP
+  desc: Enumerator for $xUSMHostAllocRegisterExp
+  value: '310'
+- name: USM_HOST_ALLOC_UNREGISTER_EXP
+  desc: Enumerator for $xUSMHostAllocUnregisterExp
+  value: '311'
+max_id: '311'
 ---
 type: enum
 desc: Defines structure types

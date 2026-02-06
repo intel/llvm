@@ -268,6 +268,11 @@ inline ur_result_t printFlag<ur_exp_program_flag_t>(std::ostream &os,
                                                     uint32_t flag);
 
 template <>
+inline ur_result_t
+printFlag<ur_exp_usm_host_alloc_register_flag_t>(std::ostream &os,
+                                                 uint32_t flag);
+
+template <>
 inline ur_result_t printTagged(std::ostream &os, const void *ptr,
                                ur_exp_peer_info_t value, size_t size);
 
@@ -616,6 +621,12 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
            ur_exp_command_buffer_update_kernel_launch_desc_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_exp_program_flag_t value);
+inline std::ostream &
+operator<<(std::ostream &os, enum ur_exp_usm_host_alloc_register_flag_t value);
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_exp_usm_host_alloc_register_properties_t
+        params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_exp_peer_info_t value);
 inline std::ostream &operator<<(std::ostream &os,
@@ -1370,6 +1381,12 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_ENQUEUE_HOST_TASK_EXP:
     os << "UR_FUNCTION_ENQUEUE_HOST_TASK_EXP";
     break;
+  case UR_FUNCTION_USM_HOST_ALLOC_REGISTER_EXP:
+    os << "UR_FUNCTION_USM_HOST_ALLOC_REGISTER_EXP";
+    break;
+  case UR_FUNCTION_USM_HOST_ALLOC_UNREGISTER_EXP:
+    os << "UR_FUNCTION_USM_HOST_ALLOC_UNREGISTER_EXP";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -1553,6 +1570,9 @@ inline std::ostream &operator<<(std::ostream &os,
     break;
   case UR_STRUCTURE_TYPE_EXP_HOST_TASK_PROPERTIES:
     os << "UR_STRUCTURE_TYPE_EXP_HOST_TASK_PROPERTIES";
+    break;
+  case UR_STRUCTURE_TYPE_EXP_USM_HOST_ALLOC_REGISTER_PROPERTIES:
+    os << "UR_STRUCTURE_TYPE_EXP_USM_HOST_ALLOC_REGISTER_PROPERTIES";
     break;
   default:
     os << "unknown enumerator";
@@ -1898,6 +1918,12 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
   case UR_STRUCTURE_TYPE_EXP_HOST_TASK_PROPERTIES: {
     const ur_exp_host_task_properties_t *pstruct =
         (const ur_exp_host_task_properties_t *)ptr;
+    printPtr(os, pstruct);
+  } break;
+
+  case UR_STRUCTURE_TYPE_EXP_USM_HOST_ALLOC_REGISTER_PROPERTIES: {
+    const ur_exp_usm_host_alloc_register_properties_t *pstruct =
+        (const ur_exp_usm_host_alloc_register_properties_t *)ptr;
     printPtr(os, pstruct);
   } break;
   default:
@@ -3280,6 +3306,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     break;
   case UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_USM_HOST_ALLOC_REGISTER_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_USM_HOST_ALLOC_REGISTER_SUPPORT_EXP";
     break;
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP";
@@ -5494,6 +5523,19 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     os << ")";
   } break;
   case UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_USM_HOST_ALLOC_REGISTER_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -12625,6 +12667,83 @@ inline ur_result_t printFlag<ur_exp_program_flag_t>(std::ostream &os,
 }
 } // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_usm_host_alloc_register_flag_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os, enum ur_exp_usm_host_alloc_register_flag_t value) {
+  switch (value) {
+  case UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_TBD:
+    os << "UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_TBD";
+    break;
+  default:
+    os << "unknown enumerator";
+    break;
+  }
+  return os;
+}
+
+namespace ur::details {
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_usm_host_alloc_register_flag_t flag
+template <>
+inline ur_result_t
+printFlag<ur_exp_usm_host_alloc_register_flag_t>(std::ostream &os,
+                                                 uint32_t flag) {
+  uint32_t val = flag;
+  bool first = true;
+
+  if ((val & UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_TBD) ==
+      (uint32_t)UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_TBD) {
+    val ^= (uint32_t)UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_TBD;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_TBD;
+  }
+  if (val != 0) {
+    std::bitset<32> bits(val);
+    if (!first) {
+      os << " | ";
+    }
+    os << "unknown bit flags " << bits;
+  } else if (first) {
+    os << "0";
+  }
+  return UR_RESULT_SUCCESS;
+}
+} // namespace ur::details
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_usm_host_alloc_register_properties_t
+/// type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_exp_usm_host_alloc_register_properties_t params) {
+  os << "(struct ur_exp_usm_host_alloc_register_properties_t){";
+
+  os << ".stype = ";
+
+  os << (params.stype);
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, (params.pNext));
+
+  os << ", ";
+  os << ".flags = ";
+
+  ur::details::printFlag<ur_exp_usm_host_alloc_register_flag_t>(os,
+                                                                (params.flags));
+
+  os << "}";
+  return os;
+}
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_exp_peer_info_t type
 /// @returns
 ///     std::ostream &
@@ -18888,6 +19007,58 @@ inline std::ostream &operator<<(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_usm_host_alloc_unregister_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_usm_host_alloc_unregister_exp_params_t
+        *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".pHostMem = ";
+
+  ur::details::printPtr(os, *(params->ppHostMem));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_usm_host_alloc_register_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_usm_host_alloc_register_exp_params_t
+               *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".pHostMem = ";
+
+  ur::details::printPtr(os, *(params->ppHostMem));
+
+  os << ", ";
+  os << ".size = ";
+
+  os << *(params->psize);
+
+  os << ", ";
+  os << ".pProperties = ";
+
+  ur::details::printPtr(os, *(params->ppProperties));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_usm_import_exp_params_t type
 /// @returns
 ///     std::ostream &
@@ -22744,6 +22915,12 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_USM_CONTEXT_MEMCPY_EXP: {
     os << (const struct ur_usm_context_memcpy_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_USM_HOST_ALLOC_UNREGISTER_EXP: {
+    os << (const struct ur_usm_host_alloc_unregister_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_USM_HOST_ALLOC_REGISTER_EXP: {
+    os << (const struct ur_usm_host_alloc_register_exp_params_t *)params;
   } break;
   case UR_FUNCTION_USM_IMPORT_EXP: {
     os << (const struct ur_usm_import_exp_params_t *)params;
