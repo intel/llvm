@@ -29,21 +29,26 @@
 #include "logger/ur_logger.hpp"
 #include "ur_util.hpp"
 
+#include "llvm/Support/Compiler.h"
+
 // Helper for one-liner validation. Not really an assertion. To be renamed.
 // For assertion that abort program use UR_DASSERT or UR_FASSERT from
 // ur_logger.hpp
 #define UR_ASSERT(condition, error)                                            \
-  if (!(condition))                                                            \
+  if (LLVM_UNLIKELY(!(condition)))                                             \
     return error;
 
 // Trace an internal UR call; returns in case of an error.
 #define UR_CALL(Call)                                                          \
   {                                                                            \
-    if (PrintTrace)                                                            \
+    ur_result_t Result;                                                        \
+    if (LLVM_UNLIKELY(PrintTrace)) {                                           \
       UR_LOG(QUIET, "UR ---> {}", #Call);                                      \
-    ur_result_t Result = (Call);                                               \
-    if (PrintTrace)                                                            \
+      Result = (Call);                                                         \
       UR_LOG(QUIET, "UR <--- {}({})", #Call, Result);                          \
+    } else {                                                                   \
+      Result = (Call);                                                         \
+    }                                                                          \
     if (Result != UR_RESULT_SUCCESS)                                           \
       return Result;                                                           \
   }
@@ -51,11 +56,14 @@
 // Trace an internal UR call; throw in case of an error.
 #define UR_CALL_THROWS(Call)                                                   \
   {                                                                            \
-    if (PrintTrace)                                                            \
+    ur_result_t Result;                                                        \
+    if (LLVM_UNLIKELY(PrintTrace)) {                                           \
       UR_LOG(QUIET, "UR ---> {}", #Call);                                      \
-    ur_result_t Result = (Call);                                               \
-    if (PrintTrace)                                                            \
+      Result = (Call);                                                         \
       UR_LOG(QUIET, "UR <--- {}({})", #Call, Result);                          \
+    } else {                                                                   \
+      Result = (Call);                                                         \
+    }                                                                          \
     if (Result != UR_RESULT_SUCCESS)                                           \
       throw Result;                                                            \
   }
@@ -63,16 +71,21 @@
 // Trace an internal UR call; ignore errors (useful in destructors).
 #define UR_CALL_NOCHECK(Call)                                                  \
   {                                                                            \
-    if (PrintTrace)                                                            \
+    if (LLVM_UNLIKELY(PrintTrace)) {                                           \
       UR_LOG(QUIET, "UR ---> {}", #Call);                                      \
-    (void)(Call);                                                              \
-    if (PrintTrace)                                                            \
+      (void)(Call);                                                            \
       UR_LOG(QUIET, "UR <--- {}", #Call);                                      \
+    } else {                                                                   \
+      (void)(Call);                                                            \
+    }                                                                          \
   }
 
 template <class To, class From> To ur_cast(From Value) {
   // TODO: see if more sanity checks are possible.
-  assert(sizeof(From) == sizeof(To));
+  static_assert(sizeof(From) == sizeof(To),
+                "Size of From and To must be equal");
+  // TODO: a very bad cast, change a to static_cast and fix all compiler
+  // warnings
   return (To)(Value);
 }
 
@@ -214,7 +227,7 @@ struct ur_dditable_t;
 struct ur_platform {};
 
 // Controls tracing UR calls from within the UR itself.
-extern bool PrintTrace;
+extern const bool PrintTrace;
 
 // The getInfo*/ReturnHelper facilities provide shortcut way of
 // writing return bytes for the various getInfo APIs.
