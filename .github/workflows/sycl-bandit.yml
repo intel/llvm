@@ -2,9 +2,16 @@ name: Scan Python code with Bandit
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 3 * * *'
-
+  pull_request:
+    branches:
+    - sycl
+    paths:
+    - '**/*.py'
+  push:
+    branches:
+    - sycl
+    paths:
+    - '**/*.py'
 
 permissions:
   contents: read
