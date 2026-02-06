@@ -221,7 +221,7 @@ def do_configure(args, passthrough_args):
     if llvm_enable_runtimes:
         cmake_cmd.extend(
             [
-                "-DLLVM_ENABLE_RUNTIMES={}".format(llvm_enable_runtimes.lstrip(';')),
+                "-DLLVM_ENABLE_RUNTIMES={}".format(llvm_enable_runtimes.lstrip(";")),
             ]
         )
 
