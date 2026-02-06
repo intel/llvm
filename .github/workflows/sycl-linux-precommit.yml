@@ -69,7 +69,6 @@ jobs:
       e2e_binaries_new_offload_model_artifact: e2e_bin_new_offload_model
 
   clang-tidy:
-    needs: detect_changes
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'disable-lint') }}
     uses: ./.github/workflows/sycl-clang-tidy.yml
 
