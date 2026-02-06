@@ -8,7 +8,8 @@
 // CUDA device-side printf does not support the hh length modifier and treats
 // %hd as double. When running on the CUDA backend, this test avoids hh/%hd and
 // uses %d/%i/%o/%x/%X/%u for int-promoted types (char/short) instead.
-// See: https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#formatted-output
+// See:
+// https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#formatted-output
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
@@ -61,14 +62,13 @@ void do_d_i_test(bool IsCuda) { // %d, %i signed integer, decimal representation
                              "\tsigned size_t: %lld\n"
                              "\tptrdiff_t: %lld\n";
   if (IsCuda) {
-    ext::oneapi::experimental::printf(fmt1_cuda, static_cast<int>(hhd),
-                                      static_cast<int>(hd), d, ld, lld,
-                                      static_cast<long long>(jd),
-                                      static_cast<long long>(zd),
-                                      static_cast<long long>(td));
+    ext::oneapi::experimental::printf(
+        fmt1_cuda, static_cast<int>(hhd), static_cast<int>(hd), d, ld, lld,
+        static_cast<long long>(jd), static_cast<long long>(zd),
+        static_cast<long long>(td));
   } else {
-    ext::oneapi::experimental::printf(fmt1_default, hhd, hd, d, ld, lld, jd,
-                                      zd, td);
+    ext::oneapi::experimental::printf(fmt1_default, hhd, hd, d, ld, lld, jd, zd,
+                                      td);
   }
   // CHECK: Decimal positive values:
   // CHECK-NEXT: signed char: 123
@@ -99,14 +99,13 @@ void do_d_i_test(bool IsCuda) { // %d, %i signed integer, decimal representation
                              "\tsigned size_t: %lli\n"
                              "\tptrdiff_t: %lli\n";
   if (IsCuda) {
-    ext::oneapi::experimental::printf(fmt2_cuda, static_cast<int>(hhd),
-                                      static_cast<int>(hd), d, ld, lld,
-                                      static_cast<long long>(jd),
-                                      static_cast<long long>(zd),
-                                      static_cast<long long>(td));
+    ext::oneapi::experimental::printf(
+        fmt2_cuda, static_cast<int>(hhd), static_cast<int>(hd), d, ld, lld,
+        static_cast<long long>(jd), static_cast<long long>(zd),
+        static_cast<long long>(td));
   } else {
-    ext::oneapi::experimental::printf(fmt2_default, hhd, hd, d, ld, lld, jd,
-                                      zd, td);
+    ext::oneapi::experimental::printf(fmt2_default, hhd, hd, d, ld, lld, jd, zd,
+                                      td);
   }
   // CHECK: Integer positive values:
   // CHECK-NEXT: signed char: 123
@@ -146,14 +145,13 @@ void do_d_i_test(bool IsCuda) { // %d, %i signed integer, decimal representation
                              "\tsigned size_t: %lld\n"
                              "\tptrdiff_t: %lld\n";
   if (IsCuda) {
-    ext::oneapi::experimental::printf(fmt3_cuda, static_cast<int>(hhd),
-                                      static_cast<int>(hd), d, ld, lld,
-                                      static_cast<long long>(jd),
-                                      static_cast<long long>(zd),
-                                      static_cast<long long>(td));
+    ext::oneapi::experimental::printf(
+        fmt3_cuda, static_cast<int>(hhd), static_cast<int>(hd), d, ld, lld,
+        static_cast<long long>(jd), static_cast<long long>(zd),
+        static_cast<long long>(td));
   } else {
-    ext::oneapi::experimental::printf(fmt3_default, hhd, hd, d, ld, lld, jd,
-                                      zd, td);
+    ext::oneapi::experimental::printf(fmt3_default, hhd, hd, d, ld, lld, jd, zd,
+                                      td);
   }
   // CHECK: Decimal negative values:
   // CHECK-NEXT: signed char: -123
@@ -184,14 +182,13 @@ void do_d_i_test(bool IsCuda) { // %d, %i signed integer, decimal representation
                              "\tsigned size_t: %lli\n"
                              "\tptrdiff_t: %lli\n";
   if (IsCuda) {
-    ext::oneapi::experimental::printf(fmt4_cuda, static_cast<int>(hhd),
-                                      static_cast<int>(hd), d, ld, lld,
-                                      static_cast<long long>(jd),
-                                      static_cast<long long>(zd),
-                                      static_cast<long long>(td));
+    ext::oneapi::experimental::printf(
+        fmt4_cuda, static_cast<int>(hhd), static_cast<int>(hd), d, ld, lld,
+        static_cast<long long>(jd), static_cast<long long>(zd),
+        static_cast<long long>(td));
   } else {
-    ext::oneapi::experimental::printf(fmt4_default, hhd, hd, d, ld, lld, jd,
-                                      zd, td);
+    ext::oneapi::experimental::printf(fmt4_default, hhd, hd, d, ld, lld, jd, zd,
+                                      td);
   }
   // CHECK: Integer negative values:
   // CHECK-NEXT: signed char: -123
@@ -240,12 +237,11 @@ void do_o_test(bool IsCuda) { // %o unsigned integer, octal representation
                              "\tsize_t: %llo\n"
                              "\tptrdiff_t (unsigned version): %llo\n";
   if (IsCuda) {
-    ext::oneapi::experimental::printf(
-        fmt1_cuda, static_cast<unsigned int>(hho),
-        static_cast<unsigned int>(ho), o, lo, llo,
-        static_cast<unsigned long long>(jo),
-        static_cast<unsigned long long>(zo),
-        static_cast<unsigned long long>(to));
+    ext::oneapi::experimental::printf(fmt1_cuda, static_cast<unsigned int>(hho),
+                                      static_cast<unsigned int>(ho), o, lo, llo,
+                                      static_cast<unsigned long long>(jo),
+                                      static_cast<unsigned long long>(zo),
+                                      static_cast<unsigned long long>(to));
   } else {
     ext::oneapi::experimental::printf(fmt1_default, hho, ho, o, lo, llo, jo, zo,
                                       to);
@@ -261,7 +257,8 @@ void do_o_test(bool IsCuda) { // %o unsigned integer, octal representation
   // CHECK-NEXT: ptrdiff_t (unsigned version): 1234567012345670123456
 }
 
-void do_x_test(bool IsCuda) { // %x, %X unsigned integer, hexadecimal representation
+void do_x_test(
+    bool IsCuda) { // %x, %X unsigned integer, hexadecimal representation
   // Some reference values
   constexpr unsigned char CHAR_VALUE = 0x12;
   constexpr unsigned short SHORT_VALUE = 0x1234;
@@ -297,12 +294,11 @@ void do_x_test(bool IsCuda) { // %x, %X unsigned integer, hexadecimal representa
                              "\tsize_t: %llx\n"
                              "\tptrdiff_t: %llx\n";
   if (IsCuda) {
-    ext::oneapi::experimental::printf(
-        fmt1_cuda, static_cast<unsigned int>(hhx),
-        static_cast<unsigned int>(hx), x, lx, llx,
-        static_cast<unsigned long long>(jx),
-        static_cast<unsigned long long>(zx),
-        static_cast<unsigned long long>(tx));
+    ext::oneapi::experimental::printf(fmt1_cuda, static_cast<unsigned int>(hhx),
+                                      static_cast<unsigned int>(hx), x, lx, llx,
+                                      static_cast<unsigned long long>(jx),
+                                      static_cast<unsigned long long>(zx),
+                                      static_cast<unsigned long long>(tx));
   } else {
     ext::oneapi::experimental::printf(fmt1_default, hhx, hx, x, lx, llx, jx, zx,
                                       tx);
@@ -336,12 +332,11 @@ void do_x_test(bool IsCuda) { // %x, %X unsigned integer, hexadecimal representa
                              "\tsize_t: %llX\n"
                              "\tptrdiff_t: %llX\n";
   if (IsCuda) {
-    ext::oneapi::experimental::printf(
-        fmt2_cuda, static_cast<unsigned int>(hhx),
-        static_cast<unsigned int>(hx), x, lx, llx,
-        static_cast<unsigned long long>(jx),
-        static_cast<unsigned long long>(zx),
-        static_cast<unsigned long long>(tx));
+    ext::oneapi::experimental::printf(fmt2_cuda, static_cast<unsigned int>(hhx),
+                                      static_cast<unsigned int>(hx), x, lx, llx,
+                                      static_cast<unsigned long long>(jx),
+                                      static_cast<unsigned long long>(zx),
+                                      static_cast<unsigned long long>(tx));
   } else {
     ext::oneapi::experimental::printf(fmt2_default, hhx, hx, x, lx, llx, jx, zx,
                                       tx);
@@ -394,12 +389,11 @@ void do_u_test(bool IsCuda) { // %u unsigned integer, decimal representation
                              "\tsize_t: %llu\n"
                              "\tptrdiff_t: %llu\n";
   if (IsCuda) {
-    ext::oneapi::experimental::printf(
-        fmt1_cuda, static_cast<unsigned int>(hhu),
-        static_cast<unsigned int>(hu), u, lu, llu,
-        static_cast<unsigned long long>(ju),
-        static_cast<unsigned long long>(zu),
-        static_cast<unsigned long long>(tu));
+    ext::oneapi::experimental::printf(fmt1_cuda, static_cast<unsigned int>(hhu),
+                                      static_cast<unsigned int>(hu), u, lu, llu,
+                                      static_cast<unsigned long long>(ju),
+                                      static_cast<unsigned long long>(zu),
+                                      static_cast<unsigned long long>(tu));
   } else {
     ext::oneapi::experimental::printf(fmt1_default, hhu, hu, u, lu, llu, ju, zu,
                                       tu);
