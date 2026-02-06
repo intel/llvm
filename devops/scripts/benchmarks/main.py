@@ -527,9 +527,10 @@ if __name__ == "__main__":
         default="level_zero",
     )
     parser.add_argument(
-        "--no-rebuild",
-        help="Disable rebuilding of git projects.",
+        "--offline",
+        help="Skip rebuilding projects, oneAPI updates, and benchmark data downloads.",
         action="store_true",
+        default=False,
     )
     parser.add_argument(
         "--redownload",
@@ -792,7 +793,7 @@ if __name__ == "__main__":
     additional_env_vars = validate_and_parse_env_args(args.env)
 
     options.workdir = args.benchmark_directory
-    options.no_rebuild = args.no_rebuild
+    options.offline = args.offline
     options.redownload = args.redownload
     options.sycl = args.sycl
     options.iterations = args.iterations
