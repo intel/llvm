@@ -10450,7 +10450,8 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       const toolchains::SYCLToolChain &SYCLTC =
           static_cast<const toolchains::SYCLToolChain &>(*TC);
-      SYCLTC.AddImpliedTargetArgs(TC->getTriple(), Args, BuildArgs, JA, *HostTC);
+      SYCLTC.AddImpliedTargetArgs(TC->getTriple(), Args, BuildArgs, JA, *HostTC,
+                                  Arch);
       SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs, Arch);
       createArgString("compile-opts=");
       BuildArgs.clear();
@@ -11603,8 +11604,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         static_cast<const toolchains::SYCLToolChain &>(getToolChain());
     for (auto &ToolChainMember :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
-      llvm::errs() << "[DEBUG] Processing toolchain for target: "
-                   << ToolChainMember.second->getTripleString() << "\n";
       const ToolChain *TC = ToolChainMember.second;
       if (!TC->getTriple().isSPIROrSPIRV())
         continue;
@@ -11614,7 +11613,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
       // Construct backend options for each target passed via -Xsycl-target-backend
       // in the form: "-device <arch> <backend_opt>"
-      StringRef Device;
+      StringRef Device = "";
       for (const Arg *A : Args.filtered(options::OPT_Xsycl_backend_EQ, options::OPT_Xsycl_backend)) {
         SmallString<128> BackendArgs;
         if(A->getNumValues() > 1) {
@@ -11632,7 +11631,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         for (const auto &BA : BuildArgs) {
           appendOption(BackendArgs, BA);
         }
-        BackendOptVec.push_back(std::move(BackendArgs));
         BuildArgs.clear();
       }
 
@@ -11648,10 +11646,11 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       }
 
       for (SmallString<128> &BackendArgs : BackendOptVec) {
-        CmdArgs.push_back(Args.MakeArgString(
-            "--device-compiler=" +
-            Action::GetOffloadKindName(Action::OFK_SYCL) + ":" +
-            TC->getTripleString() + "=" + BackendArgs));
+        if(!BackendArgs.empty())
+          CmdArgs.push_back(Args.MakeArgString(
+              "--device-compiler=" +
+              Action::GetOffloadKindName(Action::OFK_SYCL) + ":" +
+              TC->getTripleString() + "=" + BackendArgs));
       }
       if (!LinkOptString.empty()) {
         CmdArgs.push_back(Args.MakeArgString(

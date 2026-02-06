@@ -1,4 +1,4 @@
-// REQUIRES: ocloc, gpu, target-spir, !gpu-intel-gen12
+// REQUIRES: ocloc, gpu, target-spir, gpu-intel-dg2
 // Test with `--offload-new-driver`
 //
 // RUN: %clangxx -fsycl -fsycl-device-code-split=per_source \
