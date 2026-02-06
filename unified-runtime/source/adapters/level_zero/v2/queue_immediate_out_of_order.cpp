@@ -98,7 +98,7 @@ ur_result_t ur_queue_immediate_out_of_order_t::queueGetInfo(
 ur_result_t ur_queue_immediate_out_of_order_t::queueGetNativeHandle(
     ur_queue_native_desc_t *pDesc, ur_native_handle_t *phNativeQueue) {
   *phNativeQueue = reinterpret_cast<ur_native_handle_t>(
-      (*commandListManagers.get_no_lock())[getNextCommandListId()]
+      (*commandListManagers.get_no_lock())[getNextCommandListId(false)]
           .getZeCommandList());
   if (pDesc && pDesc->pNativeData) {
     // pNativeData == isImmediateQueue
@@ -112,10 +112,16 @@ ur_result_t ur_queue_immediate_out_of_order_t::queueFinish() {
 
   auto commandListManagersLocked = commandListManagers.lock();
 
+  // Only synchronize command lists that have been used to avoid unnecessary
+  // synchronization overhead.
+  uint32_t usedMask =
+      usedCommandListsMask.exchange(0, std::memory_order_relaxed);
   for (size_t i = 0; i < numCommandLists; i++) {
-    ZE2UR_CALL(zeCommandListHostSynchronize,
-               (commandListManagersLocked[i].getZeCommandList(), UINT64_MAX));
-    UR_CALL(commandListManagersLocked[i].releaseSubmittedKernels());
+    if (usedMask & (1u << i)) {
+      ZE2UR_CALL(zeCommandListHostSynchronize,
+                 (commandListManagersLocked[i].getZeCommandList(), UINT64_MAX));
+      UR_CALL(commandListManagersLocked[i].releaseSubmittedKernels());
+    }
   }
 
   hContext->getAsyncPool()->cleanupPoolsForQueue(this);
@@ -163,6 +169,11 @@ ur_result_t ur_queue_immediate_out_of_order_t::enqueueEventsWaitWithBarrier(
                        : &ur_command_list_manager::appendEventsWait;
 
   auto commandListManagersLocked = commandListManagers.lock();
+
+  // Mark the command list as used; queueFinish() must then synchronize every
+  // list touched here.
+  usedCommandListsMask.fetch_or((1u << numCommandLists) - 1,
+                                std::memory_order_relaxed);
 
   // Enqueue wait for the user-provider events on the first command list.
   UR_CALL(commandListManagersLocked[0].appendEventsWait(waitListView,

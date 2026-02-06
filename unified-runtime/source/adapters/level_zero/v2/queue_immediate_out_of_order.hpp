@@ -45,20 +45,33 @@ private:
   lockable<std::array<ur_command_list_manager, numCommandLists>>
       commandListManagers;
 
+  // Track which command lists have pending work to avoid unnecessary
+  // synchronization in queueFinish(). Each bit represents one command list.
+  std::atomic<uint32_t> usedCommandListsMask = 0;
+
   ur_queue_flags_t flags;
 
   std::array<ur_event_handle_t, numCommandLists> barrierEvents;
 
-  uint32_t getNextCommandListId() {
+  uint32_t getNextCommandListId(bool markUsed = true) {
     bool isGraphCaptureActive;
     auto &cmdListManager =
         (*commandListManagers.get_no_lock())[captureCmdListManagerIdx];
     cmdListManager.isGraphCaptureActive(&isGraphCaptureActive);
 
-    return isGraphCaptureActive
-               ? captureCmdListManagerIdx
-               : commandListIndex.fetch_add(1, std::memory_order_relaxed) %
-                     numCommandLists;
+    uint32_t id =
+        isGraphCaptureActive
+            ? captureCmdListManagerIdx
+            : commandListIndex.fetch_add(1, std::memory_order_relaxed) %
+                  numCommandLists;
+
+    if (markUsed) {
+      // Mark this command list as used so queueFinish() synchronizes only
+      // lists that actually carried work.
+      usedCommandListsMask.fetch_or(1u << id, std::memory_order_relaxed);
+    }
+
+    return id;
   }
 
 public:
