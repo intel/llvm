@@ -580,7 +580,6 @@ set(manifest_list)
 set(RUNTIMES_INSTALL_SCRIPT "${CMAKE_BINARY_DIR}/runtimes/runtimes-bins/cmake_install.cmake")
 foreach( comp ${SYCL_TOOLCHAIN_DEPLOY_COMPONENTS} )
   set(INSTALL_SCRIPT "${CMAKE_BINARY_DIR}/cmake_install.cmake")
-
   set(RUNTIME_TARGET)
   if("${comp}" STREQUAL "libspirv-builtins")
     set(RUNTIME_TARGET libclc)
