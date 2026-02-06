@@ -336,6 +336,7 @@ runs:
         --sycl "$(realpath $CMPLR_ROOT)" \
         --ur "$(realpath ./ur/install)" \
         --adapter "$FORCELOAD_ADAPTER" \
+        --offline \
         --save "$SAVE_NAME" \
         --output-html remote \
         --results-dir "${BENCHMARK_RESULTS_REPO_PATH}/" \
