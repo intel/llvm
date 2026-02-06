@@ -1,0 +1,294 @@
+:data-uri:
+:sectanchors:
+:icons: font
+:source-highlighter: coderay
+// TODO: try rouge?
+
+= cl_intel_subgroup_requirements
+
+// CL_DEVICE_PRIMARY_SUB_GROUP_SIZE_INTEL
+:CL_DEVICE_PRIMARY_SUB_GROUP_SIZE_INTEL: pass:q[`CL_DEVICE_<wbr>PRIMARY_<wbr>SUB_<wbr>GROUP_<wbr>SIZE_<wbr>INTEL`]
+:CL_DEVICE_PRIMARY_SUB_GROUP_SIZE_INTEL_anchor: {CL_DEVICE_PRIMARY_SUB_GROUP_SIZE_INTEL}
+
+// CL_DEVICE_SUB_GROUP_LANE_MAPPINGS_INTEL
+:CL_DEVICE_SUB_GROUP_LANE_MAPPINGS_INTEL: pass:q[`CL_DEVICE_<wbr>SUB_<wbr>GROUP_<wbr>LANE_<wbr>MAPPINGS_<wbr>INTEL`]
+:CL_DEVICE_SUB_GROUP_LANE_MAPPINGS_INTEL_anchor: {CL_DEVICE_SUB_GROUP_LANE_MAPPINGS_INTEL}
+
+// cl_device_sub_group_lane_mappings_intel
+:cl_device_sub_group_lane_mappings_intel_TYPE: pass:q[`cl_device_<wbr>sub_<wbr>group_<wbr>lane_<wbr>mappings_<wbr>intel`]
+
+// CL_DEVICE_SUB_GROUP_LANE_MAPPING_WRAP_INTEL
+:CL_DEVICE_SUB_GROUP_LANE_MAPPING_WRAP_INTEL: pass:q[`CL_DEVICE_<wbr>SUB_<wbr>GROUP_<wbr>LANE_<wbr>MAPPING_<wbr>WRAP_<wbr>INTEL`]
+:CL_DEVICE_SUB_GROUP_LANE_MAPPING_WRAP_INTEL_anchor: {CL_DEVICE_SUB_GROUP_LANE_MAPPING_WRAP_INTEL}
+
+// CL_DEVICE_SUB_GROUP_LANE_MAPPING_ROWS_INTEL
+:CL_DEVICE_SUB_GROUP_LANE_MAPPING_ROWS_INTEL: pass:q[`CL_DEVICE_<wbr>SUB_<wbr>GROUP_<wbr>LANE_<wbr>MAPPING_<wbr>ROWS_<wbr>INTEL`]
+:CL_DEVICE_SUB_GROUP_LANE_MAPPING_ROWS_INTEL_anchor: {CL_DEVICE_SUB_GROUP_LANE_MAPPING_ROWS_INTEL}
+
+
+== Name Strings
+
+`cl_intel_subgroup_requirements`
+
+== Contact
+
+Ben Ashbaugh, Intel (ben 'dot' ashbaugh 'at' intel 'dot' com)
+
+== Contributors
+
+// spell-checker: disable
+Ben Ashbaugh, Intel +
+Pekka Jääskeläinen, Intel +
+Henry Linjamäki, Intel +
+John Pennycook, Intel +
+// spell-checker: enable
+
+== Notice
+
+Copyright (c) 2023 Intel Corporation. All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a
+feature for review and community feedback.
+When the feature matures, this specification may be released as a formal
+extension.
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products.
+If you are interested in using this feature in your software product, please let
+us know!
+
+== Version
+
+Built On: {docdate} +
+Version: 0.9.3
+
+== Dependencies
+
+This extension is written against the OpenCL 3.0 C Language specification and
+the OpenCL SPIR-V Environment specification, V3.0.14.
+
+This extension requires OpenCL 1.0.
+
+This extension does not require any other extensions, though it is intended to
+complement
+https://registry.khronos.org/OpenCL/extensions/intel/cl_intel_required_subgroup_size.html[cl_intel_required_subgroup_size].
+
+== Overview
+
+This extension adds the ability to query additional properties that describe how
+devices implement sub-groups and to add specific sub-group requirements to
+OpenCL kernels.
+These requirements enable programmers to reason better about how sub-groups
+behave for a kernel executing on a device.
+
+== New API Functions
+
+None.
+
+== New API Enums
+
+Accepted as the _param_name_ parameter of *clGetDeviceInfo* to query additional
+sub-group properties of an OpenCL device:
+
+[source]
+----
+CL_DEVICE_PRIMARY_SUB_GROUP_SIZE_INTEL          0x425C
+CL_DEVICE_SUB_GROUP_LANE_MAPPINGS_INTEL         0x425D
+----
+
+Bitfield type and bits describing the sub-group lane mappings supported by an
+OpenCL device:
+
+[source]
+----
+typedef cl_bitfield cl_device_sub_group_lane_mappings_intel;
+
+#define CL_DEVICE_SUB_GROUP_LANE_MAPPING_WRAP_INTEL             (1 << 0)
+#define CL_DEVICE_SUB_GROUP_LANE_MAPPING_ROWS_INTEL             (1 << 1)
+----
+
+Accepted as the _param_name_ parameter of *clGetKernelSubGroupInfo* and/or
+*clGetKernelSubGroupInfoKHR*:
+
+[source]
+----
+// TODO: do we need any per-kernel and per-device queries?
+// Probably not for a named sub-group size.
+// Possibly for the sub-group lane mapping?
+----
+
+== New API Types
+
+None.
+
+== New OpenCL C Optional Attribute Qualifiers
+
+Optional `+__kernel+` qualifiers:
+
+[source]
+----
+__attribute__((intel_reqd_named_sub_group_size("primary")))
+__attribute__((intel_reqd_sub_group_lane_mapping("wrap")))
+__attribute__((intel_reqd_sub_group_lane_mapping("rows")))
+
+// or?
+// __attribute__((intel_reqd_sub_group_size_primary))
+// __attribute__((intel_reqd_sub_group_lane_mapping_wrap))
+// __attribute__((intel_reqd_sub_group_lane_mapping_rows"))
+----
+
+=== Additions to Chapter 4 of the OpenCL 3.0 API Specification
+
+Add to Table 5 - OpenCL Device Queries:
+
+[caption="Table 5. "]
+.List of supported param_names by *clGetDeviceInfo*
+[width="100%",cols="<33%,<17%,<50%",options="header"]
+|====
+| Device Info | Return Type | Description
+
+| {CL_DEVICE_PRIMARY_SUB_GROUP_SIZE_INTEL_anchor}
+  | `size_t`
+    | Returns the primary sub-group size for the device.
+      The primary sub-group size is a sub-group size that supports all core
+      language features for the device.
+
+| {CL_DEVICE_SUB_GROUP_LANE_MAPPINGS_INTEL_anchor}
+  | {cl_device_sub_group_lane_mappings_intel_TYPE}
+    | Returns the supported sub-group lane mappings for the device.
+      The sub-group lane mappings are encoded as bits in a bitfield.
+      Supported sub-group lane mappings are:
+
+      {CL_DEVICE_SUB_GROUP_LANE_MAPPING_WRAP_INTEL_anchor}:
+      Work-items are assigned to sub-groups in a linear order, such that the
+      work-item's sub-group local ID is equal to its local work-group linear ID
+      modulo the maximum sub-group size.
+
+      {CL_DEVICE_SUB_GROUP_LANE_MAPPING_ROWS_INTEL_anchor}:
+      Work-items are assigned to sub-groups in a linear order along the first
+      dimension of the work-group, adding partial sub-groups if the first
+      dimension of the work-group is not evenly divisible by the maximum
+      sub-group size.
+      With this mapping, the work-item's sub-group local ID is equal to the
+      first dimension of its local ID modulo the maximum sub-group size.
+
+      Note, for any of these mappings, if the first dimension of the work-group
+      size is divisible by the maximum sub-group size, then all sub-groups in
+      the work-group will be the same size (there will be no partial
+      sub-groups), and all work-items in the sub-group will have linear local
+      work-group IDs.
+|====
+
+== Modifications to the OpenCL C Specification
+
+=== Add to Section 6.9.2 - Optional Attribute Qualifiers
+
+The optional `+__attribute__((intel_reqd_named_sub_group_size(<string>)))+` can
+be used to indicate that the kernel must be compiled and executed with the
+specified named sub-group size.
+When the required named sub-group size is `"primary"`
+`get_max_sub_group_size()` must return the primary sub-group size (the value
+returned for {CL_DEVICE_PRIMARY_SUB_GROUP_SIZE_INTEL}) for the device executing
+the kernel.
+
+The optional `+__attribute__((intel_reqd_sub_group_lane_mapping(<string>)))+`
+can be used to indicate that the kernel must be compiled and executed with the
+specified mapping from work-items in a work-group to sub-groups.
+When the required sub-group lane mapping is `"wrap"` the work-items in a
+work-group must be assigned to sub-groups as described by
+{CL_DEVICE_SUB_GROUP_LANE_MAPPING_WRAP_INTEL}.
+When the required sub-group lane mapping is `"rows"` the work-items in a
+work-group must be assigned to sub-groups as described by
+{CL_DEVICE_SUB_GROUP_LANE_MAPPING_ROWS_INTEL}.
+
+These attributes are important for the correctness of many sub-group algorithms,
+and in some cases may be used by the compiler to generate more optimal code.
+
+== Modifications to the OpenCL SPIR-V Environment Specification
+
+=== Add a new section 5.2.X - `cl_intel_subgroup_requirements`
+
+If the OpenCL environment supports the extension
+`cl_intel_subgroup_requirements` then the environment must accept modules that
+declare use of the extension `SPV_INTEL_subgroup_requirements` and that declare
+the SPIR-V capability *SubgroupRequirementsINTEL*.
+
+When the *NamedSubgroupSizeINTEL* execution mode added by the extension is
+*PrimarySubgroupSizeINTEL*, any variables decorated with the *SubgroupMaxSize*
+*BuiltIn* must be equal to the value returned by
+{CL_DEVICE_PRIMARY_SUB_GROUP_SIZE_INTEL}.
+
+Valid values for the *SubgroupLaneMappingINTEL* execution mode added by the
+extension are:
+
+  * *WrapINTEL* if the device supports the
+  {CL_DEVICE_SUB_GROUP_LANE_MAPPING_WRAP_INTEL} sub-group lane mapping.
+  * *RowsINTEL* if the device supports the
+  {CL_DEVICE_SUB_GROUP_LANE_MAPPING_ROWS_INTEL} sub-group lane mapping.
+
+== Issues
+
+. Should we define new OpenCL C kernel attributes?
++
+--
+*RESOLVED*:
+Yes.
+Defining new OpenCL C attributes makes it easier to test this extension and
+is consistent with the required work-group size and required sub-group size
+attributes, even if they are not required for CUDA/HIP and SYCL use-cases, or
+any other high-level languages that produce SPIR-V directly.
+--
+
+. Do we need to define new per-kernel API queries for these sub-group
+requirements?
++
+--
+*UNRESOLVED*:
+Adding new queries would help some types of profiling tools and would be
+consistent with existing per-kernel API queries for some other required
+sub-group size attributes.
+--
+
+. What should happen if a kernel requires both a named sub-group size and an
+integer sub-group size?
++
+--
+*UNRESOLVED*:
+It seems like this could be diagnosed as an error?
+--
+
+. Should we also support a symbolic "primary" lane mapping?
++
+--
+*UNRESOLVED*:
+This would provide some known sub-group lane mapping, even if it differed from
+device-to-device, without requiring a specific lane mapping that may not be
+supported by all devices.
+--
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Version|Date|Author|Changes
+|0.9.0|2023-04-21|Ben Ashbaugh|*Initial internal revision*
+|0.9.1|2023-07-10|Ben Ashbaugh|Fix bug in calculations to use the maximum sub-group size, not the sub-group size.
+|0.9.2|2023-07-11|Ben Ashbaugh|Incorporated review feedback.
+|0.9.3|2023-09-22|Ben Ashbaugh|Assigned enums, final edits before public preview.
+|========================================
+
+//************************************************************************
+//Other formatting suggestions:
+//
+//* Use *bold* text for host APIs, or [source] syntax highlighting.
+//* Use `mono` text for device APIs, or [source] syntax highlighting.
+//* Use `mono` text for extension names, types, or enum values.
+//* Use _italics_ for parameters.
+//************************************************************************
