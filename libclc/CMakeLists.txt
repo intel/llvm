@@ -478,14 +478,6 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     # Build for OpenCL 3.0 independently of the target or device.
     list( APPEND build_flags -cl-std=CL3.0 )
 
-    # OpenCL 3.0 extensions
-    string(CONCAT CL_3_0_EXTENSIONS
-      "-cl-ext="
-      "+__opencl_c_3d_image_writes,"
-      "+__opencl_c_images,"
-      "+cl_khr_3d_image_writes")
-    list( APPEND build_flags "-Xclang" ${CL_3_0_EXTENSIONS} )
-
     # Add platform specific flags
     if(WIN32)
       list(APPEND build_flags -D_WIN32)
