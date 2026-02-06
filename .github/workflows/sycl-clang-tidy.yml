@@ -16,7 +16,7 @@ jobs:
         with:
           sparse-checkout: |
             devops/actions
-            devops/scripts/should_run_clang-tidy.py
+            devops/scripts
       - name: Register cleanup after job is finished
         uses: ./devops/actions/cleanup
 
