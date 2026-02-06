@@ -11320,6 +11320,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       OPT_flto,
       OPT_flto_partitions_EQ,
       OPT_flto_EQ,
+      OPT_Xsycl_backend_EQ,
       OPT_use_spirv_backend};
 
   const llvm::DenseSet<unsigned> LinkerOptions{OPT_mllvm, OPT_Zlinker_input};
@@ -11610,16 +11611,22 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         static_cast<const toolchains::SYCLToolChain &>(getToolChain());
     for (auto &ToolChainMember :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
+      llvm::errs() << "[DEBUG] Processing toolchain for target: "
+                   << ToolChainMember.second->getTripleString() << "\n";
       const ToolChain *TC = ToolChainMember.second;
       if (!TC->getTriple().isSPIROrSPIRV())
         continue;
       ArgStringList BuildArgs;
       std::vector<SmallString<128>> BackendOptVec;
       SmallString<128> LinkOptString;
-
+      
+      llvm::errs() << "[DEBUG] Processing toolchain for target 2: "
+                   << ToolChainMember.second->getTripleString() << "\n";
       // Construct backend options for each target passed via -Xsycl-target-backend
       // in the form: "-device <arch> <backend_opt>"
       for (const Arg *A : Args.filtered(options::OPT_Xsycl_backend_EQ)) {
+        llvm::errs() << "[DEBUG] Processing -Xsycl-target-backend argument: " << A->getAsString(Args)
+                     << "\n";
         SmallString<128> BackendArgs;
         StringRef Device = SYCL::gen::resolveGenDevice(A->getValue());
         if(Device.empty())
