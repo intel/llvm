@@ -29,9 +29,6 @@ jobs:
         run: |
           echo "Downloading the diff"
           curl -L "${{ github.server_url }}/${{ github.repository }}/pull/${{ github.event.pull_request.number }}.diff" -o pr.diff
-          # DEBUG
-          pwd
-          ls -lR
 
           if python3 devops/scripts/should_run_clang-tidy.py pr.diff; then
             echo "run=true" >> "$GITHUB_OUTPUT"
@@ -64,6 +61,14 @@ jobs:
           # Remove commands containing "-D__INTEL_PREVIEW_BREAKING_CHANGES" to avoid running on the same file twice.
           jq '[ .[] | select(.command | contains("-D__INTEL_PREVIEW_BREAKING_CHANGES") | not) ]' $GITHUB_WORKSPACE/build/compile_commands.json > $GITHUB_WORKSPACE/build/compile_commands.temp.json
           mv $GITHUB_WORKSPACE/build/compile_commands.temp.json $GITHUB_WORKSPACE/build/compile_commands.json
+
+          # Remove gcc-specific flags
+          perl -0777 -pe '
+            s/(?:^|[ \t])\-Wno-class-memaccess(?=$|[ \t])//g;
+            s/(?:^|[ \t])\-Wno-dangling-reference(?=$|[ \t])//g;
+            s/(?:^|[ \t])\-Wno-stringop-overread(?=$|[ \t])//g;
+            s/[ \t]{2,}/ /g;
+          ' -i  $GITHUB_WORKSPACE/build/compile_commands.json
 
       - name: Run clang-tidy on modified files
         if: steps.should_run_tidy.outputs.run == 'true'
