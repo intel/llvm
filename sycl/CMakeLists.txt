@@ -526,8 +526,8 @@ if("lld" IN_LIST LLVM_ENABLE_PROJECTS)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS lld)
 endif()
 
-if("libclc" IN_LIST LLVM_ENABLE_PROJECTS)
-  add_dependencies(sycl-toolchain libspirv-builtins)
+if("libclc" IN_LIST LLVM_ENABLE_RUNTIMES)
+  add_dependencies(sycl-toolchain libclc)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins)
 endif()
 
@@ -577,24 +577,37 @@ add_custom_command(OUTPUT __force_it
 set(__chain_dep __force_it)
 
 set(manifest_list)
+set(RUNTIME_INSTALL_SCRIPT "${CMAKE_BINARY_DIR}/runtimes/runtimes-bins/cmake_install.cmake")
 foreach( comp ${SYCL_TOOLCHAIN_DEPLOY_COMPONENTS} )
+  set(INSTALL_SCRIPT "${CMAKE_BINARY_DIR}/cmake_install.cmake")
+
+  set(RUNTIME_TARGET)
+  if("${comp}" STREQUAL "libspirv-builtins")
+    set(RUNTIME_TARGET libclc)
+    set(INSTALL_SCRIPT ${RUNTIME_INSTALL_SCRIPT})
+  endif()
   message( STATUS "Adding component ${comp} to deploy")
 
   set (manifest_file ${CMAKE_CURRENT_BINARY_DIR}/install_manifest_${comp}.txt)
   add_custom_command(OUTPUT ${manifest_file}
     COMMAND "${CMAKE_COMMAND}"
     "-DCMAKE_INSTALL_COMPONENT=${comp}"
-    -P "${CMAKE_BINARY_DIR}/cmake_install.cmake"
-    DEPENDS  ${__chain_dep}
+    -P "${INSTALL_SCRIPT}"
+    DEPENDS  ${__chain_dep} ${RUNTIME_TARGET}
     COMMENT "Deploying component ${comp}"
     USES_TERMINAL
   )
-  list(APPEND manifest_list ${manifest_file})
+  if(RUNTIME_TARGET)
+    add_custom_target(manifest_target_${comp} DEPENDS ${manifest_file})
+    list(APPEND manifest_targets manifest_target_${comp})
+  else()
+    list(APPEND manifest_list ${manifest_file})
+  endif()
   set(__chain_dep ${manifest_file})
 endforeach( comp )
 
 add_custom_target(deploy-sycl-toolchain
-  DEPENDS sycl-toolchain ${manifest_list}
+  DEPENDS sycl-toolchain ${manifest_targets} ${manifest_list}
 )
 
 # SYCL Runtime documentation
