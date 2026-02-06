@@ -69,23 +69,25 @@ jobs:
             s/(?:^|[ \t])\-Wno-stringop-overread(?=$|[ \t])//g;
             s/[ \t]{2,}/ /g;
           ' -i  $GITHUB_WORKSPACE/build/compile_commands.json
-
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y strace
       - name: Run clang-tidy on modified files
         if: steps.should_run_tidy.outputs.run == 'true'
         # Exeprimental workflow, it won't affect the pre-commit status in case of failure.
         continue-on-error: true
         run: |
           cd "$GITHUB_WORKSPACE/src"
-          python3 "$GITHUB_WORKSPACE/src/clang-tools-extra/clang-tidy/tool/clang-tidy-diff.py" \
+          strace -vf -s500 -o CTD.strace python3 "$GITHUB_WORKSPACE/src/clang-tools-extra/clang-tidy/tool/clang-tidy-diff.py" \
             -clang-tidy-binary "/opt/sycl/bin/clang-tidy" \
             -p 1 \
             -path "$GITHUB_WORKSPACE/build" \
             -checks "clang-analyzer-*,bugprone-*,performance-*,-bugprone-std-namespace-modification" \
             < "$GITHUB_WORKSPACE/pr.diff"
 
-      # - name: upload CTD.strace
-      #   uses: actions/upload-artifact@v6
-      #   with:
-      #     name: CTD.strace
-      #     path: "$GITHUB_WORKSPACE/CTD.strace"
-      #     retention-days: 1
+      - name: upload CTD.strace
+        uses: actions/upload-artifact@v6
+        with:
+          name: CTD.strace
+          path: "$GITHUB_WORKSPACE/CTD.strace"
+          retention-days: 1
