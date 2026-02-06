@@ -1,4 +1,4 @@
-# Copyright (C) 2024-2025 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -134,6 +134,14 @@ def generate_html(
 
     # Sorted in reverse, such that runs are ordered from newest to oldest
     current_runs.sort(key=lambda run: run.date or datetime.min, reverse=True)
+
+    # The solution below requires the above sort to happen (dashboard also uses the same order).
+    #
+    # Don't write "command" field for all runs, but first - it spams the output file.
+    # In dashboard we use only the newest command anyway.
+    for run in current_runs[1:]:
+        for result in run.results:
+            result.command = []
 
     # Create the comprehensive output object
     output = BenchmarkOutput(
