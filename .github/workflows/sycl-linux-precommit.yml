@@ -89,5 +89,5 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: CTD.strace
-          path: "$GITHUB_WORKSPACE/CTD.strace"
+          path: src/CTD.strace
           retention-days: 1
