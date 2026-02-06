@@ -1,0 +1,39 @@
+#include "../graph_common.hpp"
+
+#include <sycl/properties/all_properties.hpp>
+
+int main() {
+  queue Queue1{{sycl::property::queue::in_order()}};
+  queue Queue2{Queue1.get_context(),
+               Queue1.get_device(),
+               {sycl::property::queue::in_order()}};
+
+  int *PtrA = malloc_device<int>(Size, Queue1);
+  int *PtrB = malloc_device<int>(Size, Queue1);
+
+  exp_ext::command_graph Graph{Queue1};
+  Graph.begin_recording({Queue1, Queue2});
+
+  auto EventA = Queue1.submit([&](handler &CGH) {
+    CGH.parallel_for(range<1>{Size}, [=](id<1> it) { PtrA[it] = it; });
+  });
+
+  Queue2.ext_oneapi_submit_barrier({EventA});
+
+  auto EventB = Queue2.copy(PtrA, PtrB, Size);
+  Graph.end_recording();
+
+  auto ExecGraph = Graph.finalize();
+  Queue1.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); });
+
+  std::array<int, Size> Output;
+  Queue1.memcpy(Output.data(), PtrB, sizeof(int) * Size).wait();
+
+  for (int i = 0; i < Size; i++) {
+    assert(Output[i] == i);
+  }
+
+  free(PtrA, Queue1);
+  free(PtrB, Queue1);
+  return 0;
+}

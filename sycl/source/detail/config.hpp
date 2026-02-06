@@ -193,6 +193,16 @@ public:
   }
 };
 
+template <> class SYCLConfig<SYCL_GRAPH_ENABLE_NATIVE_RECORDING> {
+  using BaseT = SYCLConfigBase<SYCL_GRAPH_ENABLE_NATIVE_RECORDING>;
+
+public:
+  static bool get() {
+    static const char *ValStr = BaseT::getRawValue();
+    return ValStr != nullptr;
+  }
+};
+
 template <> class SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS> {
   using BaseT = SYCLConfigBase<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS>;
 

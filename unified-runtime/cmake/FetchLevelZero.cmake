@@ -130,7 +130,7 @@ if(L0_COMPUTE_RUNTIME_HEADERS)
     set(COMPUTE_RUNTIME_REPO_PATH "${L0_COMPUTE_RUNTIME_HEADERS}")
 else()
     set(UR_COMPUTE_RUNTIME_REPO "https://github.com/intel/compute-runtime.git")
-    set(UR_COMPUTE_RUNTIME_TAG 25.35.35096.9)
+    set(UR_COMPUTE_RUNTIME_TAG 25.44.36015.5)
 
     include(FetchContent)
     # Sparse fetch only the dir with level zero headers for experimental features to avoid pulling in the entire compute-runtime.
