@@ -1,23 +1,16 @@
 name: clang-tidy
 
 on:
-  pull_requests:
-    branches:
-    - sycl
+  workflow_call:
 
 permissions: read-all
 
 jobs:
   run-clang-tidy:
-    # Add more conditions
-    if: ${{ !contains(github.event.pull_request.labels.*.name, 'disable-lint') }}
     runs-on: [Linux, build]
     container:
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       options: -u 1001:1001
-    env:
-      CCACHE_DIR: ${{ inputs.build_cache_root }}/build_cache_${{ inputs.build_cache_suffix }}
-      CCACHE_MAXSIZE: 8G
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
@@ -32,9 +25,6 @@ jobs:
         run: |
           echo "Downloading the diff"
           curl -L "${{ github.server_url }}/${{ github.repository }}/pull/${{ github.event.pull_request.number }}.diff" -o pr.diff
-          # DEBUG
-          pwd
-          ls -lR
 
           if python3 devops/scripts/should_run_clang-tidy.py pr.diff; then
             echo "run=true" >> "$GITHUB_OUTPUT"
@@ -51,23 +41,15 @@ jobs:
       - name: Configure
         if: steps.should_run_tidy.outputs.run == 'true'
         env:
-          CC: ${{ inputs.cc }}
-          CXX: ${{ inputs.cxx }}
+          CC: gcc
+          CXX: g++
           CUDA_LIB_PATH: "/usr/local/cuda/lib64/stubs"
         run: |
-          mkdir -p $CCACHE_DIR
           mkdir -p $GITHUB_WORKSPACE/build
           cd $GITHUB_WORKSPACE/build
           python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
-            -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build \
-            -DCMAKE_INSTALL_PREFIX=$GITHUB_WORKSPACE/toolchain \
-            -t Release \
-            --ci-defaults --use-zstd ${{ inputs.build_configure_extra_args }} \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -DLLVM_INSTALL_UTILS=ON \
-            -DSYCL_UR_FORCE_FETCH_LEVEL_ZERO=ON \
-            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+            -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
+            --ci-defaults -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
       - name: Preprocess compile_commands.json
         if: steps.should_run_tidy.outputs.run == 'true'
@@ -76,22 +58,23 @@ jobs:
           jq '[ .[] | select(.command | contains("-D__INTEL_PREVIEW_BREAKING_CHANGES") | not) ]' $GITHUB_WORKSPACE/build/compile_commands.json > $GITHUB_WORKSPACE/build/compile_commands.temp.json
           mv $GITHUB_WORKSPACE/build/compile_commands.temp.json $GITHUB_WORKSPACE/build/compile_commands.json
 
+          # Remove gcc-specific flags
+          perl -0777 -pe '
+            s/(?:^|[ \t])\-Wno-class-memaccess(?=$|[ \t])//g;
+            s/(?:^|[ \t])\-Wno-dangling-reference(?=$|[ \t])//g;
+            s/(?:^|[ \t])\-Wno-stringop-overread(?=$|[ \t])//g;
+            s/[ \t]{2,}/ /g;
+          ' -i  $GITHUB_WORKSPACE/build/compile_commands.json
+
       - name: Run clang-tidy on modified files
         if: steps.should_run_tidy.outputs.run == 'true'
         # Exeprimental workflow, it won't affect the pre-commit status in case of failure.
         continue-on-error: true
         run: |
           cd "$GITHUB_WORKSPACE/src"
-          strace -vf -s500 -o CTD.strace python3 "$GITHUB_WORKSPACE/src/clang-tools-extra/clang-tidy/tool/clang-tidy-diff.py" \
+          python3 "$GITHUB_WORKSPACE/src/clang-tools-extra/clang-tidy/tool/clang-tidy-diff.py" \
             -clang-tidy-binary "/opt/sycl/bin/clang-tidy" \
             -p 1 \
             -path "$GITHUB_WORKSPACE/build" \
             -checks "clang-analyzer-*,bugprone-*,performance-*,-bugprone-std-namespace-modification" \
             < "$GITHUB_WORKSPACE/pr.diff"
-
-      - name: upload CTD.strace
-        uses: actions/upload-artifact@v6
-        with:
-          name: CTD.strace
-          path: "$GITHUB_WORKSPACE/CTD.strace"
-          retention-days: 1
