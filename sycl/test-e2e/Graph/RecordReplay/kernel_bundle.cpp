@@ -26,7 +26,7 @@
 // CHECK-SAME: .hKernel = [[KERNEL_HANDLE]]
 // CHECK-SAME: -> UR_RESULT_SUCCESS;
 //
-// CHECK:<--- urCommandBufferAppendKernelLaunchExp(
+// CHECK:<--- urCommandBufferAppendKernelLaunchWithArgsExp(
 // CHECK-SAME: .hKernel = [[KERNEL_HANDLE]]
 //
 // CHECK:<--- urKernelRelease(
