@@ -1083,6 +1083,18 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
     C.addCommand(std::move(Cmd));
 }
 
+// Extracts the device specified after "-device" from the backend
+// argument string provided via -Xsycl-target-backend.
+StringRef SYCL::gen::extractDeviceFromArg(llvm::StringRef Arg) {
+  llvm::SmallVector<StringRef, 8> Arglist;
+  Arg.split(Arglist, ' ');
+  for (size_t i = 0; i + 1 < Arglist.size(); ++i) {
+    if (Arglist[i] == "-device")
+      return Arglist[i + 1];
+  }
+  return "";
+}
+
 StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
   StringRef Device;
   Device =
@@ -1556,6 +1568,8 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
           getDriver().getSYCLDeviceTriple(A->getValue(), A);
       // Passing device args: -X<Opt>=<triple> -opt=val.
       StringRef GenDevice = SYCL::gen::resolveGenDevice(A->getValue());
+      if(GenDevice.empty())
+        GenDevice = SYCL::gen::extractDeviceFromArg(A->getValue(1));
       bool IsGenTriple = Triple.isSPIR() &&
                          Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
       if (IsGenTriple) {
@@ -1564,9 +1578,6 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
         if (OptTargetTriple != Triple && GenDevice.empty())
           // Triples do not match, but only skip when we know we are not
           // comparing against intel_gpu_*
-          continue;
-        if (OptTargetTriple == Triple && !Device.empty())
-          // Triples match, but we are expecting a specific device to be set.
           continue;
       } else if (OptTargetTriple != Triple)
         continue;
@@ -1678,6 +1689,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     }
     // Check for any -device settings.
     std::string DevArg;
+    llvm::errs() << "[DEBUG] device is " << Device << "\n";
     if (IsJIT || Device == "pvc" || hasPVCDevice(TargArgs, DevArg)) {
       // The -device option passed in by the user may not be 'pvc'. Use the
       // value provided by the user if it was specified.

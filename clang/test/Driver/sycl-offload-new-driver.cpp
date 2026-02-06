@@ -145,7 +145,6 @@
 // RUN:          -Xsycl-target-backend -backend-opt -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_BACKEND %s
 // WRAPPER_OPTIONS_BACKEND: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64-unknown-unknown=-backend-opt"
-
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
 // RUN:          -Xsycl-target-linker -link-opt -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_LINK %s
@@ -161,6 +160,15 @@
 // WRAPPER_OPTIONS_BACKEND_AOT: clang-linker-wrapper{{.*}}  "--host-triple=x86_64-unknown-linux-gnu"
 // WRAPPER_OPTIONS_BACKEND_AOT-SAME: "--device-compiler=sycl:spir64_gen-unknown-unknown=-backend-gen-opt"
 // WRAPPER_OPTIONS_BACKEND_AOT-SAME: "--device-compiler=sycl:spir64_x86_64-unknown-unknown=-backend-cpu-opt"
+
+// Check that AOT backend compiler options passed via 
+// -Xsycl-target-backend=<target>,<option> are only applied to their specified target
+// RUN:  %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
+// RUN:           -fsycl-targets=intel_gpu_dg1,spir64_gen \
+// RUN:           -Xsycl-target-backend=intel_gpu_dg1 "-options -extraopt_dg1" \
+// RUN:           -Xsycl-target-backend=spir64_gen "-device pvc -options -extraopt_pvc" %s -### 2>&1 \
+// RUN:    | FileCheck -check-prefixes=MULTI_TARGETS_OPTIONS_BACKEND_AOT %s
+// MULTI_TARGETS_OPTIONS_BACKEND_AOT: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64_gen-unknown-unknown=-device dg1 -options -extraopt_dg1" "--device-compiler=sycl:spir64_gen-unknown-unknown=-device pvc -options -extraopt_pvc"
 
 /// Verify arch settings for nvptx and amdgcn targets
 // RUN: %clangxx -fsycl -### -fsycl-targets=amdgcn-amd-amdhsa -fno-sycl-libspirv \

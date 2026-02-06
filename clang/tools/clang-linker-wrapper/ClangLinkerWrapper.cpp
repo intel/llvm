@@ -753,11 +753,17 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   // when Intel GPU targets are passed in -fsycl-targets.
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
-
-  if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen && !Arch.empty() &&
-      !IsDevicePassedWithSyclTargetBackend && Arch != "*")
-    OutputPathWithArch = "intel_gpu_" + Arch.str() + "," + OutputPathWithArch;
-  else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
+  
+  // Prefix the output path with the target architecture(s),
+  // e.g. intel_gpu_dg2,intel_gpu_pvc for arch = "dg2,pvc".
+  if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen && !Arch.empty() && Arch != "*") {
+    SmallVector<StringRef, 8> ArchList;
+    Arch.split(ArchList, ',');
+    std::string ArchString;
+    for (StringRef SingleArch : ArchList)
+      ArchString += "intel_gpu_" + SingleArch.str() + ",";
+    OutputPathWithArch = ArchString + OutputPathWithArch;
+  } else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
     OutputPathWithArch = "spir64_x86_64," + OutputPathWithArch;
 
   SmallVector<StringRef, 8> CmdArgs;
@@ -2180,7 +2186,7 @@ extractSYCLCompileLinkOptions(ArrayRef<OffloadFile> OffloadFiles) {
 }
 
 // Append SYCL device compiler and linker options specified at link time,
-// filtering by target triple and offload kind.
+// filtering by target triple, offload kind, and device architecture.
 // TODO: Consider how to refactor this function to merge it with getLinkerArgs()
 // and determine if it's possible to use OPT_compiler_arg_EQ and
 // OPT_linker_arg_EQ to handle device compiler/linker options
@@ -2188,8 +2194,13 @@ static void appendSYCLDeviceOptionsAtLinkTime(const DerivedArgList &LinkerArgs,
                                               std::string &CompileOptions,
                                               std::string &LinkOptions) {
   const StringRef TripleStr = LinkerArgs.getLastArgValue(OPT_triple_EQ);
-  auto processDeviceArgs = [&](unsigned OptID, std::string &Options) {
+  auto processDeviceArgs = [&](unsigned OptID, std::string &Options, StringRef TargetArch = StringRef()) {
     for (StringRef Arg : LinkerArgs.getAllArgValues(OptID)) {
+      if (!TargetArch.empty()) {
+        std::string DeviceArchPattern = "-device " + TargetArch.str();
+        if (Arg.find(DeviceArchPattern) == StringRef::npos)
+          continue;
+      }
       size_t ColonPos = Arg.find(':');
       if (ColonPos != StringRef::npos) {
         StringRef Kind = Arg.substr(0, ColonPos);
@@ -2211,7 +2222,7 @@ static void appendSYCLDeviceOptionsAtLinkTime(const DerivedArgList &LinkerArgs,
     }
   };
 
-  processDeviceArgs(OPT_device_compiler_args_EQ, CompileOptions);
+  processDeviceArgs(OPT_device_compiler_args_EQ, CompileOptions, LinkerArgs.getLastArgValue(OPT_arch_EQ));
   processDeviceArgs(OPT_device_linker_args_EQ, LinkOptions);
 }
 
