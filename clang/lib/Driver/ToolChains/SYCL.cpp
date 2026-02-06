@@ -1689,7 +1689,8 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     }
     // Check for any -device settings.
     std::string DevArg;
-    if (IsJIT || Device == "pvc") {
+    llvm::errs() << "[DEBUG] device is " << Device << "\n";
+    if (IsJIT || Device == "pvc" || hasPVCDevice(TargArgs, DevArg)) {
       // The -device option passed in by the user may not be 'pvc'. Use the
       // value provided by the user if it was specified.
       StringRef DeviceName = "pvc";

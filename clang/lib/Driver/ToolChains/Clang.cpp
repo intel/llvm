@@ -10450,9 +10450,8 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       const toolchains::SYCLToolChain &SYCLTC =
           static_cast<const toolchains::SYCLToolChain &>(*TC);
-      SYCLTC.AddImpliedTargetArgs(TC->getTriple(), Args, BuildArgs, JA, *HostTC,
-                                  Arch);
-      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs, OffloadAction->getOffloadingArch());
+      SYCLTC.AddImpliedTargetArgs(TC->getTriple(), Args, BuildArgs, JA, *HostTC);
+      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs, Arch);
       createArgString("compile-opts=");
       BuildArgs.clear();
       SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);
@@ -11320,7 +11319,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       OPT_flto,
       OPT_flto_partitions_EQ,
       OPT_flto_EQ,
-      OPT_Xsycl_backend_EQ,
       OPT_use_spirv_backend};
 
   const llvm::DenseSet<unsigned> LinkerOptions{OPT_mllvm, OPT_Zlinker_input};
@@ -11619,25 +11617,23 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       ArgStringList BuildArgs;
       std::vector<SmallString<128>> BackendOptVec;
       SmallString<128> LinkOptString;
-      
-      llvm::errs() << "[DEBUG] Processing toolchain for target 2: "
-                   << ToolChainMember.second->getTripleString() << "\n";
+
       // Construct backend options for each target passed via -Xsycl-target-backend
       // in the form: "-device <arch> <backend_opt>"
-      for (const Arg *A : Args.filtered(options::OPT_Xsycl_backend_EQ)) {
-        llvm::errs() << "[DEBUG] Processing -Xsycl-target-backend argument: " << A->getAsString(Args)
-                     << "\n";
+      StringRef Device;
+      for (const Arg *A : Args.filtered(options::OPT_Xsycl_backend_EQ, options::OPT_Xsycl_backend)) {
         SmallString<128> BackendArgs;
-        StringRef Device = SYCL::gen::resolveGenDevice(A->getValue());
-        if(Device.empty())
-          // If target is spir64_gen, the device name needs to be extracted
-          // from the arguments.
-          Device = SYCL::gen::extractDeviceFromArg(A->getValue(1));
-        else
-          // If target is intel_gpu_*, "-device <arch>"
-          // is appended to BackendArgs.
-          appendOption(BackendArgs, "-device " + Device.str());
-
+        if(A->getNumValues() > 1) {
+          Device = SYCL::gen::resolveGenDevice(A->getValue());
+          if(Device.empty() && (A->getNumValues() > 1))
+            // If target is spir64_gen, the device name needs to be extracted
+            // from the arguments.
+            Device = SYCL::gen::extractDeviceFromArg(A->getValue(1));
+          else
+            // If target is intel_gpu_*, "-device <arch>"
+            // is appended to BackendArgs.
+            appendOption(BackendArgs, "-device " + Device.str());
+        }
         SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs, Device);
         for (const auto &BA : BuildArgs) {
           appendOption(BackendArgs, BA);
