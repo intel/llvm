@@ -20,7 +20,7 @@ set(SYCL_JIT_RESOURCE_INSTALL_COMPONENTS
   clang-resource-headers
   libsycldevice)
 
-if ("libclc" IN_LIST LLVM_ENABLE_PROJECTS)
+if ("libclc" IN_LIST LLVM_ENABLE_RUNTIMES)
   # If some targets required `libclc` then we should embed it for the
   # `sycl-jit`.
   list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS libspirv-builtins)
@@ -30,12 +30,18 @@ set(SYCL_JIT_RESOURCE_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-inst
 
 set(SYCL_JIT_PREPARE_RESOURCE_COMMANDS)
 foreach(component IN LISTS SYCL_JIT_RESOURCE_INSTALL_COMPONENTS)
+  set(BINARY_DIR ${CMAKE_BINARY_DIR})
+  if("${component}" STREQUAL "libspirv-builtins")
+    set(BINARY_DIR ${CMAKE_BINARY_DIR}/runtimes/runtimes-bins)
+    list(APPEND SYCL_JIT_RESOURCE_DEPS libclc)
+  else()
+    list(APPEND SYCL_JIT_RESOURCE_DEPS ${component})
+  endif()
   list(APPEND SYCL_JIT_PREPARE_RESOURCE_COMMANDS
-    COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR} --prefix ${SYCL_JIT_RESOURCE_INSTALL_DIR} --component "${component}"
+    COMMAND ${CMAKE_COMMAND} --install ${BINARY_DIR} --prefix ${SYCL_JIT_RESOURCE_INSTALL_DIR} --component "${component}"
   )
 endforeach()
 
-set(SYCL_JIT_RESOURCE_DEPS ${SYCL_JIT_RESOURCE_INSTALL_COMPONENTS})
   # OpenCL-Headers doesn't have a corresponding build target:
 list(FILTER SYCL_JIT_RESOURCE_DEPS EXCLUDE REGEX "^OpenCL-Headers$")
 

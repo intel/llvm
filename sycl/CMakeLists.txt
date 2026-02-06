@@ -597,17 +597,12 @@ foreach( comp ${SYCL_TOOLCHAIN_DEPLOY_COMPONENTS} )
     COMMENT "Deploying component ${comp}"
     USES_TERMINAL
   )
-  if(RUNTIME_TARGET)
-    add_custom_target(manifest_target_${comp} DEPENDS ${manifest_file})
-    list(APPEND manifest_targets manifest_target_${comp})
-  else()
-    list(APPEND manifest_list ${manifest_file})
-  endif()
+  list(APPEND manifest_list ${manifest_file})
   set(__chain_dep ${manifest_file})
 endforeach( comp )
 
 add_custom_target(deploy-sycl-toolchain
-  DEPENDS sycl-toolchain ${manifest_targets} ${manifest_list}
+  DEPENDS sycl-toolchain ${manifest_list}
 )
 
 # SYCL Runtime documentation
