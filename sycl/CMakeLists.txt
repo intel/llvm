@@ -526,14 +526,14 @@ if("lld" IN_LIST LLVM_ENABLE_PROJECTS)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS lld)
 endif()
 
-if("libclc" IN_LIST LLVM_ENABLE_PROJECTS)
-  add_dependencies(sycl-toolchain libspirv-builtins)
+if("libclc" IN_LIST LLVM_ENABLE_RUNTIMES)
+  add_dependencies(sycl-toolchain libclc)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins)
 endif()
 
 if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
   # Ensure that libclc is enabled.
-  list(FIND LLVM_ENABLE_PROJECTS libclc LIBCLC_FOUND)
+  list(FIND LLVM_ENABLE_RUNTIMES libclc LIBCLC_FOUND)
   if( LIBCLC_FOUND EQUAL -1 )
     message(FATAL_ERROR
       "CUDA support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
@@ -545,7 +545,7 @@ endif()
 
 if("hip" IN_LIST SYCL_ENABLE_BACKENDS)
   # Ensure that libclc is enabled.
-  list(FIND LLVM_ENABLE_PROJECTS libclc LIBCLC_FOUND)
+  list(FIND LLVM_ENABLE_RUNTIMES libclc LIBCLC_FOUND)
   if( LIBCLC_FOUND EQUAL -1 )
     message(FATAL_ERROR
       "HIP support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
@@ -577,15 +577,22 @@ add_custom_command(OUTPUT __force_it
 set(__chain_dep __force_it)
 
 set(manifest_list)
+set(RUNTIMES_INSTALL_SCRIPT "${CMAKE_BINARY_DIR}/runtimes/runtimes-bins/cmake_install.cmake")
 foreach( comp ${SYCL_TOOLCHAIN_DEPLOY_COMPONENTS} )
+  set(INSTALL_SCRIPT "${CMAKE_BINARY_DIR}/cmake_install.cmake")
+  set(RUNTIME_TARGET)
+  if("${comp}" STREQUAL "libspirv-builtins")
+    set(RUNTIME_TARGET libclc)
+    set(INSTALL_SCRIPT ${RUNTIMES_INSTALL_SCRIPT})
+  endif()
   message( STATUS "Adding component ${comp} to deploy")
 
   set (manifest_file ${CMAKE_CURRENT_BINARY_DIR}/install_manifest_${comp}.txt)
   add_custom_command(OUTPUT ${manifest_file}
     COMMAND "${CMAKE_COMMAND}"
     "-DCMAKE_INSTALL_COMPONENT=${comp}"
-    -P "${CMAKE_BINARY_DIR}/cmake_install.cmake"
-    DEPENDS  ${__chain_dep}
+    -P "${INSTALL_SCRIPT}"
+    DEPENDS  ${__chain_dep} ${RUNTIME_TARGET}
     COMMENT "Deploying component ${comp}"
     USES_TERMINAL
   )
