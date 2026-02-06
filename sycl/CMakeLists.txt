@@ -577,14 +577,14 @@ add_custom_command(OUTPUT __force_it
 set(__chain_dep __force_it)
 
 set(manifest_list)
-set(RUNTIME_INSTALL_SCRIPT "${CMAKE_BINARY_DIR}/runtimes/runtimes-bins/cmake_install.cmake")
+set(RUNTIMES_INSTALL_SCRIPT "${CMAKE_BINARY_DIR}/runtimes/runtimes-bins/cmake_install.cmake")
 foreach( comp ${SYCL_TOOLCHAIN_DEPLOY_COMPONENTS} )
   set(INSTALL_SCRIPT "${CMAKE_BINARY_DIR}/cmake_install.cmake")
 
   set(RUNTIME_TARGET)
   if("${comp}" STREQUAL "libspirv-builtins")
     set(RUNTIME_TARGET libclc)
-    set(INSTALL_SCRIPT ${RUNTIME_INSTALL_SCRIPT})
+    set(INSTALL_SCRIPT ${RUNTIMES_INSTALL_SCRIPT})
   endif()
   message( STATUS "Adding component ${comp} to deploy")
 
