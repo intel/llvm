@@ -10,7 +10,7 @@
 --- #--------------------------------------------------------------------------
 type: header
 desc: "Intel $OneApi Unified Runtime Experimental API for setting args at kernel launch"
-ordinal: "100"
+ordinal: "99"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "What kind of kernel arg is this"
