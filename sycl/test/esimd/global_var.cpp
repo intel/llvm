@@ -8,7 +8,7 @@ using namespace sycl;
 // This test checks usage of an ESIMD global in ESIMD(positive) and
 // SYCL(negative) contexts.
 
-ESIMD_PRIVATE ESIMD_REGISTER(17) int vc;
+ESIMD_PRIVATE int vc;
 
 void func_that_uses_esimd_glob() {
   //expected-error@+1 2{{ESIMD globals cannot be used in a SYCL context}}

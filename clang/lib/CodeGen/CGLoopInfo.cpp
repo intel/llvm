@@ -1059,76 +1059,8 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
     if (const auto *SYCLIntelIVDep = dyn_cast<SYCLIntelIVDepAttr>(A))
       addSYCLIVDepInfo(Header->getContext(), SYCLIntelIVDep->getSafelenValue(),
                        SYCLIntelIVDep->getArrayDecl());
-
-    if (const auto *SYCLIntelII =
-            dyn_cast<SYCLIntelInitiationIntervalAttr>(A)) {
-      const auto *CE = cast<ConstantExpr>(SYCLIntelII->getNExpr());
-      llvm::APSInt ArgVal = CE->getResultAsAPSInt();
-      setSYCLIInterval(ArgVal.getSExtValue());
-    }
-
-    if (const auto *SYCLIntelMaxConcurrency =
-            dyn_cast<SYCLIntelMaxConcurrencyAttr>(A)) {
-      const auto *CE = cast<ConstantExpr>(SYCLIntelMaxConcurrency->getNExpr());
-      llvm::APSInt ArgVal = CE->getResultAsAPSInt();
-      setSYCLMaxConcurrencyNThreads(ArgVal.getSExtValue());
-    }
-
-    if (const auto *SYCLIntelLoopCountAvg =
-            dyn_cast<SYCLIntelLoopCountAttr>(A)) {
-      const auto *CE =
-          cast<ConstantExpr>(SYCLIntelLoopCountAvg->getNTripCount());
-      llvm::APSInt ArgVal = CE->getResultAsAPSInt();
-      const char *Var =
-          SYCLIntelLoopCountAvg->isMax()   ? "llvm.loop.intel.loopcount_max"
-          : SYCLIntelLoopCountAvg->isMin() ? "llvm.loop.intel.loopcount_min"
-          : SYCLIntelLoopCountAvg->isAvg() ? "llvm.loop.intel.loopcount_avg"
-                                           : "llvm.loop.intel.loopcount";
-      setSYCLIntelFPGAVariantCount(Var, ArgVal.getSExtValue());
-    }
-
-    if (const auto *SYCLIntelLoopCoalesce =
-            dyn_cast<SYCLIntelLoopCoalesceAttr>(A)) {
-      if (const auto *LCE = SYCLIntelLoopCoalesce->getNExpr()) {
-        const auto *CE = cast<ConstantExpr>(LCE);
-        llvm::APSInt ArgVal = CE->getResultAsAPSInt();
-        setSYCLLoopCoalesceNLevels(ArgVal.getSExtValue());
-      } else {
-        setSYCLLoopCoalesceEnable();
-      }
-    }
-
-    if (isa<SYCLIntelDisableLoopPipeliningAttr>(A))
-      setSYCLLoopPipeliningDisable();
-
-    if (const auto *SYCLIntelMaxInterleaving =
-            dyn_cast<SYCLIntelMaxInterleavingAttr>(A)) {
-      const auto *CE = cast<ConstantExpr>(SYCLIntelMaxInterleaving->getNExpr());
-      llvm::APSInt ArgVal = CE->getResultAsAPSInt();
-      setSYCLMaxInterleavingNInvocations(ArgVal.getSExtValue());
-    }
-
-    if (const auto *SYCLIntelSpeculatedIterations =
-            dyn_cast<SYCLIntelSpeculatedIterationsAttr>(A)) {
-      const auto *CE =
-          cast<ConstantExpr>(SYCLIntelSpeculatedIterations->getNExpr());
-      llvm::APSInt ArgVal = CE->getResultAsAPSInt();
-      setSYCLSpeculatedIterationsNIterations(ArgVal.getSExtValue());
-    }
-
     if (isa<SYCLIntelNofusionAttr>(A))
       setSYCLNofusionEnable();
-
-    if (const auto *SYCLIntelMaxReinvocationDelay =
-            dyn_cast<SYCLIntelMaxReinvocationDelayAttr>(A)) {
-      const auto *CE = cast<ConstantExpr>(
-          SYCLIntelMaxReinvocationDelay->getNExpr());
-      llvm::APSInt ArgVal = CE->getResultAsAPSInt();
-      setSYCLMaxReinvocationDelayNCycles(ArgVal.getSExtValue());
-    }
-
-    if (isa<SYCLIntelEnableLoopPipeliningAttr>(A))
-      setSYCLLoopPipeliningEnable();
   }
   // Identify loop attribute 'code_align' from Attrs.
   // For attribute code_align:

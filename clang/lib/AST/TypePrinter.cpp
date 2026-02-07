@@ -1995,10 +1995,6 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
     // AttributedType nodes for them.
     break;
 
-  case attr::SYCLIntelPipe:
-    OS << "pipe";
-    break;
-
   case attr::CountedBy:
   case attr::CountedByOrNull:
   case attr::SizedBy:
