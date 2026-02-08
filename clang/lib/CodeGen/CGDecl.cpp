@@ -311,8 +311,8 @@ llvm::Constant *CodeGenModule::getOrCreateStaticVarDecl(
   LangAS ExpectedAS = Ty.getAddressSpace();
   llvm::Constant *Addr = GV;
   if (AS != ExpectedAS) {
-    Addr = getTargetCodeGenInfo().performAddrSpaceCast(
-        *this, GV, AS,
+    Addr = performAddrSpaceCast(
+        GV,
         llvm::PointerType::get(getLLVMContext(),
                                getContext().getTargetAddressSpace(ExpectedAS)));
   }
@@ -2783,9 +2783,8 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
              CGM.getDataLayout().getAllocaAddrSpace());
       auto DestAS = getContext().getTargetAddressSpace(DestLangAS);
       auto *T = llvm::PointerType::get(getLLVMContext(), DestAS);
-      DeclPtr = DeclPtr.withPointer(
-          getTargetHooks().performAddrSpaceCast(*this, V, SrcLangAS, T, true),
-          DeclPtr.isKnownNonNull());
+      DeclPtr = DeclPtr.withPointer(performAddrSpaceCast(V, T),
+                                    DeclPtr.isKnownNonNull());
     }
 
     // For truly ABI indirect arguments -- those that are not `byval` -- store

@@ -21260,14 +21260,14 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
     case TreeEntry::ReducedBitcastLoads:
     case TreeEntry::ReducedBitcastBSwapLoads: {
       assert(UserIgnoreList && "Expected reduction operations only.");
-      setInsertPointAfterBundle(E);
       TreeEntry *ZExt = getOperandEntry(E, /*Idx=*/0);
+      TreeEntry *Load = getOperandEntry(ZExt, /*Idx=*/0);
+      setInsertPointAfterBundle(Load);
       ZExt->VectorizedValue = PoisonValue::get(getWidenedType(
           ZExt->getMainOp()->getType(), ZExt->getVectorFactor()));
       TreeEntry *Const = getOperandEntry(E, /*Idx=*/1);
       Const->VectorizedValue = PoisonValue::get(getWidenedType(
           Const->Scalars.front()->getType(), Const->getVectorFactor()));
-      TreeEntry *Load = getOperandEntry(ZExt, /*Idx=*/0);
       Load->VectorizedValue = PoisonValue::get(getWidenedType(
           Load->getMainOp()->getType(), Load->getVectorFactor()));
       LoadInst *LI = cast<LoadInst>(Load->getMainOp());
@@ -21306,12 +21306,15 @@ Value *BoUpSLP::vectorizeTree(
   // Cache last instructions for the nodes to avoid side effects, which may
   // appear during vectorization, like extra uses, etc.
   for (const std::unique_ptr<TreeEntry> &TE : VectorizableTree) {
+    // Need to generate insertion point for loads nodes of the bitcast/bswap
+    // ops.
     if (TE->isGather() || DeletedNodes.contains(TE.get()) ||
         (TE->State == TreeEntry::CombinedVectorize &&
          (TE->CombinedOp == TreeEntry::ReducedBitcast ||
           TE->CombinedOp == TreeEntry::ReducedBitcastBSwap ||
-          TE->CombinedOp == TreeEntry::ReducedBitcastLoads ||
-          TE->CombinedOp == TreeEntry::ReducedBitcastBSwapLoads)))
+          ((TE->CombinedOp == TreeEntry::ReducedBitcastLoads ||
+            TE->CombinedOp == TreeEntry::ReducedBitcastBSwapLoads) &&
+           (!TE->hasState() || TE->getOpcode() != Instruction::Load)))))
       continue;
     (void)getLastInstructionInBundle(TE.get());
   }

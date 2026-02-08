@@ -2279,8 +2279,7 @@ void CodeGenFunction::EmitCXXConstructorCall(
     unsigned TargetThisAS = getContext().getTargetAddressSpace(ThisAS);
     llvm::Type *NewType =
         llvm::PointerType::get(getLLVMContext(), TargetThisAS);
-    ThisPtr =
-        getTargetHooks().performAddrSpaceCast(*this, ThisPtr, ThisAS, NewType);
+    ThisPtr = performAddrSpaceCast(ThisPtr, NewType);
   }
 
   // Push the this ptr.
