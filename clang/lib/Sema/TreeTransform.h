@@ -13083,6 +13083,7 @@ ExprResult TreeTransform<Derived>::TransformSYCLUniqueStableNameExpr(
 }
 
 template <typename Derived>
+<<<<<<< HEAD
 ExprResult TreeTransform<Derived>::TransformSYCLUniqueStableIdExpr(
     SYCLUniqueStableIdExpr *E) {
   if (!E->isTypeDependent())
@@ -13104,6 +13105,11 @@ ExprResult TreeTransform<Derived>::TransformSYCLUniqueStableIdExpr(
   return getDerived().RebuildSYCLUniqueStableIdExpr(
       E->getLocation(), E->getLParenLocation(), E->getRParenLocation(),
       NewExpr.get());
+=======
+ExprResult TreeTransform<Derived>::TransformCXXReflectExpr(CXXReflectExpr *E) {
+  // TODO(reflection): Implement its transform
+  assert(false && "not implemented yet");
+>>>>>>> 1171450d56e22b32894863c894a487a5813bd5a6
 }
 
 template<typename Derived>

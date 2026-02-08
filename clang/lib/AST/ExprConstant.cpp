@@ -21201,8 +21201,12 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::ArrayTypeTraitExprClass:
   case Expr::ExpressionTraitExprClass:
   case Expr::CXXNoexceptExprClass:
+<<<<<<< HEAD
   case Expr::SYCLBuiltinNumFieldsExprClass:
   case Expr::SYCLBuiltinNumBasesExprClass:
+=======
+  case Expr::CXXReflectExprClass:
+>>>>>>> 1171450d56e22b32894863c894a487a5813bd5a6
     return NoDiag();
   case Expr::CallExprClass:
   case Expr::CXXOperatorCallExprClass: {

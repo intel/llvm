@@ -216,10 +216,14 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
   case Expr::SourceLocExprClass:
   case Expr::ConceptSpecializationExprClass:
   case Expr::RequiresExprClass:
+<<<<<<< HEAD
   case Expr::SYCLBuiltinNumFieldsExprClass:
   case Expr::SYCLBuiltinFieldTypeExprClass:
   case Expr::SYCLBuiltinNumBasesExprClass:
   case Expr::SYCLBuiltinBaseTypeExprClass:
+=======
+  case Expr::CXXReflectExprClass:
+>>>>>>> 1171450d56e22b32894863c894a487a5813bd5a6
     return Cl::CL_PRValue;
 
   case Expr::EmbedExprClass:

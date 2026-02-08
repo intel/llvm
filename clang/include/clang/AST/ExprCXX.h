@@ -44,6 +44,7 @@
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
@@ -5499,6 +5500,7 @@ public:
   }
 };
 
+<<<<<<< HEAD
 /// Represents a __builtin_num_fields expression.
 class SYCLBuiltinNumFieldsExpr : public Expr {
   friend class ASTStmtReader;
@@ -5534,14 +5536,62 @@ public:
   void setLocation(SourceLocation L) { Loc = L; }
 
   child_range children() {
+=======
+/// Represents a C++26 reflect expression [expr.reflect]. The operand of the
+/// expression is either:
+///  - :: (global namespace),
+///  - a reflection-name,
+///  - a type-id, or
+///  - an id-expression.
+class CXXReflectExpr : public Expr {
+
+  // TODO(Reflection): add support for TemplateReference, NamespaceReference and
+  // DeclRefExpr
+  using operand_type = llvm::PointerUnion<const TypeSourceInfo *>;
+
+  SourceLocation CaretCaretLoc;
+  operand_type Operand;
+
+  CXXReflectExpr(SourceLocation CaretCaretLoc, const TypeSourceInfo *TSI);
+  CXXReflectExpr(EmptyShell Empty);
+
+public:
+  static CXXReflectExpr *Create(ASTContext &C, SourceLocation OperatorLoc,
+                                TypeSourceInfo *TL);
+
+  static CXXReflectExpr *CreateEmpty(ASTContext &C);
+
+  SourceLocation getBeginLoc() const LLVM_READONLY {
+    return llvm::TypeSwitch<operand_type, SourceLocation>(Operand)
+        .Case<const TypeSourceInfo *>(
+            [](auto *Ptr) { return Ptr->getTypeLoc().getBeginLoc(); });
+  }
+
+  SourceLocation getEndLoc() const LLVM_READONLY {
+    return llvm::TypeSwitch<operand_type, SourceLocation>(Operand)
+        .Case<const TypeSourceInfo *>(
+            [](auto *Ptr) { return Ptr->getTypeLoc().getEndLoc(); });
+  }
+
+  /// Returns location of the '^^'-operator.
+  SourceLocation getOperatorLoc() const { return CaretCaretLoc; }
+
+  child_range children() {
+    // TODO(Reflection)
+>>>>>>> 1171450d56e22b32894863c894a487a5813bd5a6
     return child_range(child_iterator(), child_iterator());
   }
 
   const_child_range children() const {
+<<<<<<< HEAD
+=======
+    // TODO(Reflection)
+>>>>>>> 1171450d56e22b32894863c894a487a5813bd5a6
     return const_child_range(const_child_iterator(), const_child_iterator());
   }
 
   static bool classof(const Stmt *T) {
+<<<<<<< HEAD
     return T->getStmtClass() == SYCLBuiltinNumFieldsExprClass;
   }
 };
@@ -5676,6 +5726,9 @@ public:
 
   const_child_range children() const {
     return const_child_range(&Index, &Index + 1);
+=======
+    return T->getStmtClass() == CXXReflectExprClass;
+>>>>>>> 1171450d56e22b32894863c894a487a5813bd5a6
   }
 };
 
