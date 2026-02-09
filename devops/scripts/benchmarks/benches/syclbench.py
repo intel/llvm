@@ -8,6 +8,7 @@ import csv
 from pathlib import Path
 
 from .base import Benchmark, Suite, TracingType
+from utils.logger import log
 from utils.result import Result
 from options import options
 from git_project import GitProject
