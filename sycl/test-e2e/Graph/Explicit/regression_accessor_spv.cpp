@@ -5,6 +5,9 @@
 
 // REQUIRES: level_zero
 
+// UNSUPPORTED: arch-intel_gpu_pvc
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21235
+
 // Modified version of Update/update_with_indices_accessor_spv.cpp that does
 // not require the full graph aspect, test was hanging after some changes to
 // kernel bundles so adding this test for the CI which doesn't support update
