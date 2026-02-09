@@ -315,6 +315,9 @@ jobs:
       if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
       uses: ./devops/actions/source-tbb
 
+    - name: Setup Vulkan environment
+      uses: ./devops/actions/setup-vulkan/linux
+
     - name: Build E2E tests
       if: ${{ inputs.e2e_binaries_artifact && !cancelled() && steps.build.conclusion == 'success' }}
       uses: ./devops/actions/run-tests/linux/e2e
