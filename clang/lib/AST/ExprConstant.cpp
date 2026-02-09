@@ -21203,6 +21203,7 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::CXXNoexceptExprClass:
   case Expr::SYCLBuiltinNumFieldsExprClass:
   case Expr::SYCLBuiltinNumBasesExprClass:
+  case Expr::CXXReflectExprClass:
     return NoDiag();
   case Expr::CallExprClass:
   case Expr::CXXOperatorCallExprClass: {
