@@ -4962,6 +4962,7 @@ recurse:
   case Expr::CXXReflectExprClass: {
     // TODO(Reflection): implement this after introducing std::meta::info
     assert(false && "unimplemented");
+    break;
   }
 
   // FIXME: invent manglings for all these.
@@ -4969,6 +4970,7 @@ recurse:
   case Expr::ChooseExprClass:
   case Expr::CompoundLiteralExprClass:
   case Expr::ExtVectorElementExprClass:
+  case Expr::MatrixElementExprClass:
   case Expr::GenericSelectionExprClass:
   case Expr::ObjCEncodeExprClass:
   case Expr::ObjCIsaExprClass:
