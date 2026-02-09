@@ -43,7 +43,9 @@
 #include "llvm/Option/Option.h"
 #include "llvm/Plugins/PassPlugin.h"
 #include "llvm/Remarks/HotnessThresholdParser.h"
+#include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/SYCLPostLink/ModuleSplitter.h"
+#include "llvm/SYCLPostLink/SYCLPostLink.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/FileOutputBuffer.h"
@@ -797,9 +799,10 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     return Modules;
   }
 
-  return llvm::module_split::parseSplitModulesFromFile(*TempFileOrErr);
+  return llvm::sycl_post_link::parseSplitModulesFromFile(*TempFileOrErr);
 }
 
+// TODO: change description
 /// Invokes SYCL Split library for SYCL offloading.
 ///
 /// \param InputFiles the list of input LLVM IR files.
@@ -826,9 +829,20 @@ runSYCLSplitLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     return SplitModules;
   }
 
-  llvm::module_split::ModuleSplitterSettings Settings;
-  Settings.Mode = Mode;
-  Settings.OutputPrefix = "";
+  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+
+  sycl_post_link::PostLinkSettings Settings;
+  bool SpecConstsSupported = (!Triple.isNVPTX() && !Triple.isAMDGCN() &&
+                              !Triple.isSPIRAOT() && !Triple.isNativeCPU());
+  Settings.SpecConstMode =
+      SpecConstsSupported ? SpecConstantsPass::HandlingMode::native
+                          : SpecConstantsPass::HandlingMode::emulation;
+
+  bool IsAOT = Triple.isNVPTX() || Triple.isAMDGCN() || Triple.isSPIRAOT();
+  if (Args.hasFlag(OPT_sycl_add_default_spec_consts_image,
+                   OPT_no_sycl_add_default_spec_consts_image, false) &&
+      IsAOT)
+    Settings.GenerateModuleDescWithDefaultSpecConsts = true;
 
   for (StringRef InputFile : InputFiles) {
     SMDiagnostic Err;
@@ -837,14 +851,12 @@ runSYCLSplitLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     if (!M)
       return createStringError(inconvertibleErrorCode(), Err.getMessage());
 
-    auto SplitModulesOrErr =
-        module_split::splitSYCLModule(std::move(M), Settings);
+    Expected<std::vector<module_split::SplitModule>> SplitModulesOrErr = sycl_post_link::PostLinkProcessing(std::move(M), Settings);
     if (!SplitModulesOrErr)
       return SplitModulesOrErr.takeError();
-
-    auto &NewSplitModules = *SplitModulesOrErr;
-    SplitModules.insert(SplitModules.end(), NewSplitModules.begin(),
-                        NewSplitModules.end());
+    
+    SplitModules.insert(SplitModules.end(), SplitModulesOrErr->begin(),
+                        SplitModulesOrErr->end());
   }
 
   if (Verbose) {
