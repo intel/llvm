@@ -8,6 +8,7 @@ USER root
 RUN apt-get update -qq && apt-get install --no-install-recommends -yqq curl ca-certificates
 RUN curl -sSL https://apt.llvm.org/llvm-snapshot.gpg.key -o /etc/apt/trusted.gpg.d/apt.llvm.org.asc
 RUN echo 'deb http://apt.llvm.org/noble/ llvm-toolchain-noble main' > /etc/apt/sources.list.d/llvm.list
+RUN echo 'deb http://apt.llvm.org/noble/ llvm-toolchain-noble-22 main' > /etc/apt/sources.list.d/llvm.list
 
 # Install SYCL prerequisites
 COPY scripts/install_build_tools.sh /install.sh
