@@ -94,8 +94,8 @@ inline void init(const std::string &name) { get_logger(name.c_str()); }
   {                                                                            \
     try {                                                                      \
       UR_LOG(level, __VA_ARGS__);                                              \
-    } catch (const std::filesystem::filesystem_error &e) {                     \
-      std::fprintf(stderr, "Filesystem error during logging: %s\n", e.what()); \
+    } catch (const std::exception &e) {                                        \
+      std::fprintf(stderr, "Error during logging: %s\n", e.what());            \
     } catch (...) {                                                            \
       std::fprintf(stderr, "Unknown error during logging\n");                  \
     }                                                                          \
