@@ -17,6 +17,7 @@ jobs:
           sparse-checkout: |
             devops/actions
             devops/scripts
+          persist-credentials: false
       - name: Register cleanup after job is finished
         uses: ./devops/actions/cleanup
 
@@ -41,8 +42,8 @@ jobs:
       - name: Configure
         if: steps.should_run_tidy.outputs.run == 'true'
         env:
-          CC: gcc
-          CXX: g++
+          CC: clang
+          CXX: clang++
           CUDA_LIB_PATH: "/usr/local/cuda/lib64/stubs"
         run: |
           mkdir -p $GITHUB_WORKSPACE/build
@@ -54,17 +55,11 @@ jobs:
       - name: Preprocess compile_commands.json
         if: steps.should_run_tidy.outputs.run == 'true'
         run: |
+          # TODO: this might be avoided if configure with -DSYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB=Off,
+          #       but for now this configure.py fails because of this flag.
           # Remove commands containing "-D__INTEL_PREVIEW_BREAKING_CHANGES" to avoid running on the same file twice.
           jq '[ .[] | select(.command | contains("-D__INTEL_PREVIEW_BREAKING_CHANGES") | not) ]' $GITHUB_WORKSPACE/build/compile_commands.json > $GITHUB_WORKSPACE/build/compile_commands.temp.json
           mv $GITHUB_WORKSPACE/build/compile_commands.temp.json $GITHUB_WORKSPACE/build/compile_commands.json
-
-          # Remove gcc-specific flags
-          perl -0777 -pe '
-            s/(?:^|[ \t])\-Wno-class-memaccess(?=$|[ \t])//g;
-            s/(?:^|[ \t])\-Wno-dangling-reference(?=$|[ \t])//g;
-            s/(?:^|[ \t])\-Wno-stringop-overread(?=$|[ \t])//g;
-            s/[ \t]{2,}/ /g;
-          ' -i  $GITHUB_WORKSPACE/build/compile_commands.json
 
       - name: Run clang-tidy on modified files
         if: steps.should_run_tidy.outputs.run == 'true'
