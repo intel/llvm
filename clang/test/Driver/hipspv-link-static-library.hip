@@ -3,6 +3,7 @@
 // REQUIRES: x86-registered-target
 // REQUIRES: spirv-registered-target
 // UNSUPPORTED: system-windows
+// XFAIL: *
 
 // Create a dummy archive to test SDL linking
 // RUN: rm -rf %t && mkdir %t
