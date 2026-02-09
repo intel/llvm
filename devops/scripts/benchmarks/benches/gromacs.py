@@ -65,7 +65,7 @@ class GromacsBench(Suite):
 
         # Build GROMACS
         if options.offline:
-            log.info("Skipping GROMACS build due to --offline option.")
+            log.info(f"Rebuilding {self.project.name} skipped")
             return
 
         self.oneapi = get_oneapi()

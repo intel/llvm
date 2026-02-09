@@ -108,7 +108,7 @@ class VelocityBase(Benchmark):
 
     def setup(self):
         if options.offline:
-            log.info("Skipping Velocity build due to --offline option.")
+            log.info(f"Rebuilding Velocity {self.bench_name} skipped")
             return
 
         self.download_deps()
