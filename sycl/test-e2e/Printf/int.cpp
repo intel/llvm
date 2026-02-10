@@ -74,13 +74,13 @@ void do_d_i_test(
                               "\tptrdiff_t: %lli\n";
 
   ext::oneapi::experimental::printf("Decimal positive values:\n");
-  ext::oneapi::experimental::printf(is_cuda ? fmt_d_cuda : fmt_d_default,
-                                    is_cuda ? static_cast<int>(hhd) : hhd,
-                                    is_cuda ? static_cast<int>(hd) : hd, d, ld,
-                                    lld,
-                                    is_cuda ? static_cast<long long>(jd) : jd,
-                                    is_cuda ? static_cast<long long>(zd) : zd,
-                                    is_cuda ? static_cast<long long>(td) : td);
+  if (is_cuda) {
+    ext::oneapi::experimental::printf(fmt_d_cuda, hhd, hd, d, ld, lld, jd, zd,
+                                      td);
+  } else {
+    ext::oneapi::experimental::printf(fmt_d_default, hhd, hd, d, ld, lld, jd,
+                                      zd, td);
+  }
   // CHECK: Decimal positive values:
   // CHECK-NEXT: signed char: 123
   // CHECK-NEXT: short: 12345
@@ -92,13 +92,13 @@ void do_d_i_test(
   // CHECK-NEXT: ptrdiff_t: 1234567891011121314
 
   ext::oneapi::experimental::printf("Integer positive values:\n");
-  ext::oneapi::experimental::printf(is_cuda ? fmt_i_cuda : fmt_i_default,
-                                    is_cuda ? static_cast<int>(hhd) : hhd,
-                                    is_cuda ? static_cast<int>(hd) : hd, d, ld,
-                                    lld,
-                                    is_cuda ? static_cast<long long>(jd) : jd,
-                                    is_cuda ? static_cast<long long>(zd) : zd,
-                                    is_cuda ? static_cast<long long>(td) : td);
+  if (is_cuda) {
+    ext::oneapi::experimental::printf(fmt_i_cuda, hhd, hd, d, ld, lld, jd, zd,
+                                      td);
+  } else {
+    ext::oneapi::experimental::printf(fmt_i_default, hhd, hd, d, ld, lld, jd,
+                                      zd, td);
+  }
   // CHECK: Integer positive values:
   // CHECK-NEXT: signed char: 123
   // CHECK-NEXT: short: 12345
@@ -119,13 +119,13 @@ void do_d_i_test(
   td = -td;
 
   ext::oneapi::experimental::printf("Decimal negative values:\n");
-  ext::oneapi::experimental::printf(is_cuda ? fmt_d_cuda : fmt_d_default,
-                                    is_cuda ? static_cast<int>(hhd) : hhd,
-                                    is_cuda ? static_cast<int>(hd) : hd, d, ld,
-                                    lld,
-                                    is_cuda ? static_cast<long long>(jd) : jd,
-                                    is_cuda ? static_cast<long long>(zd) : zd,
-                                    is_cuda ? static_cast<long long>(td) : td);
+  if (is_cuda) {
+    ext::oneapi::experimental::printf(fmt_d_cuda, hhd, hd, d, ld, lld, jd, zd,
+                                      td);
+  } else {
+    ext::oneapi::experimental::printf(fmt_d_default, hhd, hd, d, ld, lld, jd,
+                                      zd, td);
+  }
   // CHECK: Decimal negative values:
   // CHECK-NEXT: signed char: -123
   // CHECK-NEXT: short: -12345
@@ -137,13 +137,13 @@ void do_d_i_test(
   // CHECK-NEXT: ptrdiff_t: -1234567891011121314
 
   ext::oneapi::experimental::printf("Integer negative values:\n");
-  ext::oneapi::experimental::printf(is_cuda ? fmt_i_cuda : fmt_i_default,
-                                    is_cuda ? static_cast<int>(hhd) : hhd,
-                                    is_cuda ? static_cast<int>(hd) : hd, d, ld,
-                                    lld,
-                                    is_cuda ? static_cast<long long>(jd) : jd,
-                                    is_cuda ? static_cast<long long>(zd) : zd,
-                                    is_cuda ? static_cast<long long>(td) : td);
+  if (is_cuda) {
+    ext::oneapi::experimental::printf(fmt_i_cuda, hhd, hd, d, ld, lld, jd, zd,
+                                      td);
+  } else {
+    ext::oneapi::experimental::printf(fmt_i_default, hhd, hd, d, ld, lld, jd,
+                                      zd, td);
+  }
   // CHECK: Integer negative values:
   // CHECK-NEXT: signed char: -123
   // CHECK-NEXT: short: -12345
@@ -190,13 +190,13 @@ void do_o_test(bool is_cuda) { // %o unsigned integer, octal representation
                               "\tptrdiff_t (unsigned version): %llo\n";
 
   ext::oneapi::experimental::printf("Octal:\n");
-  ext::oneapi::experimental::printf(
-      is_cuda ? fmt_o_cuda : fmt_o_default,
-      is_cuda ? static_cast<unsigned int>(hho) : hho,
-      is_cuda ? static_cast<unsigned int>(ho) : ho, o, lo, llo,
-      is_cuda ? static_cast<unsigned long long>(jo) : jo,
-      is_cuda ? static_cast<unsigned long long>(zo) : zo,
-      is_cuda ? static_cast<unsigned long long>(to) : to);
+  if (is_cuda) {
+    ext::oneapi::experimental::printf(fmt_o_cuda, hho, ho, o, lo, llo, jo, zo,
+                                      to);
+  } else {
+    ext::oneapi::experimental::printf(fmt_o_default, hho, ho, o, lo, llo, jo,
+                                      zo, to);
+  }
   // CHECK: Octal:
   // CHECK-NEXT: unsigned char: 123
   // CHECK-NEXT: unsigned short: 123456
@@ -260,13 +260,13 @@ void do_x_test(
                               "\tptrdiff_t: %llX\n";
 
   ext::oneapi::experimental::printf("Hexadecimal:\n");
-  ext::oneapi::experimental::printf(
-      is_cuda ? fmt_x_cuda : fmt_x_default,
-      is_cuda ? static_cast<unsigned int>(hhx) : hhx,
-      is_cuda ? static_cast<unsigned int>(hx) : hx, x, lx, llx,
-      is_cuda ? static_cast<unsigned long long>(jx) : jx,
-      is_cuda ? static_cast<unsigned long long>(zx) : zx,
-      is_cuda ? static_cast<unsigned long long>(tx) : tx);
+  if (is_cuda) {
+    ext::oneapi::experimental::printf(fmt_x_cuda, hhx, hx, x, lx, llx, jx, zx,
+                                      tx);
+  } else {
+    ext::oneapi::experimental::printf(fmt_x_default, hhx, hx, x, lx, llx, jx,
+                                      zx, tx);
+  }
   // CHECK: Hexadecimal:
   // CHECK-NEXT: unsigned char: 12
   // CHECK-NEXT: unsigned short: 1234
@@ -278,13 +278,13 @@ void do_x_test(
   // CHECK-NEXT: ptrdiff_t: 123456789abcdef0
 
   ext::oneapi::experimental::printf("Hexadecimal (capital letters):\n");
-  ext::oneapi::experimental::printf(
-      is_cuda ? fmt_X_cuda : fmt_X_default,
-      is_cuda ? static_cast<unsigned int>(hhx) : hhx,
-      is_cuda ? static_cast<unsigned int>(hx) : hx, x, lx, llx,
-      is_cuda ? static_cast<unsigned long long>(jx) : jx,
-      is_cuda ? static_cast<unsigned long long>(zx) : zx,
-      is_cuda ? static_cast<unsigned long long>(tx) : tx);
+  if (is_cuda) {
+    ext::oneapi::experimental::printf(fmt_X_cuda, hhx, hx, x, lx, llx, jx, zx,
+                                      tx);
+  } else {
+    ext::oneapi::experimental::printf(fmt_X_default, hhx, hx, x, lx, llx, jx,
+                                      zx, tx);
+  }
   // CHECK: Hexadecimal (capital letters):
   // CHECK-NEXT: unsigned char: 12
   // CHECK-NEXT: unsigned short: 1234
@@ -332,13 +332,13 @@ void do_u_test(bool is_cuda) { // %u unsigned integer, decimal representation
                               "\tptrdiff_t: %llu\n";
 
   ext::oneapi::experimental::printf("Unsigned decimal:\n");
-  ext::oneapi::experimental::printf(
-      is_cuda ? fmt_u_cuda : fmt_u_default,
-      is_cuda ? static_cast<unsigned int>(hhu) : hhu,
-      is_cuda ? static_cast<unsigned int>(hu) : hu, u, lu, llu,
-      is_cuda ? static_cast<unsigned long long>(ju) : ju,
-      is_cuda ? static_cast<unsigned long long>(zu) : zu,
-      is_cuda ? static_cast<unsigned long long>(tu) : tu);
+  if (is_cuda) {
+    ext::oneapi::experimental::printf(fmt_u_cuda, hhu, hu, u, lu, llu, ju, zu,
+                                      tu);
+  } else {
+    ext::oneapi::experimental::printf(fmt_u_default, hhu, hu, u, lu, llu, ju,
+                                      zu, tu);
+  }
   // CHECK: Unsigned decimal:
   // CHECK-NEXT: unsigned char: 123
   // CHECK-NEXT: unsigned short: 12345
@@ -356,10 +356,10 @@ int main() {
   queue q;
 
   // CUDA device-side printf does not support the hh, h, j, z, and t length
-  // modifiers. When running on the CUDA backend, this test uses %d/%i/%o/%x/%X/%u
-  // for char/short types (promoted to int) and %lld/%lli/%llo/%llx/%llX/%llu for
-  // intmax_t/size_t/ptrdiff_t types (cast to long long).
-  // See:
+  // modifiers. When running on the CUDA backend, this test uses
+  // %d/%i/%o/%x/%X/%u for char/short types (automatically promoted to int by
+  // varargs) and %lld/%lli/%llo/%llx/%llX/%llu for intmax_t/size_t/ptrdiff_t
+  // types. See:
   // https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#formatted-output
   const bool is_cuda = (q.get_backend() == backend::ext_oneapi_cuda);
 
