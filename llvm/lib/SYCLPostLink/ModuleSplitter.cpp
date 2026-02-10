@@ -489,7 +489,6 @@ std::optional<IRSplitMode> convertStringToSplitMode(StringRef S) {
 }
 
 StringRef convertSplitModeToString(IRSplitMode Mode) {
-  StringRef Str;
   switch (Mode) {
   case IRSplitMode::SPLIT_PER_TU:
     return "source";
