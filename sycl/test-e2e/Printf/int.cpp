@@ -355,9 +355,10 @@ class IntTest;
 int main() {
   queue q;
 
-  // CUDA device-side printf does not support the hh length modifier and treats
-  // %hd as double. When running on the CUDA backend, this test avoids hh/%hd
-  // and uses %d/%i/%o/%x/%X/%u for int-promoted types (char/short) instead.
+  // CUDA device-side printf does not support the hh, h, j, z, and t length
+  // modifiers. When running on the CUDA backend, this test uses %d/%i/%o/%x/%X/%u
+  // for char/short types (promoted to int) and %lld/%lli/%llo/%llx/%llX/%llu for
+  // intmax_t/size_t/ptrdiff_t types (cast to long long).
   // See:
   // https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#formatted-output
   const bool is_cuda = (q.get_backend() == backend::ext_oneapi_cuda);
