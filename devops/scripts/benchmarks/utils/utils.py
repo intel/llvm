@@ -177,7 +177,7 @@ def calculate_checksum(file_path):
 def download(dir, url, file, untar=False, unzip=False, checksum=""):
     data_file = os.path.join(dir, file)
     if options.offline:
-        log.info("Skipping download due to --offline option.")
+        log.debug("Skipping download due to --offline option.")
         return data_file
 
     if Path(data_file).exists():
