@@ -207,7 +207,7 @@
 
 /// Check parallel compilation enforcement for split modules when running SPIR-V translation and AOT compilation
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-max-parallel-link-jobs=4 -fsycl-targets=spir64-unknown-unknown %s -### 2>&1 \
-// RUN:  | FileCheck %s -check-prefixes=CHK-PARALLEL-JOBS
+// RUN:  | FileCheck %s -check-prefix=CHK-PARALLEL-JOBS
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-max-parallel-link-jobs=4 -fsycl-targets=spir64_gen-unknown-unknown %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-PARALLEL-JOBS,CHK-PARALLEL-JOBS-AOT -DBE_COMPILER=ocloc
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-max-parallel-link-jobs=4 -fsycl-targets=spir64_x86_64-unknown-unknown %s -### 2>&1 \
@@ -262,61 +262,61 @@
 
 // Check -fsycl-device-code-split=per_kernel option passing.
 // RUN:   %clang -### -fsycl --no-offload-new-driver -fsycl-device-code-split=per_kernel %s 2>&1 \
-// RUN:    | FileCheck %s -check-prefixes=CHK-ONE-KERNEL
+// RUN:    | FileCheck %s -check-prefix=CHK-ONE-KERNEL
 // RUN:   %clang_cl -### -fsycl --no-offload-new-driver -fsycl-device-code-split=per_kernel -- %s 2>&1 \
-// RUN:    | FileCheck %s -check-prefixes=CHK-ONE-KERNEL
+// RUN:    | FileCheck %s -check-prefix=CHK-ONE-KERNEL
 // CHK-ONE-KERNEL: sycl-post-link{{.*}} "-split=kernel"{{.*}} "-o"{{.*}}
 
 // Check -fsycl-device-code-split=per_source option passing.
 // RUN:   %clang -### -fsycl --no-offload-new-driver -fsycl-device-code-split=per_source %s 2>&1 \
-// RUN:    | FileCheck %s -check-prefixes=CHK-PER-SOURCE
+// RUN:    | FileCheck %s -check-prefix=CHK-PER-SOURCE
 // RUN:   %clang_cl -### -fsycl --no-offload-new-driver -fsycl-device-code-split=per_source -- %s 2>&1 \
-// RUN:    | FileCheck %s -check-prefixes=CHK-PER-SOURCE
+// RUN:    | FileCheck %s -check-prefix=CHK-PER-SOURCE
 // CHK-PER-SOURCE: sycl-post-link{{.*}} "-split=source"{{.*}} "-o"{{.*}}
 
 // Check -fsycl-device-code-split option passing.
 // RUN:   %clang -### -fsycl --no-offload-new-driver -fsycl-device-code-split %s 2>&1 \
-// RUN:    | FileCheck %s -check-prefixes=CHK-AUTO
+// RUN:    | FileCheck %s -check-prefix=CHK-AUTO
 // RUN:   %clang_cl -### -fsycl --no-offload-new-driver -fsycl-device-code-split -- %s 2>&1 \
-// RUN:    | FileCheck %s -check-prefixes=CHK-AUTO
+// RUN:    | FileCheck %s -check-prefix=CHK-AUTO
 // RUN:   %clang -### -fsycl --no-offload-new-driver -fsycl-device-code-split=auto %s 2>&1 \
-// RUN:    | FileCheck %s -check-prefixes=CHK-AUTO
+// RUN:    | FileCheck %s -check-prefix=CHK-AUTO
 // RUN:   %clang_cl -### -fsycl --no-offload-new-driver -fsycl-device-code-split=auto -- %s 2>&1 \
-// RUN:    | FileCheck %s -check-prefixes=CHK-AUTO
+// RUN:    | FileCheck %s -check-prefix=CHK-AUTO
 // Check that without -fsycl-device-code-split, no -split= option is passed
 // (sycl-post-link defaults to -split=auto).
-// RUN:   %clang -### -fsycl --no-offload-new-driver %s 2>&1 | FileCheck %s -check-prefixes=CHK-SPLIT-DEFAULT
-// RUN:   %clang_cl -### -fsycl --no-offload-new-driver -- %s 2>&1 | FileCheck %s -check-prefixes=CHK-SPLIT-DEFAULT
+// RUN:   %clang -### -fsycl --no-offload-new-driver %s 2>&1 | FileCheck %s -check-prefix=CHK-SPLIT-DEFAULT
+// RUN:   %clang_cl -### -fsycl --no-offload-new-driver -- %s 2>&1 | FileCheck %s -check-prefix=CHK-SPLIT-DEFAULT
 // CHK-SPLIT-DEFAULT: sycl-post-link
 // CHK-SPLIT-DEFAULT-NOT: "-split=
 // CHK-AUTO: sycl-post-link{{.*}} "-split=auto"{{.*}} "-o"{{.*}}
 
 // Check no device code split mode.
 // RUN:   %clang -### -fsycl --no-offload-new-driver -fsycl-device-code-split -fsycl-device-code-split=off %s 2>&1 \
-// RUN:    | FileCheck %s -check-prefixes=CHK-NO-SPLIT
+// RUN:    | FileCheck %s -check-prefix=CHK-NO-SPLIT
 // RUN:   %clang_cl -### -fsycl --no-offload-new-driver -fsycl-device-code-split -fsycl-device-code-split=off -- %s 2>&1 \
-// RUN:    | FileCheck %s -check-prefixes=CHK-NO-SPLIT
+// RUN:    | FileCheck %s -check-prefix=CHK-NO-SPLIT
 // CHK-NO-SPLIT: sycl-post-link{{.*}} "-split=none"{{.*}} "-o"{{.*}}
 
 // Check ESIMD device code split.
-// RUN:   %clang    -### -fsycl --no-offload-new-driver %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
-// RUN:   %clang_cl -### -fsycl --no-offload-new-driver -- %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
+// RUN:   %clang    -### -fsycl --no-offload-new-driver %s 2>&1 | FileCheck %s -check-prefix=CHK-ESIMD-SPLIT
+// RUN:   %clang_cl -### -fsycl --no-offload-new-driver -- %s 2>&1 | FileCheck %s -check-prefix=CHK-ESIMD-SPLIT
 // CHK-ESIMD-SPLIT: sycl-post-link{{.*}} "-split-esimd"
 
 // Check lowering of ESIMD device code.
-// RUN:   %clang    -### -fsycl --no-offload-new-driver %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
-// RUN:   %clang_cl -### -fsycl --no-offload-new-driver -- %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
+// RUN:   %clang    -### -fsycl --no-offload-new-driver %s 2>&1 | FileCheck %s -check-prefix=CHK-ESIMD-LOWER
+// RUN:   %clang_cl -### -fsycl --no-offload-new-driver -- %s 2>&1 | FileCheck %s -check-prefix=CHK-ESIMD-LOWER
 // CHK-ESIMD-LOWER: sycl-post-link{{.*}} "-lower-esimd"
 
 // Check -f[no]sycl-device-code-split-esimd option's effect on sycl-post-link invocation
 // RUN:   %clang -### -fsycl --no-offload-new-driver -fsycl-device-code-split-esimd %s 2>&1 \
-// RUN:    | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT-ON
+// RUN:    | FileCheck %s -check-prefix=CHK-ESIMD-SPLIT-ON
 // RUN:   %clang -### -fsycl --no-offload-new-driver -fno-sycl-device-code-split-esimd %s 2>&1 \
-// RUN:    | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT-OFF
+// RUN:    | FileCheck %s -check-prefix=CHK-ESIMD-SPLIT-OFF
 // RUN:   %clang -### -fsycl --no-offload-new-driver %s 2>&1 \
-// RUN:    | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT-DEFAULT
+// RUN:    | FileCheck %s -check-prefix=CHK-ESIMD-SPLIT-DEFAULT
 // RUN:   %clang -### -fsycl --no-offload-new-driver -fno-sycl-libspirv -nocudalib -fsycl-targets=nvptx64-nvidia-cuda %s 2>&1 \
-// RUN:    | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT-NON-SPIRV
+// RUN:    | FileCheck %s -check-prefix=CHK-ESIMD-SPLIT-NON-SPIRV
 // CHK-ESIMD-SPLIT-ON: sycl-post-link{{.*}} "-split-esimd"{{.*}} "-o"{{.*}}
 // CHK-ESIMD-SPLIT-OFF-NOT: sycl-post-link{{.*}} "-split-esimd"{{.*}}
 // CHK-ESIMD-SPLIT-DEFAULT: sycl-post-link{{.*}} "-split-esimd"{{.*}} "-o"{{.*}}
