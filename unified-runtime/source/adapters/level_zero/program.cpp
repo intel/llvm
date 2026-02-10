@@ -404,17 +404,19 @@ ur_result_t urProgramLinkExp(
     // one of these locks simultaneously with "exclusive" access.  However,
     // there is no such code like that, so this is also not a danger.
     std::vector<std::shared_lock<ur_shared_mutex>> Guards(count);
-    const ur_program_handle_t_::CodeFormat CommonCodeFormat =
-        phPrograms[0]->getCodeFormat();
     const ur_program_handle_t_::state CommonState =
         phPrograms[0]->getState(phDevices[0]->ZeDevice);
     if (CommonState != ur_program_handle_t_::Object &&
         CommonState != ur_program_handle_t_::Native) {
       return UR_RESULT_ERROR_INVALID_OPERATION;
     }
+    bool NativeInput = CommonState == ur_program_handle_t_::Native;
+    const ur_program_handle_t_::CodeFormat CommonCodeFormat =
+        phPrograms[0]->getCodeFormat(NativeInput ? phDevices[0]->ZeDevice
+                                                 : nullptr);
     // Native programs are passed to this function to resolve external
     // symbols, which requires multiple input programs.
-    if (CommonState == ur_program_handle_t_::Native && count == 1) {
+    if (NativeInput && count == 1) {
       return UR_RESULT_ERROR_INVALID_OPERATION;
     }
     for (uint32_t I = 0; I < count; I++) {
@@ -426,13 +428,13 @@ ur_result_t urProgramLinkExp(
         if (phPrograms[I]->getState(Device->ZeDevice) != CommonState) {
           return UR_RESULT_ERROR_INVALID_OPERATION;
         }
-      }
-
-      // The L0 API has no way to represent mixed format modules,
-      // even though it could be possible to implement linking
-      // of mixed format modules.
-      if (phPrograms[I]->getCodeFormat() != CommonCodeFormat) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        // The L0 API has no way to represent mixed format modules,
+        // even though it could be possible to implement linking
+        // of mixed format modules.
+        if (phPrograms[I]->getCodeFormat(
+                NativeInput ? Device->ZeDevice : nullptr) != CommonCodeFormat) {
+          return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        }
       }
     }
 
@@ -457,14 +459,18 @@ ur_result_t urProgramLinkExp(
       ur_program_handle_t Program = phPrograms[I];
       CodeSizes[I] = Program->getCodeSize();
       CodeBufs[I] = Program->getCode();
-      SpecConstShims.emplace_back(Program);
-      SpecConstPtrs[I] = SpecConstShims[I].ze();
+      if (!NativeInput) {
+        SpecConstShims.emplace_back(Program);
+        SpecConstPtrs[I] = SpecConstShims[I].ze();
+      }
     }
 
     ZeExtModuleDesc.count = count;
     ZeExtModuleDesc.inputSizes = CodeSizes.data();
     ZeExtModuleDesc.pInputModules = CodeBufs.data();
-    ZeExtModuleDesc.pConstants = SpecConstPtrs.data();
+    if (!NativeInput) {
+      ZeExtModuleDesc.pConstants = SpecConstPtrs.data();
+    }
 
     ZeStruct<ze_module_desc_t> ZeModuleDesc;
     ZeModuleDesc.pNext = &ZeExtModuleDesc;
@@ -521,12 +527,18 @@ ur_result_t urProgramLinkExp(
     ur_program_handle_t_ *UrProgram = new ur_program_handle_t_(hContext);
     *phProgram = reinterpret_cast<ur_program_handle_t>(UrProgram);
     for (uint32_t i = 0; i < numDevices; i++) {
-
       // Call the Level Zero API to compile, link, and create the module.
       ze_device_handle_t ZeDevice = phDevices[i]->ZeDevice;
       ze_context_handle_t ZeContext = hContext->getZeHandle();
       ze_module_handle_t ZeModule = nullptr;
       ze_module_build_log_handle_t ZeBuildLog = nullptr;
+
+      if (NativeInput) {
+        for (uint32_t I = 0; I < count; I++) {
+          CodeSizes[I] = phPrograms[I]->getCodeSize(ZeDevice);
+          CodeBufs[I] = phPrograms[I]->getCode(ZeDevice);
+        }
+      }
 
       // Build flags may be different for different devices, so handle them
       // here. Clear values of the previous device first.

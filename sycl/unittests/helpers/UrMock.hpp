@@ -213,7 +213,8 @@ inline ur_result_t mock_urDeviceGetInfo(void *pParams) {
   case UR_DEVICE_INFO_LINKER_AVAILABLE:
   case UR_DEVICE_INFO_COMPILER_AVAILABLE:
   case UR_DEVICE_INFO_IS_INTEGRATED_GPU:
-  case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
+  case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
+  case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT: {
     if (*params->ppPropValue)
       *static_cast<ur_bool_t *>(*params->ppPropValue) = true;
     if (*params->ppPropSizeRet)
@@ -450,6 +451,20 @@ inline ur_result_t mock_urVirtualMemReserve(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
+inline ur_result_t mock_urVirtualMemGranularityGetInfo(void *pParams) {
+  auto params =
+      reinterpret_cast<ur_virtual_mem_granularity_get_info_params_t *>(pParams);
+  // Set a reasonable granularity of 64 KiB for testing
+  constexpr size_t Granularity = 65536;
+  if (*params->ppPropValue) {
+    *static_cast<size_t *>(*params->ppPropValue) = Granularity;
+  }
+  if (*params->ppPropSizeRet) {
+    **params->ppPropSizeRet = sizeof(size_t);
+  }
+  return UR_RESULT_SUCCESS;
+}
+
 inline ur_result_t mock_urKernelGetSubGroupInfo(void *pParams) {
   auto params =
       reinterpret_cast<ur_kernel_get_sub_group_info_params_t *>(pParams);
@@ -581,6 +596,8 @@ public:
     ADD_DEFAULT_OVERRIDE(urUsmP2PPeerAccessGetInfoExp,
                          mock_urUsmP2PPeerAccessGetInfoExp)
     ADD_DEFAULT_OVERRIDE(urVirtualMemReserve, mock_urVirtualMemReserve)
+    ADD_DEFAULT_OVERRIDE(urVirtualMemGranularityGetInfo,
+                         mock_urVirtualMemGranularityGetInfo)
     ADD_DEFAULT_OVERRIDE(urCommandBufferCreateExp,
                          mock_urCommandBufferCreateExp);
     ADD_DEFAULT_OVERRIDE(urCommandBufferAppendKernelLaunchExp,
