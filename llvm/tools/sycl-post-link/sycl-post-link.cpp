@@ -188,8 +188,7 @@ cl::opt<module_split::IRSplitMode> SplitMode(
                           "1 output module per kernel"),
                clEnumValN(module_split::SPLIT_AUTO, "auto",
                           "Choose split mode automatically"),
-               clEnumValN(module_split::SPLIT_NONE, "none",
-                          "No splitting")),
+               clEnumValN(module_split::SPLIT_NONE, "none", "No splitting")),
     cl::cat(PostLinkCat));
 
 cl::opt<bool> DoSymGen{"symbols", cl::desc("generate exported symbol files"),
