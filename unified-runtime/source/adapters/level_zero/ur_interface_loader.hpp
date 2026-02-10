@@ -811,6 +811,11 @@ ur_result_t urProgramLinkExp(ur_context_handle_t hContext, uint32_t numDevices,
                              ur_program_handle_t *phProgram);
 ur_result_t urUSMContextMemcpyExp(ur_context_handle_t hContext, void *pDst,
                                   const void *pSrc, size_t size);
+ur_result_t urUSMHostAllocRegisterExp(
+    ur_context_handle_t hContext, void *pHostMem, size_t size,
+    const ur_exp_usm_host_alloc_register_properties_t *pProperties);
+ur_result_t urUSMHostAllocUnregisterExp(ur_context_handle_t hContext,
+                                        void *pHostMem);
 ur_result_t urUSMImportExp(ur_context_handle_t hContext, void *pMem,
                            size_t size);
 ur_result_t urUSMReleaseExp(ur_context_handle_t hContext, void *pMem);
