@@ -43,7 +43,9 @@
 #include "llvm/Option/Option.h"
 #include "llvm/Plugins/PassPlugin.h"
 #include "llvm/Remarks/HotnessThresholdParser.h"
+#include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/SYCLPostLink/ModuleSplitter.h"
+#include "llvm/SYCLPostLink/SYCLPostLink.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/FileOutputBuffer.h"
@@ -797,10 +799,11 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     return Modules;
   }
 
-  return llvm::module_split::parseSplitModulesFromFile(*TempFileOrErr);
+  return llvm::sycl_post_link::parseSplitModulesFromFile(*TempFileOrErr);
 }
 
-/// Invokes SYCL Split library for SYCL offloading.
+/// Invokes SYCLPostLink library for SYCL offloading. Specialization constant's
+/// processing mode is determined depending on the Triple encoded in \p Args.
 ///
 /// \param InputFiles the list of input LLVM IR files.
 /// \param Args Encompasses all arguments for linking and wrapping device code.
@@ -810,8 +813,24 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args,
 /// \returns The vector of split modules.
 static Expected<std::vector<module_split::SplitModule>>
 runSYCLSplitLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
-                    module_split::IRSplitMode Mode) {
+                    module_split::IRSplitMode SplitMode) {
   std::vector<module_split::SplitModule> SplitModules;
+  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+
+  sycl_post_link::PostLinkSettings Settings;
+  Settings.SplitMode = SplitMode;
+  bool SpecConstsSupported = (!Triple.isNVPTX() && !Triple.isAMDGCN() &&
+                              !Triple.isSPIRAOT() && !Triple.isNativeCPU());
+  Settings.SpecConstMode = SpecConstsSupported
+                               ? SpecConstantsPass::HandlingMode::native
+                               : SpecConstantsPass::HandlingMode::emulation;
+
+  bool IsAOT = Triple.isNVPTX() || Triple.isAMDGCN() || Triple.isSPIRAOT();
+  if (Args.hasFlag(OPT_sycl_add_default_spec_consts_image,
+                   OPT_no_sycl_add_default_spec_consts_image, false) &&
+      IsAOT)
+    Settings.GenerateModuleDescWithDefaultSpecConsts = true;
+
   if (DryRun) {
     auto OutputFileOrErr = createOutputFile(
         sys::path::filename(ExecutableName) + ".sycl.split.image", "bc");
@@ -820,15 +839,12 @@ runSYCLSplitLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
 
     StringRef OutputFilePath = *OutputFileOrErr;
     auto InputFilesStr = llvm::join(InputFiles.begin(), InputFiles.end(), ",");
-    errs() << formatv("sycl-module-split: input: {0}, output: {1}\n",
-                      InputFilesStr, OutputFilePath);
+    errs() << formatv("sycl-post-link-library: input: {0}, output: {1}, {2}\n",
+                      InputFilesStr, OutputFilePath,
+                      sycl_post_link::convertSettingsToString(Settings));
     SplitModules.emplace_back(OutputFilePath, util::PropertySetRegistry());
     return SplitModules;
   }
-
-  llvm::module_split::ModuleSplitterSettings Settings;
-  Settings.Mode = Mode;
-  Settings.OutputPrefix = "";
 
   for (StringRef InputFile : InputFiles) {
     SMDiagnostic Err;
@@ -837,28 +853,29 @@ runSYCLSplitLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     if (!M)
       return createStringError(inconvertibleErrorCode(), Err.getMessage());
 
-    auto SplitModulesOrErr =
-        module_split::splitSYCLModule(std::move(M), Settings);
+    Expected<std::vector<module_split::SplitModule>> SplitModulesOrErr =
+        sycl_post_link::performPostLinkProcessing(std::move(M), Settings);
     if (!SplitModulesOrErr)
       return SplitModulesOrErr.takeError();
 
-    auto &NewSplitModules = *SplitModulesOrErr;
-    SplitModules.insert(SplitModules.end(), NewSplitModules.begin(),
-                        NewSplitModules.end());
+    SplitModules.insert(SplitModules.end(), SplitModulesOrErr->begin(),
+                        SplitModulesOrErr->end());
   }
 
   if (Verbose) {
     auto InputFilesStr = llvm::join(InputFiles.begin(), InputFiles.end(), ",");
-    std::string SplitOutputFilesStr;
+    std::string OutputFilesStr;
     for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
       if (I > 0)
-        SplitOutputFilesStr += ',';
+        OutputFilesStr += ',';
 
-      SplitOutputFilesStr += SplitModules[I].ModuleFilePath;
+      OutputFilesStr += SplitModules[I].ModuleFilePath;
     }
 
-    errs() << formatv("sycl-module-split: input: {0}, output: {1}\n",
-                      InputFilesStr, SplitOutputFilesStr);
+    errs() << formatv(
+        "sycl-post-link-library: input: {0}, output: {1}, settings: {2}\n",
+        InputFilesStr, OutputFilesStr,
+        sycl_post_link::convertSettingsToString(Settings));
   }
 
   return SplitModules;
@@ -2074,6 +2091,8 @@ DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
   StringRef Arch = Args.MakeArgString(Input.front().getBinary()->getArch());
   DAL.AddJoinedArg(nullptr, Tbl.getOption(OPT_arch_EQ),
                    Arch == "generic" ? "" : Arch);
+  errs() << "Read Triple: " << Input.front().getBinary()->getTriple().str()
+         << "\n";
   DAL.AddJoinedArg(nullptr, Tbl.getOption(OPT_triple_EQ),
                    Args.MakeArgString(Input.front().getBinary()->getTriple()));
 
@@ -2803,7 +2822,8 @@ int main(int Argc, char **Argv) {
           inconvertibleErrorCode(),
           formatv("sycl-module-split-mode value isn't recognized: {0}",
                   StrMode)));
-  }
+  } else
+    SYCLModuleSplitMode = module_split::IRSplitMode::SPLIT_NONE;
 
   if (Args.hasArg(OPT_sycl_dump_device_code_EQ)) {
     Arg *A = Args.getLastArg(OPT_sycl_dump_device_code_EQ);
