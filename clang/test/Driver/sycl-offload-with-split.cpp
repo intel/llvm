@@ -42,3 +42,17 @@
 // RUN:   %clang_cl -### -fsycl --offload-new-driver -fsycl-device-code-split=auto %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-AUTO
 // CHK-AUTO: clang-linker-wrapper{{.*}} {{.*}}--sycl-post-link-options=-split=auto
+
+// Check -fsycl-device-code-split=off passes -split=none to the linker wrapper.
+// RUN:   %clang -### -fsycl --offload-new-driver -fsycl-device-code-split=off %s 2>&1 \
+// RUN:    | FileCheck %s -check-prefixes=CHK-SPLIT-OFF
+// RUN:   %clang_cl -### -fsycl --offload-new-driver -fsycl-device-code-split=off %s 2>&1 \
+// RUN:    | FileCheck %s -check-prefixes=CHK-SPLIT-OFF
+// CHK-SPLIT-OFF: clang-linker-wrapper{{.*}} {{.*}}--sycl-post-link-options={{.*}}-split=none
+
+// Check that without -fsycl-device-code-split, no -split= option is passed
+// (sycl-post-link defaults to -split=auto).
+// RUN:   %clang -### -fsycl --offload-new-driver %s 2>&1 \
+// RUN:    | FileCheck %s -check-prefixes=CHK-SPLIT-DEFAULT
+// CHK-SPLIT-DEFAULT: clang-linker-wrapper
+// CHK-SPLIT-DEFAULT-NOT: -split=

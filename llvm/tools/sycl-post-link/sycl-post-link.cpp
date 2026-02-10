@@ -181,13 +181,15 @@ cl::opt<bool> ForceDisableESIMDOpt("force-disable-esimd-opt", cl::Hidden,
 
 cl::opt<module_split::IRSplitMode> SplitMode(
     "split", cl::desc("split input module"), cl::Optional,
-    cl::init(module_split::SPLIT_NONE),
+    cl::init(module_split::SPLIT_AUTO),
     cl::values(clEnumValN(module_split::SPLIT_PER_TU, "source",
                           "1 output module per source (translation unit)"),
                clEnumValN(module_split::SPLIT_PER_KERNEL, "kernel",
                           "1 output module per kernel"),
                clEnumValN(module_split::SPLIT_AUTO, "auto",
-                          "Choose split mode automatically")),
+                          "Choose split mode automatically"),
+               clEnumValN(module_split::SPLIT_NONE, "none",
+                          "No splitting")),
     cl::cat(PostLinkCat));
 
 cl::opt<bool> DoSymGen{"symbols", cl::desc("generate exported symbol files"),
@@ -671,7 +673,8 @@ int main(int argc, char **argv) {
       "  be put into the same module. If -split=kernel option is specified,\n"
       "  one module per kernel will be emitted.\n"
       "  '-split=auto' mode automatically selects the best way of splitting\n"
-      "  kernels into modules based on some heuristic.\n"
+      "  kernels into modules based on some heuristic. '-split=auto' is a\n"
+      "  defuault value. \n"
       "  The '-split' option is compatible with '-split-esimd'. In this case,\n"
       "  first input module will be split according to the '-split' option\n"
       "  processing algorithm, not distinguishing between SYCL and ESIMD\n"
@@ -702,9 +705,9 @@ int main(int argc, char **argv) {
       "will produce single output file example_p.bc suitable for SPIRV\n"
       "translation.\n"
       "--ir-output-only option is not not compatible with split modes other\n"
-      "than 'auto'.\n");
+      "than 'auto' or 'none'.\n");
 
-  bool DoSplit = SplitMode.getNumOccurrences() > 0;
+  bool DoSplit = SplitMode != module_split::SPLIT_NONE;
   bool DoSplitEsimd = SplitEsimd.getNumOccurrences() > 0;
   bool DoLowerEsimd = LowerEsimd.getNumOccurrences() > 0;
   bool DoSpecConst = SpecConstLower.getNumOccurrences() > 0;
@@ -723,7 +726,8 @@ int main(int argc, char **argv) {
     errs() << "no actions specified; try --help for usage info\n";
     return 1;
   }
-  if (IROutputOnly && DoSplit && (SplitMode != module_split::SPLIT_AUTO)) {
+  if (IROutputOnly && (SplitMode.getValue() != module_split::SPLIT_AUTO &&
+                       SplitMode.getValue() != module_split::SPLIT_NONE)) {
     errs() << "error: -" << SplitMode.ArgStr << "=" << SplitMode.ValueStr
            << " can't be used with -" << IROutputOnly.ArgStr << "\n";
     return 1;

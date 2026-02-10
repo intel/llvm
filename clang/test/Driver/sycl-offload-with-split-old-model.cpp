@@ -283,8 +283,12 @@
 // RUN:    | FileCheck %s -check-prefixes=CHK-AUTO
 // RUN:   %clang_cl -### -fsycl --no-offload-new-driver -fsycl-device-code-split=auto -- %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-AUTO
-// RUN:   %clang -### -fsycl --no-offload-new-driver %s 2>&1 | FileCheck %s -check-prefixes=CHK-AUTO
-// RUN:   %clang_cl -### -fsycl --no-offload-new-driver -- %s 2>&1 | FileCheck %s -check-prefixes=CHK-AUTO
+// Check that without -fsycl-device-code-split, no -split= option is passed
+// (sycl-post-link defaults to -split=auto).
+// RUN:   %clang -### -fsycl --no-offload-new-driver %s 2>&1 | FileCheck %s -check-prefixes=CHK-SPLIT-DEFAULT
+// RUN:   %clang_cl -### -fsycl --no-offload-new-driver -- %s 2>&1 | FileCheck %s -check-prefixes=CHK-SPLIT-DEFAULT
+// CHK-SPLIT-DEFAULT: sycl-post-link
+// CHK-SPLIT-DEFAULT-NOT: "-split=
 // CHK-AUTO: sycl-post-link{{.*}} "-split=auto"{{.*}} "-o"{{.*}}
 
 // Check no device code split mode.
@@ -292,7 +296,7 @@
 // RUN:    | FileCheck %s -check-prefixes=CHK-NO-SPLIT
 // RUN:   %clang_cl -### -fsycl --no-offload-new-driver -fsycl-device-code-split -fsycl-device-code-split=off -- %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-NO-SPLIT
-// CHK-NO-SPLIT-NOT: sycl-post-link{{.*}} "-split={{.*}}
+// CHK-NO-SPLIT: sycl-post-link{{.*}} "-split=none"{{.*}} "-o"{{.*}}
 
 // Check ESIMD device code split.
 // RUN:   %clang    -### -fsycl --no-offload-new-driver %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
