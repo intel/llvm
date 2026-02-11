@@ -2,7 +2,7 @@
 // Type traits, like POD, trivially copyable, standard layout, etc if changed
 // outside the ABI breaking window can break the ABI and cause UB.
 
-// RUN: %clangxx %fsycl-host-only %s
+// RUN: %clangxx %fsycl-host-only %if windows %{ -DWINDOWS %} %s
 
 #include <iostream>
 #include <sycl/detail/common.hpp>
@@ -46,7 +46,13 @@ int main() {
       detail::compile_time_kernel_info_v1::CompileTimeKernelInfoTy, true, false,
       true>();
   check_type_traits<exception, false, false, false>();
+
+#ifdef WINDOWS
+  check_type_traits<handler, false, false, true>();
+#else
   check_type_traits<handler, false, false, false>();
+#endif
+
   check_type_traits<detail::HostKernelRefBase, false, false, false>();
   check_type_traits<image<1>, false, false, true>();
   check_type_traits<detail::nd_range_view_v1::nd_range_view, true, false,
