@@ -10951,8 +10951,8 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
       addArgs(PostLinkArgs, TCArgs, {"-split=source"});
     else if (CodeSplitValue == "auto")
       addArgs(PostLinkArgs, TCArgs, {"-split=auto"});
-    else { // Device code split is off
-    }
+    else if (CodeSplitValue == "off")
+      addArgs(PostLinkArgs, TCArgs, {"-split=none"});
   }
   addArgs(PostLinkArgs, TCArgs,
           {StringRef(getSYCLPostLinkOptimizationLevel(TCArgs))});
@@ -11043,12 +11043,6 @@ static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
     addArgs(PostLinkArgs, TCArgs, {"-spec-const=native"});
   else
     addArgs(PostLinkArgs, TCArgs, {"-spec-const=emulation"});
-
-  // See if device code splitting is requested.  The logic here works along side
-  // the behavior in getNonTripleBasedSYCLPostLinkOpts, where the option is
-  // added based on the user setting of -fsycl-device-code-split.
-  if (!TCArgs.hasArg(options::OPT_fsycl_device_code_split_EQ))
-    addArgs(PostLinkArgs, TCArgs, {"-split=auto"});
 
   if (shouldEmitOnlyKernelsAsEntryPoints(TC, TCArgs, Triple))
     addArgs(PostLinkArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
