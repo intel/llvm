@@ -188,6 +188,7 @@ VkResult setupInstance() {
     layers.push_back("VK_LAYER_KHRONOS_validation");
   } else {
     std::cerr << "Validation layer not available!\n";
+    assert(false);
   }
   ci.enabledLayerCount = layers.size();
   ci.ppEnabledLayerNames = layers.data();
