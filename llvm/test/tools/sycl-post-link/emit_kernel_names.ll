@@ -1,7 +1,7 @@
 ; This test checks that the post-link tool generates list of kernel names.
 ;
 ; Global scope
-; RUN: sycl-post-link -properties -symbols -emit-kernel-names -S < %s -o %t.global.files.table
+; RUN: sycl-post-link -split=none -properties -symbols -emit-kernel-names -S < %s -o %t.global.files.table
 ; RUN: FileCheck %s -input-file=%t.global.files_0.prop --implicit-check-not="SpirFunc" --implicit-check-not="PtxFunc" --implicit-check-not="AmdgpuFunc" --check-prefix=CHECK-GLOBAL-PROP
 ;
 ; Per-module split
