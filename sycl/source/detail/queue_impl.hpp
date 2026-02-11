@@ -614,7 +614,13 @@ public:
 
   void setCommandGraphUnlocked(
       const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
-          &Graph) {
+          &Graph,
+      bool native) {
+    if (native) {
+      MGraphNative = Graph;
+      return;
+    }
+
     MGraph = Graph;
     MExtGraphDeps.reset();
 
@@ -627,9 +633,10 @@ public:
 
   void setCommandGraph(
       const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
-          &Graph) {
+          &Graph,
+      bool native) {
     std::lock_guard<std::mutex> Lock(MMutex);
-    setCommandGraphUnlocked(Graph);
+    setCommandGraphUnlocked(Graph, native);
   }
 
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
@@ -638,6 +645,8 @@ public:
   }
 
   bool hasCommandGraph() const { return !MGraph.expired(); }
+
+  bool hasNativeCommandGraph() const { return !MGraphNative.expired(); }
 
   EventImplPtr submit_command_to_graph(
       ext::oneapi::experimental::detail::graph_impl &GraphImpl,
@@ -1103,6 +1112,9 @@ protected:
   // Command graph which is associated with this queue for the purposes of
   // recording commands to it.
   std::weak_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph{};
+
+  // Native Command graph, used to determine state of the queue.
+  std::weak_ptr<ext::oneapi::experimental::detail::graph_impl> MGraphNative{};
 
   unsigned long long MQueueID;
   static std::atomic<unsigned long long> MNextAvailableQueueID;

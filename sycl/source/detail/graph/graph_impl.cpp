@@ -623,9 +623,10 @@ void graph_impl::clearQueues(bool NeedsLock) {
     std::swap(MRecordingQueues, SwappedQueues);
   }
 
+  const bool UseNativeRecording = MEnableNativeRecording && MNativeGraphHandle;
   for (auto &Queue : SwappedQueues) {
     if (auto ValidQueue = Queue.lock(); ValidQueue) {
-      if (MEnableNativeRecording && MNativeGraphHandle) {
+      if (UseNativeRecording) {
         // End native UR graph capture
         auto UrQueue = ValidQueue->getHandleRef();
         ur_exp_graph_handle_t CapturedGraph = nullptr;
@@ -635,13 +636,28 @@ void graph_impl::clearQueues(bool NeedsLock) {
                                 "Failed to end native graph capture");
         }
         // CapturedGraph should be the same as MNativeGraphHandle
-      } else {
-        // Only call setCommandGraph for traditional recording
-        ValidQueue->setCommandGraph(nullptr);
       }
+
+      ValidQueue->setCommandGraph(nullptr, UseNativeRecording);
       // AnyQueuesCleared = true;
     }
   }
+}
+
+bool graph_impl::empty() const {
+
+  const bool UseNativeRecording = MEnableNativeRecording && MNativeGraphHandle;
+  if (!UseNativeRecording) {
+    return MNodeStorage.empty();
+  }
+
+  bool IsEmptyResult = true;
+  ur_result_t Result = urGraphIsEmptyExp(MNativeGraphHandle, &IsEmptyResult);
+  if (Result != UR_RESULT_SUCCESS) {
+    throw sycl::exception(sycl::make_error_code(errc::runtime),
+                          "Failed to check if graph is empty");
+  }
+  return IsEmptyResult;
 }
 
 bool graph_impl::checkForCycles() {
@@ -763,7 +779,9 @@ void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
   if (!Queue.hasCommandGraph()) {
 
     // Use native UR graph recording if enabled
-    if (MEnableNativeRecording && MNativeGraphHandle) {
+    const bool UseNativeRecording =
+        MEnableNativeRecording && MNativeGraphHandle;
+    if (UseNativeRecording) {
       // Native recording only works with immediate command lists
       // Check if the queue is actually using immediate command lists
       ur_queue_flags_t queueFlags = 0;
@@ -787,14 +805,14 @@ void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
         throw sycl::exception(sycl::make_error_code(errc::runtime),
                               "Failed to begin native UR graph capture");
       }
-    } else {
-      // Only set command graph for non-native recording
-      if (LockQueue) {
-        Queue.setCommandGraph(shared_from_this());
-      } else {
-        Queue.setCommandGraphUnlocked(shared_from_this());
-      }
     }
+      // Only set command graph for non-native recording
+    if (LockQueue) {
+      Queue.setCommandGraph(shared_from_this(), UseNativeRecording);
+    } else {
+      Queue.setCommandGraphUnlocked(shared_from_this(), UseNativeRecording);
+    }
+
     addQueue(Queue);
   }
 }
@@ -2160,11 +2178,13 @@ void modifiable_command_graph::end_recording(queue &RecordingQueue) {
         // CapturedGraph should be the same as MNativeGraphHandle
       }
       impl->removeQueue(QueueImpl);
+      QueueImpl.setCommandGraph(nullptr, true);
     }
+
   } else {
     // Traditional recording path
     if (QueueImpl.getCommandGraph() == impl) {
-      QueueImpl.setCommandGraph(nullptr);
+      QueueImpl.setCommandGraph(nullptr, false);
       graph_impl::WriteLock Lock(impl->MMutex);
       impl->removeQueue(QueueImpl);
       IsRecordingToThisGraph = true;
@@ -2204,6 +2224,11 @@ std::vector<node> modifiable_command_graph::get_nodes() const {
 std::vector<node> modifiable_command_graph::get_root_nodes() const {
   graph_impl::ReadLock Lock(impl->MMutex);
   return impl->roots().to<std::vector<node>>();
+}
+
+bool modifiable_command_graph::empty() const {
+  graph_impl::ReadLock Lock(impl->MMutex);
+  return impl->empty();
 }
 
 void modifiable_command_graph::checkNodePropertiesAndThrow(
