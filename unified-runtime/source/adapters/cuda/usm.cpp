@@ -574,10 +574,11 @@ urUSMPoolTrimToExp(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t,
-                                                          void *pDst,
-                                                          const void *pSrc,
-                                                          size_t Size) {
+UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(
+    ur_context_handle_t hContext, void *pDst, const void *pSrc, size_t Size) {
+  ScopedContext Active(hContext->getDevices()[0]);
   UR_CHECK_ERROR(cuMemcpy((CUdeviceptr)pDst, (CUdeviceptr)pSrc, Size));
+  UR_CHECK_ERROR(cuCtxSynchronize());
+
   return UR_RESULT_SUCCESS;
 }
