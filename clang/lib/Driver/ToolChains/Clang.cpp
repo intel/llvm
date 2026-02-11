@@ -11611,14 +11611,16 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       std::vector<SmallString<128>> BackendOptVec;
       SmallString<128> LinkOptString;
 
-      // Construct backend options for each target passed via -Xsycl-target-backend
-      // in the form: "-device <arch> <backend_opt>"
-      StringRef Device = "";
-      for (const Arg *A : Args.filtered(options::OPT_Xsycl_backend_EQ, options::OPT_Xsycl_backend)) {
+      // Construct backend options for each target passed via
+      // -Xsycl-target-backend in the form: "-device <arch> <backend_opt>"
+      for (const Arg *A : Args.filtered(options::OPT_Xsycl_backend_EQ,
+                                        options::OPT_Xsycl_backend)) {
+        StringRef Device = "";
         SmallString<128> BackendArgs;
-        if(A->getNumValues() > 1) {
+        // Handle the OPT_Xsycl_backend case
+        if (A->getNumValues() > 1) {
           Device = SYCL::gen::resolveGenDevice(A->getValue());
-          if(Device.empty() && (A->getNumValues() > 1))
+          if (Device.empty())
             // If target is spir64_gen, the device name needs to be extracted
             // from the arguments.
             Device = SYCL::gen::extractDeviceFromArg(A->getValue(1));
@@ -11627,10 +11629,12 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
             // is appended to BackendArgs.
             appendOption(BackendArgs, "-device " + Device.str());
         }
-        SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs, Device);
+        SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs,
+                                          Device);
         for (const auto &BA : BuildArgs) {
           appendOption(BackendArgs, BA);
         }
+        BackendOptVec.push_back(BackendArgs);
         BuildArgs.clear();
       }
 
@@ -11646,7 +11650,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       }
 
       for (SmallString<128> &BackendArgs : BackendOptVec) {
-        if(!BackendArgs.empty())
+        if (!BackendArgs.empty())
           CmdArgs.push_back(Args.MakeArgString(
               "--device-compiler=" +
               Action::GetOffloadKindName(Action::OFK_SYCL) + ":" +

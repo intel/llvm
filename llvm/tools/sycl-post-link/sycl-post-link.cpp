@@ -108,8 +108,10 @@ struct TargetFilenamePairParser : public cl::basic_parser<TargetFilenamePair> {
     SmallVector<StringRef, 8> ArgList;
     ArgValue.split(ArgList, ",");
     Val.Filename = ArgList.back().str();
-    for (size_t i = 0; i + 1 < ArgList.size(); ++i)
+    for (size_t i = 0; i + 1 < ArgList.size(); ++i) {
+      llvm::errs() << "  Target: " << ArgList[i] << "\n";
       Val.Targets.push_back(ArgList[i].str());
+    }
     return false;
   }
 };
@@ -302,7 +304,8 @@ void saveModuleIR(Module &M, const StringRef Filename) {
 
 void saveModuleProperties(const module_split::ModuleDesc &MD,
                           const GlobalBinImageProps &GlobProps,
-                          const StringRef Filename, const std::vector<std::string> &Targets) {
+                          const StringRef Filename,
+                          const std::vector<std::string> &Targets) {
 
   PropSetRegTy PropSet;
 
@@ -326,8 +329,7 @@ void saveModuleProperties(const module_split::ModuleDesc &MD,
                    PropSetRegTy::PROPERTY_REQD_WORK_GROUP_SIZE);
 
   for (const auto &T : Targets)
-    PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS,
-                "compile_target", T);
+    PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS, "compile_target", T);
 
   std::error_code EC;
   raw_fd_ostream SCOut(Filename, EC);
@@ -465,10 +467,8 @@ bool isTargetCompatibleWithModule(const std::vector<std::string> &Targets,
   // we return true here.
   if (Targets.empty())
     return true;
-  
+
   for (const std::string Target : Targets) {
-    llvm::errs() << "[DEBUG] Checking compatibility of target '" << Target
-             << "' with module '" << IrMD.Name << "'\n";
     // TODO: If a target not found in the device config file is passed,
     // to sycl-post-link, then we should probably throw an error. However,
     // since not all the information for all the targets is filled out

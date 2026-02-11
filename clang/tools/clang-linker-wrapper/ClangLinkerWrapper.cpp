@@ -742,15 +742,20 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   // when Intel GPU targets are passed in -fsycl-targets.
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
-  
-  // Prefix the output path with the target architecture(s),
+
+  // Prefix the output path with the target architectures,
   // e.g. intel_gpu_dg2,intel_gpu_pvc for arch = "dg2,pvc".
-  if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen && !Arch.empty() && Arch != "*") {
+  if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen && !Arch.empty() &&
+      Arch != "*") {
     SmallVector<StringRef, 8> ArchList;
     Arch.split(ArchList, ',');
-    std::string ArchString;
-    for (StringRef SingleArch : ArchList)
-      ArchString += "intel_gpu_" + SingleArch.str() + ",";
+    for (StringRef SingleArch : ArchList) {
+      // Handle cases where arch name contains a version, such as "bmg-g21"
+      std::string ArchString;
+      std::string arch = SingleArch.str();
+      std::replace(arch.begin(), arch.end(), '-', '_');
+      ArchString += "intel_gpu_" + arch + ",";
+    }
     OutputPathWithArch = ArchString + OutputPathWithArch;
   } else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
     OutputPathWithArch = "spir64_x86_64," + OutputPathWithArch;
@@ -2183,7 +2188,8 @@ static void appendSYCLDeviceOptionsAtLinkTime(const DerivedArgList &LinkerArgs,
                                               std::string &CompileOptions,
                                               std::string &LinkOptions) {
   const StringRef TripleStr = LinkerArgs.getLastArgValue(OPT_triple_EQ);
-  auto processDeviceArgs = [&](unsigned OptID, std::string &Options, StringRef TargetArch = StringRef()) {
+  auto processDeviceArgs = [&](unsigned OptID, std::string &Options,
+                               StringRef TargetArch = StringRef()) {
     for (StringRef Arg : LinkerArgs.getAllArgValues(OptID)) {
       if (!TargetArch.empty()) {
         std::string DeviceArchPattern = "-device " + TargetArch.str();
@@ -2211,7 +2217,8 @@ static void appendSYCLDeviceOptionsAtLinkTime(const DerivedArgList &LinkerArgs,
     }
   };
 
-  processDeviceArgs(OPT_device_compiler_args_EQ, CompileOptions, LinkerArgs.getLastArgValue(OPT_arch_EQ));
+  processDeviceArgs(OPT_device_compiler_args_EQ, CompileOptions,
+                    LinkerArgs.getLastArgValue(OPT_arch_EQ));
   processDeviceArgs(OPT_device_linker_args_EQ, LinkOptions);
 }
 

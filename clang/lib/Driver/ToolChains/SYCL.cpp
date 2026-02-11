@@ -1568,7 +1568,7 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
           getDriver().getSYCLDeviceTriple(A->getValue(), A);
       // Passing device args: -X<Opt>=<triple> -opt=val.
       StringRef GenDevice = SYCL::gen::resolveGenDevice(A->getValue());
-      if(GenDevice.empty())
+      if (GenDevice.empty())
         GenDevice = SYCL::gen::extractDeviceFromArg(A->getValue(1));
       bool IsGenTriple = Triple.isSPIR() &&
                          Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
@@ -1689,7 +1689,6 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     }
     // Check for any -device settings.
     std::string DevArg;
-    llvm::errs() << "[DEBUG] device is " << Device << "\n";
     if (IsJIT || Device == "pvc" || hasPVCDevice(TargArgs, DevArg)) {
       // The -device option passed in by the user may not be 'pvc'. Use the
       // value provided by the user if it was specified.
