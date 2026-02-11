@@ -10,6 +10,8 @@ mv $VULKAN_VER vulkan
 cd vulkan
 sudo bash -c 'echo -e "APT::Get::Assume-Yes \"true\";\nAPT::Get::force-yes \"true\";" > /etc/apt/apt.conf.d/90forceyes'
 sudo DEBIAN_FRONTEND=noninteractive ./vulkansdk --maxjobs
+# Delete huge directory of unneeded build artifacts
+sudo rm -r source
 cd ..
 rm vulkan.tar.xz
 sudo rm /etc/apt/apt.conf.d/90forceyes
