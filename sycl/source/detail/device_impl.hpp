@@ -1848,6 +1848,12 @@ public:
         {0x07804000, oneapi_exp_arch::intel_gpu_ptl_u},   // A0
         {0x07804001, oneapi_exp_arch::intel_gpu_ptl_u},   // A1
         {0x0780c000, oneapi_exp_arch::intel_gpu_wcl},     // A0
+        {0x07810000, oneapi_exp_arch::intel_gpu_nvl_s},   // A0
+        {0x07810004, oneapi_exp_arch::intel_gpu_nvl_s},   // B0
+        {0x07814000, oneapi_exp_arch::intel_gpu_nvl_u},   // A0
+        {0x07814004, oneapi_exp_arch::intel_gpu_nvl_u},   // B0
+        {0x08c28000, oneapi_exp_arch::intel_gpu_nvl_p},   // A0
+        {0x08c28004, oneapi_exp_arch::intel_gpu_nvl_p},   // B0
     };
 
     // Only for Intel CPU architectures
