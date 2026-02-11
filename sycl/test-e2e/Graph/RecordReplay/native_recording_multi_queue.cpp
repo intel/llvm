@@ -28,6 +28,15 @@ int main() {
                {property::queue::in_order{},
                 ext::intel::property::queue::immediate_command_list{}}};
 
+  const exp_ext::queue_state Recording = exp_ext::queue_state::recording;
+  const exp_ext::queue_state Executing = exp_ext::queue_state::executing;
+
+  auto assertQueueState = [&](exp_ext::queue_state ExpectedQ1,
+                              exp_ext::queue_state ExpectedQ2) {
+    assert(Queue1.ext_oneapi_get_state() == ExpectedQ1);
+    assert(Queue2.ext_oneapi_get_state() == ExpectedQ2);
+  };
+
   // Create a graph - native recording is enabled via
   // SYCL_GRAPH_ENABLE_NATIVE_RECORDING environment variable
   exp_ext::command_graph Graph{Ctx, Dev};
@@ -41,8 +50,11 @@ int main() {
   int *PartialResult2 = malloc_device<int>(1, Dev, Ctx);
   int *FinalResult = malloc_device<int>(1, Dev, Ctx);
 
+  assertQueueState(Executing, Executing);
+
   // Begin graph recording on Queue1 only
   Graph.begin_recording(Queue1);
+  assertQueueState(Recording, Executing);
 
   // Transform VecA
   event Fork =
@@ -57,6 +69,7 @@ int main() {
     }
     PartialResult1[0] = sum;
   });
+  assertQueueState(Recording, Recording);
 
   // Record partial dot product on second half (Queue1)
   exp_ext::single_task(Queue1, [=]() {
@@ -73,6 +86,7 @@ int main() {
   });
 
   Graph.end_recording();
+  assertQueueState(Executing, Executing);
 
   // Finalize and execute the graph
   auto ExecutableGraph = Graph.finalize();
