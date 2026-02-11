@@ -316,7 +316,7 @@ graph_impl::graph_impl(const sycl::context &SyclContext,
     MAllowBuffers = true;
   }
   // Check environment variable for native recording mode
-  if (SYCLConfig<SYCL_GRAPH_ENABLE_NATIVE_RECORDING>::get()) {
+  if (true) { // was: SYCLConfig<SYCL_GRAPH_ENABLE_NATIVE_RECORDING>::get()
     MEnableNativeRecording = true;
     // Create native UR graph when native recording is enabled
     // Note: Native recording only works with immediate command lists,
