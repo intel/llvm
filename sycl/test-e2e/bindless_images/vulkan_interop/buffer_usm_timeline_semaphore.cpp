@@ -15,7 +15,9 @@
 
 #include "../../CommonUtils/vulkan_common.hpp"
 #include "../helpers/common.hpp"
+
 #include <sycl/properties/queue_properties.hpp>
+#include <sycl/usm.hpp>
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
