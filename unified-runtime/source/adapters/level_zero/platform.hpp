@@ -209,8 +209,6 @@ struct ur_platform_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter>,
         uint32_t numWaitEvents, ze_event_handle_t *phWaitEvents);
   } ZeHostTaskExt;
 
-  // Device-specific cache to keep the support of device synchronization
-  // extension. For details, see https://github.com/intel/llvm/issues/20927.
-  std::unordered_map<ur_device_handle_t, bool>
-      URDeviceToZeDeviceSyncExtensionSupport;
+  // For details, see https://github.com/intel/llvm/issues/20927.
+  bool ZeDeviceSynchronizeSupported;
 };

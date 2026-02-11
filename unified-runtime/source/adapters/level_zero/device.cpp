@@ -1330,8 +1330,7 @@ ur_result_t urDeviceGetInfo(
     if (Res != UR_RESULT_SUCCESS) {
       return Res;
     }
-    auto Supported =
-        Device->Platform->URDeviceToZeDeviceSyncExtensionSupport[Device];
+    auto Supported = Device->Platform->ZeDeviceSynchronizeSupported;
     return ReturnValue(Supported);
   }
   case UR_DEVICE_INFO_DYNAMIC_LINK_SUPPORT_EXP:
