@@ -173,7 +173,7 @@ endif()
 # List of all targets. Note that some are added dynamically below.
 set( LIBCLC_TARGETS_ALL
   amdgcn--
-  amdgcn-amd-amdhsa
+  amdgcn-amd-amdhsa-llvm
   clspv--
   clspv64--
   r600--
@@ -183,7 +183,7 @@ set( LIBCLC_TARGETS_ALL
 )
 set( LIBCLC_TEST_TARGETS_ALL
   nvptx64-nvidia-cuda
-  amdgcn-amd-amdhsa
+  amdgcn-amd-amdhsa-llvm
 )
 
 # The mesa3d environment is only available since LLVM 4.0
@@ -252,7 +252,7 @@ add_subdirectory( utils )
 set( r600--_devices cedar cypress barts cayman )
 set( amdgcn--_devices tahiti )
 set( amdgcn-mesa-mesa3d_devices ${amdgcn--_devices} )
-set( amdgcn-amd-amdhsa_devices none )
+set( amdgcn-amd-amdhsa-llvm_devices none )
 set( clspv--_devices none )
 set( clspv64--_devices none )
 set( nvptx64--_devices none )
@@ -410,7 +410,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
   )
 
   set( BUILD_LIBSPIRV_${t} FALSE )
-  if ( t STREQUAL amdgcn-amd-amdhsa OR t STREQUAL nvptx64-nvidia-cuda OR t STREQUAL native_cpu )
+  if ( t STREQUAL amdgcn-amd-amdhsa-llvm OR t STREQUAL nvptx64-nvidia-cuda OR t STREQUAL native_cpu )
     set( libspirv_lib_files )
     set( BUILD_LIBSPIRV_${t} TRUE )
 
