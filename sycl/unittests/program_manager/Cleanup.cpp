@@ -55,10 +55,6 @@ public:
     return m_DeviceKernelInfoMap;
   }
 
-  std::unordered_map<std::string_view, int> &getKernelNameRefCount() {
-    return m_KernelNameRefCount;
-  }
-
   std::unordered_map<
       const sycl::detail::RTDeviceBinaryImage *,
       std::unordered_map<std::string_view, sycl::detail::KernelArgMask>> &
@@ -264,9 +260,6 @@ void checkAllInvolvedContainers(ProgramManagerExposed &PM,
   checkContainer(PM.getDeviceKernelInfoMap(), ExpectedEntryCount,
                  generateRefNames(ImgIds, "Kernel"),
                  "Device kernel info map " + CommentPostfix);
-  checkContainer(PM.getKernelNameRefCount(), ExpectedEntryCount,
-                 generateRefNames(ImgIds, "Kernel"),
-                 "Kernel name reference count " + CommentPostfix);
   EXPECT_EQ(PM.getEliminatedKernelArgMask().size(), ExpectedImgCount)
       << "Eliminated kernel arg mask " + CommentPostfix;
 

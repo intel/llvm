@@ -111,12 +111,18 @@ public:
   // function allows setting it as more images are added.
   void setImplicitLocalArgPos(int Pos);
 
+  int &getRefCount() { return RefCount; }
+
 private:
   bool isCompileTimeInfoSet() const { return KernelSize != 0; }
 
   FastKernelSubcacheT MFastKernelSubcache;
   std::optional<int> MImplicitLocalArgPos;
   const std::optional<sycl::kernel_id> MKernelID;
+  // Keeps track of binary image to kernel name reference count.
+  // Used for checking if the last image referencing the kernel name
+  // is removed in order to trigger cleanup of this struct.
+  int RefCount = 0;
 };
 
 } // namespace detail

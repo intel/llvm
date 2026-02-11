@@ -5,6 +5,9 @@
 
 // REQUIRES: level_zero
 
+// UNSUPPORTED: arch-intel_gpu_pvc
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21235
+
 // Modified version of Update/update_with_indices_accessor_spv.cpp that does
 // not require the full graph aspect, test was hanging after some changes to
 // kernel bundles so adding this test for the CI which doesn't support update
@@ -38,8 +41,10 @@ int main(int, char **argv) {
 
     Graph.add([&](handler &cgh) {
       auto Acc = BufA.get_access(cgh);
-
+      // the kernel requires two arguments, the second one is an offset which is
+      // set to 0 here
       cgh.set_arg(0, Acc);
+      cgh.set_arg(1, 0); // offset
       cgh.single_task(kernel);
     });
 
