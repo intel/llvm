@@ -179,10 +179,10 @@ VkResult setupInstance() {
   ci.enabledExtensionCount = requiredInstanceExtensions.size();
   ci.ppEnabledExtensionNames = requiredInstanceExtensions.data();
   std::vector<const char *> layers;
-  if (std::any_of(
-          availableLayers.begin(), availableLayers.end(), [](auto &layer) {
-            return strcmp(layer.layerName, "VK_LAYER_KHRONOS_validation") == 0;
-          })) {
+  if (std::any_of(availableLayers.begin(), availableLayers.end(),
+                  [](auto &layer) {
+                    return strcmp(layer.layerName, "VK_LAYER_KHRONOS_validation") ;
+                  })) {
     layers.push_back("VK_LAYER_KHRONOS_validation");
   }
   ci.enabledLayerCount = layers.size();
