@@ -6861,6 +6861,159 @@ public:
   }
 };
 
+class EnumValueTemplateArgPrinter
+    : public ConstTemplateArgumentVisitor<EnumValueTemplateArgPrinter> {
+  raw_ostream &OS;
+  PrintingPolicy &Policy;
+  ASTContext &Ctx;
+
+  void printEnumValue(QualType EnumTy, const llvm::APSInt &Val) {
+    OS << "static_cast<";
+    if (const auto *ET = EnumTy->getAs<EnumType>()) {
+      ET->getOriginalDecl()->printQualifiedName(
+          OS, Policy, /*WithGlobalNsPrefix=*/Policy.FullyQualifiedName);
+    } else {
+      EnumTy.print(OS, Policy);
+    }
+    llvm::SmallString<32> Num;
+    Val.toString(Num, /*Radix=*/10, /*Signed=*/Val.isSigned());
+    OS << ">(" << Num << ")";
+  }
+
+  void printTemplateArgs(ArrayRef<TemplateArgument> Args) {
+    bool First = true;
+    for (const auto &A : Args) {
+      if (!First)
+        OS << ", ";
+      First = false;
+      Visit(A);
+    }
+  }
+
+  void printTypeWithEnumValues(QualType T) {
+    if (T.isNull())
+      return;
+
+    const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
+    if (const auto *CTSD =
+            dyn_cast_or_null<ClassTemplateSpecializationDecl>(RD)) {
+      if (!Policy.SuppressTagKeyword)
+        OS << CTSD->getKindName() << " ";
+      CTSD->printQualifiedName(
+          OS, Policy,
+          /*WithGlobalNsPrefix=*/Policy.FullyQualifiedName);
+      OS << "<";
+      printTemplateArgs(CTSD->getTemplateArgs().asArray());
+      OS << ">";
+      return;
+    }
+
+    QualType DT = T.getDesugaredType(Ctx);
+    if (const auto *TST = DT->getAs<TemplateSpecializationType>()) {
+      if (const auto *RT = TST->getAs<RecordType>()) {
+        if (!Policy.SuppressTagKeyword)
+          OS << RT->getDecl()->getKindName() << " ";
+      }
+
+      TemplateDecl *TD = TST->getTemplateName().getAsTemplateDecl();
+      if (TD)
+        TD->printQualifiedName(
+            OS, Policy,
+            /*WithGlobalNsPrefix=*/Policy.FullyQualifiedName);
+      else
+        TST->getTemplateName().print(OS, Policy);
+
+      OS << "<";
+      printTemplateArgs(TST->template_arguments());
+      OS << ">";
+      return;
+    }
+
+    T.print(OS, Policy);
+  }
+
+public:
+  EnumValueTemplateArgPrinter(raw_ostream &OS, PrintingPolicy &Policy,
+                              ASTContext &Ctx)
+      : OS(OS), Policy(Policy), Ctx(Ctx) {}
+
+  void PrintType(QualType T) { printTypeWithEnumValues(T); }
+
+  void Visit(const TemplateArgument &TA) {
+    if (TA.isNull())
+      return;
+    ConstTemplateArgumentVisitor::Visit(TA);
+  }
+
+  void VisitTypeTemplateArgument(const TemplateArgument &Arg) {
+    printTypeWithEnumValues(Arg.getAsType());
+  }
+
+  void VisitIntegralTemplateArgument(const TemplateArgument &Arg) {
+    QualType T = Arg.getIntegralType();
+    if (T->isEnumeralType())
+      return printEnumValue(T, Arg.getAsIntegral());
+    Arg.print(Policy, OS, /*IncludeType=*/false);
+  }
+
+  void VisitExpressionTemplateArgument(const TemplateArgument &Arg) {
+    Expr *E = Arg.getAsExpr();
+    if (!E || Arg.isInstantiationDependent()) {
+      Arg.print(Policy, OS, /*IncludeType=*/false);
+      return;
+    }
+    E = E->IgnoreParenImpCasts();
+    const EnumConstantDecl *ECD = nullptr;
+    if (const auto *DRE = dyn_cast<DeclRefExpr>(E)) {
+      ECD = dyn_cast<EnumConstantDecl>(DRE->getDecl());
+    } else if (const auto *ME = dyn_cast<MemberExpr>(E)) {
+      ECD = dyn_cast<EnumConstantDecl>(ME->getMemberDecl());
+    }
+    if (ECD)
+      return printEnumValue(ECD->getType(), ECD->getInitVal());
+
+    Arg.print(Policy, OS, /*IncludeType=*/false);
+  }
+
+  void VisitTemplateTemplateArgument(const TemplateArgument &Arg) {
+    Arg.getAsTemplate().print(OS, Policy);
+  }
+
+  void VisitTemplateExpansionTemplateArgument(const TemplateArgument &Arg) {
+    Arg.print(Policy, OS, /*IncludeType=*/false);
+  }
+
+  void VisitStructuralValueTemplateArgument(const TemplateArgument &Arg) {
+    Arg.print(Policy, OS, /*IncludeType=*/false);
+  }
+
+  void VisitPackTemplateArgument(const TemplateArgument &Arg) {
+    printTemplateArgs(Arg.getPackAsArray());
+  }
+};
+
+static std::string
+stringifyTemplateArgWithEnumValues(const TemplateArgument &Arg,
+                                   PrintingPolicy &Policy, ASTContext &Ctx) {
+  std::string Out;
+  llvm::raw_string_ostream OS(Out);
+  EnumValueTemplateArgPrinter Printer(OS, Policy, Ctx);
+  Printer.Visit(Arg);
+  OS.flush();
+  return Out;
+}
+
+static std::string stringifyTypeWithEnumValues(QualType T,
+                                               PrintingPolicy &Policy,
+                                               ASTContext &Ctx) {
+  std::string Out;
+  llvm::raw_string_ostream OS(Out);
+  EnumValueTemplateArgPrinter Printer(OS, Policy, Ctx);
+  Printer.PrintType(T);
+  OS.flush();
+  return Out;
+}
+
 class FreeFunctionPrinter {
   raw_ostream &O;
   PrintingPolicy &Policy;
@@ -6993,13 +7146,14 @@ private:
       else if (X.getKind() == TemplateArgument::Pack) {
         for (const auto &PackArg : X.pack_elements()) {
           StringStream << ", ";
-          PackArg.print(Policy, StringStream, /*IncludeType*/ true);
+          StringStream << stringifyTemplateArgWithEnumValues(PackArg, Policy,
+                                                             Context);
         }
         continue;
       } else
         StringStream << ", ";
 
-      X.print(Policy, StringStream, /*IncludeType*/ true);
+      StringStream << stringifyTemplateArgWithEnumValues(X, Policy, Context);
     }
     StringStream.flush();
     if (Buffer.front() != '<')
@@ -7409,12 +7563,15 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
         ParmList += "Args ...";
       } else {
         Policy.SuppressTagKeyword = true;
-        Param->getType().print(ParmListWithNamesOstream, Policy);
+        ParmListWithNamesOstream << stringifyTypeWithEnumValues(
+            Param->getType(), Policy, S.getASTContext());
         Policy.SuppressTagKeyword = false;
         ParmListWithNamesOstream << " " << Param->getNameAsString();
-        ParmList += Param->getType().getCanonicalType().getAsString(Policy);
+        ParmList += stringifyTypeWithEnumValues(
+            Param->getType().getCanonicalType(), Policy, S.getASTContext());
       }
     }
+
     ParmListWithNamesOstream.flush();
     FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate();
     Policy.PrintAsCanonical = false;
