@@ -1,4 +1,4 @@
-# Copyright (C) 2024-2025 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -107,6 +107,10 @@ class VelocityBase(Benchmark):
         return []
 
     def setup(self):
+        if options.offline:
+            log.info(f"Rebuilding Velocity {self.bench_name} skipped")
+            return
+
         self.download_deps()
         if not self.benchmark_bin.is_file():
             self.configure()
