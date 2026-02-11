@@ -11,6 +11,7 @@ from utils.logger import log
 from utils.utils import run
 from options import options
 
+
 class GitProject:
     def __init__(
         self,
@@ -123,54 +124,59 @@ class GitProject:
             if output:
                 # Found the ref as a branch or tag
                 log.debug(
-                    f"Ref {ref} found as branch/tag via ls-remote, can shallow clone"
+                    f"Ref '{ref}' found as branch/tag via ls-remote, can shallow clone"
                 )
                 return True
             else:
-                # Not found as branch/tag, likely a SHA commit
+                # Not found as branch/tag, likely a SHA commit or a special ref
                 log.debug(
-                    f"Ref {ref} not found as branch/tag via ls-remote, likely SHA commit"
+                    f"Ref '{ref}' not found as branch/tag via ls-remote, likely SHA commit or a special ref"
                 )
                 return False
         except Exception as e:
             log.debug(
-                f"Could not check ref {ref} via ls-remote: {e}, assuming SHA commit"
+                f"Could not check ref '{ref}' via ls-remote: {e}, assuming SHA commit"
             )
             return False
 
     def _git_clone(self) -> None:
         """Clone the git repository."""
         try:
-            log.debug(f"Cloning {self._url} into {self.src_dir} at commit {self._ref}")
-            git_clone_cmd = f"git clone --recursive {self._url} {self.src_dir}"
+            log.debug(f"Cloning {self._url} into {self.src_dir} at ref {self._ref}")
+            git_clone_cmd = (
+                f"git clone --recursive --depth 1 {self._url} {self.src_dir}"
+            )
             if self._shallow_clone:
                 if self._can_shallow_clone_ref(self._ref):
                     # Shallow clone for branches and tags only
                     git_clone_cmd = f"git clone --recursive --depth 1 --branch {self._ref} {self._url} {self.src_dir}"
                 else:
-                    log.debug(f"Cannot shallow clone SHA {self._ref}, using full clone")
+                    log.debug(
+                        f"Cannot shallow clone ref '{self._ref}', clone default branch"
+                    )
 
             run(git_clone_cmd)
-            run(f"git checkout {self._ref}", cwd=self.src_dir)
-            log.debug(f"Cloned {self._url} into {self.src_dir} at commit {self._ref}")
+            run(f"git fetch {self._url} {self._ref}", cwd=self.src_dir)
+            run(f"git checkout FETCH_HEAD", cwd=self.src_dir)
+            log.debug(f"Cloned {self._url} into {self.src_dir} at ref {self._ref}")
         except Exception as e:
             log.error(f"Failed to clone repository {self._url}: {e}")
             raise
 
     def _git_fetch(self) -> None:
-        """Fetch the latest changes from the remote repository."""
+        """Fetch the ref from the remote repository."""
         try:
-            log.debug(f"Fetching latest changes for {self._url} in {self.src_dir}")
-            run("git fetch", cwd=self.src_dir)
+            log.debug(f"Fetching ref '{self._ref}' for {self._url} in {self.src_dir}")
             run("git reset --hard", cwd=self.src_dir)
-            run(f"git checkout {self._ref}", cwd=self.src_dir)
-            log.debug(f"Fetched latest changes for {self._url} in {self.src_dir}")
+            run(f"git fetch {self._url} {self._ref}", cwd=self.src_dir)
+            run(f"git checkout FETCH_HEAD", cwd=self.src_dir)
+            log.debug(f"Fetched changes for {self._url} in {self.src_dir}")
         except Exception as e:
             log.error(f"Failed to fetch updates for repository {self._url}: {e}")
             raise
 
     def _setup_repo(self) -> bool:
-        """Clone a git repository into a specified directory at a specific commit.
+        """Clone a git repository into a specified directory at a specific ref.
         Returns:
             bool: True if the repository was cloned or updated, False if it was already up-to-date.
         """

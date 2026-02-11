@@ -3489,6 +3489,20 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF, unsigned AS) {
             M, Intrinsic::memset, {FT->getParamType(0), FT->getParamType(2)})
             ->getName();
   }
+
+  // Special handling for spirv.llvm_umul_with_overflow_* functions
+  // These were created during forward translation by lowering intrinsics.
+  // During reverse translation, we replace them with intrinsic calls.
+  if (FuncNameRef.starts_with("spirv.llvm_umul_with_overflow_")) {
+    Type *OverloadTy = FT->getParamType(0);
+    Function *F = Intrinsic::getOrInsertDeclaration(
+        M, Intrinsic::umul_with_overflow, {OverloadTy});
+    F = cast<Function>(mapValue(BF, F));
+    mapFunction(BF, F);
+    return F; // Skip body translation - intrinsic will be used instead
+  }
+
+  // Normal function handling.
   if (FuncNameRef.consume_front("spirv.")) {
     FuncNameRef.consume_back(".volatile");
     FuncName = FuncNameRef.str();
@@ -3497,21 +3511,12 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF, unsigned AS) {
   Function *F = M->getFunction(FuncName);
   if (!F)
     F = Function::Create(FT, Linkage, AS, FuncName, M);
+
   F = cast<Function>(mapValue(BF, F));
   mapFunction(BF, F);
 
   if (F->isIntrinsic()) {
-    if (F->getIntrinsicID() != Intrinsic::umul_with_overflow)
-      return F;
-    std::string Name = F->getName().str();
-    auto *ST = cast<StructType>(F->getReturnType());
-    auto *FT = F->getFunctionType();
-    auto *NewST = StructType::get(ST->getContext(), ST->elements());
-    auto *NewFT = FunctionType::get(NewST, FT->params(), FT->isVarArg());
-    F->setName("old_" + Name);
-    auto *NewFn = Function::Create(NewFT, F->getLinkage(), F->getAddressSpace(),
-                                   Name, F->getParent());
-    return NewFn;
+    return F;
   }
 
   F->setCallingConv(IsKernel ? CallingConv::SPIR_KERNEL

@@ -29,8 +29,8 @@ def do_configure(args, passthrough_args):
     if sys.platform != "darwin":
         llvm_external_projects += ";libdevice"
 
-    libclc_amd_target_names = ";amdgcn--amdhsa"
-    libclc_nvidia_target_names = ";nvptx64--nvidiacl"
+    libclc_amd_target_names = ";amdgcn-amd-amdhsa"
+    libclc_nvidia_target_names = ";nvptx64-nvidia-cuda"
 
     sycl_enable_jit = "OFF"
     if not args.disable_jit and sys.platform != "darwin":
@@ -232,6 +232,15 @@ def do_configure(args, passthrough_args):
             ]
         )
 
+        if args.liboffload_path:
+            liboffload_path = os.path.abspath(args.liboffload_path)
+            cmake_cmd.extend(
+                [
+                    f"-DUR_OFFLOAD_INSTALL_DIR={liboffload_path}",
+                    f"-DUR_OFFLOAD_INCLUDE_DIR={os.path.join(liboffload_path, 'include')}",
+                ]
+            )
+
     if libclc_enabled:
         cmake_cmd.extend(
             [
@@ -365,6 +374,11 @@ def main():
         "--offload",
         action="store_true",
         help="Enable UR liboffload adapter (experimental)",
+    )
+    parser.add_argument(
+        "--liboffload-path",
+        metavar="PATH",
+        help="Optional path to user provided liboffload installation",
     )
     parser.add_argument(
         "--level_zero_adapter_version",

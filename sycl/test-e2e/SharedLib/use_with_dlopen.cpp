@@ -5,16 +5,16 @@
 
 // DEFINE: %{compile} = %{build} -DFNAME=%basename_t -ldl -Wl,-rpath=%t.dir
 
-// RUN: %{compile} -o %t1.out -DRUN_FIRST
+// RUN: %{run-aux} %{compile} -o %t1.out -DRUN_FIRST
 // RUN: %{run} %t1.out
 
-// RUN: %{compile} -o %t2.out -DRUN_MIDDLE_BEFORE
+// RUN: %{run-aux} %{compile} -o %t2.out -DRUN_MIDDLE_BEFORE
 // RUN: %{run} %t2.out
 
-// RUN: %{compile} -o %t3.out -DRUN_MIDDLE_AFTER
+// RUN: %{run-aux} %{compile} -o %t3.out -DRUN_MIDDLE_AFTER
 // RUN: %{run} %t3.out
 
-// RUN: %{compile} -o %t4.out -DRUN_LAST
+// RUN: %{run-aux} %{compile} -o %t4.out -DRUN_LAST
 // RUN: %{run} %t4.out
 
 #include <sycl/detail/core.hpp>

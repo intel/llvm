@@ -80,6 +80,9 @@ jobs:
       toolchain_artifact_filename: llvm_sycl.tar.zst
       toolchain_decompress_command: zstd
 
+      # The AWS runner is not set up to use vulkan and it's out of our control.
+      extra_lit_opts: --filter-out bindless_images/vulkan_interop
+
   update-check:
     needs: [create-check, e2e-cuda]
     if: always()
