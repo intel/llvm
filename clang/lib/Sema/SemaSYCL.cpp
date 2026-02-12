@@ -6883,6 +6883,9 @@ class EnumValueTemplateArgPrinter
   void printTemplateArgs(ArrayRef<TemplateArgument> Args) {
     bool First = true;
     for (const auto &A : Args) {
+      // Skip empty packs without emitting separators.
+      if (A.getKind() == TemplateArgument::ArgKind::Pack && !A.pack_size())
+        continue;
       if (!First)
         OS << ", ";
       First = false;
