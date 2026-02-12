@@ -8,7 +8,7 @@
 // Test for native recording with non-kernel memory operations using handlerless
 // APIs: memcpy, memset, fill, copy
 
-#include "../graph_common.hpp"
+#include "../../graph_common.hpp"
 
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 #include <sycl/properties/all_properties.hpp>
