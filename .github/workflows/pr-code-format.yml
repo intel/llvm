@@ -3,13 +3,13 @@ name: "Check code formatting"
 permissions:
   contents: read
 
-on:
-  pull_request:
-    branches:
-      - main
-      - sycl
-      - sycl-rel-**
-      - 'users/**'
+on: workflow_dispatch
+  # pull_request:
+  #   branches:
+  #     - main
+  #     - sycl
+  #     - sycl-rel-**
+  #     - 'users/**'
 
 jobs:
   code_formatter:

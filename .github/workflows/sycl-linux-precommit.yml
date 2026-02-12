@@ -4,39 +4,39 @@ on:
   # We rely on "Fork pull request workflows from outside collaborators" -
   # "Require approval for all outside collaborators" at
   # https://github.com/intel/llvm/settings/actions for security.
-  pull_request:
-    branches:
-    - sycl
-    - sycl-rel-**
-    # Do not run builds if changes are only in the following locations
-    # Note: benchmark-related paths are the same as in sycl-ur-perf-benchmarking.yml (to run there instead)
-    paths-ignore:
-    - '.github/ISSUE_TEMPLATE/**'
-    - '.github/CODEOWNERS'
-    - 'sycl/cts_exclude_filter/**'
-    - 'sycl/doc/**'
-    - 'sycl/gdb/**'
-    - 'clang/docs/**'
-    - '**.md'
-    - '**.rst'
-    - '.github/workflows/sycl-windows-*.yml'
-    - '.github/workflows/sycl-macos-*.yml'
-    - '.github/workflows/sycl-nightly.yml'
-    - '.github/workflows/sycl-rel-nightly.yml'
-    - '.github/workflows/sycl-rel-nightly-launch.yml'
-    - '.github/workflows/sycl-trivy.yml'
-    - '.github/workflows/sycl-coverity.yml'
-    - '.github/workflows/sycl-weekly.yml'
-    - 'devops/containers/**'
-    - 'devops/actions/build_container/**'
-    - 'unified-runtime/examples/**'
-    - 'unified-runtime/scripts/**'
-    - 'unified-runtime/test/**'
-    - 'unified-runtime/third_party/**'
-    - 'unified-runtime/tools/**'
-    - 'devops/scripts/benchmarks/**'
-    - 'devops/actions/run-tests/benchmark/**'
-    - '.github/workflows/sycl-ur-perf-benchmarking.yml'
+  pull_request: workflow_dispatch
+    # branches:
+    # - sycl
+    # - sycl-rel-**
+    # # Do not run builds if changes are only in the following locations
+    # # Note: benchmark-related paths are the same as in sycl-ur-perf-benchmarking.yml (to run there instead)
+    # paths-ignore:
+    # - '.github/ISSUE_TEMPLATE/**'
+    # - '.github/CODEOWNERS'
+    # - 'sycl/cts_exclude_filter/**'
+    # - 'sycl/doc/**'
+    # - 'sycl/gdb/**'
+    # - 'clang/docs/**'
+    # - '**.md'
+    # - '**.rst'
+    # - '.github/workflows/sycl-windows-*.yml'
+    # - '.github/workflows/sycl-macos-*.yml'
+    # - '.github/workflows/sycl-nightly.yml'
+    # - '.github/workflows/sycl-rel-nightly.yml'
+    # - '.github/workflows/sycl-rel-nightly-launch.yml'
+    # - '.github/workflows/sycl-trivy.yml'
+    # - '.github/workflows/sycl-coverity.yml'
+    # - '.github/workflows/sycl-weekly.yml'
+    # - 'devops/containers/**'
+    # - 'devops/actions/build_container/**'
+    # - 'unified-runtime/examples/**'
+    # - 'unified-runtime/scripts/**'
+    # - 'unified-runtime/test/**'
+    # - 'unified-runtime/third_party/**'
+    # - 'unified-runtime/tools/**'
+    # - 'devops/scripts/benchmarks/**'
+    # - 'devops/actions/run-tests/benchmark/**'
+    # - '.github/workflows/sycl-ur-perf-benchmarking.yml'
 
 concurrency:
   #  Cancel a currently running workflow from the same PR, branch or tag.

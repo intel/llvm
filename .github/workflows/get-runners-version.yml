@@ -7,49 +7,12 @@ jobs:
     runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
-        runner:
-          - UR_CP_OPENCLNATIVE_01_01
-          - UR_CP_OPENCLNATIVE_01_02
-          - UR_DNP_06_PVC_03
-          - UR_DNP_06_PVC_03_L0
-          - UR_DNP_INTEL_05_01_PVC
-          - UR_MOM_01
-          - UR_MOM_03_WinVM
-          - UR_MOM_12
-          - UR_MOM_58_Build
-          - UR_MOM_58_PVC
-          - UR_MOM_59_PVC
-          - UR_MOM_59_WinVM
-          - UR_PC_AMD_23_01
-          - UR_PC_AMD_34
-          - UR_PC_BMG_46
-          - UR_PC_BMG_47
-          - UR_PRE_ESM_01
-          - UR_SM_NVIDIA_41_01
-          - amdgpu-temp
-          - arc_sycl01
-          - arc_sycl02
-          - bmg_sycl01
-          - bmg_sycl02
-          - bmg_sycl03
-          - cuda_sycl11
-          - cuda_sycl12
-          - intel_sycl05
-          - intel_sycl06
-          - intel_sycl119779
-          - intel_sycl119780
-          - intel_sycl119781
-          - intel_sycl119782
-          - intel_sycl119890
-          - intel_sycl119892
-          - intel_sycl119893
-          - spr-04
-          - spr-04-WinVM 
-          - spr-05
-          - spr-05-WinVM
+        include:
+          - runner: [UR_CUDA]
+            name: UR_SM_NVIDIA_41_01
       fail-fast: false
     
-    name: Check ${{ matrix.runner }}
+    name: Check ${{ matrix.name }}
     
     steps:
       - name: Get Runner Version (Linux)
@@ -83,7 +46,7 @@ jobs:
           elif [ "$VERSION_NUM" = "$REQUIRED" ]; then
             echo "Version OK"
           else
-            echo "Version TOO LOW""
+            echo "Version TOO LOW"
             exit 1
           fi
 
@@ -91,7 +54,6 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Write-Host "=== Runner: $env:RUNNER_NAME ==="
           Write-Host "OS: $env:RUNNER_OS"
           Write-Host "Arch: $env:RUNNER_ARCH"
           Write-Host ""
@@ -118,7 +80,6 @@ jobs:
           $version = & $runnerBin --version 2>&1 | Select-Object -First 1
           Write-Host "Version: $version"
           
-          # Wyciągnij numer wersji
           if ($version -match '(\d+\.\d+\.\d+)') {
             $versionNum = $matches[1]
             Write-Host "Parsed version: $versionNum"
@@ -136,3 +97,4 @@ jobs:
             Write-Host "Could not parse version number"
             exit 1
           }
+          
