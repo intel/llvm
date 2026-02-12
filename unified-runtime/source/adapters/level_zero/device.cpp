@@ -1326,10 +1326,6 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP: {
-    auto Res = Device->Platform->populateDeviceCacheIfNeeded();
-    if (Res != UR_RESULT_SUCCESS) {
-      return Res;
-    }
     auto Supported = Device->Platform->ZeDeviceSynchronizeSupported;
     return ReturnValue(Supported);
   }
