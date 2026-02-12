@@ -32,7 +32,7 @@ template <clock_scope Scope> inline uint64_t clock_impl() {
   } else {
     return 0;
   }
-#else if defined(__AMDGCN__)
+#elif defined(__AMDGCN__)
   // Currently clock() is not supported on AMDGCN.
   return 0;
 #else
