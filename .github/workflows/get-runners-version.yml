@@ -1,0 +1,138 @@
+name: Runner Version Check
+
+on: [push, pull_request]
+
+jobs:
+  check-runner-version:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        runner:
+          - UR_CP_OPENCLNATIVE_01_01
+          - UR_CP_OPENCLNATIVE_01_02
+          - UR_DNP_06_PVC_03
+          - UR_DNP_06_PVC_03_L0
+          - UR_DNP_INTEL_05_01_PVC
+          - UR_MOM_01
+          - UR_MOM_03_WinVM
+          - UR_MOM_12
+          - UR_MOM_58_Build
+          - UR_MOM_58_PVC
+          - UR_MOM_59_PVC
+          - UR_MOM_59_WinVM
+          - UR_PC_AMD_23_01
+          - UR_PC_AMD_34
+          - UR_PC_BMG_46
+          - UR_PC_BMG_47
+          - UR_PRE_ESM_01
+          - UR_SM_NVIDIA_41_01
+          - amdgpu-temp
+          - arc_sycl01
+          - arc_sycl02
+          - bmg_sycl01
+          - bmg_sycl02
+          - bmg_sycl03
+          - cuda_sycl11
+          - cuda_sycl12
+          - intel_sycl05
+          - intel_sycl06
+          - intel_sycl119779
+          - intel_sycl119780
+          - intel_sycl119781
+          - intel_sycl119782
+          - intel_sycl119890
+          - intel_sycl119892
+          - intel_sycl119893
+          - spr-04
+          - spr-04-WinVM 
+          - spr-05
+          - spr-05-WinVM
+      fail-fast: false
+    
+    name: Check ${{ matrix.runner }}
+    
+    steps:
+      - name: Get Runner Version (Linux)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          echo "OS: $RUNNER_OS"
+          echo "Arch: $RUNNER_ARCH"
+          echo ""
+          
+          RUNNER_BIN=""
+          if [ -f "$HOME/actions-runner/bin/Runner.Listener" ]; then
+            RUNNER_BIN="$HOME/actions-runner/bin/Runner.Listener"
+          elif [ -f "/opt/actions-runner/bin/Runner.Listener" ]; then
+            RUNNER_BIN="/opt/actions-runner/bin/Runner.Listener"
+          else
+            echo "Runner.Listener not found"
+            exit 1
+          fi
+          
+          echo "Found runner at: $RUNNER_BIN"
+          VERSION=$($RUNNER_BIN --version 2>&1 | head -n1 || echo "unknown")
+          echo "Version: $VERSION"
+          
+          VERSION_NUM=$(echo "$VERSION" | grep -oP '\d+\.\d+\.\d+' || echo "0.0.0")
+          echo "Parsed version: $VERSION_NUM"
+          
+          REQUIRED="2.329.0"
+          if [ "$(printf '%s\n' "$REQUIRED" "$VERSION_NUM" | sort -V | head -n1)" = "$REQUIRED" ] && [ "$VERSION_NUM" != "$REQUIRED" ]; then
+            echo "Version OK"
+          elif [ "$VERSION_NUM" = "$REQUIRED" ]; then
+            echo "Version OK"
+          else
+            echo "Version TOO LOW""
+            exit 1
+          fi
+
+      - name: Get Runner Version (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Host "=== Runner: $env:RUNNER_NAME ==="
+          Write-Host "OS: $env:RUNNER_OS"
+          Write-Host "Arch: $env:RUNNER_ARCH"
+          Write-Host ""
+          
+          $runnerPaths = @(
+            "$env:USERPROFILE\actions-runner\bin\Runner.Listener.exe",
+            "C:\actions-runner\bin\Runner.Listener.exe"
+          )
+          
+          $runnerBin = $null
+          foreach ($path in $runnerPaths) {
+            if (Test-Path $path) {
+              $runnerBin = $path
+              break
+            }
+          }
+          
+          if (-not $runnerBin) {
+            Write-Host "Runner.Listener.exe not found"
+            exit 1
+          }
+          
+          Write-Host "Found runner at: $runnerBin"
+          $version = & $runnerBin --version 2>&1 | Select-Object -First 1
+          Write-Host "Version: $version"
+          
+          # Wyciągnij numer wersji
+          if ($version -match '(\d+\.\d+\.\d+)') {
+            $versionNum = $matches[1]
+            Write-Host "Parsed version: $versionNum"
+            
+            $required = [version]"2.329.0"
+            $current = [version]$versionNum
+            
+            if ($current -ge $required) {
+              Write-Host "Version OK"
+            } else {
+              Write-Host "Version TOO LOW"
+              exit 1
+            }
+          } else {
+            Write-Host "Could not parse version number"
+            exit 1
+          }
