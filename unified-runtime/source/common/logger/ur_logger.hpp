@@ -91,7 +91,7 @@ inline void init(const std::string &name) { get_logger(name.c_str()); }
 
 // safe version of UR_LOG that catches exceptions from the logger
 #define UR_LOG_SAFE(level, ...)                                                \
-  {                                                                            \
+  do {                                                                         \
     try {                                                                      \
       UR_LOG(level, __VA_ARGS__);                                              \
     } catch (const std::exception &e) {                                        \
@@ -99,7 +99,7 @@ inline void init(const std::string &name) { get_logger(name.c_str()); }
     } catch (...) {                                                            \
       std::fprintf(stderr, "Unknown error during logging\n");                  \
     }                                                                          \
-  }
+  } while (0)
 
 inline void setLevel(ur_logger_level_t level) { get_logger().setLevel(level); }
 
