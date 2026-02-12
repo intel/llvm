@@ -6869,12 +6869,11 @@ class EnumValueTemplateArgPrinter
 
   void printEnumValue(QualType EnumTy, const llvm::APSInt &Val) {
     OS << "static_cast<";
-    if (const auto *ET = EnumTy->getAs<EnumType>()) {
+    if (const auto *ET = EnumTy->getAs<EnumType>())
       ET->getOriginalDecl()->printQualifiedName(OS, Policy,
                                                 /*WithGlobalNsPrefix=*/false);
-    } else {
+    else
       EnumTy.print(OS, Policy);
-    }
     llvm::SmallString<32> Num;
     Val.toString(Num, /*Radix=*/10, /*Signed=*/Val.isSigned());
     OS << ">(" << Num << ")";
@@ -6965,11 +6964,11 @@ public:
     }
     E = E->IgnoreParenImpCasts();
     const EnumConstantDecl *ECD = nullptr;
-    if (const auto *DRE = dyn_cast<DeclRefExpr>(E)) {
+    if (const auto *DRE = dyn_cast<DeclRefExpr>(E))
       ECD = dyn_cast<EnumConstantDecl>(DRE->getDecl());
-    } else if (const auto *ME = dyn_cast<MemberExpr>(E)) {
+    else if (const auto *ME = dyn_cast<MemberExpr>(E))
       ECD = dyn_cast<EnumConstantDecl>(ME->getMemberDecl());
-    }
+
     if (ECD)
       return printEnumValue(ECD->getType(), ECD->getInitVal());
 
