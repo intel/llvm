@@ -2087,8 +2087,6 @@ DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
   StringRef Arch = Args.MakeArgString(Input.front().getBinary()->getArch());
   DAL.AddJoinedArg(nullptr, Tbl.getOption(OPT_arch_EQ),
                    Arch == "generic" ? "" : Arch);
-  errs() << "Read Triple: " << Input.front().getBinary()->getTriple().str()
-         << "\n";
   DAL.AddJoinedArg(nullptr, Tbl.getOption(OPT_triple_EQ),
                    Args.MakeArgString(Input.front().getBinary()->getTriple()));
 
