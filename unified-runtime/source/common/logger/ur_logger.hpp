@@ -89,6 +89,18 @@ inline void init(const std::string &name) { get_logger(name.c_str()); }
   URLOG_L_(::logger::get_logger(), level, legacy_message, __VA_ARGS__)
 #define UR_LOG_L(logger, level, ...) URLOG_(logger, level, __VA_ARGS__)
 
+// safe version of UR_LOG that catches exceptions from the logger
+#define UR_LOG_SAFE(level, ...)                                                \
+  {                                                                            \
+    try {                                                                      \
+      UR_LOG(level, __VA_ARGS__);                                              \
+    } catch (const std::exception &e) {                                        \
+      std::fprintf(stderr, "Error during logging: %s\n", e.what());            \
+    } catch (...) {                                                            \
+      std::fprintf(stderr, "Unknown error during logging\n");                  \
+    }                                                                          \
+  }
+
 inline void setLevel(ur_logger_level_t level) { get_logger().setLevel(level); }
 
 inline void setFlushLevel(ur_logger_level_t level) {
