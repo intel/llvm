@@ -144,7 +144,9 @@ template <typename T> static unsigned asUInt(T val) {
 
 static IntegerType *getSizeTTy(Module &M) {
   LLVMContext &Ctx = M.getContext();
-  auto PtrSize = M.getDataLayout().getPointerTypeSize(PointerType::getUnqual(Ctx));
+  const DataLayout &DL = M.getDataLayout();
+  auto PtrSize = DL.getPointerTypeSize(
+      PointerType::get(Ctx, DL.getDefaultGlobalsAddressSpace()));
   return PtrSize == 8 ? Type::getInt64Ty(Ctx) : Type::getInt32Ty(Ctx);
 }
 
@@ -207,6 +209,22 @@ static bool hasCallToAFuncWithWGMetadata(Function &F) {
       Function *F = dyn_cast_or_null<Function>(Call ? Call->getCalledFunction()
                                                     : nullptr);
       if (F && hasCallToAFuncWithWGMetadata(*F))
+        return true;
+    }
+  return false;
+}
+
+// Recursively searches for a call to a function with parallel_for_work_item
+// metadata inside F.
+static bool hasCallToAFuncWithPFWIMetadata(Function &F) {
+  for (auto &BB : F)
+    for (auto &I : BB) {
+      if (isCallToAFuncMarkedWithMD(&I, PFWI_MD))
+        return true;
+      const CallInst *Call = dyn_cast<CallInst>(&I);
+      Function *F = dyn_cast_or_null<Function>(Call ? Call->getCalledFunction()
+                                                    : nullptr);
+      if (F && hasCallToAFuncWithPFWIMetadata(*F))
         return true;
     }
   return false;
@@ -833,6 +851,21 @@ PreservedAnalyses SYCLLowerWGScopePass::run(Function &F,
         }
         continue;
       }
+      // We also split the range if the instruction is a call that contains,
+      // possibly several layers down the stack, a call to a
+      // parallel_for_work_item. Such calls should not be subject to lowering
+      // since they must be executed by every work item.
+      const CallInst *Call = dyn_cast<CallInst>(I);
+      if (Call && hasCallToAFuncWithPFWIMetadata(*Call->getCalledFunction())) {
+        if (First) {
+          assert(Last && "range must have been closed 1");
+          Ranges.push_back(InstrRange{First, Last});
+          First = nullptr;
+          Last = nullptr;
+        }
+        continue;
+      }
+
       if (!mayHaveSideEffects(I))
         continue;
       LLVM_DEBUG(llvm::dbgs() << "+++ Side effects: " << *I << "\n");
@@ -931,30 +964,29 @@ GlobalVariable *spirv::createWGLocalVariable(Module &M, Type *T,
 // Return a value equals to 0 if and only if the local linear id is 0.
 Value *spirv::genPseudoLocalID(Instruction &Before, const Triple &TT) {
   Module &M = *Before.getModule();
-  if (TT.isNVPTX() || TT.isAMDGCN() || sycl::utils::isSYCLNativeCPU(M)) {
+  if (TT.isNVPTX() || TT.isAMDGCN() || TT.isNativeCPU()) {
     LLVMContext &Ctx = Before.getContext();
     Type *RetTy = getSizeTTy(M);
 
     IRBuilder<> Bld(Ctx);
     Bld.SetInsertPoint(&Before);
 
-    auto CreateCallee = [&](StringRef Name) {
-      FunctionCallee Callee = M.getOrInsertFunction(Name, RetTy);
+    auto CreateCallee = [&](StringRef Name, int Dim) {
+      auto *ArgTy = Type::getInt32Ty(Ctx);
+      FunctionCallee Callee = M.getOrInsertFunction(Name, RetTy, ArgTy);
       assert(Callee.getCallee() && "spirv intrinsic creation failed");
-      return Bld.CreateCall(Callee, {});
+      return Bld.CreateCall(Callee, {ConstantInt::get(ArgTy, Dim)});
     };
 
-    Value *LocalInvocationIdX =
-        CreateCallee("_Z27__spirv_LocalInvocationId_xv");
-    Value *LocalInvocationIdY =
-        CreateCallee("_Z27__spirv_LocalInvocationId_yv");
-    Value *LocalInvocationIdZ =
-        CreateCallee("_Z27__spirv_LocalInvocationId_zv");
+    StringRef LocalInvocationIdName = "_Z32__spirv_BuiltInLocalInvocationIdi";
+    Value *LocalInvocationIdX = CreateCallee(LocalInvocationIdName, 0);
+    Value *LocalInvocationIdY = CreateCallee(LocalInvocationIdName, 1);
+    Value *LocalInvocationIdZ = CreateCallee(LocalInvocationIdName, 2);
 
     // 1: returns
-    //   __spirv_LocalInvocationId_x() |
-    //   __spirv_LocalInvocationId_y() |
-    //   __spirv_LocalInvocationId_z()
+    //   __spirv_BuiltInLocalInvocationId() |
+    //   __spirv_BuiltInLocalInvocationId() |
+    //   __spirv_BuiltInLocalInvocationId()
     //
     return Bld.CreateOr(LocalInvocationIdX,
                         Bld.CreateOr(LocalInvocationIdY, LocalInvocationIdZ));

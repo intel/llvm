@@ -88,13 +88,6 @@ int main(int argc, char *argv[]) {
   device D = Q.get_device();
   context C = Q.get_context();
 
-  const char *devType = D.is_cpu() ? "CPU" : "GPU";
-  std::string adapterName =
-      D.get_platform().get_info<sycl::info::platform::name>();
-  std::cout << "Running on device " << devType << " ("
-            << D.get_info<sycl::info::device::name>() << ") " << adapterName
-            << " adapter\n";
-
   if (*argv[1] == 'h') {
     std::cerr << "Test zeMemAllocHost\n";
     test_host(C);
@@ -113,8 +106,8 @@ int main(int argc, char *argv[]) {
 // CHECK-NOPOOL-NEXT:  zeDeviceGetMemoryAccessProperties
 // CHECK-NOPOOL-NEXT:  [[API]](
 // CHECK-NOPOOL-NEXT:  [[API]](
-// CHECK-NOPOOL-NEXT:  zeMemFree
-// CHECK-NOPOOL-NEXT:  zeMemFree
+// CHECK-NOPOOL:  zeMemFree
+// CHECK-NOPOOL:  zeMemFree
 // CHECK-NOPOOL-NEXT:  [[API]](
 // CHECK-NOPOOL-NEXT:  [[API]](
 // CHECK-NOPOOL-NEXT:  [[API]](
@@ -123,8 +116,8 @@ int main(int argc, char *argv[]) {
 // CHECK-12345-NEXT:  zeDeviceGetMemoryAccessProperties
 // CHECK-12345-NEXT:  [[API]](
 // CHECK-12345-NEXT:  [[API]](
-// CHECK-12345-NEXT:  zeMemFree
-// CHECK-12345-NEXT:  zeMemFree
+// CHECK-12345:  zeMemFree
+// CHECK-12345:  zeMemFree
 // CHECK-12345-NEXT:  [[API]](
 // CHECK-12345-NEXT:  [[API]](
 // CHECK-12345-NEXT:  [[API]](
@@ -133,7 +126,7 @@ int main(int argc, char *argv[]) {
 // CHECK-1245-NEXT:  zeDeviceGetMemoryAccessProperties
 // CHECK-1245-NEXT:  [[API]](
 // CHECK-1245-NEXT:  [[API]](
-// CHECK-1245-NEXT:  zeMemFree
+// CHECK-1245:  zeMemFree
 // CHECK-1245-NEXT:  [[API]](
 // CHECK-1245-NEXT:  [[API]](
 
@@ -141,4 +134,4 @@ int main(int argc, char *argv[]) {
 // CHECK-15-NEXT:  zeDeviceGetMemoryAccessProperties
 // CHECK-15-NEXT:  [[API]](
 // CHECK-15-NEXT:  [[API]](
-// CHECK-15-NEXT:  zeMemFree
+// CHECK-15:  zeMemFree

@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -8,11 +8,11 @@
 #include <uur/fixtures.h>
 
 using urKernelRetainTest = uur::urKernelTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelRetainTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urKernelRetainTest);
 
 TEST_P(urKernelRetainTest, Success) {
   ASSERT_SUCCESS(urKernelRetain(kernel));
-  EXPECT_SUCCESS(urKernelRelease(kernel));
+  ASSERT_SUCCESS(urKernelRelease(kernel));
 }
 
 TEST_P(urKernelRetainTest, InvalidNullHandleKernel) {

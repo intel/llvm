@@ -23,10 +23,12 @@ add_ur_adapter(${TARGET_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/enqueue_native.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/event.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/event.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/graph.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/image.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/image.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/kernel.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/kernel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/memory_export.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/memory.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/memory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/physical_mem.hpp
@@ -61,22 +63,16 @@ add_library(cudadrv SHARED IMPORTED GLOBAL)
 
 if (WIN32)
   set_target_properties(
-    cudadrv PROPERTIES 
-      IMPORTED_IMPLIB               ${CUDA_cuda_driver_LIBRARY}
-      INTERFACE_INCLUDE_DIRECTORIES ${CUDAToolkit_INCLUDE_DIRS}
+    cudadrv PROPERTIES
+      IMPORTED_IMPLIB               "${CUDA_cuda_driver_LIBRARY}"
+      INTERFACE_INCLUDE_DIRECTORIES "${CUDAToolkit_INCLUDE_DIRS}"
   )
 else()
   set_target_properties(
-    cudadrv PROPERTIES 
-      IMPORTED_LOCATION             ${CUDA_cuda_driver_LIBRARY}
-      INTERFACE_INCLUDE_DIRECTORIES ${CUDAToolkit_INCLUDE_DIRS}
+    cudadrv PROPERTIES
+      IMPORTED_LOCATION             "${CUDA_cuda_driver_LIBRARY}"
+      INTERFACE_INCLUDE_DIRECTORIES "${CUDAToolkit_INCLUDE_DIRS}"
   )
-endif()
-
-if(UMF_ENABLE_POOL_TRACKING)
-  target_compile_definitions("ur_adapter_cuda" PRIVATE UMF_ENABLE_POOL_TRACKING)
-else()
-  message(WARNING "CUDA adapter USM pools are disabled, set UMF_ENABLE_POOL_TRACKING to enable them")
 endif()
 
 # Only enable xpti tracing on Linux as tracing tools aren't available on
@@ -108,6 +104,8 @@ if (UR_ENABLE_TRACING AND UNIX)
 
   target_include_directories(${TARGET_NAME} PRIVATE
     ${XPTI_INCLUDES}
+  )
+  target_include_directories(${TARGET_NAME} SYSTEM PRIVATE
     ${CUDAToolkit_CUPTI_INCLUDE_DIR}
   )
   target_sources(${TARGET_NAME} PRIVATE ${XPTI_PROXY_SRC})

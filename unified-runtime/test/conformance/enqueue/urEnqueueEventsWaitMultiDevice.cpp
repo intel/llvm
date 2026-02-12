@@ -20,6 +20,7 @@ void checkDevicesSupportSharedUSM(
         uur::GetDeviceUSMSingleSharedSupport(device, shared_usm_single));
     if (!shared_usm_single) {
       GTEST_SKIP() << "Shared USM is not supported by the device.";
+      return;
     }
   }
 }
@@ -28,10 +29,12 @@ struct urEnqueueEventsWaitMultiDeviceTest
     : uur::urMultiQueueMultiDeviceTest<2> {
   void SetUp() override {
     UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+    // https://github.com/intel/llvm/issues/19607
+    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
 
     UUR_RETURN_ON_FATAL_FAILURE(uur::urMultiQueueMultiDeviceTest<2>::SetUp());
 
-    checkDevicesSupportSharedUSM(devices);
+    UUR_RETURN_ON_FATAL_FAILURE(checkDevicesSupportSharedUSM(devices));
 
     ptrs.resize(devices.size());
     for (size_t i = 0; i < devices.size(); i++) {
@@ -124,12 +127,15 @@ struct urEnqueueEventsWaitMultiDeviceMTTest
   }
 
   void SetUp() override {
+    // https://github.com/intel/llvm/issues/19607
+    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+
     UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::NativeCPU{});
 
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::urMultiQueueMultiDeviceTestWithParam<8,
                                                   uur::BoolTestParam>::SetUp());
-    checkDevicesSupportSharedUSM(devices);
+    UUR_RETURN_ON_FATAL_FAILURE(checkDevicesSupportSharedUSM(devices));
 
     ptrs.resize(devices.size());
     for (size_t i = 0; i < devices.size(); i++) {

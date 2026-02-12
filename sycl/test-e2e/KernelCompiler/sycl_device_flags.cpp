@@ -13,7 +13,7 @@
 // UNSUPPORTED-INTENDED:  IGC shader dump not available on Windows.
 
 // RUN: %{build} -o %t.out
-// RUN: env IGC_DumpToCustomDir=%T.dump IGC_ShaderDumpEnable=1 NEO_CACHE_PERSISTENT=0 %{run} %t.out %T.dump/
+// RUN: env IGC_DumpToCustomDir=%t.dump IGC_ShaderDumpEnable=1 NEO_CACHE_PERSISTENT=0 %{run} %t.out %t.dump/
 
 // clang-format off
 /*
@@ -119,8 +119,7 @@ int main(int argc, char *argv[]) {
   sycl::queue q;
   sycl::context ctx = q.get_context();
 
-  bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl);
+  bool ok = q.get_device().ext_oneapi_can_build(syclex::source_language::sycl);
   if (!ok) {
     std::cout << "compiling from SYCL source not supported" << std::endl;
     return 0; // if kernel compilation is not supported, do nothing.

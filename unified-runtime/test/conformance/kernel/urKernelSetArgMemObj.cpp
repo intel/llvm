@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -9,14 +9,14 @@
 #include <uur/known_failure.h>
 
 struct urKernelSetArgMemObjTest : uur::urKernelTest {
-  void SetUp() {
+  void SetUp() override {
     program_name = "fill";
     UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
     ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE,
                                      16 * sizeof(uint32_t), nullptr, &buffer));
   }
 
-  void TearDown() {
+  void TearDown() override {
     if (buffer) {
       ASSERT_SUCCESS(urMemRelease(buffer));
     }
@@ -25,7 +25,7 @@ struct urKernelSetArgMemObjTest : uur::urKernelTest {
 
   ur_mem_handle_t buffer = nullptr;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelSetArgMemObjTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urKernelSetArgMemObjTest);
 
 TEST_P(urKernelSetArgMemObjTest, Success) {
   ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, 0, nullptr, buffer));

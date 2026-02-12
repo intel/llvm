@@ -7,6 +7,9 @@
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out shared equally | FileCheck %s --check-prefix CHECK-SHARED --implicit-check-not piContextCreate --implicit-check-not piMemBufferCreate
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out fused  equally | FileCheck %s --check-prefix CHECK-FUSED --implicit-check-not piContextCreate --implicit-check-not piMemBufferCreate
 
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
 #include <iostream>
 #include <string>
 #include <sycl/detail/core.hpp>
@@ -64,7 +67,7 @@ static bool check_separate(device dev, buffer<int, 1> buf,
   // CHECK-SEPARATE: <--- urContextCreate
   // CHECK-SEPARATE: <--- urQueueCreate
   // CHECK-SEPARATE: <--- urMemBufferCreate
-  // CHECK-SEPARATE: <--- urEnqueueKernelLaunch
+  // CHECK-SEPARATE: <--- urEnqueueKernelLaunchWithArgsExp
   // CHECK-SEPARATE: <--- urQueueFinish
 
   log_pi("Test sub device 1");
@@ -81,7 +84,7 @@ static bool check_separate(device dev, buffer<int, 1> buf,
   // CHECK-SEPARATE: <--- urEnqueueMemBuffer{{Map|Read}}
   // CHECK-SEPARATE: <--- urEnqueueMemBufferWrite
   //
-  // CHECK-SEPARATE: <--- urEnqueueKernelLaunch
+  // CHECK-SEPARATE: <--- urEnqueueKernelLaunchWithArgsExp
   // CHECK-SEPARATE: <--- urQueueFinish
 
   return true;
@@ -116,7 +119,7 @@ static bool check_shared_context(device dev, buffer<int, 1> buf,
   // Make sure that a single buffer is created (and shared between subdevices):
   // see --implicit-check-not above.
   //
-  // CHECK-SHARED: <--- urEnqueueKernelLaunch
+  // CHECK-SHARED: <--- urEnqueueKernelLaunchWithArgsExp
   // CHECK-SHARED: <--- urQueueFinish
 
   log_pi("Test sub device 1");
@@ -126,7 +129,7 @@ static bool check_shared_context(device dev, buffer<int, 1> buf,
   }
   // CHECK-SHARED: Test sub device 1
   // CHECK-SHARED: <--- urQueueCreate
-  // CHECK-SHARED: <--- urEnqueueKernelLaunch
+  // CHECK-SHARED: <--- urEnqueueKernelLaunchWithArgsExp
   // CHECK-SHARED: <--- urQueueFinish
   // CHECK-SHARED: <--- urEnqueueMemBufferRead
 
@@ -165,7 +168,7 @@ static bool check_fused_context(device dev, buffer<int, 1> buf,
   // Make sure that a single buffer is created (and shared between subdevices
   // *and* the root device): see --implicit-check-not above.
   //
-  // CHECK-FUSED: <--- urEnqueueKernelLaunch
+  // CHECK-FUSED: <--- urEnqueueKernelLaunchWithArgsExp
   // CHECK-FUSED: <--- urQueueFinish
 
   log_pi("Test sub device 0");
@@ -175,7 +178,7 @@ static bool check_fused_context(device dev, buffer<int, 1> buf,
   }
   // CHECK-FUSED: Test sub device 0
   // CHECK-FUSED: <--- urQueueCreate
-  // CHECK-FUSED: <--- urEnqueueKernelLaunch
+  // CHECK-FUSED: <--- urEnqueueKernelLaunchWithArgsExp
   // CHECK-FUSED: <--- urQueueFinish
 
   log_pi("Test sub device 1");
@@ -185,7 +188,7 @@ static bool check_fused_context(device dev, buffer<int, 1> buf,
   }
   // CHECK-FUSED: Test sub device 1
   // CHECK-FUSED: <--- urQueueCreate
-  // CHECK-FUSED: <--- urEnqueueKernelLaunch
+  // CHECK-FUSED: <--- urEnqueueKernelLaunchWithArgsExp
   // CHECK-FUSED: <--- urQueueFinish
   // CHECK-FUSED: <--- urEnqueueMemBufferRead
 

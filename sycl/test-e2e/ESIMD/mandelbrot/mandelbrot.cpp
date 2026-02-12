@@ -6,8 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_legacy_image
-// RUN: %{build} -o %t.out
-// RUN: %{run} %t.out %T/output.ppm %S/golden_hw.ppm
+// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
+// RUN: %{build} %{mathflags} -o %t.out
+// RUN: rm -rf %t.dir; mkdir -p %t.dir
+// RUN: %{run} %t.out %t.dir/output.ppm %S/golden_hw.ppm
 
 #include "../esimd_test_utils.hpp"
 

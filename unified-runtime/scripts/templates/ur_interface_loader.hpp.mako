@@ -18,12 +18,17 @@ from templates import helper as th
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#pragma once
+
 #include <${n}_api.h>
 #include <${n}_ddi.h>
 
 namespace ${n}::${adapter} {
 %for s in specs:
 %for obj in th.filter_items(s['objects'], 'type', 'function'):
+%if 'guard' in obj:
+// ${obj['guard']}
+%endif
 %if not th.obj_traits.is_loader_only(obj):
 ${x}_result_t ${th.make_func_name(n, tags, obj)}(
     %for line in th.make_param_lines(n, tags, obj, format=["type", "name", "delim"]):
@@ -31,9 +36,16 @@ ${x}_result_t ${th.make_func_name(n, tags, obj)}(
     %endfor
     );
 %endif
+%if 'guard' in obj:
+// end ${obj['guard']}
+%endif
 %endfor
 %endfor
 #ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
 ur_result_t urAdapterGetDdiTables(ur_dditable_t *ddi);
 #endif
+
+struct ddi_getter {
+  const static ${x}_dditable_t *value();
+};
 }

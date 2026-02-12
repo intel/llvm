@@ -55,6 +55,26 @@ checkUnresolvedSymbols(ze_module_handle_t ZeModule,
 }
 } // extern "C"
 
+static ur_program_handle_t_::CodeFormat matchILCodeFormat(const void *Input,
+                                                          size_t Length) {
+  const auto MatchMagicNumber = [&](uint32_t Number) {
+    return Length >= sizeof(Number) &&
+           std::memcmp(Input, &Number, sizeof(Number)) == 0;
+  };
+
+  // SPIR-V Specification: 3.1 Magic Number
+  // https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#Magic
+  if (MatchMagicNumber(0x07230203)) {
+    return ur_program_handle_t_::CodeFormat::SPIRV;
+  }
+
+  return ur_program_handle_t_::CodeFormat::Unknown;
+}
+
+static bool isCodeFormatIL(ur_program_handle_t_::CodeFormat CodeFormat) {
+  return CodeFormat == ur_program_handle_t_::CodeFormat::SPIRV;
+}
+
 namespace ur::level_zero {
 
 ur_result_t urProgramCreateWithIL(
@@ -65,15 +85,17 @@ ur_result_t urProgramCreateWithIL(
     /// [in] length of `pIL` in bytes.
     size_t Length,
     /// [in][optional] pointer to program creation properties.
-    const ur_program_properties_t *Properties,
+    const ur_program_properties_t * /*Properties*/,
     /// [out] pointer to handle of program object created.
     ur_program_handle_t *Program) {
-  std::ignore = Properties;
   UR_ASSERT(Context, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(IL && Program, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  const ur_program_handle_t_::CodeFormat CodeFormat =
+      matchILCodeFormat(IL, Length);
+  UR_ASSERT(isCodeFormatIL(CodeFormat), UR_RESULT_ERROR_INVALID_BINARY);
   try {
-    ur_program_handle_t_ *UrProgram =
-        new ur_program_handle_t_(ur_program_handle_t_::IL, Context, IL, Length);
+    ur_program_handle_t_ *UrProgram = new ur_program_handle_t_(
+        ur_program_handle_t_::IL, Context, IL, Length, CodeFormat);
     *Program = reinterpret_cast<ur_program_handle_t>(UrProgram);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
@@ -114,7 +136,7 @@ ur_result_t urProgramCreateWithBinary(
   // information to distinguish the cases.
   try {
     for (uint32_t i = 0; i < numDevices; i++) {
-      UR_ASSERT(ppBinaries[i] || !pLengths[0], UR_RESULT_ERROR_INVALID_VALUE);
+      UR_ASSERT(ppBinaries[i] || !pLengths[i], UR_RESULT_ERROR_INVALID_VALUE);
       UR_ASSERT(hContext->isValidDevice(phDevices[i]),
                 UR_RESULT_ERROR_INVALID_DEVICE);
     }
@@ -139,7 +161,8 @@ ur_result_t urProgramBuild(
     const char *Options) {
   std::vector<ur_device_handle_t> Devices = Context->getDevices();
   return ur::level_zero::urProgramBuildExp(Program, Devices.size(),
-                                           Devices.data(), Options);
+                                           Devices.data(),
+                                           ur_exp_program_flags_t{}, Options);
 }
 
 ur_result_t urProgramBuildExp(
@@ -149,6 +172,8 @@ ur_result_t urProgramBuildExp(
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) {
   // TODO
@@ -196,9 +221,17 @@ ur_result_t urProgramBuildExp(
     auto Code = hProgram->getCode(ZeDevice);
     UR_ASSERT(Code, UR_RESULT_ERROR_INVALID_PROGRAM);
 
-    ZeModuleDesc.format = (State == ur_program_handle_t_::IL)
-                              ? ZE_MODULE_FORMAT_IL_SPIRV
-                              : ZE_MODULE_FORMAT_NATIVE;
+    switch (hProgram->getCodeFormat(ZeDevice)) {
+    case ur_program_handle_t_::CodeFormat::SPIRV:
+      ZeModuleDesc.format = ZE_MODULE_FORMAT_IL_SPIRV;
+      break;
+    case ur_program_handle_t_::CodeFormat::Native:
+      ZeModuleDesc.format = ZE_MODULE_FORMAT_NATIVE;
+      break;
+    default:
+      ur::unreachable();
+      return UR_RESULT_ERROR_INVALID_PROGRAM;
+    }
     ZeModuleDesc.inputSize = hProgram->getCodeSize(ZeDevice);
     ZeModuleDesc.pInputModule = Code;
     ze_context_handle_t ZeContext = hProgram->Context->getZeHandle();
@@ -221,10 +254,11 @@ ur_result_t urProgramBuildExp(
     } else {
       // The call to zeModuleCreate does not report an error if there are
       // unresolved symbols because it thinks these could be resolved later via
-      // a call to zeModuleDynamicLink.  However, modules created with
-      // urProgramBuild are supposed to be fully linked and ready to use.
-      // Therefore, do an extra check now for unresolved symbols.
-      ZeResult = checkUnresolvedSymbols(ZeModuleHandle, &ZeBuildLog);
+      // a call to zeModuleDynamicLink.  However, unless explicitly allowed,
+      // modules created with urProgramBuild are supposed to be fully linked and
+      // ready to use. Therefore, do an extra check now for unresolved symbols.
+      if (!(flags & UR_EXP_PROGRAM_FLAG_ALLOW_UNRESOLVED_SYMBOLS))
+        ZeResult = checkUnresolvedSymbols(ZeModuleHandle, &ZeBuildLog);
       if (ZeResult != ZE_RESULT_SUCCESS) {
         hProgram->setState(ZeDevice, ur_program_handle_t_::Invalid);
         Result = (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE)
@@ -250,6 +284,8 @@ ur_result_t urProgramCompileExp(
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    [[maybe_unused]] ur_exp_program_flags_t flags,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) {
   std::scoped_lock<ur_shared_mutex> Guard(hProgram->Mutex);
@@ -295,7 +331,8 @@ ur_result_t urProgramCompile(
     const char *Options) {
   auto devices = Context->getDevices();
   return ur::level_zero::urProgramCompileExp(Program, devices.size(),
-                                             devices.data(), Options);
+                                             devices.data(),
+                                             ur_exp_program_flags_t{}, Options);
 }
 
 ur_result_t urProgramLink(
@@ -310,9 +347,9 @@ ur_result_t urProgramLink(
     /// [out] pointer to handle of program object created.
     ur_program_handle_t *Program) {
   std::vector<ur_device_handle_t> Devices = Context->getDevices();
-  return ur::level_zero::urProgramLinkExp(Context, Devices.size(),
-                                          Devices.data(), Count, Programs,
-                                          Options, Program);
+  return ur::level_zero::urProgramLinkExp(
+      Context, Devices.size(), Devices.data(), ur_exp_program_flags_t{}, Count,
+      Programs, Options, Program);
 }
 
 ur_result_t urProgramLinkExp(
@@ -322,6 +359,8 @@ ur_result_t urProgramLinkExp(
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
     /// [in] number of program handles in `phPrograms`.
     uint32_t count,
     /// [in][range(0, count)] pointer to array of program handles.
@@ -350,40 +389,64 @@ ur_result_t urProgramLinkExp(
     *phProgram = reinterpret_cast<ur_program_handle_t>(UrProgram);
     return UR_RESULT_ERROR_PROGRAM_LINK_FAILURE;
   }
-
   ur_result_t UrResult = UR_RESULT_SUCCESS;
   try {
-    // Acquire a "shared" lock on each of the input programs, and also validate
-    // that they are all in Object state for each device in the input list.
+    // Acquire a "shared" lock on each of the input programs, and also
+    // validate that they are all in Object or Native state for each device in
+    // the input list.
     //
     // There is no danger of deadlock here even if two threads call
-    // urProgramLink simultaneously with the same input programs in a different
-    // order.  If we were acquiring these with "exclusive" access, this could
-    // lead to a classic lock ordering deadlock.  However, there is no such
-    // deadlock potential with "shared" access.  There could also be a deadlock
-    // potential if there was some other code that holds more than one of these
-    // locks simultaneously with "exclusive" access.  However, there is no such
-    // code like that, so this is also not a danger.
+    // urProgramLink simultaneously with the same input programs in a
+    // different order.  If we were acquiring these with "exclusive" access,
+    // this could lead to a classic lock ordering deadlock.  However, there is
+    // no such deadlock potential with "shared" access.  There could also be a
+    // deadlock potential if there was some other code that holds more than
+    // one of these locks simultaneously with "exclusive" access.  However,
+    // there is no such code like that, so this is also not a danger.
     std::vector<std::shared_lock<ur_shared_mutex>> Guards(count);
+    const ur_program_handle_t_::state CommonState =
+        phPrograms[0]->getState(phDevices[0]->ZeDevice);
+    if (CommonState != ur_program_handle_t_::Object &&
+        CommonState != ur_program_handle_t_::Native) {
+      return UR_RESULT_ERROR_INVALID_OPERATION;
+    }
+    bool NativeInput = CommonState == ur_program_handle_t_::Native;
+    const ur_program_handle_t_::CodeFormat CommonCodeFormat =
+        phPrograms[0]->getCodeFormat(NativeInput ? phDevices[0]->ZeDevice
+                                                 : nullptr);
+    // Native programs are passed to this function to resolve external
+    // symbols, which requires multiple input programs.
+    if (NativeInput && count == 1) {
+      return UR_RESULT_ERROR_INVALID_OPERATION;
+    }
     for (uint32_t I = 0; I < count; I++) {
       std::shared_lock<ur_shared_mutex> Guard(phPrograms[I]->Mutex);
       Guards[I].swap(Guard);
+
       for (uint32_t DeviceIndex = 0; DeviceIndex < numDevices; DeviceIndex++) {
         auto Device = phDevices[DeviceIndex];
-        if (phPrograms[I]->getState(Device->ZeDevice) !=
-            ur_program_handle_t_::Object) {
+        if (phPrograms[I]->getState(Device->ZeDevice) != CommonState) {
           return UR_RESULT_ERROR_INVALID_OPERATION;
+        }
+        // The L0 API has no way to represent mixed format modules,
+        // even though it could be possible to implement linking
+        // of mixed format modules.
+        if (phPrograms[I]->getCodeFormat(
+                NativeInput ? Device->ZeDevice : nullptr) != CommonCodeFormat) {
+          return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
         }
       }
     }
 
-    // Previous calls to urProgramCompile did not actually compile the SPIR-V.
-    // Instead, we postpone compilation until this point, when all the modules
-    // are linked together.  By doing compilation and linking together, the JIT
-    // compiler is able see all modules and do cross-module optimizations.
-    //
-    // Construct a ze_module_program_exp_desc_t which contains information about
-    // all of the modules that will be linked together.
+    // For SPIR-V input programs, previous calls to urProgramCompile did not
+    // actually compile the SPIR-V. Instead, we postpone compilation until this
+    // point, when all the modules are linked together.  By doing compilation
+    // and linking together, the JIT compiler is able see all modules and do
+    // cross-module optimizations. This means that both SPIR-V and native
+    // programs can be passed to the module program extension directly.
+
+    // Construct a ze_module_program_exp_desc_t which contains information
+    // about all of the modules that will be linked together.
     ZeStruct<ze_module_program_exp_desc_t> ZeExtModuleDesc;
     std::vector<size_t> CodeSizes(count);
     std::vector<const uint8_t *> CodeBufs(count);
@@ -396,18 +459,32 @@ ur_result_t urProgramLinkExp(
       ur_program_handle_t Program = phPrograms[I];
       CodeSizes[I] = Program->getCodeSize();
       CodeBufs[I] = Program->getCode();
-      SpecConstShims.emplace_back(Program);
-      SpecConstPtrs[I] = SpecConstShims[I].ze();
+      if (!NativeInput) {
+        SpecConstShims.emplace_back(Program);
+        SpecConstPtrs[I] = SpecConstShims[I].ze();
+      }
     }
 
     ZeExtModuleDesc.count = count;
     ZeExtModuleDesc.inputSizes = CodeSizes.data();
     ZeExtModuleDesc.pInputModules = CodeBufs.data();
-    ZeExtModuleDesc.pConstants = SpecConstPtrs.data();
+    if (!NativeInput) {
+      ZeExtModuleDesc.pConstants = SpecConstPtrs.data();
+    }
 
     ZeStruct<ze_module_desc_t> ZeModuleDesc;
     ZeModuleDesc.pNext = &ZeExtModuleDesc;
-    ZeModuleDesc.format = ZE_MODULE_FORMAT_IL_SPIRV;
+    switch (CommonCodeFormat) {
+    case ur_program_handle_t_::CodeFormat::SPIRV:
+      ZeModuleDesc.format = ZE_MODULE_FORMAT_IL_SPIRV;
+      break;
+    case ur_program_handle_t_::CodeFormat::Native:
+      ZeModuleDesc.format = ZE_MODULE_FORMAT_NATIVE;
+      break;
+    default:
+      ur::unreachable();
+      return UR_RESULT_ERROR_INVALID_PROGRAM;
+    }
 
     // This works around a bug in the Level Zero driver.  When "ZE_DEBUG=-1",
     // the driver does validation of the API calls, and it expects
@@ -420,15 +497,15 @@ ur_result_t urProgramLinkExp(
     ZeModuleDesc.pInputModule = reinterpret_cast<const uint8_t *>(1);
     ZeModuleDesc.inputSize = 1;
 
-    // We need a Level Zero extension to compile multiple programs together into
-    // a single Level Zero module.  However, we don't need that extension if
-    // there happens to be only one input program.
+    // We need a Level Zero extension to compile multiple programs together
+    // into a single Level Zero module.  However, we don't need that extension
+    // if there happens to be only one input program.
     //
     // The "|| (NumInputPrograms == 1)" term is a workaround for a bug in the
     // Level Zero driver.  The driver's "ze_module_program_exp_desc_t"
     // extension should work even in the case when there is just one input
-    // module.  However, there is currently a bug in the driver that leads to a
-    // crash.  As a workaround, do not use the extension when there is one
+    // module.  However, there is currently a bug in the driver that leads to
+    // a crash.  As a workaround, do not use the extension when there is one
     // input module.
     //
     // TODO: Remove this workaround when the driver is fixed.
@@ -440,9 +517,9 @@ ur_result_t urProgramLinkExp(
         ZeModuleDesc.pInputModule = ZeExtModuleDesc.pInputModules[0];
         ZeModuleDesc.pConstants = ZeExtModuleDesc.pConstants[0];
       } else {
-        logger::error(
-            "urProgramLink: level_zero driver does not have static linking "
-            "support.");
+        UR_LOG(ERR,
+               "urProgramLink: level_zero driver does not have static linking "
+               "support.");
         return UR_RESULT_ERROR_INVALID_VALUE;
       }
     }
@@ -450,12 +527,18 @@ ur_result_t urProgramLinkExp(
     ur_program_handle_t_ *UrProgram = new ur_program_handle_t_(hContext);
     *phProgram = reinterpret_cast<ur_program_handle_t>(UrProgram);
     for (uint32_t i = 0; i < numDevices; i++) {
-
       // Call the Level Zero API to compile, link, and create the module.
       ze_device_handle_t ZeDevice = phDevices[i]->ZeDevice;
       ze_context_handle_t ZeContext = hContext->getZeHandle();
       ze_module_handle_t ZeModule = nullptr;
       ze_module_build_log_handle_t ZeBuildLog = nullptr;
+
+      if (NativeInput) {
+        for (uint32_t I = 0; I < count; I++) {
+          CodeSizes[I] = phPrograms[I]->getCodeSize(ZeDevice);
+          CodeBufs[I] = phPrograms[I]->getCode(ZeDevice);
+        }
+      }
 
       // Build flags may be different for different devices, so handle them
       // here. Clear values of the previous device first.
@@ -473,8 +556,9 @@ ur_result_t urProgramLinkExp(
                                            &ZeModule, &ZeBuildLog));
 
       // We still create a ur_program_handle_t_ object even if there is a
-      // BUILD_FAILURE because we need the object to hold the ZeBuildLog.  There
-      // is no build log created for other errors, so we don't create an object.
+      // BUILD_FAILURE because we need the object to hold the ZeBuildLog.
+      // There is no build log created for other errors, so we don't create an
+      // object.
       UrResult = ze2urResult(ZeResult);
       if (ZeResult != ZE_RESULT_SUCCESS &&
           ZeResult != ZE_RESULT_ERROR_MODULE_BUILD_FAILURE) {
@@ -482,23 +566,70 @@ ur_result_t urProgramLinkExp(
       }
 
       // The call to zeModuleCreate does not report an error if there are
-      // unresolved symbols because it thinks these could be resolved later via
-      // a call to zeModuleDynamicLink.  However, modules created with
+      // unresolved symbols because it thinks these could be resolved later
+      // via a call to zeModuleDynamicLink.  However, modules created with
       // piProgramLink are supposed to be fully linked and ready to use.
-      // Therefore, do an extra check now for unresolved symbols.  Note that we
-      // still create a ur_program_handle_t_ if there are unresolved symbols
-      // because the ZeBuildLog tells which symbols are unresolved.
-      if (ZeResult == ZE_RESULT_SUCCESS) {
+      // Therefore, do an extra check now for unresolved symbols.  Note that
+      // we still create a ur_program_handle_t_ if there are unresolved
+      // symbols because the ZeBuildLog tells which symbols are unresolved.
+      if (ZeResult == ZE_RESULT_SUCCESS &&
+          !(flags & UR_EXP_PROGRAM_FLAG_ALLOW_UNRESOLVED_SYMBOLS)) {
         ZeResult = checkUnresolvedSymbols(ZeModule, &ZeBuildLog);
-        if (ZeResult != ZE_RESULT_SUCCESS) {
-          return ze2urResult(ZeResult);
-        }
+        UrResult = ze2urResult(ZeResult);
       }
       UrProgram->setZeModule(ZeDevice, ZeModule);
       UrProgram->setBuildLog(ZeDevice, ZeBuildLog);
       UrProgram->setState(ZeDevice, (UrResult == UR_RESULT_SUCCESS)
                                         ? ur_program_handle_t_::Exe
                                         : ur_program_handle_t_::Invalid);
+      if (ZeResult != ZE_RESULT_SUCCESS) {
+        return UrResult;
+      }
+    }
+  } catch (const std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  return UrResult;
+}
+
+ur_result_t urProgramDynamicLinkExp(
+    /// [in] handle of the context instance.
+    ur_context_handle_t hContext,
+    /// [in] number of program handles in `phPrograms`.
+    uint32_t count,
+    /// [in][range(0, count)] pointer to array of program handles.
+    const ur_program_handle_t *phPrograms) {
+  ur_result_t UrResult = UR_RESULT_SUCCESS;
+
+  try {
+    // Reserve room for all modules. It may be too much on some devices, which
+    // is why we do not resize.
+    std::vector<ze_module_handle_t> ZeModules;
+    ZeModules.reserve(count);
+
+    for (ur_device_handle_t Device : hContext->getDevices()) {
+      for (uint32_t I = 0; I < count; ++I) {
+        if (phPrograms[I]->hasZeModuleForDevice(Device->ZeDevice)) {
+          ZeModules.push_back(
+              phPrograms[I]->getZeModuleHandle(Device->ZeDevice));
+        }
+      }
+
+      if (ZeModules.empty())
+        continue;
+
+      // TODO: What should be done with the log? Since there is no result
+      // program, what can it be attached to?
+      ze_result_t ZeResult = ZE_CALL_NOCHECK(
+          zeModuleDynamicLink, (ZeModules.size(), ZeModules.data(), nullptr));
+
+      if (ZeResult != ZE_RESULT_SUCCESS)
+        return ze2urResult(ZeResult);
+
+      // Clear so the storage stays allocated, but the size is reset to 0.
+      ZeModules.clear();
     }
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
@@ -511,14 +642,47 @@ ur_result_t urProgramLinkExp(
 ur_result_t urProgramRetain(
     /// [in] handle for the Program to retain
     ur_program_handle_t Program) {
-  Program->RefCount.increment();
+  Program->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urProgramRelease(
     /// [in] handle for the Program to release
     ur_program_handle_t Program) {
-  if (!Program->RefCount.decrementAndTest())
+  if (!Program)
+    return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+  // Detect double-release by attempting to safely access program members
+  // and catching any access violations that indicate freed memory
+  try {
+    // First, try to access the RefCount to see if it's valid
+    uint32_t currentRefCount = Program->RefCount.getCount();
+
+    if (currentRefCount == 0) {
+      // This is a double-release - RefCount should never be 0 when
+      // urProgramRelease is called
+      return UR_RESULT_ERROR_INVALID_PROGRAM;
+    }
+
+    if (Program->resourcesReleased) {
+      // Resources already released, this is a double-release attempt
+      return UR_RESULT_ERROR_INVALID_PROGRAM;
+    }
+
+    if (!Program->Context) {
+      // Check if the program has a valid context
+      return UR_RESULT_ERROR_INVALID_PROGRAM;
+    }
+
+  } catch (...) {
+    // If we can't safely access the program members, it's likely
+    // corrupted/freed This catches the case where urProgramRelease is called on
+    // the same module twice
+    return UR_RESULT_ERROR_INVALID_PROGRAM;
+  }
+
+  // Perform the actual release
+  if (!Program->RefCount.release())
     return UR_RESULT_SUCCESS;
 
   delete Program;
@@ -561,7 +725,8 @@ ur_result_t urProgramGetFunctionPointer(
     ur_program_handle_t Program,
     /// [in] A null-terminates string denoting the mangled function name.
     const char *FunctionName,
-    /// [out] Returns the pointer to the function if it is found in the program.
+    /// [out] Returns the pointer to the function if it is found in the
+    /// program.
     void **FunctionPointerRet) {
   std::shared_lock<ur_shared_mutex> Guard(Program->Mutex);
   if (Program->getState(Device->ZeDevice) != ur_program_handle_t_::Exe) {
@@ -649,10 +814,11 @@ ur_result_t urProgramGetInfo(
     ur_program_info_t PropName,
     /// [in] the size of the Program property.
     size_t PropSize,
-    /// [in,out][optional] array of bytes of holding the program info property.
-    /// If propSize is not equal to or greater than the real number of bytes
-    /// needed to return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error
-    /// is returned and pProgramInfo is not used.
+    /// [in,out][optional] array of bytes of holding the program info
+    /// property. If propSize is not equal to or greater than the real number
+    /// of bytes needed to return the info then the
+    /// ::UR_RESULT_ERROR_INVALID_SIZE error is returned and pProgramInfo is
+    /// not used.
     void *ProgramInfo,
     /// [out][optional] pointer to the actual size in bytes of data copied to
     /// propName.
@@ -661,7 +827,7 @@ ur_result_t urProgramGetInfo(
 
   switch (PropName) {
   case UR_PROGRAM_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{Program->RefCount.load()});
+    return ReturnValue(uint32_t{Program->RefCount.getCount()});
   case UR_PROGRAM_INFO_CONTEXT:
     return ReturnValue(Program->Context);
   case UR_PROGRAM_INFO_NUM_DEVICES:
@@ -699,62 +865,41 @@ ur_result_t urProgramGetInfo(
     return ReturnValue(binarySizes.data(), binarySizes.size());
   }
   case UR_PROGRAM_INFO_BINARIES: {
-    // The caller sets "ParamValue" to an array of pointers, one for each
-    // device.
-    uint8_t **PBinary = nullptr;
-    if (ProgramInfo) {
-      PBinary = ur_cast<uint8_t **>(ProgramInfo);
-      if (!PBinary[0]) {
-        break;
-      }
-    }
     std::shared_lock<ur_shared_mutex> Guard(Program->Mutex);
-    uint8_t *NativeBinaryPtr = nullptr;
-    if (PBinary) {
-      NativeBinaryPtr = PBinary[0];
+    size_t NumDevices = Program->AssociatedDevices.size();
+    if (PropSizeRet) {
+      // Return the size of the array of pointers to binaries (for each
+      // device).
+      *PropSizeRet = NumDevices * sizeof(uint8_t *);
     }
 
-    size_t SzBinary = 0;
-    for (uint32_t deviceIndex = 0;
-         deviceIndex < Program->AssociatedDevices.size(); deviceIndex++) {
+    // If the caller did not provide an array of pointers to copy binaries
+    // into, return early.
+    if (!ProgramInfo)
+      break;
+
+    // If the caller provided an array of pointers, copy the binaries.
+    uint8_t **DestBinPtrs = ur_cast<uint8_t **>(ProgramInfo);
+    for (uint32_t deviceIndex = 0; deviceIndex < NumDevices; deviceIndex++) {
+      uint8_t *DestBinPtr = DestBinPtrs[deviceIndex];
+      if (!DestBinPtr)
+        continue;
+
       auto ZeDevice = Program->AssociatedDevices[deviceIndex]->ZeDevice;
       auto State = Program->getState(ZeDevice);
       if (State == ur_program_handle_t_::Native) {
         // If Program was created from Native code then return that code.
-        if (PBinary) {
-          std::memcpy(PBinary[deviceIndex], Program->getCode(ZeDevice),
-                      Program->getCodeSize(ZeDevice));
-        }
-        SzBinary += Program->getCodeSize(ZeDevice);
-        continue;
-      }
-      if (State == ur_program_handle_t_::IL ||
-          State == ur_program_handle_t_::Object) {
-        // We don't have a binary for this device, so don't update the output
-        // pointer to the binary, only set return size to 0.
-        if (PropSizeRet)
-          *PropSizeRet = 0;
+        std::memcpy(DestBinPtr, Program->getCode(ZeDevice),
+                    Program->getCodeSize(ZeDevice));
       } else if (State == ur_program_handle_t_::Exe) {
         auto ZeModule = Program->getZeModuleHandle(ZeDevice);
         if (!ZeModule) {
           return UR_RESULT_ERROR_INVALID_PROGRAM;
         }
-        size_t binarySize = 0;
-        if (PBinary) {
-          NativeBinaryPtr = PBinary[deviceIndex];
-        }
-        // If the caller is using a Program which is a built binary, then
-        // the program returned will either be a single module if this is a
-        // native binary or the native binary for each device will be returned.
-        ZE2UR_CALL(zeModuleGetNativeBinary,
-                   (ZeModule, &binarySize, NativeBinaryPtr));
-        SzBinary += binarySize;
-      } else {
-        return UR_RESULT_ERROR_INVALID_PROGRAM;
+        size_t DummySize;
+        ZE2UR_CALL(zeModuleGetNativeBinary, (ZeModule, &DummySize, DestBinPtr));
       }
     }
-    if (PropSizeRet)
-      *PropSizeRet = SzBinary;
     break;
   }
   case UR_PROGRAM_INFO_NUM_KERNELS: {
@@ -834,7 +979,6 @@ ur_result_t urProgramGetBuildInfo(
     /// [out][optional] pointer to the actual size in bytes of data being
     /// queried by propName.
     size_t *PropSizeRet) {
-  std::ignore = Device;
 
   std::shared_lock<ur_shared_mutex> Guard(Program->Mutex);
   UrReturnHelper ReturnValue(PropSize, PropValue, PropSizeRet);
@@ -894,7 +1038,7 @@ ur_result_t urProgramGetBuildInfo(
     // program.
     return ReturnValue("");
   } else {
-    logger::error("urProgramGetBuildInfo: unsupported ParamName");
+    UR_LOG(ERR, "urProgramGetBuildInfo: unsupported ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
   return UR_RESULT_SUCCESS;
@@ -902,18 +1046,15 @@ ur_result_t urProgramGetBuildInfo(
 
 ur_result_t urProgramSetSpecializationConstant(
     /// [in] handle of the Program object
-    ur_program_handle_t Program,
+    ur_program_handle_t /*Program*/,
     /// [in] specification constant Id
-    uint32_t SpecId,
+    uint32_t /*SpecId*/,
     /// [in] size of the specialization constant value
-    size_t SpecSize,
+    size_t /*SpecSize*/,
     /// [in] pointer to the specialization value bytes
-    const void *SpecValue) {
-  std::ignore = Program;
-  std::ignore = SpecId;
-  std::ignore = SpecSize;
-  std::ignore = SpecValue;
-  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+    const void * /*SpecValue*/) {
+  UR_LOG_LEGACY(ERR,
+                logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
@@ -965,7 +1106,6 @@ ur_result_t urProgramCreateWithNativeHandle(
         ur_program_handle_t_::Exe, Context, ZeModule,
         Properties ? Properties->isNativeHandleOwned : false);
     *Program = reinterpret_cast<ur_program_handle_t>(UrProgram);
-    (*Program)->IsInteropNativeHandle = true;
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -985,8 +1125,9 @@ ur_result_t urProgramSetSpecializationConstants(
   std::scoped_lock<ur_shared_mutex> Guard(Program->Mutex);
 
   // Remember the value of this specialization constant until the program is
-  // built.  Note that we only save the pointer to the buffer that contains the
-  // value.  The caller is responsible for maintaining storage for this buffer.
+  // built.  Note that we only save the pointer to the buffer that contains
+  // the value.  The caller is responsible for maintaining storage for this
+  // buffer.
   //
   // NOTE: SpecSize is unused in Level Zero, the size is known from SPIR-V by
   // SpecID.
@@ -1001,11 +1142,13 @@ ur_result_t urProgramSetSpecializationConstants(
 
 ur_program_handle_t_::ur_program_handle_t_(state St,
                                            ur_context_handle_t Context,
-                                           const void *Input, size_t Length)
+                                           const void *Input, size_t Length,
+                                           CodeFormat CodeFormat)
     : Context{Context}, NativeProperties{nullptr}, OwnZeModule{true},
-      AssociatedDevices(Context->getDevices()), SpirvCode{new uint8_t[Length]},
-      SpirvCodeLength{Length} {
-  std::memcpy(SpirvCode.get(), Input, Length);
+      AssociatedDevices(Context->getDevices()), ILCode{new uint8_t[Length]},
+      ILCodeLength{Length}, ILCodeFormat(CodeFormat) {
+  assert(isCodeFormatIL(CodeFormat));
+  std::memcpy(ILCode.get(), Input, Length);
   // All devices have the program in IL state.
   for (auto &Device : Context->getDevices()) {
     DeviceData &PerDevData = DeviceDataMap[Device->ZeDevice];
@@ -1071,13 +1214,13 @@ void ur_program_handle_t_::ur_release_program_resources(bool deletion) {
   // must be destroyed before the Module can be destroyed.  So, be sure
   // to destroy build log before destroying the module.
   if (!deletion) {
-    if (!RefCount.decrementAndTest()) {
+    if (!RefCount.release()) {
       return;
     }
   }
   if (!resourcesReleased) {
     for (auto &[ZeDevice, DeviceData] : this->DeviceDataMap) {
-      if (DeviceData.ZeBuildLog)
+      if (DeviceData.ZeBuildLog && checkL0LoaderTeardown())
         ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (DeviceData.ZeBuildLog));
     }
     // interop api
@@ -1086,7 +1229,7 @@ void ur_program_handle_t_::ur_release_program_resources(bool deletion) {
     }
 
     for (auto &[ZeDevice, DeviceData] : this->DeviceDataMap)
-      if (DeviceData.ZeModule)
+      if (DeviceData.ZeModule && checkL0LoaderTeardown())
         ZE_CALL_NOCHECK(zeModuleDestroy, (DeviceData.ZeModule));
 
     this->DeviceDataMap.clear();

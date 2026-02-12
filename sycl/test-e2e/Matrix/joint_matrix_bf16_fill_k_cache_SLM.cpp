@@ -5,11 +5,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: target-nvidia, target-amd
-// UNSUPPORTED-INTENDED: aspect-ext_intel_matrix isn't currently supported for
-// other triples
+// REQUIRES: target-spir
 
 // REQUIRES: aspect-ext_intel_matrix, gpu
+
+// XFAIL: arch-intel_gpu_pvc
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21094
 
 // RUN: %{build} -o %t_gpu_vnni.out %fp-model-precise -DSLM -DVNNI
 // RUN: %{run} %t_gpu_vnni.out

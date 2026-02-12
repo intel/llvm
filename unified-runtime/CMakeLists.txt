@@ -40,7 +40,6 @@ option(UR_ENABLE_TRACING "enable api tracing through xpti" OFF)
 option(UR_ENABLE_SANITIZER "enable device sanitizer" ON)
 option(UR_ENABLE_SYMBOLIZER "enable symoblizer for sanitizer" OFF)
 option(UMF_BUILD_SHARED_LIBRARY "Build UMF as shared library" ON)
-option(UMF_ENABLE_POOL_TRACKING "Build UMF with pool tracking" ON)
 option(UR_BUILD_ADAPTER_L0 "Build the Level-Zero adapter" OFF)
 option(UR_BUILD_ADAPTER_OPENCL "Build the OpenCL adapter" OFF)
 option(UR_BUILD_ADAPTER_CUDA "Build the CUDA adapter" OFF)
@@ -48,6 +47,7 @@ option(UR_BUILD_ADAPTER_HIP "Build the HIP adapter" OFF)
 option(UR_BUILD_ADAPTER_NATIVE_CPU "Build the Native-CPU adapter" OFF)
 option(UR_BUILD_ADAPTER_ALL "Build all currently supported adapters" OFF)
 option(UR_BUILD_ADAPTER_L0_V2 "Build the (experimental) Level-Zero v2 adapter" OFF)
+option(UR_BUILD_ADAPTER_OFFLOAD "Build the experimental Offload adapter" OFF)
 option(UR_STATIC_ADAPTER_L0 "Build the Level-Zero adapter as static and embed in the loader" OFF)
 option(UR_BUILD_EXAMPLE_CODEGEN "Build the codegen example." OFF)
 option(VAL_USE_LIBBACKTRACE_BACKTRACE "enable libbacktrace validation backtrace for linux" OFF)
@@ -56,17 +56,19 @@ option(UR_BUILD_XPTI_LIBS "Build the XPTI libraries when tracing is enabled" ON)
 option(UR_STATIC_LOADER "Build loader as a static library" OFF)
 option(UR_FORCE_LIBSTDCXX "Force use of libstdc++ in a build using libc++ on Linux" OFF)
 option(UR_ENABLE_LATENCY_HISTOGRAM "Enable latncy histogram" OFF)
-set(UR_EXTERNAL_DEPENDENCIES "" CACHE LIST
+option(UR_FORCE_FETCH_LEVEL_ZERO "Force fetching Level Zero even if preinstalled loader is found" OFF)
+set(UR_EXTERNAL_DEPENDENCIES "" CACHE STRING
     "List of external CMake targets for executables/libraries to depend on")
 set(UR_DPCXX "" CACHE FILEPATH "Path of the DPC++ compiler executable")
 set(UR_DPCXX_BUILD_FLAGS "" CACHE STRING "Build flags to pass to DPC++ when compiling device programs")
+set(UR_DEVICE_CODE_EXTRACTOR "" CACHE PATH "Path to clang-offload-extract")
 set(UR_SYCL_LIBRARY_DIR "" CACHE PATH
     "Path of the SYCL runtime library directory")
 set(UR_CONFORMANCE_TARGET_TRIPLES "" CACHE STRING
     "List of sycl targets to build CTS device binaries for")
 set(UR_CONFORMANCE_AMD_ARCH "" CACHE STRING "AMD device target ID to build CTS binaries for")
-option(UR_CONFORMANCE_ENABLE_MATCH_FILES "Enable CTS match files" ON)
-option(UR_CONFORMANCE_TEST_LOADER "Also test the loader in the conformance tests" OFF)
+set(UR_CONFORMANCE_SELECTOR "" CACHE STRING "If nonempty, the device selector for conformance tests")
+option(UR_USE_DEBUG_POSTFIX "Enable debug postfix 'd' for libraries" OFF)
 set(UR_ADAPTER_LEVEL_ZERO_SOURCE_DIR "" CACHE PATH
     "Path to external 'level_zero' adapter source dir")
 set(UR_ADAPTER_OPENCL_SOURCE_DIR "" CACHE PATH
@@ -143,6 +145,28 @@ if(NOT MSVC)
     endif()
 endif()
 
+if(NOT UR_STANDALONE_BUILD AND "${UR_DPCXX}" STREQUAL "")
+    set(UR_FOUND_DPCXX "$<TARGET_FILE:clang>")
+    set(UR_FOUND_DEVICE_CODE_EXTRACTOR "$<TARGET_FILE:clang-offload-extract>")
+    set(UR_DPCXX_DEPS "sycl-toolchain;")
+else()
+    set(UR_FOUND_DPCXX "${UR_DPCXX}")
+    if(UR_DEVICE_CODE_EXTRACTOR)
+        set(UR_FOUND_DEVICE_CODE_EXTRACTOR "${UR_DEVICE_CODE_EXTRACTOR}")
+    else()
+        cmake_path(GET UR_FOUND_DPCXX EXTENSION EXE)
+        cmake_path(REPLACE_FILENAME UR_FOUND_DPCXX "clang-offload-extract${EXE}" OUTPUT_VARIABLE UR_FOUND_DEVICE_CODE_EXTRACTOR)
+    endif()
+    set(UR_DPCXX_DEPS "")
+endif()
+
+if(NOT UR_STANDALONE_BUILD AND
+    UR_ENABLE_TRACING AND
+    DEFINED LLVM_EXTERNAL_PROJECTS AND
+    (NOT "xpti" IN_LIST LLVM_EXTERNAL_PROJECTS OR NOT "xptifw" IN_LIST LLVM_EXTERNAL_PROJECTS))
+  message(FATAL_ERROR "UR_ENABLE_TRACING=ON but XPTI is not going to be built")
+endif()
+
 if(UR_ENABLE_TRACING)
     add_compile_definitions(UR_ENABLE_TRACING)
 
@@ -202,7 +226,7 @@ if(UR_ENABLE_TRACING)
     endif()
 
     if (MSVC)
-        set(TARGET_XPTI $<IF:$<CONFIG:Release>,xpti,xptid>)
+        set(TARGET_XPTI $<IF:$<CONFIG:Release,RelWithDebInfo,MinSizeRel>,xpti,xptid>)
     else()
         set(TARGET_XPTI xpti)
     endif()
@@ -251,7 +275,7 @@ endif()
 if(NOT (UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_HIP
     OR UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_OPENCL
     OR UR_BUILD_ADAPTER_NATIVE_CPU OR UR_BUILD_ADAPTER_L0_V2
-    OR UR_BUILD_ADAPTER_ALL))
+    OR UR_BUILD_ADAPTER_OFFLOAD OR UR_BUILD_ADAPTER_ALL))
     message(WARNING "No adapters have been enabled; conformance tests will not be ran")
     message(STATUS "Consider setting UR_BUILD_ADAPTER_*")
 endif()
@@ -300,6 +324,7 @@ file(GLOB_RECURSE license_src ${license_glob})
 
 # Add license check target
 list(FILTER license_src EXCLUDE REGEX "registry.yml")
+list(FILTER format_src EXCLUDE REGEX "source/adapters/level_zero/external")
 add_custom_target(verify-licenses
     COMMAND ${Python3_EXECUTABLE}
         "${PROJECT_SOURCE_DIR}/scripts/verify_license.py"

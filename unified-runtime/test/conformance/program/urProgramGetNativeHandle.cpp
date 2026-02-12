@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -7,14 +7,14 @@
 #include <uur/fixtures.h>
 
 using urProgramGetNativeHandleTest = uur::urProgramTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urProgramGetNativeHandleTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urProgramGetNativeHandleTest);
 
 TEST_P(urProgramGetNativeHandleTest, Success) {
-  ur_platform_backend_t backend;
+  ur_backend_t backend;
   ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                    sizeof(backend), &backend, nullptr));
   // For Level Zero we have to build the program to have the native handle.
-  if (backend == UR_PLATFORM_BACKEND_LEVEL_ZERO) {
+  if (backend == UR_BACKEND_LEVEL_ZERO) {
     ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
   }
   ur_native_handle_t native_program_handle = 0;

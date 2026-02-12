@@ -1,14 +1,16 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include "ur_api.h"
+#include "gtest/gtest.h"
 #include <uur/fixtures.h>
 #include <uur/known_failure.h>
 
-using urUSMFreeTest = uur::urQueueTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urUSMFreeTest);
+using urUSMFreeTest = uur::urMultiQueueTypeTest;
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(urUSMFreeTest);
 
 TEST_P(urUSMFreeTest, SuccessDeviceAlloc) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
@@ -28,10 +30,10 @@ TEST_P(urUSMFreeTest, SuccessDeviceAlloc) {
   ur_event_handle_t event = nullptr;
 
   uint8_t pattern = 0;
-  EXPECT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
+  ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
                                   allocation_size, 0, nullptr, &event));
-  EXPECT_SUCCESS(urQueueFlush(queue));
-  EXPECT_SUCCESS(urEventWait(1, &event));
+  ASSERT_SUCCESS(urQueueFlush(queue));
+  ASSERT_SUCCESS(urEventWait(1, &event));
 
   ASSERT_SUCCESS(urUSMFree(context, ptr));
   ASSERT_SUCCESS(urEventRelease(event));
@@ -53,10 +55,10 @@ TEST_P(urUSMFreeTest, SuccessHostAlloc) {
 
   ur_event_handle_t event = nullptr;
   uint8_t pattern = 0;
-  EXPECT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
+  ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
                                   allocation_size, 0, nullptr, &event));
-  EXPECT_SUCCESS(urQueueFlush(queue));
-  EXPECT_SUCCESS(urEventWait(1, &event));
+  ASSERT_SUCCESS(urQueueFlush(queue));
+  ASSERT_SUCCESS(urEventWait(1, &event));
 
   ASSERT_SUCCESS(urUSMFree(context, ptr));
   ASSERT_SUCCESS(urEventRelease(event));
@@ -84,10 +86,10 @@ TEST_P(urUSMFreeTest, SuccessSharedAlloc) {
 
   ur_event_handle_t event = nullptr;
   uint8_t pattern = 0;
-  EXPECT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
+  ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
                                   allocation_size, 0, nullptr, &event));
-  EXPECT_SUCCESS(urQueueFlush(queue));
-  EXPECT_SUCCESS(urEventWait(1, &event));
+  ASSERT_SUCCESS(urQueueFlush(queue));
+  ASSERT_SUCCESS(urEventWait(1, &event));
 
   ASSERT_SUCCESS(urUSMFree(context, ptr));
   ASSERT_SUCCESS(urEventRelease(event));
@@ -107,7 +109,7 @@ TEST_P(urUSMFreeTest, InvalidNullPtrMem) {
 // This goal of this test is to ensure urUSMFree blocks and waits for operations
 // accessing the given allocation to finish before actually freeing the memory.
 struct urUSMFreeDuringExecutionTest : uur::urKernelExecutionTest {
-  void SetUp() {
+  void SetUp() override {
     program_name = "fill_usm";
     UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTest::SetUp());
   }
@@ -118,9 +120,13 @@ struct urUSMFreeDuringExecutionTest : uur::urKernelExecutionTest {
   uint32_t data = 42;
   size_t wg_offset = 0;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urUSMFreeDuringExecutionTest);
+
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urUSMFreeDuringExecutionTest);
 
 TEST_P(urUSMFreeDuringExecutionTest, SuccessHost) {
+  // Causes an abort in liboffload
+  UUR_KNOWN_FAILURE_ON(uur::Offload{});
+
   ur_device_usm_access_capability_flags_t host_usm_flags = 0;
   ASSERT_SUCCESS(uur::GetDeviceUSMHostSupport(device, host_usm_flags));
   if (!(host_usm_flags & UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS)) {
@@ -131,15 +137,19 @@ TEST_P(urUSMFreeDuringExecutionTest, SuccessHost) {
       urUSMHostAlloc(context, nullptr, nullptr, allocation_size, &allocation));
   ASSERT_NE(allocation, nullptr);
 
-  EXPECT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, allocation));
-  EXPECT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
-  EXPECT_SUCCESS(urEnqueueKernelLaunch(
-      queue, kernel, 1, &wg_offset, &array_size, nullptr, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, allocation));
+  ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
+  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &wg_offset,
+                                       &array_size, nullptr, nullptr, 0,
+                                       nullptr, nullptr));
   ASSERT_SUCCESS(urUSMFree(context, allocation));
   ASSERT_SUCCESS(urQueueFinish(queue));
 }
 
 TEST_P(urUSMFreeDuringExecutionTest, SuccessDevice) {
+  // Causes an abort in liboffload
+  UUR_KNOWN_FAILURE_ON(uur::Offload{});
+
   ur_device_usm_access_capability_flags_t device_usm_flags = 0;
   ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, device_usm_flags));
   if (!(device_usm_flags & UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS)) {
@@ -150,16 +160,20 @@ TEST_P(urUSMFreeDuringExecutionTest, SuccessDevice) {
                                   allocation_size, &allocation));
   ASSERT_NE(allocation, nullptr);
 
-  EXPECT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, allocation));
-  EXPECT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
+  ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, allocation));
+  ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
 
-  EXPECT_SUCCESS(urEnqueueKernelLaunch(
-      queue, kernel, 1, &wg_offset, &array_size, nullptr, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &wg_offset,
+                                       &array_size, nullptr, nullptr, 0,
+                                       nullptr, nullptr));
   ASSERT_SUCCESS(urUSMFree(context, allocation));
   ASSERT_SUCCESS(urQueueFinish(queue));
 }
 
 TEST_P(urUSMFreeDuringExecutionTest, SuccessShared) {
+  // Causes an abort in liboffload
+  UUR_KNOWN_FAILURE_ON(uur::Offload{});
+
   ur_device_usm_access_capability_flags_t shared_usm_flags = 0;
   ASSERT_SUCCESS(
       uur::GetDeviceUSMSingleSharedSupport(device, shared_usm_flags));
@@ -171,10 +185,11 @@ TEST_P(urUSMFreeDuringExecutionTest, SuccessShared) {
                                   allocation_size, &allocation));
   ASSERT_NE(allocation, nullptr);
 
-  EXPECT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, allocation));
-  EXPECT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
-  EXPECT_SUCCESS(urEnqueueKernelLaunch(
-      queue, kernel, 1, &wg_offset, &array_size, nullptr, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, allocation));
+  ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
+  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &wg_offset,
+                                       &array_size, nullptr, nullptr, 0,
+                                       nullptr, nullptr));
   ASSERT_SUCCESS(urUSMFree(context, allocation));
   ASSERT_SUCCESS(urQueueFinish(queue));
 }

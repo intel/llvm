@@ -1,0 +1,322 @@
+:extension_name: SPV_INTEL_fp_conversions
+
+:convert_capability_name: FloatConversionsINTEL
+:convert_capability_token: 6215
+:OpClampConvertFToFINTEL_token: 6216
+:OpClampConvertFToSINTEL_token: 6424
+:OpStochasticRoundFToFINTEL_token: 6217
+:OpClampStochasticRoundFToFINTEL_token: 6218
+:OpClampStochasticRoundFToSINTEL_token: 6219
+
+:coop_matrix_url: https://github.khronos.org/SPIRV-Registry/extensions/KHR/SPV_KHR_cooperative_matrix.html
+:bfloat16_url: https://github.khronos.org/SPIRV-Registry/extensions/KHR/SPV_KHR_bfloat16.html
+:fp8_url: https://github.khronos.org/SPIRV-Registry/extensions/EXT/SPV_EXT_float8.html
+:fp4_url: https://github.com/intel/llvm/tree/sycl/sycl/doc/design/spirv-extensions/SPV_INTEL_float4.asciidoc
+
+{extension_name}
+================
+
+
+== Name Strings
+
+{extension_name}
+
+== Contributors
+
+- Dmitry Sidorov, Intel +
+- Victor Mustya, Intel +
+- Ben Ashbaugh, Intel +
+- Dounia Khaldi, Intel +
+- Joe Garvey, Intel +
+- Greg Lueck, Intel +
+- Pawel Jurek, Intel +
+- John Lu, Intel +
+- Eyal Radiano, Intel +
+- Mateusz Garbowski, Intel +
+
+Notice
+------
+
+Copyright (c) 2025 Intel Corporation. All rights reserved.
+
+Status
+------
+
+* Working Draft
+
+This is a preview extension specification, intended to provide early access to
+a feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products. If you are interested in using this feature in your software product,
+please let us know!
+
+== Version
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | 2025-10-24
+| Revision           | 2
+|========================================
+
+== Dependencies
+
+This extension is written against the SPIR-V Specification,
+Version 1.6 Revision 4.
+
+This extension interacts with {coop_matrix_url}[*SPV_KHR_cooperative_matrix*] extension.
+
+This extension interacts with {bfloat16_url}[*SPV_KHR_bfloat16*] extension.
+
+This extension interacts with {fp8_url}[*SPV_EXT_float8*] extension.
+
+This extension interacts with {fp4_url}[*SPV_INTEL_float4*] extension.
+
+This extension requires SPIR-V 1.0.
+
+Overview
+--------
+
+== Modifications to the SPIR-V Specification, Version 1.6
+
+=== Capabilities
+
+Modify Section 3.31, Capability, adding rows to the Capability table:
+
+--
+[options="header"]
+|====
+2+^| Capability ^| Implicitly Declares 
+| {convert_capability_token} | *{convert_capability_name}* +
+Uses *OpClampConvertFToFINTEL*, *OpStochasticRoundFToFINTEL*, *OpClampStochasticRoundFToFINTEL* and *OpClampStochasticRoundFToSINTEL*
+instructions. +
+|
+|====
+--
+
+=== Instructions
+
+==== 3.42.11. Conversion Instructions
+
+[cols="1a,1,3*3",width="100%"]
+|=====
+4+|[[OpClampConvertFToFINTEL]]*OpClampConvertFToFINTEL* +
+ +
+Converts numerically one floating point value to another.
+In case of overflow, the positive result clamps to maximum normal value.
+The negative result clamps to lowest negative normal value, which is equal to
+maximum normal value multiplied by -1. +
+ +
+_Result Type_ is the type of the converted object, it must be a scalar or
+vector of _float type_. +
+ +
+_Value_ must be a scalar or vector of _float type_. It must have a wider range
+than the _Result Type_ and it must have the same number of components as 'Result Type'. +
+ +
+Results are computed per component. +
+ +
+1+|Capability: +
+*{convert_capability_name}*
+1+| 4 | {OpClampConvertFToFINTEL_token}
+| _<id>_ +
+_Result Type_
+| _Result <id>_
+| _<id>_ +
+_Value_
+|=====
+
+[cols="1a,1,3*3",width="100%"]
+|=====
+4+|[[OpClampConvertFToSINTEL]]*OpClampConvertFToSINTEL* +
+ +
+Converts numerically a floating point value to integer.
+In case of overflow, the result is saturated to INT_MAX or INT_MIN depending on a sign bit. +
+ +
+_Result Type_ is the type of the converted object, it must be a scalar or
+vector of _integer type_. +
+ +
+_Value_ must be a scalar or vector of _float type_.
+It must have the same number of components as 'Result Type'. +
+ +
+Results are computed per component. +
+ +
+1+|Capability: +
+*{convert_capability_name}*
+1+| 4 | {OpClampConvertFToSINTEL_token}
+| _<id>_ +
+_Result Type_
+| _Result <id>_
+| _<id>_ +
+_Value_
+|=====
+
+[cols="1a,1,5*",width="100%"]
+|=====
+6+|[[OpStochasticRoundFToFINTEL]]*OpStochasticRoundFToFINTEL* +
+ +
+Converts numerically one floating point value to another using stochastic rounding.
+ +
+Stochastic rounding is performed by adding a pseudo-random bias value to the mantissa
+of the converted value as follows. The bias is first added to the mantissa of the converted value.
+If this causes the mantissa to overflow, then the exponent of the converted value
+is increased by 1 and the mantissa bits are shifted right. The value is then converted
+to the _Result Type_, rounding towards zero. If the exponent overflows when converting
+to the _Result Type_, the result of the conversion is +/- Inf. If _Result Type_ doesn't have
+Inf representation, then in case of overflow the result saturates to max normal value representable
+by the type preserving the sign. +
+ +
+As described above, each input requires a bias value in order to perform the conversion.
+These bias values are generated by executing an implementation-defined algorithm
+that produces pseudo-random values that uses _Seed_ as a starting point. This algorithm is
+guaranteed to produce repeatable bias values when the same value is passed for _Seed_. +
+ +
+The instruction also returns a value in _Next Seed_, which client code can use to generate
+good quality random biases. If the client intends to call *OpStochasticRoundFToFINTEL*
+again from the same kernel invocation, it should use this value as a new seed that it
+passes as _Seed_ in that next call. +
+ +
+_Result Type_ is the type of the converted object, it must be a scalar or
+vector of _float type_. +
+ +
+_Value_ must be a scalar or vector of _float type_. It must have a wider range
+than the _Result Type_ and it must have the same number of components as 'Result Type'. +
+ +
+_Seed_ must be a 32-bit scalar _integer type_. +
+ +
+_Next Seed_ must be of a _pointer type_ with *Function* storage class and 32-bit scalar _integer_ element type. +
+ +
+Results are computed per component. +
+ +
+
+1+|Capability: +
+*{convert_capability_name}*
+1+| 4+ | {OpStochasticRoundFToFINTEL_token}
+| _<id>_ +
+_Result Type_
+| _Result <id>_
+| _<id>_ +
+_Value_
+| _<id>_ +
+_Seed_
+| Optional _<id>_ +
+_Next Seed_
+|=====
+
+
+[cols="1a,1,5*3",width="100%"]
+|=====
+6+|[[OpClampStochasticRoundFToFINTEL]]*OpClampStochasticRoundFToFINTEL* +
+ +
+Has the same semantics as *OpStochasticRoundFToFINTEL*, with an addition, that
+in case of overflow, the positive result clamps to maximum normal value.
+The negative result clamps to lowest negative normal value, which is equal to
+maximum normal value multiplied by -1. +
+This instruction may be used for stochastic rounding operation, if a producer passes
+pseudo-random _Seed_ value. +
+ +
+_Result Type_ is the type of the converted object, it must be a scalar or
+vector of _float type_. +
+ +
+_Value_ must be a scalar or vector of _float type_. It must have a wider range
+than the _Result Type_ and it must have the same number of components as 'Result Type'. +
+ +
+_Seed_ must be a 32-bit scalar _integer type_. +
+ +
+_Next Seed_ must be of a _pointer type_ with *Function* storage class and 32-bit scalar _integer_ element type. +
+ +
+Results are computed per component. +
+ +
+1+|Capability: +
+*{convert_capability_name}*
+1+| 5+ | {OpClampStochasticRoundFToFINTEL_token}
+| _<id>_ +
+_Result Type_
+| _Result <id>_
+| _<id>_ +
+_Value_
+| _<id>_ +
+_Seed_
+| Optional _<id>_ +
+_Next Seed_
+|=====
+
+
+[cols="1a,1,5*3",width="100%"]
+|=====
+6+|[[OpClampStochasticRoundFToSINTEL]]*OpClampStochasticRoundFToSINTEL* +
+ +
+Converts a floating point value to integer using stochastic rounding.
+Has the same semantics as *OpStochasticRoundFToFINTEL*.
+In case of overflow, the result is saturated to INT_MAX or INT_MIN depending on a sign bit.
+This instruction may be used for stochastic rounding operation, if a producer
+passes pseudo-random _Seed_ value. +
+ +
+_Result Type_ is the type of the converted object, it must be a scalar or
+vector of _integer type_. +
+ +
+_Value_ must be a scalar or vector of _float type_. It must have a wider range
+than the _Result Type_ and it must have the same number of components as 'Result Type'. +
+ +
+_Seed_ must be a 32-bit scalar _integer type_. +
+ +
+Results are computed per component. +
+ +
+_Next Seed_ must be of a _pointer type_ with *Function* storage class and 32-bit scalar _integer_ element type. +
+ +
+1+|Capability: +
+*{convert_capability_name}*
+1+| 4+ | {OpClampStochasticRoundFToSINTEL_token}
+| _<id>_ +
+_Result Type_
+| _Result <id>_
+| _<id>_ +
+_Value_
+| _<id>_ +
+_Seed_
+| Optional _<id>_ +
+_Next Seed_
+|=====
+
+
+Validation Rules
+~~~~~~~~~~~~~~~~
+
+Add the following bullets to section 2.16.11, Universal Validation Rules:
+
+  * Variables with a type that is or includes a floating-point type with the *BFloat16KHR*, *Float8E4M3EXT*, *Float8E5M2EXT* and *Float4E2M1INTEL* encodings can also be used with the following instructions:
+  ** *OpClampConvertFToFINTEL*
+
+  * Variables with a type that is or includes a floating-point type with the *BFloat16KHR*, *Float8E4M3EXT*, *Float8E5M2EXT* and *Float4E2M1INTEL* encodings can also be used with the following instructions:
+  ** *OpStochasticRoundFToFINTEL*
+  ** *OpClampStochasticRoundFToFINTEL*
+
+  * Variables with a type that is or includes a floating-point type with the *BFloat16KHR* encoding can also be used with the following instructions:
+  ** *OpClampConvertFToSINTEL* and *OpClampStochasticRoundFToSINTEL*
+
+
+== Interactions with SPV_KHR_cooperative_matrix
+
+When *CooperativeMatrixKHR* capability is declared it is allowed to convert a _cooperative matrix_
+using the instructions added by this extensions. +
+If _Value_ is _cooperative matrix_, then the _Result Type_ must be a _cooperative matrix type_
+with the same _Rows_, _Columns_, _Scope_ and _Use_ operands. _Seed_ operand can be non-uniform, all
+other operands to these instructions must be dynamically
+uniform within every instance of the _Scope_ of the _cooperative matrix_. +
+
+=== Issues
+
+-
+
+Revision History
+----------------
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2024-06-15|Dmitry Sidorov|Initial revision
+|1|2025-10-24|Dmitry Sidorov|Prepare to publish
+|========================================

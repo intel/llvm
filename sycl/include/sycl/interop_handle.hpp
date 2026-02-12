@@ -109,7 +109,7 @@ public:
 #endif
   }
 
-  /// Returns an underlying native backend object associated with teh queue
+  /// Returns an underlying native backend object associated with the queue
   /// that the host task was submitted to. If the command group was submitted
   /// with a secondary queue and the fall-back was triggered, the queue that
   /// is associated with the interop_handle must be the fall-back queue.
@@ -207,19 +207,10 @@ private:
 
   interop_handle(std::vector<ReqToMem> MemObjs,
                  const std::shared_ptr<detail::queue_impl> &Queue,
-                 const std::shared_ptr<detail::device_impl> &Device,
-                 const std::shared_ptr<detail::context_impl> &Context,
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-                 [[maybe_unused]]
-#endif
                  ur_exp_command_buffer_handle_t Graph = nullptr)
-      : MQueue(Queue), MDevice(Device), MContext(Context),
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-        // CMPLRLLVM-66082 - MGraph should become a member of this class on the
-        // next ABI breaking window.
-        MGraph(Graph),
-#endif
-        MMemObjs(std::move(MemObjs)) {
+      : MQueue(Queue), MGraph(Graph), MMemObjs(std::move(MemObjs)) {
+    assert(MQueue != nullptr &&
+           "interop_handle must be associated with a valid queue");
   }
 
   template <backend Backend, typename DataT, int Dims>
@@ -246,13 +237,7 @@ private:
   __SYCL_EXPORT ur_native_handle_t getNativeGraph() const;
 
   std::shared_ptr<detail::queue_impl> MQueue;
-  std::shared_ptr<detail::device_impl> MDevice;
-  std::shared_ptr<detail::context_impl> MContext;
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  // CMPLRLLVM-66082 - MGraph should become a member of this class on the
-  // next ABI breaking window.
   ur_exp_command_buffer_handle_t MGraph;
-#endif
 
   std::vector<ReqToMem> MMemObjs;
 };

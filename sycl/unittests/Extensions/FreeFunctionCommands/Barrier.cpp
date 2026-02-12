@@ -4,7 +4,7 @@
 #include <gtest/gtest.h>
 
 #define __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
-#include <sycl/ext/khr/free_function_commands.hpp>
+#include <sycl/khr/free_function_commands.hpp>
 
 thread_local size_t NumOfEnqueueEventsWaitWithBarrier = 0;
 
@@ -54,8 +54,8 @@ TEST(BarrierTest, EventBarrierShortcut) {
   sycl::queue Queue1;
   sycl::queue Queue2;
 
-  sycl::event Event1 = Queue1.single_task<TestKernel<>>([]() {});
-  sycl::event Event2 = Queue2.single_task<TestKernel<>>([]() {});
+  sycl::event Event1 = Queue1.single_task<TestKernel>([]() {});
+  sycl::event Event2 = Queue2.single_task<TestKernel>([]() {});
 
   sycl::khr::event_barrier(Queue2, {Event1, Event2});
 
@@ -73,8 +73,8 @@ TEST(BarrierTest, EventBarrier) {
   sycl::queue Queue1;
   sycl::queue Queue2;
 
-  sycl::event Event1 = Queue1.single_task<TestKernel<>>([]() {});
-  sycl::event Event2 = Queue2.single_task<TestKernel<>>([]() {});
+  sycl::event Event1 = Queue1.single_task<TestKernel>([]() {});
+  sycl::event Event2 = Queue2.single_task<TestKernel>([]() {});
 
   sycl::khr::submit(Queue2, [&](sycl::handler &Handler) {
     sycl::khr::event_barrier(Handler, {Event1, Event2});

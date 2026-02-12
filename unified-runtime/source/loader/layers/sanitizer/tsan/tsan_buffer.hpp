@@ -59,6 +59,7 @@ struct MemBuffer {
 
   size_t Size;
 
+  // FIXME: we should use uint8_t* instead of char* for non-string data.
   char *HostPtr{};
 
   struct SubBuffer_t {

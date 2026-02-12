@@ -3,8 +3,11 @@
 // UNSUPPORTED: hip
 // UNSUPPORTED-INTENDED: Returning non-FP values from sampling fails on HIP.
 
+// UNSUPPORTED: linux && arch-intel_gpu_bmg_g21 && level_zero_v2_adapter
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20223
+
 // RUN: %{build} -o %t.out
-// RUN: %{run-unfiltered-devices} %t.out
+// RUN: %{run} %t.out
 
 // Print test names and pass status
 // #define VERBOSE_LV1
@@ -143,7 +146,6 @@ static bool runTest(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   }
 
   sycl::queue q(dev);
-  auto ctxt = q.get_context();
 
   sycl::backend backend = dev.get_backend();
 

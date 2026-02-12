@@ -208,9 +208,11 @@ DisjointPoolAllConfigs parseDisjointPoolConfig(const std::string &config,
 
   AllConfigs.EnableBuffers = EnableBuffers;
 
+  umf_disjoint_pool_shared_limits_handle_t limits;
+  umfDisjointPoolSharedLimitsCreate(MaxSize, &limits);
+
   AllConfigs.limits = std::shared_ptr<umf_disjoint_pool_shared_limits_t>(
-      umfDisjointPoolSharedLimitsCreate(MaxSize),
-      umfDisjointPoolSharedLimitsDestroy);
+      std::move(limits), umfDisjointPoolSharedLimitsDestroy);
 
   for (auto &Config : AllConfigs.Configs) {
     Config.SharedLimits = AllConfigs.limits.get();
@@ -264,5 +266,14 @@ DisjointPoolAllConfigs parseDisjointPoolConfig(const std::string &config,
             << std::endl;
 
   return AllConfigs;
+}
+
+std::optional<DisjointPoolAllConfigs>
+parseDisjointPoolConfigOptional(const std::string &config, int trace) {
+  auto configs = parseDisjointPoolConfig(config, trace);
+  if (configs.EnableBuffers == 0) {
+    return std::nullopt;
+  }
+  return configs;
 }
 } // namespace usm

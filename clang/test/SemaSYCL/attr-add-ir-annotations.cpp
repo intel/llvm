@@ -478,102 +478,102 @@ void InstantiateClassWithAnnotFieldTemplates() {
 }
 
 struct InvalidClassWithAnnotField1 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member("Attr1")]]; // expected-error {{attribute 'add_ir_annotations_member' must specify a value for each specified name in the argument list}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member("Attr1")]]; // expected-error {{attribute '__sycl_detail__::add_ir_annotations_member' must specify a value for each specified name in the argument list}}
 };
 struct InvalidClassWithAnnotField2 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member("Attr1", nullptr, "Attr2")]]; // expected-error {{attribute 'add_ir_annotations_member' must specify a value for each specified name in the argument list}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member("Attr1", nullptr, "Attr2")]]; // expected-error {{attribute '__sycl_detail__::add_ir_annotations_member' must specify a value for each specified name in the argument list}}
 };
 struct InvalidClassWithAnnotField3 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member("Attr1", "Attr2", nullptr)]]; // expected-error {{attribute 'add_ir_annotations_member' must specify a value for each specified name in the argument list}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member("Attr1", "Attr2", nullptr)]]; // expected-error {{attribute '__sycl_detail__::add_ir_annotations_member' must specify a value for each specified name in the argument list}}
 };
 struct InvalidClassWithAnnotField4 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member({"Attr5", "Attr3"}, "Attr1")]]; // expected-error {{attribute 'add_ir_annotations_member' must specify a value for each specified name in the argument list}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member({"Attr5", "Attr3"}, "Attr1")]]; // expected-error {{attribute '__sycl_detail__::add_ir_annotations_member' must specify a value for each specified name in the argument list}}
 };
 struct InvalidClassWithAnnotField5 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member({"Attr5", "Attr3"}, "Attr1", nullptr, "Attr2")]]; // expected-error {{attribute 'add_ir_annotations_member' must specify a value for each specified name in the argument list}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member({"Attr5", "Attr3"}, "Attr1", nullptr, "Attr2")]]; // expected-error {{attribute '__sycl_detail__::add_ir_annotations_member' must specify a value for each specified name in the argument list}}
 };
 struct InvalidClassWithAnnotField6 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member({"Attr5", "Attr3"}, "Attr1", "Attr2", nullptr)]]; // expected-error {{attribute 'add_ir_annotations_member' must specify a value for each specified name in the argument list}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member({"Attr5", "Attr3"}, "Attr1", "Attr2", nullptr)]]; // expected-error {{attribute '__sycl_detail__::add_ir_annotations_member' must specify a value for each specified name in the argument list}}
 };
 struct InvalidClassWithAnnotField7 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member("Attr1", {"Attr5", "Attr3"}, nullptr)]]; // expected-error {{only the first argument of attribute 'add_ir_annotations_member' can be an initializer list}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member("Attr1", {"Attr5", "Attr3"}, nullptr)]]; // expected-error {{only the first argument of attribute '__sycl_detail__::add_ir_annotations_member' can be an initializer list}}
 };
 struct InvalidClassWithAnnotField8 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member("Attr1", nullptr, {"Attr5", "Attr3"})]]; // expected-error {{only the first argument of attribute 'add_ir_annotations_member' can be an initializer list}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member("Attr1", nullptr, {"Attr5", "Attr3"})]]; // expected-error {{only the first argument of attribute '__sycl_detail__::add_ir_annotations_member' can be an initializer list}}
 };
 struct InvalidClassWithAnnotField9 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member("Attr1", "Attr2", {"Attr5", "Attr3"}, nullptr, "Text")]]; // expected-error {{only the first argument of attribute 'add_ir_annotations_member' can be an initializer list}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member("Attr1", "Attr2", {"Attr5", "Attr3"}, nullptr, "Text")]]; // expected-error {{only the first argument of attribute '__sycl_detail__::add_ir_annotations_member' can be an initializer list}}
 };
 struct InvalidClassWithAnnotField10 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member({1}, "Attr1", nullptr)]]; // expected-error {{initializer list in the first argument of 'add_ir_annotations_member' must contain only string literals}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member({1}, "Attr1", nullptr)]]; // expected-error {{initializer list in the first argument of '__sycl_detail__::add_ir_annotations_member' must contain only string literals}}
 };
 struct InvalidClassWithAnnotField11 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member({true, "Attr3"}, "Attr1", nullptr)]]; // expected-error {{initializer list in the first argument of 'add_ir_annotations_member' must contain only string literals}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member({true, "Attr3"}, "Attr1", nullptr)]]; // expected-error {{initializer list in the first argument of '__sycl_detail__::add_ir_annotations_member' must contain only string literals}}
 };
 struct InvalidClassWithAnnotField12 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member({"Attr3", 'c'}, "Attr1", nullptr)]]; // expected-error {{initializer list in the first argument of 'add_ir_annotations_member' must contain only string literals}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member({"Attr3", 'c'}, "Attr1", nullptr)]]; // expected-error {{initializer list in the first argument of '__sycl_detail__::add_ir_annotations_member' must contain only string literals}}
 };
 struct InvalidClassWithAnnotField13 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member(nullptr, "Attr1")]]; // expected-error {{each name argument in 'add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member(nullptr, "Attr1")]]; // expected-error {{each name argument in '__sycl_detail__::add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
 };
 struct InvalidClassWithAnnotField14 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member(1, "Attr1")]]; // expected-error {{each name argument in 'add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member(1, "Attr1")]]; // expected-error {{each name argument in '__sycl_detail__::add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
 };
 struct InvalidClassWithAnnotField15 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member(3.14, "Attr1")]]; // expected-error {{each name argument in 'add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member(3.14, "Attr1")]]; // expected-error {{each name argument in '__sycl_detail__::add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
 };
 struct InvalidClassWithAnnotField16 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member(true, "Attr1")]]; // expected-error {{each name argument in 'add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member(true, "Attr1")]]; // expected-error {{each name argument in '__sycl_detail__::add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
 };
 struct InvalidClassWithAnnotField17 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member(false, "Attr1")]]; // expected-error {{each name argument in 'add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member(false, "Attr1")]]; // expected-error {{each name argument in '__sycl_detail__::add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
 };
 struct InvalidClassWithAnnotField18 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member(TestEnum::EnumVal1, "Attr1")]]; // expected-error {{each name argument in 'add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member(TestEnum::EnumVal1, "Attr1")]]; // expected-error {{each name argument in '__sycl_detail__::add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
 };
 struct InvalidClassWithAnnotField19 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member('F', "Attr1")]]; // expected-error {{each name argument in 'add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member('F', "Attr1")]]; // expected-error {{each name argument in '__sycl_detail__::add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
 };
 struct InvalidClassWithAnnotField20 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member(nullptr, 1, 3.14, true, false, TestEnum::EnumVal1, 'F', ScopedTestEnum::ScopedEnumVal2, nullptr, 1, 3.14, true, false, TestEnum::EnumVal1, 'F', ScopedTestEnum::ScopedEnumVal2)]]; // expected-error {{each name argument in 'add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member(nullptr, 1, 3.14, true, false, TestEnum::EnumVal1, 'F', ScopedTestEnum::ScopedEnumVal2, nullptr, 1, 3.14, true, false, TestEnum::EnumVal1, 'F', ScopedTestEnum::ScopedEnumVal2)]]; // expected-error {{each name argument in '__sycl_detail__::add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
 };
 struct InvalidClassWithAnnotField21 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member("Attr1", 3.14, "Attr3", 1, 3.14, true)]]; // expected-error {{each name argument in 'add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member("Attr1", 3.14, "Attr3", 1, 3.14, true)]]; // expected-error {{each name argument in '__sycl_detail__::add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
 };
 struct InvalidClassWithAnnotField22 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member(CENullptr, "Attr1")]]; // expected-error {{each name argument in 'add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member(CENullptr, "Attr1")]]; // expected-error {{each name argument in '__sycl_detail__::add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
 };
 struct InvalidClassWithAnnotField23 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member(CEInt, "Attr1")]]; // expected-error {{each name argument in 'add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member(CEInt, "Attr1")]]; // expected-error {{each name argument in '__sycl_detail__::add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
 };
 struct InvalidClassWithAnnotField24 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member(CEFloat, "Attr1")]]; // expected-error {{each name argument in 'add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member(CEFloat, "Attr1")]]; // expected-error {{each name argument in '__sycl_detail__::add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
 };
 struct InvalidClassWithAnnotField25 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member(CETrue, "Attr1")]]; // expected-error {{each name argument in 'add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member(CETrue, "Attr1")]]; // expected-error {{each name argument in '__sycl_detail__::add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
 };
 struct InvalidClassWithAnnotField26 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member(CEFalse, "Attr1")]]; // expected-error {{each name argument in 'add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member(CEFalse, "Attr1")]]; // expected-error {{each name argument in '__sycl_detail__::add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
 };
 struct InvalidClassWithAnnotField27 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member(CEEnum, "Attr1")]]; // expected-error {{each name argument in 'add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member(CEEnum, "Attr1")]]; // expected-error {{each name argument in '__sycl_detail__::add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
 };
 struct InvalidClassWithAnnotField28 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member(CEChar, "Attr1")]]; // expected-error {{each name argument in 'add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member(CEChar, "Attr1")]]; // expected-error {{each name argument in '__sycl_detail__::add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
 };
 struct InvalidClassWithAnnotField29 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member(CENullptr, CEInt, CEFloat, CETrue, CEFalse, CEEnum, CEChar, CESEnum, CENullptr, CEInt, CEFloat, CETrue, CEFalse, CEEnum, CEChar, CESEnum)]]; // expected-error {{each name argument in 'add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member(CENullptr, CEInt, CEFloat, CETrue, CEFalse, CEEnum, CEChar, CESEnum, CENullptr, CEInt, CEFloat, CETrue, CEFalse, CEEnum, CEChar, CESEnum)]]; // expected-error {{each name argument in '__sycl_detail__::add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
 };
 struct InvalidClassWithAnnotField30 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member("Attr1", CEFloat, "Attr3", CEInt, CEFloat, CETrue)]]; // expected-error {{each name argument in 'add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member("Attr1", CEFloat, "Attr3", CEInt, CEFloat, CETrue)]]; // expected-error {{each name argument in '__sycl_detail__::add_ir_annotations_member' must be a 'const char *' usable in a constant expression}}
 };
 struct InvalidClassWithAnnotField31 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member("Attr1", &CEInt)]]; // expected-error {{each value argument in 'add_ir_annotations_member' must be an integer, a floating point, a character, a boolean, 'const char *', or an enumerator usable as a constant expression}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member("Attr1", &CEInt)]]; // expected-error {{each value argument in '__sycl_detail__::add_ir_annotations_member' must be an integer, a floating point, a character, a boolean, 'const char *', or an enumerator usable as a constant expression}}
 };
 struct InvalidClassWithAnnotField32 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member("Attr1", "Attr2", "Attr3", 1, &CEInt, CEInt)]]; // expected-error {{each value argument in 'add_ir_annotations_member' must be an integer, a floating point, a character, a boolean, 'const char *', or an enumerator usable as a constant expression}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member("Attr1", "Attr2", "Attr3", 1, &CEInt, CEInt)]]; // expected-error {{each value argument in '__sycl_detail__::add_ir_annotations_member' must be an integer, a floating point, a character, a boolean, 'const char *', or an enumerator usable as a constant expression}}
 };
 
-struct [[__sycl_detail__::add_ir_annotations_member("Attr1", 1)]] InvalidAnnotationsMemberSubjectStruct;     // expected-error {{'add_ir_annotations_member' attribute only applies to non-static data members}}
-[[__sycl_detail__::add_ir_annotations_member("Attr1", 1)]] void InvalidAnnotationsMemberSubjectFunction() {} // expected-error {{'add_ir_annotations_member' attribute only applies to non-static data members}}
-[[__sycl_detail__::add_ir_annotations_member("Attr1", 1)]] int InvalidAnnotationsMemberSubjectVar;           // expected-error {{'add_ir_annotations_member' attribute only applies to non-static data members}}
+struct [[__sycl_detail__::add_ir_annotations_member("Attr1", 1)]] InvalidAnnotationsMemberSubjectStruct;     // expected-error {{'__sycl_detail__::add_ir_annotations_member' attribute only applies to non-static data members}}
+[[__sycl_detail__::add_ir_annotations_member("Attr1", 1)]] void InvalidAnnotationsMemberSubjectFunction() {} // expected-error {{'__sycl_detail__::add_ir_annotations_member' attribute only applies to non-static data members}}
+[[__sycl_detail__::add_ir_annotations_member("Attr1", 1)]] int InvalidAnnotationsMemberSubjectVar;           // expected-error {{'__sycl_detail__::add_ir_annotations_member' attribute only applies to non-static data members}}

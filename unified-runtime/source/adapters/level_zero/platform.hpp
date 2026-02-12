@@ -1,6 +1,6 @@
 //===--------- platform.hpp - Level Zero Adapter --------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -10,6 +10,7 @@
 #pragma once
 
 #include "common.hpp"
+#include "external/driver_experimental/zex_graph.h"
 #include "ur_api.h"
 #include "ze_api.h"
 #include "ze_ddi.h"
@@ -25,9 +26,10 @@ struct ur_zes_device_handle_data_t {
   ze_bool_t SubDevice = false;
 };
 
-struct ur_platform_handle_t_ : public _ur_platform {
+struct ur_platform_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter>,
+                               public ur_platform {
   ur_platform_handle_t_(ze_driver_handle_t Driver)
-      : ZeDriver{Driver}, ZeApiVersion{ZE_API_VERSION_CURRENT} {}
+      : handle_base(), ZeDriver{Driver}, ZeApiVersion{ZE_API_VERSION_CURRENT} {}
   // Performs initialization of a newly constructed PI platform.
   ur_result_t initialize();
 
@@ -48,6 +50,10 @@ struct ur_platform_handle_t_ : public _ur_platform {
   // Zero.
   ZeDriverVersionStringExtension ZeDriverVersionString;
 
+  // Helper function to check if the driver supports Driver In Order Lists or
+  // the User has Requested this support.
+  bool allowDriverInOrderLists(bool OnlyIfRequested = false);
+
   // Cache versions info from zeDriverGetProperties.
   std::string ZeDriverVersion;
   std::string ZeDriverApiVersion;
@@ -63,6 +69,9 @@ struct ur_platform_handle_t_ : public _ur_platform {
   bool zeDriverImmediateCommandListAppendFound{false};
   bool ZeDriverEuCountExtensionFound{false};
   bool ZeCopyOffloadExtensionSupported{false};
+  bool ZeCopyOffloadFlagSupported{false};
+  bool ZeBindlessImagesExtensionSupported{false};
+  bool ZeLUIDSupported{false};
 
   // Cache UR devices for reuse
   std::vector<std::unique_ptr<ur_device_handle_t_>> URDevicesCache;
@@ -126,12 +135,6 @@ struct ur_platform_handle_t_ : public _ur_platform {
   // Structure with function pointers for External Semaphore Extension.
   struct ZeExternalSemaphoreExtension {
     bool Supported = false;
-    // If LoaderExtension is true, the L0 loader is aware of the External
-    // Semaphore Extension. If it is false, the extension has to be loaded
-    // directly from the driver using zeDriverGetExtensionFunctionAddress. If it
-    // is loaded directly from the driver, any handles passed to it must be
-    // translated using zelLoaderTranslateHandle.
-    bool LoaderExtension = false;
     // Spec Functions
     ze_pfnDeviceImportExternalSemaphoreExt_t zexImportExternalSemaphoreExp =
         nullptr;
@@ -141,22 +144,6 @@ struct ur_platform_handle_t_ : public _ur_platform {
         zexCommandListAppendSignalExternalSemaphoresExp = nullptr;
     ze_pfnDeviceReleaseExternalSemaphoreExt_t
         zexDeviceReleaseExternalSemaphoreExp = nullptr;
-    // Driver EXP Functions
-    ze_result_t (*zexExpImportExternalSemaphoreExp)(
-        ze_device_handle_t, const ze_intel_external_semaphore_exp_desc_t *,
-        ze_intel_external_semaphore_exp_handle_t *);
-    ze_result_t (*zexExpCommandListAppendWaitExternalSemaphoresExp)(
-        ze_command_list_handle_t, unsigned int,
-        const ze_intel_external_semaphore_exp_handle_t *,
-        const ze_intel_external_semaphore_wait_params_exp_t *,
-        ze_event_handle_t, uint32_t, ze_event_handle_t *);
-    ze_result_t (*zexExpCommandListAppendSignalExternalSemaphoresExp)(
-        ze_command_list_handle_t, size_t,
-        const ze_intel_external_semaphore_exp_handle_t *,
-        const ze_intel_external_semaphore_signal_params_exp_t *,
-        ze_event_handle_t, uint32_t, ze_event_handle_t *);
-    ze_result_t (*zexExpDeviceReleaseExternalSemaphoreExp)(
-        ze_intel_external_semaphore_exp_handle_t);
   } ZeExternalSemaphoreExt;
 
   struct ZeCommandListImmediateAppendExtension {
@@ -165,4 +152,60 @@ struct ur_platform_handle_t_ : public _ur_platform {
         ze_command_list_handle_t, uint32_t, ze_command_list_handle_t *,
         ze_event_handle_t, uint32_t, ze_event_handle_t *);
   } ZeCommandListImmediateAppendExt;
+
+  struct ZeImageGetDeviceOffsetExtension {
+    bool Supported = false;
+    ze_result_t (*zeImageGetDeviceOffsetExp)(ze_image_handle_t, uint64_t *);
+  } ZeImageGetDeviceOffsetExt;
+
+  struct ZeMemGetPitchFor2dImageExtension {
+    bool Supported = false;
+    ze_result_t (*zeMemGetPitchFor2dImage)(ze_context_handle_t,
+                                           ze_device_handle_t, size_t, size_t,
+                                           unsigned int, size_t *);
+  } ZeMemGetPitchFor2dImageExt;
+
+  struct ZeCommandListAppendLaunchKernelWithArgumentsExtension {
+    bool Supported = false;
+    bool DriverSupportsCooperativeKernelLaunchWithArgs = false;
+    bool DisableZeLaunchKernelWithArgs = false;
+  } ZeCommandListAppendLaunchKernelWithArgumentsExt;
+
+  struct ZeGraphExtension {
+    bool Supported = false;
+    ze_result_t (*zeGraphCreateExp)(ze_context_handle_t hContext,
+                                    ze_graph_handle_t *phGraph, void *pNext);
+    ze_result_t (*zeCommandListBeginGraphCaptureExp)(
+        ze_command_list_handle_t hCommandList, void *pNext);
+    ze_result_t (*zeCommandListBeginCaptureIntoGraphExp)(
+        ze_command_list_handle_t hCommandList, ze_graph_handle_t hGraph,
+        void *pNext);
+    ze_result_t (*zeCommandListEndGraphCaptureExp)(
+        ze_command_list_handle_t hCommandList, ze_graph_handle_t *phGraph,
+        void *pNext);
+    ze_result_t (*zeCommandListInstantiateGraphExp)(
+        ze_graph_handle_t hGraph,
+        ze_executable_graph_handle_t *phExecutableGraph, void *pNext);
+    ze_result_t (*zeCommandListAppendGraphExp)(
+        ze_command_list_handle_t hCommandList,
+        ze_executable_graph_handle_t hGraph, void *pNext,
+        ze_event_handle_t hSignalEvent, uint32_t numWaitEvents,
+        ze_event_handle_t *phWaitEvents);
+    ze_result_t (*zeGraphDestroyExp)(ze_graph_handle_t hGraph);
+    ze_result_t (*zeExecutableGraphDestroyExp)(
+        ze_executable_graph_handle_t hGraph);
+    ze_result_t (*zeCommandListIsGraphCaptureEnabledExp)(
+        ze_command_list_handle_t hCommandList);
+    ze_result_t (*zeGraphIsEmptyExp)(ze_graph_handle_t hGraph);
+    ze_result_t (*zeGraphDumpContentsExp)(ze_graph_handle_t hGraph,
+                                          const char *filePath, void *pNext);
+  } ZeGraphExt;
+
+  struct ZeHostTaskExtension {
+    bool Supported = false;
+    ze_result_t (*zeCommandListAppendHostFunction)(
+        ze_command_list_handle_t hCommandList, void *pHostFunction,
+        void *pUserData, void *pNext, ze_event_handle_t hSignalEvent,
+        uint32_t numWaitEvents, ze_event_handle_t *phWaitEvents);
+  } ZeHostTaskExt;
 };

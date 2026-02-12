@@ -148,6 +148,10 @@
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=bmg_g21 -DMAC_STR=BMG_G21
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_20_1_4 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=bmg_g21 -DMAC_STR=BMG_G21
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_bmg_g31 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=bmg_g31 -DMAC_STR=BMG_G31
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_20_2_0 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=bmg_g31 -DMAC_STR=BMG_G31
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_lnl_m -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=lnl_m -DMAC_STR=LNL_M
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_20_4_4 -### %s 2>&1 | \
@@ -160,6 +164,10 @@
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=ptl_u -DMAC_STR=PTL_U
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_30_1_1 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=ptl_u -DMAC_STR=PTL_U
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_wcl -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=wcl -DMAC_STR=WCL
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_30_3_0 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=wcl -DMAC_STR=WCL
 // MACRO: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
 // MACRO: "-D__SYCL_TARGET_INTEL_GPU_[[MAC_STR]]__"
 // MACRO: clang{{.*}} "-fsycl-is-host"
@@ -201,7 +209,7 @@
 
 /// Test phases, BoundArch settings used for -device target. Additional
 /// offload action used for compilation and backend compilation.
-// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_skl -fno-sycl-device-lib=all \
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_skl --no-offloadlib \
 // RUN:   -fno-sycl-instrument-device-code \
 // RUN:   -target x86_64-unknown-linux-gnu -ccc-print-phases %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=CHECK_PHASES
@@ -228,7 +236,7 @@
 /// when mixing spir64_gen and intel_gpu
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg1,spir64_gen \
 // RUN:   -Xsycl-target-backend=spir64_gen "-device skl" \
-// RUN:   -fno-sycl-device-lib=all -fno-sycl-instrument-device-code \
+// RUN:   --no-offloadlib -fno-sycl-instrument-device-code \
 // RUN:   -target x86_64-unknown-linux-gnu -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=CHECK_TOOLS_MIX
 // CHECK_TOOLS_MIX: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
@@ -240,7 +248,7 @@
 
 /// Test phases when using both spir64_gen and intel_gpu*
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_skl,spir64_gen \
-// RUN:   -fno-sycl-device-lib=all -fno-sycl-instrument-device-code \
+// RUN:   --no-offloadlib -fno-sycl-instrument-device-code \
 // RUN:   -target x86_64-unknown-linux-gnu -ccc-print-phases %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=CHECK_PHASES_MIX
 // CHECK_PHASES_MIX: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
@@ -279,7 +287,7 @@
 // RUN:   -Xsycl-target-backend=spir64_gen "-device skl -DSKL" \
 // RUN:   -Xsycl-target-backend=intel_gpu_dg1 "-DDG1" \
 // RUN:   -Xsycl-target-backend=intel_gpu_skl "-DSKL2" \
-// RUN:   -fno-sycl-device-lib=all -fno-sycl-instrument-device-code \
+// RUN:   --no-offloadlib -fno-sycl-instrument-device-code \
 // RUN:   -target x86_64-unknown-linux-gnu -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=CHECK_TOOLS_BEOPTS
 // CHECK_TOOLS_BEOPTS: ocloc{{.*}} "-device" "dg1"{{.*}}"-DDG1"
@@ -292,7 +300,7 @@
 // RUN:   -fsycl -Xsycl-target-backend=spir64_x86_64 "-DCPU" \
 // RUN:   -Xsycl-target-backend=intel_gpu_dg1 "-DDG1" \
 // RUN:   -Xsycl-target-backend=intel_gpu_skl "-DSKL2" \
-// RUN:   -fno-sycl-device-lib=all -fno-sycl-instrument-device-code \
+// RUN:   --no-offloadlib -fno-sycl-instrument-device-code \
 // RUN:   -target x86_64-unknown-linux-gnu -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=CHECK_TOOLS_BEOPTS_MIX
 // CHECK_TOOLS_BEOPTS_MIX: ocloc{{.*}} "-device" "dg1"{{.*}}"-DDG1"

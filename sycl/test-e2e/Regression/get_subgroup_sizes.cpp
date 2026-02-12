@@ -1,8 +1,7 @@
-// UNSUPPORTED: accelerator
-// TODO: FPGAs currently report `sub_group_sizes` as non-empty list,
-// despite not having extension `cl_intel_required_subgroup_size`
-// UNSUPPORTED: cuda || hip
-// TODO: Similar issue to FPGAs
+// REQUIRES: opencl || level_zero
+// Test assumes that the SYCL 2020 deprecated info::device::extensions query
+// returns a string with cl_intel_required_subgroup_size, while that is only
+// really guaranteed by OpenCL. Coincidentally it also works this way for L0.
 
 // RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out

@@ -3,6 +3,8 @@
 #2. Use AddLLVM to modify the build and access config options
 #cmake_policy(SET CMP0057 NEW)
 #include(AddLLVM)
+include(CheckLinkerFlag)
+include(CheckIPOSupported)
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/version.rc.in
   ${CMAKE_CURRENT_BINARY_DIR}/version.rc
@@ -15,6 +17,13 @@ if (SYCL_ENABLE_XPTI_TRACING)
   include_directories(${LLVM_EXTERNAL_XPTI_SOURCE_DIR}/include)
 endif()
 
+if(SYCL_ENABLE_IPO)
+  check_ipo_supported(RESULT SYCL_USE_IPO)
+  if (NOT SYCL_USE_IPO)
+    message(WARNING "Interprocedural optimization is not supported by the compiler, disabling")
+  endif()
+endif()
+
 function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   # Add an optional argument so we can get the library name to
   # link with for Windows Debug version
@@ -22,16 +31,24 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   add_library(${LIB_OBJ_NAME} OBJECT ${ARG_SOURCES})
 
+  if(SYCL_USE_IPO)
+    set_property(TARGET ${LIB_OBJ_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+  endif()
+
   # Common compilation step setup
 
   check_cxx_compiler_flag(-Winstantiation-after-specialization
     HAS_INST_AFTER_SPEC)
+  check_cxx_compiler_flag(-ffunction-sections HAS_FUNCTION_SECTIONS_FLAG)
+  check_cxx_compiler_flag(-fdata-sections HAS_DATA_SECTIONS_FLAG)
 
   target_compile_options(
     ${LIB_OBJ_NAME}
     PRIVATE
       ${ARG_COMPILE_OPTIONS}
       $<$<BOOL:${HAS_INST_AFTER_SPEC}>:-Winstantiation-after-specialization>
+      $<$<BOOL:${HAS_FUNCTION_SECTIONS_FLAG}>:-ffunction-sections>
+      $<$<BOOL:${HAS_DATA_SECTIONS_FLAG}>:-fdata-sections>
     PUBLIC
       $<$<NOT:$<BOOL:${MSVC}>>:-fvisibility=hidden -fvisibility-inlines-hidden>
       # Sycl math built-in macros cause a GCC 4.6 'note' to be output
@@ -45,8 +62,10 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   target_compile_definitions(
     ${LIB_OBJ_NAME}
     PRIVATE
+      __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
       __SYCL_INTERNAL_API
       SYCL2020_DISABLE_DEPRECATION_WARNINGS
+      __SYCL_DISABLE_DEPRECATION_WARNINGS
       $<$<BOOL:${MSVC}>:__SYCL_BUILD_SYCL_DLL>
   )
 
@@ -55,7 +74,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}
       ${sycl_inc_dir}
-      ${BOOST_UNORDERED_INCLUDE_DIRS}
   )
 
   # Object libraries are not linked, so these "libraries" are in fact include
@@ -72,6 +90,10 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   add_library(${LIB_NAME} SHARED
               $<TARGET_OBJECTS:${LIB_OBJ_NAME}>
               ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
+
+  if(SYCL_USE_IPO)
+    set_property(TARGET ${LIB_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+  endif()
 
   find_package(Threads REQUIRED)
 
@@ -136,12 +158,13 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_link_libraries(${LIB_NAME} PRIVATE ${ARG_XPTI_LIB})
   endif()
 
-  if (NOT LLVM_ENABLE_ZSTD)
-    target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL_RT_ZSTD_NOT_AVAIABLE)
-  else()
+  if (LLVM_ENABLE_ZSTD)
+    target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL_RT_ZSTD_AVAILABLE)
     target_link_libraries(${LIB_NAME} PRIVATE ${zstd_STATIC_LIBRARY})
     target_include_directories(${LIB_OBJ_NAME} PRIVATE ${zstd_INCLUDE_DIR})
   endif()
+
+  target_link_libraries(${LIB_OBJ_NAME} PRIVATE emhash::emhash)
 
   # ur_win_proxy_loader
   if (WIN32)
@@ -187,6 +210,13 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     endif()
   endif()
 
+  check_linker_flag(CXX "-Wl,--gc-sections" LINKER_SUPPORTS_WL_GC_SECTIONS)
+  if(LINKER_SUPPORTS_WL_GC_SECTIONS)
+    # Reduces the size of the resulting library by having the linker perform
+    # garbage collection.
+    target_link_options(${LIB_NAME} PRIVATE -Wl,--gc-sections)
+  endif()
+
   if(SYCL_ENABLE_EXTENSION_JIT)
     if(NOT DEFINED LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR)
       message(FATAL_ERROR "Undefined LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR variable: Must be set when extension to JIT SYCL kernels is enabled")
@@ -207,7 +237,9 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   set_target_properties(${LIB_NAME} PROPERTIES
                         VERSION ${SYCL_VERSION_STRING}
-                        SOVERSION ${SYCL_MAJOR_VERSION})
+                        SOVERSION ${SYCL_MAJOR_VERSION}
+                        # Set the runpath to the lib directory so libsycl can find libur_loader
+                        INSTALL_RPATH "\$ORIGIN")
 
   # When building using icx on Windows, the VERSION file
   # produced by cmake is used in source code
@@ -234,6 +266,7 @@ set(SYCL_COMMON_SOURCES
     "builtins/native_math_functions.cpp"
     "builtins/relational_functions.cpp"
     "detail/accessor_impl.cpp"
+    "detail/adapter_impl.cpp"
     "detail/allowlist.cpp"
     "detail/bindless_images.cpp"
     "detail/buffer_impl.cpp"
@@ -243,16 +276,19 @@ set(SYCL_COMMON_SOURCES
     "detail/context_impl.cpp"
     "detail/device_binary_image.cpp"
     "detail/device_filter.cpp"
-    "detail/host_pipe_map.cpp"
     "detail/device_global_map.cpp"
+    "detail/kernel_data.cpp"
+    "detail/kernel_global_info.cpp"
     "detail/device_global_map_entry.cpp"
+    "detail/device_image_impl.cpp"
     "detail/device_impl.cpp"
     "detail/error_handling/error_handling.cpp"
     "detail/event_impl.cpp"
     "detail/filter_selector_impl.cpp"
-    "detail/fusion/fusion_wrapper.cpp"
     "detail/global_handler.cpp"
-    "detail/graph_impl.cpp"
+    "detail/graph/graph_impl.cpp"
+    "detail/graph/dynamic_impl.cpp"
+    "detail/graph/node_impl.cpp"
     "detail/helpers.cpp"
     "detail/handler_proxy.cpp"
     "detail/image_accessor_util.cpp"
@@ -262,19 +298,22 @@ set(SYCL_COMMON_SOURCES
     "detail/kernel_compiler/kernel_compiler_opencl.cpp"
     "detail/kernel_compiler/kernel_compiler_sycl.cpp"
     "detail/kernel_impl.cpp"
+    "detail/get_device_kernel_info.cpp"
+    "detail/device_kernel_info.cpp"
     "detail/kernel_program_cache.cpp"
+    "detail/memory_export.cpp"
     "detail/memory_manager.cpp"
-    "detail/pipes.cpp"
     "detail/platform_impl.cpp"
     "detail/program_manager/program_manager.cpp"
     "detail/queue_impl.cpp"
     "detail/os_util.cpp"
     "detail/persistent_device_code_cache.cpp"
-    "detail/platform_util.cpp"
     "detail/preview_marker.cpp"
+    "detail/range_rounding.cpp"
     "detail/reduction.cpp"
     "detail/sampler_impl.cpp"
     "detail/stream_impl.cpp"
+    "detail/syclbin.cpp"
     "detail/scheduler/commands.cpp"
     "detail/scheduler/leaves_collection.cpp"
     "detail/scheduler/scheduler.cpp"
@@ -298,6 +337,7 @@ set(SYCL_COMMON_SOURCES
     "handler.cpp"
     "image.cpp"
     "interop_handle.cpp"
+    "ipc_memory.cpp"
     "kernel.cpp"
     "kernel_bundle.cpp"
     "physical_mem.cpp"
@@ -305,11 +345,11 @@ set(SYCL_COMMON_SOURCES
     "queue.cpp"
     "sampler.cpp"
     "stream.cpp"
-    "spirv_ops.cpp"
     "virtual_mem.cpp"
     "detail/memory_pool_impl.cpp"
     "detail/async_alloc.cpp"
     "detail/memory_pool.cpp"
+    "detail/graph/memory_pool.cpp"
     "$<$<PLATFORM_ID:Windows>:detail/windows_ur.cpp>"
     "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_ur.cpp>"
 )

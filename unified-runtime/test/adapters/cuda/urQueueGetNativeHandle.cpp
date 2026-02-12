@@ -6,9 +6,16 @@
 
 #include "fixtures.h"
 #include "queue.hpp"
+#include "ur_ddi.h"
 
 using urCudaQueueGetNativeHandleTest = uur::urQueueTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urCudaQueueGetNativeHandleTest);
+
+const ur_dditable_t *ur::cuda::ddi_getter::value() {
+  // Return a blank dditable
+  static ur_dditable_t table{};
+  return &table;
+};
 
 TEST_P(urCudaQueueGetNativeHandleTest, Success) {
   CUstream Stream;
@@ -30,7 +37,7 @@ TEST_P(urCudaQueueGetNativeHandleTest, OutOfOrder) {
   ASSERT_SUCCESS_CUDA(cuStreamSynchronize(Stream));
 }
 
-TEST_P(urCudaQueueGetNativeHandleTest, ScopedStream) {
+TEST_P(urCudaQueueGetNativeHandleTest, InteropGuard) {
   CUstream Stream1, Stream2;
   ur_queue_properties_t props = {
       /*.stype =*/UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
@@ -50,7 +57,7 @@ TEST_P(urCudaQueueGetNativeHandleTest, ScopedStream) {
   ASSERT_NE(Stream1, Stream2);
 
   {
-    ScopedStream ActiveStream(OutOfOrderQueue, 0, nullptr);
+    InteropGuard ActiveStream(OutOfOrderQueue, 0, nullptr);
 
     ASSERT_SUCCESS(urQueueGetNativeHandle(OutOfOrderQueue, nullptr,
                                           (ur_native_handle_t *)&Stream1));

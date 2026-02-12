@@ -1,30 +1,95 @@
 #!/usr/bin/env python3
 
-# Copyright (C) 2024-2025 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import argparse
+import re
+import statistics
+import os
+
 from benches.compute import *
+from benches.gromacs import GromacsBench
 from benches.velocity import VelocityBench
 from benches.syclbench import *
 from benches.llamacpp import *
 from benches.umf import *
-from benches.test import TestSuite
+from benches.benchdnn import OneDnnBench
+from benches.base import TracingType
 from options import Compare, options
 from output_markdown import generate_markdown
 from output_html import generate_html
 from history import BenchmarkHistory
 from utils.utils import prepare_workdir
 from utils.compute_runtime import *
+from utils.validate import Validate
+from utils.detect_versions import DetectVersion
+from utils.logger import log, initialize_logger
+from utils.workdir_version import INTERNAL_WORKDIR_VERSION
 from presets import enabled_suites, presets
 
-import argparse
-import re
-import statistics
 
-# Update this if you are changing the layout of the results files
-INTERNAL_WORKDIR_VERSION = "2.0"
+def generate_github_summary(execution_stats, failures):
+    """Generate GitHub workflow summary with execution statistics"""
+    gh_summary: list[str] = []
+    gh_summary.append("### Benchmarks Execution")
+
+    # Overall statistics
+    total_tests = execution_stats["total_tests"]
+    passed_tests = execution_stats["tests_passed"]
+    failed_tests = execution_stats["tests_failed"]
+    warnings = execution_stats["warnings"]
+    errors = len(failures)
+
+    gh_summary.append("#### Overall Statistics")
+    gh_summary.append(f"- **Total Number of benchmarks:** {total_tests}")
+    gh_summary.append(f"- **Tests Passed:** {passed_tests}")
+    gh_summary.append(f"- **Tests Failed:** {failed_tests}")
+    gh_summary.append(f"- **Errors:** {errors}")
+    gh_summary.append(f"- **Warnings:** {warnings}")
+    gh_summary.append("")
+
+    # Overall status of execution
+    if failed_tests == 0 and errors == 0:
+        gh_summary.append("#### ✅ Status: SUCCESS")
+        gh_summary.append("Benchmarks seem to have executed successfully!")
+    elif failed_tests > 0 or errors > 0:
+        gh_summary.append("#### ❌ Status: FAILURES DETECTED")
+        gh_summary.append("Some benchmarks failed or encountered errors.")
+
+    if warnings > 0:
+        gh_summary.append("#### ⚠️ Status: WARNINGS DETECTED")
+        gh_summary.append("Some benchmarks executed with warnings.")
+
+    gh_summary.append("")
+
+    # Detailed failures info
+    if failures:
+        gh_summary.append("#### Failure Details")
+        gh_summary.append(
+            f"<details><summary>{len(failures)} failed benchmarks:</summary>"
+        )
+        gh_summary.append("")
+
+        for benchmark_name, failure_reason in failures.items():
+            gh_summary.append(f"##### {benchmark_name}")
+            gh_summary.append(f"- **Reason:** {failure_reason}")
+            gh_summary.append("")
+
+        gh_summary.append("</details>")
+        gh_summary.append("")
+
+    # Write the summary to file
+    try:
+        with open(options.github_summary_execution_filename, "w") as f:
+            f.write("\n".join(gh_summary))
+        log.info(
+            f"GitHub summary with execution stats written to {options.github_summary_execution_filename}"
+        )
+    except Exception as e:
+        log.error(f"Failed to write GitHub summary with execution stats: {e}")
 
 
 def run_iterations(
@@ -33,32 +98,54 @@ def run_iterations(
     iters: int,
     results: dict[str, list[Result]],
     failures: dict[str, str],
-):
-    for iter in range(iters):
-        print(f"running {benchmark.name()}, iteration {iter}... ", flush=True)
-        bench_results = benchmark.run(env_vars)
-        if bench_results is None:
-            failures[benchmark.name()] = "benchmark produced no results!"
-            break
+    run_trace: TracingType = TracingType.NONE,
+    force_trace: bool = False,
+) -> bool:
+    """
+    Returns True if all iterations completed successfully, False otherwise.
+    Unless options.exit_on_failure is set, then exception is raised.
+    """
 
-        for bench_result in bench_results:
-            if not bench_result.passed:
-                failures[bench_result.label] = "verification failed"
-                print(f"complete ({bench_result.label}: verification failed).")
+    log.info(f"Running '{benchmark.name()}' {iters}x iterations...")
+    for iter in range(iters):
+        try:
+            bench_results = benchmark.run(
+                env_vars, run_trace=run_trace, force_trace=force_trace
+            )
+            if bench_results is None:
+                if options.exit_on_failure:
+                    raise RuntimeError("Benchmark produced no results!")
+                else:
+                    failures[benchmark.name()] = "benchmark produced no results!"
+                    return False
+
+            for bench_result in bench_results:
+                log.info(
+                    f"{benchmark.name()} complete ({bench_result.label}: {bench_result.value:.3f} {bench_result.unit})."
+                )
+                bench_result.name = bench_result.label
+                bench_result.lower_is_better = benchmark.lower_is_better()
+                bench_result.suite = benchmark.get_suite_name()
+
+                if bench_result.label not in results:
+                    results[bench_result.label] = []
+
+                results[bench_result.label].append(bench_result)
+        except Exception as e:
+            failure_label = f"{benchmark.name()} iteration {iter}"
+            if options.exit_on_failure:
+                raise RuntimeError(
+                    f"Benchmark failed: {failure_label} verification failed: {str(e)}"
+                )
+            else:
+                failures[failure_label] = (
+                    f"{failure_label}: verification failed: {str(e)}"
+                )
+                log.error(f"{failure_label}: verification failed: {str(e)}.")
                 continue
 
-            print(
-                f"{benchmark.name()} complete ({bench_result.label}: {bench_result.value:.3f} {bench_result.unit})."
-            )
-
-            bench_result.name = bench_result.label
-            bench_result.lower_is_better = benchmark.lower_is_better()
-            bench_result.suite = benchmark.get_suite_name()
-
-            if bench_result.label not in results:
-                results[bench_result.label] = []
-
-            results[bench_result.label].append(bench_result)
+    log.info(f"Completed '{benchmark.name()}' {iters}x iterations")
+    return True
 
 
 # https://www.statology.org/modified-z-score/
@@ -93,7 +180,7 @@ def remove_outliers(
 
 
 def process_results(
-    results: dict[str, list[Result]], stddev_threshold_override
+    results: dict[str, list[Result]], stddev_threshold_override, execution_stats
 ) -> tuple[bool, list[Result]]:
     processed: list[Result] = []
     # technically, we can detect whether result is below or above threshold per
@@ -118,10 +205,14 @@ def process_results(
             stddev_threshold_override
             if stddev_threshold_override is not None
             else options.stddev_threshold
-        ) * mean_value
+        )
+        threshold_scaled = threshold * mean_value
 
-        if stddev > threshold:
-            print(f"stddev {stddev} above the threshold {threshold} for {label}")
+        if stddev > threshold_scaled:
+            log.warning(
+                f"stddev {stddev} above the threshold {threshold_scaled} ({threshold} times {mean_value}) for {label}"
+            )
+            execution_stats["warnings"] += 1
             valid_results = False
 
         rlist.sort(key=lambda res: res.value)
@@ -140,32 +231,50 @@ def process_results(
 def collect_metadata(suites):
     metadata = {}
 
-    for s in suites:
-        metadata.update(s.additionalMetadata())
-        suite_benchmarks = s.benchmarks()
+    for suite in suites:
+        metadata.update(suite.additional_metadata())
+        suite_benchmarks = suite.benchmarks()
         for benchmark in suite_benchmarks:
-            metadata[benchmark.name()] = benchmark.get_metadata()
+            results = benchmark.get_metadata()
+            metadata.update(results)
 
     return metadata
 
 
-def main(directory, additional_env_vars, save_name, compare_names, filter):
+def main(directory, additional_env_vars, compare_names, filter, execution_stats):
     prepare_workdir(directory, INTERNAL_WORKDIR_VERSION)
 
+    if options.dry_run:
+        log.info("Dry run mode enabled. No benchmarks will be executed.")
+
+    options.unitrace = args.unitrace is not None
+
+    if options.unitrace and options.save_name is None:
+        raise ValueError(
+            "Unitrace requires a save name to be specified via --save option."
+        )
+
+    if options.flamegraph and options.save_name is None:
+        raise ValueError(
+            "FlameGraph requires a save name to be specified via --save option."
+        )
+
     if options.build_compute_runtime:
-        print(f"Setting up Compute Runtime {options.compute_runtime_tag}")
+        log.info(f"Setting up Compute Runtime {options.compute_runtime_tag}")
         cr = get_compute_runtime()
-        print("Compute Runtime setup complete.")
+        log.info("Compute Runtime setup complete.")
         options.extra_ld_libraries.extend(cr.ld_libraries())
         options.extra_env_vars.update(cr.env_vars())
 
     suites = [
-        ComputeBench(directory),
-        VelocityBench(directory),
-        SyclBench(directory),
-        LlamaCppBench(directory),
-        UMFSuite(directory),
-        TestSuite(),
+        ComputeBench(),
+        ComputeBenchCoreSuite(),
+        VelocityBench(),
+        SyclBench(),
+        LlamaCppBench(),
+        UMFSuite(),
+        GromacsBench(),
+        OneDnnBench(),
     ]
 
     # Collect metadata from all benchmarks without setting them up
@@ -178,12 +287,20 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     benchmarks = []
     failures = {}
 
-    for s in suites:
-        if s.name() not in enabled_suites(options.preset):
+    for suite in suites:
+        if suite.name() not in enabled_suites(options.preset):
             continue
 
-        suite_benchmarks = s.benchmarks()
+        # Filter out benchmarks with filter given by user
+        suite_benchmarks = [
+            benchmark for benchmark in suite.benchmarks() if benchmark.enabled()
+        ]
         if filter:
+            log.debug(
+                f"All benchmarks in suite '{suite.name()}' ({len(suite_benchmarks)}):\n"
+                + "\n".join([b.name() for b in suite_benchmarks])
+            )
+            log.debug(f"Filtering '{suite.name()}' suite for: '{filter.pattern}'")
             suite_benchmarks = [
                 benchmark
                 for benchmark in suite_benchmarks
@@ -191,65 +308,120 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             ]
 
         if suite_benchmarks:
-            print(f"Setting up {type(s).__name__}")
+            log.info(f"Setting up {type(suite).__name__}")
             try:
-                s.setup()
+                suite.setup()
             except Exception as e:
-                failures[s.name()] = f"Suite setup failure: {e}"
-                print(f"{type(s).__name__} setup failed. Benchmarks won't be added.")
+                if options.exit_on_failure:
+                    raise e
+                failures[suite.name()] = f"Suite '{suite.name()}' setup failure: {e}"
+                log.error(
+                    f"Suite {type(suite).__name__} setup failed. Benchmarks won't be added."
+                )
+                log.error(f"failed: {e}")
             else:
-                print(f"{type(s).__name__} setup complete.")
+                log.info(f"{type(suite).__name__} setup complete.")
                 benchmarks += suite_benchmarks
 
     for benchmark in benchmarks:
         try:
-            if options.verbose:
-                print(f"Setting up {benchmark.name()}... ")
+            log.debug(f"Setting up {benchmark.name()}... ")
             benchmark.setup()
-            if options.verbose:
-                print(f"{benchmark.name()} setup complete.")
+            log.debug(f"{benchmark.name()} setup complete.")
 
         except Exception as e:
             if options.exit_on_failure:
                 raise e
             else:
-                failures[benchmark.name()] = f"Benchmark setup failure: {e}"
-                print(f"failed: {e}")
+                failures[benchmark.name()] = (
+                    f"Benchmark '{benchmark.name()}' setup failure: {e}"
+                )
+                log.error(f"failed: {e}")
 
     results = []
+    if benchmarks:
+        log.info(f"Running {len(benchmarks)} benchmarks...")
+        execution_stats["total_tests"] = len(benchmarks)
+    elif not options.dry_run:
+        raise RuntimeError("No benchmarks to run.")
     for benchmark in benchmarks:
         try:
             merged_env_vars = {**additional_env_vars}
             intermediate_results: dict[str, list[Result]] = {}
             processed: list[Result] = []
-            for _ in range(options.iterations_stddev):
-                run_iterations(
+            iterations_rc = False
+
+            # Determine if we should run regular benchmarks
+            # Run regular benchmarks if:
+            # - No tracing options specified, OR
+            # - Any tracing option is set to "inclusive"
+            should_run_regular = (
+                not options.unitrace
+                and not options.flamegraph  # No tracing options
+                or args.unitrace == "inclusive"  # Unitrace inclusive
+                or args.flamegraph == "inclusive"  # Flamegraph inclusive
+            )
+
+            if should_run_regular:
+                for _ in range(options.iterations_stddev):
+                    iterations_rc = run_iterations(
+                        benchmark,
+                        merged_env_vars,
+                        options.iterations,
+                        intermediate_results,
+                        failures,
+                        run_trace=TracingType.NONE,
+                    )
+                    valid, processed = process_results(
+                        intermediate_results,
+                        benchmark.stddev_threshold(),
+                        execution_stats,
+                    )
+                    if valid:
+                        break
+
+            # single unitrace run independent of benchmark iterations (if unitrace enabled)
+            if options.unitrace and (
+                benchmark.traceable(TracingType.UNITRACE) or args.unitrace == "force"
+            ):
+                iterations_rc = run_iterations(
                     benchmark,
                     merged_env_vars,
-                    options.iterations,
+                    1,
                     intermediate_results,
                     failures,
+                    run_trace=TracingType.UNITRACE,
+                    force_trace=(args.unitrace == "force"),
                 )
-                valid, processed = process_results(
-                    intermediate_results, benchmark.stddev_threshold()
+            # single flamegraph run independent of benchmark iterations (if flamegraph enabled)
+            if options.flamegraph and (
+                benchmark.traceable(TracingType.FLAMEGRAPH)
+                or args.flamegraph == "force"
+            ):
+                iterations_rc = run_iterations(
+                    benchmark,
+                    merged_env_vars,
+                    1,
+                    intermediate_results,
+                    failures,
+                    run_trace=TracingType.FLAMEGRAPH,
+                    force_trace=(args.flamegraph == "force"),
                 )
-                if valid:
-                    break
+
             results += processed
+            if iterations_rc:
+                execution_stats["tests_passed"] += 1
+            else:
+                execution_stats["tests_failed"] += 1
         except Exception as e:
+            execution_stats["tests_failed"] += 1
             if options.exit_on_failure:
                 raise e
             else:
-                failures[benchmark.name()] = f"Benchmark run failure: {e}"
-                print(f"failed: {e}")
-
-    for benchmark in benchmarks:
-        # this never has any useful information anyway, so hide it behind verbose
-        if options.verbose:
-            print(f"tearing down {benchmark.name()}... ", flush=True)
-        benchmark.teardown()
-        if options.verbose:
-            print("{benchmark.name()} teardown complete.")
+                failures[benchmark.name()] = (
+                    f"Benchmark '{benchmark.name()}' run failure: {e}"
+                )
+                log.error(f"failed: {e}")
 
     this_name = options.current_run_name
     chart_data = {}
@@ -258,26 +430,29 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         chart_data = {this_name: results}
 
     results_dir = directory
-    if options.custom_results_dir:
-        results_dir = Path(options.custom_results_dir)
+    if options.results_directory_override:
+        results_dir = Path(options.results_directory_override)
     history = BenchmarkHistory(results_dir)
     # limit how many files we load.
     # should this be configurable?
-    history.load(1000)
+    log.info(f"Loading benchmark history from {results_dir}...")
+    history.load()
+    log.info(f"Loaded {len(history.runs)} benchmark runs.")
 
-    # remove duplicates. this can happen if e.g., --compare baseline is specified manually.
-    compare_names = (
-        list(dict.fromkeys(compare_names)) if compare_names is not None else []
-    )
-
-    for name in compare_names:
-        compare_result = history.get_compare(name)
-        if compare_result:
-            chart_data[name] = compare_result.results
+    if compare_names:
+        log.info(f"Comparing against {len(compare_names)} previous runs...")
+        # remove duplicates. this can happen if e.g., --compare baseline is specified manually.
+        compare_names = list(dict.fromkeys(compare_names))
+        for name in compare_names:
+            compare_result = history.get_compare(name)
+            if compare_result:
+                chart_data[name] = compare_result.results
+        log.info(f"Comparison complete.")
 
     if options.output_markdown:
+        log.info("Generating markdown with benchmark results...")
         markdown_content = generate_markdown(
-            this_name, chart_data, failures, options.output_markdown
+            this_name, chart_data, failures, options.output_markdown, metadata
         )
 
         md_path = options.output_directory
@@ -287,25 +462,40 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         with open(os.path.join(md_path, "benchmark_results.md"), "w") as file:
             file.write(markdown_content)
 
-        print(
+        log.info(
             f"Markdown with benchmark results has been written to {md_path}/benchmark_results.md"
         )
 
-    saved_name = save_name if save_name is not None else this_name
+    saved_name = options.save_name if options.save_name is not None else this_name
 
     # It's important we don't save the current results into history before
     # we calculate historical averages or get latest results for compare.
     # Otherwise we might be comparing the results to themselves.
     if not options.dry_run:
-        history.save(saved_name, results, save_name is not None)
+        log.info(f"Saving benchmark results...")
+        history.save(saved_name, results)
         if saved_name not in compare_names:
             compare_names.append(saved_name)
+        log.info(f"Benchmark results saved.")
 
     if options.output_html:
         html_path = options.output_directory
         if options.output_directory is None:
-            html_path = os.path.join(os.path.dirname(__file__), "html")
-        generate_html(history.runs, compare_names, html_path, metadata)
+            html_path = os.path.normpath(
+                os.path.join(os.path.dirname(__file__), "html")
+            )
+        log.info(f"Generating HTML with benchmark results in '{html_path}'...")
+
+        generate_html(history, compare_names, html_path, metadata)
+        log.info(f"HTML with benchmark results has been generated")
+
+    # Generate GitHub summary
+    if options.produce_github_summary:
+        generate_github_summary(execution_stats, failures)
+
+    if options.exit_on_failure and failures:
+        # just in case code missed to raise earlier
+        raise RuntimeError(str(failures))
 
 
 def validate_and_parse_env_args(env_args):
@@ -337,9 +527,10 @@ if __name__ == "__main__":
         default="level_zero",
     )
     parser.add_argument(
-        "--no-rebuild",
-        help="Do not rebuild the benchmarks from scratch.",
+        "--offline",
+        help="Skip rebuilding projects, oneAPI updates, and benchmark data downloads.",
         action="store_true",
+        default=False,
     )
     parser.add_argument(
         "--redownload",
@@ -363,6 +554,7 @@ if __name__ == "__main__":
         type=str,
         help="Compare results against previously saved data.",
         action="append",
+        default=[],
     )
     parser.add_argument(
         "--iterations",
@@ -389,10 +581,14 @@ if __name__ == "__main__":
         default=None,
     )
     parser.add_argument(
-        "--verbose", help="Print output of all the commands.", action="store_true"
+        "--verbose",
+        help="Set logging level to DEBUG. Overrides --log-level.",
+        action="store_true",
     )
     parser.add_argument(
-        "--exit-on-failure", help="Exit on first failure.", action="store_true"
+        "--exit-on-failure",
+        help="Exit on first benchmark failure.",
+        action="store_true",
     )
     parser.add_argument(
         "--compare-type",
@@ -404,7 +600,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--compare-max",
         type=int,
-        help="How many results to read for comparisions",
+        help="How many results to read for comparisons",
         default=options.compare_max,
     )
     parser.add_argument(
@@ -476,12 +672,6 @@ if __name__ == "__main__":
         default=options.preset,
     )
     parser.add_argument(
-        "--results-dir",
-        type=str,
-        help="Specify a custom directory to load/store (historical) results from",
-        default=options.custom_results_dir,
-    )
-    parser.add_argument(
         "--build-jobs",
         type=int,
         help="Number of build jobs to run simultaneously",
@@ -493,13 +683,117 @@ if __name__ == "__main__":
         help="HIP device architecture",
         default=None,
     )
+    parser.add_argument(
+        "--unitrace",
+        nargs="?",
+        const="exclusive",
+        default=None,
+        help='Unitrace logs generation. "exclusive" omits regular benchmarks doing only trace generation - this is default and can be omitted. "inclusive" generation is done along regular benchmarks. "force" is same as exclusive but ignores traceable() method.',
+        choices=["exclusive", "inclusive", "force"],
+    )
+    parser.add_argument(
+        "--flamegraph",
+        nargs="?",
+        const="exclusive",
+        default=None,
+        help='FlameGraphs generation. "exclusive" omits regular benchmarks doing only trace generation - this is default and can be omitted. "inclusive" generation is done along regular benchmarks. "force" is same as exclusive but ignores traceable() method.',
+        choices=["exclusive", "inclusive", "force"],
+    )
+
+    # Options intended for CI:
+    parser.add_argument(
+        "--results-dir",
+        type=str,
+        help="Specify a custom directory to load/store (historical) results from",
+        default=options.results_directory_override,
+    )
+    parser.add_argument(
+        "--timestamp-override",
+        type=lambda ts: Validate.timestamp(
+            ts,
+            throw=argparse.ArgumentTypeError(
+                "Specified timestamp not in YYYYMMDD_HHMMSS format"
+            ),
+        ),
+        help="Manually specify timestamp used in metadata",
+        default=options.timestamp_override,
+    )
+    parser.add_argument(
+        "--github-repo",
+        type=lambda gh_repo: Validate.github_repo(
+            gh_repo,
+            throw=argparse.ArgumentTypeError(
+                "Specified github repo not in <owner>/<repo> format"
+            ),
+        ),
+        help="Manually specify github repo metadata of component tested (e.g. SYCL, UMF)",
+        default=options.github_repo_override,
+    )
+    parser.add_argument(
+        "--git-commit",
+        type=lambda commit: Validate.commit_hash(
+            commit,
+            throw=argparse.ArgumentTypeError(
+                "Specified commit is not a valid commit hash"
+            ),
+        ),
+        help="Manually specify commit hash metadata of component tested (e.g. SYCL, UMF)",
+        default=options.git_commit_override,
+    )
+
+    parser.add_argument(
+        "--detect-version",
+        type=lambda components: Validate.on_re(
+            components,
+            r"[a-z_,]+",
+            throw=argparse.ArgumentTypeError(
+                "Specified --detect-version is not a comma-separated list"
+            ),
+        ),
+        help="Detect versions of components used: comma-separated list with choices from sycl,compute_runtime",
+        default=None,
+    )
+    parser.add_argument(
+        "--detect-version-cpp-path",
+        type=Path,
+        help="Location of detect_version.cpp used to query e.g. DPC++, L0",
+        default=None,
+    )
+    parser.add_argument(
+        "--archive-baseline-after",
+        type=int,
+        help="Archive baseline results (runs starting with 'Baseline_') older than this many days. "
+        "Archived results are stored separately and can be viewed in the HTML UI by enabling "
+        "'Include archived runs'. This helps manage the size of the primary dataset.",
+        default=options.archive_baseline_days,
+    )
+    parser.add_argument(
+        "--archive-pr-after",
+        type=int,
+        help="Archive PR and other non-baseline results older than this many days. "
+        "Archived results are stored separately and can be viewed in the HTML UI by enabling "
+        "'Include archived runs'. PR runs typically have a shorter retention period than baselines.",
+        default=options.archive_pr_days,
+    )
+    parser.add_argument(
+        "--log-level",
+        type=str,
+        choices=["debug", "info", "warning", "error", "critical"],
+        help="Set the logging level",
+        default="info",
+    )
+    parser.add_argument(
+        "--produce-github-summary",
+        action="store_true",
+        help=f"Produce execution stats summary for Github workflow, in file '{options.github_summary_execution_filename}'.",
+        default=False,
+    )
 
     args = parser.parse_args()
     additional_env_vars = validate_and_parse_env_args(args.env)
 
     options.workdir = args.benchmark_directory
-    options.verbose = args.verbose
-    options.rebuild = not args.no_rebuild
+    options.offline = args.offline
     options.redownload = args.redownload
     options.sycl = args.sycl
     options.iterations = args.iterations
@@ -507,21 +801,31 @@ if __name__ == "__main__":
     options.ur = args.ur
     options.ur_adapter = args.adapter
     options.exit_on_failure = args.exit_on_failure
+    options.save_name = args.save
     options.compare = Compare(args.compare_type)
     options.compare_max = args.compare_max
     options.output_markdown = args.output_markdown
-    options.output_html = args.output_html
+    if args.output_html is not None:
+        options.output_html = args.output_html
     options.dry_run = args.dry_run
     options.umf = args.umf
     options.iterations_stddev = args.iterations_stddev
+    options.stddev_threshold = args.stddev_threshold
     options.build_igc = args.build_igc
     options.current_run_name = args.relative_perf
     options.cudnn_directory = args.cudnn_directory
     options.cublas_directory = args.cublas_directory
     options.preset = args.preset
-    options.custom_results_dir = args.results_dir
+    options.results_directory_override = args.results_dir
     options.build_jobs = args.build_jobs
     options.hip_arch = args.hip_arch
+    options.flamegraph = args.flamegraph is not None
+    options.archive_baseline_days = args.archive_baseline_after
+    options.archive_pr_days = args.archive_pr_after
+    options.produce_github_summary = args.produce_github_summary
+
+    # Initialize logger with command line arguments
+    initialize_logger(args.verbose, args.log_level)
 
     if args.build_igc and args.compute_runtime is None:
         parser.error("--build-igc requires --compute-runtime to be set")
@@ -532,17 +836,75 @@ if __name__ == "__main__":
         if not os.path.isdir(args.output_dir):
             parser.error("Specified --output-dir is not a valid path")
         options.output_directory = os.path.abspath(args.output_dir)
+
+    # Initialize GitHub summary tracking
+    execution_stats = {
+        "total_tests": 0,
+        "tests_passed": 0,
+        "tests_failed": 0,
+        "warnings": 0,
+    }
+
+    # Options intended for CI:
+    options.timestamp_override = args.timestamp_override
     if args.results_dir is not None:
         if not os.path.isdir(args.results_dir):
             parser.error("Specified --results-dir is not a valid path")
-        options.custom_results_dir = os.path.abspath(args.results_dir)
+        options.results_directory_override = os.path.abspath(args.results_dir)
+    if args.github_repo is not None or args.git_commit is not None:
+        if args.github_repo is None or args.git_commit is None:
+            parser.error("--github-repo and --git_commit must both be defined together")
+        options.github_repo_override = args.github_repo
+        options.git_commit_override = args.git_commit
+
+    # Automatically detect versions:
+    if args.detect_version is not None:
+        detect_ver_path = args.detect_version_cpp_path
+        if detect_ver_path is None:
+            detect_ver_path = Path(
+                f"{os.path.dirname(__file__)}/utils/detect_versions.cpp"
+            )
+            if not detect_ver_path.is_file():
+                parser.error(
+                    f"Unable to find detect_versions.cpp at {detect_ver_path}, please specify --detect-version-cpp-path"
+                )
+        elif not detect_ver_path.is_file():
+            parser.error(f"Specified --detect-version-cpp-path is not a valid file")
+
+        enabled_components = args.detect_version.split(",")
+        options.detect_versions.sycl = "sycl" in enabled_components
+        options.detect_versions.compute_runtime = (
+            "compute_runtime" in enabled_components
+        )
+
+        detect_res = DetectVersion.init(detect_ver_path)
 
     benchmark_filter = re.compile(args.filter) if args.filter else None
+
+    try:
+        options.device_architecture = get_device_architecture(additional_env_vars)
+    except Exception as e:
+        options.device_architecture = ""
+        log.warning(f"Failed to fetch device architecture: {e}")
+        log.warning("Defaulting to generic benchmark parameters.")
+        execution_stats["warnings"] += 1
+    finally:
+        log.info(f"Selected device architecture: {options.device_architecture}")
+
+    if options.ur_adapter:
+        log.info(f"Selected adapter (to force load): {options.ur_adapter}")
+
+    try:
+        if warn_if_level_zero_is_not_found(additional_env_vars):
+            execution_stats["warnings"] += 1
+    except Exception as e:
+        log.warning(f"Failed to check Level Zero and GPU presence: {e}")
+        execution_stats["warnings"] += 1
 
     main(
         args.benchmark_directory,
         additional_env_vars,
-        args.save,
         args.compare,
         benchmark_filter,
+        execution_stats,
     )

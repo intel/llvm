@@ -1,4 +1,8 @@
 // REQUIRES: level_zero, level_zero_dev_kit
+
+// UNSUPPORTED: arch-intel_gpu_mtl_u
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20900
+
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: %{run} %t.out
 
@@ -6,8 +10,9 @@
 #include <iostream>
 #include <level_zero/ze_api.h>
 #include <stdio.h>
-#include <sycl/ext/oneapi/backend/level_zero.hpp>
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/backend/level_zero.hpp>
+#include <sycl/platform.hpp>
 
 using namespace sycl::ext::oneapi;
 
@@ -150,6 +155,15 @@ int queryFromNativeHandle(std::vector<sycl::platform> *platform_list,
 }
 
 int main() {
+  // Initializing Level Zero driver is required if this test is linked
+  // statically with Level Zero loader, otherwise the driver will not be
+  // initialized.
+  ze_result_t result = zeInit(ZE_INIT_FLAG_GPU_ONLY);
+  if (result != ZE_RESULT_SUCCESS) {
+    std::cout << "zeInit failed with error code: " << result << std::endl;
+    return 1;
+  }
+
   int failures = 0;
 
   // Query for a list of all of the available platforms and devices.

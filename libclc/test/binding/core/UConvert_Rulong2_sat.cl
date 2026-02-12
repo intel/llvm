@@ -16,27 +16,12 @@
 // CHECK-NOT: declare {{.*}} @_Z
 // CHECK-NOT: call {{[^ ]*}} bitcast
 __attribute__((overloadable)) __clc_vec2_uint64_t
-test___spirv_UConvert_Rulong2_sat(__clc_vec2_int8_t args_0) {
-  return __spirv_UConvert_Rulong2_sat(args_0);
-}
-
-__attribute__((overloadable)) __clc_vec2_uint64_t
 test___spirv_UConvert_Rulong2_sat(__clc_vec2_uint8_t args_0) {
   return __spirv_UConvert_Rulong2_sat(args_0);
 }
 
 __attribute__((overloadable)) __clc_vec2_uint64_t
-test___spirv_UConvert_Rulong2_sat(__clc_vec2_int16_t args_0) {
-  return __spirv_UConvert_Rulong2_sat(args_0);
-}
-
-__attribute__((overloadable)) __clc_vec2_uint64_t
 test___spirv_UConvert_Rulong2_sat(__clc_vec2_uint16_t args_0) {
-  return __spirv_UConvert_Rulong2_sat(args_0);
-}
-
-__attribute__((overloadable)) __clc_vec2_uint64_t
-test___spirv_UConvert_Rulong2_sat(__clc_vec2_int32_t args_0) {
   return __spirv_UConvert_Rulong2_sat(args_0);
 }
 

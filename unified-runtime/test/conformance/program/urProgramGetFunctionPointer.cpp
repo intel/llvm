@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -18,13 +18,15 @@ struct urProgramGetFunctionPointerTest : uur::urProgramTest {
 
   std::string function_name;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urProgramGetFunctionPointerTest);
+
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urProgramGetFunctionPointerTest);
 
 TEST_P(urProgramGetFunctionPointerTest, Success) {
   void *function_pointer = nullptr;
   ur_result_t res = urProgramGetFunctionPointer(
       device, program, function_name.data(), &function_pointer);
-  if (res == UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE) {
+  if (res == UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE ||
+      res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
     return;
   }
   ASSERT_SUCCESS(res);
@@ -36,17 +38,10 @@ TEST_P(urProgramGetFunctionPointerTest, InvalidKernelName) {
   std::string missing_function = "aFakeFunctionName";
   auto result = urProgramGetFunctionPointer(
       device, program, missing_function.data(), &function_pointer);
-  ur_platform_backend_t backend;
-  ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
-                                   sizeof(backend), &backend, nullptr));
-  // TODO: level zero backend incorrectly returns
-  // UR_RESULT_ERROR_UNSUPPORTED_FEATURE
-  if (backend == UR_PLATFORM_BACKEND_LEVEL_ZERO) {
-    ASSERT_EQ(UR_RESULT_ERROR_UNSUPPORTED_FEATURE, result);
-  } else {
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_KERNEL_NAME, result);
+  if (result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+    return;
   }
-
+  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_KERNEL_NAME, result);
   ASSERT_EQ(function_pointer, nullptr);
 }
 

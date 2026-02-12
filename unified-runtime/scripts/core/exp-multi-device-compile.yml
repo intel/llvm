@@ -22,6 +22,15 @@ etors:
       value: "0x6000"
       desc: "[$x_bool_t] Returns true if the device supports the multi device compile experimental feature."
 --- #--------------------------------------------------------------------------
+type: enum
+desc: "Program operation behavior control flags"
+class: $xProgram
+name: $x_exp_program_flags_t
+etors:
+    - name: ALLOW_UNRESOLVED_SYMBOLS
+      desc: "Allow unresolved symbols in the program resulting from the corresponding operation"
+      value: "$X_BIT(0)"
+--- #--------------------------------------------------------------------------
 type: function
 desc: "Produces an executable program from one program, negates need for the linking step."
 class: $xProgram
@@ -43,6 +52,9 @@ params:
     - type: $x_device_handle_t*
       name: phDevices
       desc: "[in][range(0, numDevices)] pointer to array of device handles"
+    - type: $x_exp_program_flags_t
+      name: flags
+      desc: "[in] program information flags"
     - type: const char*
       name: pOptions
       desc: "[in][optional] pointer to build options null-terminated string."
@@ -74,6 +86,9 @@ params:
     - type: $x_device_handle_t*
       name: phDevices
       desc: "[in][range(0, numDevices)] pointer to array of device handles"
+    - type: $x_exp_program_flags_t
+      name: flags
+      desc: "[in] program information flags"
     - type: const char*
       name: pOptions
       desc: "[in][optional] pointer to build options null-terminated string."
@@ -95,7 +110,7 @@ analogue:
 details:
     - "The application may call this function from simultaneous threads."
     - "Following a successful call to this entry point the program returned in `phProgram` will contain a binary of the $X_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in `phDevices`."
-    - "If a non-success code is returned and `phProgram` is not `nullptr`, it will contain an unspecified program or `nullptr`. Implementations may use the build log of this program (accessible via $xProgramGetBuildInfo) to provide an error log for the linking failure."
+    - "If a non-success code is returned, adapters may store a program in `phProgram`. This program should only be used with `$xProgramGetBuildInfo` to get the build log for the failure. Adapters which do not do not support producing build logs must set this value to `nullptr`."
 params:
     - type: $x_context_handle_t
       name: hContext
@@ -106,6 +121,9 @@ params:
     - type: $x_device_handle_t*
       name: phDevices
       desc: "[in][range(0, numDevices)] pointer to array of device handles"
+    - type: $x_exp_program_flags_t
+      name: flags
+      desc: "[in] program information flags"
     - type: uint32_t
       name: count
       desc: "[in] number of program handles in `phPrograms`."

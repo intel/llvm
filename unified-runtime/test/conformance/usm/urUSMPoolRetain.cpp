@@ -21,7 +21,7 @@ TEST_P(urUSMPoolRetainTest, Success) {
 
   ASSERT_LT(prevRefCount, refCount);
 
-  EXPECT_SUCCESS(urUSMPoolRelease(pool));
+  ASSERT_SUCCESS(urUSMPoolRelease(pool));
 
   uint32_t afterRefCount = 0;
   ASSERT_SUCCESS(uur::GetObjectReferenceCount(pool, afterRefCount));

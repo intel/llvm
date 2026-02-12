@@ -1,4 +1,4 @@
-# Copyright (C) 2024-2025 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -6,21 +6,19 @@
 import csv
 import io
 from pathlib import Path
-from utils.utils import download, git_clone
-from .base import Benchmark, Suite
+
+from utils.utils import download
+from .base import Benchmark, Suite, TracingType
 from utils.result import Result
-from utils.utils import run, create_build_path
 from options import options
 from utils.oneapi import get_oneapi
-import os
+from git_project import GitProject
+from utils.logger import log
 
 
 class LlamaCppBench(Suite):
-    def __init__(self, directory):
-        if options.sycl is None:
-            return
-
-        self.directory = directory
+    def __init__(self):
+        self.project = None
 
     def name(self) -> str:
         return "llama.cpp bench"
@@ -29,81 +27,86 @@ class LlamaCppBench(Suite):
         return "https://github.com/ggerganov/llama.cpp"
 
     def git_hash(self) -> str:
-        return "1ee9eea094fe5846c7d8d770aa7caa749d246b23"
+        # 28 Jan, 2026
+        return "0cd7032ca4f1f2ac0c9527a62a76ed4dc6ad26fe"
 
-    def setup(self):
+    def setup(self) -> None:
         if options.sycl is None:
             return
 
-        repo_path = git_clone(
-            self.directory,
-            "llamacpp-repo",
-            self.git_url(),
-            self.git_hash(),
-        )
+        if self.project is None:
+            self.project = GitProject(
+                self.git_url(),
+                self.git_hash(),
+                Path(options.workdir),
+                "llamacpp",
+            )
 
-        self.models_dir = os.path.join(self.directory, "models")
-        Path(self.models_dir).mkdir(parents=True, exist_ok=True)
+        models_dir = Path(options.workdir, "llamacpp-models")
+        models_dir.mkdir(parents=True, exist_ok=True)
 
         self.model = download(
-            self.models_dir,
-            "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf/resolve/main/Phi-3-mini-4k-instruct-q4.gguf",
-            "Phi-3-mini-4k-instruct-q4.gguf",
-            checksum="fc4f45c9729874a33a527465b2ec78189a18e5726b7121182623feeae38632ace4f280617b01d4a04875acf49d263ee4",
+            models_dir,
+            "https://huggingface.co/ggml-org/DeepSeek-R1-Distill-Qwen-1.5B-Q4_0-GGUF/resolve/main/deepseek-r1-distill-qwen-1.5b-q4_0.gguf",
+            "deepseek-r1-distill-qwen-1.5b-q4_0.gguf",
+            checksum="791f6091059b653a24924b9f2b9c3141c8f892ae13fff15725f77a2bf7f9b1b6b71c85718f1e9c0f26c2549aba44d191",
         )
 
         self.oneapi = get_oneapi()
 
-        self.build_path = create_build_path(self.directory, "llamacpp-build")
+        if not self.project.needs_rebuild():
+            log.info(f"Rebuilding {self.project.name} skipped")
+            return
 
-        configure_command = [
-            "cmake",
-            f"-B {self.build_path}",
-            f"-S {repo_path}",
-            f"-DCMAKE_BUILD_TYPE=Release",
+        extra_args = [
             f"-DGGML_SYCL=ON",
             f"-DCMAKE_C_COMPILER=clang",
             f"-DCMAKE_CXX_COMPILER=clang++",
-            f"-DDNNL_DIR={self.oneapi.dnn_cmake()}",
+            f"-DDNNL_GPU_VENDOR=INTEL",
             f"-DTBB_DIR={self.oneapi.tbb_cmake()}",
-            f'-DCMAKE_CXX_FLAGS=-I"{self.oneapi.mkl_include()}"',
-            f"-DCMAKE_SHARED_LINKER_FLAGS=-L{self.oneapi.compiler_lib()} -L{self.oneapi.mkl_lib()}",
+            f"-DDNNL_DIR={self.oneapi.dnn_cmake()}",
+            f"-DSYCL_COMPILER=ON",
+            f"-DMKL_DIR={self.oneapi.mkl_cmake()}",
         ]
-
-        run(configure_command, add_sycl=True)
-
-        run(
-            f"cmake --build {self.build_path} -j {options.build_jobs}",
-            add_sycl=True,
-            ld_library=self.oneapi.ld_libraries(),
-        )
+        self.project.configure(extra_args, add_sycl=True)
+        self.project.build(add_sycl=True, ld_library=self.oneapi.ld_libraries())
 
     def benchmarks(self) -> list[Benchmark]:
-        if options.sycl is None:
-            return []
-
-        if options.ur_adapter == "cuda" or options.ur_adapter == "hip":
-            return []
-
         return [LlamaBench(self)]
 
 
+# FIXME: This benchmark is disabled in "Full" and "Normal" presets due to CI issues:
+# - for a reason curl cannot be found on the machine, consider adding: "-DLLAMA_CURL=OFF"
+# - syclcompat headers couldn't be found (should we source oneapi setvars?)
+#
+# If you wish to run this benchmark (e.g. for debugging), use preset "LLama".
 class LlamaBench(Benchmark):
-    def __init__(self, bench):
-        super().__init__(bench.directory, bench)
-        self.bench = bench
+    def __init__(self, suite: LlamaCppBench):
+        super().__init__(suite)
+        self.suite = suite
 
-    def setup(self):
-        self.benchmark_bin = os.path.join(self.bench.build_path, "bin", "llama-bench")
+    @property
+    def benchmark_bin(self) -> Path:
+        return self.suite.project.build_dir / "bin" / "llama-bench"
+
+    def enabled(self):
+        if options.sycl is None:
+            return False
+        if options.ur_adapter == "cuda" or options.ur_adapter == "hip":
+            return False
+        return True
+
+    def model(self):
+        return "DeepSeek-R1-Distill-Qwen-1.5B-Q4_0.gguf"
 
     def name(self):
-        return f"llama.cpp"
+        return f"llama.cpp {self.model()}"
 
     def description(self) -> str:
         return (
             "Performance testing tool for llama.cpp that measures LLM inference speed in tokens per second. "
             "Runs both prompt processing (initial context processing) and text generation benchmarks with "
-            "different batch sizes. Higher values indicate better performance. Uses the Phi-3-mini-4k-instruct "
+            f"different batch sizes. Higher values indicate better performance. Uses the {self.model()} "
             "quantized model and leverages SYCL with oneDNN for acceleration."
         )
 
@@ -113,27 +116,42 @@ class LlamaBench(Benchmark):
     def lower_is_better(self):
         return False
 
-    def run(self, env_vars) -> list[Result]:
+    def run(
+        self,
+        env_vars,
+        run_trace: TracingType = TracingType.NONE,
+        force_trace: bool = False,
+    ) -> list[Result]:
         command = [
-            f"{self.benchmark_bin}",
+            str(self.benchmark_bin),
             "--output",
             "csv",
             "-n",
             "128",
             "-p",
             "512",
-            "-b",
-            "128,256,512",
+            "-pg",
+            "0,0",
+            "-sm",
+            "none",
+            "-ngl",
+            "99",
             "--numa",
             "isolate",
             "-t",
-            "56",  # TODO: use only as many threads as numa node 0 has cpus
+            "8",
+            "--mmap",
+            "0",
             "--model",
-            f"{self.bench.model}",
+            f"{self.suite.model}",
         ]
 
         result = self.run_bench(
-            command, env_vars, ld_library=self.bench.oneapi.ld_libraries()
+            command,
+            env_vars,
+            ld_library=self.suite.oneapi.ld_libraries(),
+            run_trace=run_trace,
+            force_trace=force_trace,
         )
         parsed = self.parse_output(result)
         results = []
@@ -146,10 +164,9 @@ class LlamaBench(Benchmark):
                     value=mean,
                     command=command,
                     env=env_vars,
-                    stdout=result,
                     unit="token/s",
-                    git_url=self.bench.git_url(),
-                    git_hash=self.bench.git_hash(),
+                    git_url=self.suite.git_url(),
+                    git_hash=self.suite.git_hash(),
                 )
             )
         return results
@@ -171,6 +188,3 @@ class LlamaBench(Benchmark):
                 raise ValueError(f"Error parsing output: {e}")
 
         return results
-
-    def teardown(self):
-        return

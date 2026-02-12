@@ -8,7 +8,7 @@ using namespace sycl;
 queue q;
 
 struct Func {
-  // expected-warning@+1 {{unknown attribute 'max_global_work_dim' ignored}}
+  // expected-warning@+1 {{unknown attribute 'intelfpga::max_global_work_dim' ignored}}
   [[intelfpga::max_global_work_dim(2)]] void operator()() const {}
 };
 
@@ -18,15 +18,15 @@ struct Func {
 
 // Checking of different argument values.
 [[intel::max_global_work_dim(2)]] void baz();  // expected-note {{previous attribute is here}}
-[[intel::max_global_work_dim(1)]] void baz();  // expected-warning {{attribute 'max_global_work_dim' is already applied with different arguments}}
+[[intel::max_global_work_dim(1)]] void baz();  // expected-warning {{attribute 'intel::max_global_work_dim' is already applied with different arguments}}
 
 struct TRIFuncObj {
   [[intel::max_global_work_dim(0)]] void operator()() const; // expected-note {{previous attribute is here}}
 };
-[[intel::max_global_work_dim(1)]] void TRIFuncObj::operator()() const {} // expected-warning {{attribute 'max_global_work_dim' is already applied with different arguments}}
+[[intel::max_global_work_dim(1)]] void TRIFuncObj::operator()() const {} // expected-warning {{attribute 'intel::max_global_work_dim' is already applied with different arguments}}
 
 struct TRIFuncObjBad1 {
-  [[sycl::reqd_work_group_size(4, 4, 4)]] void // expected-error {{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
+  [[sycl::reqd_work_group_size(4, 4, 4)]] void // expected-error {{all 'sycl::reqd_work_group_size' attribute arguments must be '1' when the 'intel::max_global_work_dim' attribute argument is '0'}}
   operator()() const;
 };
 
@@ -35,32 +35,32 @@ void TRIFuncObjBad1::operator()() const {}
 
 // Checks correctness of mutual usage of different work_group_size attributes:
 // reqd_work_group_size, max_work_group_size and max_global_work_dim.
-// In case the value of 'max_global_work_dim' attribute equals to 0 we shall
+// In case the value of 'intel::max_global_work_dim' attribute equals to 0 we shall
 // ensure that if max_work_group_size and reqd_work_group_size attributes exist,
 // they hold equal values (1, 1, 1).
 
 struct TRIFuncObjBad2 {
   [[intel::max_global_work_dim(0)]]
-  [[intel::max_work_group_size(8, 8, 8)]] // expected-error{{all 'max_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
-  [[sycl::reqd_work_group_size(4, 4, 4)]] // expected-error{{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
+  [[intel::max_work_group_size(8, 8, 8)]] // expected-error{{all 'intel::max_work_group_size' attribute arguments must be '1' when the 'intel::max_global_work_dim' attribute argument is '0'}}
+  [[sycl::reqd_work_group_size(4, 4, 4)]] // expected-error{{all 'sycl::reqd_work_group_size' attribute arguments must be '1' when the 'intel::max_global_work_dim' attribute argument is '0'}}
   void
   operator()() const {}
 };
 
 struct TRIFuncObjBad3 {
-  [[intel::max_work_group_size(8, 8, 8)]] // expected-error{{all 'max_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
+  [[intel::max_work_group_size(8, 8, 8)]] // expected-error{{all 'intel::max_work_group_size' attribute arguments must be '1' when the 'intel::max_global_work_dim' attribute argument is '0'}}
   [[intel::max_global_work_dim(0)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjBad4 {
-  [[sycl::reqd_work_group_size(4, 4, 4)]]   // expected-error{{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
+  [[sycl::reqd_work_group_size(4, 4, 4)]]   // expected-error{{all 'sycl::reqd_work_group_size' attribute arguments must be '1' when the 'intel::max_global_work_dim' attribute argument is '0'}}
   [[intel::max_global_work_dim(0)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjBad5 {
-  [[sycl::reqd_work_group_size(4)]]   // expected-error{{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
+  [[sycl::reqd_work_group_size(4)]]   // expected-error{{all 'sycl::reqd_work_group_size' attribute arguments must be '1' when the 'intel::max_global_work_dim' attribute argument is '0'}}
   [[intel::max_global_work_dim(0)]] void
   operator()() const {}
 };
@@ -70,7 +70,7 @@ struct TRIFuncObjBad6 {
   operator()() const;
 };
 
-[[sycl::reqd_work_group_size(4, 4, 4)]] // expected-error{{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
+[[sycl::reqd_work_group_size(4, 4, 4)]] // expected-error{{all 'sycl::reqd_work_group_size' attribute arguments must be '1' when the 'intel::max_global_work_dim' attribute argument is '0'}}
 void
 TRIFuncObjBad6::operator()() const {}
 
@@ -79,7 +79,7 @@ struct TRIFuncObjBad7 {
   operator()() const;
 };
 
-[[sycl::reqd_work_group_size(4, 4, 4)]] // expected-error{{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
+[[sycl::reqd_work_group_size(4, 4, 4)]] // expected-error{{all 'sycl::reqd_work_group_size' attribute arguments must be '1' when the 'intel::max_global_work_dim' attribute argument is '0'}}
 void
 TRIFuncObjBad7::operator()() const {}
 
@@ -88,7 +88,7 @@ struct TRIFuncObjBad8 {
   operator()() const;
 };
 
-[[intel::max_work_group_size(4, 4, 4)]] // expected-error{{all 'max_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
+[[intel::max_work_group_size(4, 4, 4)]] // expected-error{{all 'intel::max_work_group_size' attribute arguments must be '1' when the 'intel::max_global_work_dim' attribute argument is '0'}}
 void
 TRIFuncObjBad8::operator()() const {}
 
@@ -96,7 +96,7 @@ TRIFuncObjBad8::operator()() const {}
 // reqd_work_group_size, max_work_group_size and max_global_work_dim.
 
 struct TRIFuncObjBad9 {
-  // expected-error@+1{{'reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
+  // expected-error@+1{{'sycl::reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
   [[sycl::reqd_work_group_size(-4, 1)]]
   [[intel::max_global_work_dim(0)]] void
   operator()() const {}
@@ -109,14 +109,14 @@ struct TRIFuncObjBad10 {
 };
 
 struct TRIFuncObjBad11 {
-  [[sycl::reqd_work_group_size(0, 4, 4)]] // expected-error{{'reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
+  [[sycl::reqd_work_group_size(0, 4, 4)]] // expected-error{{'sycl::reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
   [[intel::max_global_work_dim(0)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjBad12 {
   [[sycl::reqd_work_group_size(4)]]
-  [[intel::max_global_work_dim(-2)]] // expected-error{{'max_global_work_dim' attribute requires integer constant between 0 and 3 inclusive}}
+  [[intel::max_global_work_dim(-2)]] // expected-error{{'intel::max_global_work_dim' attribute requires integer constant between 0 and 3 inclusive}}
   void operator()() const {}
 };
 
@@ -127,7 +127,7 @@ struct TRIFuncObjBad13 {
 };
 
 struct TRIFuncObjBad14 {
-  [[intel::max_work_group_size(4, 4, 4)]] void // expected-error{{all 'max_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
+  [[intel::max_work_group_size(4, 4, 4)]] void // expected-error{{all 'intel::max_work_group_size' attribute arguments must be '1' when the 'intel::max_global_work_dim' attribute argument is '0'}}
   operator()() const;
 };
 
@@ -137,14 +137,14 @@ int main() {
   q.submit([&](handler &h) {
     h.single_task<class test_kernel12>(TRIFuncObjBad1());
     h.single_task<class test_kernel13>(TRIFuncObjBad2());
-    [[intel::max_global_work_dim(1)]] int Var = 0; // expected-error{{'max_global_work_dim' attribute only applies to functions}}
+    [[intel::max_global_work_dim(1)]] int Var = 0; // expected-error{{'intel::max_global_work_dim' attribute only applies to functions}}
 
     h.single_task<class test_kernel15>(
-        []() [[intel::max_global_work_dim(-8)]]{}); // expected-error{{'max_global_work_dim' attribute requires integer constant between 0 and 3 inclusive}}
+        []() [[intel::max_global_work_dim(-8)]]{}); // expected-error{{'intel::max_global_work_dim' attribute requires integer constant between 0 and 3 inclusive}}
 
     h.single_task<class test_kernell6>(
         []() [[intel::max_global_work_dim(3),      // expected-note {{previous attribute is here}}
-               intel::max_global_work_dim(2)]]{}); // expected-warning{{attribute 'max_global_work_dim' is already applied with different arguments}}
+               intel::max_global_work_dim(2)]]{}); // expected-warning{{attribute 'intel::max_global_work_dim' is already applied with different arguments}}
 
     h.single_task<class test_kernel17>(TRIFuncObjBad3());
     h.single_task<class test_kernel18>(TRIFuncObjBad4());
@@ -160,7 +160,7 @@ int main() {
     h.single_task<class test_kernel28>(TRIFuncObjBad14());
 
     h.single_task<class test_kernel28>(
-        []() [[intel::max_global_work_dim(4)]] {}); // expected-error{{'max_global_work_dim' attribute requires integer constant between 0 and 3 inclusive}}
+        []() [[intel::max_global_work_dim(4)]] {}); // expected-error{{'intel::max_global_work_dim' attribute requires integer constant between 0 and 3 inclusive}}
   });
   return 0;
 }
@@ -197,7 +197,7 @@ constexpr int bars() { return 0; }
 template <int SIZE>
 class KernelFunctor {
 public:
-  // expected-error@+1{{'max_global_work_dim' attribute requires integer constant between 0 and 3 inclusive}}
+  // expected-error@+1{{'intel::max_global_work_dim' attribute requires integer constant between 0 and 3 inclusive}}
   [[intel::max_global_work_dim(SIZE)]] void operator()() {}
 };
 
@@ -210,7 +210,7 @@ int kernel() {
 
 // Test that checks template parameter support on function.
 template <int N>
-// expected-error@+1{{'max_global_work_dim' attribute requires integer constant between 0 and 3 inclusive}}
+// expected-error@+1{{'intel::max_global_work_dim' attribute requires integer constant between 0 and 3 inclusive}}
 [[intel::max_global_work_dim(N)]] void func3() {}
 
 // Test that checks template instantiations for different argument values.
@@ -218,30 +218,30 @@ template <int size>
 [[intel::max_global_work_dim(1)]] void func4(); // expected-note {{previous attribute is here}}
 
 template <int size>
-[[intel::max_global_work_dim(size)]] void func4() {} // expected-warning {{attribute 'max_global_work_dim' is already applied with different arguments}}
+[[intel::max_global_work_dim(size)]] void func4() {} // expected-warning {{attribute 'intel::max_global_work_dim' is already applied with different arguments}}
 
 // Checks correctness of mutual usage of different work_group_size attributes:
 // reqd_work_group_size, max_work_group_size, and max_global_work_dim.
-// In case the value of 'max_global_work_dim' attribute equals to 0 we shall
+// In case the value of 'intel::max_global_work_dim' attribute equals to 0 we shall
 // ensure that if max_work_group_size and reqd_work_group_size attributes exist,
 // they hold equal values (1, 1, 1).
 template <int N>
-[[intel::max_work_group_size(N, N, N)]] void func5(); // expected-error {{all 'max_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
+[[intel::max_work_group_size(N, N, N)]] void func5(); // expected-error {{all 'intel::max_work_group_size' attribute arguments must be '1' when the 'intel::max_global_work_dim' attribute argument is '0'}}
 template <int N>
 [[intel::max_global_work_dim(0)]] void func5();
 
 template <int N>
-[[sycl::reqd_work_group_size(N)]] void func6(); // expected-error {{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
+[[sycl::reqd_work_group_size(N)]] void func6(); // expected-error {{all 'sycl::reqd_work_group_size' attribute arguments must be '1' when the 'intel::max_global_work_dim' attribute argument is '0'}}
 template <int N>
 [[intel::max_global_work_dim(0)]] void func6();
 
 template <int N>
-[[sycl::reqd_work_group_size(N, N)]] void func7(); // expected-error {{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
+[[sycl::reqd_work_group_size(N, N)]] void func7(); // expected-error {{all 'sycl::reqd_work_group_size' attribute arguments must be '1' when the 'intel::max_global_work_dim' attribute argument is '0'}}
 template <int N>
 [[intel::max_global_work_dim(0)]] void func7();
 
 template <int N>
-[[sycl::reqd_work_group_size(N, N, N)]] void func8(); // expected-error {{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
+[[sycl::reqd_work_group_size(N, N, N)]] void func8(); // expected-error {{all 'sycl::reqd_work_group_size' attribute arguments must be '1' when the 'intel::max_global_work_dim' attribute argument is '0'}}
 template <int N>
 [[intel::max_global_work_dim(0)]] void func8();
 
@@ -268,7 +268,7 @@ template <int N>
 template <int N>
 [[intel::max_global_work_dim(0)]] void func13();
 template <int N>
-[[intel::max_work_group_size(N, N, N)]] void func13(); // expected-error {{all 'max_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
+[[intel::max_work_group_size(N, N, N)]] void func13(); // expected-error {{all 'intel::max_work_group_size' attribute arguments must be '1' when the 'intel::max_global_work_dim' attribute argument is '0'}}
 
 template <int N>
 [[intel::max_global_work_dim(0)]] void func14();
@@ -278,7 +278,7 @@ template <int N>
 template <int N>
 [[intel::max_global_work_dim(0)]] void func15();
 template <int N>
-[[sycl::reqd_work_group_size(N, N, N)]] void func15(); // expected-error {{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
+[[sycl::reqd_work_group_size(N, N, N)]] void func15(); // expected-error {{all 'sycl::reqd_work_group_size' attribute arguments must be '1' when the 'intel::max_global_work_dim' attribute argument is '0'}}
 
 template <int N>
 [[intel::max_global_work_dim(0)]] void func16();

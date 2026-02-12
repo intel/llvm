@@ -18,10 +18,11 @@ TEST_F(SchedulerTest, FailedDependency) {
   unittest::UrMock<> Mock;
   platform Plt = sycl::platform();
   queue Queue(context(Plt), default_selector_v);
+  sycl::detail::queue_impl &QueueImpl = *detail::getSyclObjImpl(Queue);
 
   detail::Requirement MockReq = getMockRequirement();
-  MockCommand MDep(detail::getSyclObjImpl(Queue));
-  MockCommand MUser(detail::getSyclObjImpl(Queue));
+  MockCommand MDep(&QueueImpl);
+  MockCommand MUser(&QueueImpl);
   MDep.addUser(&MUser);
   std::vector<detail::Command *> ToCleanUp;
   (void)MUser.addDep(detail::DepDesc{&MDep, &MockReq, nullptr}, ToCleanUp);
@@ -60,7 +61,7 @@ void RunWithFailedCommandsAndCheck(bool SyncExceptionExpected,
     try {
       Queue.submit([&](sycl::handler &CGH) {
         Buf.get_access<sycl::access::mode::write>(CGH);
-        CGH.single_task<TestKernel<1>>([]() {});
+        CGH.single_task<TestKernel>([]() {});
       });
     } catch (...) {
       ExceptionThrown = true;
@@ -75,7 +76,7 @@ ur_result_t failingUrCall(void *) { return UR_RESULT_ERROR_UNKNOWN; }
 
 TEST_F(SchedulerTest, FailedKernelException) {
   unittest::UrMock<> Mock;
-  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
+  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunchWithArgsExp",
                                            &failingUrCall);
   RunWithFailedCommandsAndCheck(true, 0);
 }
@@ -93,7 +94,8 @@ ur_event_handle_t DummyEvent = mock::createDummyHandle<ur_event_handle_t>();
 
 inline ur_result_t failedEnqueueKernelLaunchWithDummy(void *pParams) {
   DummyEventReturned = true;
-  auto params = *static_cast<ur_enqueue_kernel_launch_params_t *>(pParams);
+  auto params =
+      *static_cast<ur_enqueue_kernel_launch_with_args_exp_params_t *>(pParams);
   **params.pphEvent = DummyEvent;
   return UR_RESULT_ERROR_UNKNOWN;
 }
@@ -119,7 +121,7 @@ TEST(FailedCommandsTest, CheckUREventReleaseWithKernel) {
   DummyEventReleaseAttempt = false;
   DummyEventReturned = false;
   sycl::unittest::UrMock<> Mock;
-  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
+  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunchWithArgsExp",
                                            &failedEnqueueKernelLaunchWithDummy);
   mock::getCallbacks().set_before_callback("urEventRelease",
                                            &checkDummyInEventRelease);
@@ -128,7 +130,7 @@ TEST(FailedCommandsTest, CheckUREventReleaseWithKernel) {
   {
     try {
       Queue.submit(
-          [&](sycl::handler &CGH) { CGH.single_task<TestKernel<1>>([]() {}); });
+          [&](sycl::handler &CGH) { CGH.single_task<TestKernel>([]() {}); });
     } catch (...) {
     }
   }

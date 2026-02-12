@@ -1,6 +1,6 @@
 //===----------- queue.cpp - Native CPU Adapter ---------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -19,13 +19,31 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
                                                    size_t propSize,
                                                    void *pPropValue,
                                                    size_t *pPropSizeRet) {
-  std::ignore = hQueue;
-  std::ignore = propName;
-  std::ignore = propSize;
-  std::ignore = pPropValue;
-  std::ignore = pPropSizeRet;
 
-  DIE_NO_IMPLEMENTATION;
+  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
+  ur_queue_flags_t flags = 0;
+
+  switch (propName) {
+  case UR_QUEUE_INFO_CONTEXT:
+    return ReturnValue(hQueue->getContext());
+  case UR_QUEUE_INFO_DEVICE:
+    return ReturnValue(hQueue->getDevice());
+  case UR_QUEUE_INFO_REFERENCE_COUNT:
+    return ReturnValue(hQueue->getReferenceCount());
+  case UR_QUEUE_INFO_EMPTY:
+    return ReturnValue(hQueue->isEmpty());
+  case UR_QUEUE_INFO_FLAGS:
+    if (!hQueue->isInOrder()) {
+      flags |= UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+    }
+    if (hQueue->isProfiling()) {
+      flags |= UR_QUEUE_FLAG_PROFILING_ENABLE;
+    }
+
+    return ReturnValue(flags);
+  default:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
@@ -40,7 +58,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
-  std::ignore = hQueue;
   hQueue->incrementReferenceCount();
 
   return UR_RESULT_SUCCESS;
@@ -52,25 +69,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urQueueGetNativeHandle(ur_queue_handle_t hQueue, ur_queue_native_desc_t *pDesc,
-                       ur_native_handle_t *phNativeQueue) {
-  std::ignore = hQueue;
-  std::ignore = pDesc;
-  std::ignore = phNativeQueue;
+UR_APIEXPORT ur_result_t UR_APICALL urQueueGetNativeHandle(
+    ur_queue_handle_t /*hQueue*/, ur_queue_native_desc_t * /*pDesc*/,
+    ur_native_handle_t * /*phNativeQueue*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
-    ur_native_handle_t hNativeQueue, ur_context_handle_t hContext,
-    ur_device_handle_t hDevice, const ur_queue_native_properties_t *pProperties,
-    ur_queue_handle_t *phQueue) {
-  std::ignore = hNativeQueue;
-  std::ignore = hContext;
-  std::ignore = hDevice;
-  std::ignore = pProperties;
-  std::ignore = phQueue;
+    ur_native_handle_t /*hNativeQueue*/, ur_context_handle_t /*hContext*/,
+    ur_device_handle_t /*hDevice*/,
+    const ur_queue_native_properties_t * /*pProperties*/,
+    ur_queue_handle_t * /*phQueue*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
@@ -80,8 +90,51 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t hQueue) {
-  std::ignore = hQueue;
+UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t /*hQueue*/) {
 
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t
+urQueueBeginGraphCaptureExp(ur_queue_handle_t /* hQueue */) {
+
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t urQueueBeginCaptureIntoGraphExp(
+    ur_queue_handle_t /* hQueue */, ur_exp_graph_handle_t /* hGraph */) {
+
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t urQueueEndGraphCaptureExp(
+    ur_queue_handle_t /* hQueue */, ur_exp_graph_handle_t * /* phGraph */) {
+
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t
+urEnqueueGraphExp(ur_queue_handle_t /* hQueue */,
+                  ur_exp_executable_graph_handle_t /* hGraph */,
+                  uint32_t /* numEventsInWaitList */,
+                  const ur_event_handle_t * /* phEventWaitList */,
+                  ur_event_handle_t * /* phEvent */) {
+
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t urQueueIsGraphCaptureEnabledExp(
+    ur_queue_handle_t /* hQueue */, bool * /* hResult */) {
+
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t urEnqueueHostTaskExp(
+    ur_queue_handle_t /* hQueue */,
+    ur_exp_host_task_function_t /* pfnHostTask */, void * /* data */,
+    const ur_exp_host_task_properties_t * /* pProperties */,
+    uint32_t /* numEventsInWaitList */,
+    const ur_event_handle_t * /* phEventWaitList */,
+    ur_event_handle_t * /* phEvent */) {
   DIE_NO_IMPLEMENTATION;
 }

@@ -74,6 +74,9 @@ ur_result_t EnqueueMemCopyRectHelper(
                                                            &Events[0], Event));
   }
 
+  for (const auto &E : Events)
+    UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -96,6 +99,7 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
 
   std::scoped_lock<ur_shared_mutex> Guard(Mutex);
   auto &Allocation = Allocations[Device];
+  auto CI = getTsanInterceptor()->getContextInfo(Context);
   ur_result_t URes = UR_RESULT_SUCCESS;
   if (!Allocation) {
     ur_usm_desc_t USMDesc{};
@@ -105,19 +109,20 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
                                                 Size, AllocType::DEVICE_USM,
                                                 ur_cast<void **>(&Allocation));
     if (URes != UR_RESULT_SUCCESS) {
-      getContext()->logger.error(
-          "Failed to allocate {} bytes memory for buffer {}", Size, this);
+      UR_LOG_L(getContext()->logger, ERR,
+               "Failed to allocate {} bytes memory for buffer {}", Size, this);
       return URes;
     }
 
     if (HostPtr) {
-      ManagedQueue Queue(Context, Device);
+      ur_queue_handle_t Queue = CI->getInternalQueue(Device);
       URes = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
           Queue, true, Allocation, HostPtr, Size, 0, nullptr, nullptr);
       if (URes != UR_RESULT_SUCCESS) {
-        getContext()->logger.error("Failed to copy {} bytes data from host "
-                                   "pointer {} to buffer {}",
-                                   Size, HostPtr, this);
+        UR_LOG_L(getContext()->logger, ERR,
+                 "Failed to copy {} bytes data from host "
+                 "pointer {} to buffer {}",
+                 Size, (void *)HostPtr, this);
         return URes;
       }
     }
@@ -141,32 +146,35 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
       URes = getContext()->urDdiTable.USM.pfnHostAlloc(
           Context, &USMDesc, Pool, Size, ur_cast<void **>(&HostAllocation));
       if (URes != UR_RESULT_SUCCESS) {
-        getContext()->logger.error("Failed to allocate {} bytes host "
-                                   "USM for buffer {} migration",
-                                   Size, this);
+        UR_LOG_L(getContext()->logger, ERR,
+                 "Failed to allocate {} bytes host "
+                 "USM for buffer {} migration",
+                 Size, this);
         return URes;
       }
     }
 
     // Copy data from last synced device to host
     {
-      ManagedQueue Queue(Context, LastSyncedDevice.hDevice);
+      ur_queue_handle_t Queue = CI->getInternalQueue(Device);
       URes = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
           Queue, true, HostAllocation, LastSyncedDevice.MemHandle, Size, 0,
           nullptr, nullptr);
       if (URes != UR_RESULT_SUCCESS) {
-        getContext()->logger.error("Failed to migrate memory buffer data");
+        UR_LOG_L(getContext()->logger, ERR,
+                 "Failed to migrate memory buffer data");
         return URes;
       }
     }
 
     // Sync data back to device
     {
-      ManagedQueue Queue(Context, Device);
+      ur_queue_handle_t Queue = CI->getInternalQueue(Device);
       URes = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
           Queue, true, Allocation, HostAllocation, Size, 0, nullptr, nullptr);
       if (URes != UR_RESULT_SUCCESS) {
-        getContext()->logger.error("Failed to migrate memory buffer data");
+        UR_LOG_L(getContext()->logger, ERR,
+                 "Failed to migrate memory buffer data");
         return URes;
       }
     }
@@ -178,10 +186,13 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
 }
 
 ur_result_t MemBuffer::free() {
-  for (const auto &[_, Ptr] : Allocations) {
-    ur_result_t URes = getContext()->urDdiTable.USM.pfnFree(Context, Ptr);
+  for (const auto &[Device, Ptr] : Allocations) {
+    ur_result_t URes = Device
+                           ? getTsanInterceptor()->releaseMemory(Context, Ptr)
+                           : getContext()->urDdiTable.USM.pfnFree(Context, Ptr);
     if (URes != UR_RESULT_SUCCESS) {
-      getContext()->logger.error("Failed to free buffer handle {}", Ptr);
+      UR_LOG_L(getContext()->logger, ERR, "Failed to free buffer handle {}",
+               (void *)Ptr);
       return URes;
     }
   }

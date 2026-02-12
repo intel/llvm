@@ -34,21 +34,21 @@ int main() {
 }
 
 [[sycl::reqd_sub_group_size(16)]] SYCL_EXTERNAL void B();
-[[sycl::reqd_sub_group_size(16)]] void A() // expected-warning {{'reqd_sub_group_size' attribute can only be applied to a SYCL kernel function}} 
+[[sycl::reqd_sub_group_size(16)]] void A() // expected-warning {{'sycl::reqd_sub_group_size' attribute can only be applied to a SYCL kernel function}} 
 { 
 }
 
 [[sycl::reqd_sub_group_size(16)]] SYCL_EXTERNAL void B();
-[[sycl::reqd_sub_group_size(16)]] SYCL_EXTERNAL void B() { // expected-warning {{'reqd_sub_group_size' attribute can only be applied to a SYCL kernel function}}
+[[sycl::reqd_sub_group_size(16)]] SYCL_EXTERNAL void B() { // expected-warning {{'sycl::reqd_sub_group_size' attribute can only be applied to a SYCL kernel function}}
   A();
 }
 
 // expected-note@+1 {{conflicting attribute is here}}
-[[sycl::reqd_sub_group_size(2)]] void sg_size2() {} // expected-warning {{'reqd_sub_group_size' attribute can only be applied to a SYCL kernel function}}
+[[sycl::reqd_sub_group_size(2)]] void sg_size2() {} // expected-warning {{'sycl::reqd_sub_group_size' attribute can only be applied to a SYCL kernel function}}
 
 // expected-note@+3 {{conflicting attribute is here}}
 // expected-error@+2 {{conflicting attributes applied to a SYCL kernel}}
-// expected-warning@+1 {{'reqd_sub_group_size' attribute can only be applied to a SYCL kernel function}}
+// expected-warning@+1 {{'sycl::reqd_sub_group_size' attribute can only be applied to a SYCL kernel function}}
 [[sycl::reqd_sub_group_size(4)]] __attribute__((sycl_device)) void sg_size4() {
   sg_size2();
 }
@@ -56,23 +56,23 @@ int main() {
 // Test that checks support and functionality of reqd_sub_group_size attribute support on function.
 
 // Tests for incorrect argument values for Intel reqd_sub_group_size attribute.
-[[sycl::reqd_sub_group_size]] void one() {}         // expected-error {{'reqd_sub_group_size' attribute takes one argument}}
-[[sycl::reqd_sub_group_size(5)]] int a;             // expected-error{{'reqd_sub_group_size' attribute only applies to functions}}
+[[sycl::reqd_sub_group_size]] void one() {}         // expected-error {{'sycl::reqd_sub_group_size' attribute takes one argument}}
+[[sycl::reqd_sub_group_size(5)]] int a;             // expected-error{{'sycl::reqd_sub_group_size' attribute only applies to functions}}
 [[sycl::reqd_sub_group_size("foo")]] void func() {} // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'const char[4]'}}
-[[sycl::reqd_sub_group_size(-1)]] void func1() {}   // expected-error{{'reqd_sub_group_size' attribute requires a positive integral compile time constant expression}}
-[[sycl::reqd_sub_group_size(0, 1)]] void arg() {}   // expected-error{{'reqd_sub_group_size' attribute takes one argument}}
+[[sycl::reqd_sub_group_size(-1)]] void func1() {}   // expected-error{{'sycl::reqd_sub_group_size' attribute requires a positive integral compile time constant expression}}
+[[sycl::reqd_sub_group_size(0, 1)]] void arg() {}   // expected-error{{'sycl::reqd_sub_group_size' attribute takes one argument}}
 
 // Diagnostic is emitted because the arguments mismatch.
 [[sycl::reqd_sub_group_size(12)]] void quux();  // expected-note {{previous attribute is here}}
-[[sycl::reqd_sub_group_size(100)]] void quux(); // expected-warning {{attribute 'reqd_sub_group_size' is already applied with different arguments}} expected-note {{previous attribute is here}}
-[[sycl::reqd_sub_group_size(200)]] void quux();  // expected-warning {{attribute 'reqd_sub_group_size' is already applied with different arguments}}
+[[sycl::reqd_sub_group_size(100)]] void quux(); // expected-warning {{attribute 'sycl::reqd_sub_group_size' is already applied with different arguments}} expected-note {{previous attribute is here}}
+[[sycl::reqd_sub_group_size(200)]] void quux();  // expected-warning {{attribute 'sycl::reqd_sub_group_size' is already applied with different arguments}}
 
 // Make sure there's at least one argument passed.
-[[sycl::reqd_sub_group_size]] void quibble(); // expected-error {{'reqd_sub_group_size' attribute takes one argument}}
+[[sycl::reqd_sub_group_size]] void quibble(); // expected-error {{'sycl::reqd_sub_group_size' attribute takes one argument}}
 
 // No diagnostic is emitted because the arguments match.
 [[sycl::reqd_sub_group_size(12)]] void same();
-[[sycl::reqd_sub_group_size(12)]] void same() {} // expected-warning {{'reqd_sub_group_size' attribute can only be applied to a SYCL kernel function}}
+[[sycl::reqd_sub_group_size(12)]] void same() {} // expected-warning {{'sycl::reqd_sub_group_size' attribute can only be applied to a SYCL kernel function}}
 
 // expected-note@+2 {{did you mean to use 'sycl::reqd_sub_group_size' instead?}}
 // expected-warning@+1{{attribute 'intel::reqd_sub_group_size' is deprecated}}
@@ -84,7 +84,7 @@ int main() {
 // Test that checks wrong function template instantiation and ensures that the type
 // is checked properly when instantiating from the template definition.
 template <typename Ty>
-// expected-error@+3{{'reqd_sub_group_size' attribute requires a positive integral compile time constant expression}}
+// expected-error@+3{{'sycl::reqd_sub_group_size' attribute requires a positive integral compile time constant expression}}
 // expected-error@+2 {{integral constant expression must have integral or unscoped enumeration type, not 'S'}}
 // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
 [[sycl::reqd_sub_group_size(Ty{})]] void func() {}
@@ -114,7 +114,7 @@ constexpr int bar1() { return 0; }
 template <int SIZE>
 class KernelFunctor {
 public:
-  // expected-error@+1{{'reqd_sub_group_size' attribute requires a positive integral compile time constant expression}}
+  // expected-error@+1{{'sycl::reqd_sub_group_size' attribute requires a positive integral compile time constant expression}}
   [[sycl::reqd_sub_group_size(SIZE)]] void operator()() {}
 };
 
@@ -126,16 +126,16 @@ int check() {
 
 // Test that checks template parameter support on function.
 template <int N>
-// expected-error@+2{{'reqd_sub_group_size' attribute requires a positive integral compile time constant expression}}
-// expected-warning@+1 {{'reqd_sub_group_size' attribute can only be applied to a SYCL kernel function}}
+// expected-error@+2{{'sycl::reqd_sub_group_size' attribute requires a positive integral compile time constant expression}}
+// expected-warning@+1 {{'sycl::reqd_sub_group_size' attribute can only be applied to a SYCL kernel function}}
 [[sycl::reqd_sub_group_size(N)]] void func3() {}
 
 template <int N>
-// expected-warning@+1 {{'reqd_sub_group_size' attribute can only be applied to a SYCL kernel function}}
+// expected-warning@+1 {{'sycl::reqd_sub_group_size' attribute can only be applied to a SYCL kernel function}}
 [[sycl::reqd_sub_group_size(4)]] void func4(); // expected-note {{previous attribute is here}}
 
 template <int N>
-[[sycl::reqd_sub_group_size(N)]] void func4() {} // expected-warning {{attribute 'reqd_sub_group_size' is already applied with different arguments}}
+[[sycl::reqd_sub_group_size(N)]] void func4() {} // expected-warning {{attribute 'sycl::reqd_sub_group_size' is already applied with different arguments}}
 
 int check1() {
   // no error expected

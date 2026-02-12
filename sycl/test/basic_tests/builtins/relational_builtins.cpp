@@ -1,5 +1,8 @@
 // RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fpreview-breaking-changes %s -o %t.out %}
+// RUN: %clangxx -D__SYCL_USE_LIBSYCL8_VEC_IMPL=1 -fsycl %s -o %t.out
+
+// XFAIL: libcxx
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19616
 
 // NOTE: Compile the test fully to ensure the library exports the right host
 // symbols.

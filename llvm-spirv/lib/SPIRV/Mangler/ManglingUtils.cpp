@@ -28,6 +28,7 @@ static const char *PrimitiveNames[PRIMITIVE_NUM] = {
     "half",
     "float",
     "double",
+    "__bf16",
     "void",
     "...",
     "image1d_ro_t",
@@ -92,6 +93,7 @@ static const char *PrimitiveNames[PRIMITIVE_NUM] = {
     "intel_sub_group_avc_ime_result_dual_reference_streamin_t"
 };
 
+// clang-format off
 const char *MangledTypes[PRIMITIVE_NUM] = {
     "b",                                 // BOOL
     "h",                                 // UCHAR
@@ -105,6 +107,7 @@ const char *MangledTypes[PRIMITIVE_NUM] = {
     "Dh",                                // HALF
     "f",                                 // FLOAT
     "d",                                 // DOUBLE
+    "DF16b",                             // __BF16
     "v",                                 // VOID
     "z",                                 // VarArg
     "14ocl_image1d_ro",                  // PRIMITIVE_IMAGE1D_RO_T
@@ -173,6 +176,7 @@ const char *MangledTypes[PRIMITIVE_NUM] = {
     "55ocl_intel_sub_group_avc_ime_single_reference_streamin_t",          // PRIMITIVE_SUB_GROUP_AVC_IME_SINGLE_REF_STREAMIN_T
     "53ocl_intel_sub_group_avc_ime_dual_reference_streamin_t"             // PRIMITIVE_SUB_GROUP_AVC_IME_DUAL_REF_STREAMIN_T
 };
+// clang-format on
 
 const char *ReadableAttribute[ATTR_NUM] = {
     "restrict", "volatile",   "const",   "__private",
@@ -197,6 +201,7 @@ static const SPIRversion PrimitiveSupportedVersions[PRIMITIVE_NUM] = {
     SPIR12, // HALF
     SPIR12, // FLOAT
     SPIR12, // DOUBLE
+    SPIR12, // __BF16
     SPIR12, // VOID
     SPIR12, // VarArg
     SPIR12, // PRIMITIVE_IMAGE1D_RO_T

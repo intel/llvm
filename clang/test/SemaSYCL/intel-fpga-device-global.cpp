@@ -17,40 +17,40 @@ using namespace sycl::ext::oneapi;
 [[intel::singlepump]] static device_global<float> static_dev_glob9;
 [[intel::merge("mrg5", "width")]] static device_global<float> static_dev_glob10;
 
-// expected-error@+1{{'numbanks' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::numbanks' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
 [[intel::numbanks(2)]] int K;
 
-// expected-error@+1{{'max_replicates' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::max_replicates' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
 [[intel::max_replicates(10)]] int K1;
 
-// expected-error@+1{{'force_pow2_depth' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::force_pow2_depth' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
 [[intel::force_pow2_depth(1)]] int K2;
 
-// expected-error@+1{{'bankwidth' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::bankwidth' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
 [[intel::bankwidth(8)]] int K3;
 
-// expected-error@+1{{'simple_dual_port' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::simple_dual_port' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
 [[intel::simple_dual_port]] int K4;
 
-// expected-error@+1{{'fpga_memory' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::fpga_memory' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
 [[intel::fpga_memory]] int K5;
 
-// expected-error@+1{{'bank_bits' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::bank_bits' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
 [[intel::bank_bits(3, 4)]] int K6;
 
-// expected-error@+1{{'fpga_register' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::fpga_register' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
 [[intel::fpga_register]] int K7;
 
-// expected-error@+1{{'doublepump' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::doublepump' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
 [[intel::doublepump]] int K8;
 
-// expected-error@+1{{'singlepump' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::singlepump' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
 [[intel::singlepump]] int K9;
 
-// expected-error@+1{{'merge' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::merge' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
 [[intel::merge("mrg3", "width")]] int K10;
 
-//expected-error@+1{{'private_copies' attribute only applies to const variables, local variables, non-static data members and device_global variables}}
+//expected-error@+1{{'intel::private_copies' attribute only applies to const variables, local variables, non-static data members and device_global variables}}
 [[intel::private_copies(16)]] int K12;
 
 struct bar {
@@ -107,36 +107,36 @@ struct RandomStruct {
   int M;
 };
 
-// expected-error@+1{{'numbanks' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::numbanks' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
 [[intel::numbanks(4)]] RandomStruct S;
-// expected-error@+1{{'bankwidth' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::bankwidth' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
 [[intel::bankwidth(4)]] RandomStruct S1;
-// expected-error@+1{{'force_pow2_depth' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::force_pow2_depth' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
 [[intel::force_pow2_depth(1)]] RandomStruct S2;
-// expected-error@+1{{'max_replicates' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::max_replicates' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
 [[intel::max_replicates(8)]] RandomStruct S3;
-// expected-error@+1{{'simple_dual_port' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::simple_dual_port' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
 [[intel::simple_dual_port]] RandomStruct S4;
 
-// expected-error@+1{{'fpga_memory' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::fpga_memory' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
 [[intel::fpga_memory]] RandomStruct S5;
 
-// expected-error@+1{{'bank_bits' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::bank_bits' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
 [[intel::bank_bits(4, 5)]] RandomStruct S6;
 
-// expected-error@+1{{'fpga_register' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::fpga_register' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
 [[intel::fpga_register]] RandomStruct S7;
 
-// expected-error@+1{{'singlepump' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::singlepump' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
 [[intel::singlepump]] RandomStruct S8;
 
-// expected-error@+1{{'doublepump' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::doublepump' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
 [[intel::doublepump]] RandomStruct S9;
 
-// expected-error@+1{{'merge' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::merge' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
 [[intel::merge("mrg1", "width")]] RandomStruct S10;
 
-//expected-error@+1{{'private_copies' attribute only applies to const variables, local variables, non-static data members and device_global variables}}
+//expected-error@+1{{'intel::private_copies' attribute only applies to const variables, local variables, non-static data members and device_global variables}}
 [[intel::private_copies(32)]] RandomStruct S11;
 
 void foo() {
@@ -185,7 +185,7 @@ void foo() {
   [[intel::merge("mrg1", "width")]] RandomStruct S10;
 
   [[intel::private_copies(8)]] int A11;
-  //expected-error@+1{{'private_copies' attribute only applies to const variables, local variables, non-static data members and device_global variables}}
+  //expected-error@+1{{'intel::private_copies' attribute only applies to const variables, local variables, non-static data members and device_global variables}}
   [[intel::private_copies(16)]] static unsigned int ext_five11[64];
   [[intel::private_copies(32)]] RandomStruct S11;
 }
@@ -212,52 +212,52 @@ void attr_on_func_arg3([[intel::bankwidth(8)]] int pc3) {}
 void attr_on_func_arg4([[intel::simple_dual_port]] int pc4) {}
 void attr_on_func_arg5([[intel::fpga_memory]] int pc5) {}
 void attr_on_func_arg6([[intel::bank_bits(7, 8)]] int pc6) {}
-// expected-error@+1{{'singlepump' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::singlepump' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
 void attr_on_func_arg7([[intel::singlepump]] int pc7) {}
-// expected-error@+1{{'doublepump' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::doublepump' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
 void attr_on_func_arg8([[intel::doublepump]] int pc8) {}
-// expected-error@+1{{'fpga_register' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::fpga_register' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
 void attr_on_func_arg9([[intel::fpga_register]] int pc9) {}
-// expected-error@+1{{'merge' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::merge' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
 void attr_on_func_arg10([[intel::merge("mrg1", "width")]] int pc10) {}
 
 struct [[__sycl_detail__::global_variable_allowed]] GlobAllowedVarOnly {
 };
 
-// expected-error@+1{{'numbanks' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::numbanks' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
 [[intel::numbanks(2)]] GlobAllowedVarOnly GAVO;
 
-// expected-error@+1{{'max_replicates' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::max_replicates' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
 [[intel::max_replicates(20)]] GlobAllowedVarOnly GAVO1;
 
-// expected-error@+1{{'force_pow2_depth' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::force_pow2_depth' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
 [[intel::force_pow2_depth(0)]] GlobAllowedVarOnly GAVO2;
 
-// expected-error@+1{{'bankwidth' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::bankwidth' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
 [[intel::bankwidth(16)]] GlobAllowedVarOnly GAVO3;
 
-// expected-error@+1{{'simple_dual_port' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::simple_dual_port' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
 [[intel::simple_dual_port]] GlobAllowedVarOnly GAVO4;
 
-// expected-error@+1{{'fpga_memory' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::fpga_memory' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
 [[intel::fpga_memory]] GlobAllowedVarOnly GAVO5;
 
-// expected-error@+1{{'bank_bits' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::bank_bits' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
 [[intel::bank_bits(6, 7)]] GlobAllowedVarOnly GAVO6;
 
-// expected-error@+1{{'fpga_register' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::fpga_register' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
 [[intel::fpga_register]] GlobAllowedVarOnly GAVO7;
 
-// expected-error@+1{{'singlepump' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::singlepump' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
 [[intel::singlepump]] GlobAllowedVarOnly GAVO8;
 
-// expected-error@+1{{'doublepump' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::doublepump' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
 [[intel::doublepump]] GlobAllowedVarOnly GAVO9;
 
-// expected-error@+1{{'merge' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
+// expected-error@+1{{'intel::merge' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
 [[intel::merge("mrg5", "width")]] GlobAllowedVarOnly GAVO10;
 
-//expected-error@+1{{'private_copies' attribute only applies to const variables, local variables, non-static data members and device_global variables}}
+//expected-error@+1{{'intel::private_copies' attribute only applies to const variables, local variables, non-static data members and device_global variables}}
 [[intel::private_copies(16)]] GlobAllowedVarOnly GAVO11;
 
 [[intel::numbanks(4)]] device_global<int> Good;
@@ -352,51 +352,51 @@ int main() {
   return 0;
 }
 
-//expected-error@+1{{'numbanks' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
+//expected-error@+1{{'intel::numbanks' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
 [[intel::numbanks(2)]]
 __attribute__((opencl_global)) unsigned int ocl_glob_num_p2d[64] = {1, 2, 3};
 
-//expected-error@+1{{'max_replicates' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
+//expected-error@+1{{'intel::max_replicates' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
 [[intel::max_replicates(20)]]
 __attribute__((opencl_global)) unsigned int ocl_glob_max_p2d[64] = {1, 2, 3};
 
-//expected-error@+1{{'bankwidth' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
+//expected-error@+1{{'intel::bankwidth' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
 [[intel::bankwidth(32)]]
 __attribute__((opencl_global)) unsigned int ocl_glob_bankw_p2d[64] = {1, 2, 3};
 
-//expected-error@+1{{'simple_dual_port' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
+//expected-error@+1{{'intel::simple_dual_port' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
 [[intel::simple_dual_port]]
 __attribute__((opencl_global)) unsigned int ocl_glob_simple_p2d[64] = {1, 2, 3};
 
-//expected-error@+1{{'fpga_memory' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
+//expected-error@+1{{'intel::fpga_memory' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
 [[intel::fpga_memory("MLAB")]]
 __attribute__((opencl_global)) unsigned int ocl_glob_memory_p2d[64] = {1, 2, 3};
 
-//expected-error@+1{{'bank_bits' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
+//expected-error@+1{{'intel::bank_bits' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
 [[intel::bank_bits(7, 8)]]
 __attribute__((opencl_global)) unsigned int ocl_glob_bank_bits_p2d[64] = {1, 2, 3};
 
-//expected-error@+1{{'fpga_register' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
+//expected-error@+1{{'intel::fpga_register' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
 [[intel::fpga_register]]
 __attribute__((opencl_global)) unsigned int ocl_glob_reg_p2d[64] = {1, 2, 3};
 
-//expected-error@+1{{'doublepump' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
+//expected-error@+1{{'intel::doublepump' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
 [[intel::doublepump]]
 __attribute__((opencl_global)) unsigned int ocl_glob_dpump_p2d[64] = {1, 2, 3};
 
-//expected-error@+1{{'singlepump' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
+//expected-error@+1{{'intel::singlepump' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
 [[intel::singlepump]]
 __attribute__((opencl_global)) unsigned int ocl_glob_spump_p2d[64] = {1, 2, 3};
 
-//expected-error@+1{{'merge' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
+//expected-error@+1{{'intel::merge' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
 [[intel::merge("mrg4", "depth")]]
 __attribute__((opencl_global)) unsigned int ocl_glob_mer_p2d[64] = {1, 2, 3};
 
-//expected-error@+1{{'private_copies' attribute only applies to const variables, local variables, non-static data members and device_global variables}}
+//expected-error@+1{{'intel::private_copies' attribute only applies to const variables, local variables, non-static data members and device_global variables}}
 [[intel::private_copies(8)]]
 __attribute__((opencl_global)) unsigned int ocl_glob_pc_p2d[64] = {1, 2, 3};
 
-//expected-error@+1{{'private_copies' attribute only applies to const variables, local variables, non-static data members and device_global variables}}
+//expected-error@+1{{'intel::private_copies' attribute only applies to const variables, local variables, non-static data members and device_global variables}}
 [[intel::private_copies(8)]]
 __attribute__((opencl_constant)) unsigned int const_var_private_copies[64] = {1, 2, 3};
 

@@ -55,8 +55,7 @@ bool hasExceededMaxRegistersPerBlock(ur_device_handle_t Device,
                                      size_t BlockSize);
 
 ur_result_t
-setKernelParams(const ur_context_handle_t Context,
-                const ur_device_handle_t Device, const uint32_t WorkDim,
+setKernelParams(const ur_device_handle_t Device, const uint32_t WorkDim,
                 const size_t *GlobalWorkOffset, const size_t *GlobalWorkSize,
                 const size_t *LocalWorkSize, ur_kernel_handle_t &Kernel,
                 CUfunction &CuFunc, size_t (&ThreadsPerBlock)[3],

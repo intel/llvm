@@ -25,78 +25,31 @@
 #include <unistd.h>
 #endif
 
+#include <loader/ze_loader.h>
 #include <ur/ur.hpp>
 #include <ur_ddi.h>
 #include <ze_api.h>
 #include <zes_api.h>
 
-#include <level_zero/include/level_zero/ze_intel_gpu.h>
+#include <level_zero/ze_intel_gpu.h>
 #include <umf_pools/disjoint_pool_config_parser.hpp>
 
+#include "common/ur_ref_count.hpp"
 #include "logger/ur_logger.hpp"
+#include "ur_interface_loader.hpp"
 
 struct _ur_platform_handle_t;
 
 [[maybe_unused]] static bool checkL0LoaderTeardown() {
-  bool loaderStable = true;
-#ifdef _WIN32
-  uint32_t ZeDriverCount = 0;
-  HMODULE zeLoader = LoadLibrary("ze_loader.dll");
-  if (zeLoader) {
-    typedef ze_result_t (*zeDriverGet_t)(uint32_t *, ze_driver_handle_t *);
-    zeDriverGet_t zeDriverGetLoader =
-        (zeDriverGet_t)GetProcAddress(zeLoader, "zeDriverGet");
-    if (zeDriverGetLoader) {
-      ze_result_t result = zeDriverGetLoader(&ZeDriverCount, nullptr);
-      logger::debug(
-          "ZE ---> checkL0LoaderTeardown result = {} driver count = {}", result,
-          ZeDriverCount);
-      if (result != ZE_RESULT_SUCCESS || ZeDriverCount == 0) {
-        loaderStable = false;
-      }
-    } else {
-      logger::debug("ZE ---> checkL0LoaderTeardown: Failed to get address of "
-                    "zeDriverGet");
-      loaderStable = false;
+  try {
+    if (!zelCheckIsLoaderInTearDown()) {
+      return true;
     }
-    FreeLibrary(zeLoader);
-  } else {
-    logger::debug(
-        "ZE ---> checkL0LoaderTeardown: Failed to load ze_loader.dll");
-    loaderStable = false;
+  } catch (...) {
   }
-#else
-  uint32_t ZeDriverCount = 0;
-  void *zeLoader = dlopen("libze_loader.so.1", RTLD_LAZY);
-  if (zeLoader) {
-    typedef ze_result_t (*zeDriverGet_t)(uint32_t *, ze_driver_handle_t *);
-    zeDriverGet_t zeDriverGetLoader =
-        (zeDriverGet_t)dlsym(zeLoader, "zeDriverGet");
-    if (zeDriverGetLoader) {
-      ze_result_t result = zeDriverGetLoader(&ZeDriverCount, nullptr);
-      logger::debug(
-          "ZE ---> checkL0LoaderTeardown result = {} driver count = {}", result,
-          ZeDriverCount);
-      if (result != ZE_RESULT_SUCCESS || ZeDriverCount == 0) {
-        loaderStable = false;
-      }
-    } else {
-      logger::debug("ZE ---> checkL0LoaderTeardown: Failed to get address of "
-                    "zeDriverGet");
-      loaderStable = false;
-    }
-    dlclose(zeLoader);
-  } else {
-    logger::debug(
-        "ZE ---> checkL0LoaderTeardown: Failed to load libze_loader.so.1");
-    loaderStable = false;
-  }
-#endif
-  if (!loaderStable) {
-    logger::debug(
-        "ZE ---> checkL0LoaderTeardown: Loader is not stable, returning false");
-  }
-  return loaderStable;
+  UR_LOG(DEBUG,
+         "ZE ---> checkL0LoaderTeardown: Loader is in teardown or is unstable");
+  return false;
 }
 
 // Controls UR L0 calls tracing.
@@ -121,6 +74,13 @@ const int UrL0Debug = [] {
 
 const int UrL0LeaksDebug = [] {
   const char *UrRet = std::getenv("UR_L0_LEAKS_DEBUG");
+  if (!UrRet)
+    return 0;
+  return std::atoi(UrRet);
+}();
+
+const int UrL0VectorWidth = [] {
+  const char *UrRet = std::getenv("UR_L0_VECTOR_WIDTH_SIZE");
   if (!UrRet)
     return 0;
   return std::atoi(UrRet);
@@ -210,6 +170,7 @@ bool setEnvVar(const char *name, const char *value);
 // Returns the ze_structure_type_t to use in .stype of a structured descriptor.
 // Intentionally not defined; will give an error if no proper specialization
 template <class T> ze_structure_type_t getZeStructureType();
+template <class T> ze_structure_type_ext_t getZexStructureType();
 template <class T> zes_structure_type_t getZesStructureType();
 
 // The helpers to properly default initialize Level-Zero descriptor and
@@ -217,6 +178,13 @@ template <class T> zes_structure_type_t getZesStructureType();
 template <class T> struct ZeStruct : public T {
   ZeStruct() : T{} { // zero initializes base struct
     this->stype = getZeStructureType<T>();
+    this->pNext = nullptr;
+  }
+};
+
+template <class T> struct ZexStruct : public T {
+  ZexStruct() : T{} { // zero initializes base struct
+    this->stype = getZexStructureType<T>();
     this->pNext = nullptr;
   }
 };
@@ -250,8 +218,9 @@ void zeParseError(ze_result_t ZeError, const char *&ErrorString);
 #define ZE2UR_CALL_THROWS(ZeName, ZeArgs)                                      \
   {                                                                            \
     ze_result_t ZeResult = ZeName ZeArgs;                                      \
-    if (auto Result = ZeCall().doCall(ZeResult, #ZeName, #ZeArgs, true))       \
+    if (auto Result = ZeCall().doCall(ZeResult, #ZeName, #ZeArgs, true)) {     \
       throw ze2urResult(Result);                                               \
+    }                                                                          \
   }
 
 // Perform traced call to L0 without checking for errors
@@ -261,55 +230,9 @@ void zeParseError(ze_result_t ZeError, const char *&ErrorString);
 #define ZE_CALL_NOCHECK_NAME(ZeName, ZeArgs, callName)                         \
   ZeCall().doCall(ZeName ZeArgs, callName, #ZeArgs, false)
 
-// This wrapper around std::atomic is created to limit operations with reference
-// counter and to make allowed operations more transparent in terms of
-// thread-safety in the plugin. increment() and load() operations do not need a
-// mutex guard around them since the underlying data is already atomic.
-// decrementAndTest() method is used to guard a code which needs to be
-// executed when object's ref count becomes zero after release. This method also
-// doesn't need a mutex guard because decrement operation is atomic and only one
-// thread can reach ref count equal to zero, i.e. only a single thread can pass
-// through this check.
-struct ReferenceCounter {
-  ReferenceCounter() : RefCount{1} {}
-
-  // Reset the counter to the initial value.
-  void reset() { RefCount = 1; }
-
-  // Used when retaining an object.
-  void increment() { RefCount++; }
-
-  // Supposed to be used in ur*GetInfo* methods where ref count value is
-  // requested.
-  uint32_t load() { return RefCount.load(); }
-
-  // This method allows to guard a code which needs to be executed when object's
-  // ref count becomes zero after release. It is important to notice that only a
-  // single thread can pass through this check. This is true because of several
-  // reasons:
-  //   1. Decrement operation is executed atomically.
-  //   2. It is not allowed to retain an object after its refcount reaches zero.
-  //   3. It is not allowed to release an object more times than the value of
-  //   the ref count.
-  // 2. and 3. basically means that we can't use an object at all as soon as its
-  // refcount reaches zero. Using this check guarantees that code for deleting
-  // an object and releasing its resources is executed once by a single thread
-  // and we don't need to use any mutexes to guard access to this object in the
-  // scope after this check. Of course if we access another objects in this code
-  // (not the one which is being deleted) then access to these objects must be
-  // guarded, for example with a mutex.
-  bool decrementAndTest() { return --RefCount == 0; }
-
-private:
-  std::atomic<uint32_t> RefCount;
-};
-
 // Base class to store common data
-struct _ur_object {
-  _ur_object() : RefCount{} {}
-
-  // Must be atomic to prevent data race when incrementing/decrementing.
-  ReferenceCounter RefCount;
+struct ur_object : ur::handle_base<ur::level_zero::ddi_getter> {
+  ur_object() : handle_base() {}
 
   // This mutex protects accesses to all the non-const member variables.
   // Exclusive access is required to modify any of these members.
@@ -329,14 +252,11 @@ struct _ur_object {
   // Indicates if we own the native handle or it came from interop that
   // asked to not transfer the ownership to SYCL RT.
   bool OwnNativeHandle = false;
-
-  // Indicates if this object is an interop handle.
-  bool IsInteropNativeHandle = false;
 };
 
 // Record for a memory allocation. This structure is used to keep information
 // for each memory allocation.
-struct MemAllocRecord : _ur_object {
+struct MemAllocRecord : ur_object {
   MemAllocRecord(ur_context_handle_t Context, bool OwnZeMemHandle = true)
       : Context(Context) {
     OwnNativeHandle = OwnZeMemHandle;
@@ -347,6 +267,8 @@ struct MemAllocRecord : _ur_object {
   // TODO: this should go away when memory isolation issue is fixed in the Level
   // Zero runtime.
   ur_context_handle_t Context;
+
+  ur::RefCount RefCount;
 };
 
 extern usm::DisjointPoolAllConfigs DisjointPoolConfigInstance;
@@ -415,9 +337,6 @@ public:
 // Helper wrapper for working with USM import extension in Level Zero.
 extern ZeUSMImportExtension ZeUSMImport;
 
-// This will count the calls to Level-Zero
-extern std::map<std::string, int> *ZeCallCount;
-
 // Some opencl extensions we know are supported by all Level Zero devices.
 constexpr char ZE_SUPPORTED_EXTENSIONS[] =
     "cl_khr_il_program cl_khr_subgroups cl_intel_subgroups "
@@ -425,13 +344,10 @@ constexpr char ZE_SUPPORTED_EXTENSIONS[] =
 
 // Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR
 constexpr size_t MaxMessageSize = 256;
-extern thread_local ur_result_t ErrorMessageCode;
+extern thread_local int32_t ErrorMessageCode;
 extern thread_local char ErrorMessage[MaxMessageSize];
 extern thread_local int32_t ErrorAdapterNativeCode;
 
 // Utility function for setting a message and warning
-[[maybe_unused]] void setErrorMessage(const char *pMessage,
-                                      ur_result_t ErrorCode,
+[[maybe_unused]] void setErrorMessage(const char *pMessage, int32_t ErrorCode,
                                       int32_t AdapterErrorCode);
-
-#define L0_DRIVER_INORDER_MIN_VERSION 29534

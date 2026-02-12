@@ -27,6 +27,9 @@ from templates import helper as th
 namespace ur_tracing_layer
 {
     %for obj in th.get_adapter_functions(specs):
+%if 'guard' in obj:
+#if ${obj['guard']}
+%endif
     ///////////////////////////////////////////////////////////////////////////////
     /// @brief Intercept function for ${th.make_func_name(n, tags, obj)}
     %if 'condition' in obj:
@@ -48,16 +51,16 @@ namespace ur_tracing_layer
         uint64_t instance = getContext()->notify_begin(${th.make_func_etor(n, tags, obj)}, "${th.make_func_name(n, tags, obj)}", &params);
 
         auto &logger = getContext()->logger;
-        logger.info("   ---> ${th.make_func_name(n, tags, obj)}\n");
+        UR_LOG_L(logger, INFO, "   ---> ${th.make_func_name(n, tags, obj)}\n");
 
         ${x}_result_t result = ${th.make_pfn_name(n, tags, obj)}( ${", ".join(th.make_param_lines(n, tags, obj, format=["name"]))} );
 
         getContext()->notify_end(${th.make_func_etor(n, tags, obj)}, "${th.make_func_name(n, tags, obj)}", &params, &result, instance);
 
-        if (logger.getLevel() <= logger::Level::INFO) {
+        if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
             std::ostringstream args_str;
             ur::extras::printFunctionParams(args_str, ${th.make_func_etor(n, tags, obj)}, &params);
-            logger.info("   <--- ${th.make_func_name(n, tags, obj)}({}) -> {};\n", args_str.str(), result);
+            UR_LOG_L(logger, INFO, "   <--- ${th.make_func_name(n, tags, obj)}({}) -> {};\n", args_str.str(), result);
         }
 
         return result;
@@ -65,10 +68,16 @@ namespace ur_tracing_layer
     %if 'condition' in obj:
     #endif // ${th.subt(n, tags, obj['condition'])}
     %endif
+%if 'guard' in obj:
+#endif // ${obj['guard']}
+%endif
 
     %endfor
 
     %for tbl in th.get_pfntables(specs, meta, n, tags):
+%if 'guard' in tbl:
+#if ${tbl['guard']}
+%endif
     ///////////////////////////////////////////////////////////////////////////////
     /// @brief Exported function for filling application's ${tbl['name']} table
     ///        with current process' addresses
@@ -99,6 +108,9 @@ namespace ur_tracing_layer
         %if 'condition' in obj:
     #if ${th.subt(n, tags, obj['condition'])}
         %endif
+%if 'guard' in obj and 'guard' not in tbl:
+#if ${obj['guard']}
+%endif
         dditable.${th.append_ws(th.make_pfn_name(n, tags, obj), 43)} = pDdiTable->${th.make_pfn_name(n, tags, obj)};
         pDdiTable->${th.append_ws(th.make_pfn_name(n, tags, obj), 41)} = ur_tracing_layer::${th.make_func_name(n, tags, obj)};
         %if 'condition' in obj:
@@ -107,10 +119,16 @@ namespace ur_tracing_layer
         pDdiTable->${th.append_ws(th.make_pfn_name(n, tags, obj), 41)} = nullptr;
     #endif
         %endif
+%if 'guard' in obj and 'guard' not in tbl:
+#endif // ${obj['guard']}
+%endif
 
         %endfor
         return result;
     }
+%if 'guard' in tbl:
+#endif // ${tbl['guard']}
+%endif
     %endfor
 
     ${x}_result_t
@@ -130,10 +148,16 @@ namespace ur_tracing_layer
         ur_tracing_layer::getContext()->codelocData = codelocData;
 
     %for tbl in th.get_pfntables(specs, meta, n, tags):
+%if 'guard' in tbl:
+#if ${tbl['guard']}
+%endif
         if( ${X}_RESULT_SUCCESS == result )
         {
             result = ur_tracing_layer::${tbl['export']['name']}( ${X}_API_VERSION_CURRENT, &dditable->${tbl['name']} );
         }
+%if 'guard' in tbl:
+#endif // ${tbl['guard']}
+%endif
 
     %endfor
         return result;

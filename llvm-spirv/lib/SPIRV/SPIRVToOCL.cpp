@@ -247,13 +247,17 @@ void SPIRVToOCLBase::visitCastInst(CastInst &Cast) {
       DstVecTy->getScalarSizeInBits() == 1)
     return;
 
+  // We don't have OpenCL builtins for 4-bit conversions.
+  if (DstVecTy->getScalarSizeInBits() == 4 || SrcTy->getScalarSizeInBits() == 4)
+    return;
+
   // Assemble built-in name -> convert_gentypeN
   std::string CastBuiltInName(kOCLBuiltinName::ConvertPrefix);
   // Check if this is 'floating point -> unsigned integer' cast
   CastBuiltInName += mapLLVMTypeToOCLType(DstVecTy, !isa<FPToUIInst>(Cast));
 
   // Replace LLVM conversion instruction with call to conversion built-in
-  BuiltinFuncMangleInfo Mangle;
+  OCLBuiltinFuncMangleInfo Mangle;
   // It does matter if the source is unsigned integer or not. SExt is for
   // signed source, ZExt and UIToFPInst are for unsigned source.
   if (isa<ZExtInst>(Cast) || isa<UIToFPInst>(Cast))
@@ -275,7 +279,7 @@ void SPIRVToOCLBase::visitCallSPIRVImageQuerySize(CallInst *CI) {
   bool ImgArray = Desc.Arrayed;
 
   AttributeList Attributes = CI->getCalledFunction()->getAttributes();
-  BuiltinFuncMangleInfo Mangle;
+  OCLBuiltinFuncMangleInfo Mangle;
   Mangle.getTypeMangleInfo(0).PointerTy = ImgTy;
   Type *Int32Ty = Type::getInt32Ty(*Ctx);
   Instruction *GetImageSize = nullptr;
@@ -643,7 +647,7 @@ void SPIRVToOCLBase::visitCallGenericCastToPtrBuiltIn(CallInst *CI, Op OC) {
   Value *PtrArg = CI->getArgOperand(0);
   auto AddrSpace =
       static_cast<SPIRAddressSpace>(CI->getType()->getPointerAddressSpace());
-  Type *NewTy = PointerType::get(PtrArg->getType(), AddrSpace);
+  Type *NewTy = PointerType::get(CI->getContext(), AddrSpace);
   Value *ASC = Builder.CreateAddrSpaceCast(PtrArg, NewTy);
   CI->replaceAllUsesWith(ASC);
   CI->eraseFromParent();
@@ -676,6 +680,13 @@ void SPIRVToOCLBase::visitCallGenericCastToPtrExplicitBuiltIn(CallInst *CI,
 
 void SPIRVToOCLBase::visitCallSPIRVCvtBuiltin(CallInst *CI, Op OC,
                                               StringRef DemangledName) {
+  if (auto *TET =
+          dyn_cast<TargetExtType>(CI->getFunctionType()->getReturnType())) {
+    // Preserve any cooperative matrix type conversions as SPIR-V calls.
+    if (TET->getName() == "spirv.CooperativeMatrixKHR") {
+      return;
+    }
+  }
   std::string CastBuiltInName;
   if (isCvtFromUnsignedOpCode(OC))
     CastBuiltInName = "u";
@@ -752,11 +763,29 @@ SPIRVToOCLBase::mutateCallImageOperands(CallInst *CI, StringRef NewFuncName,
       ConstantFP *LodVal = dyn_cast<ConstantFP>(Mutator.getArg(ImOpArgIndex));
       // If the image operand is LOD and its value is zero, drop it too.
       if (LodVal && LodVal->isNullValue() &&
-          ImOpValue == ImageOperandsMask::ImageOperandsLodMask)
+          ImOpValue & ImageOperandsMask::ImageOperandsLodMask) {
         Mutator.removeArgs(ImOpArgIndex, Mutator.arg_size() - ImOpArgIndex);
+        ImOpValue &= ~ImageOperandsMask::ImageOperandsLodMask;
+      }
     }
   }
   return Mutator;
+}
+
+static bool isOCLDepthImage(Type *Ty) {
+  if (auto *TET = dyn_cast<TargetExtType>(Ty)) {
+    if (TET->getName() != "spirv.Image")
+      return false;
+    assert(TET->getNumIntParameters() > 2 &&
+           "unexpected image TargetExtType parameter count");
+    return TET->getIntParameter(1);
+  }
+
+  StringRef ImageTypeName;
+  if (isOCLImageType(Ty, &ImageTypeName))
+    return ImageTypeName.contains("_depth_");
+
+  return false;
 }
 
 void SPIRVToOCLBase::visitCallSPIRVImageSampleExplicitLodBuiltIn(CallInst *CI,
@@ -770,12 +799,8 @@ void SPIRVToOCLBase::visitCallSPIRVImageSampleExplicitLodBuiltIn(CallInst *CI,
   CallInst *CallSampledImg = cast<CallInst>(CI->getArgOperand(0));
   auto Img = getCallValue(CallSampledImg, 0);
   auto Sampler = getCallValue(CallSampledImg, 1);
-  bool IsDepthImage = false;
+  const bool IsDepthImage = isOCLDepthImage(Img.second);
   Mutator.mapArg(0, [&](Value *SampledImg) {
-    StringRef ImageTypeName;
-    if (isOCLImageType(Img.second, &ImageTypeName))
-      IsDepthImage = ImageTypeName.contains("_depth_");
-
     if (CallSampledImg->hasOneUse()) {
       CallSampledImg->replaceAllUsesWith(
           PoisonValue::get(CallSampledImg->getType()));

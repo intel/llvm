@@ -3,7 +3,7 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-add_conformance_test_with_devices_environment(event
+add_conformance_devices_test(event
     urEventGetInfo.cpp
     urEventGetProfilingInfo.cpp
     urEventWait.cpp

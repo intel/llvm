@@ -9,9 +9,6 @@
 // RUN: %{build} -o %t1.out
 // RUN: %{run} %t1.out
 
-// Windows doesn't yet have full shutdown().
-// UNSUPPORTED: ze_debug && windows
-
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 

@@ -16,7 +16,6 @@
 #include <gtest/gtest.h>
 
 #include <detail/buffer_impl.hpp>
-#include <detail/global_handler.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <gmock/gmock.h>
 
@@ -25,13 +24,13 @@
 class MockCmdWithReleaseTracking : public MockCommand {
 public:
   MockCmdWithReleaseTracking(
-      sycl::detail::QueueImplPtr Queue, sycl::detail::Requirement Req,
+      sycl::detail::queue_impl &Queue, sycl::detail::Requirement Req,
       sycl::detail::Command::CommandType Type = sycl::detail::Command::RUN_CG)
-      : MockCommand(Queue, Req, Type){};
+      : MockCommand(&Queue, Req, Type) {};
   MockCmdWithReleaseTracking(
-      sycl::detail::QueueImplPtr Queue,
+      sycl::detail::queue_impl &Queue,
       sycl::detail::Command::CommandType Type = sycl::detail::Command::RUN_CG)
-      : MockCommand(Queue, Type){};
+      : MockCommand(&Queue, Type) {};
   ~MockCmdWithReleaseTracking() { Release(); }
   MOCK_METHOD0(Release, void());
 };
@@ -55,9 +54,9 @@ protected:
   MockCmdWithReleaseTracking *addCommandToBuffer(Buffer &Buf, sycl::queue &Q) {
     sycl::detail::Requirement MockReq = getMockRequirement(Buf);
     sycl::detail::MemObjRecord *Rec = MockSchedulerPtr->getOrInsertMemObjRecord(
-        sycl::detail::getSyclObjImpl(Q), &MockReq);
+        &*sycl::detail::getSyclObjImpl(Q), &MockReq);
     MockCmdWithReleaseTracking *MockCmd = new MockCmdWithReleaseTracking(
-        sycl::detail::getSyclObjImpl(Q), MockReq);
+        *sycl::detail::getSyclObjImpl(Q), MockReq);
     std::vector<sycl::detail::Command *> ToEnqueue;
     MockSchedulerPtr->addNodeToLeaves(Rec, MockCmd, sycl::access::mode::write,
                                       ToEnqueue);

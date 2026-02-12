@@ -11,7 +11,7 @@
 ; CHECK-SPIRV: 4 GenericPtrMemSemantics {{[0-9]+}} [[ResID:[0-9]+]] {{[0-9]+}}
 ; CHECK-SPIRV-NEXT: 5 ShiftRightLogical {{[0-9]+}} {{[0-9]+}} [[ResID]] {{[0-9]+}}
 
-; CHECK-SPV-IR: call spir_func i32 @_Z30__spirv_GenericPtrMemSemanticsPU3AS4c(ptr addrspace(4) {{.*}})
+; CHECK-SPV-IR: call spir_func i32 @_Z30__spirv_GenericPtrMemSemanticsPU3AS4Kc(ptr addrspace(4) {{.*}})
 ; CHECK-SPV-IR: lshr
 
 ; Note that round-trip conversion replaces 'get_fence (gentype *ptr)' built-in function with 'get_fence (const gentype *ptr)'.

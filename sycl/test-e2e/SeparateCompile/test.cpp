@@ -1,3 +1,6 @@
+// XFAIL: new-offload-model
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20797
+
 // REQUIRES: target-spir
 //
 // FIXME Disabled fallback assert as it'll require either online linking or
@@ -51,8 +54,7 @@
 //
 // >> ---- link the full hetero app
 // RUN: %clangxx wrapper.o a.o b.o -Wno-unused-command-line-argument -o app.exe %sycl_options
-// RUN: %{run} ./app.exe | FileCheck %s
-// CHECK: pass
+// RUN: %{run} ./app.exe
 
 //==----------- test.cpp - Tests SYCL separate compilation -----------------==//
 //
@@ -125,9 +127,6 @@ int main(int argc, char **argv) {
     pass = false;
   }
 
-  if (pass) {
-    std::cout << "pass\n";
-  }
   return pass ? 0 : 1;
 }
 #endif // !B_CPP

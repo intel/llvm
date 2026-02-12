@@ -199,59 +199,82 @@ template <> class SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS> {
 private:
 public:
   static void GetSettings(size_t &MinFactor, size_t &GoodFactor,
-                          size_t &MinRange) {
-    static const char *RoundParams = BaseT::getRawValue();
+                          size_t &MinRange, bool ForceUpdate = false) {
+    const char *RoundParams = BaseT::getRawValue();
     if (RoundParams == nullptr)
       return;
 
     static bool ProcessedFactors = false;
+    static bool FactorsAreValid = false;
     static size_t MF;
     static size_t GF;
     static size_t MR;
-    if (!ProcessedFactors) {
+    if (!ProcessedFactors || ForceUpdate) {
+      auto GuardedStoi = [](size_t &val, const std::string &str) {
+        try {
+          int ParsedResult = std::stoi(str);
+          if (ParsedResult < 0)
+            return false;
+          val = ParsedResult;
+          return true;
+          // Ignore parsing exceptions, but throw on unexpected exceptions:
+        } catch (const std::invalid_argument &) {
+        } catch (const std::out_of_range &) {
+        }
+        return false;
+      };
+
       // Parse optional parameters of this form (all values required):
       // MinRound:PreferredRound:MinRange
       std::string Params(RoundParams);
       size_t Pos = Params.find(':');
-      if (Pos != std::string::npos) {
-        MF = std::stoi(Params.substr(0, Pos));
+      if (Pos != std::string::npos && GuardedStoi(MF, Params.substr(0, Pos)) &&
+          MF > 0) {
         Params.erase(0, Pos + 1);
         Pos = Params.find(':');
-        if (Pos != std::string::npos) {
-          GF = std::stoi(Params.substr(0, Pos));
+        if (Pos != std::string::npos &&
+            GuardedStoi(GF, Params.substr(0, Pos)) && GF > 0) {
           Params.erase(0, Pos + 1);
-          MR = std::stoi(Params);
+          // Factors are valid only if all parsed successfully:
+          FactorsAreValid = GuardedStoi(MR, Params);
+          // Note that MinRange = 0 is considered valid.
         }
       }
-      ProcessedFactors = true;
+      if (FactorsAreValid) {
+        ProcessedFactors = true;
+      } else {
+        std::cerr
+            << "WARNING: Invalid value passed for "
+            << "SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS (Expected format "
+            << "MinRound:PreferredRound:MinRange, where MinRound, "
+               "PreferredRound"
+            << " > 0, MinRange >= 0). Provided parameters will be ignored."
+            << std::endl;
+      }
     }
-    MinFactor = MF;
-    GoodFactor = GF;
-    MinRange = MR;
+    if (FactorsAreValid) {
+      MinFactor = MF;
+      GoodFactor = GF;
+      MinRange = MR;
+    }
   }
 };
 
 // Array is used by SYCL_DEVICE_ALLOWLIST and ONEAPI_DEVICE_SELECTOR.
-// The 'supportAcc' parameter is used by SYCL_DEVICE_ALLOWLIST which,
-// unlike ONEAPI_DEVICE_SELECTOR, also accepts 'acc' as a valid device type.
 template <bool supportAcc = false>
-const std::array<std::pair<std::string, info::device_type>, 6> &
+const std::array<std::pair<std::string, info::device_type>, 4> &
 getSyclDeviceTypeMap() {
-  static const std::array<std::pair<std::string, info::device_type>, 6>
-      SyclDeviceTypeMap = {
-          {{"host", info::device_type::host},
-           {"cpu", info::device_type::cpu},
-           {"gpu", info::device_type::gpu},
-           /* Duplicate entries are fine as this map is one-directional.*/
-           {supportAcc ? "acc" : "fpga", info::device_type::accelerator},
-           {"fpga", info::device_type::accelerator},
-           {"*", info::device_type::all}}};
+  static const std::array<std::pair<std::string, info::device_type>, 4>
+      SyclDeviceTypeMap = {{{"host", info::device_type::host},
+                            {"cpu", info::device_type::cpu},
+                            {"gpu", info::device_type::gpu},
+                            {"*", info::device_type::all}}};
   return SyclDeviceTypeMap;
 }
 
 // Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
 // ONEAPI_DEVICE_SELECTOR
-const std::array<std::pair<std::string, backend>, 7> &getSyclBeMap();
+const std::array<std::pair<std::string, backend>, 8> &getSyclBeMap();
 
 // ---------------------------------------
 // ONEAPI_DEVICE_SELECTOR support
@@ -445,7 +468,6 @@ template <> class SYCLConfig<SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE> {
   struct ParsedValue {
     size_t CPU = 0;
     size_t GPU = 0;
-    size_t Accelerator = 0;
   };
 
 public:
@@ -466,13 +488,11 @@ private:
       return Value.CPU;
     case info::device_type::gpu:
       return Value.GPU;
-    case info::device_type::accelerator:
-      return Value.Accelerator;
     default:
       // Expect to get here if user used wrong device type. Include wildcard
       // in the message even though it's handled in the caller.
       throw INVALID_CONFIG_EXCEPTION(
-          BaseT, "Device types must be \"cpu\", \"gpu\", \"acc\", or \"*\".");
+          BaseT, "Device types must be \"cpu\", \"gpu\", or \"*\".");
     }
   }
 
@@ -485,7 +505,7 @@ private:
       return Result;
 
     std::string ValueStr{ValueRaw};
-    auto DeviceTypeMap = getSyclDeviceTypeMap<true /*Enable 'acc'*/>();
+    auto DeviceTypeMap = getSyclDeviceTypeMap();
 
     // Iterate over all configurations.
     size_t Start = 0, End = 0;
@@ -537,7 +557,6 @@ private:
         // Set all configuration values if we got the device-type wildcard.
         Result.GPU = DeviceConfigValue;
         Result.CPU = DeviceConfigValue;
-        Result.Accelerator = DeviceConfigValue;
       } else {
         // Try setting the corresponding configuration.
         getRefByDeviceType(Result, DeviceTypeIter->second) = DeviceConfigValue;
@@ -555,34 +574,6 @@ private:
     if (ResetCache)
       Val = parseValue();
     return Val;
-  }
-};
-
-template <> class SYCLConfig<SYCL_ENABLE_FUSION_CACHING> {
-  using BaseT = SYCLConfigBase<SYCL_ENABLE_FUSION_CACHING>;
-
-public:
-  static bool get() {
-    constexpr bool DefaultValue = true;
-
-    const char *ValStr = getCachedValue();
-
-    if (!ValStr)
-      return DefaultValue;
-
-    return ValStr[0] == '1';
-  }
-
-  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
-
-  static const char *getName() { return BaseT::MConfigName; }
-
-private:
-  static const char *getCachedValue(bool ResetCache = false) {
-    static const char *ValStr = BaseT::getRawValue();
-    if (ResetCache)
-      ValStr = BaseT::getRawValue();
-    return ValStr;
   }
 };
 
@@ -713,47 +704,14 @@ template <> class SYCLConfig<SYCL_CACHE_TRACE> {
   enum TraceBitmask { DiskCache = 1, InMemCache = 2, KernelCompiler = 4 };
 
 public:
-  static unsigned int get() { return getCachedValue(); }
-  static void reset() { (void)getCachedValue(true); }
-  static bool isTraceDiskCache() {
-    return getCachedValue() & TraceBitmask::DiskCache;
-  }
-  static bool isTraceInMemCache() {
-    return getCachedValue() & TraceBitmask::InMemCache;
-  }
-  static bool isTraceKernelCompiler() {
-    return getCachedValue() & TraceBitmask::KernelCompiler;
-  }
+  static unsigned int get() { return Level; }
+  static void reset();
+  static bool isTraceDiskCache() { return Level & DiskCache; }
+  static bool isTraceInMemCache() { return Level & InMemCache; }
+  static bool isTraceKernelCompiler() { return Level & KernelCompiler; }
 
 private:
-  static unsigned int getCachedValue(bool ResetCache = false) {
-    const auto Parser = []() {
-      const char *ValStr = BaseT::getRawValue();
-      int intVal = 0;
-
-      if (ValStr) {
-        try {
-          intVal = std::stoi(ValStr);
-        } catch (...) {
-          // If the value is not null and not a number, it is considered
-          // to enable disk cache tracing. This is the legacy behavior.
-          intVal = 1;
-        }
-      }
-
-      // Legacy behavior.
-      if (intVal > 7)
-        intVal = 1;
-
-      return intVal;
-    };
-
-    static unsigned int Level = Parser();
-    if (ResetCache)
-      Level = Parser();
-
-    return Level;
-  }
+  static unsigned int Level;
 };
 
 // SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD accepts an integer that specifies

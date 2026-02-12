@@ -6,6 +6,7 @@
 #include <cassert>
 #include <exception>
 #include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 #include <vector>
 
 #define CL_CHECK_ERRORS(ERR)                                                   \

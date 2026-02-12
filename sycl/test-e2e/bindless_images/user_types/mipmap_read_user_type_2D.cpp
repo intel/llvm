@@ -21,7 +21,6 @@ bool run_test() {
 
   sycl::device dev;
   sycl::queue q(dev);
-  auto ctxt = q.get_context();
 
   // skip sycl::half tests if fp16 not supported
   if constexpr (std::is_same_v<typename OutType::element_type, sycl::half>) {

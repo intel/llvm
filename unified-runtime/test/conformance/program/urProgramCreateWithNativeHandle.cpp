@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -11,11 +11,11 @@ struct urProgramCreateWithNativeHandleTest : uur::urProgramTest {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::SetUp());
     {
-      ur_platform_backend_t backend;
+      ur_backend_t backend;
       ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                        sizeof(backend), &backend, nullptr));
       // For Level Zero we have to build the program to have the native handle.
-      if (backend == UR_PLATFORM_BACKEND_LEVEL_ZERO) {
+      if (backend == UR_BACKEND_LEVEL_ZERO) {
         ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
       }
       UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
@@ -33,7 +33,8 @@ struct urProgramCreateWithNativeHandleTest : uur::urProgramTest {
   ur_native_handle_t native_program_handle = 0;
   ur_program_handle_t native_program = nullptr;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urProgramCreateWithNativeHandleTest);
+
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urProgramCreateWithNativeHandleTest);
 
 TEST_P(urProgramCreateWithNativeHandleTest, Success) {
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urProgramCreateWithNativeHandle(

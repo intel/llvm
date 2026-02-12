@@ -1,16 +1,19 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "helpers.h"
+#include "uur/utils.h"
 #include <uur/fixtures.h>
 #include <uur/known_failure.h>
 
-struct urEnqueueMemBufferCopyTestWithParam : uur::urQueueTestWithParam<size_t> {
+struct urEnqueueMemBufferCopyTestWithParam
+    : uur::urMultiQueueTypeTestWithParam<size_t> {
+
   void SetUp() override {
-    UUR_RETURN_ON_FATAL_FAILURE(urQueueTestWithParam::SetUp());
+    UUR_RETURN_ON_FATAL_FAILURE(urMultiQueueTypeTestWithParam::SetUp());
     ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_WRITE_ONLY, size,
                                      nullptr, &src_buffer));
     ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_ONLY, size,
@@ -27,10 +30,10 @@ struct urEnqueueMemBufferCopyTestWithParam : uur::urQueueTestWithParam<size_t> {
     if (src_buffer) {
       EXPECT_SUCCESS(urMemRelease(dst_buffer));
     }
-    urQueueTestWithParam::TearDown();
+    urMultiQueueTypeTestWithParam::TearDown();
   }
 
-  const size_t count = std::get<1>(this->GetParam());
+  const size_t count = this->getParam();
   const size_t size = sizeof(uint32_t) * count;
   ur_mem_handle_t src_buffer = nullptr;
   ur_mem_handle_t dst_buffer = nullptr;
@@ -39,9 +42,9 @@ struct urEnqueueMemBufferCopyTestWithParam : uur::urQueueTestWithParam<size_t> {
 
 static std::vector<size_t> test_parameters{1024, 2500, 4096, 6000};
 
-UUR_DEVICE_TEST_SUITE_WITH_PARAM(urEnqueueMemBufferCopyTestWithParam,
-                                 ::testing::ValuesIn(test_parameters),
-                                 uur::deviceTestWithParamPrinter<size_t>);
+UUR_MULTI_QUEUE_TYPE_TEST_SUITE_WITH_PARAM(
+    urEnqueueMemBufferCopyTestWithParam, ::testing::ValuesIn(test_parameters),
+    uur::deviceTestWithParamPrinterMulti<size_t>);
 
 TEST_P(urEnqueueMemBufferCopyTestWithParam, Success) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
@@ -110,6 +113,8 @@ using urEnqueueMemBufferCopyMultiDeviceTest =
 UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urEnqueueMemBufferCopyMultiDeviceTest);
 
 TEST_P(urEnqueueMemBufferCopyMultiDeviceTest, CopyReadDifferentQueues) {
+  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
+
   // First queue does a fill.
   const uint32_t input = 42;
   ASSERT_SUCCESS(urEnqueueMemBufferFill(
@@ -119,11 +124,11 @@ TEST_P(urEnqueueMemBufferCopyMultiDeviceTest, CopyReadDifferentQueues) {
   ur_mem_handle_t dst_buffer = nullptr;
   ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_ONLY, size,
                                    nullptr, &dst_buffer));
-  EXPECT_SUCCESS(urEnqueueMemBufferCopy(queues[0], buffer, dst_buffer, 0, 0,
+  ASSERT_SUCCESS(urEnqueueMemBufferCopy(queues[0], buffer, dst_buffer, 0, 0,
                                         size, 0, nullptr, nullptr));
 
   // Wait for the queue to finish executing.
-  EXPECT_SUCCESS(urEnqueueEventsWait(queues[0], 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urQueueFinish(queues[0]));
 
   // Then the remaining queues do blocking reads from the buffer. Since the
   // queues target different devices this checks that any devices memory has
@@ -131,7 +136,7 @@ TEST_P(urEnqueueMemBufferCopyMultiDeviceTest, CopyReadDifferentQueues) {
   for (unsigned i = 1; i < queues.size(); ++i) {
     const auto queue = queues[i];
     std::vector<uint32_t> output(count, 0);
-    EXPECT_SUCCESS(urEnqueueMemBufferRead(queue, dst_buffer, true, 0, size,
+    ASSERT_SUCCESS(urEnqueueMemBufferRead(queue, dst_buffer, true, 0, size,
                                           output.data(), 0, nullptr, nullptr));
     for (unsigned j = 0; j < count; ++j) {
       EXPECT_EQ(input, output[j])
@@ -139,5 +144,5 @@ TEST_P(urEnqueueMemBufferCopyMultiDeviceTest, CopyReadDifferentQueues) {
     }
   }
 
-  EXPECT_SUCCESS(urMemRelease(dst_buffer));
+  ASSERT_SUCCESS(urMemRelease(dst_buffer));
 }

@@ -1,8 +1,6 @@
 // RUN: %{build} -o %t.out %threads_lib %opencl_lib
 // RUN: %{run} %t.out
-// RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -o %t2.out %threads_lib %opencl_lib %}
-// RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
-// REQUIRES: opencl
+// REQUIRES: opencl, opencl_icd
 
 #include <sycl/backend.hpp>
 #include <sycl/detail/cl.h>

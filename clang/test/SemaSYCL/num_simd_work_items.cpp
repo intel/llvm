@@ -7,7 +7,7 @@
 using namespace sycl;
 queue q;
 
-// expected-warning@+1 {{unknown attribute 'num_simd_work_items' ignored}}
+// expected-warning@+1 {{unknown attribute 'intelfpga::num_simd_work_items' ignored}}
 [[intelfpga::num_simd_work_items(22)]] void RemoveSpelling();
 
 // No diagnostic is emitted because the arguments match.
@@ -16,14 +16,14 @@ queue q;
 
 // Diagnostic is emitted because the arguments mismatch.
 [[intel::num_simd_work_items(12)]] void baz();  // expected-note {{previous attribute is here}}
-[[intel::num_simd_work_items(100)]] void baz(); // expected-warning {{attribute 'num_simd_work_items' is already applied with different arguments}}
+[[intel::num_simd_work_items(100)]] void baz(); // expected-warning {{attribute 'intel::num_simd_work_items' is already applied with different arguments}}
 
 // If the declaration has a [[sycl::reqd_work_group_size]]
 // or [[cl::reqd_work_group_size]] attribute, tests that check
 // if the work group size attribute argument (the last argument)
 // can be evenly divided by the [[intel::num_simd_work_items()]] attribute.
 struct TRIFuncObjBad1 {
-  [[intel::num_simd_work_items(3)]]       // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+  [[intel::num_simd_work_items(3)]]       // expected-error{{'intel::num_simd_work_items' attribute must evenly divide the work-group size for the 'sycl::reqd_work_group_size' attribute}}
   [[sycl::reqd_work_group_size(3, 6, 5)]] // expected-note{{conflicting attribute is here}}
   void
   operator()() const {}
@@ -31,7 +31,7 @@ struct TRIFuncObjBad1 {
 
 struct TRIFuncObjBad2 {
   [[sycl::reqd_work_group_size(3, 6, 5)]] // expected-note{{conflicting attribute is here}}
-  [[intel::num_simd_work_items(3)]]       // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+  [[intel::num_simd_work_items(3)]]       // expected-error{{'intel::num_simd_work_items' attribute must evenly divide the work-group size for the 'sycl::reqd_work_group_size' attribute}}
   void
   operator()() const {}
 };
@@ -68,39 +68,39 @@ struct TRIFuncObjGood6 {
 
 struct TRIFuncObjBad7 {
   [[sycl::reqd_work_group_size(6, 3, 5)]] // expected-note{{conflicting attribute is here}}
-  [[intel::num_simd_work_items(3)]]       // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+  [[intel::num_simd_work_items(3)]]       // expected-error{{'intel::num_simd_work_items' attribute must evenly divide the work-group size for the 'sycl::reqd_work_group_size' attribute}}
   void
   operator()() const {}
 };
 
 struct TRIFuncObjBad8 {
-  [[intel::num_simd_work_items(3)]]       // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+  [[intel::num_simd_work_items(3)]]       // expected-error{{'intel::num_simd_work_items' attribute must evenly divide the work-group size for the 'sycl::reqd_work_group_size' attribute}}
   [[sycl::reqd_work_group_size(6, 3, 5)]] // expected-note{{conflicting attribute is here}}
   void
   operator()() const {}
 };
 
-[[intel::num_simd_work_items(2)]] // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+[[intel::num_simd_work_items(2)]] // expected-error{{'intel::num_simd_work_items' attribute must evenly divide the work-group size for the 'sycl::reqd_work_group_size' attribute}}
 [[sycl::reqd_work_group_size(4, 2, 3)]] void
 func1(); // expected-note@-1{{conflicting attribute is here}}
 
 [[sycl::reqd_work_group_size(4, 2, 3)]] // expected-note{{conflicting attribute is here}}
 [[intel::num_simd_work_items(2)]] void
-func2(); // expected-error@-1{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+func2(); // expected-error@-1{{'intel::num_simd_work_items' attribute must evenly divide the work-group size for the 'sycl::reqd_work_group_size' attribute}}
 
-[[intel::num_simd_work_items(2)]] // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+[[intel::num_simd_work_items(2)]] // expected-error{{'intel::num_simd_work_items' attribute must evenly divide the work-group size for the 'cl::reqd_work_group_size' attribute}}
 [[cl::reqd_work_group_size(4, 2, 3)]] void
 func3(); // expected-note@-1{{conflicting attribute is here}} expected-warning@-1 {{attribute 'cl::reqd_work_group_size' is deprecated}} expected-note@-1 {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
 
 [[cl::reqd_work_group_size(4, 2, 3)]] // expected-note{{conflicting attribute is here}} expected-warning {{attribute 'cl::reqd_work_group_size' is deprecated}} expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
 [[intel::num_simd_work_items(2)]] void
-func4(); // expected-error@-1{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+func4(); // expected-error@-1{{'intel::num_simd_work_items' attribute must evenly divide the work-group size for the 'cl::reqd_work_group_size' attribute}}
 
 // If the declaration has a __attribute__((reqd_work_group_size()))
 // attribute, tests that check if the work group size attribute argument
 // (the last argument) can be evenly divided by the
 // [[intel::num_simd_work_items()]] attribute.
-[[intel::num_simd_work_items(2)]] // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+[[intel::num_simd_work_items(2)]] // expected-error{{'intel::num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
 __attribute__((reqd_work_group_size(4, 2, 5))) void
 func5(); // expected-note@-1{{conflicting attribute is here}} expected-warning@-1 {{attribute 'reqd_work_group_size' is deprecated}} expected-note@-1 {{did you mean to use '[[sycl::reqd_work_group_size]]' instead?}}
 
@@ -109,13 +109,13 @@ func5(); // expected-note@-1{{conflicting attribute is here}} expected-warning@-
 
 // Tests for incorrect argument values for Intel FPGA num_simd_work_items and reqd_work_group_size function attributes
 struct TRIFuncObjBad9 {
-  [[sycl::reqd_work_group_size(5, 5, 5)]] [[intel::num_simd_work_items(0)]] // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
+  [[sycl::reqd_work_group_size(5, 5, 5)]] [[intel::num_simd_work_items(0)]] // expected-error{{'intel::num_simd_work_items' attribute requires a positive integral compile time constant expression}}
   void
   operator()() const {}
 };
 
 struct TRIFuncObjBad10 {
-  [[intel::num_simd_work_items(0)]] // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
+  [[intel::num_simd_work_items(0)]] // expected-error{{'intel::num_simd_work_items' attribute requires a positive integral compile time constant expression}}
   [[sycl::reqd_work_group_size(5, 5, 5)]] void
   operator()() const {}
 };
@@ -133,8 +133,8 @@ struct TRIFuncObjBad12 {
 };
 
 struct TRIFuncObjBad13 {
-  [[sycl::reqd_work_group_size(0)]] // expected-error{{'reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
-  [[intel::num_simd_work_items(0)]] // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
+  [[sycl::reqd_work_group_size(0)]] // expected-error{{'sycl::reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
+  [[intel::num_simd_work_items(0)]] // expected-error{{'intel::num_simd_work_items' attribute requires a positive integral compile time constant expression}}
   void
   operator()() const {}
 };
@@ -159,14 +159,14 @@ struct TRIFuncObjBad16 {
 };
 
 struct TRIFuncObjBad17 {
-  [[intel::num_simd_work_items(-1)]] // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
-  [[sycl::reqd_work_group_size(-1)]] // expected-error{{'reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
+  [[intel::num_simd_work_items(-1)]] // expected-error{{'intel::num_simd_work_items' attribute requires a positive integral compile time constant expression}}
+  [[sycl::reqd_work_group_size(-1)]] // expected-error{{'sycl::reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
   void
   operator()() const {}
 };
 
 struct TRIFuncObjBad18 {
-  [[intel::num_simd_work_items(5)]] void // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+  [[intel::num_simd_work_items(5)]] void // expected-error{{'intel::num_simd_work_items' attribute must evenly divide the work-group size for the 'sycl::reqd_work_group_size' attribute}}
   operator()() const;
 };
 
@@ -179,19 +179,19 @@ struct TRIFuncObjBad19 {
   operator()() const;
 };
 
-[[intel::num_simd_work_items(5)]] // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+[[intel::num_simd_work_items(5)]] // expected-error{{'intel::num_simd_work_items' attribute must evenly divide the work-group size for the 'sycl::reqd_work_group_size' attribute}}
 void
 TRIFuncObjBad19::operator()() const {}
 
 int main() {
   q.submit([&](handler &h) {
-    [[intel::num_simd_work_items(0)]] int Var = 0; // expected-error{{'num_simd_work_items' attribute only applies to functions}}
+    [[intel::num_simd_work_items(0)]] int Var = 0; // expected-error{{'intel::num_simd_work_items' attribute only applies to functions}}
 
     h.single_task<class test_kernel1>(
-        []() [[intel::num_simd_work_items(0)]] {}); // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
+        []() [[intel::num_simd_work_items(0)]] {}); // expected-error{{'intel::num_simd_work_items' attribute requires a positive integral compile time constant expression}}
 
     h.single_task<class test_kernel2>(
-        []() [[intel::num_simd_work_items(-42)]] {}); // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
+        []() [[intel::num_simd_work_items(-42)]] {}); // expected-error{{'intel::num_simd_work_items' attribute requires a positive integral compile time constant expression}}
 
     h.single_task<class test_kernel3>(TRIFuncObjBad1());
 
@@ -230,7 +230,7 @@ int main() {
     h.single_task<class test_kernel20>(TRIFuncObjBad18());
 
     h.single_task<class test_kernel21>(
-        []() [[intel::num_simd_work_items(1), intel::num_simd_work_items(2)]] {}); // expected-warning{{attribute 'num_simd_work_items' is already applied with different arguments}}  // expected-note {{previous attribute is here}}
+        []() [[intel::num_simd_work_items(1), intel::num_simd_work_items(2)]] {}); // expected-warning{{attribute 'intel::num_simd_work_items' is already applied with different arguments}}  // expected-note {{previous attribute is here}}
 
     h.single_task<class test_kernel22>(TRIFuncObjBad19());
   });
@@ -242,7 +242,7 @@ int main() {
 template <typename Ty>
 // expected-error@+3{{integral constant expression must have integral or unscoped enumeration type, not 'S'}}
 // expected-error@+2{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
-// expected-error@+1{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
+// expected-error@+1{{'intel::num_simd_work_items' attribute requires a positive integral compile time constant expression}}
 [[intel::num_simd_work_items(Ty{})]] void func7() {}
 
 struct S {};
@@ -270,70 +270,70 @@ constexpr int barr() { return 0; }
 template <int N>
 __attribute__((reqd_work_group_size(8, 6, 3))) void func10(); // expected-note{{conflicting attribute is here}} expected-warning {{attribute 'reqd_work_group_size' is deprecated}} expected-note {{did you mean to use '[[sycl::reqd_work_group_size]]' instead?}}
 template <int N>
-[[intel::num_simd_work_items(N)]] void func10(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+[[intel::num_simd_work_items(N)]] void func10(); // expected-error{{'intel::num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
 
 template <int N>
 [[cl::reqd_work_group_size(8, 4, 5)]] void func11(); // expected-note{{conflicting attribute is here}} expected-warning {{attribute 'cl::reqd_work_group_size' is deprecated}} expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
 template <int N>
-[[intel::num_simd_work_items(N)]] void func11(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+[[intel::num_simd_work_items(N)]] void func11(); // expected-error{{'intel::num_simd_work_items' attribute must evenly divide the work-group size for the 'cl::reqd_work_group_size' attribute}}
 
 template <int N>
 [[sycl::reqd_work_group_size(N, N, N)]] void func12(); // expected-note{{conflicting attribute is here}}
 template <int N>
-[[intel::num_simd_work_items(3)]] void func12(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+[[intel::num_simd_work_items(3)]] void func12(); // expected-error{{'intel::num_simd_work_items' attribute must evenly divide the work-group size for the 'sycl::reqd_work_group_size' attribute}}
 
 template <int X, int Y, int Z, int N>
 [[sycl::reqd_work_group_size(X, Y, Z)]] void func13(); // expected-note{{conflicting attribute is here}}
 template <int X, int Y, int Z, int N>
-[[intel::num_simd_work_items(N)]] void func13(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+[[intel::num_simd_work_items(N)]] void func13(); // expected-error{{'intel::num_simd_work_items' attribute must evenly divide the work-group size for the 'sycl::reqd_work_group_size' attribute}}
 
 template <int X, int Y, int Z>
 [[sycl::reqd_work_group_size(X, Y, Z)]] void func14(); // expected-note{{conflicting attribute is here}}
 template <int X, int Y, int Z>
-[[intel::num_simd_work_items(3)]] void func14(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+[[intel::num_simd_work_items(3)]] void func14(); // expected-error{{'intel::num_simd_work_items' attribute must evenly divide the work-group size for the 'sycl::reqd_work_group_size' attribute}}
 
 template <int X, int Y, int Z>
 [[sycl::reqd_work_group_size(X, Y, Z)]] void func15(); // expected-note{{conflicting attribute is here}}
 template <int X, int Y, int Z>
-[[intel::num_simd_work_items(2)]] void func15(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+[[intel::num_simd_work_items(2)]] void func15(); // expected-error{{'intel::num_simd_work_items' attribute must evenly divide the work-group size for the 'sycl::reqd_work_group_size' attribute}}
 
 template <int N>
 [[sycl::reqd_work_group_size(N, N, N)]] void func16(); // expected-note{{conflicting attribute is here}}
 template <int N>
-[[intel::num_simd_work_items(2)]] void func16(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+[[intel::num_simd_work_items(2)]] void func16(); // expected-error{{'intel::num_simd_work_items' attribute must evenly divide the work-group size for the 'sycl::reqd_work_group_size' attribute}}
 
 template <int N>
-[[intel::num_simd_work_items(N)]] void func17(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+[[intel::num_simd_work_items(N)]] void func17(); // expected-error{{'intel::num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
 template <int N>
 __attribute__((reqd_work_group_size(8, 6, 3))) void func17(); // expected-note{{conflicting attribute is here}} expected-warning {{attribute 'reqd_work_group_size' is deprecated}} expected-note {{did you mean to use '[[sycl::reqd_work_group_size]]' instead?}}
 
 template <int N>
-[[intel::num_simd_work_items(N)]] void func18(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+[[intel::num_simd_work_items(N)]] void func18(); // expected-error{{'intel::num_simd_work_items' attribute must evenly divide the work-group size for the 'cl::reqd_work_group_size' attribute}}
 template <int N>
 [[cl::reqd_work_group_size(8, 4, 5)]] void func18(); // expected-note{{conflicting attribute is here}} expected-warning {{attribute 'cl::reqd_work_group_size' is deprecated}} expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
 
 template <int N>
-[[intel::num_simd_work_items(3)]] void func19(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+[[intel::num_simd_work_items(3)]] void func19(); // expected-error{{'intel::num_simd_work_items' attribute must evenly divide the work-group size for the 'sycl::reqd_work_group_size' attribute}}
 template <int N>
 [[sycl::reqd_work_group_size(N, N, N)]] void func19(); // expected-note{{conflicting attribute is here}}
 
 template <int X, int Y, int Z, int N>
-[[intel::num_simd_work_items(N)]] void func20(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+[[intel::num_simd_work_items(N)]] void func20(); // expected-error{{'intel::num_simd_work_items' attribute must evenly divide the work-group size for the 'sycl::reqd_work_group_size' attribute}}
 template <int X, int Y, int Z, int N>
 [[sycl::reqd_work_group_size(X, Y, Z)]] void func20(); // expected-note{{conflicting attribute is here}}
 
 template <int X, int Y, int Z>
-[[intel::num_simd_work_items(3)]] void func21(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+[[intel::num_simd_work_items(3)]] void func21(); // expected-error{{'intel::num_simd_work_items' attribute must evenly divide the work-group size for the 'sycl::reqd_work_group_size' attribute}}
 template <int X, int Y, int Z>
 [[sycl::reqd_work_group_size(X, Y, Z)]] void func21(); // expected-note{{conflicting attribute is here}}
 
 template <int X, int Y, int Z>
-[[intel::num_simd_work_items(2)]] void func22(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+[[intel::num_simd_work_items(2)]] void func22(); // expected-error{{'intel::num_simd_work_items' attribute must evenly divide the work-group size for the 'sycl::reqd_work_group_size' attribute}}
 template <int X, int Y, int Z>
 [[sycl::reqd_work_group_size(X, Y, Z)]] void func22(); // expected-note{{conflicting attribute is here}}
 
 template <int N>
-[[intel::num_simd_work_items(2)]] void func23(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+[[intel::num_simd_work_items(2)]] void func23(); // expected-error{{'intel::num_simd_work_items' attribute must evenly divide the work-group size for the 'sycl::reqd_work_group_size' attribute}}
 template <int N>
 [[sycl::reqd_work_group_size(N, N, N)]] void func23(); // expected-note{{conflicting attribute is here}}
 
@@ -373,7 +373,7 @@ int check1() {
 template <int SIZE>
 class KernelFunctor {
 public:
-  // expected-error@+1{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
+  // expected-error@+1{{'intel::num_simd_work_items' attribute requires a positive integral compile time constant expression}}
   [[intel::num_simd_work_items(SIZE)]] void operator()() {}
 };
 
@@ -387,14 +387,14 @@ int kernel() {
 
 // Test that checks template parameter support on function.
 template <int N>
-// expected-error@+1{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
+// expected-error@+1{{'intel::num_simd_work_items' attribute requires a positive integral compile time constant expression}}
 [[intel::num_simd_work_items(N)]] void func24() {}
 
 template <int N>
 [[intel::num_simd_work_items(4)]] void func25(); // expected-note {{previous attribute is here}}
 
 template <int N>
-[[intel::num_simd_work_items(N)]] void func25() {} // expected-warning {{attribute 'num_simd_work_items' is already applied with different arguments}}
+[[intel::num_simd_work_items(N)]] void func25() {} // expected-warning {{attribute 'intel::num_simd_work_items' is already applied with different arguments}}
 
 int ver() {
   // no error expected.

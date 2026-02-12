@@ -6,7 +6,7 @@ import lit.formats
 from lit.llvm import llvm_config
 from lit.llvm.subst import ToolSubst
 
-config.name = "SYCL-FUSION"
+config.name = "SYCL-JIT"
 
 config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
 

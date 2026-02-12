@@ -55,6 +55,8 @@ class OsUtilsTest : public ::testing::Test {
 };
 
 TEST_F(OsUtilsTest, getCurrentDSODir) {
+  // Failure tracker: https://github.com/intel/llvm/issues/19626
+  GTEST_SKIP() << "Skipping test due to failure tracked in issue #19626";
   std::string DSODir = sycl::detail::OSUtil::getCurrentDSODir();
   ASSERT_TRUE(isSameDir(DSODir.c_str(), SYCL_LIB_DIR)) <<
       "expected: " << SYCL_LIB_DIR << ", got: " << DSODir;

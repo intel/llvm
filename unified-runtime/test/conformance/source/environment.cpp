@@ -8,10 +8,12 @@
 #include <cstring>
 #include <fstream>
 #include <sstream>
+#include <string>
 
 #include "ur_api.h"
 #include "ur_filesystem_resolved.hpp"
 #include "uur/checks.h"
+#include "uur/known_failure.h"
 
 #ifdef KERNELS_ENVIRONMENT
 #include "kernel_entry_points.h"
@@ -31,15 +33,15 @@ AdapterEnvironment::AdapterEnvironment() {
   instance = this;
 
   ur_loader_config_handle_t config;
-  if (urLoaderConfigCreate(&config) == UR_RESULT_SUCCESS) {
-    if (urLoaderConfigEnableLayer(config, "UR_LAYER_FULL_VALIDATION") !=
-        UR_RESULT_SUCCESS) {
-      urLoaderConfigRelease(config);
-      error = "Failed to enable validation layer";
-      return;
-    }
-  } else {
+  if (urLoaderConfigCreate(&config) != UR_RESULT_SUCCESS) {
     error = "Failed to create loader config handle";
+    return;
+  }
+
+  if (urLoaderConfigEnableLayer(config, "UR_LAYER_FULL_VALIDATION") !=
+      UR_RESULT_SUCCESS) {
+    urLoaderConfigRelease(config);
+    error = "Failed to enable validation layer";
     return;
   }
 
@@ -79,16 +81,15 @@ uur::PlatformEnvironment::PlatformEnvironment() : AdapterEnvironment() {
 void uur::PlatformEnvironment::populatePlatforms() {
   for (auto a : adapters) {
     uint32_t count = 0;
-    ASSERT_SUCCESS(urPlatformGet(&a, 1, 0, nullptr, &count));
+    ASSERT_SUCCESS(urPlatformGet(a, 0, nullptr, &count));
     if (count == 0) {
       continue;
     }
     std::vector<ur_platform_handle_t> platform_list(count);
-    ASSERT_SUCCESS(urPlatformGet(&a, 1, count, platform_list.data(), nullptr));
+    ASSERT_SUCCESS(urPlatformGet(a, count, platform_list.data(), nullptr));
 
-    for (auto p : platform_list) {
-      platforms.push_back(p);
-    }
+    platforms.insert(platforms.end(), platform_list.begin(),
+                     platform_list.end());
   }
 
   ASSERT_FALSE(platforms.empty())
@@ -127,11 +128,11 @@ DevicesEnvironment::DevicesEnvironment() : PlatformEnvironment() {
 
   for (auto &platform : platforms) {
     uint32_t platform_device_count = 0;
-    urDeviceGet(platform, UR_DEVICE_TYPE_ALL, 0, nullptr,
-                &platform_device_count);
+    urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, 0, nullptr,
+                        &platform_device_count);
     std::vector<ur_device_handle_t> platform_devices(platform_device_count);
-    urDeviceGet(platform, UR_DEVICE_TYPE_ALL, platform_device_count,
-                platform_devices.data(), nullptr);
+    urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, platform_device_count,
+                        platform_devices.data(), nullptr);
     ur_adapter_handle_t adapter = nullptr;
     urPlatformGetInfo(platform, UR_PLATFORM_INFO_ADAPTER,
                       sizeof(ur_adapter_handle_t), &adapter, nullptr);
@@ -189,68 +190,41 @@ KernelsEnvironment::parseKernelOptions(int argc, char **argv,
   return options;
 }
 
-std::string KernelsEnvironment::getTargetName(ur_platform_handle_t platform) {
-  std::stringstream IL;
-
-  if (instance->GetDevices().size() == 0) {
-    error = "no devices available on the platform";
-    return {};
-  }
-
-  // special case for AMD as it doesn't support IL.
-  ur_platform_backend_t backend;
-  if (urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND, sizeof(backend),
-                        &backend, nullptr)) {
-    error = "failed to get backend from platform.";
-    return {};
-  }
-
-  std::string target = "";
-  switch (backend) {
-  case UR_PLATFORM_BACKEND_OPENCL:
-  case UR_PLATFORM_BACKEND_LEVEL_ZERO:
-    return "spir64";
-  case UR_PLATFORM_BACKEND_CUDA:
-    return "nvptx64-nvidia-cuda";
-  case UR_PLATFORM_BACKEND_HIP:
-    return "amdgcn-amd-amdhsa";
-  case UR_PLATFORM_BACKEND_NATIVE_CPU:
-    error = "native_cpu doesn't support kernel tests yet";
-    return {};
-  default:
-    error = "unknown target.";
-    return {};
-  }
-}
-
 std::string
 KernelsEnvironment::getKernelSourcePath(const std::string &kernel_name,
-                                        ur_platform_handle_t platform) {
-  std::stringstream path;
-  path << kernel_options.kernel_directory << "/" << kernel_name;
-
-  std::string target_name = getTargetName(platform);
-  if (target_name.empty()) {
-    return {};
-  }
-
-  path << "/" << target_name << ".bin.0";
-
-  return path.str();
+                                        const std::string &target_name) {
+  return kernel_options.kernel_directory + "/" + kernel_name + "/" +
+         target_name + ".bin.0";
 }
 
 void KernelsEnvironment::LoadSource(
     const std::string &kernel_name, ur_platform_handle_t platform,
     std::shared_ptr<std::vector<char>> &binary_out) {
-  std::string source_path =
-      instance->getKernelSourcePath(kernel_name, platform);
+  // We don't have a way to build device code for native cpu yet.
+  UUR_KNOWN_FAILURE_ON_PARAM(platform, uur::NativeCPU{});
 
-  if (source_path.empty()) {
-    FAIL() << error;
+  if (instance->GetDevices().size() == 0) {
+    FAIL() << "no devices available on the platform";
   }
 
-  if (cached_kernels.find(source_path) != cached_kernels.end()) {
-    binary_out = cached_kernels[source_path];
+  std::string triple_name;
+  auto Err = GetPlatformTriple(platform, triple_name);
+  if (Err) {
+    FAIL() << "GetPlatformTriple failed with error " << Err << "\n";
+  }
+
+  LoadSource(kernel_name, triple_name, binary_out);
+}
+
+void KernelsEnvironment::LoadSource(
+    const std::string &kernel_name, const std::string &target_name,
+    std::shared_ptr<std::vector<char>> &binary_out) {
+  std::string source_path =
+      instance->getKernelSourcePath(kernel_name, target_name);
+
+  auto cached = cached_kernels.find(source_path);
+  if (cached != cached_kernels.end()) {
+    binary_out = cached->second;
     return;
   }
 
@@ -259,7 +233,10 @@ void KernelsEnvironment::LoadSource(
                    std::ios::binary | std::ios::in | std::ios::ate);
 
   if (!source_file.is_open()) {
-    FAIL() << "failed opening kernel path: " + source_path;
+    FAIL() << "failed opening kernel path: " + source_path
+           << "\nNote: make sure that UR_CONFORMANCE_TARGET_TRIPLES includes "
+           << '\'' << target_name << '\''
+           << " and that device binaries have been built.";
   }
 
   size_t source_size = static_cast<size_t>(source_file.tellg());
@@ -279,34 +256,31 @@ void KernelsEnvironment::LoadSource(
   binary_out = std::move(binary_ptr);
 }
 
-ur_result_t KernelsEnvironment::CreateProgram(
+void KernelsEnvironment::CreateProgram(
     ur_platform_handle_t hPlatform, ur_context_handle_t hContext,
     ur_device_handle_t hDevice, const std::vector<char> &binary,
     const ur_program_properties_t *properties, ur_program_handle_t *phProgram) {
-  ur_platform_backend_t backend;
-  if (auto error =
-          urPlatformGetInfo(hPlatform, UR_PLATFORM_INFO_BACKEND,
-                            sizeof(ur_platform_backend_t), &backend, nullptr)) {
-    return error;
-  }
-  if (backend == UR_PLATFORM_BACKEND_HIP ||
-      backend == UR_PLATFORM_BACKEND_CUDA) {
+  // Seems to not support an IR compiler
+  std::tuple<ur_platform_handle_t, ur_device_handle_t> tuple{hPlatform,
+                                                             hDevice};
+  UUR_KNOWN_FAILURE_ON_PARAM(tuple, uur::OpenCL{"gfx1100"});
+
+  ur_backend_t backend;
+  ASSERT_SUCCESS(urPlatformGetInfo(hPlatform, UR_PLATFORM_INFO_BACKEND,
+                                   sizeof(ur_backend_t), &backend, nullptr));
+  size_t size = binary.size();
+  const char *data = binary.data();
+  if (backend == UR_BACKEND_HIP || backend == UR_BACKEND_CUDA ||
+      backend == UR_BACKEND_OFFLOAD) {
     // The CUDA and HIP adapters do not support urProgramCreateWithIL so we
     // need to use urProgramCreateWithBinary instead.
-    auto size = binary.size();
-    auto data = binary.data();
-    if (auto error = urProgramCreateWithBinary(
-            hContext, 1, &hDevice, &size,
-            reinterpret_cast<const uint8_t **>(&data), properties, phProgram)) {
-      return error;
-    }
+    const uint8_t *u8data = reinterpret_cast<const uint8_t *>(data);
+    ASSERT_SUCCESS(urProgramCreateWithBinary(hContext, 1, &hDevice, &size,
+                                             &u8data, properties, phProgram));
   } else {
-    if (auto error = urProgramCreateWithIL(
-            hContext, binary.data(), binary.size(), properties, phProgram)) {
-      return error;
-    }
+    ASSERT_SUCCESS(
+        urProgramCreateWithIL(hContext, data, size, properties, phProgram));
   }
-  return UR_RESULT_SUCCESS;
 }
 
 std::vector<std::string> KernelsEnvironment::GetEntryPointNames(

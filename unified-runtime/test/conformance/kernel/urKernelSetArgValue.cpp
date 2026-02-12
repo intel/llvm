@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -8,14 +8,14 @@
 #include <uur/known_failure.h>
 
 struct urKernelSetArgValueTest : uur::urKernelTest {
-  void SetUp() {
+  void SetUp() override {
     program_name = "fill";
     UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
   }
 
   uint32_t arg_value = 42;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelSetArgValueTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urKernelSetArgValueTest);
 
 TEST_P(urKernelSetArgValueTest, Success) {
   ASSERT_SUCCESS(
@@ -48,7 +48,7 @@ TEST_P(urKernelSetArgValueTest, InvalidKernelArgumentIndex) {
 }
 
 TEST_P(urKernelSetArgValueTest, InvalidKernelArgumentSize) {
-  UUR_KNOWN_FAILURE_ON(uur::HIP{}, uur::OpenCL{"Intel(R) UHD Graphics 770"});
+  UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) UHD Graphics 770"});
 
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE,
                    urKernelSetArgValue(kernel, 2, 0, nullptr, &arg_value));

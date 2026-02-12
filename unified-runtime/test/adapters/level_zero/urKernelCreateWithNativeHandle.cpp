@@ -1,16 +1,20 @@
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+// RUN: %maybe-v1 ./kernel_create-test
+// RUN: %maybe-v2 ./kernel_create-test
 
 #include "ur_api.h"
 #include "uur/checks.h"
 #include "ze_api.h"
 #include <uur/fixtures.h>
 
-using urLevelZeroKernelNativeHandleTest = uur::urQueueTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urLevelZeroKernelNativeHandleTest);
+using urLevelZeroKernelNativeHandleTest = uur::urMultiQueueTypeTest;
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(
+    urLevelZeroKernelNativeHandleTest);
 
 TEST_P(urLevelZeroKernelNativeHandleTest, OwnedHandleRelease) {
   ze_context_handle_t native_context;
@@ -69,8 +73,8 @@ TEST_P(urLevelZeroKernelNativeHandleTest, OwnedHandleRelease) {
   size_t local_size = 1;
   size_t global_size = 1;
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &global_offset,
-                                       &local_size, &global_size, 0, nullptr,
-                                       nullptr));
+                                       &local_size, &global_size, nullptr, 0,
+                                       nullptr, nullptr));
 
   ASSERT_SUCCESS(urKernelRelease(kernel));
   ASSERT_SUCCESS(urProgramRelease(program));

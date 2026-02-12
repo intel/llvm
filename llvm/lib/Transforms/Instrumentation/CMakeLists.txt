@@ -1,16 +1,17 @@
 add_llvm_component_library(LLVMInstrumentation
   AddressSanitizer.cpp
+  AllocToken.cpp
   BoundsChecking.cpp
   CGProfile.cpp
   ControlHeightReduction.cpp
   DataFlowSanitizer.cpp
   GCOVProfiling.cpp
   BlockCoverageInference.cpp
-  MemProfiler.cpp
+  MemProfInstrumentation.cpp
+  MemProfUse.cpp
   MemorySanitizer.cpp
   NumericalStabilitySanitizer.cpp
   IndirectCallPromotion.cpp
-  InstrOrderFile.cpp
   InstrProfiling.cpp
   KCFI.cpp
   LowerAllowCheckPass.cpp
@@ -27,6 +28,7 @@ add_llvm_component_library(LLVMInstrumentation
   TypeSanitizer.cpp
   HWAddressSanitizer.cpp
   RealtimeSanitizer.cpp
+  SPIRVSanitizerCommonUtils.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/Transforms

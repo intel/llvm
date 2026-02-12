@@ -1,12 +1,14 @@
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "../fixtures.h"
+#include "uur/fixtures.h"
 #include <array>
 #include <cstring>
+#include <uur/known_failure.h>
 
 // Negative tests that correct error codes are thrown on invalid update usage.
 struct InvalidUpdateTest
@@ -68,7 +70,7 @@ struct InvalidUpdateTest
   bool finalized = false;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(InvalidUpdateTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(InvalidUpdateTest);
 
 // Test error code is returned if command-buffer not finalized
 TEST_P(InvalidUpdateTest, NotFinalizedCommandBuffer) {
@@ -129,7 +131,7 @@ TEST_P(InvalidUpdateTest, NotUpdatableCommandBuffer) {
                    UR_RESULT_ERROR_INVALID_OPERATION);
   ASSERT_EQ(test_command_handle, nullptr);
 
-  EXPECT_SUCCESS(urCommandBufferFinalizeExp(test_cmd_buf_handle));
+  ASSERT_SUCCESS(urCommandBufferFinalizeExp(test_cmd_buf_handle));
   finalized = true;
 
   // Set new value to use for fill at kernel index 1
@@ -167,7 +169,7 @@ TEST_P(InvalidUpdateTest, NotUpdatableCommandBuffer) {
   EXPECT_EQ(UR_RESULT_ERROR_INVALID_NULL_HANDLE, result);
 
   if (test_cmd_buf_handle) {
-    EXPECT_SUCCESS(urCommandBufferReleaseExp(test_cmd_buf_handle));
+    ASSERT_SUCCESS(urCommandBufferReleaseExp(test_cmd_buf_handle));
   }
 }
 
@@ -262,8 +264,8 @@ TEST_P(InvalidUpdateTest, CommandBufferMismatch) {
       urCommandBufferCreateExp(context, device, &desc, &test_cmd_buf_handle));
   EXPECT_NE(test_cmd_buf_handle, nullptr);
 
-  EXPECT_SUCCESS(urCommandBufferFinalizeExp(test_cmd_buf_handle));
-  EXPECT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
+  ASSERT_SUCCESS(urCommandBufferFinalizeExp(test_cmd_buf_handle));
+  ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
   finalized = true;
 
   // Set new value to use for fill at kernel index 1
@@ -301,7 +303,7 @@ TEST_P(InvalidUpdateTest, CommandBufferMismatch) {
   EXPECT_EQ(UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP, result);
 
   if (test_cmd_buf_handle) {
-    EXPECT_SUCCESS(urCommandBufferReleaseExp(test_cmd_buf_handle));
+    ASSERT_SUCCESS(urCommandBufferReleaseExp(test_cmd_buf_handle));
   }
 }
 
@@ -391,7 +393,8 @@ struct InvalidUpdateCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
       0;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(InvalidUpdateCommandBufferExpExecutionTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(
+    InvalidUpdateCommandBufferExpExecutionTest);
 
 // Test error reported if device doesn't support updating kernel args
 TEST_P(InvalidUpdateCommandBufferExpExecutionTest, KernelArg) {

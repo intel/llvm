@@ -1,9 +1,10 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include "helpers.h"
+#include "uur/fixtures.h"
 #include <numeric>
 #include <uur/known_failure.h>
 
@@ -71,12 +72,13 @@ static std::vector<uur::test_parameters_t> generateParameterizations() {
 }
 
 struct urEnqueueMemBufferReadRectTestWithParam
-    : public uur::urQueueTestWithParam<uur::test_parameters_t> {};
+    : public uur::urMultiQueueTypeTestWithParam<uur::test_parameters_t> {};
 
-UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+UUR_MULTI_QUEUE_TYPE_TEST_SUITE_WITH_PARAM(
     urEnqueueMemBufferReadRectTestWithParam,
     testing::ValuesIn(generateParameterizations()),
-    uur::printRectTestString<urEnqueueMemBufferReadRectTestWithParam>);
+    uur::printRectTestStringMultiQueue<
+        urEnqueueMemBufferReadRectTestWithParam>);
 
 TEST_P(urEnqueueMemBufferReadRectTestWithParam, Success) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
@@ -99,13 +101,13 @@ TEST_P(urEnqueueMemBufferReadRectTestWithParam, Success) {
   // The input will just be sequentially increasing values.
   std::vector<uint8_t> input(buffer_size, 0x0);
   std::iota(std::begin(input), std::end(input), 0x0);
-  EXPECT_SUCCESS(urEnqueueMemBufferWrite(queue, buffer, /* isBlocking */ true,
+  ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue, buffer, /* isBlocking */ true,
                                          0, input.size(), input.data(), 0,
                                          nullptr, nullptr));
 
   // Enqueue the rectangular read.
   std::vector<uint8_t> output(host_size, 0x0);
-  EXPECT_SUCCESS(urEnqueueMemBufferReadRect(
+  ASSERT_SUCCESS(urEnqueueMemBufferReadRect(
       queue, buffer, /* isBlocking */ true, buffer_offset, host_offset, region,
       buffer_row_pitch, buffer_slice_pitch, host_row_pitch, host_slice_pitch,
       output.data(), 0, nullptr, nullptr));
@@ -119,7 +121,7 @@ TEST_P(urEnqueueMemBufferReadRectTestWithParam, Success) {
   EXPECT_EQ(expected, output);
 
   // Cleanup.
-  EXPECT_SUCCESS(urMemRelease(buffer));
+  ASSERT_SUCCESS(urMemRelease(buffer));
 }
 
 struct urEnqueueMemBufferReadRectTest : public uur::urMemBufferQueueTest {
@@ -132,7 +134,7 @@ struct urEnqueueMemBufferReadRectTest : public uur::urMemBufferQueueTest {
   size_t host_slice_pitch = size;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueMemBufferReadRectTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(urEnqueueMemBufferReadRectTest);
 
 TEST_P(urEnqueueMemBufferReadRectTest, InvalidNullHandleQueue) {
   std::vector<uint32_t> dst(count);
@@ -197,7 +199,7 @@ TEST_P(urEnqueueMemBufferReadRectTest, InvalidSize) {
 
   std::vector<uint32_t> dst(count);
 
-  // region.width == 0 || region.height == 0 || region.width == 0
+  // region.width == 0 || region.height == 0 || region.depth == 0
   region.width = 0;
   ASSERT_EQ_RESULT(urEnqueueMemBufferReadRect(
                        queue, buffer, true, buffer_offset, host_offset, region,

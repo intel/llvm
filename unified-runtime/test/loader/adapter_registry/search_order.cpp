@@ -4,6 +4,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+// RUN: UR_ADAPTERS_SEARCH_PATH="%binary-dir" TEST_ADAPTER_SEARCH_PATH="%binary-dir" TEST_CUR_SEARCH_PATH="%cwd" search-order-test
+
 #include "fixtures.hpp"
 
 template <typename P>

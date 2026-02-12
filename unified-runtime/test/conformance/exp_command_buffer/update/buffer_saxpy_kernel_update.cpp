@@ -1,10 +1,11 @@
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "../fixtures.h"
+#include "uur/fixtures.h"
 #include <array>
 
 // Test that updating a command-buffer with a single kernel command
@@ -39,7 +40,7 @@ struct BufferSaxpyKernelTest
     // Lambda to add accessor arguments depending on backend.
     // HIP has 3 offset parameters and other backends only have 1.
     auto addAccessorArgs = [&]() {
-      if (backend == UR_PLATFORM_BACKEND_HIP) {
+      if (backend == UR_BACKEND_HIP) {
         size_t val = 0;
         ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index++,
                                            sizeof(size_t), nullptr, &val));
@@ -129,7 +130,7 @@ struct BufferSaxpyKernelTest
   ur_exp_command_buffer_command_handle_t command_handle = nullptr;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(BufferSaxpyKernelTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(BufferSaxpyKernelTest);
 
 TEST_P(BufferSaxpyKernelTest, UpdateParameters) {
   // Run command-buffer prior to update an verify output
@@ -142,7 +143,7 @@ TEST_P(BufferSaxpyKernelTest, UpdateParameters) {
   ur_exp_command_buffer_update_memobj_arg_desc_t new_input_descs[2];
 
   // Index 5 on HIP and 3 on non-HIP is X buffer
-  const uint32_t x_arg_index = (backend == UR_PLATFORM_BACKEND_HIP) ? 5 : 3;
+  const uint32_t x_arg_index = (backend == UR_BACKEND_HIP) ? 5 : 3;
   new_input_descs[0] = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_MEMOBJ_ARG_DESC, // stype
       nullptr,                                                     // pNext
@@ -152,7 +153,7 @@ TEST_P(BufferSaxpyKernelTest, UpdateParameters) {
   };
 
   // Index 9 on HIP and 5 on non-HIP is Y buffer
-  const uint32_t y_arg_index = backend == (UR_PLATFORM_BACKEND_HIP) ? 9 : 5;
+  const uint32_t y_arg_index = backend == (UR_BACKEND_HIP) ? 9 : 5;
   new_input_descs[1] = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_MEMOBJ_ARG_DESC, // stype
       nullptr,                                                     // pNext
@@ -162,7 +163,7 @@ TEST_P(BufferSaxpyKernelTest, UpdateParameters) {
   };
 
   // Index 4 on HIP and 2 on non-HIP is A
-  const uint32_t a_arg_index = (backend == UR_PLATFORM_BACKEND_HIP) ? 4 : 2;
+  const uint32_t a_arg_index = (backend == UR_BACKEND_HIP) ? 4 : 2;
   uint32_t new_A = 33;
   ur_exp_command_buffer_update_value_arg_desc_t new_A_desc = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC, // stype

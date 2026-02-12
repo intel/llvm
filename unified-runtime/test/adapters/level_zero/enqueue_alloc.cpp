@@ -1,12 +1,16 @@
-// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2025-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+// RUN: %maybe-v1 ./enqueue_alloc-test
+// RUN: %maybe-v2 ./enqueue_alloc-test
+
 #include <thread>
 
 #include "ur_api.h"
+#include "uur/utils.h"
 #include <uur/fixtures.h>
 
 struct EnqueueAllocTestParam {
@@ -78,6 +82,7 @@ struct urL0EnqueueAllocMultiQueueSameDeviceTest
     for (size_t i = 0; i < param.numQueues; i++) {
       ur_queue_handle_t queue = nullptr;
       ASSERT_SUCCESS(urQueueCreate(context, device, 0, &queue));
+      SKIP_IF_BATCHED_QUEUE(queue);
       queues.push_back(queue);
     }
   }
@@ -148,7 +153,6 @@ struct urL0EnqueueAllocMultiQueueMultiDeviceTest
     ASSERT_NE(hostAlloc, nullptr);
     ASSERT_SUCCESS(urEnqueueUSMMemcpy(queues[0], true, hostAlloc, ptr, size, 0,
                                       nullptr, nullptr));
-    std::ignore = pattern;
     for (size_t i = 0; i * sizeof(uint8_t) < size; i++) {
       ASSERT_EQ(*static_cast<uint8_t *>(hostAlloc), pattern);
     }
@@ -158,7 +162,7 @@ struct urL0EnqueueAllocMultiQueueMultiDeviceTest
   std::vector<ur_queue_handle_t> queues;
 };
 
-UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+UUR_MULTI_QUEUE_TYPE_TEST_SUITE_WITH_PARAM(
     urL0EnqueueAllocTest,
     ::testing::ValuesIn({
         EnqueueAllocTestParam{urEnqueueUSMHostAllocExp,
@@ -168,13 +172,11 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
         EnqueueAllocTestParam{urEnqueueUSMDeviceAllocExp,
                               uur::GetDeviceUSMDeviceSupport},
     }),
-    uur::deviceTestWithParamPrinter<EnqueueAllocTestParam>);
+    uur::deviceTestWithParamPrinterMulti<EnqueueAllocTestParam>);
 
 TEST_P(urL0EnqueueAllocTest, Success) {
-  const auto enqueueUSMAllocFunc =
-      std::get<1>(this->GetParam()).enqueueUSMAllocFunc;
-  const auto checkUSMSupportFunc =
-      std::get<1>(this->GetParam()).checkUSMSupportFunc;
+  const auto enqueueUSMAllocFunc = getParam().enqueueUSMAllocFunc;
+  const auto checkUSMSupportFunc = getParam().checkUSMSupportFunc;
 
   ur_device_usm_access_capability_flags_t USMSupport = 0;
   ASSERT_SUCCESS(checkUSMSupportFunc(device, USMSupport));
@@ -198,10 +200,8 @@ TEST_P(urL0EnqueueAllocTest, Success) {
 }
 
 TEST_P(urL0EnqueueAllocTest, SuccessReuse) {
-  const auto enqueueUSMAllocFunc =
-      std::get<1>(this->GetParam()).enqueueUSMAllocFunc;
-  const auto checkUSMSupportFunc =
-      std::get<1>(this->GetParam()).checkUSMSupportFunc;
+  const auto enqueueUSMAllocFunc = getParam().enqueueUSMAllocFunc;
+  const auto checkUSMSupportFunc = getParam().checkUSMSupportFunc;
 
   ur_device_usm_access_capability_flags_t USMSupport = 0;
   ASSERT_SUCCESS(checkUSMSupportFunc(device, USMSupport));
@@ -236,10 +236,8 @@ TEST_P(urL0EnqueueAllocTest, SuccessReuse) {
 }
 
 TEST_P(urL0EnqueueAllocTest, SuccessFromPool) {
-  const auto enqueueUSMAllocFunc =
-      std::get<1>(this->GetParam()).enqueueUSMAllocFunc;
-  const auto checkUSMSupportFunc =
-      std::get<1>(this->GetParam()).checkUSMSupportFunc;
+  const auto enqueueUSMAllocFunc = getParam().enqueueUSMAllocFunc;
+  const auto checkUSMSupportFunc = getParam().checkUSMSupportFunc;
 
   ur_device_usm_access_capability_flags_t USMSupport = 0;
   ASSERT_SUCCESS(checkUSMSupportFunc(device, USMSupport));
@@ -267,10 +265,8 @@ TEST_P(urL0EnqueueAllocTest, SuccessFromPool) {
 }
 
 TEST_P(urL0EnqueueAllocTest, SuccessWithKernel) {
-  const auto enqueueUSMAllocFunc =
-      std::get<1>(this->GetParam()).enqueueUSMAllocFunc;
-  const auto checkUSMSupportFunc =
-      std::get<1>(this->GetParam()).checkUSMSupportFunc;
+  const auto enqueueUSMAllocFunc = getParam().enqueueUSMAllocFunc;
+  const auto checkUSMSupportFunc = getParam().checkUSMSupportFunc;
 
   ur_device_usm_access_capability_flags_t USMSupport = 0;
   ASSERT_SUCCESS(checkUSMSupportFunc(device, USMSupport));
@@ -292,10 +288,8 @@ TEST_P(urL0EnqueueAllocTest, SuccessWithKernel) {
 }
 
 TEST_P(urL0EnqueueAllocTest, SuccessWithKernelRepeat) {
-  const auto enqueueUSMAllocFunc =
-      std::get<1>(this->GetParam()).enqueueUSMAllocFunc;
-  const auto checkUSMSupportFunc =
-      std::get<1>(this->GetParam()).checkUSMSupportFunc;
+  const auto enqueueUSMAllocFunc = getParam().enqueueUSMAllocFunc;
+  const auto checkUSMSupportFunc = getParam().checkUSMSupportFunc;
 
   ur_device_usm_access_capability_flags_t USMSupport = 0;
   ASSERT_SUCCESS(checkUSMSupportFunc(device, USMSupport));
@@ -350,6 +344,10 @@ TEST_P(urL0EnqueueAllocMultiQueueSameDeviceTest, SuccessMt) {
       std::get<1>(this->GetParam()).funcParams.enqueueUSMAllocFunc;
   const auto checkUSMSupportFunc =
       std::get<1>(this->GetParam()).funcParams.checkUSMSupportFunc;
+
+  if (numQueues > 0) {
+    SKIP_IF_BATCHED_QUEUE(queues[0]);
+  }
 
   ur_device_usm_access_capability_flags_t USMSupport = 0;
   ASSERT_SUCCESS(checkUSMSupportFunc(device, USMSupport));
@@ -755,4 +753,48 @@ TEST_P(urL0EnqueueAllocMultiQueueMultiDeviceTest,
                                        &freeEvent));
     ASSERT_NE(freeEvent, nullptr);
   }
+}
+
+using urL0EnqueueAllocStandaloneTest = uur::urMultiQueueTypeTest;
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(urL0EnqueueAllocStandaloneTest);
+
+TEST_P(urL0EnqueueAllocStandaloneTest, ReuseFittingAllocation) {
+  ur_usm_pool_handle_t pool = nullptr;
+  ur_usm_pool_desc_t pool_desc = {};
+  ASSERT_SUCCESS(urUSMPoolCreate(context, &pool_desc, &pool));
+
+  auto makeAllocation = [&](uint32_t alignment, size_t size, void **ptr) {
+    const ur_usm_device_desc_t usm_device_desc{
+        UR_STRUCTURE_TYPE_USM_DEVICE_DESC, nullptr,
+        /* device flags */ 0};
+
+    const ur_usm_desc_t usm_desc{UR_STRUCTURE_TYPE_USM_DESC, &usm_device_desc,
+                                 UR_USM_ADVICE_FLAG_DEFAULT, alignment};
+
+    ASSERT_SUCCESS(
+        urUSMDeviceAlloc(context, device, &usm_desc, pool, size, ptr));
+  };
+
+  std::array<void *, 4> allocations = {};
+  makeAllocation(64, 128, &allocations[0]);
+  makeAllocation(64, 256, &allocations[1]);
+  makeAllocation(4096, 512, &allocations[2]);
+  makeAllocation(4096, 8192, &allocations[3]);
+
+  ASSERT_SUCCESS(
+      urEnqueueUSMFreeExp(queue, pool, allocations[0], 0, nullptr, nullptr));
+  ASSERT_SUCCESS(
+      urEnqueueUSMFreeExp(queue, pool, allocations[1], 0, nullptr, nullptr));
+  ASSERT_SUCCESS(
+      urEnqueueUSMFreeExp(queue, pool, allocations[2], 0, nullptr, nullptr));
+  ASSERT_SUCCESS(
+      urEnqueueUSMFreeExp(queue, pool, allocations[3], 0, nullptr, nullptr));
+
+  void *ptr = nullptr;
+  ASSERT_SUCCESS(urEnqueueUSMDeviceAllocExp(queue, pool, 8192, nullptr, 0,
+                                            nullptr, &ptr, nullptr));
+
+  ASSERT_EQ(ptr, allocations[3]); // Fitting allocation should be reused.
+  ASSERT_SUCCESS(urEnqueueUSMFreeExp(queue, pool, ptr, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urQueueFinish(queue));
 }

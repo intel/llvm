@@ -6,88 +6,37 @@
 #ifndef UR_LOGGER_HPP
 #define UR_LOGGER_HPP 1
 
-#include <algorithm>
-#include <memory>
-
 #include "ur_logger_details.hpp"
 #include "ur_util.hpp"
 
 namespace logger {
 
-Logger create_logger(std::string logger_name, bool skip_prefix = false,
-                     bool skip_linebreak = false,
-                     logger::Level default_log_level = logger::Level::QUIET);
+void print_backtrace();
 
-inline Logger &
-get_logger(std::string name = "common",
-           logger::Level default_log_level = logger::Level::QUIET) {
-  static Logger logger =
-      create_logger(std::move(name), /*skip_prefix*/ false,
-                    /*slip_linebreak*/ false, default_log_level);
-  return logger;
-}
+#define UR_FASSERT(expr, msg)                                                  \
+  if (!(expr)) {                                                               \
+    std::cerr << "ASSERTION FAILED at " __FILE__ ":" << __LINE__               \
+              << " ((" #expr ")) " << msg << '\n';                             \
+    logger::print_backtrace();                                                 \
+    UR_LOG(ERR, "ASSERTION FAILED at " __FILE__ ":{} ((" #expr "))",           \
+           __LINE__);                                                          \
+    abort();                                                                   \
+  }
 
-inline void init(const std::string &name) { get_logger(name.c_str()); }
+#ifdef UR_DASSERT_ENABLED
+#define UR_DASSERT(expr, msg) UR_FASSERT(expr, msg)
+#else
+#define UR_DASSERT(expr, msg)                                                  \
+  {                                                                            \
+    while (0) {                                                                \
+    }                                                                          \
+  };
+#endif
 
-template <typename... Args>
-inline void debug(const char *format, Args &&...args) {
-  get_logger().log(logger::Level::DEBUG, format, std::forward<Args>(args)...);
-}
-
-template <typename... Args>
-inline void info(const char *format, Args &&...args) {
-  get_logger().log(logger::Level::INFO, format, std::forward<Args>(args)...);
-}
-
-template <typename... Args>
-inline void warning(const char *format, Args &&...args) {
-  get_logger().log(logger::Level::WARN, format, std::forward<Args>(args)...);
-}
-
-template <typename... Args>
-inline void error(const char *format, Args &&...args) {
-  get_logger().log(logger::Level::ERR, format, std::forward<Args>(args)...);
-}
-
-template <typename... Args>
-inline void always(const char *format, Args &&...args) {
-  get_logger().always(format, std::forward<Args>(args)...);
-}
-
-template <typename... Args>
-inline void debug(const logger::LegacyMessage &p, const char *format,
-                  Args &&...args) {
-  get_logger().log(p, logger::Level::DEBUG, format,
-                   std::forward<Args>(args)...);
-}
-
-template <typename... Args>
-inline void info(logger::LegacyMessage p, const char *format, Args &&...args) {
-  get_logger().log(p, logger::Level::INFO, format, std::forward<Args>(args)...);
-}
-
-template <typename... Args>
-inline void warning(logger::LegacyMessage p, const char *format,
-                    Args &&...args) {
-  get_logger().log(p, logger::Level::WARN, format, std::forward<Args>(args)...);
-}
-
-template <typename... Args>
-inline void error(logger::LegacyMessage p, const char *format, Args &&...args) {
-  get_logger().log(p, logger::Level::ERR, format, std::forward<Args>(args)...);
-}
-
-inline void setLevel(logger::Level level) { get_logger().setLevel(level); }
-
-inline void setFlushLevel(logger::Level level) {
-  get_logger().setFlushLevel(level);
-}
-
-template <typename T> inline std::string toHex(T t) {
-  std::stringstream s;
-  s << std::hex << t;
-  return s.str();
-}
+// a fatal failure - always aborts program
+#define UR_FFAILURE(msg) UR_FASSERT(false, msg)
+// a debug failure - aborts program in debug mode or with assertions enabled
+#define UR_DFAILURE(msg) UR_DASSERT(false, msg)
 
 /// @brief Create an instance of the logger with parameters obtained from the
 /// respective
@@ -114,70 +63,48 @@ template <typename T> inline std::string toHex(T t) {
 ///             guaranteed
 ///                            to be printed immediately as they occur
 ///             - output: stderr
-inline Logger create_logger(std::string logger_name, bool skip_prefix,
-                            bool skip_linebreak,
-                            logger::Level default_log_level) {
-  std::transform(logger_name.begin(), logger_name.end(), logger_name.begin(),
-                 ::toupper);
-  const auto default_flush_level = logger::Level::ERR;
-  const std::string default_output = "stderr";
-  auto level = default_log_level;
-  auto flush_level = default_flush_level;
-  std::unique_ptr<logger::Sink> sink;
+Logger
+create_logger(std::string logger_name, bool skip_prefix = false,
+              bool skip_linebreak = false,
+              ur_logger_level_t default_log_level = UR_LOGGER_LEVEL_QUIET);
 
-  auto env_var_name = "UR_LOG_" + logger_name;
-  try {
-    auto map = getenv_to_map(env_var_name.c_str());
-    if (!map.has_value()) {
-      return Logger(default_log_level,
-                    std::make_unique<logger::StderrSink>(
-                        std::move(logger_name), skip_prefix, skip_linebreak));
-    }
+inline Logger &
+get_logger(std::string name = "common",
+           ur_logger_level_t default_log_level = UR_LOGGER_LEVEL_QUIET) {
+  static Logger logger =
+      create_logger(std::move(name), /*skip_prefix*/ false,
+                    /*slip_linebreak*/ false, default_log_level);
+  return logger;
+}
 
-    auto kv = map->find("level");
-    if (kv != map->end()) {
-      auto value = kv->second.front();
-      level = str_to_level(std::move(value));
-      map->erase(kv);
-    }
+inline void init(const std::string &name) { get_logger(name.c_str()); }
 
-    kv = map->find("flush");
-    if (kv != map->end()) {
-      auto value = kv->second.front();
-      flush_level = str_to_level(std::move(value));
-      map->erase(kv);
-    }
+// use log level as a first parameter
+// available levels: QUIET, ERR, WARN, INFO, DEBUG
+#define UR_LOG(level, ...) URLOG_(::logger::get_logger(), level, __VA_ARGS__)
 
-    std::vector<std::string> values = {std::move(default_output)};
-    kv = map->find("output");
-    if (kv != map->end()) {
-      values = kv->second;
-      map->erase(kv);
-    }
+// TODO: consider removing UR_LOG_L and maybe UR_LOG_LEGACY macros, using UR_LOG
+// instead
+#define UR_LOG_LEGACY(level, legacy_message, ...)                              \
+  URLOG_L_(::logger::get_logger(), level, legacy_message, __VA_ARGS__)
+#define UR_LOG_L(logger, level, ...) URLOG_(logger, level, __VA_ARGS__)
 
-    if (!map->empty()) {
-      std::cerr << "Wrong logger environment variable parameter: '"
-                << map->begin()->first << "'. Default logger options are set.";
-      return Logger(default_log_level,
-                    std::make_unique<logger::StderrSink>(
-                        std::move(logger_name), skip_prefix, skip_linebreak));
-    }
+inline void setLevel(ur_logger_level_t level) { get_logger().setLevel(level); }
 
-    sink = values.size() == 2 ? sink_from_str(logger_name, values[0], values[1],
-                                              skip_prefix, skip_linebreak)
-                              : sink_from_str(logger_name, values[0], "",
-                                              skip_prefix, skip_linebreak);
-  } catch (const std::invalid_argument &e) {
-    std::cerr << "Error when creating a logger instance from the '"
-              << env_var_name << "' environment variable:\n"
-              << e.what() << std::endl;
-    return Logger(default_log_level,
-                  std::make_unique<logger::StderrSink>(
-                      std::move(logger_name), skip_prefix, skip_linebreak));
-  }
-  sink->setFlushLevel(flush_level);
+inline void setFlushLevel(ur_logger_level_t level) {
+  get_logger().setFlushLevel(level);
+}
 
-  return Logger(level, std::move(sink));
+template <typename T> std::string toHex(T &&t) {
+  std::ostringstream s;
+  s << std::hex << t;
+  return s.str();
+}
+
+template <typename T> std::string makeStringFromStreamable(T &&obj) {
+  std::ostringstream s;
+  s << obj;
+  return s.str();
 }
 
 } // namespace logger

@@ -11,9 +11,10 @@
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/usm.hpp>
 
-class kernel_sampled_fetch;
+namespace {
 
-int main() {
+template <typename T, sycl::image_channel_type ChanType>
+static int testSampledImageFetch() {
 
   sycl::device dev;
   sycl::queue q(dev);
@@ -23,9 +24,9 @@ int main() {
   constexpr size_t width = 5;
   constexpr size_t height = 6;
   constexpr size_t N = width * height;
-  std::vector<sycl::vec<uint16_t, 4>> out(N);
-  std::vector<sycl::vec<uint16_t, 4>> expected(N);
-  std::vector<sycl::vec<uint16_t, 4>> dataIn(N);
+  std::vector<sycl::vec<T, 4>> out(N);
+  std::vector<sycl::vec<T, 4>> expected(N);
+  std::vector<sycl::vec<T, 4>> dataIn(N);
   for (int i = 0; i < width; i++) {
     for (int j = 0; j < height; j++) {
       auto index = i + (width * j);
@@ -43,8 +44,7 @@ int main() {
         sycl::filtering_mode::linear);
 
     // Extension: image descriptor
-    syclexp::image_descriptor desc({width, height}, 4,
-                                   sycl::image_channel_type::unsigned_int16);
+    syclexp::image_descriptor desc({width, height}, 4, ChanType);
     size_t pitch = 0;
 
     // Extension: returns the device pointer to USM allocated pitched memory
@@ -65,21 +65,20 @@ int main() {
 
     sycl::buffer buf(out.data(), sycl::range{height, width});
     q.submit([&](sycl::handler &cgh) {
-      auto outAcc = buf.get_access<sycl::access_mode::write>(
+      auto outAcc = buf.template get_access<sycl::access_mode::write>(
           cgh, sycl::range<2>{height, width});
 
-      cgh.parallel_for<kernel_sampled_fetch>(
-          sycl::nd_range<2>{{width, height}, {width, height}},
-          [=](sycl::nd_item<2> it) {
-            size_t dim0 = it.get_local_id(0);
-            size_t dim1 = it.get_local_id(1);
+      cgh.parallel_for(sycl::nd_range<2>{{width, height}, {width, height}},
+                       [=](sycl::nd_item<2> it) {
+                         size_t dim0 = it.get_local_id(0);
+                         size_t dim1 = it.get_local_id(1);
 
-            // Extension: fetch data from sampled image handle
-            auto px1 = syclexp::fetch_image<sycl::vec<uint16_t, 4>>(
-                imgHandle, sycl::int2(dim0, dim1));
+                         // Extension: fetch data from sampled image handle
+                         auto px1 = syclexp::fetch_image<sycl::vec<T, 4>>(
+                             imgHandle, sycl::int2(dim0, dim1));
 
-            outAcc[sycl::id<2>{dim1, dim0}] = px1;
-          });
+                         outAcc[sycl::id<2>{dim1, dim0}] = px1;
+                       });
     });
 
     q.wait_and_throw();
@@ -120,4 +119,24 @@ int main() {
 
   std::cout << "Test failed!" << std::endl;
   return 3;
+}
+
+} // namespace
+
+int main() {
+  if (int err =
+          testSampledImageFetch<uint16_t,
+                                sycl::image_channel_type::unsigned_int16>()) {
+    return err;
+  }
+  if (int err =
+          testSampledImageFetch<uint32_t,
+                                sycl::image_channel_type::unsigned_int32>()) {
+    return err;
+  }
+  if (int err =
+          testSampledImageFetch<float, sycl::image_channel_type::fp32>()) {
+    return err;
+  }
+  return 0;
 }

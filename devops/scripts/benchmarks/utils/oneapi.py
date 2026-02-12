@@ -1,13 +1,16 @@
-# Copyright (C) 2024-2025 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from pathlib import Path
-from utils.utils import download, run
-from options import options
 import os
 import hashlib
+import glob
+
+from utils.utils import download, run
+from utils.logger import log
+from options import options
 
 
 class OneAPI:
@@ -16,16 +19,15 @@ class OneAPI:
         Path(self.oneapi_dir).mkdir(parents=True, exist_ok=True)
         self.oneapi_instance_id = self.generate_unique_oneapi_id(self.oneapi_dir)
 
-        # can we just hardcode these links?
+        if options.offline:
+            log.info("Skipping OneAPI download and installation.")
+            return
+
         self.install_package(
-            "dnnl",
-            "https://registrationcenter-download.intel.com/akdlm/IRC_NAS/87e117ab-039b-437d-9c80-dcd5c9e675d5/intel-onednn-2025.0.0.862_offline.sh",
-            "6866feb5b8dfefd6ff45d6bfabed44f01d7fba8fd452480ae1fd86b92e9481ae052c24842da14f112f672f5c4859945b",
-        )
-        self.install_package(
-            "mkl",
-            "https://registrationcenter-download.intel.com/akdlm/IRC_NAS/79153e0f-74d7-45af-b8c2-258941adf58a/intel-onemkl-2025.0.0.940_offline.sh",
-            "122bb84cf943ea27753cb399c81ab2ae218ebd51b789c74d273240157722925ab4d5a43cb0b5de41b854f2c5a59a4002",
+            "base",
+            "2025.3.1+36",
+            "https://registrationcenter-download.intel.com/akdlm/IRC_NAS/6caa93ca-e10a-4cc5-b210-68f385feea9e/intel-oneapi-base-toolkit-2025.3.1.36_offline.sh",
+            "5b496bad1bb5d3fc835722931035be83612aa04777c6f6388aaf657f96f3bc671d50a92998da9b0f0c120aeaf877071c",
         )
         return
 
@@ -33,26 +35,43 @@ class OneAPI:
         hash_object = hashlib.md5(path.encode())
         return hash_object.hexdigest()
 
-    def install_package(self, name, url, checksum):
-        package_path = os.path.join(self.oneapi_dir, name)
-        if Path(package_path).exists():
-            print(
-                f"{package_path} exists, skipping installing oneAPI package {name}..."
-            )
-            return
+    def check_install(self, version):
+        logs_dir = os.path.join(self.oneapi_dir, "logs")
+        pattern = f"{logs_dir}/installer.install.intel.oneapi.lin.basekit.product,v={version}*.log"
+        log_files = glob.glob(pattern)
+        success_line = f"Operation 'intel.oneapi.lin.basekit.product,v={version}' execution is finished with status Success."
+        for log_file in log_files:
+            try:
+                with open(log_file, "r") as f:
+                    for line in f:
+                        if success_line in line:
+                            return True
+            except Exception:
+                continue
+        return False
 
-        package = download(
-            self.oneapi_dir, url, f"package_{name}.sh", checksum=checksum
-        )
+    def install_package(self, name, version, url, checksum):
+        if self.check_install(version):
+            log.info(f"OneAPI {name} version {version} already installed, skipping.")
+            return
+        package_name = f"package_{name}_{version}.sh"
+        package_path = os.path.join(self.oneapi_dir, f"{package_name}")
+        if Path(package_path).exists():
+            log.info(f"{package_path} exists, skipping download of oneAPI package...")
+        else:
+            package = download(
+                self.oneapi_dir, url, f"{package_name}", checksum=checksum
+            )
         try:
-            print(f"installing {name}")
             run(
-                f"sh {package} -a -s --eula accept --install-dir {self.oneapi_dir} --instance {self.oneapi_instance_id}"
+                f"sh {package_path} -a -s --eula accept --install-dir {self.oneapi_dir} --instance {self.oneapi_instance_id}"
             )
         except:
-            print("oneAPI installation likely exists already")
+            log.warning(
+                f"OneAPI {name} version {version} installation likely exists already"
+            )
             return
-        print(f"{name} installation complete")
+        log.info(f"OneAPI {name} version {version} installation complete")
 
     def package_dir(self, package, dir):
         return os.path.join(self.oneapi_dir, package, "latest", dir)
@@ -60,6 +79,9 @@ class OneAPI:
     def package_cmake(self, package):
         package_lib = self.package_dir(package, "lib")
         return os.path.join(package_lib, "cmake", package)
+
+    def mkl_dir(self):
+        return self.package_dir("mkl", "")
 
     def mkl_lib(self):
         return self.package_dir("mkl", "lib")

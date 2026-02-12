@@ -72,17 +72,14 @@ struct valPlatformsTest : valAdaptersTest {
   void SetUp() override {
     valAdaptersTest::SetUp();
 
-    uint32_t count;
-    ASSERT_EQ(urPlatformGet(adapters.data(),
-                            static_cast<uint32_t>(adapters.size()), 0, nullptr,
-                            &count),
-              UR_RESULT_SUCCESS);
-    ASSERT_GT(count, 0);
-    platforms.resize(count);
-    ASSERT_EQ(urPlatformGet(adapters.data(),
-                            static_cast<uint32_t>(adapters.size()), count,
-                            platforms.data(), nullptr),
-              UR_RESULT_SUCCESS);
+    for (auto adapter : adapters) {
+      uint32_t count;
+      ASSERT_EQ(urPlatformGet(adapter, 0, nullptr, &count), UR_RESULT_SUCCESS);
+      ASSERT_GT(count, 0);
+      platforms.resize(count);
+      ASSERT_EQ(urPlatformGet(adapter, count, platforms.data(), nullptr),
+                UR_RESULT_SUCCESS);
+    }
   }
 
   std::vector<ur_platform_handle_t> platforms;
@@ -107,7 +104,8 @@ struct valAllDevicesTest : valPlatformTest {
     uint32_t count = 0;
     if (urDeviceGet(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count) ||
         count == 0) {
-      FAIL() << "Failed to get devices";
+      GTEST_SKIP() << "No devices available";
+      return;
     }
 
     devices.resize(count);

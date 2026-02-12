@@ -104,14 +104,12 @@ void DeviceBinaryContainer::setCompileOptions(std::string_view CompileOpts) {
 sycl_device_binary_struct DeviceBinaryContainer::getPIDeviceBinary(
     const unsigned char *BinaryStart, size_t BinarySize, const char *TargetSpec,
     sycl_device_binary_type Format) {
-  sycl_device_binary_struct DeviceBinary;
+  sycl_device_binary_struct DeviceBinary{};
   DeviceBinary.Version = SYCL_DEVICE_BINARY_VERSION;
   DeviceBinary.Kind = SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
   DeviceBinary.Format = Format;
   DeviceBinary.CompileOptions = CompileOptions ? CompileOptions.get() : "";
   DeviceBinary.LinkOptions = "";
-  DeviceBinary.ManifestStart = nullptr;
-  DeviceBinary.ManifestEnd = nullptr;
   // It is safe to use these pointers here, as their lifetime is managed by
   // the JITContext.
   DeviceBinary.BinaryStart = BinaryStart;

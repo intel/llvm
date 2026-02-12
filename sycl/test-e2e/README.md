@@ -44,7 +44,7 @@ This custom LIT test format also overrides the meaning of
 `REQUIRES`/`UNSUPPORTED`/`XFAIL` directives, although in a natural way that
 suits the `%{run}` expansion described above. First, "features" are split into
 device independent (e.g. "linux" or "cuda_dev_kit") and device dependent
-("cpu/gpu/accelerator", "opencl/cuda/hip/level_zero" and multiple "aspect-\*").
+("cpu/gpu", "opencl/cuda/hip/level_zero" and multiple "aspect-\*").
 Second, for each device in `sycl_devices` LIT parameter, we check if it
 satisfies the conditions in `UNSUPPORTED`/`REQUIRES` rules. If none of the
 devices do, the entire test is skipped as `UNSUPPORTED`. Otherwise, if multiple
@@ -177,6 +177,13 @@ separated from comma-separated list of target devices with colon. Example:
 -DSYCL_TEST_E2E_TARGETS="opencl:cpu;level_zero:gpu;cuda:gpu;hip:gpu"
 ```
 
+In addition, device architecture as shown in sycl-ls is accepted with the
+"arch-" prefix. Example:
+
+```bash
+-DSYCL_TEST_E2E_TARGETS="cuda:arch-nvidia_gpu_sm_61;level_zero:arch-intel_gpu_bmg_b21"
+```
+
 ***OpenCL_LIBRARY*** - path to OpenCL ICD loader library. OpenCL
 interoperability tests require OpenCL ICD loader to be linked with. For such
 tests OpenCL ICD loader library should be installed in the system or available
@@ -203,6 +210,10 @@ or via the ***LIT_OPTS*** environment variable.
 compilation command line for GPU device. If not specified "-device *" value is
 used.
 
+***OFFLOAD_BUILD_TARGET*** - when testing the Offload backend, this must be set
+to specify the correct build target type for the available Offload device.
+Valid values are `target-nvidia` and `target-amd`.
+
 ## Special test categories
 
 There are two special directories for extended testing. See documentation at:
@@ -226,7 +237,7 @@ The following features are automatically detected by `llvm-lit` by scanning the
 environment:
 
 * **windows**, **linux** - host OS;
-* **cpu**, **gpu**, **accelerator** - target device;
+* **cpu**, **gpu** - target device;
 * **cuda**, **hip**, **opencl**, **level_zero** - target backend;
 * **sycl-ls** - sycl-ls tool availability;
 * **cm-compiler** - C for Metal compiler availability;
@@ -273,7 +284,9 @@ configure specific single test execution in the command line:
 * **dpcpp_compiler** - full path to dpcpp compiler;
 * **sycl_devices** - `"backend0:device0[;backendN:deviceN]*"` where `backend` is
   one of `opencl`, `hip`, `cuda`, `level_zero` and `device` is one of `cpu`,
-  `gpu` or `acc`.
+  `gpu` or `acc`. Device may also be device architecture as listed in
+  `sycl-ls --verbose` prefixed with `arch-`. Example:
+  `level_zero:arch-intel_gpu_bmg_g21`
 * **dump_ir** - if IR dumping is supported for compiler (True, False);
 * **compatibility_testing** - forces LIT infra to skip the tests compilation to
   support compatibility testing (a SYCL application is built with one version of
@@ -293,6 +306,9 @@ configure specific single test execution in the command line:
 * **extra_environment** - comma-separated list of variables with values to be
   added to test environment. Can be also set by LIT_EXTRA_ENVIRONMENT variable
   in CMake.
+* **extra_system_environment** - comma-separated list of variables to be
+  propagated from the host environment to test environment. Can be also set by
+  LIT_EXTRA_SYSTEM_ENVIRONMENT variable in CMake.
 * **level_zero_include** - directory containing Level_Zero native headers, can
   be also set by CMake variable LEVEL_ZERO_INCLUDE.
 * **level_zero_libs_dir** - directory containing Level_Zero native libraries,
@@ -307,6 +323,7 @@ configure specific single test execution in the command line:
   by CMake variable HIP_LIBS_DIR (autodetected).
 * **run_launcher** - part of `%{run*}` expansion/substitution to alter execution
   of the test by, e.g., running it through Valgrind.
+* **enable_new_offload_model** - enables New Offload Model driver mode for all tests.
 
 Example:
 

@@ -5,6 +5,9 @@
 // RUN: %{build} %device_tsan_flags -O2 -g -o %t2.out
 // RUN: %{run} %t2.out 2>&1 | FileCheck %s
 
+// XFAIL: spirv-backend && arch-intel_gpu_pvc
+// XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/160602
+
 #include <sycl/detail/core.hpp>
 
 int main() {
@@ -22,11 +25,13 @@ int main() {
     q.submit([&](sycl::handler &cgh) {
        auto accessor = sub_buf.get_access<sycl::access::mode::read_write>(cgh);
        cgh.parallel_for<class Test>(sycl::nd_range<1>(size_x / 2, 1),
-                                    [=](sycl::nd_item<1>) { accessor[0]++; });
+                                    [=](sycl::nd_item<1> it) {
+                                      accessor[0] += it.get_global_linear_id();
+                                    });
      }).wait();
     // CHECK: WARNING: DeviceSanitizer: data race
     // CHECK-NEXT: When write of size 4 at 0x{{.*}} in kernel <{{.*}}Test>
-    // CHECK-NEXT: #0 {{.*}}check_sub_buffer.cpp:[[@LINE-4]]
+    // CHECK-NEXT: #0 {{.*}}check_sub_buffer.cpp:[[@LINE-5]]
   }
 
   return 0;

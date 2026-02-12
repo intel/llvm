@@ -8,6 +8,9 @@
 // RUN: env SYCL_UR_TRACE=2 %{run} %t_with_sqrt.out 2>&1 | FileCheck %if hip || cuda %{ --check-prefix=CHECK-WITHOUT %} %else %{ --check-prefix=CHECK-WITH %} %s
 // RUN: env SYCL_UR_TRACE=2 %{run} %t_without.out 2>&1 | FileCheck --implicit-check-not=fp32-correctly-rounded-divide-sqrt %s
 
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
 // CHECK-WITH: <--- urProgramBuild
 // CHECK-WITH-SAME: fp32-correctly-rounded-divide-sqrt
 

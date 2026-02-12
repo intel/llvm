@@ -19,9 +19,9 @@ jobs:
     # - split into separate jobs for each OS
     #
     - name: Checkout LLVM
-      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
-    - uses: actions/setup-python@6ca8e8598faa206f7140a65ba31b899bebe16f58 # v5.0.0
+    - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.1.0
       with:
         python-version: 3.9
 

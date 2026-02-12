@@ -122,6 +122,14 @@ inline bool isCvtOpCode(Op OpCode) {
          OpCode == OpCrossWorkgroupCastToPtrINTEL;
 }
 
+inline bool isIntelCvtOpCode(Op OpCode) {
+  return OpCode == internal::OpClampConvertFToFINTEL ||
+         OpCode == internal::OpClampConvertFToSINTEL ||
+         OpCode == internal::OpStochasticRoundFToFINTEL ||
+         OpCode == internal::OpClampStochasticRoundFToFINTEL ||
+         OpCode == internal::OpClampStochasticRoundFToSINTEL;
+}
+
 inline bool isCvtToUnsignedOpCode(Op OpCode) {
   return OpCode == OpConvertFToU || OpCode == OpUConvert ||
          OpCode == OpSatConvertSToU;
@@ -238,22 +246,29 @@ inline bool isTypeOpCode(Op OpCode) {
   return (OpTypeVoid <= OC && OC <= OpTypePipe) || OC == OpTypePipeStorage ||
          isSubgroupAvcINTELTypeOpCode(OpCode) || OC == OpTypeVmeImageINTEL ||
          isVCOpCode(OpCode) || OC == internal::OpTypeTokenINTEL ||
-         OC == internal::OpTypeJointMatrixINTEL ||
-         OC == internal::OpTypeJointMatrixINTELv2 ||
          OC == OpTypeCooperativeMatrixKHR ||
          OC == internal::OpTypeTaskSequenceINTEL ||
          OC == OpTypeUntypedPointerKHR;
 }
 
+inline bool isFnVarSpecConstINTEL(Op OpCode) {
+  unsigned OC = OpCode;
+  return OC == OpSpecConstantArchitectureINTEL ||
+         OC == OpSpecConstantTargetINTEL ||
+         OC == OpSpecConstantCapabilitiesINTEL;
+}
+
 inline bool isSpecConstantOpCode(Op OpCode) {
   unsigned OC = OpCode;
-  return OpSpecConstantTrue <= OC && OC <= OpSpecConstantOp;
+  return (OpSpecConstantTrue <= OC && OC <= OpSpecConstantOp) ||
+         isFnVarSpecConstINTEL(OpCode);
 }
 
 inline bool isConstantOpCode(Op OpCode) {
   unsigned OC = OpCode;
   return (OpConstantTrue <= OC && OC <= OpSpecConstantOp) || OC == OpUndef ||
-         OC == OpConstantPipeStorage || OC == OpConstantFunctionPointerINTEL;
+         OC == OpConstantPipeStorage || OC == OpConstantFunctionPointerINTEL ||
+         isSpecConstantOpCode(OpCode);
 }
 
 inline bool isModuleScopeAllowedOpCode(Op OpCode) {

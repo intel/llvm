@@ -6,49 +6,36 @@
 
 #include <uur/fixtures.h>
 
-struct urPlatformGetTest : ::testing::Test {
-  std::vector<ur_adapter_handle_t> &adapters =
-      uur::PlatformEnvironment::instance->adapters;
-};
+using urPlatformGetTest = uur::urAdapterTest;
 
-TEST_F(urPlatformGetTest, Success) {
+UUR_INSTANTIATE_ADAPTER_TEST_SUITE(urPlatformGetTest);
+
+TEST_P(urPlatformGetTest, Success) {
   uint32_t count;
-  ASSERT_SUCCESS(urPlatformGet(adapters.data(),
-                               static_cast<uint32_t>(adapters.size()), 0,
-                               nullptr, &count));
+  ASSERT_SUCCESS(urPlatformGet(adapter, 0, nullptr, &count));
   ASSERT_NE(count, 0);
   std::vector<ur_platform_handle_t> platforms(count);
-  ASSERT_SUCCESS(urPlatformGet(adapters.data(),
-                               static_cast<uint32_t>(adapters.size()), count,
-                               platforms.data(), nullptr));
+  ASSERT_SUCCESS(urPlatformGet(adapter, count, platforms.data(), nullptr));
   for (auto platform : platforms) {
     ASSERT_NE(nullptr, platform);
   }
 }
 
-TEST_F(urPlatformGetTest, InvalidNumEntries) {
+TEST_P(urPlatformGetTest, InvalidNumEntries) {
   uint32_t count;
-  ASSERT_SUCCESS(urPlatformGet(adapters.data(),
-                               static_cast<uint32_t>(adapters.size()), 0,
-                               nullptr, &count));
+  ASSERT_SUCCESS(urPlatformGet(adapter, 0, nullptr, &count));
   std::vector<ur_platform_handle_t> platforms(count);
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
-                   urPlatformGet(adapters.data(),
-                                 static_cast<uint32_t>(adapters.size()), 0,
-                                 platforms.data(), nullptr));
+                   urPlatformGet(adapter, 0, platforms.data(), nullptr));
 }
 
-TEST_F(urPlatformGetTest, InvalidNullPointer) {
+TEST_P(urPlatformGetTest, InvalidNullPointer) {
   uint32_t count;
-  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
-                   urPlatformGet(nullptr,
-                                 static_cast<uint32_t>(adapters.size()), 0,
-                                 nullptr, &count));
+  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+                   urPlatformGet(nullptr, 0, nullptr, &count));
 }
 
-TEST_F(urPlatformGetTest, NullArgs) {
+TEST_P(urPlatformGetTest, NullArgs) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_VALUE,
-                   urPlatformGet(adapters.data(),
-                                 static_cast<uint32_t>(adapters.size()), 0,
-                                 nullptr, nullptr));
+                   urPlatformGet(adapter, 0, nullptr, nullptr));
 }

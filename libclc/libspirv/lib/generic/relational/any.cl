@@ -22,8 +22,6 @@
 
 #define ANY_ID(TYPE) _CLC_OVERLOAD _CLC_DEF bool __spirv_Any(TYPE v)
 
-bool __spirv_Any(bool v) { return v; }
-
 #define ANY_VECTORIZE(TYPE)                                                    \
   ANY_ID(TYPE##2) { return _CLC_ANY2(v); }                                     \
   ANY_ID(TYPE##3) { return _CLC_ANY3(v); }                                     \
@@ -31,4 +29,4 @@ bool __spirv_Any(bool v) { return v; }
   ANY_ID(TYPE##8) { return _CLC_ANY8(v); }                                     \
   ANY_ID(TYPE##16) { return _CLC_ANY16(v); }
 
-ANY_VECTORIZE(schar)
+ANY_VECTORIZE(char)

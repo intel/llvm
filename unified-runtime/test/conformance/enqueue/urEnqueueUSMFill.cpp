@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -18,22 +18,25 @@ printFillTestString(const testing::TestParamInfo<typename T::ParamType> &info) {
   const auto device_handle = std::get<0>(info.param).device;
   const auto platform_device_name =
       uur::GetPlatformAndDeviceName(device_handle);
+
+  auto paramTuple = std::get<1>(info.param);
+  auto param = std::get<0>(paramTuple);
+  auto queueMode = std::get<1>(paramTuple);
   std::stringstream test_name;
-  test_name << platform_device_name << "__size__"
-            << std::get<1>(info.param).size << "__patternSize__"
-            << std::get<1>(info.param).pattern_size;
+  test_name << platform_device_name << "__size__" << param.size
+            << "__patternSize__" << param.pattern_size << "__" << queueMode;
   return test_name.str();
 }
 
 struct urEnqueueUSMFillTestWithParam
-    : uur::urQueueTestWithParam<testParametersFill> {
+    : uur::urMultiQueueTypeTestWithParam<testParametersFill> {
 
   void SetUp() override {
-    UUR_RETURN_ON_FATAL_FAILURE(urQueueTestWithParam::SetUp());
+    UUR_RETURN_ON_FATAL_FAILURE(urMultiQueueTypeTestWithParam::SetUp());
 
-    size = std::get<1>(GetParam()).size;
+    size = getParam().size;
     host_mem = std::vector<uint8_t>(size);
-    pattern_size = std::get<1>(GetParam()).pattern_size;
+    pattern_size = getParam().pattern_size;
     pattern = std::vector<uint8_t>(pattern_size);
     uur::generateMemFillPattern(pattern);
 
@@ -52,7 +55,7 @@ struct urEnqueueUSMFillTestWithParam
       EXPECT_SUCCESS(urUSMFree(context, ptr));
     }
 
-    UUR_RETURN_ON_FATAL_FAILURE(urQueueTestWithParam::TearDown());
+    UUR_RETURN_ON_FATAL_FAILURE(urMultiQueueTypeTestWithParam::TearDown());
   }
 
   void verifyData() {
@@ -94,34 +97,36 @@ static std::vector<testParametersFill> test_cases{
     {256, 16},
     {256, 32}};
 
-UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+UUR_MULTI_QUEUE_TYPE_TEST_SUITE_WITH_PARAM(
     urEnqueueUSMFillTestWithParam, testing::ValuesIn(test_cases),
     printFillTestString<urEnqueueUSMFillTestWithParam>);
 
 TEST_P(urEnqueueUSMFillTestWithParam, Success) {
+  // https://github.com/intel/llvm/issues/19604
+  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
   ur_event_handle_t event = nullptr;
 
   ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, pattern_size, pattern.data(),
                                   size, 0, nullptr, &event));
-  EXPECT_SUCCESS(urQueueFlush(queue));
+  ASSERT_SUCCESS(urQueueFlush(queue));
 
   ASSERT_SUCCESS(urEventWait(1, &event));
   ur_event_status_t event_status;
   ASSERT_SUCCESS(uur::GetEventInfo<ur_event_status_t>(
       event, UR_EVENT_INFO_COMMAND_EXECUTION_STATUS, event_status));
   ASSERT_EQ(event_status, UR_EVENT_STATUS_COMPLETE);
-  EXPECT_SUCCESS(urEventRelease(event));
+  ASSERT_SUCCESS(urEventRelease(event));
 
   ASSERT_NO_FATAL_FAILURE(verifyData());
 }
 
-struct urEnqueueUSMFillNegativeTest : uur::urQueueTest {
+struct urEnqueueUSMFillNegativeTest : uur::urMultiQueueTypeTest {
   void SetUp() override {
     UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
-    UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
+    UUR_RETURN_ON_FATAL_FAILURE(uur::urMultiQueueTypeTest::SetUp());
 
     ur_device_usm_access_capability_flags_t device_usm = 0;
     ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, device_usm));
@@ -138,7 +143,7 @@ struct urEnqueueUSMFillNegativeTest : uur::urQueueTest {
       EXPECT_SUCCESS(urUSMFree(context, ptr));
     }
 
-    UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::TearDown());
+    UUR_RETURN_ON_FATAL_FAILURE(uur::urMultiQueueTypeTest::TearDown());
   }
 
   static constexpr size_t size = 16;
@@ -147,7 +152,7 @@ struct urEnqueueUSMFillNegativeTest : uur::urQueueTest {
   void *ptr{nullptr};
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueUSMFillNegativeTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(urEnqueueUSMFillNegativeTest);
 
 TEST_P(urEnqueueUSMFillNegativeTest, InvalidNullQueueHandle) {
   ASSERT_EQ_RESULT(urEnqueueUSMFill(nullptr, ptr, pattern_size, pattern.data(),

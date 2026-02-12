@@ -7,10 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: (opencl || level_zero)
-// REQUIRES: aspect-usm_device_allocations
-
-// UNSUPPORTED: accelerator
-// UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
+// REQUIRES: sycl-jit, aspect-usm_device_allocations
 
 // -- Test the kernel_compiler with SYCL source.
 // RUN: %{build} -o %t.out
@@ -88,8 +85,7 @@ void test_build_and_run() {
   sycl::queue q;
   sycl::context ctx = q.get_context();
 
-  bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl);
+  bool ok = q.get_device().ext_oneapi_can_build(syclex::source_language::sycl);
   if (!ok) {
     std::cout << "Apparently this device does not support SYCL source "
                  "kernel bundle extension: "

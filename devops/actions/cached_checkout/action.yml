@@ -31,7 +31,7 @@ runs:
       mkdir -p ${{ inputs.cache_path }}/${{ inputs.repository }}
       cd ${{ inputs.cache_path }}/${{ inputs.repository }}
       if [ -d ./.git ]; then
-        git pull --prune
+        git pull --prune --rebase
       else
         git clone https://github.com/${{ inputs.repository }}.git .
         git gc

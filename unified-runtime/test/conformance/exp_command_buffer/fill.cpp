@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -14,12 +14,17 @@ struct testParametersFill {
 struct urCommandBufferFillCommandsTest
     : uur::command_buffer::urCommandBufferExpTestWithParam<testParametersFill> {
   void SetUp() override {
+    // This test fails due to a bug in the Level-Zero driver, it can be
+    // reenabled after CI machines get their drivers updated
+    // https://github.com/intel/llvm/issues/17856
+    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::command_buffer::urCommandBufferExpTestWithParam<
             testParametersFill>::SetUp());
 
-    size = std::get<1>(GetParam()).size;
-    pattern_size = std::get<1>(GetParam()).pattern_size;
+    size = getParam().size;
+    pattern_size = getParam().pattern_size;
     pattern = std::vector<uint8_t>(pattern_size);
     uur::generateMemFillPattern(pattern);
 
@@ -48,7 +53,8 @@ struct urCommandBufferFillCommandsTest
             testParametersFill>::TearDown());
   }
 
-  void verifyData(std::vector<uint8_t> &output, size_t verify_size) {
+  void verifyData(const std::vector<uint8_t> &output,
+                  const size_t verify_size) {
     size_t pattern_index = 0;
     for (size_t i = 0; i < verify_size; ++i) {
       ASSERT_EQ(output[i], pattern[pattern_index])
@@ -93,17 +99,24 @@ printFillTestString(const testing::TestParamInfo<typename T::ParamType> &info) {
   const auto platform_device_name =
       uur::GetPlatformAndDeviceName(device_handle);
   std::stringstream test_name;
-  test_name << platform_device_name << "__size__"
-            << std::get<1>(info.param).size << "__patternSize__"
-            << std::get<1>(info.param).pattern_size;
+
+  auto paramTuple = std::get<1>(info.param);
+  auto param = std::get<0>(paramTuple);
+  auto queueMode = std::get<1>(paramTuple);
+  test_name << platform_device_name << "__size__" << param.size
+            << "__patternSize__" << param.pattern_size << "__" << queueMode;
+
   return test_name.str();
 }
 
-UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+UUR_MULTI_QUEUE_TYPE_TEST_SUITE_WITH_PARAM(
     urCommandBufferFillCommandsTest, testing::ValuesIn(test_cases),
     printFillTestString<urCommandBufferFillCommandsTest>);
 
 TEST_P(urCommandBufferFillCommandsTest, Buffer) {
+  // No buffer read command in cl_khr_command_buffer
+  UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+
   ASSERT_SUCCESS(urCommandBufferAppendMemBufferFillExp(
       cmd_buf_handle, buffer, pattern.data(), pattern_size, 0, size, 0, nullptr,
       0, nullptr, &sync_point, nullptr, nullptr));
@@ -122,7 +135,37 @@ TEST_P(urCommandBufferFillCommandsTest, Buffer) {
   verifyData(output, size);
 }
 
+TEST_P(urCommandBufferFillCommandsTest, ExecuteTwice) {
+  // No buffer read command in cl_khr_command_buffer
+  UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+
+  ASSERT_SUCCESS(urCommandBufferAppendMemBufferFillExp(
+      cmd_buf_handle, buffer, pattern.data(), pattern_size, 0, size, 0, nullptr,
+      0, nullptr, &sync_point, nullptr, nullptr));
+
+  std::vector<uint8_t> output(size, 1);
+  ASSERT_SUCCESS(urCommandBufferAppendMemBufferReadExp(
+      cmd_buf_handle, buffer, 0, size, output.data(), 1, &sync_point, 0,
+      nullptr, nullptr, nullptr, nullptr));
+
+  ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
+
+  ASSERT_SUCCESS(
+      urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(
+      urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urQueueFinish(queue));
+
+  verifyData(output, size);
+}
+
 TEST_P(urCommandBufferFillCommandsTest, USM) {
+  if (pattern_size > 128) {
+    // clCommandSVMMemFillKHR returns an error according to the spec if pattern
+    // size is not one of {1, 2, 4, 8, 16, 32, 64, 128}
+    UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+  }
+
   ASSERT_SUCCESS(urCommandBufferAppendUSMFillExp(
       cmd_buf_handle, device_ptr, pattern.data(), pattern_size, size, 0,
       nullptr, 0, nullptr, &sync_point, nullptr, nullptr));

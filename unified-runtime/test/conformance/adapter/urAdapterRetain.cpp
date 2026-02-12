@@ -17,7 +17,7 @@ TEST_P(urAdapterRetainTest, Success) {
                                   &referenceCountBefore, nullptr));
 
   uint32_t referenceCountAfter = 0;
-  EXPECT_SUCCESS(urAdapterRetain(adapter));
+  ASSERT_SUCCESS(urAdapterRetain(adapter));
   ASSERT_SUCCESS(urAdapterGetInfo(adapter, UR_ADAPTER_INFO_REFERENCE_COUNT,
                                   sizeof(referenceCountAfter),
                                   &referenceCountAfter, nullptr));

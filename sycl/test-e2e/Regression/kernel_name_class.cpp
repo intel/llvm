@@ -1,6 +1,5 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-
 //==-- kernel_name_class.cpp - SYCL kernel naming variants test ------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -8,6 +7,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
 
 #include <iostream>
 #include <sycl/detail/core.hpp>

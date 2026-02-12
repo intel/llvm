@@ -24,7 +24,7 @@ __urdlllocal ur_result_t context_t::ddiInit() {
 
   if (UR_RESULT_SUCCESS == result) {
     result =
-        urGetGlobalProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.Global);
+        urGetAdapterProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.Adapter);
   }
 
   if (UR_RESULT_SUCCESS == result) {
@@ -57,17 +57,27 @@ __urdlllocal ur_result_t context_t::ddiInit() {
   }
 
   if (UR_RESULT_SUCCESS == result) {
+    result = urGetGraphExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                        &urDdiTable.GraphExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result =
+        urGetIPCExpProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.IPCExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
     result =
         urGetKernelProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.Kernel);
   }
 
   if (UR_RESULT_SUCCESS == result) {
-    result = urGetKernelExpProcAddrTable(UR_API_VERSION_CURRENT,
-                                         &urDdiTable.KernelExp);
+    result = urGetMemProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.Mem);
   }
 
   if (UR_RESULT_SUCCESS == result) {
-    result = urGetMemProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.Mem);
+    result = urGetMemoryExportExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                               &urDdiTable.MemoryExportExp);
   }
 
   if (UR_RESULT_SUCCESS == result) {
@@ -92,6 +102,11 @@ __urdlllocal ur_result_t context_t::ddiInit() {
 
   if (UR_RESULT_SUCCESS == result) {
     result = urGetQueueProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.Queue);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = urGetQueueExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                        &urDdiTable.QueueExp);
   }
 
   if (UR_RESULT_SUCCESS == result) {
@@ -121,6 +136,11 @@ __urdlllocal ur_result_t context_t::ddiInit() {
   if (UR_RESULT_SUCCESS == result) {
     result =
         urGetDeviceProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.Device);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = urGetDeviceExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                         &urDdiTable.DeviceExp);
   }
 
   return result;

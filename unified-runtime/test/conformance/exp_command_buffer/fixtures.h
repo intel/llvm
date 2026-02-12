@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2024 Intel Corporation
+// Copyright (C) 2022-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -45,8 +45,6 @@ static void checkCommandBufferUpdateSupport(
 
 struct urCommandBufferExpTest : uur::urContextTest {
   void SetUp() override {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
-
     UUR_RETURN_ON_FATAL_FAILURE(uur::urContextTest::SetUp());
 
     UUR_RETURN_ON_FATAL_FAILURE(checkCommandBufferSupport(device));
@@ -70,11 +68,9 @@ struct urCommandBufferExpTest : uur::urContextTest {
 };
 
 template <class T>
-struct urCommandBufferExpTestWithParam : urQueueTestWithParam<T> {
+struct urCommandBufferExpTestWithParam : urMultiQueueTypeTestWithParam<T> {
   void SetUp() override {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
-
-    UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTestWithParam<T>::SetUp());
+    UUR_RETURN_ON_FATAL_FAILURE(uur::urMultiQueueTypeTestWithParam<T>::SetUp());
 
     UUR_RETURN_ON_FATAL_FAILURE(checkCommandBufferSupport(this->device));
 
@@ -89,7 +85,8 @@ struct urCommandBufferExpTestWithParam : urQueueTestWithParam<T> {
     if (cmd_buf_handle) {
       EXPECT_SUCCESS(urCommandBufferReleaseExp(cmd_buf_handle));
     }
-    UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTestWithParam<T>::TearDown());
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::urMultiQueueTypeTestWithParam<T>::TearDown());
   }
 
   ur_exp_command_buffer_handle_t cmd_buf_handle = nullptr;
@@ -97,8 +94,6 @@ struct urCommandBufferExpTestWithParam : urQueueTestWithParam<T> {
 
 struct urCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
   void SetUp() override {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
-
     UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTest::SetUp());
 
     UUR_RETURN_ON_FATAL_FAILURE(checkCommandBufferSupport(device));
@@ -120,10 +115,35 @@ struct urCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
   ur_exp_command_buffer_handle_t cmd_buf_handle = nullptr;
 };
 
+template <class T>
+struct urCommandBufferExpExecutionTestWithParam
+    : urKernelExecutionTestWithParam<T> {
+  void SetUp() override {
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::urKernelExecutionTestWithParam<T>::SetUp());
+
+    UUR_RETURN_ON_FATAL_FAILURE(checkCommandBufferSupport(this->device));
+
+    ur_exp_command_buffer_desc_t desc{UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC,
+                                      nullptr, false, false, false};
+    ASSERT_SUCCESS(urCommandBufferCreateExp(this->context, this->device, &desc,
+                                            &cmd_buf_handle));
+    ASSERT_NE(cmd_buf_handle, nullptr);
+  }
+
+  void TearDown() override {
+    if (cmd_buf_handle) {
+      EXPECT_SUCCESS(urCommandBufferReleaseExp(cmd_buf_handle));
+    }
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::urKernelExecutionTestWithParam<T>::TearDown());
+  }
+
+  ur_exp_command_buffer_handle_t cmd_buf_handle = nullptr;
+};
+
 struct urUpdatableCommandBufferExpTest : uur::urQueueTest {
   void SetUp() override {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
-
     UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
 
     UUR_RETURN_ON_FATAL_FAILURE(checkCommandBufferSupport(device));
@@ -153,13 +173,11 @@ struct urUpdatableCommandBufferExpTest : uur::urQueueTest {
   }
 
   ur_exp_command_buffer_handle_t updatable_cmd_buf_handle = nullptr;
-  ur_platform_backend_t backend{};
+  ur_backend_t backend{};
 };
 
 struct urUpdatableCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
   void SetUp() override {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
-
     UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTest::SetUp());
 
     ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
@@ -190,39 +208,8 @@ struct urUpdatableCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
     UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTest::TearDown());
   }
 
-  ur_platform_backend_t backend{};
+  ur_backend_t backend{};
   ur_exp_command_buffer_handle_t updatable_cmd_buf_handle = nullptr;
-};
-
-struct urCommandBufferCommandExpTest
-    : urUpdatableCommandBufferExpExecutionTest {
-  void SetUp() override {
-    UUR_RETURN_ON_FATAL_FAILURE(
-        urUpdatableCommandBufferExpExecutionTest::SetUp());
-
-    // Append 2 kernel commands to command-buffer and close command-buffer
-    ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
-        updatable_cmd_buf_handle, kernel, n_dimensions, &global_offset,
-        &global_size, &local_size, 0, nullptr, 0, nullptr, 0, nullptr, nullptr,
-        nullptr, &command_handle));
-    ASSERT_NE(command_handle, nullptr);
-
-    ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
-        updatable_cmd_buf_handle, kernel, n_dimensions, &global_offset,
-        &global_size, &local_size, 0, nullptr, 0, nullptr, 0, nullptr, nullptr,
-        nullptr, &command_handle_2));
-    ASSERT_NE(command_handle_2, nullptr);
-
-    ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
-  }
-
-  static constexpr size_t local_size = 4;
-  static constexpr size_t global_size = 32;
-  static constexpr size_t global_offset = 0;
-  static constexpr size_t n_dimensions = 1;
-
-  ur_exp_command_buffer_command_handle_t command_handle = nullptr;
-  ur_exp_command_buffer_command_handle_t command_handle_2 = nullptr;
 };
 
 struct TestKernel {
@@ -238,7 +225,7 @@ struct TestKernel {
     std::shared_ptr<std::vector<char>> ILBinary;
     std::vector<ur_program_metadata_t> Metadatas{};
 
-    ur_platform_backend_t Backend;
+    ur_backend_t Backend;
     ASSERT_SUCCESS(urPlatformGetInfo(Platform, UR_PLATFORM_INFO_BACKEND,
                                      sizeof(Backend), &Backend, nullptr));
 
@@ -249,8 +236,9 @@ struct TestKernel {
         UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES, nullptr,
         static_cast<uint32_t>(Metadatas.size()),
         Metadatas.empty() ? nullptr : Metadatas.data()};
-    ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
-        Platform, Context, Device, *ILBinary, &Properties, &Program));
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::KernelsEnvironment::instance->CreateProgram(
+            Platform, Context, Device, *ILBinary, &Properties, &Program));
 
     auto KernelNames =
         uur::KernelsEnvironment::instance->GetEntryPointNames(Name);

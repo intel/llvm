@@ -1,5 +1,15 @@
+// REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
+
+// XFAIL: linux
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21131
+
+// XFAIL: linux && gpu-intel-dg2
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21136
+
+// UNSUPPORTED: cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21131
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes -DTEST_L0_SUPPORTED_VK_FORMAT %}
 // RUN: %{run} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
@@ -7,8 +17,8 @@
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
 
+#include "../../CommonUtils/vulkan_common.hpp"
 #include "../helpers/common.hpp"
-#include "vulkan_common.hpp"
 #include <sycl/properties/queue_properties.hpp>
 
 #include <random>
@@ -145,12 +155,12 @@ void cleanup_test(sycl::context &ctxt, sycl::device &dev, handles_t handles) {
   syclexp::destroy_image_handle(handles.input_1, dev, ctxt);
   syclexp::destroy_image_handle(handles.input_2, dev, ctxt);
   syclexp::destroy_image_handle(handles.output, dev, ctxt);
-  syclexp::free_image_mem(handles.input_mem_handle_1,
-                          syclexp::image_type::standard, dev, ctxt);
-  syclexp::free_image_mem(handles.input_mem_handle_2,
-                          syclexp::image_type::standard, dev, ctxt);
-  syclexp::free_image_mem(handles.output_mem_handle,
-                          syclexp::image_type::standard, dev, ctxt);
+  syclexp::unmap_external_image_memory(
+      handles.input_mem_handle_1, syclexp::image_type::standard, dev, ctxt);
+  syclexp::unmap_external_image_memory(
+      handles.input_mem_handle_2, syclexp::image_type::standard, dev, ctxt);
+  syclexp::unmap_external_image_memory(
+      handles.output_mem_handle, syclexp::image_type::standard, dev, ctxt);
   syclexp::release_external_memory(handles.input_external_mem_1, dev, ctxt);
   syclexp::release_external_memory(handles.input_external_mem_2, dev, ctxt);
   syclexp::release_external_memory(handles.output_external_mem, dev, ctxt);
@@ -677,8 +687,7 @@ int main() {
 
   sycl::device dev;
 
-  if (vkutil::setupDevice(dev.get_info<sycl::info::device::name>()) !=
-      VK_SUCCESS) {
+  if (vkutil::setupDevice(dev) != VK_SUCCESS) {
     std::cerr << "Device setup failed!\n";
     return EXIT_FAILURE;
   }

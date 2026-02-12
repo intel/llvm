@@ -482,9 +482,8 @@ template <typename T> void test_update_host() {
     Queue.submit([&](handler &Cgh) {
       accessor<T, 1, access::mode::write, access::target::device> Accessor(
           Buffer, Cgh, range<1>(Size));
-      Cgh.parallel_for<class rawPointer<T>>(range<1>{Size},
-          [=](id<1> Index) {
-        Accessor[Index] = Index.get(0); });
+      Cgh.parallel_for<class rawPointer<T>>(
+          range<1>{Size}, [=](id<1> Index) { Accessor[Index] = Index.get(0); });
     });
     Queue.submit([&](handler &Cgh) {
       accessor<T, 1, access::mode::write, access::target::device> Accessor(

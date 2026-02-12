@@ -36,6 +36,8 @@ Enums
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 * ${x}_device_info_t
     * ${X}_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP
+* ${x}_exp_program_flags_t
+    * ${X}_EXP_PROGRAM_FLAG_ALLOW_UNRESOLVED_SYMBOLS
 
 Functions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -3,6 +3,8 @@
 //
 // UNSUPPORTED: opencl && gpu
 // UNSUPPORTED-TRACKER: GSD-4287
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
 //
 // Tests operator[] on device_global with device_image_scope.
 // NOTE: USE_DEVICE_IMAGE_SCOPE needs both kernels to be in the same image so

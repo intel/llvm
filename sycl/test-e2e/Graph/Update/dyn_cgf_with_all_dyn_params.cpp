@@ -1,9 +1,7 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
-// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
-// Extra run to check for immediate-command-list in Level Zero
-// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
 // Tests using a dynamic command-group object with dynamic parameters inside it
 
@@ -21,8 +19,8 @@ int main() {
   std::vector<int> HostDataB(Size);
   std::vector<int> HostDataC(Size);
 
-  exp_ext::dynamic_parameter DynParam1(Graph, PtrA);
-  exp_ext::dynamic_parameter DynParam2(Graph, PtrC);
+  exp_ext::dynamic_parameter DynParam1(PtrA);
+  exp_ext::dynamic_parameter DynParam2(PtrC);
 
   auto CGFA = [&](handler &CGH) {
     CGH.set_arg(0, DynParam1);

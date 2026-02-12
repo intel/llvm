@@ -102,10 +102,6 @@ __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
                                              void *user_data);
 }
 
-// TODO: To be removed as this was only introduced for esimd which was removed.
-template <sycl::backend BE>
-__SYCL_EXPORT void *getPluginOpaqueData(void *opaquedata_arg);
-
 namespace ur {
 // Function to load a shared library
 // Implementation is OS dependent

@@ -9,12 +9,12 @@ constexpr const char AttrVal1[] = "Val1";
 constexpr const char AttrVal2[] = "Val2";
 constexpr const char AttrVal3[] = "Val3";
 
-template <int... Is> [[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", "Attr3", Is...)]] void FunctionTemplate1() {}                     // expected-error {{attribute 'add_ir_attributes_function' must specify a value for each specified name in the argument list}}
-template <int... Is> [[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", "Attr2", "Attr3", Is...)]] void FunctionTemplate2() {} // expected-error {{attribute 'add_ir_attributes_function' must specify a value for each specified name in the argument list}}
-template <const char *...Names> [[__sycl_detail__::add_ir_attributes_function(Names..., 1, 2, 3)]] void FunctionTemplate3() {}                         // expected-error {{attribute 'add_ir_attributes_function' must specify a value for each specified name in the argument list}}
-template <const char *...Names> [[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, Names..., 1, 2, 3)]] void FunctionTemplate4() {}     // expected-error {{attribute 'add_ir_attributes_function' must specify a value for each specified name in the argument list}}
-template <const char *...Strs> [[__sycl_detail__::add_ir_attributes_function(Strs...)]] void FunctionTemplate5() {}                                    // expected-error {{attribute 'add_ir_attributes_function' must specify a value for each specified name in the argument list}}
-template <const char *...Strs> [[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, Strs...)]] void FunctionTemplate6() {}                // expected-error {{attribute 'add_ir_attributes_function' must specify a value for each specified name in the argument list}}
+template <int... Is> [[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", "Attr3", Is...)]] void FunctionTemplate1() {}                     // expected-error {{attribute '__sycl_detail__::add_ir_attributes_function' must specify a value for each specified name in the argument list}}
+template <int... Is> [[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", "Attr2", "Attr3", Is...)]] void FunctionTemplate2() {} // expected-error {{attribute '__sycl_detail__::add_ir_attributes_function' must specify a value for each specified name in the argument list}}
+template <const char *...Names> [[__sycl_detail__::add_ir_attributes_function(Names..., 1, 2, 3)]] void FunctionTemplate3() {}                         // expected-error {{attribute '__sycl_detail__::add_ir_attributes_function' must specify a value for each specified name in the argument list}}
+template <const char *...Names> [[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, Names..., 1, 2, 3)]] void FunctionTemplate4() {}     // expected-error {{attribute '__sycl_detail__::add_ir_attributes_function' must specify a value for each specified name in the argument list}}
+template <const char *...Strs> [[__sycl_detail__::add_ir_attributes_function(Strs...)]] void FunctionTemplate5() {}                                    // expected-error {{attribute '__sycl_detail__::add_ir_attributes_function' must specify a value for each specified name in the argument list}}
+template <const char *...Strs> [[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, Strs...)]] void FunctionTemplate6() {}                // expected-error {{attribute '__sycl_detail__::add_ir_attributes_function' must specify a value for each specified name in the argument list}}
 
 void InstantiateFunctionTemplates() {
   FunctionTemplate1<1, 2, 3>();
@@ -40,12 +40,12 @@ void InstantiateFunctionTemplates() {
   FunctionTemplate6<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2>(); // expected-note {{in instantiation of function template specialization 'FunctionTemplate6<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2>' requested here}}
 }
 
-template <int... Is> struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr1", "Attr2", "Attr3", Is...)]] GlobalVarStructTemplate1{};                     // expected-error {{attribute 'add_ir_attributes_global_variable' must specify a value for each specified name in the argument list}}
-template <int... Is> struct [[__sycl_detail__::add_ir_attributes_global_variable({"Attr1", "Attr3"}, "Attr1", "Attr2", "Attr3", Is...)]] GlobalVarStructTemplate2{}; // expected-error {{attribute 'add_ir_attributes_global_variable' must specify a value for each specified name in the argument list}}
-template <const char *...Names> struct [[__sycl_detail__::add_ir_attributes_global_variable(Names..., 1, 2, 3)]] GlobalVarStructTemplate3{};                         // expected-error {{attribute 'add_ir_attributes_global_variable' must specify a value for each specified name in the argument list}}
-template <const char *...Names> struct [[__sycl_detail__::add_ir_attributes_global_variable({"Attr1", "Attr3"}, Names..., 1, 2, 3)]] GlobalVarStructTemplate4{};     // expected-error {{attribute 'add_ir_attributes_global_variable' must specify a value for each specified name in the argument list}}
-template <const char *...Strs> struct [[__sycl_detail__::add_ir_attributes_global_variable(Strs...)]] GlobalVarStructTemplate5{};                                    // expected-error {{attribute 'add_ir_attributes_global_variable' must specify a value for each specified name in the argument list}}
-template <const char *...Strs> struct [[__sycl_detail__::add_ir_attributes_global_variable({"Attr1", "Attr3"}, Strs...)]] GlobalVarStructTemplate6{};                // expected-error {{attribute 'add_ir_attributes_global_variable' must specify a value for each specified name in the argument list}}
+template <int... Is> struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr1", "Attr2", "Attr3", Is...)]] GlobalVarStructTemplate1{};                     // expected-error {{attribute '__sycl_detail__::add_ir_attributes_global_variable' must specify a value for each specified name in the argument list}}
+template <int... Is> struct [[__sycl_detail__::add_ir_attributes_global_variable({"Attr1", "Attr3"}, "Attr1", "Attr2", "Attr3", Is...)]] GlobalVarStructTemplate2{}; // expected-error {{attribute '__sycl_detail__::add_ir_attributes_global_variable' must specify a value for each specified name in the argument list}}
+template <const char *...Names> struct [[__sycl_detail__::add_ir_attributes_global_variable(Names..., 1, 2, 3)]] GlobalVarStructTemplate3{};                         // expected-error {{attribute '__sycl_detail__::add_ir_attributes_global_variable' must specify a value for each specified name in the argument list}}
+template <const char *...Names> struct [[__sycl_detail__::add_ir_attributes_global_variable({"Attr1", "Attr3"}, Names..., 1, 2, 3)]] GlobalVarStructTemplate4{};     // expected-error {{attribute '__sycl_detail__::add_ir_attributes_global_variable' must specify a value for each specified name in the argument list}}
+template <const char *...Strs> struct [[__sycl_detail__::add_ir_attributes_global_variable(Strs...)]] GlobalVarStructTemplate5{};                                    // expected-error {{attribute '__sycl_detail__::add_ir_attributes_global_variable' must specify a value for each specified name in the argument list}}
+template <const char *...Strs> struct [[__sycl_detail__::add_ir_attributes_global_variable({"Attr1", "Attr3"}, Strs...)]] GlobalVarStructTemplate6{};                // expected-error {{attribute '__sycl_detail__::add_ir_attributes_global_variable' must specify a value for each specified name in the argument list}}
 
 GlobalVarStructTemplate1<1, 2, 3> InstantiatedGV1;
 GlobalVarStructTemplate1<1, 2> InstantiatedGV2; // expected-note {{in instantiation of template class 'GlobalVarStructTemplate1<1, 2>' requested here}}
@@ -70,22 +70,22 @@ GlobalVarStructTemplate6<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2, At
 GlobalVarStructTemplate6<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2> InstantiatedGV16; // expected-note {{in instantiation of template class 'GlobalVarStructTemplate6<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2>' requested here}}
 
 template <int... Is> struct __attribute__((sycl_special_class)) SpecialClassStructTemplate1 {
-  void __init([[__sycl_detail__::add_ir_attributes_kernel_parameter("Attr1", "Attr2", "Attr3", Is...)]] int x) {} // expected-error {{attribute 'add_ir_attributes_kernel_parameter' must specify a value for each specified name in the argument list}}
+  void __init([[__sycl_detail__::add_ir_attributes_kernel_parameter("Attr1", "Attr2", "Attr3", Is...)]] int x) {} // expected-error {{attribute '__sycl_detail__::add_ir_attributes_kernel_parameter' must specify a value for each specified name in the argument list}}
 };
 template <int... Is> struct __attribute__((sycl_special_class)) SpecialClassStructTemplate2 {
-  void __init([[__sycl_detail__::add_ir_attributes_kernel_parameter({"Attr1", "Attr3"}, "Attr1", "Attr2", "Attr3", Is...)]] int x) {} // expected-error {{attribute 'add_ir_attributes_kernel_parameter' must specify a value for each specified name in the argument list}}
+  void __init([[__sycl_detail__::add_ir_attributes_kernel_parameter({"Attr1", "Attr3"}, "Attr1", "Attr2", "Attr3", Is...)]] int x) {} // expected-error {{attribute '__sycl_detail__::add_ir_attributes_kernel_parameter' must specify a value for each specified name in the argument list}}
 };
 template <const char *...Names> struct __attribute__((sycl_special_class)) SpecialClassStructTemplate3 {
-  void __init([[__sycl_detail__::add_ir_attributes_kernel_parameter(Names..., 1, 2, 3)]] int x) {} // expected-error {{attribute 'add_ir_attributes_kernel_parameter' must specify a value for each specified name in the argument list}}
+  void __init([[__sycl_detail__::add_ir_attributes_kernel_parameter(Names..., 1, 2, 3)]] int x) {} // expected-error {{attribute '__sycl_detail__::add_ir_attributes_kernel_parameter' must specify a value for each specified name in the argument list}}
 };
 template <const char *...Names> struct __attribute__((sycl_special_class)) SpecialClassStructTemplate4 {
-  void __init([[__sycl_detail__::add_ir_attributes_kernel_parameter({"Attr1", "Attr3"}, Names..., 1, 2, 3)]] int x) {} // expected-error {{attribute 'add_ir_attributes_kernel_parameter' must specify a value for each specified name in the argument list}}
+  void __init([[__sycl_detail__::add_ir_attributes_kernel_parameter({"Attr1", "Attr3"}, Names..., 1, 2, 3)]] int x) {} // expected-error {{attribute '__sycl_detail__::add_ir_attributes_kernel_parameter' must specify a value for each specified name in the argument list}}
 };
 template <const char *...Strs> struct __attribute__((sycl_special_class)) SpecialClassStructTemplate5 {
-  void __init([[__sycl_detail__::add_ir_attributes_kernel_parameter(Strs...)]] int x) {} // expected-error {{attribute 'add_ir_attributes_kernel_parameter' must specify a value for each specified name in the argument list}}
+  void __init([[__sycl_detail__::add_ir_attributes_kernel_parameter(Strs...)]] int x) {} // expected-error {{attribute '__sycl_detail__::add_ir_attributes_kernel_parameter' must specify a value for each specified name in the argument list}}
 };
 template <const char *...Strs> struct __attribute__((sycl_special_class)) SpecialClassStructTemplate6 {
-  void __init([[__sycl_detail__::add_ir_attributes_kernel_parameter({"Attr1", "Attr3"}, Strs...)]] int x) {} // expected-error {{attribute 'add_ir_attributes_kernel_parameter' must specify a value for each specified name in the argument list}}
+  void __init([[__sycl_detail__::add_ir_attributes_kernel_parameter({"Attr1", "Attr3"}, Strs...)]] int x) {} // expected-error {{attribute '__sycl_detail__::add_ir_attributes_kernel_parameter' must specify a value for each specified name in the argument list}}
 };
 
 void InstantiateSpecialClassStructTemplates() {

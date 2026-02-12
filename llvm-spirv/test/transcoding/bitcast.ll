@@ -1,56 +1,45 @@
-; ModuleID = 'bitcast.bc'
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
-target triple = "spir64-unknown-unknown"
-
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: llvm-spirv %t.bc -spirv-text -o %t.txt
+; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.bc
-; RUN: llvm-dis < %t.bc | FileCheck %s
+; RUN: llvm-spirv -r -o - %t.spv | llvm-dis | FileCheck %s --check-prefix=CHECK-LLVM
 
-; Check the bitcast is translated back to bitcast
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
+target triple = "spir64"
 
-; CHECK: bitcast
+; CHECK-SPIRV-DAG: TypeInt [[#TyInt32:]] 32 0
+; CHECK-SPIRV-DAG: TypeInt [[#TyInt16:]] 16 0
+; CHECK-SPIRV-DAG: TypeFloat [[#TyHalf:]] 16
+; CHECK-SPIRV-DAG: TypeVector [[#vec4_int_16:]] [[#TyInt16]] 4
+; CHECK-SPIRV-DAG: TypeVector [[#vec4_float_16:]] [[#TyHalf]] 4
+; CHECK-SPIRV-DAG: FunctionParameter [[#TyInt32]] [[#Arg32:]]
+; CHECK-SPIRV-DAG: UConvert [[#TyInt16]] [[#Arg16:]] [[#Arg32]]
+; CHECK-SPIRV-DAG: Bitcast [[#TyHalf]] [[#ValHalf:]] [[#Arg16]]
+; CHECK-SPIRV-DAG: FMul [[#TyHalf]] [[#ValHalf2:]] [[#ValHalf]] [[#ValHalf]]
+; CHECK-SPIRV-DAG: Bitcast [[#TyInt16]] [[#Res16:]] [[#ValHalf2]]
+; CHECK-SPIRV-DAG: ReturnValue [[#Res16]]
 
-; Function Attrs: nounwind
-define spir_kernel void @test_fn(ptr addrspace(1) captures(none) readonly %src, ptr addrspace(1) captures(none) %dst) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !5 !kernel_arg_type_qual !4 {
+; CHECK-LLVM: trunc
+; CHECK-LLVM: bitcast
+; CHECK-LLVM: fmul
+; CHECK-LLVM: bitcast
+
+define i16 @foo(i32 %arg) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0) #2
-  %sext = shl i64 %call, 32
-  %idxprom = ashr exact i64 %sext, 32
-  %arrayidx = getelementptr inbounds <2 x i8>, ptr addrspace(1) %src, i64 %idxprom
-  %0 = load <2 x i8>, ptr addrspace(1) %arrayidx, align 2, !tbaa !9
-  %astype = bitcast <2 x i8> %0 to i16
-  %arrayidx2 = getelementptr inbounds i16, ptr addrspace(1) %dst, i64 %idxprom
-  store i16 %astype, ptr addrspace(1) %arrayidx2, align 2, !tbaa !12
-  ret void
+  %op16 = trunc i32 %arg to i16
+  %val = bitcast i16 %op16 to half
+  %val2 = fmul half %val, %val
+  %res = bitcast half %val2 to i16
+  ret i16 %res
 }
 
-; Function Attrs: nounwind
-declare spir_func i64 @_Z13get_global_idj(i32) #1
-
-attributes #0 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #2 = { nounwind }
-
-!opencl.enable.FP_CONTRACT = !{}
-!opencl.spir.version = !{!6}
-!opencl.ocl.version = !{!6}
-!opencl.used.extensions = !{!7}
-!opencl.used.optional.core.features = !{!7}
-!opencl.compiler.options = !{!7}
-!llvm.ident = !{!8}
-
-!1 = !{i32 1, i32 1}
-!2 = !{!"none", !"none"}
-!3 = !{!"char2*", !"short*"}
-!4 = !{!"", !""}
-!5 = !{!"char2*", !"short*"}
-!6 = !{i32 2, i32 0}
-!7 = !{}
-!8 = !{!"clang version 3.4 "}
-!9 = !{!10, !10, i64 0}
-!10 = !{!"omnipotent char", !11, i64 0}
-!11 = !{!"Simple C/C++ TBAA"}
-!12 = !{!13, !13, i64 0}
-!13 = !{!"short", !10, i64 0}
+define <4 x i16> @test_vector_half4(<4 x half> nofpclass(nan inf) %p1) {
+entry:
+  ; CHECK-SPIRV: FunctionParameter [[#vec4_float_16]] [[#arg0:]]
+  ; CHECK-SPIRV: Bitcast [[#vec4_int_16]] [[#Res1:]] [[#arg0]]
+  ; CHECK-LLVM: bitcast
+  %0 = bitcast <4 x half> %p1 to <4 x i16>
+  ; CHECK-SPIRV: ReturnValue [[#Res1]]
+  ret <4 x i16> %0
+}

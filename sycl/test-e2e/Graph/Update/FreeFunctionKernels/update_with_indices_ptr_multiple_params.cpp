@@ -1,12 +1,7 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
-// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
-// Extra run to check for immediate-command-list in Level Zero
-// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
-//
-// XFAIL: cuda
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16004
+// RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
 // Tests updating multiple parameters to a singlegraph node using index-based
 // explicit update
@@ -36,9 +31,9 @@ int main() {
   Queue.memcpy(PtrB, HostDataB.data(), Size * sizeof(int)).wait();
   Queue.memset(PtrC, 0, Size * sizeof(int)).wait();
 
-  exp_ext::dynamic_parameter ParamA(Graph, PtrA);
-  exp_ext::dynamic_parameter ParamB(Graph, PtrB);
-  exp_ext::dynamic_parameter ParamOut(Graph, PtrC);
+  exp_ext::dynamic_parameter ParamA(PtrA);
+  exp_ext::dynamic_parameter ParamB(PtrB);
+  exp_ext::dynamic_parameter ParamOut(PtrC);
 
   nd_range<1> NDRange{Size, 32};
 

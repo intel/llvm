@@ -1,11 +1,9 @@
 // REQUIRES: target-spir
 
-// FIXME Disabled fallback assert as it'll require either online linking or
-// explicit offline linking step here
 // FIXME separate compilation requires -fno-sycl-dead-args-optimization
 // As we are doing a separate device compilation here, we need to explicitly
 // add the device lib instrumentation (itt_compiler_wrapper)
-// RUN: %clangxx -Wno-error=ignored-attributes -DSYCL_DISABLE_FALLBACK_ASSERT %cxx_std_optionc++17 -fsycl-device-only -fno-sycl-dead-args-optimization -Xclang -fsycl-int-header=%t.h %s -o %t.bc -Xclang -verify-ignore-unexpected=note,warning -Wno-sycl-strict
+// RUN: %clangxx -Wno-error=ignored-attributes -DUSED_KERNEL -fno-sycl-dead-args-optimization %cxx_std_optionc++17 -fsycl-device-only -Xclang -fsycl-int-header=%t.h %s -o %t.bc -Xclang -verify-ignore-unexpected=note,warning -Wno-sycl-strict
 // >> ---- unbundle compiler wrapper and asan device objects
 // RUN: clang-offload-bundler -type=o -targets=sycl-spir64-unknown-unknown -input=%sycl_static_libs_dir/libsycl-itt-compiler-wrappers%obj_ext -output=%t_compiler_wrappers.bc -unbundle
 // RUN: %if linux %{ clang-offload-bundler -type=o -targets=sycl-spir64-unknown-unknown -input=%sycl_static_libs_dir/libsycl-asan%obj_ext -output=%t_asan.bc -unbundle %}
@@ -13,9 +11,10 @@
 // RUN: %if linux %{ llvm-link -o=%t_app.bc %t.bc %t_compiler_wrappers.bc %t_asan.bc %} %else %{ llvm-link -o=%t_app.bc %t.bc %t_compiler_wrappers.bc %}
 // >> ---- translate to SPIR-V
 // RUN: llvm-spirv -o %t.spv %t_app.bc
-// RUN: %clangxx -Wno-error=ignored-attributes %sycl_include -DSYCL_DISABLE_FALLBACK_ASSERT %cxx_std_optionc++17 %include_option %t.h %s -o %t.out %sycl_options -Xclang -verify-ignore-unexpected=note,warning %if preview-mode %{-Wno-unused-command-line-argument%}
-// RUN: env SYCL_USE_KERNEL_SPV=%t.spv %{run} %t.out | FileCheck %s
-// CHECK: Passed
+// Need to perform full compilation here since the SYCL runtime uses image
+// properties from the multi-architecture binary.
+// RUN: %{build} -fno-sycl-dead-args-optimization -o %t.out
+// RUN: env SYCL_USE_KERNEL_SPV=%t.spv %{run} %t.out
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
@@ -32,10 +31,15 @@ int main(int argc, char **argv) {
     event e = myQueue.submit([&](handler &cgh) {
       auto ptr = buf.get_access<access::mode::read_write>(cgh);
 
-      cgh.single_task<class my_kernel>([=]() { ptr[0]++; });
+      cgh.single_task<class my_kernel>([=]() {
+#ifdef USED_KERNEL
+        ptr[0]++;
+#else
+        ptr[0]--;
+#endif
+      });
     });
     e.wait_and_throw();
-
   } catch (sycl::exception const &e) {
     std::cerr << "SYCL exception caught:\n";
     std::cerr << e.what() << "\n";
@@ -45,11 +49,10 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  if (data == 6) {
-    std::cout << "Passed\n";
-    return 0;
-  } else {
-    std::cout << "Failed: " << data << "!= 6(gold)\n";
+  if (data != 6) {
+    std::cerr << "Failed: " << data << "!= 6(gold)\n";
     return 1;
   }
+
+  return 0;
 }

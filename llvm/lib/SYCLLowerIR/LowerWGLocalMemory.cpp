@@ -9,13 +9,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
-#include "llvm/ADT/DenseSet.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/Pass.h"
 #include "llvm/TargetParser/Triple.h"
-#include "llvm/Transforms/Utils/Cloning.h"
 
 using namespace llvm;
 
@@ -90,42 +88,6 @@ ModulePass *llvm::createSYCLLowerWGLocalMemoryLegacyPass() {
   return new SYCLLowerWGLocalMemoryLegacy();
 }
 
-// In sycl header __sycl_allocateLocalMemory builtin call is wrapped in
-// group_local_memory/group_local_memory_for_overwrite functions, which must be
-// inlined first before each __sycl_allocateLocalMemory call can be lowered to a
-// distinct global variable. Inlining them here so that this pass doesn't have
-// implicit dependency on AlwaysInlinerPass.
-//
-// syclcompat::local_mem, which represents a distinct allocation, calls
-// group_local_memory_for_overwrite. So local_mem should be inlined as well.
-static bool inlineGroupLocalMemoryFunc(Module &M) {
-  Function *ALMFunc = M.getFunction(SYCL_ALLOCLOCALMEM_CALL);
-  if (!ALMFunc || ALMFunc->use_empty())
-    return false;
-
-  SmallVector<Function *, 4> WorkList{ALMFunc};
-  DenseSet<Function *> Visited;
-  while (!WorkList.empty()) {
-    auto *F = WorkList.pop_back_val();
-    for (auto *U : make_early_inc_range(F->users())) {
-      auto *CI = cast<CallInst>(U);
-      auto *Caller = CI->getFunction();
-      if (Caller->hasFnAttribute("sycl-forceinline") &&
-          Visited.insert(Caller).second)
-        WorkList.push_back(Caller);
-      if (F != ALMFunc) {
-        InlineFunctionInfo IFI;
-        [[maybe_unused]] auto Result = InlineFunction(*CI, IFI);
-        assert(Result.isSuccess() && "inlining failed");
-      }
-    }
-    if (F != ALMFunc)
-      F->eraseFromParent();
-  }
-
-  return !Visited.empty();
-}
-
 // TODO: It should be checked that __sycl_allocateLocalMemory (or its source
 // form - group_local_memory) does not occur:
 //  - in a function (other than user lambda/functor)
@@ -181,11 +143,40 @@ lowerDynamicLocalMemCallDirect(CallInst *CI, Triple TT,
 
 static void lowerLocalMemCall(Function *LocalMemAllocFunc,
                               std::function<void(CallInst *CI)> TransformCall) {
+  static SmallPtrSet<Function *, 16> FuncsCache;
   SmallVector<CallInst *, 4> DelCalls;
   for (User *U : LocalMemAllocFunc->users()) {
     auto *CI = cast<CallInst>(U);
     TransformCall(CI);
     DelCalls.push_back(CI);
+    // Now, take each kernel that calls the builtins that allocate local memory,
+    // either directly or through a series of function calls that eventually end
+    // up in a direct call to the builtin, and attach the
+    // work-group-memory-static attribute to the kernel if not already attached.
+    // This is needed because free function kernels do not have the attribute
+    // added by the library as is the case with other types of kernels.
+    if (!FuncsCache.insert(CI->getFunction()).second)
+      continue; // We have already traversed call graph from this function.
+
+    SmallVector<Function *, 8> WorkList;
+    WorkList.push_back(CI->getFunction());
+    while (!WorkList.empty()) {
+      Function *F = WorkList.back();
+      WorkList.pop_back();
+
+      // Mark kernel as using scratch memory if it isn't marked already.
+      if (F->getCallingConv() == CallingConv::SPIR_KERNEL &&
+          !F->hasFnAttribute(WORK_GROUP_STATIC_ATTR))
+        F->addFnAttr(WORK_GROUP_STATIC_ATTR);
+
+      for (auto *FU : F->users()) {
+        if (auto *UCI = dyn_cast<CallInst>(FU)) {
+          if (FuncsCache.insert(UCI->getFunction()).second)
+            WorkList.push_back(UCI->getFunction());
+        } // Even though there could be other uses of a Function, we don't
+          // care about them because we are only concerned about call graph.
+      }
+    }
   }
 
   for (auto *CI : DelCalls) {
@@ -360,8 +351,7 @@ static bool dynamicWGLocalMemory(Module &M) {
 
 PreservedAnalyses SYCLLowerWGLocalMemoryPass::run(Module &M,
                                                   ModuleAnalysisManager &) {
-  bool Changed = inlineGroupLocalMemoryFunc(M);
-  Changed |= allocaWGLocalMemory(M);
+  bool Changed = allocaWGLocalMemory(M);
   Changed |= dynamicWGLocalMemory(M);
   return Changed ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }

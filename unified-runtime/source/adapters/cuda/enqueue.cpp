@@ -15,6 +15,7 @@
 #include "kernel.hpp"
 #include "memory.hpp"
 #include "queue.hpp"
+#include "sampler.hpp"
 
 #include <cmath>
 #include <cuda.h>
@@ -46,9 +47,14 @@ ur_result_t enqueueEventsWait(ur_queue_handle_t CommandQueue, CUstream Stream,
   }
 }
 
-ur_result_t setCuMemAdvise(CUdeviceptr DevPtr, size_t Size,
-                           ur_usm_advice_flags_t URAdviceFlags,
-                           CUdevice Device) {
+#if CUDA_VERSION >= 13000
+using CuLocationType = CUmemLocation;
+#else
+using CuLocationType = CUdevice;
+#endif
+void setCuMemAdvise(CUdeviceptr DevPtr, size_t Size,
+                    ur_usm_advice_flags_t URAdviceFlags,
+                    CuLocationType Location) {
   std::unordered_map<ur_usm_advice_flags_t, CUmem_advise>
       URToCUMemAdviseDeviceFlagsMap = {
           {UR_USM_ADVICE_FLAG_SET_READ_MOSTLY, CU_MEM_ADVISE_SET_READ_MOSTLY},
@@ -65,7 +71,7 @@ ur_result_t setCuMemAdvise(CUdeviceptr DevPtr, size_t Size,
       };
   for (auto &FlagPair : URToCUMemAdviseDeviceFlagsMap) {
     if (URAdviceFlags & FlagPair.first) {
-      UR_CHECK_ERROR(cuMemAdvise(DevPtr, Size, FlagPair.second, Device));
+      UR_CHECK_ERROR(cuMemAdvise(DevPtr, Size, FlagPair.second, Location));
     }
   }
 
@@ -83,7 +89,14 @@ ur_result_t setCuMemAdvise(CUdeviceptr DevPtr, size_t Size,
 
   for (auto &FlagPair : URToCUMemAdviseHostFlagsMap) {
     if (URAdviceFlags & FlagPair.first) {
-      UR_CHECK_ERROR(cuMemAdvise(DevPtr, Size, FlagPair.second, CU_DEVICE_CPU));
+#if CUDA_VERSION >= 13000
+      CUmemLocation LocationHost;
+      LocationHost.id = 0; // ignored with HOST_NUMA_CURRENT
+      LocationHost.type = CU_MEM_LOCATION_TYPE_HOST_NUMA_CURRENT;
+#else
+      int LocationHost = CU_DEVICE_CPU;
+#endif
+      UR_CHECK_ERROR(cuMemAdvise(DevPtr, Size, FlagPair.second, LocationHost));
     }
   }
 
@@ -97,14 +110,10 @@ ur_result_t setCuMemAdvise(CUdeviceptr DevPtr, size_t Size,
 
   for (auto &UnmappedFlag : UnmappedMemAdviceFlags) {
     if (URAdviceFlags & UnmappedFlag) {
-      setErrorMessage("Memory advice ignored because the CUDA backend does not "
-                      "support some of the specified flags",
-                      UR_RESULT_SUCCESS);
-      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+      UR_LOG(WARN, "Memory advice ignored because the CUDA backend does not "
+                   "support some of the specified flags.");
     }
   }
-
-  return UR_RESULT_SUCCESS;
 }
 
 // Determine local work sizes that result in uniform work groups.
@@ -124,18 +133,14 @@ void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
     GlobalSizeNormalized[i] = GlobalWorkSize[i];
   }
 
-  size_t MaxBlockDim[3];
-  MaxBlockDim[0] = Device->getMaxWorkItemSizes(0);
-  MaxBlockDim[1] = Device->getMaxWorkItemSizes(1);
-  MaxBlockDim[2] = Device->getMaxWorkItemSizes(2);
-
   int MinGrid, MaxBlockSize;
   UR_CHECK_ERROR(cuOccupancyMaxPotentialBlockSize(
       &MinGrid, &MaxBlockSize, Kernel->get(), NULL, Kernel->getLocalSize(),
-      MaxBlockDim[0]));
+      Device->getMaxWorkItemSizes(0)));
 
   roundToHighestFactorOfGlobalSizeIn3d(ThreadsPerBlock, GlobalSizeNormalized,
-                                       MaxBlockDim, MaxBlockSize);
+                                       Device->getMaxWorkItemSizes(),
+                                       MaxBlockSize);
 }
 
 // Helper to verify out-of-registers case (exceeded block max registers).
@@ -150,7 +155,6 @@ bool hasExceededMaxRegistersPerBlock(ur_device_handle_t Device,
 
 // Helper to compute kernel parameters from workload
 // dimensions.
-// @param [in]  Context handler to the target Context
 // @param [in]  Device handler to the target Device
 // @param [in]  WorkDim workload dimension
 // @param [in]  GlobalWorkOffset pointer workload global offsets
@@ -160,75 +164,56 @@ bool hasExceededMaxRegistersPerBlock(ur_device_handle_t Device,
 // @param [out] ThreadsPerBlock Number of threads per block we should run
 // @param [out] BlocksPerGrid Number of blocks per grid we should run
 ur_result_t
-setKernelParams([[maybe_unused]] const ur_context_handle_t Context,
-                const ur_device_handle_t Device, const uint32_t WorkDim,
+setKernelParams(const ur_device_handle_t Device, const uint32_t WorkDim,
                 const size_t *GlobalWorkOffset, const size_t *GlobalWorkSize,
                 const size_t *LocalWorkSize, ur_kernel_handle_t &Kernel,
                 CUfunction &CuFunc, size_t (&ThreadsPerBlock)[3],
                 size_t (&BlocksPerGrid)[3]) {
-  ur_result_t Result = UR_RESULT_SUCCESS;
-  size_t MaxWorkGroupSize = 0u;
-  bool ProvidedLocalWorkGroupSize = LocalWorkSize != nullptr;
-  uint32_t LocalSize = Kernel->getLocalSize();
-
   try {
     // Set the active context here as guessLocalWorkSize needs an active context
     ScopedContext Active(Device);
-    {
-      size_t *MaxThreadsPerBlock = Kernel->MaxThreadsPerBlock;
-      size_t *ReqdThreadsPerBlock = Kernel->ReqdThreadsPerBlock;
-      MaxWorkGroupSize = Device->getMaxWorkGroupSize();
 
-      if (ProvidedLocalWorkGroupSize) {
-        auto IsValid = [&](int Dim) {
-          if (ReqdThreadsPerBlock[Dim] != 0 &&
-              LocalWorkSize[Dim] != ReqdThreadsPerBlock[Dim])
-            return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-
-          if (MaxThreadsPerBlock[Dim] != 0 &&
-              LocalWorkSize[Dim] > MaxThreadsPerBlock[Dim])
-            return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-
-          if (LocalWorkSize[Dim] > Device->getMaxWorkItemSizes(Dim))
-            return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-          // Checks that local work sizes are a divisor of the global work sizes
-          // which includes that the local work sizes are neither larger than
-          // the global work sizes and not 0.
-          if (0u == LocalWorkSize[Dim])
-            return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-          if (0u != (GlobalWorkSize[Dim] % LocalWorkSize[Dim]))
-            return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-          ThreadsPerBlock[Dim] = LocalWorkSize[Dim];
-          return UR_RESULT_SUCCESS;
-        };
-
-        size_t KernelLocalWorkGroupSize = 1;
-        for (size_t Dim = 0; Dim < WorkDim; Dim++) {
-          auto Err = IsValid(Dim);
-          if (Err != UR_RESULT_SUCCESS)
-            return Err;
-          // If no error then compute the total local work size as a product of
-          // all dims.
-          KernelLocalWorkGroupSize *= LocalWorkSize[Dim];
-        }
-
-        if (size_t MaxLinearThreadsPerBlock = Kernel->MaxLinearThreadsPerBlock;
-            MaxLinearThreadsPerBlock &&
-            MaxLinearThreadsPerBlock < KernelLocalWorkGroupSize) {
+    if (LocalWorkSize != nullptr) {
+      size_t KernelLocalWorkGroupSize = 1;
+      for (size_t i = 0; i < WorkDim; i++) {
+        if (Kernel->ReqdThreadsPerBlock[i] &&
+            Kernel->ReqdThreadsPerBlock[i] != LocalWorkSize[i])
           return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-        }
 
-        if (hasExceededMaxRegistersPerBlock(Device, Kernel,
-                                            KernelLocalWorkGroupSize)) {
-          return UR_RESULT_ERROR_OUT_OF_RESOURCES;
-        }
-      } else {
-        guessLocalWorkSize(Device, ThreadsPerBlock, GlobalWorkSize, WorkDim,
-                           Kernel);
+        if (Kernel->MaxThreadsPerBlock[i] &&
+            Kernel->MaxThreadsPerBlock[i] < LocalWorkSize[i])
+          return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+
+        if (LocalWorkSize[i] > Device->getMaxWorkItemSizes(i))
+          return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+        // Checks that local work sizes are a divisor of the global work sizes
+        // which includes that the local work sizes are neither larger than
+        // the global work sizes and not 0.
+        if (0u == LocalWorkSize[i] ||
+            0u != (GlobalWorkSize[i] % LocalWorkSize[i]))
+          return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+
+        ThreadsPerBlock[i] = LocalWorkSize[i];
+
+        // Compute the total local work size as a product of all is.
+        KernelLocalWorkGroupSize *= LocalWorkSize[i];
       }
+
+      if (Kernel->MaxLinearThreadsPerBlock &&
+          Kernel->MaxLinearThreadsPerBlock < KernelLocalWorkGroupSize) {
+        return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+      }
+
+      if (hasExceededMaxRegistersPerBlock(Device, Kernel,
+                                          KernelLocalWorkGroupSize)) {
+        return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+      }
+    } else {
+      guessLocalWorkSize(Device, ThreadsPerBlock, GlobalWorkSize, WorkDim,
+                         Kernel);
     }
 
-    if (MaxWorkGroupSize <
+    if (Device->getMaxWorkGroupSize() <
         ThreadsPerBlock[0] * ThreadsPerBlock[1] * ThreadsPerBlock[2]) {
       return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
     }
@@ -254,42 +239,28 @@ setKernelParams([[maybe_unused]] const ur_context_handle_t Context,
                                    CudaImplicitOffset);
     }
 
+    uint32_t LocalSize = Kernel->getLocalSize();
     if (LocalSize > static_cast<uint32_t>(Device->getMaxCapacityLocalMem())) {
       setErrorMessage("Excessive allocation of local memory on the device",
-                      UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+                      UR_RESULT_ERROR_OUT_OF_RESOURCES);
       return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
     }
 
-    if (Device->maxLocalMemSizeChosen()) {
-      // Set up local memory requirements for kernel.
-      if (Device->getMaxChosenLocalMem() < 0) {
-        bool EnvVarHasURPrefix =
-            std::getenv("UR_CUDA_MAX_LOCAL_MEM_SIZE") != nullptr;
-        setErrorMessage(EnvVarHasURPrefix ? "Invalid value specified for "
-                                            "UR_CUDA_MAX_LOCAL_MEM_SIZE"
-                                          : "Invalid value specified for "
-                                            "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE",
-                        UR_RESULT_ERROR_ADAPTER_SPECIFIC);
-        return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
-      }
-      if (LocalSize > static_cast<uint32_t>(Device->getMaxChosenLocalMem())) {
-        bool EnvVarHasURPrefix =
-            std::getenv("UR_CUDA_MAX_LOCAL_MEM_SIZE") != nullptr;
+    if (int MaxLocalMem = Device->getMaxChosenLocalMem()) {
+      if (LocalSize > static_cast<uint32_t>(MaxLocalMem)) {
         setErrorMessage(
-            EnvVarHasURPrefix
-                ? "Local memory for kernel exceeds the amount requested using "
-                  "UR_CUDA_MAX_LOCAL_MEM_SIZE. Try increasing the value of "
-                  "UR_CUDA_MAX_LOCAL_MEM_SIZE."
-                : "Local memory for kernel exceeds the amount requested using "
-                  "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE. Try increasing the the "
-                  "value of SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE.",
-            UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+            "Local memory for kernel exceeds the amount requested using "
+            "UR_CUDA_MAX_LOCAL_MEM_SIZE (or deprecated "
+            "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE). Try increasing the maximum "
+            "local memory.",
+            UR_RESULT_ERROR_OUT_OF_RESOURCES);
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
+
+      // Set up local memory requirements for kernel.
       UR_CHECK_ERROR(cuFuncSetAttribute(
           CuFunc, CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES,
-          Device->getMaxChosenLocalMem()));
-
+          MaxLocalMem));
     } else if (LocalSize > 48 * 1024) {
       // CUDA requires explicit carveout of dynamic shared memory size if larger
       // than 48 kB, otherwise cuLaunchKernel fails.
@@ -298,9 +269,9 @@ setKernelParams([[maybe_unused]] const ur_context_handle_t Context,
     }
 
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 /// Enqueues a wait on the given CUstream for all specified events (See
@@ -315,7 +286,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
   try {
     ScopedContext Active(hQueue->getDevice());
     uint32_t StreamToken;
-    ur_stream_guard_ Guard;
+    ur_stream_guard Guard;
     CUstream CuStream = hQueue->getNextComputeStream(
         numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
     {
@@ -362,8 +333,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     }
 
     if (phEvent) {
-      *phEvent = ur_event_handle_t_::makeNative(
-          UR_COMMAND_EVENTS_WAIT_WITH_BARRIER, hQueue, CuStream, StreamToken);
+      *phEvent = new ur_event_handle_t_(UR_COMMAND_EVENTS_WAIT_WITH_BARRIER,
+                                        hQueue, CuStream, StreamToken);
       UR_CHECK_ERROR((*phEvent)->start());
       UR_CHECK_ERROR((*phEvent)->record());
     }
@@ -428,10 +399,9 @@ enqueueKernelLaunch(ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel,
 
   // This might return UR_RESULT_ERROR_ADAPTER_SPECIFIC, which cannot be handled
   // using the standard UR_CHECK_ERROR
-  if (ur_result_t Ret =
-          setKernelParams(hQueue->getContext(), hQueue->Device, workDim,
-                          pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
-                          hKernel, CuFunc, ThreadsPerBlock, BlocksPerGrid);
+  if (ur_result_t Ret = setKernelParams(
+          hQueue->Device, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+          pLocalWorkSize, hKernel, CuFunc, ThreadsPerBlock, BlocksPerGrid);
       Ret != UR_RESULT_SUCCESS)
     return Ret;
 
@@ -440,7 +410,7 @@ enqueueKernelLaunch(ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel,
 
     ScopedContext Active(hQueue->getDevice());
     uint32_t StreamToken;
-    ur_stream_guard_ Guard;
+    ur_stream_guard Guard;
     CUstream CuStream = hQueue->getNextComputeStream(
         numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
 
@@ -460,9 +430,8 @@ enqueueKernelLaunch(ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel,
     }
 
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_KERNEL_LAUNCH, hQueue, CuStream, StreamToken));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_KERNEL_LAUNCH, hQueue, CuStream, StreamToken);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -485,51 +454,46 @@ enqueueKernelLaunch(ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel,
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  return enqueueKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
-                             pGlobalWorkSize, pLocalWorkSize,
-                             numEventsInWaitList, phEventWaitList, phEvent,
-                             /*WorkGroupMemory=*/0);
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
-    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  if (pGlobalWorkOffset == nullptr || *pGlobalWorkOffset == 0) {
-    ur_exp_launch_property_t coop_prop;
-    coop_prop.id = UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE;
-    coop_prop.value.cooperative = 1;
-    return urEnqueueKernelLaunchCustomExp(
-        hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-        pLocalWorkSize, 1, &coop_prop, numEventsInWaitList, phEventWaitList,
-        phEvent);
-  }
-  return urEnqueueKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
-                               pGlobalWorkSize, pLocalWorkSize,
-                               numEventsInWaitList, phEventWaitList, phEvent);
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
-    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numPropsInLaunchPropList,
-    const ur_exp_launch_property_t *launchPropList,
+    const size_t *pLocalWorkSize,
+    const ur_kernel_launch_ext_properties_t *launchPropList,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
 
-  size_t WorkGroupMemory = [&]() -> size_t {
-    const ur_exp_launch_property_t *WorkGroupMemoryProp = std::find_if(
-        launchPropList, launchPropList + numPropsInLaunchPropList,
-        [](const ur_exp_launch_property_t &Prop) {
-          return Prop.id == UR_EXP_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY;
-        });
-    if (WorkGroupMemoryProp != launchPropList + numPropsInLaunchPropList)
-      return WorkGroupMemoryProp->value.workgroup_mem_size;
-    return 0;
-  }();
+  size_t WorkGroupMemory = 0;
+  uint32_t numPropsInLaunchPropList = 0;
+
+  ur_kernel_launch_ext_properties_t *_launchPropList =
+      const_cast<ur_kernel_launch_ext_properties_t *>(launchPropList);
+
+  if (_launchPropList) {
+    if (_launchPropList->flags & UR_KERNEL_LAUNCH_FLAG_COOPERATIVE) {
+      numPropsInLaunchPropList++;
+    }
+
+    if (_launchPropList->flags &
+        UR_KERNEL_LAUNCH_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE) {
+      numPropsInLaunchPropList++;
+    }
+
+    while (_launchPropList != nullptr) {
+      // In case of the ur_kernel_launch_ext_properties_t type
+      // the properties are stored in the 'flags' field
+      // so we have already counted them above.
+      if (_launchPropList->stype !=
+          as_stype<ur_kernel_launch_ext_properties_t>()) {
+        numPropsInLaunchPropList++;
+      }
+      if (_launchPropList->stype ==
+          as_stype<ur_kernel_launch_workgroup_property_t>()) {
+        ur_kernel_launch_workgroup_property_t *WorkGroupMemoryProp =
+            reinterpret_cast<ur_kernel_launch_workgroup_property_t *>(
+                _launchPropList);
+        WorkGroupMemory = WorkGroupMemoryProp->workgroup_mem_size;
+      }
+      _launchPropList = static_cast<ur_kernel_launch_ext_properties_t *>(
+          _launchPropList->pNext);
+    }
+  }
 
   if (numPropsInLaunchPropList == 0 ||
       (WorkGroupMemory && numPropsInLaunchPropList == 1)) {
@@ -538,16 +502,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
                                numEventsInWaitList, phEventWaitList, phEvent,
                                WorkGroupMemory);
   }
+
 #if CUDA_VERSION >= 11080
   // Preconditions
   UR_ASSERT(hQueue->getDevice() == hKernel->getProgram()->getDevice(),
             UR_RESULT_ERROR_INVALID_KERNEL);
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
-
-  if (launchPropList == NULL) {
-    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-  }
+  UR_ASSERT(launchPropList, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   std::vector<CUlaunchAttribute> launch_attribute;
   launch_attribute.reserve(numPropsInLaunchPropList);
@@ -569,29 +531,46 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
   uint32_t LocalSize = hKernel->getLocalSize();
   CUfunction CuFunc = hKernel->get();
 
-  for (uint32_t i = 0; i < numPropsInLaunchPropList; i++) {
-    switch (launchPropList[i].id) {
-    case UR_EXP_LAUNCH_PROPERTY_ID_IGNORE: {
-      auto &attr = launch_attribute.emplace_back();
-      attr.id = CU_LAUNCH_ATTRIBUTE_IGNORE;
+  _launchPropList =
+      const_cast<ur_kernel_launch_ext_properties_t *>(launchPropList);
+
+  if (_launchPropList->flags & UR_KERNEL_LAUNCH_FLAG_COOPERATIVE) {
+    auto &attr = launch_attribute.emplace_back();
+    attr.id = CU_LAUNCH_ATTRIBUTE_COOPERATIVE;
+    attr.value.cooperative = 1;
+  }
+
+  if (_launchPropList->flags &
+      UR_KERNEL_LAUNCH_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE) {
+    auto &attr = launch_attribute.emplace_back();
+    attr.id = CU_LAUNCH_ATTRIBUTE_PROGRAMMATIC_STREAM_SERIALIZATION;
+    attr.value.programmaticStreamSerializationAllowed = 1;
+  }
+
+  while (_launchPropList != nullptr) {
+    switch (_launchPropList->stype) {
+    case UR_STRUCTURE_TYPE_KERNEL_LAUNCH_EXT_PROPERTIES: {
       break;
     }
-    case UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION: {
+    case UR_STRUCTURE_TYPE_KERNEL_LAUNCH_CLUSTER_PROPERTY: {
       auto &attr = launch_attribute.emplace_back();
       attr.id = CU_LAUNCH_ATTRIBUTE_CLUSTER_DIMENSION;
+      ur_kernel_launch_cluster_property_t *clusterProperty =
+          reinterpret_cast<ur_kernel_launch_cluster_property_t *>(
+              _launchPropList);
       // Note that cuda orders from right to left wrt SYCL dimensional order.
       if (workDim == 3) {
-        attr.value.clusterDim.x = launchPropList[i].value.clusterDim[2];
-        attr.value.clusterDim.y = launchPropList[i].value.clusterDim[1];
-        attr.value.clusterDim.z = launchPropList[i].value.clusterDim[0];
+        attr.value.clusterDim.x = clusterProperty->clusterDim[2];
+        attr.value.clusterDim.y = clusterProperty->clusterDim[1];
+        attr.value.clusterDim.z = clusterProperty->clusterDim[0];
       } else if (workDim == 2) {
-        attr.value.clusterDim.x = launchPropList[i].value.clusterDim[1];
-        attr.value.clusterDim.y = launchPropList[i].value.clusterDim[0];
-        attr.value.clusterDim.z = launchPropList[i].value.clusterDim[2];
+        attr.value.clusterDim.x = clusterProperty->clusterDim[1];
+        attr.value.clusterDim.y = clusterProperty->clusterDim[0];
+        attr.value.clusterDim.z = clusterProperty->clusterDim[2];
       } else {
-        attr.value.clusterDim.x = launchPropList[i].value.clusterDim[0];
-        attr.value.clusterDim.y = launchPropList[i].value.clusterDim[1];
-        attr.value.clusterDim.z = launchPropList[i].value.clusterDim[2];
+        attr.value.clusterDim.x = clusterProperty->clusterDim[0];
+        attr.value.clusterDim.y = clusterProperty->clusterDim[1];
+        attr.value.clusterDim.z = clusterProperty->clusterDim[2];
       }
 
       UR_CHECK_ERROR(cuFuncSetAttribute(
@@ -599,27 +578,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
 
       break;
     }
-    case UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE: {
-      auto &attr = launch_attribute.emplace_back();
-      attr.id = CU_LAUNCH_ATTRIBUTE_COOPERATIVE;
-      attr.value.cooperative = launchPropList[i].value.cooperative;
-      break;
-    }
-    case UR_EXP_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY: {
+    case UR_STRUCTURE_TYPE_KERNEL_LAUNCH_WORKGROUP_PROPERTY: {
       break;
     }
     default: {
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
     }
     }
+    _launchPropList = static_cast<ur_kernel_launch_ext_properties_t *>(
+        _launchPropList->pNext);
   }
 
   // This might return UR_RESULT_ERROR_ADAPTER_SPECIFIC, which cannot be handled
   // using the standard UR_CHECK_ERROR
-  if (ur_result_t Ret =
-          setKernelParams(hQueue->getContext(), hQueue->Device, workDim,
-                          pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
-                          hKernel, CuFunc, ThreadsPerBlock, BlocksPerGrid);
+  if (ur_result_t Ret = setKernelParams(
+          hQueue->Device, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+          pLocalWorkSize, hKernel, CuFunc, ThreadsPerBlock, BlocksPerGrid);
       Ret != UR_RESULT_SUCCESS)
     return Ret;
 
@@ -628,7 +602,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
 
     ScopedContext Active(hQueue->getDevice());
     uint32_t StreamToken;
-    ur_stream_guard_ Guard;
+    ur_stream_guard Guard;
     CUstream CuStream = hQueue->getNextComputeStream(
         numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
 
@@ -648,9 +622,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
     }
 
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_KERNEL_LAUNCH, hQueue, CuStream, StreamToken));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_KERNEL_LAUNCH, hQueue, CuStream, StreamToken);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -684,9 +657,63 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
 #else
   [[maybe_unused]] auto _ = launchPropList;
   setErrorMessage("This feature requires cuda 11.8 or later.",
-                  UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+                  UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
   return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
 #endif // CUDA_VERSION >= 11080
+}
+
+// const ur_kernel_launch_ext_properties_t *launchPropList,
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
+    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    const size_t *pLocalWorkSize, uint32_t numArgs,
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    const ur_kernel_launch_ext_properties_t *launchPropList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  try {
+    for (uint32_t i = 0; i < numArgs; i++) {
+      switch (pArgs[i].type) {
+      case UR_EXP_KERNEL_ARG_TYPE_LOCAL: {
+        hKernel->setKernelLocalArg(pArgs[i].index, pArgs[i].size);
+        break;
+      }
+      case UR_EXP_KERNEL_ARG_TYPE_VALUE: {
+        hKernel->setKernelArg(pArgs[i].index, pArgs[i].size,
+                              pArgs[i].value.value);
+        break;
+      }
+      case UR_EXP_KERNEL_ARG_TYPE_POINTER: {
+        // setKernelArg is expecting a pointer to our argument
+        hKernel->setKernelArg(pArgs[i].index, pArgs[i].size,
+                              &pArgs[i].value.pointer);
+        break;
+      }
+      case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
+        ur_kernel_arg_mem_obj_properties_t Props = {
+            UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES, nullptr,
+            pArgs[i].value.memObjTuple.flags};
+        UR_CALL(urKernelSetArgMemObj(hKernel, pArgs[i].index, &Props,
+                                     pArgs[i].value.memObjTuple.hMem));
+        break;
+      }
+      case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
+        uint32_t SamplerProps = pArgs[i].value.sampler->Props;
+        hKernel->setKernelArg(pArgs[i].index, sizeof(uint32_t),
+                              (void *)&SamplerProps);
+        break;
+      }
+      default:
+        return UR_RESULT_ERROR_INVALID_ENUMERATION;
+      }
+    }
+  } catch (ur_result_t Err) {
+    return Err;
+  }
+  return urEnqueueKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
+                               pGlobalWorkSize, pLocalWorkSize, launchPropList,
+                               numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 /// Set parameters for general 3D memory copy.
@@ -789,9 +816,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
                                      phEventWaitList));
 
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_READ_RECT, hQueue, Stream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_BUFFER_READ_RECT, hQueue, Stream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -838,9 +864,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
                                      phEventWaitList));
 
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_WRITE_RECT, hQueue, cuStream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_BUFFER_WRITE_RECT, hQueue, cuStream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -880,16 +905,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
 
   try {
     ScopedContext Active(hQueue->getDevice());
-    ur_result_t Result = UR_RESULT_SUCCESS;
-
     auto Stream = hQueue->getNextTransferStream();
-    Result =
-        enqueueEventsWait(hQueue, Stream, numEventsInWaitList, phEventWaitList);
+    UR_CHECK_ERROR(enqueueEventsWait(hQueue, Stream, numEventsInWaitList,
+                                     phEventWaitList));
 
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_COPY, hQueue, Stream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_BUFFER_COPY, hQueue, Stream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -904,13 +926,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
       UR_CHECK_ERROR(RetImplEvent->record());
       *phEvent = RetImplEvent.release();
     }
-
-    return Result;
   } catch (ur_result_t Err) {
     return Err;
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
@@ -920,7 +942,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     size_t srcSlicePitch, size_t dstRowPitch, size_t dstSlicePitch,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  ur_result_t Result = UR_RESULT_SUCCESS;
   CUdeviceptr SrcPtr =
       std::get<BufferMem>(hBufferSrc->Mem).getPtr(hQueue->getDevice());
   CUdeviceptr DstPtr =
@@ -930,20 +951,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
   try {
     ScopedContext Active(hQueue->getDevice());
     CUstream CuStream = hQueue->getNextTransferStream();
-    Result = enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
-                               phEventWaitList);
+    UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
+                                     phEventWaitList));
 
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_COPY_RECT, hQueue, CuStream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_BUFFER_COPY_RECT, hQueue, CuStream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
-    Result = commonEnqueueMemBufferCopyRect(
+    UR_CHECK_ERROR(commonEnqueueMemBufferCopyRect(
         CuStream, region, &SrcPtr, CU_MEMORYTYPE_DEVICE, srcOrigin, srcRowPitch,
         srcSlicePitch, &DstPtr, CU_MEMORYTYPE_DEVICE, dstOrigin, dstRowPitch,
-        dstSlicePitch);
+        dstSlicePitch));
 
     if (phEvent) {
       UR_CHECK_ERROR(RetImplEvent->record());
@@ -951,9 +971,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     }
 
   } catch (ur_result_t err) {
-    Result = err;
+    return err;
   }
-  return Result;
+
+  return UR_RESULT_SUCCESS;
 }
 
 // CUDA has no memset functions that allow setting values more than 4 bytes. UR
@@ -1044,9 +1065,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
                                      phEventWaitList));
 
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_WRITE_RECT, hQueue, Stream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_BUFFER_WRITE_RECT, hQueue, Stream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -1104,9 +1124,11 @@ static size_t imageElementByteSize(CUDA_ARRAY_DESCRIPTOR ArrayDesc) {
   case CU_AD_FORMAT_FLOAT:
     return 4;
   default:
-    die("Invalid image format.");
-    return 0;
+    setErrorMessage("Invalid CUDA format specifier",
+                    UR_RESULT_ERROR_INVALID_VALUE);
+    throw UR_RESULT_ERROR_ADAPTER_SPECIFIC;
   }
+  return 0;
 }
 
 /// General ND memory copy operation for images.
@@ -1180,11 +1202,9 @@ static ur_result_t commonEnqueueMemImageNDCopy(
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
     ur_queue_handle_t hQueue, ur_mem_handle_t hImage, bool blockingRead,
-    ur_rect_offset_t origin, ur_rect_region_t region, size_t rowPitch,
-    size_t slicePitch, void *pDst, uint32_t numEventsInWaitList,
+    ur_rect_offset_t origin, ur_rect_region_t region, size_t /*rowPitch*/,
+    size_t /*slicePitch*/, void *pDst, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = rowPitch;
-  std::ignore = slicePitch;
 
   UR_ASSERT(hImage->isImage(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
@@ -1218,9 +1238,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
 
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_IMAGE_READ, hQueue, Stream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_IMAGE_READ, hQueue, Stream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
     if (ImgType == UR_MEM_TYPE_IMAGE1D) {
@@ -1254,13 +1273,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
-    ur_queue_handle_t hQueue, ur_mem_handle_t hImage, bool blockingWrite,
-    ur_rect_offset_t origin, ur_rect_region_t region, size_t rowPitch,
-    size_t slicePitch, void *pSrc, uint32_t numEventsInWaitList,
+    ur_queue_handle_t hQueue, ur_mem_handle_t hImage, bool /*blockingWrite*/,
+    ur_rect_offset_t origin, ur_rect_region_t region, size_t /*rowPitch*/,
+    size_t /*slicePitch*/, void *pSrc, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = blockingWrite;
-  std::ignore = rowPitch;
-  std::ignore = slicePitch;
 
   UR_ASSERT(hImage->isImage(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
   auto &Image = std::get<SurfaceMem>(hImage->Mem);
@@ -1269,13 +1285,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
   if (!Image.HostPtr)
     Image.HostPtr = pSrc;
 
-  ur_result_t Result = UR_RESULT_SUCCESS;
-
   try {
     ScopedContext Active(hQueue->getDevice());
     CUstream CuStream = hQueue->getNextTransferStream();
-    Result = enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
-                               phEventWaitList);
+    UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
+                                     phEventWaitList));
 
     CUarray Array = Image.getArray(hQueue->getDevice());
 
@@ -1289,9 +1303,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
 
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_IMAGE_WRITE, hQueue, CuStream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_IMAGE_WRITE, hQueue, CuStream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -1304,13 +1317,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
                                          region.depth};
       ur_rect_offset_t DstOffset = {ByteOffsetX, origin.y, origin.z};
 
-      Result = commonEnqueueMemImageNDCopy(
+      UR_CHECK_ERROR(commonEnqueueMemImageNDCopy(
           CuStream, ImgType, AdjustedRegion, pSrc, CU_MEMORYTYPE_HOST,
-          ur_rect_offset_t{}, &Array, CU_MEMORYTYPE_ARRAY, DstOffset);
-
-      if (Result != UR_RESULT_SUCCESS) {
-        return Result;
-      }
+          ur_rect_offset_t{}, &Array, CU_MEMORYTYPE_ARRAY, DstOffset));
     }
 
     if (phEvent) {
@@ -1323,7 +1332,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
     return UR_RESULT_ERROR_UNKNOWN;
   }
 
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
@@ -1338,13 +1347,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
                 std::get<SurfaceMem>(hImageDst->Mem).getType(),
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
-  ur_result_t Result = UR_RESULT_SUCCESS;
-
   try {
     ScopedContext Active(hQueue->getDevice());
     CUstream CuStream = hQueue->getNextTransferStream();
-    Result = enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
-                               phEventWaitList);
+    UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
+                                     phEventWaitList));
 
     CUarray SrcArray =
         std::get<SurfaceMem>(hImageSrc->Mem).getArray(hQueue->getDevice());
@@ -1372,9 +1379,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
 
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_IMAGE_COPY, hQueue, CuStream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_IMAGE_COPY, hQueue, CuStream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -1385,12 +1391,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
     ur_rect_offset_t SrcOffset = {SrcByteOffsetX, srcOrigin.y, srcOrigin.z};
     ur_rect_offset_t DstOffset = {DstByteOffsetX, dstOrigin.y, dstOrigin.z};
 
-    Result = commonEnqueueMemImageNDCopy(
+    UR_CHECK_ERROR(commonEnqueueMemImageNDCopy(
         CuStream, ImgType, AdjustedRegion, &SrcArray, CU_MEMORYTYPE_ARRAY,
-        SrcOffset, &DstArray, CU_MEMORYTYPE_ARRAY, DstOffset);
-    if (Result != UR_RESULT_SUCCESS) {
-      return Result;
-    }
+        SrcOffset, &DstArray, CU_MEMORYTYPE_ARRAY, DstOffset));
 
     if (phEvent) {
       UR_CHECK_ERROR(RetImplEvent->record());
@@ -1402,7 +1405,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
     return UR_RESULT_ERROR_UNKNOWN;
   }
 
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 /// Implements mapping on the host using a BufferRead operation.
@@ -1446,8 +1449,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
 
     if (phEvent) {
       try {
-        *phEvent = ur_event_handle_t_::makeNative(
-            UR_COMMAND_MEM_BUFFER_MAP, hQueue, hQueue->getNextTransferStream());
+        *phEvent = new ur_event_handle_t_(UR_COMMAND_MEM_BUFFER_MAP, hQueue,
+                                          hQueue->getNextTransferStream());
         UR_CHECK_ERROR((*phEvent)->start());
         UR_CHECK_ERROR((*phEvent)->record());
       } catch (ur_result_t Err) {
@@ -1478,7 +1481,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
       BufferImpl.MemAllocMode == BufferMem::AllocMode::AllocHostPtr;
 
   ur_result_t Result = UR_RESULT_SUCCESS;
-  if (!IsPinned && (Map->getMapFlags() & UR_MAP_FLAG_WRITE)) {
+  if (!IsPinned &&
+      (Map->getMapFlags() &
+       (UR_MAP_FLAG_WRITE | UR_MAP_FLAG_WRITE_INVALIDATE_REGION))) {
     // Pinned host memory is only on host so it doesn't need to be written to.
     Result = urEnqueueMemBufferWrite(
         hQueue, hMem, true, Map->getMapOffset(), Map->getMapSize(), pMappedPtr,
@@ -1493,8 +1498,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
 
     if (phEvent) {
       try {
-        *phEvent = ur_event_handle_t_::makeNative(
-            UR_COMMAND_MEM_UNMAP, hQueue, hQueue->getNextTransferStream());
+        *phEvent = new ur_event_handle_t_(UR_COMMAND_MEM_UNMAP, hQueue,
+                                          hQueue->getNextTransferStream());
         UR_CHECK_ERROR((*phEvent)->start());
         UR_CHECK_ERROR((*phEvent)->record());
       } catch (ur_result_t Err) {
@@ -1511,21 +1516,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
     ur_queue_handle_t hQueue, void *ptr, size_t patternSize,
     const void *pPattern, size_t size, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  ur_result_t Result = UR_RESULT_SUCCESS;
   std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
 
   try {
     ScopedContext Active(hQueue->getDevice());
     uint32_t StreamToken;
-    ur_stream_guard_ Guard;
+    ur_stream_guard Guard;
     CUstream CuStream = hQueue->getNextComputeStream(
         numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
                                      phEventWaitList));
     if (phEvent) {
-      EventPtr =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_USM_FILL, hQueue, CuStream, StreamToken));
+      EventPtr = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_USM_FILL, hQueue, CuStream, StreamToken);
       UR_CHECK_ERROR(EventPtr->start());
     }
 
@@ -1555,28 +1558,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
       *phEvent = EventPtr.release();
     }
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  return Result;
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     ur_queue_handle_t hQueue, bool blocking, void *pDst, const void *pSrc,
     size_t size, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  ur_result_t Result = UR_RESULT_SUCCESS;
-
   std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
 
   try {
     ScopedContext Active(hQueue->getDevice());
     CUstream CuStream = hQueue->getNextTransferStream();
-    Result = enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
-                               phEventWaitList);
+    UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
+                                     phEventWaitList));
     if (phEvent) {
-      EventPtr =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_USM_MEMCPY, hQueue, CuStream));
+      EventPtr = std::make_unique<ur_event_handle_t_>(UR_COMMAND_USM_MEMCPY,
+                                                      hQueue, CuStream);
       UR_CHECK_ERROR(EventPtr->start());
     }
     UR_CHECK_ERROR(
@@ -1591,67 +1592,100 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
       *phEvent = EventPtr.release();
     }
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  return Result;
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     ur_queue_handle_t hQueue, const void *pMem, size_t size,
     ur_usm_migration_flags_t flags, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = flags;
+
+  ur_device_handle_t Device = hQueue->getDevice();
+#if CUDA_VERSION >= 13000
+  CUmemLocation Location;
+  switch (flags) {
+  case UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE:
+    Location.type = CU_MEM_LOCATION_TYPE_DEVICE;
+    Location.id = Device->get();
+    break;
+  case UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST:
+    Location.type = CU_MEM_LOCATION_TYPE_HOST;
+    break;
+#else
+  int dstDevice;
+  switch (flags) {
+  case UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE:
+    dstDevice = Device->get();
+    break;
+  case UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST:
+    dstDevice = CU_DEVICE_CPU;
+    break;
+#endif
+  default:
+    setErrorMessage("Invalid USM migration flag",
+                    UR_RESULT_ERROR_INVALID_ENUMERATION);
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
 
   size_t PointerRangeSize = 0;
   UR_CHECK_ERROR(cuPointerGetAttribute(
       &PointerRangeSize, CU_POINTER_ATTRIBUTE_RANGE_SIZE, (CUdeviceptr)pMem));
   UR_ASSERT(size <= PointerRangeSize, UR_RESULT_ERROR_INVALID_SIZE);
-  ur_device_handle_t Device = hQueue->getDevice();
 
-  // Certain cuda devices and Windows do not have support for some Unified
-  // Memory features. cuMemPrefetchAsync requires concurrent memory access
-  // for managed memory. Therefore, ignore prefetch hint if concurrent managed
-  // memory access is not available.
-  if (!getAttribute(Device, CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS)) {
-    setErrorMessage("Prefetch hint ignored as device does not support "
-                    "concurrent managed access",
-                    UR_RESULT_SUCCESS);
-    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
-  }
-
-  unsigned int IsManaged;
-  UR_CHECK_ERROR(cuPointerGetAttribute(
-      &IsManaged, CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr)pMem));
-  if (!IsManaged) {
-    setErrorMessage("Prefetch hint ignored as prefetch only works with USM",
-                    UR_RESULT_SUCCESS);
-    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
-  }
-
-  ur_result_t Result = UR_RESULT_SUCCESS;
   std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
-
   try {
     ScopedContext Active(hQueue->getDevice());
     CUstream CuStream = hQueue->getNextTransferStream();
-    Result = enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
-                               phEventWaitList);
+    UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
+                                     phEventWaitList));
     if (phEvent) {
-      EventPtr =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_COPY, hQueue, CuStream));
+      EventPtr = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_BUFFER_COPY, hQueue, CuStream);
       UR_CHECK_ERROR(EventPtr->start());
     }
-    UR_CHECK_ERROR(
-        cuMemPrefetchAsync((CUdeviceptr)pMem, size, Device->get(), CuStream));
-    if (phEvent) {
-      UR_CHECK_ERROR(EventPtr->record());
-      *phEvent = EventPtr.release();
+
+    // Ensure we release the event even on early exit
+    OnScopeExit ReleaseEvent([&]() {
+      if (phEvent) {
+        UR_CHECK_ERROR(EventPtr->record());
+        *phEvent = EventPtr.release();
+      }
+    });
+
+    // Certain cuda devices and Windows do not have support for some Unified
+    // Memory features. cuMemPrefetchAsync requires concurrent memory access
+    // for managed memory. Therefore, ignore prefetch hint if concurrent managed
+    // memory access is not available.
+    if (!getAttribute(Device, CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS)) {
+      UR_LOG(WARN, "Prefetch hint ignored as device does not support "
+                   "concurrent managed access.");
+      return UR_RESULT_SUCCESS;
     }
+
+    unsigned int IsManaged;
+    UR_CHECK_ERROR(cuPointerGetAttribute(
+        &IsManaged, CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr)pMem));
+    if (!IsManaged) {
+      UR_LOG(WARN, "Prefetch hint ignored as prefetch only works with USM.");
+      return UR_RESULT_SUCCESS;
+    }
+
+#if CUDA_VERSION >= 13000
+    unsigned int Flags = 0U;
+    UR_CHECK_ERROR(
+        cuMemPrefetchAsync((CUdeviceptr)pMem, size, Location, Flags, CuStream));
+#else
+    UR_CHECK_ERROR(
+        cuMemPrefetchAsync((CUdeviceptr)pMem, size, dstDevice, CuStream));
+#endif
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  return Result;
+
+  return UR_RESULT_SUCCESS;
 }
 
 /// USM: memadvise API to govern behavior of automatic migration mechanisms
@@ -1663,77 +1697,83 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
       &PointerRangeSize, CU_POINTER_ATTRIBUTE_RANGE_SIZE, (CUdeviceptr)pMem));
   UR_ASSERT(size <= PointerRangeSize, UR_RESULT_ERROR_INVALID_SIZE);
 
-  // Certain cuda devices and Windows do not have support for some Unified
-  // Memory features. Passing CU_MEM_ADVISE_SET/CLEAR_PREFERRED_LOCATION and
-  // to cuMemAdvise on a GPU device requires the GPU device to report a non-zero
-  // value for CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS. Therfore, ignore
-  // memory advise if concurrent managed memory access is not available.
-  if ((advice & UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION) ||
-      (advice & UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION) ||
-      (advice & UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_DEVICE) ||
-      (advice & UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_DEVICE) ||
-      (advice & UR_USM_ADVICE_FLAG_DEFAULT)) {
-    ur_device_handle_t Device = hQueue->getDevice();
-    if (!getAttribute(Device, CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS)) {
-      setErrorMessage("Mem advise ignored as device does not support "
-                      "concurrent managed access",
-                      UR_RESULT_SUCCESS);
-      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
-    }
-
-    // TODO: If ptr points to valid system-allocated pageable memory we should
-    // check that the device also has the
-    // CU_DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS property.
-  }
-
-  unsigned int IsManaged;
-  UR_CHECK_ERROR(cuPointerGetAttribute(
-      &IsManaged, CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr)pMem));
-  if (!IsManaged) {
-    setErrorMessage(
-        "Memory advice ignored as memory advices only works with USM",
-        UR_RESULT_SUCCESS);
-    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
-  }
-
-  ur_result_t Result = UR_RESULT_SUCCESS;
   std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
-
   try {
     ScopedContext Active(hQueue->getDevice());
 
     if (phEvent) {
-      EventPtr =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_USM_ADVISE, hQueue, hQueue->getNextTransferStream()));
+      EventPtr = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_USM_ADVISE, hQueue, hQueue->getNextTransferStream());
       UR_CHECK_ERROR(EventPtr->start());
     }
 
-    if (advice & UR_USM_ADVICE_FLAG_DEFAULT) {
-      UR_CHECK_ERROR(cuMemAdvise((CUdeviceptr)pMem, size,
-                                 CU_MEM_ADVISE_UNSET_READ_MOSTLY,
-                                 hQueue->getDevice()->get()));
-      UR_CHECK_ERROR(cuMemAdvise((CUdeviceptr)pMem, size,
-                                 CU_MEM_ADVISE_UNSET_PREFERRED_LOCATION,
-                                 hQueue->getDevice()->get()));
-      UR_CHECK_ERROR(cuMemAdvise((CUdeviceptr)pMem, size,
-                                 CU_MEM_ADVISE_UNSET_ACCESSED_BY,
-                                 hQueue->getDevice()->get()));
-    } else {
-      Result = setCuMemAdvise((CUdeviceptr)pMem, size, advice,
-                              hQueue->getDevice()->get());
+    // Ensure we release the event even on early exit
+    OnScopeExit ReleaseEvent([&]() {
+      if (phEvent) {
+        UR_CHECK_ERROR(EventPtr->record());
+        *phEvent = EventPtr.release();
+      }
+    });
+
+    // Certain cuda devices and Windows do not have support for some Unified
+    // Memory features. Passing CU_MEM_ADVISE_SET/CLEAR_PREFERRED_LOCATION and
+    // to cuMemAdvise on a GPU device requires the GPU device to report a
+    // non-zero value for CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS.
+    // Therfore, ignore memory advise if concurrent managed memory access is not
+    // available.
+    if ((advice & UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION) ||
+        (advice & UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION) ||
+        (advice & UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_DEVICE) ||
+        (advice & UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_DEVICE) ||
+        (advice & UR_USM_ADVICE_FLAG_DEFAULT)) {
+      ur_device_handle_t Device = hQueue->getDevice();
+      if (!getAttribute(Device,
+                        CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS)) {
+        UR_LOG(WARN, "Mem advise ignored as device does not support "
+                     "concurrent managed access.");
+        return UR_RESULT_SUCCESS;
+      }
+
+      // TODO: If ptr points to valid system-allocated pageable memory we should
+      // check that the device also has the
+      // CU_DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS property.
     }
 
-    if (phEvent) {
-      UR_CHECK_ERROR(EventPtr->record());
-      *phEvent = EventPtr.release();
+    unsigned int IsManaged;
+    UR_CHECK_ERROR(cuPointerGetAttribute(
+        &IsManaged, CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr)pMem));
+    if (!IsManaged) {
+      UR_LOG(WARN,
+             "Memory advice ignored as memory advices only works with USM.");
+      return UR_RESULT_SUCCESS;
+    }
+
+#if CUDA_VERSION >= 13000
+    CUmemLocation Location;
+    Location.id = hQueue->getDevice()->get();
+    Location.type = CU_MEM_LOCATION_TYPE_DEVICE;
+#else
+    int Location = hQueue->getDevice()->get();
+#endif
+
+    if (advice & UR_USM_ADVICE_FLAG_DEFAULT) {
+      UR_CHECK_ERROR(cuMemAdvise((CUdeviceptr)pMem, size,
+                                 CU_MEM_ADVISE_UNSET_READ_MOSTLY, Location));
+      UR_CHECK_ERROR(cuMemAdvise((CUdeviceptr)pMem, size,
+                                 CU_MEM_ADVISE_UNSET_PREFERRED_LOCATION,
+                                 Location));
+      UR_CHECK_ERROR(cuMemAdvise((CUdeviceptr)pMem, size,
+                                 CU_MEM_ADVISE_UNSET_ACCESSED_BY, Location));
+    } else {
+      setCuMemAdvise((CUdeviceptr)pMem, size, advice, Location);
     }
   } catch (ur_result_t err) {
-    Result = err;
+    return err;
   } catch (...) {
-    Result = UR_RESULT_ERROR_UNKNOWN;
+    return UR_RESULT_ERROR_UNKNOWN;
   }
-  return Result;
+
+  return UR_RESULT_SUCCESS;
 }
 
 // TODO: Implement this. Remember to return true for
@@ -1749,19 +1789,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     const void *pSrc, size_t srcPitch, size_t width, size_t height,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
   try {
     ScopedContext active(hQueue->getDevice());
     CUstream cuStream = hQueue->getNextTransferStream();
-    result = enqueueEventsWait(hQueue, cuStream, numEventsInWaitList,
-                               phEventWaitList);
+    UR_CHECK_ERROR(enqueueEventsWait(hQueue, cuStream, numEventsInWaitList,
+                                     phEventWaitList));
 
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_COPY_RECT, hQueue, cuStream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_BUFFER_COPY_RECT, hQueue, cuStream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -1790,9 +1827,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
       UR_CHECK_ERROR(cuStreamSynchronize(cuStream));
     }
   } catch (ur_result_t err) {
-    result = err;
+    return err;
   }
-  return result;
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
@@ -1821,9 +1859,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
                                      phEventWaitList));
 
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_READ, hQueue, Stream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_BUFFER_READ, hQueue, Stream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -1871,9 +1908,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
                                      phEventWaitList));
 
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_WRITE, hQueue, CuStream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_BUFFER_WRITE, hQueue, CuStream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -1981,8 +2017,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueWriteHostPipe(
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     ur_queue_handle_t hQueue, bool blocking, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-
-  ur_result_t Result = UR_RESULT_SUCCESS;
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
   try {
     ScopedContext Active(hQueue->getDevice());
@@ -1991,9 +2025,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
                                      phEventWaitList));
 
-    RetImplEvent =
-        std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-            UR_COMMAND_TIMESTAMP_RECORDING_EXP, hQueue, CuStream));
+    // We need the profiling stream for timestamps, so ensure it's created if
+    // the queue doesn't have profiling enabled.
+    if (!(hQueue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE)) {
+      hQueue->createHostSubmitTimeStream();
+    }
+
+    RetImplEvent = std::make_unique<ur_event_handle_t_>(
+        UR_COMMAND_TIMESTAMP_RECORDING_EXP, hQueue, CuStream);
     UR_CHECK_ERROR(RetImplEvent->start());
     UR_CHECK_ERROR(RetImplEvent->record());
 
@@ -2003,7 +2042,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 
     *phEvent = RetImplEvent.release();
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  return Result;
+
+  return UR_RESULT_SUCCESS;
 }

@@ -1,8 +1,6 @@
 // RUN: %{build} -o %t.out %cuda_options
 // RUN: %{run} %t.out
-// RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -o %t2.out %cuda_options %}
-// RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
-// REQUIRES: cuda, cuda_dev_kit
+// REQUIRES: target-nvidia, cuda_dev_kit
 
 #include <cuda.h>
 #include <sycl/backend.hpp>

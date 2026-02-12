@@ -12,6 +12,7 @@
 #include <umf/pools/pool_disjoint.h>
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 
@@ -70,6 +71,13 @@ public:
 // "1;32M;host:1M,4,64K;device:1M,4,64K;shared:0,0,2M"
 DisjointPoolAllConfigs parseDisjointPoolConfig(const std::string &config,
                                                int trace = 1);
+
+// Parse optional config parameters with optional return.
+// Returns std::nullopt when EnableBuffers is 0, indicating pooling is disabled.
+// This is for use cases where EnableBuffers flag controls pool creation,
+// particularly in the v2 Level Zero adapter.
+std::optional<DisjointPoolAllConfigs>
+parseDisjointPoolConfigOptional(const std::string &config, int trace = 1);
 
 static inline void UMF_CALL_THROWS(umf_result_t res) {
   if (res != UMF_RESULT_SUCCESS) {

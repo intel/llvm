@@ -9,7 +9,7 @@ from templates import helper as th
     X=x.upper()
 %>/*
  *
- * Copyright (C) 2023-2024 Intel Corporation
+ * Copyright (C) 2023 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
  * Exceptions.
@@ -99,14 +99,7 @@ def findMemberType(_item):
         ${x}::details::printUnion(os, ${deref}(params${access}${item['name']}), params${access}${th.param_traits.tagged_member(item)});
     %elif th.type_traits.is_array(item['type']):
         os << ".${iname} = {";
-        for(auto i = 0; i < ${th.type_traits.get_array_length(item['type'])}; i++){
-            if(i != 0){
-                os << ", ";
-            }
-            <%call expr="member(iname, itype, True)">
-                ${deref}(params${access}${item['name']}[i])
-            </%call>
-        }
+        ${x}::details::printArray<${th.type_traits.get_array_length(item['type'])}>(os, ${deref}params${access}${pname});
         os << "}";
     %elif typename is not None:
         os << ".${iname} = ";
@@ -125,7 +118,13 @@ template <typename T> struct is_handle : std::false_type {};
 %for spec in specs:
 %for obj in spec['objects']:
 %if th.type_traits.is_handle(th.make_type_name(n, tags, obj)) and not th.type_traits.is_native_handle(th.make_type_name(n, tags, obj)):
+%if 'guard' in obj:
+// ${obj['guard']}
+%endif
 template <> struct is_handle<${th.make_type_name(n, tags, obj)}> : std::true_type {};
+%if 'guard' in obj:
+// end ${obj['guard']}
+%endif
 %endif
 %endfor
 %endfor
@@ -134,42 +133,80 @@ inline constexpr bool is_handle_v = is_handle<T>::value;
 template <typename T> inline ${x}_result_t printPtr(std::ostream &os, const T *ptr);
 template <typename T> inline ${x}_result_t printFlag(std::ostream &os, uint32_t flag);
 template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const void *ptr, T value, size_t size);
+template <size_t size, typename T> inline ur_result_t printArray(std::ostream &os, const T *ptr);
 
 %for spec in specs:
 %for obj in spec['objects']:
 ## ENUM #######################################################################
 %if re.match(r"enum", obj['type']):
     %if obj.get('typed_etors', False) is True:
+%if 'guard' in obj:
+// ${obj['guard']}
+%endif
     template <> inline ${x}_result_t printTagged(std::ostream &os, const void *ptr, ${th.make_enum_name(n, tags, obj)} value, size_t size);
+%if 'guard' in obj:
+// end ${obj['guard']}
+%endif
     %elif "structure_type" in obj['name']:
+%if 'guard' in obj:
+// ${obj['guard']}
+%endif
     inline ${x}_result_t printStruct(std::ostream &os, const void *ptr);
+%if 'guard' in obj:
+// end ${obj['guard']}
+%endif
     %endif
 %endif
 
 ## UNION ######################################################################
 %if re.match(r"union", obj['type']) and obj['name']:
+%if 'guard' in obj:
+// ${obj['guard']}
+%endif
     <% tag = [_obj for _s in specs for _obj in _s['objects'] if _obj['name'] == obj['tag']][0] %>
     inline ${x}_result_t printUnion(
         std::ostream &os,
         const ${obj['type']} ${th.make_type_name(n, tags, obj)} params,
         const ${tag['type']} ${th.make_type_name(n, tags, tag)} tag
     );
+%if 'guard' in obj:
+// end ${obj['guard']}
+%endif
 %endif
 
 ## FLAG #######################################################################
 %if th.type_traits.is_flags(obj['name']):
+%if 'guard' in obj:
+// ${obj['guard']}
+%endif
     template<> inline ${x}_result_t printFlag<${th.make_enum_name(n, tags, obj)}>(std::ostream &os, uint32_t flag);
+%if 'guard' in obj:
+// end ${obj['guard']}
+%endif
 %endif
 %endfor # obj in spec['objects']
 %endfor
 } // namespace ${x}::details
 
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const ur_bool_t value);
 %for spec in specs:
 %for obj in spec['objects']:
 %if re.match(r"enum", obj['type']):
+%if 'guard' in obj:
+// ${obj['guard']}
+%endif
     inline std::ostream &operator<<(std::ostream &os, enum ${th.make_enum_name(n, tags, obj)} value);
+%if 'guard' in obj:
+// end ${obj['guard']}
+%endif
 %elif re.match(r"struct", obj['type']):
+%if 'guard' in obj:
+// ${obj['guard']}
+%endif
     inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const ${obj['type']} ${th.make_type_name(n, tags, obj)} params);
+%if 'guard' in obj:
+// end ${obj['guard']}
+%endif
 %endif
 %endfor # obj in spec['objects']
 %endfor
@@ -179,6 +216,9 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
 %for obj in spec['objects']:
 ## ENUM #######################################################################
 %if re.match(r"enum", obj['type']):
+%if 'guard' in obj:
+// ${obj['guard']}
+%endif
     ///////////////////////////////////////////////////////////////////////////////
     /// @brief Print operator for the ${th.make_enum_name(n, tags, obj)} type
     /// @returns
@@ -192,11 +232,17 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
     inline std::ostream &operator<<(std::ostream &os, enum ${th.make_enum_name(n, tags, obj)} value) {
         switch (value) {
             %for n, item in enumerate(th.get_etors(obj)):
+%if 'guard' in item:
+// ${item['guard']}
+%endif
                 <%
                 ename = th.make_etor_name(n, tags, obj['name'], item['name'])
                 %>case ${ename}:
                     os << "${ename}";
                     break;
+%if 'guard' in item:
+// end ${item['guard']}
+%endif
             %endfor
                 default:
                     os << "unknown enumerator";
@@ -204,8 +250,14 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
         }
         return os;
     }
+%if 'guard' in obj:
+// end ${obj['guard']}
+%endif
     %endif
     %if obj.get('typed_etors', False) is True:
+%if 'guard' in obj:
+// ${obj['guard']}
+%endif
     namespace ${x}::details {
     ///////////////////////////////////////////////////////////////////////////////
     /// @brief Print ${th.make_enum_name(n, tags, obj)} enum value
@@ -217,13 +269,16 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
 
         switch (value) {
             %for n, item in enumerate(th.get_etors(obj)):
+%if 'guard' in item:
+// ${item['guard']}
+%endif
                 <%
                 ename = th.make_etor_name(n, tags, obj['name'], item['name'])
                 vtype = th.etor_get_associated_type(n, tags, item)
                 %>case ${ename}: {
                     %if th.value_traits.is_array(vtype):
                     <% atype = th.value_traits.get_array_name(vtype) %>
-                    %if 'void' in atype:
+                    %if 'void' in atype or '*' in atype:
                     const ${atype} const *tptr = (const ${atype} const*)ptr;
                     %else:
                     const ${atype} *tptr = (const ${atype} *)ptr;
@@ -259,6 +314,9 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
                     </%call>
                     os << ")";
                     %endif
+%if 'guard' in item:
+// end ${item['guard']}
+%endif
                 } break;
             %endfor
                 default:
@@ -268,8 +326,14 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
         return ${X}_RESULT_SUCCESS;
     }
     } // namespace ${x}::details
+%if 'guard' in obj:
+// end ${obj['guard']}
+%endif
 
     %elif "structure_type" in obj['name']:
+%if 'guard' in obj:
+// ${obj['guard']}
+%endif
     namespace ${x}::details {
     ///////////////////////////////////////////////////////////////////////////////
     /// @brief Print ${th.make_enum_name(n, tags, obj)} struct
@@ -282,6 +346,9 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
         const enum ${th.make_enum_name(n, tags, obj)} *value = (const enum ${th.make_enum_name(n, tags, obj)} *)ptr;
         switch (*value) {
             %for n, item in enumerate(th.get_etors(obj)):
+%if 'guard' in item:
+// ${item['guard']}
+%endif
                 <%
                 ename = th.make_etor_name(n, tags, obj['name'], item['name'])
                 %>
@@ -289,6 +356,9 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
                     const ${th.subt(n, tags, item['desc'])} *pstruct = (const ${th.subt(n, tags, item['desc'])} *)ptr;
                     printPtr(os, pstruct);
                 } break;
+%if 'guard' in item:
+// end ${item['guard']}
+%endif
             %endfor
                 default:
                     os << "unknown enumerator";
@@ -297,9 +367,15 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
         return ${X}_RESULT_SUCCESS;
     }
     } // namespace ${x}::details
+%if 'guard' in obj:
+// end ${obj['guard']}
+%endif
     %endif
     %if th.type_traits.is_flags(obj['name']):
 
+%if 'guard' in obj:
+// ${obj['guard']}
+%endif
     namespace ${x}::details {
     ///////////////////////////////////////////////////////////////////////////////
     /// @brief Print ${th.make_enum_name(n, tags, obj)} flag
@@ -308,6 +384,9 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
         uint32_t val = flag;
         bool first = true;
         %for n, item in enumerate(th.get_etors(obj)):
+%if 'guard' in item:
+// ${item['guard']}
+%endif
             <%
             ename = th.make_etor_name(n, tags, obj['name'], item['name'])
             %>
@@ -323,6 +402,9 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
                 }
                 os << ${ename};
             }
+%if 'guard' in item:
+// end ${item['guard']}
+%endif
         %endfor
         if (val != 0) {
             std::bitset<32> bits(val);
@@ -336,9 +418,15 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
         return ${X}_RESULT_SUCCESS;
     }
     } // namespace ${x}::details
+%if 'guard' in obj:
+// end ${obj['guard']}
+%endif
     %endif
 ## STRUCT #####################################################################
 %elif re.match(r"struct", obj['type']):
+%if 'guard' in obj:
+// ${obj['guard']}
+%endif
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ${th.make_type_name(n, tags, obj)} type
 /// @returns
@@ -354,13 +442,25 @@ inline std::ostream &operator<<(std::ostream &os, const ${obj['type']} ${th.make
             params_dict[iname] = itype
     %>
     %for n, item in enumerate(mlist):
+%if 'guard' in item:
+// ${item['guard']}
+%endif
         ${line(item, n, False, params_dict)}
+%if 'guard' in item:
+// end ${item['guard']}
+%endif
     %endfor
     os << "}";
     return os;
 }
+%if 'guard' in obj:
+// end ${obj['guard']}
+%endif
 ## UNION ######################################################################
 %elif re.match(r"union", obj['type']) and obj['name']:
+%if 'guard' in obj:
+// ${obj['guard']}
+%endif
 namespace ${x}::details {
 <% tag = findUnionTag(obj) %>
     ///////////////////////////////////////////////////////////////////////////////
@@ -392,6 +492,9 @@ for item in obj['members']:
     return ${X}_RESULT_SUCCESS;
 }
 } // namespace ${x}::details
+%if 'guard' in obj:
+// end ${obj['guard']}
+%endif
 %endif
 %endfor # obj in spec['objects']
 %endfor
@@ -399,6 +502,9 @@ for item in obj['members']:
 %for tbl in th.get_pfncbtables(specs, meta, n, tags):
 %for obj in tbl['functions']:
 
+%if 'guard' in obj:
+// ${obj['guard']}
+%endif
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ${th.make_pfncb_param_type(n, tags, obj)} type
 /// @returns
@@ -416,6 +522,9 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     %endfor
     return os;
 }
+%if 'guard' in obj:
+// end ${obj['guard']}
+%endif
 
 %endfor
 %endfor
@@ -449,6 +558,25 @@ template <typename T> inline ${x}_result_t printPtr(std::ostream &os, const T *p
 
     return ${X}_RESULT_SUCCESS;
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// @brief Print array of literals
+template <size_t size, typename T>
+inline ur_result_t printArray(std::ostream &os, const T *ptr) {
+  if(ptr == NULL)  {
+    return printPtr(os, ptr);
+  }
+
+  for (size_t i = 0; i < size; i++) {
+    if (i != 0) {
+      os << ", ";
+    }
+
+    os << ptr[i];
+  }
+
+  return ${X}_RESULT_SUCCESS;
+}
 } // namespace ${x}::details
 
 namespace ${x}::extras {
@@ -467,9 +595,15 @@ inline ${x}_result_t ${X}_APICALL printFunctionParams(std::ostream &os, ur_funct
     switch(function) {
     %for tbl in th.get_pfncbtables(specs, meta, n, tags):
     %for obj in tbl['functions']:
+%if 'guard' in obj:
+// ${obj['guard']}
+%endif
         case ${th.make_func_etor(n, tags, obj)}: {
             os << (const struct ${th.make_pfncb_param_type(n, tags, obj)} *)params;
         } break;
+%if 'guard' in obj:
+// end ${obj['guard']}
+%endif
     %endfor
     %endfor
         default: return ${X}_RESULT_ERROR_INVALID_ENUMERATION;

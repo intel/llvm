@@ -1,8 +1,9 @@
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: %{run} %t.out
-// RUN: %if preview-breaking-changes-supported %{ %{build} %level_zero_options -fpreview-breaking-changes -o %t2.out %}
-// RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
 // REQUIRES: level_zero, level_zero_dev_kit
+
+// UNSUPPORTED: level_zero_v2_adapter
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17847
 
 #include <level_zero/ze_api.h>
 #include <sycl/backend.hpp>
@@ -14,6 +15,15 @@ namespace exp_ext = sycl::ext::oneapi::experimental;
 using namespace sycl;
 
 int main() {
+  // Initializing Level Zero driver is required if this test is linked
+  // statically with Level Zero loader, otherwise the driver will not be
+  // initialized.
+  ze_result_t result = zeInit(ZE_INIT_FLAG_GPU_ONLY);
+  if (result != ZE_RESULT_SUCCESS) {
+    std::cout << "zeInit failed with error code: " << result << std::endl;
+    return 1;
+  }
+
   queue Queue;
 
   const size_t Size = 128;

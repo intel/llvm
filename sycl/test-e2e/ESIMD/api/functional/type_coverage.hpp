@@ -287,7 +287,7 @@ template <typename T, T... values> struct value_pack {
 
   // Factory function to generate the type pack using generator function
   //
-  // It could be especially usefull for value packs with enums. For example:
+  // It could be especially useful for value packs with enums. For example:
   //   enum class access {read, write};
   //   template <access ... values>
   //   using access_pack = value_pack<access, values...>;

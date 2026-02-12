@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clcmacro.h>
 #include <libspirv/spirv.h>
 
 #define __CLC_FUNCTION __spirv_ocl_pow
@@ -27,4 +26,4 @@ half __ocml_pow_f16(half, half);
 #define __CLC_BUILTIN_H __CLC_XCONCAT(__CLC_BUILTIN, _f16)
 #endif // cl_khr_fp16
 
-#include <math/binary_builtin.inc>
+#include <clc/math/binary_builtin.inc>

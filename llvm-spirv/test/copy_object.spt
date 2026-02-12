@@ -27,7 +27,7 @@
 3 FunctionParameter 9 2
 
 2 Label 13
-6 Load 5 14 3 2 0
+4 Load 5 14 3
 5 CompositeExtract 4 15 14 0
 5 ShiftLeftLogical 4 16 15 11
 5 ShiftRightArithmetic 4 17 16 11

@@ -108,12 +108,18 @@ def compare_results(ref_records, records):
     missing_records = set(ref_records).difference(set(records))
     new_records = set(records).difference(set(ref_records))
 
-    return (missing_records, new_records)
+    is_order_incorrect = False
+    # If missing_records and new_records is null, check the order of symbols.
+    if not missing_records and not new_records:
+        if ref_records != records:
+            is_order_incorrect = True
+
+    return (missing_records, new_records, is_order_incorrect)
 
 
 # Dumps symbols from from binary at target_path and compares with a snapshot
 # stored at ref_path. Reports new and absent symbols (if there are any).
-def check_symbols(ref_path, target_path):
+def check_symbols(ref_path, target_path, ignore_new):
     with open(ref_path, "r") as ref:
         ref_symbols = []
         for line in ref:
@@ -129,8 +135,11 @@ def check_symbols(ref_path, target_path):
             ]
         )
         symbols = parse_readobj_output(readobj_out)
+        symbols.sort()
 
-        missing_symbols, new_symbols = compare_results(ref_symbols, symbols)
+        missing_symbols, new_symbols, is_order_incorrect = compare_results(
+            ref_symbols, symbols
+        )
 
         correct_return = True
         if missing_symbols:
@@ -145,7 +154,7 @@ def check_symbols(ref_path, target_path):
             print("The following symbols are missing from the new object file:\n")
             print("\n".join(missing_symbols))
 
-        if new_symbols:
+        if new_symbols and not ignore_new:
             correct_return = False
             print(
                 (
@@ -155,6 +164,17 @@ def check_symbols(ref_path, target_path):
             )
             print("The following symbols are new to the object file:\n")
             print("\n".join(new_symbols))
+
+        if is_order_incorrect:
+            correct_return = False
+            print(
+                (
+                    "The order of ABI symbols is incorrect. While it is not a breaking "
+                    "change, please refrain from manually editing the ABI symbol dump file. "
+                    "Refer to sycl/doc/developer/ABIPolicyGuide.md for instructions on automatically "
+                    "updating the ABI symbol dump file."
+                )
+            )
 
         if not correct_return:
             sys.exit(-1)
@@ -171,6 +191,7 @@ def main():
     )
     parser.add_argument("--reference", type=str, help="Reference ABI dump")
     parser.add_argument("--output", type=str, help="Output for dump modes")
+    parser.add_argument("--ignore-new", action="store_true", help="Allow new symbols")
     parser.add_argument("target_library", type=str)
 
     args = parser.parse_args()
@@ -179,7 +200,7 @@ def main():
         if args.reference is None:
             print("Please specify --reference option. Quiting.")
             sys.exit(-2)
-        check_symbols(args.reference, args.target_library)
+        check_symbols(args.reference, args.target_library, args.ignore_new)
     elif args.mode == "dump_symbols":
         if args.output is None:
             print("Please specify --output option. Quiting.")

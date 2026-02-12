@@ -6,64 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/atomic/clc_atomic_dec.h>
+#include <libspirv/atomic/atomic_helper.h>
 #include <libspirv/spirv.h>
 
-// TODO: Stop manually mangling this name. Need C++ namespaces to get the exact mangling.
+#define __CLC_FUNCTION __spirv_AtomicIDecrement
+#define __CLC_IMPL_FUNCTION __clc_atomic_dec
+#define __CLC_NO_VALUE_ARG
 
-_CLC_DEF int
-_Z24__spirv_AtomicIDecrementPU3AS3iN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(
-    volatile local int *p, enum Scope scope,
-    enum MemorySemanticsMask semantics) {
-  return __sync_fetch_and_sub(p, (int)1);
-}
-
-_CLC_DEF int
-_Z24__spirv_AtomicIDecrementPU3AS1iN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(
-    volatile global int *p, enum Scope scope,
-    enum MemorySemanticsMask semantics) {
-  return __sync_fetch_and_sub(p, (int)1);
-}
-
-_CLC_DEF uint
-_Z24__spirv_AtomicIDecrementPU3AS3jN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(
-    volatile local uint *p, enum Scope scope,
-    enum MemorySemanticsMask semantics) {
-  return __sync_fetch_and_sub(p, (uint)1);
-}
-
-_CLC_DEF uint
-_Z24__spirv_AtomicIDecrementPU3AS1jN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(
-    volatile global uint *p, enum Scope scope,
-    enum MemorySemanticsMask semantics) {
-  return __sync_fetch_and_sub(p, (uint)1);
-}
-
-#ifdef cl_khr_int64_base_atomics
-_CLC_DEF long
-_Z24__spirv_AtomicIDecrementPU3AS3lN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(
-    volatile local long *p, enum Scope scope,
-    enum MemorySemanticsMask semantics) {
-  return __sync_fetch_and_sub(p, (long)1);
-}
-
-_CLC_DEF long
-_Z24__spirv_AtomicIDecrementPU3AS1lN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(
-    volatile global long *p, enum Scope scope,
-    enum MemorySemanticsMask semantics) {
-  return __sync_fetch_and_sub(p, (long)1);
-}
-
-_CLC_DEF ulong
-_Z24__spirv_AtomicIDecrementPU3AS3mN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(
-    volatile local ulong *p, enum Scope scope,
-    enum MemorySemanticsMask semantics) {
-  return __sync_fetch_and_sub(p, (ulong)1);
-}
-
-_CLC_DEF ulong
-_Z24__spirv_AtomicIDecrementPU3AS1mN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(
-    volatile global ulong *p, enum Scope scope,
-    enum MemorySemanticsMask semantics) {
-  return __sync_fetch_and_sub(p, (ulong)1);
-}
-#endif
+#define __CLC_BODY <atomic_def.inc>
+#include <clc/integer/gentype.inc>

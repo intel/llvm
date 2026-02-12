@@ -4,15 +4,12 @@ set(LLVM_LINK_COMPONENTS
   BitReader
   BitWriter
   Core
+  IRReader
   Passes
   Support
   TargetParser
   TransformUtils
 )
-
-if(SPIRV_BACKEND_FOUND)
-  list(APPEND LLVM_LINK_COMPONENTS "SPIRVCodeGen")
-endif()
 
 # llvm_setup_rpath messes with the rpath making llvm-spirv not
 # executable from the build directory in out-of-tree builds

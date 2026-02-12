@@ -25,15 +25,20 @@ from templates import helper as th
 #pragma once
 
 #include <ur_api.h>
+#include "queue_extensions.hpp"
 
-struct ur_queue_t_ {
+struct ur_queue_t_ : ur_queue_extensions {
     virtual ~ur_queue_t_();
-
-    virtual void deferEventFree(ur_event_handle_t hEvent) = 0;
 
     %for obj in th.get_queue_related_functions(specs, n, tags):
     %if not 'Release' in obj['name'] and not 'Retain' in obj['name']:
+%if 'guard' in obj:
+#if ${obj['guard']}
+%endif
     virtual ${x}_result_t ${th.transform_queue_related_function_name(n, tags, obj, format=["type"])} = 0;
+%if 'guard' in obj:
+#endif // ${obj['guard']}
+%endif
     %endif
     %endfor
 };

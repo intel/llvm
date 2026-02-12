@@ -46,7 +46,7 @@ CGCXXABI::RecordArgABI getRecordArgABI(const RecordType *RT, CGCXXABI &CXXABI);
 CGCXXABI::RecordArgABI getRecordArgABI(QualType T, CGCXXABI &CXXABI);
 
 bool classifyReturnType(const CGCXXABI &CXXABI, CGFunctionInfo &FI,
-                        const ABIInfo &Info);
+                        const ABIInfo &Info, CodeGenTypes &CGT);
 
 /// Pass transparent unions as if they were the type of the first element. Sema
 /// should ensure that all elements of the union have the same "machine type".

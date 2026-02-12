@@ -92,10 +92,6 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
 TEST_P(urMemImageCreateTestWith1DMemoryTypeParam, Success) {
   UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) FPGA"});
 
-  if (getParam() == UR_MEM_TYPE_IMAGE1D_ARRAY) {
-    UUR_KNOWN_FAILURE_ON(uur::CUDA{});
-  }
-
   ur_image_desc_t image_desc_with_param{
       UR_STRUCTURE_TYPE_IMAGE_DESC, ///< [in] type of this structure
       nullptr,    ///< [in][optional] pointer to extension-specific structure
@@ -127,10 +123,6 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
 
 TEST_P(urMemImageCreateTestWith2DMemoryTypeParam, Success) {
   UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) FPGA"});
-
-  if (getParam() == UR_MEM_TYPE_IMAGE2D_ARRAY) {
-    UUR_KNOWN_FAILURE_ON(uur::CUDA{});
-  }
 
   ur_image_desc_t image_desc_with_param{
       UR_STRUCTURE_TYPE_IMAGE_DESC, ///< [in] type of this structure

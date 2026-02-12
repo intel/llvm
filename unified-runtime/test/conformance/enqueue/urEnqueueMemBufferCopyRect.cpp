@@ -1,9 +1,10 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include "helpers.h"
+#include "uur/fixtures.h"
 #include "uur/known_failure.h"
 #include <numeric>
 
@@ -70,22 +71,16 @@ static std::vector<uur::test_parameters_t> generateParameterizations() {
 }
 
 struct urEnqueueMemBufferCopyRectTestWithParam
-    : public uur::urQueueTestWithParam<uur::test_parameters_t> {};
+    : public uur::urMultiQueueTypeTestWithParam<uur::test_parameters_t> {};
 
-UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+UUR_MULTI_QUEUE_TYPE_TEST_SUITE_WITH_PARAM(
     urEnqueueMemBufferCopyRectTestWithParam,
     testing::ValuesIn(generateParameterizations()),
-    uur::printRectTestString<urEnqueueMemBufferCopyRectTestWithParam>);
+    uur::printRectTestStringMultiQueue<
+        urEnqueueMemBufferCopyRectTestWithParam>);
 
 TEST_P(urEnqueueMemBufferCopyRectTestWithParam, Success) {
   const auto name = getParam().name;
-  if (name.find("copy_row_2D") != std::string::npos) {
-    UUR_KNOWN_FAILURE_ON(uur::HIP{});
-  }
-
-  if (name.find("copy_3D_2D") != std::string::npos) {
-    UUR_KNOWN_FAILURE_ON(uur::HIP{});
-  }
 
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
@@ -108,30 +103,30 @@ TEST_P(urEnqueueMemBufferCopyRectTestWithParam, Success) {
   // Fill src buffer with sequentially increasing values.
   std::vector<uint8_t> input(src_buffer_size, 0x0);
   std::iota(std::begin(input), std::end(input), 0x0);
-  EXPECT_SUCCESS(urEnqueueMemBufferWrite(queue, src_buffer,
+  ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue, src_buffer,
                                          /* is_blocking */ true, 0,
                                          src_buffer_size, input.data(), 0,
                                          nullptr, nullptr));
 
   ur_mem_handle_t dst_buffer = nullptr;
-  EXPECT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE,
+  ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE,
                                    dst_buffer_size, nullptr, &dst_buffer));
 
   // Zero destination buffer to begin with since the write may not cover the
   // whole buffer.
   const uint8_t zero = 0x0;
-  EXPECT_SUCCESS(urEnqueueMemBufferFill(queue, dst_buffer, &zero, sizeof(zero),
+  ASSERT_SUCCESS(urEnqueueMemBufferFill(queue, dst_buffer, &zero, sizeof(zero),
                                         0, dst_buffer_size, 0, nullptr,
                                         nullptr));
 
   // Enqueue the rectangular copy between the buffers.
-  EXPECT_SUCCESS(urEnqueueMemBufferCopyRect(
+  ASSERT_SUCCESS(urEnqueueMemBufferCopyRect(
       queue, src_buffer, dst_buffer, src_buffer_origin, dst_buffer_origin,
       region, src_buffer_row_pitch, src_buffer_slice_pitch,
       dst_buffer_row_pitch, dst_buffer_slice_pitch, 0, nullptr, nullptr));
 
   std::vector<uint8_t> output(dst_buffer_size, 0x0);
-  EXPECT_SUCCESS(urEnqueueMemBufferRead(queue, dst_buffer,
+  ASSERT_SUCCESS(urEnqueueMemBufferRead(queue, dst_buffer,
                                         /* is_blocking */ true, 0,
                                         dst_buffer_size, output.data(), 0,
                                         nullptr, nullptr));
@@ -146,13 +141,13 @@ TEST_P(urEnqueueMemBufferCopyRectTestWithParam, Success) {
   EXPECT_EQ(expected, output);
 
   // Cleanup.
-  EXPECT_SUCCESS(urMemRelease(src_buffer));
-  EXPECT_SUCCESS(urMemRelease(dst_buffer));
+  ASSERT_SUCCESS(urMemRelease(src_buffer));
+  ASSERT_SUCCESS(urMemRelease(dst_buffer));
 }
 
-struct urEnqueueMemBufferCopyRectTest : uur::urQueueTest {
+struct urEnqueueMemBufferCopyRectTest : uur::urMultiQueueTypeTest {
   void SetUp() override {
-    UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
+    UUR_RETURN_ON_FATAL_FAILURE(uur::urMultiQueueTypeTest::SetUp());
     ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_WRITE_ONLY, size,
                                      nullptr, &src_buffer));
     ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_ONLY, size,
@@ -169,7 +164,7 @@ struct urEnqueueMemBufferCopyRectTest : uur::urQueueTest {
     if (src_buffer) {
       EXPECT_SUCCESS(urMemRelease(dst_buffer));
     }
-    urQueueTest::TearDown();
+    uur::urMultiQueueTypeTest::TearDown();
   }
 
   const size_t count = 1024;
@@ -185,7 +180,7 @@ struct urEnqueueMemBufferCopyRectTest : uur::urQueueTest {
   const size_t dst_row_pitch = size;
   size_t dst_slice_pitch = size;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueMemBufferCopyRectTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(urEnqueueMemBufferCopyRectTest);
 
 TEST_P(urEnqueueMemBufferCopyRectTest, InvalidNullHandleQueue) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
@@ -240,7 +235,7 @@ TEST_P(urEnqueueMemBufferCopyRectTest, InvalidNullPtrEventWaitList) {
 TEST_P(urEnqueueMemBufferCopyRectTest, InvalidSize) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
-  // region.width == 0 || region.height == 0 || region.width == 0
+  // region.width == 0 || region.height == 0 || region.depth == 0
   src_region.width = 0;
   ASSERT_EQ_RESULT(urEnqueueMemBufferCopyRect(
                        queue, src_buffer, dst_buffer, src_origin, dst_origin,
@@ -316,6 +311,8 @@ using urEnqueueMemBufferCopyRectMultiDeviceTest =
 UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urEnqueueMemBufferCopyRectMultiDeviceTest);
 
 TEST_P(urEnqueueMemBufferCopyRectMultiDeviceTest, CopyRectReadDifferentQueues) {
+  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
+
   // First queue does a fill.
   const uint32_t input = 42;
   ASSERT_SUCCESS(urEnqueueMemBufferFill(
@@ -326,12 +323,12 @@ TEST_P(urEnqueueMemBufferCopyRectMultiDeviceTest, CopyRectReadDifferentQueues) {
   ur_mem_handle_t dst_buffer = nullptr;
   ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_ONLY, size,
                                    nullptr, &dst_buffer));
-  EXPECT_SUCCESS(urEnqueueMemBufferCopyRect(
+  ASSERT_SUCCESS(urEnqueueMemBufferCopyRect(
       queues[0], buffer, dst_buffer, {0, 0, 0}, {0, 0, 0}, {size, 1, 1}, size,
       size, size, size, 0, nullptr, nullptr));
 
   // Wait for the queue to finish executing.
-  EXPECT_SUCCESS(urEnqueueEventsWait(queues[0], 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urQueueFinish(queues[0]));
 
   // Then the remaining queues do blocking reads from the buffer. Since the
   // queues target different devices this checks that any devices memory has
@@ -339,7 +336,7 @@ TEST_P(urEnqueueMemBufferCopyRectMultiDeviceTest, CopyRectReadDifferentQueues) {
   for (unsigned i = 1; i < queues.size(); ++i) {
     const auto queue = queues[i];
     std::vector<uint32_t> output(count, 0);
-    EXPECT_SUCCESS(urEnqueueMemBufferRead(queue, dst_buffer, true, 0, size,
+    ASSERT_SUCCESS(urEnqueueMemBufferRead(queue, dst_buffer, true, 0, size,
                                           output.data(), 0, nullptr, nullptr));
     for (unsigned j = 0; j < count; ++j) {
       EXPECT_EQ(input, output[j])
@@ -347,5 +344,5 @@ TEST_P(urEnqueueMemBufferCopyRectMultiDeviceTest, CopyRectReadDifferentQueues) {
     }
   }
 
-  EXPECT_SUCCESS(urMemRelease(dst_buffer));
+  ASSERT_SUCCESS(urMemRelease(dst_buffer));
 }

@@ -42,7 +42,7 @@ struct ur_kernel_handle_t_ : RefCounted {
 
   ~ur_kernel_handle_t_() {
     removeArgReferences();
-    free(_localMemPool);
+    native_cpu::aligned_free(_localMemPool);
   }
 
   ur_kernel_handle_t_(ur_program_handle_t hProgram, const char *name,
@@ -59,7 +59,6 @@ struct ur_kernel_handle_t_ : RefCounted {
     args_index_t Indices;
     std::vector<size_t> ParamSizes;
     std::vector<bool> OwnsMem;
-    static constexpr size_t MaxAlign = 16 * sizeof(double);
 
     arguments() = default;
 
@@ -109,11 +108,7 @@ struct ur_kernel_handle_t_ : RefCounted {
         }
       }
       if (NeedAlloc) {
-        size_t Align = MaxAlign;
-        while (Align > Size) {
-          Align >>= 1;
-        }
-        Indices[Index] = native_cpu::aligned_malloc(Align, Size);
+        Indices[Index] = native_cpu::aligned_malloc(Size);
         ParamSizes[Index] = Size;
         OwnsMem[Index] = true;
       }
@@ -158,8 +153,8 @@ struct ur_kernel_handle_t_ : RefCounted {
     if (reqSize == 0 || reqSize == _localMemPoolSize) {
       return;
     }
-    // realloc handles nullptr case
-    _localMemPool = (char *)realloc(_localMemPool, reqSize);
+    native_cpu::aligned_free(_localMemPool);
+    _localMemPool = static_cast<char *>(native_cpu::aligned_malloc(reqSize));
     _localMemPoolSize = reqSize;
   }
 
@@ -186,15 +181,42 @@ struct ur_kernel_handle_t_ : RefCounted {
     return Result;
   }
 
-  void addArg(const void *Ptr, size_t Index, size_t Size) {
+  inline ur_result_t addArg(const void *Ptr, size_t Index, size_t Size) {
+    UR_ASSERT(Size, UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE);
     Args.addArg(Index, Size, Ptr);
+    return UR_RESULT_SUCCESS;
   }
 
-  void addPtrArg(void *Ptr, size_t Index) { Args.addPtrArg(Index, Ptr); }
+  inline ur_result_t addPtrArg(void *Ptr, size_t Index) {
+    UR_ASSERT(Ptr, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+    Args.addPtrArg(Index, Ptr);
+    return UR_RESULT_SUCCESS;
+  }
 
   void addArgReference(ur_mem_handle_t Arg) {
     Arg->incrementReferenceCount();
     ReferencedArgs.push_back(Arg);
+  }
+
+  inline ur_result_t addMemObjArg(ur_mem_handle_t ArgValue, size_t Index) {
+    // Taken from ur/adapters/cuda/kernel.cpp
+    // zero-sized buffers are expected to be null.
+    if (ArgValue == nullptr) {
+      addPtrArg(nullptr, Index);
+      return UR_RESULT_SUCCESS;
+    }
+
+    addArgReference(ArgValue);
+    addPtrArg(ArgValue->_mem, Index);
+    return UR_RESULT_SUCCESS;
+  }
+
+  inline ur_result_t addLocalArg(size_t Index, size_t Size) {
+    // emplace a placeholder kernel arg, gets replaced with a pointer to the
+    // memory pool before enqueueing the kernel.
+    Args.addPtrArg(Index, nullptr);
+    _localArgInfo.emplace_back(Index, Size);
+    return UR_RESULT_SUCCESS;
   }
 
 private:

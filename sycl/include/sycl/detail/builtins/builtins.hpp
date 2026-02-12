@@ -63,11 +63,13 @@
 
 #pragma once
 
+#include <sycl/detail/helpers.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/detail/type_traits/vec_marray_traits.hpp>
 #include <sycl/detail/vector_convert.hpp>
-#include <sycl/marray.hpp> // for marray
-#include <sycl/vector.hpp> // for vec
+#include <sycl/marray.hpp>
+#include <sycl/multi_ptr.hpp>
+#include <sycl/vector.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -305,12 +307,14 @@ struct builtin_enable
 } // namespace _V1
 } // namespace sycl
 
-// The headers below are specifically implemented without including all the
-// necessary headers to allow preprocessing them on their own and providing
-// human-friendly result. One can use a command like this to achieve that:
-// clang++ -[DU]__SYCL_DEVICE_ONLY__ -x c++ math_functions.inc
-//         -I <..>/llvm/sycl/include -E -o -
-//     | grep -v '^#' | clang-format > math_functions.{host|device}.ii
+/*
+The headers below are specifically implemented without including all the
+necessary headers to allow preprocessing them on their own and providing
+human-friendly result. One can use a command like this to achieve that:
+clang++ -[DU]__SYCL_DEVICE_ONLY__ -x c++ math_functions.inc  \
+        -I <..>/llvm/sycl/include -E -o - \
+    | grep -v '^#' | clang-format > math_functions.{host|device}.ii
+*/
 
 #include <sycl/detail/builtins/common_functions.inc>
 #include <sycl/detail/builtins/geometric_functions.inc>

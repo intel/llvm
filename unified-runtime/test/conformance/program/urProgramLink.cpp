@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -12,11 +12,10 @@ struct urProgramLinkTest : uur::urProgramTest {
     UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::SetUp());
     // TODO: This should use a query for urProgramCreateWithIL support or
     // rely on UR_RESULT_ERROR_UNSUPPORTED_FEATURE being returned.
-    ur_platform_backend_t backend;
+    ur_backend_t backend;
     ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
-                                     sizeof(ur_platform_backend_t), &backend,
-                                     nullptr));
-    if (backend == UR_PLATFORM_BACKEND_HIP) {
+                                     sizeof(ur_backend_t), &backend, nullptr));
+    if (backend == UR_BACKEND_HIP) {
       GTEST_SKIP();
     }
     ASSERT_SUCCESS(urProgramCompile(context, program, nullptr));
@@ -31,7 +30,7 @@ struct urProgramLinkTest : uur::urProgramTest {
 
   ur_program_handle_t linked_program = nullptr;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urProgramLinkTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urProgramLinkTest);
 
 TEST_P(urProgramLinkTest, Success) {
   // This entry point isn't implemented for HIP.
@@ -78,33 +77,34 @@ TEST_P(urProgramLinkTest, SetOutputOnZeroCount) {
             reinterpret_cast<ur_program_handle_t>(&invalid_pointer));
 }
 
-struct urProgramLinkErrorTest : uur::urQueueTest {
+struct urProgramLinkErrorTest : uur::urMultiQueueTypeTest {
   const std::string linker_error_program_name = "linker_error";
 
   void SetUp() override {
-    // We haven't got device code tests working on native cpu yet.
-    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
-
-    UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
+    UUR_RETURN_ON_FATAL_FAILURE(urMultiQueueTypeTest::SetUp());
     // TODO: This should use a query for urProgramCreateWithIL support or
     // rely on UR_RESULT_ERROR_UNSUPPORTED_FEATURE being returned.
-    ur_platform_backend_t backend;
+    ur_backend_t backend;
     ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
-                                     sizeof(ur_platform_backend_t), &backend,
-                                     nullptr));
-    if (backend == UR_PLATFORM_BACKEND_HIP) {
+                                     sizeof(ur_backend_t), &backend, nullptr));
+    if (backend == UR_BACKEND_HIP) {
       GTEST_SKIP();
     }
     // Don't know how to produce alinker error on CUDA
-    if (backend == UR_PLATFORM_BACKEND_CUDA) {
+    if (backend == UR_BACKEND_CUDA) {
+      GTEST_SKIP();
+    }
+    // Not meaningful for liboffload
+    if (backend == UR_BACKEND_OFFLOAD) {
       GTEST_SKIP();
     }
 
     std::shared_ptr<std::vector<char>> il_binary{};
     UUR_RETURN_ON_FATAL_FAILURE(uur::KernelsEnvironment::instance->LoadSource(
         linker_error_program_name, platform, il_binary));
-    ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
-        platform, context, device, *il_binary, nullptr, &program));
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::KernelsEnvironment::instance->CreateProgram(
+            platform, context, device, *il_binary, nullptr, &program));
     ASSERT_SUCCESS(urProgramCompile(context, program, nullptr));
   }
 
@@ -112,13 +112,13 @@ struct urProgramLinkErrorTest : uur::urQueueTest {
     if (linked_program) {
       EXPECT_SUCCESS(urProgramRelease(linked_program));
     }
-    UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::TearDown());
+    UUR_RETURN_ON_FATAL_FAILURE(urMultiQueueTypeTest::TearDown());
   }
 
   ur_program_handle_t program = nullptr;
   ur_program_handle_t linked_program = nullptr;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urProgramLinkErrorTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urProgramLinkErrorTest);
 
 TEST_P(urProgramLinkErrorTest, LinkFailure) {
   ASSERT_EQ_RESULT(

@@ -12,6 +12,8 @@
 
 struct urUSMHostAllocTest : uur::urUSMAllocTest {
   void SetUp() override {
+    // https://github.com/intel/llvm/issues/20208
+    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
     UUR_RETURN_ON_FATAL_FAILURE(urUSMAllocTest::SetUp());
     ASSERT_SUCCESS(uur::GetDeviceUSMHostSupport(device, USMSupport));
     if (!USMSupport) {
@@ -45,18 +47,18 @@ TEST_P(urUSMHostAllocTest, Success) {
   uint8_t pattern = 0;
   ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
                                   allocation_size, 0, nullptr, &event));
-  EXPECT_SUCCESS(urQueueFlush(queue));
+  ASSERT_SUCCESS(urQueueFlush(queue));
   ASSERT_SUCCESS(urEventWait(1, &event));
-  EXPECT_SUCCESS(urEventRelease(event));
+  ASSERT_SUCCESS(urEventRelease(event));
   ASSERT_EQ(*reinterpret_cast<int *>(ptr), 0);
 
   // Set 1, in all bytes of int
   pattern = 1;
   ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
                                   allocation_size, 0, nullptr, &event));
-  EXPECT_SUCCESS(urQueueFlush(queue));
+  ASSERT_SUCCESS(urQueueFlush(queue));
   ASSERT_SUCCESS(urEventWait(1, &event));
-  EXPECT_SUCCESS(urEventRelease(event));
+  ASSERT_SUCCESS(urEventRelease(event));
 
   // replicate it on host
   int set_data = 0;
@@ -87,7 +89,7 @@ TEST_P(urUSMHostAllocTest, SuccessWithDescriptors) {
   ASSERT_SUCCESS(urEventWait(1, &event));
 
   ASSERT_SUCCESS(urUSMFree(context, ptr));
-  EXPECT_SUCCESS(urEventRelease(event));
+  ASSERT_SUCCESS(urEventRelease(event));
 }
 
 TEST_P(urUSMHostAllocTest, InvalidNullHandleContext) {
@@ -166,5 +168,5 @@ TEST_P(urUSMHostAllocAlignmentTest, SuccessAlignedAllocations) {
   ASSERT_SUCCESS(urEventWait(1, &event));
 
   ASSERT_SUCCESS(urUSMFree(context, ptr));
-  EXPECT_SUCCESS(urEventRelease(event));
+  ASSERT_SUCCESS(urEventRelease(event));
 }

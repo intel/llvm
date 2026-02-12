@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2023-2024 Intel Corporation
+ * Copyright (C) 2023 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
  * Exceptions.
@@ -42,6 +42,9 @@ template <>
 struct is_handle<ur_exp_command_buffer_handle_t> : std::true_type {};
 template <>
 struct is_handle<ur_exp_command_buffer_command_handle_t> : std::true_type {};
+template <> struct is_handle<ur_exp_graph_handle_t> : std::true_type {};
+template <>
+struct is_handle<ur_exp_executable_graph_handle_t> : std::true_type {};
 template <typename T> inline constexpr bool is_handle_v = is_handle<T>::value;
 template <typename T>
 inline ur_result_t printPtr(std::ostream &os, const T *ptr);
@@ -50,6 +53,8 @@ inline ur_result_t printFlag(std::ostream &os, uint32_t flag);
 template <typename T>
 inline ur_result_t printTagged(std::ostream &os, const void *ptr, T value,
                                size_t size);
+template <size_t size, typename T>
+inline ur_result_t printArray(std::ostream &os, const T *ptr);
 
 inline ur_result_t printStruct(std::ostream &os, const void *ptr);
 
@@ -105,6 +110,10 @@ printFlag<ur_device_usm_access_capability_flag_t>(std::ostream &os,
 template <>
 inline ur_result_t
 printFlag<ur_device_throttle_reasons_flag_t>(std::ostream &os, uint32_t flag);
+
+template <>
+inline ur_result_t
+printFlag<ur_kernel_launch_properties_flag_t>(std::ostream &os, uint32_t flag);
 
 template <>
 inline ur_result_t printFlag<ur_context_flag_t>(std::ostream &os,
@@ -218,6 +227,10 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
                                ur_profiling_info_t value, size_t size);
 
 template <>
+inline ur_result_t printFlag<ur_kernel_launch_flag_t>(std::ostream &os,
+                                                      uint32_t flag);
+
+template <>
 inline ur_result_t printFlag<ur_map_flag_t>(std::ostream &os, uint32_t flag);
 
 template <>
@@ -237,6 +250,18 @@ template <>
 inline ur_result_t printFlag<ur_exp_image_copy_flag_t>(std::ostream &os,
                                                        uint32_t flag);
 
+inline ur_result_t printUnion(std::ostream &os,
+                              const union ur_exp_kernel_arg_value_t params,
+                              const enum ur_exp_kernel_arg_type_t tag);
+
+template <>
+inline ur_result_t printFlag<ur_exp_program_flag_t>(std::ostream &os,
+                                                    uint32_t flag);
+
+template <>
+inline ur_result_t printTagged(std::ostream &os, const void *ptr,
+                               ur_exp_peer_info_t value, size_t size);
+
 template <>
 inline ur_result_t
 printFlag<ur_device_command_buffer_update_capability_flag_t>(std::ostream &os,
@@ -250,13 +275,9 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
                                ur_exp_command_buffer_command_info_t value,
                                size_t size);
 
-inline ur_result_t printUnion(std::ostream &os,
-                              const union ur_exp_launch_property_value_t params,
-                              const enum ur_exp_launch_property_id_t tag);
-
 template <>
-inline ur_result_t printTagged(std::ostream &os, const void *ptr,
-                               ur_exp_peer_info_t value, size_t size);
+inline ur_result_t printFlag<ur_exp_host_task_flag_t>(std::ostream &os,
+                                                      uint32_t flag);
 
 template <>
 inline ur_result_t printFlag<ur_exp_enqueue_ext_flag_t>(std::ostream &os,
@@ -269,6 +290,8 @@ printFlag<ur_exp_enqueue_native_command_flag_t>(std::ostream &os,
 
 } // namespace ur::details
 
+inline std::ostream &operator<<(std::ostream &os,
+                                [[maybe_unused]] const ur_bool_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_structure_type_t value);
@@ -285,6 +308,7 @@ operator<<(std::ostream &os,
 inline std::ostream &
 operator<<(std::ostream &os,
            [[maybe_unused]] const struct ur_rect_region_t params);
+inline std::ostream &operator<<(std::ostream &os, enum ur_backend_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_device_init_flag_t value);
 inline std::ostream &operator<<(std::ostream &os,
@@ -293,16 +317,13 @@ inline std::ostream &
 operator<<(std::ostream &os,
            [[maybe_unused]] const struct ur_code_location_t params);
 inline std::ostream &operator<<(std::ostream &os, enum ur_adapter_info_t value);
-inline std::ostream &operator<<(std::ostream &os,
-                                enum ur_adapter_backend_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_logger_level_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_platform_info_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_api_version_t value);
 inline std::ostream &operator<<(
     std::ostream &os,
     [[maybe_unused]] const struct ur_platform_native_properties_t params);
-inline std::ostream &operator<<(std::ostream &os,
-                                enum ur_platform_backend_t value);
 inline std::ostream &
 operator<<(std::ostream &os,
            [[maybe_unused]] const struct ur_device_binary_t params);
@@ -337,6 +358,8 @@ inline std::ostream &
 operator<<(std::ostream &os, enum ur_device_usm_access_capability_flag_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_device_throttle_reasons_flag_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_kernel_launch_properties_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_context_flag_t value);
 inline std::ostream &
 operator<<(std::ostream &os,
@@ -506,6 +529,17 @@ operator<<(std::ostream &os,
            [[maybe_unused]] const struct ur_event_native_properties_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_execution_info_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_kernel_launch_flag_t value);
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_kernel_launch_ext_properties_t params);
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_kernel_launch_cluster_property_t params);
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_kernel_launch_workgroup_property_t params);
 inline std::ostream &operator<<(std::ostream &os, enum ur_map_flag_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_usm_migration_flag_t value);
@@ -517,14 +551,21 @@ inline std::ostream &operator<<(std::ostream &os,
 inline std::ostream &operator<<(
     std::ostream &os,
     [[maybe_unused]] const struct ur_exp_async_usm_alloc_properties_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_usm_pool_buffer_desc_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_exp_image_copy_flag_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_exp_image_copy_input_types_t value);
 inline std::ostream &
 operator<<(std::ostream &os, enum ur_exp_sampler_cubemap_filter_mode_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_exp_external_mem_type_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_exp_external_semaphore_type_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_exp_image_mem_type_t value);
 inline std::ostream &
 operator<<(std::ostream &os,
            [[maybe_unused]] const struct ur_exp_file_descriptor_t params);
@@ -549,6 +590,18 @@ inline std::ostream &operator<<(
 inline std::ostream &
 operator<<(std::ostream &os,
            [[maybe_unused]] const struct ur_exp_image_copy_region_t params);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_exp_kernel_arg_type_t value);
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_exp_kernel_arg_mem_obj_tuple_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_exp_kernel_arg_properties_t params);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_exp_program_flag_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_exp_peer_info_t value);
 inline std::ostream &
 operator<<(std::ostream &os,
            enum ur_device_command_buffer_update_capability_flag_t value);
@@ -574,12 +627,10 @@ inline std::ostream &
 operator<<(std::ostream &os, [[maybe_unused]] const struct
            ur_exp_command_buffer_update_kernel_launch_desc_t params);
 inline std::ostream &operator<<(std::ostream &os,
-                                enum ur_exp_launch_property_id_t value);
+                                enum ur_exp_host_task_flag_t value);
 inline std::ostream &
 operator<<(std::ostream &os,
-           [[maybe_unused]] const struct ur_exp_launch_property_t params);
-inline std::ostream &operator<<(std::ostream &os,
-                                enum ur_exp_peer_info_t value);
+           [[maybe_unused]] const struct ur_exp_host_task_properties_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_exp_enqueue_ext_flag_t value);
 inline std::ostream &operator<<(
@@ -1099,12 +1150,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_LOADER_TEAR_DOWN:
     os << "UR_FUNCTION_LOADER_TEAR_DOWN";
     break;
-  case UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP:
-    os << "UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP";
-    break;
-  case UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP:
-    os << "UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP";
-    break;
   case UR_FUNCTION_PROGRAM_GET_GLOBAL_VARIABLE_POINTER:
     os << "UR_FUNCTION_PROGRAM_GET_GLOBAL_VARIABLE_POINTER";
     break;
@@ -1119,9 +1164,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     break;
   case UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP:
     os << "UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP";
-    break;
-  case UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP:
-    os << "UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP";
     break;
   case UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE:
     os << "UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE";
@@ -1234,6 +1276,100 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_USM_POOL_SET_INFO_EXP:
     os << "UR_FUNCTION_USM_POOL_SET_INFO_EXP";
     break;
+  case UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK:
+    os << "UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK";
+    break;
+  case UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK_LEVEL:
+    os << "UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK_LEVEL";
+    break;
+  case UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_UNSAMPLED_HANDLE_SUPPORT_EXP:
+    os << "UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_UNSAMPLED_HANDLE_SUPPORT_EXP";
+    break;
+  case UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_SAMPLED_HANDLE_SUPPORT_EXP:
+    os << "UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_SAMPLED_HANDLE_SUPPORT_EXP";
+    break;
+  case UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_MEMORY_HANDLE_TYPE_SUPPORT_EXP:
+    os << "UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_MEMORY_HANDLE_TYPE_SUPPORT_"
+          "EXP";
+    break;
+  case UR_FUNCTION_BINDLESS_IMAGES_FREE_MAPPED_LINEAR_MEMORY_EXP:
+    os << "UR_FUNCTION_BINDLESS_IMAGES_FREE_MAPPED_LINEAR_MEMORY_EXP";
+    break;
+  case UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT:
+    os << "UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT";
+    break;
+  case UR_FUNCTION_USM_CONTEXT_MEMCPY_EXP:
+    os << "UR_FUNCTION_USM_CONTEXT_MEMCPY_EXP";
+    break;
+  case UR_FUNCTION_MEMORY_EXPORT_ALLOC_EXPORTABLE_MEMORY_EXP:
+    os << "UR_FUNCTION_MEMORY_EXPORT_ALLOC_EXPORTABLE_MEMORY_EXP";
+    break;
+  case UR_FUNCTION_MEMORY_EXPORT_FREE_EXPORTABLE_MEMORY_EXP:
+    os << "UR_FUNCTION_MEMORY_EXPORT_FREE_EXPORTABLE_MEMORY_EXP";
+    break;
+  case UR_FUNCTION_MEMORY_EXPORT_EXPORT_MEMORY_HANDLE_EXP:
+    os << "UR_FUNCTION_MEMORY_EXPORT_EXPORT_MEMORY_HANDLE_EXP";
+    break;
+  case UR_FUNCTION_BINDLESS_IMAGES_SUPPORTS_IMPORTING_HANDLE_TYPE_EXP:
+    os << "UR_FUNCTION_BINDLESS_IMAGES_SUPPORTS_IMPORTING_HANDLE_TYPE_EXP";
+    break;
+  case UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP:
+    os << "UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP";
+    break;
+  case UR_FUNCTION_IPC_PUT_MEM_HANDLE_EXP:
+    os << "UR_FUNCTION_IPC_PUT_MEM_HANDLE_EXP";
+    break;
+  case UR_FUNCTION_IPC_OPEN_MEM_HANDLE_EXP:
+    os << "UR_FUNCTION_IPC_OPEN_MEM_HANDLE_EXP";
+    break;
+  case UR_FUNCTION_IPC_CLOSE_MEM_HANDLE_EXP:
+    os << "UR_FUNCTION_IPC_CLOSE_MEM_HANDLE_EXP";
+    break;
+  case UR_FUNCTION_DEVICE_WAIT_EXP:
+    os << "UR_FUNCTION_DEVICE_WAIT_EXP";
+    break;
+  case UR_FUNCTION_PROGRAM_DYNAMIC_LINK_EXP:
+    os << "UR_FUNCTION_PROGRAM_DYNAMIC_LINK_EXP";
+    break;
+  case UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP:
+    os << "UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP";
+    break;
+  case UR_FUNCTION_GRAPH_CREATE_EXP:
+    os << "UR_FUNCTION_GRAPH_CREATE_EXP";
+    break;
+  case UR_FUNCTION_QUEUE_BEGIN_GRAPH_CAPTURE_EXP:
+    os << "UR_FUNCTION_QUEUE_BEGIN_GRAPH_CAPTURE_EXP";
+    break;
+  case UR_FUNCTION_QUEUE_BEGIN_CAPTURE_INTO_GRAPH_EXP:
+    os << "UR_FUNCTION_QUEUE_BEGIN_CAPTURE_INTO_GRAPH_EXP";
+    break;
+  case UR_FUNCTION_QUEUE_END_GRAPH_CAPTURE_EXP:
+    os << "UR_FUNCTION_QUEUE_END_GRAPH_CAPTURE_EXP";
+    break;
+  case UR_FUNCTION_GRAPH_DESTROY_EXP:
+    os << "UR_FUNCTION_GRAPH_DESTROY_EXP";
+    break;
+  case UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_DESTROY_EXP:
+    os << "UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_DESTROY_EXP";
+    break;
+  case UR_FUNCTION_QUEUE_IS_GRAPH_CAPTURE_ENABLED_EXP:
+    os << "UR_FUNCTION_QUEUE_IS_GRAPH_CAPTURE_ENABLED_EXP";
+    break;
+  case UR_FUNCTION_GRAPH_IS_EMPTY_EXP:
+    os << "UR_FUNCTION_GRAPH_IS_EMPTY_EXP";
+    break;
+  case UR_FUNCTION_GRAPH_DUMP_CONTENTS_EXP:
+    os << "UR_FUNCTION_GRAPH_DUMP_CONTENTS_EXP";
+    break;
+  case UR_FUNCTION_GRAPH_INSTANTIATE_GRAPH_EXP:
+    os << "UR_FUNCTION_GRAPH_INSTANTIATE_GRAPH_EXP";
+    break;
+  case UR_FUNCTION_ENQUEUE_GRAPH_EXP:
+    os << "UR_FUNCTION_ENQUEUE_GRAPH_EXP";
+    break;
+  case UR_FUNCTION_ENQUEUE_HOST_TASK_EXP:
+    os << "UR_FUNCTION_ENQUEUE_HOST_TASK_EXP";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -1331,9 +1467,6 @@ inline std::ostream &operator<<(std::ostream &os,
   case UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES:
     os << "UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES";
     break;
-  case UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES:
-    os << "UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES";
-    break;
   case UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES:
     os << "UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES";
     break;
@@ -1351,6 +1484,21 @@ inline std::ostream &operator<<(std::ostream &os,
     break;
   case UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC:
     os << "UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC";
+    break;
+  case UR_STRUCTURE_TYPE_USM_POOL_BUFFER_DESC:
+    os << "UR_STRUCTURE_TYPE_USM_POOL_BUFFER_DESC";
+    break;
+  case UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES:
+    os << "UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES";
+    break;
+  case UR_STRUCTURE_TYPE_KERNEL_LAUNCH_EXT_PROPERTIES:
+    os << "UR_STRUCTURE_TYPE_KERNEL_LAUNCH_EXT_PROPERTIES";
+    break;
+  case UR_STRUCTURE_TYPE_KERNEL_LAUNCH_CLUSTER_PROPERTY:
+    os << "UR_STRUCTURE_TYPE_KERNEL_LAUNCH_CLUSTER_PROPERTY";
+    break;
+  case UR_STRUCTURE_TYPE_KERNEL_LAUNCH_WORKGROUP_PROPERTY:
+    os << "UR_STRUCTURE_TYPE_KERNEL_LAUNCH_WORKGROUP_PROPERTY";
     break;
   case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC:
     os << "UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC";
@@ -1399,6 +1547,12 @@ inline std::ostream &operator<<(std::ostream &os,
     break;
   case UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES:
     os << "UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES";
+    break;
+  case UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES:
+    os << "UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES";
+    break;
+  case UR_STRUCTURE_TYPE_EXP_HOST_TASK_PROPERTIES:
+    os << "UR_STRUCTURE_TYPE_EXP_HOST_TASK_PROPERTIES";
     break;
   default:
     os << "unknown enumerator";
@@ -1574,12 +1728,6 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
     printPtr(os, pstruct);
   } break;
 
-  case UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES: {
-    const ur_physical_mem_properties_t *pstruct =
-        (const ur_physical_mem_properties_t *)ptr;
-    printPtr(os, pstruct);
-  } break;
-
   case UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES: {
     const ur_kernel_arg_pointer_properties_t *pstruct =
         (const ur_kernel_arg_pointer_properties_t *)ptr;
@@ -1613,6 +1761,36 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
   case UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC: {
     const ur_usm_alloc_location_desc_t *pstruct =
         (const ur_usm_alloc_location_desc_t *)ptr;
+    printPtr(os, pstruct);
+  } break;
+
+  case UR_STRUCTURE_TYPE_USM_POOL_BUFFER_DESC: {
+    const ur_usm_pool_buffer_desc_t *pstruct =
+        (const ur_usm_pool_buffer_desc_t *)ptr;
+    printPtr(os, pstruct);
+  } break;
+
+  case UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES: {
+    const ur_physical_mem_properties_t *pstruct =
+        (const ur_physical_mem_properties_t *)ptr;
+    printPtr(os, pstruct);
+  } break;
+
+  case UR_STRUCTURE_TYPE_KERNEL_LAUNCH_EXT_PROPERTIES: {
+    const ur_kernel_launch_ext_properties_t *pstruct =
+        (const ur_kernel_launch_ext_properties_t *)ptr;
+    printPtr(os, pstruct);
+  } break;
+
+  case UR_STRUCTURE_TYPE_KERNEL_LAUNCH_CLUSTER_PROPERTY: {
+    const ur_kernel_launch_cluster_property_t *pstruct =
+        (const ur_kernel_launch_cluster_property_t *)ptr;
+    printPtr(os, pstruct);
+  } break;
+
+  case UR_STRUCTURE_TYPE_KERNEL_LAUNCH_WORKGROUP_PROPERTY: {
+    const ur_kernel_launch_workgroup_property_t *pstruct =
+        (const ur_kernel_launch_workgroup_property_t *)ptr;
     printPtr(os, pstruct);
   } break;
 
@@ -1710,6 +1888,18 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
         (const ur_exp_enqueue_ext_properties_t *)ptr;
     printPtr(os, pstruct);
   } break;
+
+  case UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES: {
+    const ur_exp_kernel_arg_properties_t *pstruct =
+        (const ur_exp_kernel_arg_properties_t *)ptr;
+    printPtr(os, pstruct);
+  } break;
+
+  case UR_STRUCTURE_TYPE_EXP_HOST_TASK_PROPERTIES: {
+    const ur_exp_host_task_properties_t *pstruct =
+        (const ur_exp_host_task_properties_t *)ptr;
+    printPtr(os, pstruct);
+  } break;
   default:
     os << "unknown enumerator";
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -1803,9 +1993,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value) {
     break;
   case UR_RESULT_ERROR_INVALID_WORK_DIMENSION:
     os << "UR_RESULT_ERROR_INVALID_WORK_DIMENSION";
-    break;
-  case UR_RESULT_ERROR_INVALID_KERNEL_ARGS:
-    os << "UR_RESULT_ERROR_INVALID_KERNEL_ARGS";
     break;
   case UR_RESULT_ERROR_INVALID_KERNEL:
     os << "UR_RESULT_ERROR_INVALID_KERNEL";
@@ -1936,6 +2123,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value) {
   case UR_RESULT_ERROR_INVALID_SPEC_ID:
     os << "UR_RESULT_ERROR_INVALID_SPEC_ID";
     break;
+  case UR_RESULT_ERROR_INVALID_GRAPH:
+    os << "UR_RESULT_ERROR_INVALID_GRAPH";
+    break;
   case UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP:
     os << "UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP";
     break;
@@ -2045,6 +2235,39 @@ inline std::ostream &operator<<(std::ostream &os,
   os << (params.depth);
 
   os << "}";
+  return os;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_backend_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, enum ur_backend_t value) {
+  switch (value) {
+  case UR_BACKEND_UNKNOWN:
+    os << "UR_BACKEND_UNKNOWN";
+    break;
+  case UR_BACKEND_LEVEL_ZERO:
+    os << "UR_BACKEND_LEVEL_ZERO";
+    break;
+  case UR_BACKEND_OPENCL:
+    os << "UR_BACKEND_OPENCL";
+    break;
+  case UR_BACKEND_CUDA:
+    os << "UR_BACKEND_CUDA";
+    break;
+  case UR_BACKEND_HIP:
+    os << "UR_BACKEND_HIP";
+    break;
+  case UR_BACKEND_NATIVE_CPU:
+    os << "UR_BACKEND_NATIVE_CPU";
+    break;
+  case UR_BACKEND_OFFLOAD:
+    os << "UR_BACKEND_OFFLOAD";
+    break;
+  default:
+    os << "unknown enumerator";
+    break;
+  }
   return os;
 }
 ///////////////////////////////////////////////////////////////////////////////
@@ -2266,10 +2489,10 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
   switch (value) {
   case UR_ADAPTER_INFO_BACKEND: {
-    const ur_adapter_backend_t *tptr = (const ur_adapter_backend_t *)ptr;
-    if (sizeof(ur_adapter_backend_t) > size) {
+    const ur_backend_t *tptr = (const ur_backend_t *)ptr;
+    if (sizeof(ur_backend_t) > size) {
       os << "invalid size (is: " << size
-         << ", expected: >=" << sizeof(ur_adapter_backend_t) << ")";
+         << ", expected: >=" << sizeof(ur_backend_t) << ")";
       return UR_RESULT_ERROR_INVALID_SIZE;
     }
     os << (const void *)(tptr) << " (";
@@ -2313,29 +2536,26 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 } // namespace ur::details
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_adapter_backend_t type
+/// @brief Print operator for the ur_logger_level_t type
 /// @returns
 ///     std::ostream &
 inline std::ostream &operator<<(std::ostream &os,
-                                enum ur_adapter_backend_t value) {
+                                enum ur_logger_level_t value) {
   switch (value) {
-  case UR_ADAPTER_BACKEND_UNKNOWN:
-    os << "UR_ADAPTER_BACKEND_UNKNOWN";
+  case UR_LOGGER_LEVEL_DEBUG:
+    os << "UR_LOGGER_LEVEL_DEBUG";
     break;
-  case UR_ADAPTER_BACKEND_LEVEL_ZERO:
-    os << "UR_ADAPTER_BACKEND_LEVEL_ZERO";
+  case UR_LOGGER_LEVEL_INFO:
+    os << "UR_LOGGER_LEVEL_INFO";
     break;
-  case UR_ADAPTER_BACKEND_OPENCL:
-    os << "UR_ADAPTER_BACKEND_OPENCL";
+  case UR_LOGGER_LEVEL_WARN:
+    os << "UR_LOGGER_LEVEL_WARN";
     break;
-  case UR_ADAPTER_BACKEND_CUDA:
-    os << "UR_ADAPTER_BACKEND_CUDA";
+  case UR_LOGGER_LEVEL_ERROR:
+    os << "UR_LOGGER_LEVEL_ERROR";
     break;
-  case UR_ADAPTER_BACKEND_HIP:
-    os << "UR_ADAPTER_BACKEND_HIP";
-    break;
-  case UR_ADAPTER_BACKEND_NATIVE_CPU:
-    os << "UR_ADAPTER_BACKEND_NATIVE_CPU";
+  case UR_LOGGER_LEVEL_QUIET:
+    os << "UR_LOGGER_LEVEL_QUIET";
     break;
   default:
     os << "unknown enumerator";
@@ -2414,10 +2634,10 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     printPtr(os, tptr);
   } break;
   case UR_PLATFORM_INFO_BACKEND: {
-    const ur_platform_backend_t *tptr = (const ur_platform_backend_t *)ptr;
-    if (sizeof(ur_platform_backend_t) > size) {
+    const ur_backend_t *tptr = (const ur_backend_t *)ptr;
+    if (sizeof(ur_backend_t) > size) {
       os << "invalid size (is: " << size
-         << ", expected: >=" << sizeof(ur_platform_backend_t) << ")";
+         << ", expected: >=" << sizeof(ur_backend_t) << ")";
       return UR_RESULT_ERROR_INVALID_SIZE;
     }
     os << (const void *)(tptr) << " (";
@@ -2482,37 +2702,6 @@ operator<<(std::ostream &os,
   return os;
 }
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_platform_backend_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os,
-                                enum ur_platform_backend_t value) {
-  switch (value) {
-  case UR_PLATFORM_BACKEND_UNKNOWN:
-    os << "UR_PLATFORM_BACKEND_UNKNOWN";
-    break;
-  case UR_PLATFORM_BACKEND_LEVEL_ZERO:
-    os << "UR_PLATFORM_BACKEND_LEVEL_ZERO";
-    break;
-  case UR_PLATFORM_BACKEND_OPENCL:
-    os << "UR_PLATFORM_BACKEND_OPENCL";
-    break;
-  case UR_PLATFORM_BACKEND_CUDA:
-    os << "UR_PLATFORM_BACKEND_CUDA";
-    break;
-  case UR_PLATFORM_BACKEND_HIP:
-    os << "UR_PLATFORM_BACKEND_HIP";
-    break;
-  case UR_PLATFORM_BACKEND_NATIVE_CPU:
-    os << "UR_PLATFORM_BACKEND_NATIVE_CPU";
-    break;
-  default:
-    os << "unknown enumerator";
-    break;
-  }
-  return os;
-}
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_device_binary_t type
 /// @returns
 ///     std::ostream &
@@ -2563,6 +2752,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_type_t value) {
     break;
   case UR_DEVICE_TYPE_VPU:
     os << "UR_DEVICE_TYPE_VPU";
+    break;
+  case UR_DEVICE_TYPE_CUSTOM:
+    os << "UR_DEVICE_TYPE_CUSTOM";
     break;
   default:
     os << "unknown enumerator";
@@ -2954,6 +3146,18 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_MAX_POWER_LIMIT:
     os << "UR_DEVICE_INFO_MAX_POWER_LIMIT";
     break;
+  case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE:
+    os << "UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE";
+    break;
+  case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
+    os << "UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES";
+    break;
+  case UR_DEVICE_INFO_LUID:
+    os << "UR_DEVICE_INFO_LUID";
+    break;
+  case UR_DEVICE_INFO_NODE_MASK:
+    os << "UR_DEVICE_INFO_NODE_MASK";
+    break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP";
     break;
@@ -2965,9 +3169,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP";
-    break;
-  case UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP:
-    os << "UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP";
     break;
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP";
@@ -3059,20 +3260,47 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP:
     os << "UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP";
     break;
+  case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP";
+    break;
   case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP";
     break;
-  case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP:
-    os << "UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP";
+  case UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_CLOCK_WORK_GROUP_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_CLOCK_WORK_GROUP_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_IS_INTEGRATED_GPU:
+    os << "UR_DEVICE_INFO_IS_INTEGRATED_GPU";
+    break;
+  case UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP";
     break;
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP";
     break;
-  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP:
-    os << "UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP";
-    break;
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_DYNAMIC_LINK_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_DYNAMIC_LINK_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP:
+    os << "UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP";
+    break;
+  case UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP";
     break;
   default:
     os << "unknown enumerator";
@@ -4686,6 +4914,61 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
+  case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES: {
+    const ur_kernel_launch_properties_flags_t *tptr =
+        (const ur_kernel_launch_properties_flags_t *)ptr;
+    if (sizeof(ur_kernel_launch_properties_flags_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_kernel_launch_properties_flags_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    ur::details::printFlag<ur_kernel_launch_properties_flag_t>(os, *tptr);
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_LUID: {
+
+    const uint8_t *tptr = (const uint8_t *)ptr;
+    os << "{";
+    size_t nelems = size / sizeof(uint8_t);
+    for (size_t i = 0; i < nelems; ++i) {
+      if (i != 0) {
+        os << ", ";
+      }
+
+      os << static_cast<int>(tptr[i]);
+    }
+    os << "}";
+  } break;
+  case UR_DEVICE_INFO_NODE_MASK: {
+    const uint32_t *tptr = (const uint32_t *)ptr;
+    if (sizeof(uint32_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
@@ -4728,19 +5011,6 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     os << ")";
   } break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP: {
-    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
-    if (sizeof(ur_bool_t) > size) {
-      os << "invalid size (is: " << size
-         << ", expected: >=" << sizeof(ur_bool_t) << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
-  } break;
-  case UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -5145,6 +5415,19 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
+  case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
   case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
@@ -5158,7 +5441,59 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP: {
+  case UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_CLOCK_WORK_GROUP_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_IS_INTEGRATED_GPU: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -5184,7 +5519,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP: {
+  case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -5197,7 +5532,59 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP: {
+  case UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_DYNAMIC_LINK_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -6150,6 +6537,98 @@ printFlag<ur_device_throttle_reasons_flag_t>(std::ostream &os, uint32_t flag) {
       first = false;
     }
     os << UR_DEVICE_THROTTLE_REASONS_FLAG_OTHER;
+  }
+  if (val != 0) {
+    std::bitset<32> bits(val);
+    if (!first) {
+      os << " | ";
+    }
+    os << "unknown bit flags " << bits;
+  } else if (first) {
+    os << "0";
+  }
+  return UR_RESULT_SUCCESS;
+}
+} // namespace ur::details
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_kernel_launch_properties_flag_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_kernel_launch_properties_flag_t value) {
+  switch (value) {
+  case UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE:
+    os << "UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE";
+    break;
+  case UR_KERNEL_LAUNCH_PROPERTIES_FLAG_CLUSTER_DIMENSION:
+    os << "UR_KERNEL_LAUNCH_PROPERTIES_FLAG_CLUSTER_DIMENSION";
+    break;
+  case UR_KERNEL_LAUNCH_PROPERTIES_FLAG_WORK_GROUP_MEMORY:
+    os << "UR_KERNEL_LAUNCH_PROPERTIES_FLAG_WORK_GROUP_MEMORY";
+    break;
+  case UR_KERNEL_LAUNCH_PROPERTIES_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE:
+    os << "UR_KERNEL_LAUNCH_PROPERTIES_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE";
+    break;
+  default:
+    os << "unknown enumerator";
+    break;
+  }
+  return os;
+}
+
+namespace ur::details {
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_kernel_launch_properties_flag_t flag
+template <>
+inline ur_result_t
+printFlag<ur_kernel_launch_properties_flag_t>(std::ostream &os, uint32_t flag) {
+  uint32_t val = flag;
+  bool first = true;
+
+  if ((val & UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE) ==
+      (uint32_t)UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE) {
+    val ^= (uint32_t)UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE;
+  }
+
+  if ((val & UR_KERNEL_LAUNCH_PROPERTIES_FLAG_CLUSTER_DIMENSION) ==
+      (uint32_t)UR_KERNEL_LAUNCH_PROPERTIES_FLAG_CLUSTER_DIMENSION) {
+    val ^= (uint32_t)UR_KERNEL_LAUNCH_PROPERTIES_FLAG_CLUSTER_DIMENSION;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_KERNEL_LAUNCH_PROPERTIES_FLAG_CLUSTER_DIMENSION;
+  }
+
+  if ((val & UR_KERNEL_LAUNCH_PROPERTIES_FLAG_WORK_GROUP_MEMORY) ==
+      (uint32_t)UR_KERNEL_LAUNCH_PROPERTIES_FLAG_WORK_GROUP_MEMORY) {
+    val ^= (uint32_t)UR_KERNEL_LAUNCH_PROPERTIES_FLAG_WORK_GROUP_MEMORY;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_KERNEL_LAUNCH_PROPERTIES_FLAG_WORK_GROUP_MEMORY;
+  }
+
+  if ((val & UR_KERNEL_LAUNCH_PROPERTIES_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE) ==
+      (uint32_t)
+          UR_KERNEL_LAUNCH_PROPERTIES_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE) {
+    val ^= (uint32_t)
+        UR_KERNEL_LAUNCH_PROPERTIES_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_KERNEL_LAUNCH_PROPERTIES_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE;
   }
   if (val != 0) {
     std::bitset<32> bits(val);
@@ -8930,7 +9409,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
   } break;
   case UR_PROGRAM_INFO_BINARIES: {
 
-    const unsigned char *tptr = (const unsigned char *)ptr;
+    const unsigned char *const *tptr = (const unsigned char *const *)ptr;
     printPtr(os, tptr);
   } break;
   case UR_PROGRAM_INFO_NUM_KERNELS: {
@@ -10357,6 +10836,12 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_command_t value) {
   case UR_COMMAND_ENQUEUE_USM_FREE_EXP:
     os << "UR_COMMAND_ENQUEUE_USM_FREE_EXP";
     break;
+  case UR_COMMAND_ENQUEUE_GRAPH_EXP:
+    os << "UR_COMMAND_ENQUEUE_GRAPH_EXP";
+    break;
+  case UR_COMMAND_HOST_TASK_EXP:
+    os << "UR_COMMAND_HOST_TASK_EXP";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -10665,6 +11150,146 @@ inline std::ostream &operator<<(std::ostream &os,
   return os;
 }
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_kernel_launch_flag_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_kernel_launch_flag_t value) {
+  switch (value) {
+  case UR_KERNEL_LAUNCH_FLAG_COOPERATIVE:
+    os << "UR_KERNEL_LAUNCH_FLAG_COOPERATIVE";
+    break;
+  case UR_KERNEL_LAUNCH_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE:
+    os << "UR_KERNEL_LAUNCH_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE";
+    break;
+  default:
+    os << "unknown enumerator";
+    break;
+  }
+  return os;
+}
+
+namespace ur::details {
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_kernel_launch_flag_t flag
+template <>
+inline ur_result_t printFlag<ur_kernel_launch_flag_t>(std::ostream &os,
+                                                      uint32_t flag) {
+  uint32_t val = flag;
+  bool first = true;
+
+  if ((val & UR_KERNEL_LAUNCH_FLAG_COOPERATIVE) ==
+      (uint32_t)UR_KERNEL_LAUNCH_FLAG_COOPERATIVE) {
+    val ^= (uint32_t)UR_KERNEL_LAUNCH_FLAG_COOPERATIVE;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_KERNEL_LAUNCH_FLAG_COOPERATIVE;
+  }
+
+  if ((val & UR_KERNEL_LAUNCH_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE) ==
+      (uint32_t)UR_KERNEL_LAUNCH_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE) {
+    val ^= (uint32_t)UR_KERNEL_LAUNCH_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_KERNEL_LAUNCH_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE;
+  }
+  if (val != 0) {
+    std::bitset<32> bits(val);
+    if (!first) {
+      os << " | ";
+    }
+    os << "unknown bit flags " << bits;
+  } else if (first) {
+    os << "0";
+  }
+  return UR_RESULT_SUCCESS;
+}
+} // namespace ur::details
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_kernel_launch_ext_properties_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_kernel_launch_ext_properties_t params) {
+  os << "(struct ur_kernel_launch_ext_properties_t){";
+
+  os << ".stype = ";
+
+  os << (params.stype);
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, (params.pNext));
+
+  os << ", ";
+  os << ".flags = ";
+
+  ur::details::printFlag<ur_kernel_launch_flag_t>(os, (params.flags));
+
+  os << "}";
+  return os;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_kernel_launch_cluster_property_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_kernel_launch_cluster_property_t params) {
+  os << "(struct ur_kernel_launch_cluster_property_t){";
+
+  os << ".stype = ";
+
+  os << (params.stype);
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, (params.pNext));
+
+  os << ", ";
+  os << ".clusterDim = {";
+  ur::details::printArray<3>(os, params.clusterDim);
+  os << "}";
+
+  os << "}";
+  return os;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_kernel_launch_workgroup_property_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_kernel_launch_workgroup_property_t params) {
+  os << "(struct ur_kernel_launch_workgroup_property_t){";
+
+  os << ".stype = ";
+
+  os << (params.stype);
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, (params.pNext));
+
+  os << ", ";
+  os << ".workgroup_mem_size = ";
+
+  os << (params.workgroup_mem_size);
+
+  os << "}";
+  return os;
+}
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_map_flag_t type
 /// @returns
 ///     std::ostream &
@@ -10743,8 +11368,11 @@ inline ur_result_t printFlag<ur_map_flag_t>(std::ostream &os, uint32_t flag) {
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_usm_migration_flag_t value) {
   switch (value) {
-  case UR_USM_MIGRATION_FLAG_DEFAULT:
-    os << "UR_USM_MIGRATION_FLAG_DEFAULT";
+  case UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE:
+    os << "UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE";
+    break;
+  case UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST:
+    os << "UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST";
     break;
   default:
     os << "unknown enumerator";
@@ -10762,15 +11390,26 @@ inline ur_result_t printFlag<ur_usm_migration_flag_t>(std::ostream &os,
   uint32_t val = flag;
   bool first = true;
 
-  if ((val & UR_USM_MIGRATION_FLAG_DEFAULT) ==
-      (uint32_t)UR_USM_MIGRATION_FLAG_DEFAULT) {
-    val ^= (uint32_t)UR_USM_MIGRATION_FLAG_DEFAULT;
+  if ((val & UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE) ==
+      (uint32_t)UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE) {
+    val ^= (uint32_t)UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE;
     if (!first) {
       os << " | ";
     } else {
       first = false;
     }
-    os << UR_USM_MIGRATION_FLAG_DEFAULT;
+    os << UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE;
+  }
+
+  if ((val & UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST) ==
+      (uint32_t)UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST) {
+    val ^= (uint32_t)UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST;
   }
   if (val != 0) {
     std::bitset<32> bits(val);
@@ -10924,6 +11563,46 @@ operator<<(std::ostream &os,
   return os;
 }
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_usm_pool_buffer_desc_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_usm_pool_buffer_desc_t params) {
+  os << "(struct ur_usm_pool_buffer_desc_t){";
+
+  os << ".stype = ";
+
+  os << (params.stype);
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, (params.pNext));
+
+  os << ", ";
+  os << ".pMem = ";
+
+  ur::details::printPtr(os, (params.pMem));
+
+  os << ", ";
+  os << ".size = ";
+
+  os << (params.size);
+
+  os << ", ";
+  os << ".memType = ";
+
+  os << (params.memType);
+
+  os << ", ";
+  os << ".device = ";
+
+  ur::details::printPtr(os, (params.device));
+
+  os << "}";
+  return os;
+}
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_exp_image_copy_flag_t type
 /// @returns
 ///     std::ostream &
@@ -11014,6 +11693,31 @@ inline ur_result_t printFlag<ur_exp_image_copy_flag_t>(std::ostream &os,
 }
 } // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_image_copy_input_types_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_exp_image_copy_input_types_t value) {
+  switch (value) {
+  case UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_IMAGE:
+    os << "UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_IMAGE";
+    break;
+  case UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_MEM:
+    os << "UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_MEM";
+    break;
+  case UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_MEM:
+    os << "UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_MEM";
+    break;
+  case UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_IMAGE:
+    os << "UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_IMAGE";
+    break;
+  default:
+    os << "unknown enumerator";
+    break;
+  }
+  return os;
+}
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_exp_sampler_cubemap_filter_mode_t type
 /// @returns
 ///     std::ostream &
@@ -11048,6 +11752,12 @@ inline std::ostream &operator<<(std::ostream &os,
   case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE:
     os << "UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE";
     break;
+  case UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF:
+    os << "UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF";
+    break;
+  case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE:
+    os << "UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -11075,6 +11785,25 @@ inline std::ostream &operator<<(std::ostream &os,
     break;
   case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT:
     os << "UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT";
+    break;
+  default:
+    os << "unknown enumerator";
+    break;
+  }
+  return os;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_image_mem_type_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_exp_image_mem_type_t value) {
+  switch (value) {
+  case UR_EXP_IMAGE_MEM_TYPE_USM_POINTER:
+    os << "UR_EXP_IMAGE_MEM_TYPE_USM_POINTER";
+    break;
+  case UR_EXP_IMAGE_MEM_TYPE_OPAQUE_HANDLE:
+    os << "UR_EXP_IMAGE_MEM_TYPE_OPAQUE_HANDLE";
     break;
   default:
     os << "unknown enumerator";
@@ -11192,13 +11921,7 @@ operator<<(std::ostream &os, const struct ur_exp_sampler_addr_modes_t params) {
 
   os << ", ";
   os << ".addrModes = {";
-  for (auto i = 0; i < 3; i++) {
-    if (i != 0) {
-      os << ", ";
-    }
-
-    os << (params.addrModes[i]);
-  }
+  ur::details::printArray<3>(os, params.addrModes);
   os << "}";
 
   os << "}";
@@ -11306,6 +12029,253 @@ operator<<(std::ostream &os, const struct ur_exp_image_copy_region_t params) {
   os << "}";
   return os;
 }
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_kernel_arg_type_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_exp_kernel_arg_type_t value) {
+  switch (value) {
+  case UR_EXP_KERNEL_ARG_TYPE_VALUE:
+    os << "UR_EXP_KERNEL_ARG_TYPE_VALUE";
+    break;
+  case UR_EXP_KERNEL_ARG_TYPE_POINTER:
+    os << "UR_EXP_KERNEL_ARG_TYPE_POINTER";
+    break;
+  case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ:
+    os << "UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ";
+    break;
+  case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
+    os << "UR_EXP_KERNEL_ARG_TYPE_LOCAL";
+    break;
+  case UR_EXP_KERNEL_ARG_TYPE_SAMPLER:
+    os << "UR_EXP_KERNEL_ARG_TYPE_SAMPLER";
+    break;
+  default:
+    os << "unknown enumerator";
+    break;
+  }
+  return os;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_kernel_arg_mem_obj_tuple_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_exp_kernel_arg_mem_obj_tuple_t params) {
+  os << "(struct ur_exp_kernel_arg_mem_obj_tuple_t){";
+
+  os << ".hMem = ";
+
+  ur::details::printPtr(os, (params.hMem));
+
+  os << ", ";
+  os << ".flags = ";
+
+  ur::details::printFlag<ur_mem_flag_t>(os, (params.flags));
+
+  os << "}";
+  return os;
+}
+namespace ur::details {
+
+///////////////////////////////////////////////////////////////////////////////
+// @brief Print ur_exp_kernel_arg_value_t union
+inline ur_result_t printUnion(std::ostream &os,
+                              const union ur_exp_kernel_arg_value_t params,
+                              const enum ur_exp_kernel_arg_type_t tag) {
+  os << "(union ur_exp_kernel_arg_value_t){";
+
+  switch (tag) {
+  case UR_EXP_KERNEL_ARG_TYPE_VALUE:
+
+    os << ".value = ";
+
+    ur::details::printPtr(os, (params.value));
+
+    break;
+  case UR_EXP_KERNEL_ARG_TYPE_POINTER:
+
+    os << ".pointer = ";
+
+    ur::details::printPtr(os, (params.pointer));
+
+    break;
+  case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ:
+
+    os << ".memObjTuple = ";
+
+    os << (params.memObjTuple);
+
+    break;
+  case UR_EXP_KERNEL_ARG_TYPE_SAMPLER:
+
+    os << ".sampler = ";
+
+    ur::details::printPtr(os, (params.sampler));
+
+    break;
+  default:
+    os << "<unknown>";
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+  os << "}";
+  return UR_RESULT_SUCCESS;
+}
+} // namespace ur::details
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_kernel_arg_properties_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_exp_kernel_arg_properties_t params) {
+  os << "(struct ur_exp_kernel_arg_properties_t){";
+
+  os << ".stype = ";
+
+  os << (params.stype);
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, (params.pNext));
+
+  os << ", ";
+  os << ".type = ";
+
+  os << (params.type);
+
+  os << ", ";
+  os << ".index = ";
+
+  os << (params.index);
+
+  os << ", ";
+  os << ".size = ";
+
+  os << (params.size);
+
+  os << ", ";
+  os << ".value = ";
+  ur::details::printUnion(os, (params.value), params.type);
+
+  os << "}";
+  return os;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_program_flag_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_exp_program_flag_t value) {
+  switch (value) {
+  case UR_EXP_PROGRAM_FLAG_ALLOW_UNRESOLVED_SYMBOLS:
+    os << "UR_EXP_PROGRAM_FLAG_ALLOW_UNRESOLVED_SYMBOLS";
+    break;
+  default:
+    os << "unknown enumerator";
+    break;
+  }
+  return os;
+}
+
+namespace ur::details {
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_program_flag_t flag
+template <>
+inline ur_result_t printFlag<ur_exp_program_flag_t>(std::ostream &os,
+                                                    uint32_t flag) {
+  uint32_t val = flag;
+  bool first = true;
+
+  if ((val & UR_EXP_PROGRAM_FLAG_ALLOW_UNRESOLVED_SYMBOLS) ==
+      (uint32_t)UR_EXP_PROGRAM_FLAG_ALLOW_UNRESOLVED_SYMBOLS) {
+    val ^= (uint32_t)UR_EXP_PROGRAM_FLAG_ALLOW_UNRESOLVED_SYMBOLS;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_EXP_PROGRAM_FLAG_ALLOW_UNRESOLVED_SYMBOLS;
+  }
+  if (val != 0) {
+    std::bitset<32> bits(val);
+    if (!first) {
+      os << " | ";
+    }
+    os << "unknown bit flags " << bits;
+  } else if (first) {
+    os << "0";
+  }
+  return UR_RESULT_SUCCESS;
+}
+} // namespace ur::details
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_peer_info_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_exp_peer_info_t value) {
+  switch (value) {
+  case UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORT:
+    os << "UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORT";
+    break;
+  case UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORT:
+    os << "UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORT";
+    break;
+  default:
+    os << "unknown enumerator";
+    break;
+  }
+  return os;
+}
+namespace ur::details {
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_peer_info_t enum value
+template <>
+inline ur_result_t printTagged(std::ostream &os, const void *ptr,
+                               ur_exp_peer_info_t value, size_t size) {
+  if (ptr == NULL) {
+    return printPtr(os, ptr);
+  }
+
+  switch (value) {
+  case UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORT: {
+    const int *tptr = (const int *)ptr;
+    if (sizeof(int) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(int)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORT: {
+    const int *tptr = (const int *)ptr;
+    if (sizeof(int) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(int)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  default:
+    os << "unknown enumerator";
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+  return UR_RESULT_SUCCESS;
+}
+} // namespace ur::details
+
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the
 /// ur_device_command_buffer_update_capability_flag_t type
@@ -11854,23 +12824,14 @@ inline std::ostream &operator<<(
   return os;
 }
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_exp_launch_property_id_t type
+/// @brief Print operator for the ur_exp_host_task_flag_t type
 /// @returns
 ///     std::ostream &
 inline std::ostream &operator<<(std::ostream &os,
-                                enum ur_exp_launch_property_id_t value) {
+                                enum ur_exp_host_task_flag_t value) {
   switch (value) {
-  case UR_EXP_LAUNCH_PROPERTY_ID_IGNORE:
-    os << "UR_EXP_LAUNCH_PROPERTY_ID_IGNORE";
-    break;
-  case UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE:
-    os << "UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE";
-    break;
-  case UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION:
-    os << "UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION";
-    break;
-  case UR_EXP_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY:
-    os << "UR_EXP_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY";
+  case UR_EXP_HOST_TASK_FLAG_TBD:
+    os << "UR_EXP_HOST_TASK_FLAG_TBD";
     break;
   default:
     os << "unknown enumerator";
@@ -11878,134 +12839,64 @@ inline std::ostream &operator<<(std::ostream &os,
   }
   return os;
 }
+
 namespace ur::details {
-
 ///////////////////////////////////////////////////////////////////////////////
-// @brief Print ur_exp_launch_property_value_t union
-inline ur_result_t printUnion(std::ostream &os,
-                              const union ur_exp_launch_property_value_t params,
-                              const enum ur_exp_launch_property_id_t tag) {
-  os << "(union ur_exp_launch_property_value_t){";
+/// @brief Print ur_exp_host_task_flag_t flag
+template <>
+inline ur_result_t printFlag<ur_exp_host_task_flag_t>(std::ostream &os,
+                                                      uint32_t flag) {
+  uint32_t val = flag;
+  bool first = true;
 
-  switch (tag) {
-  case UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION:
-
-    os << ".clusterDim = {";
-    for (auto i = 0; i < 3; i++) {
-      if (i != 0) {
-        os << ", ";
-      }
-
-      os << (params.clusterDim[i]);
+  if ((val & UR_EXP_HOST_TASK_FLAG_TBD) ==
+      (uint32_t)UR_EXP_HOST_TASK_FLAG_TBD) {
+    val ^= (uint32_t)UR_EXP_HOST_TASK_FLAG_TBD;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
     }
-    os << "}";
-
-    break;
-  case UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE:
-
-    os << ".cooperative = ";
-
-    os << (params.cooperative);
-
-    break;
-  case UR_EXP_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY:
-
-    os << ".workgroup_mem_size = ";
-
-    os << (params.workgroup_mem_size);
-
-    break;
-  default:
-    os << "<unknown>";
-    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+    os << UR_EXP_HOST_TASK_FLAG_TBD;
   }
-  os << "}";
+  if (val != 0) {
+    std::bitset<32> bits(val);
+    if (!first) {
+      os << " | ";
+    }
+    os << "unknown bit flags " << bits;
+  } else if (first) {
+    os << "0";
+  }
   return UR_RESULT_SUCCESS;
 }
 } // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_exp_launch_property_t type
+/// @brief Print operator for the ur_exp_host_task_properties_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_exp_launch_property_t params) {
-  os << "(struct ur_exp_launch_property_t){";
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_exp_host_task_properties_t params) {
+  os << "(struct ur_exp_host_task_properties_t){";
 
-  os << ".id = ";
+  os << ".stype = ";
 
-  os << (params.id);
+  os << (params.stype);
 
   os << ", ";
-  os << ".value = ";
-  ur::details::printUnion(os, (params.value), params.id);
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, (params.pNext));
+
+  os << ", ";
+  os << ".flags = ";
+
+  ur::details::printFlag<ur_exp_host_task_flag_t>(os, (params.flags));
 
   os << "}";
   return os;
 }
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_exp_peer_info_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os,
-                                enum ur_exp_peer_info_t value) {
-  switch (value) {
-  case UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORT:
-    os << "UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORT";
-    break;
-  case UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORT:
-    os << "UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORT";
-    break;
-  default:
-    os << "unknown enumerator";
-    break;
-  }
-  return os;
-}
-namespace ur::details {
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_exp_peer_info_t enum value
-template <>
-inline ur_result_t printTagged(std::ostream &os, const void *ptr,
-                               ur_exp_peer_info_t value, size_t size) {
-  if (ptr == NULL) {
-    return printPtr(os, ptr);
-  }
-
-  switch (value) {
-  case UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORT: {
-    const int *tptr = (const int *)ptr;
-    if (sizeof(int) > size) {
-      os << "invalid size (is: " << size << ", expected: >=" << sizeof(int)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
-  } break;
-  case UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORT: {
-    const int *tptr = (const int *)ptr;
-    if (sizeof(int) > size) {
-      os << "invalid size (is: " << size << ", expected: >=" << sizeof(int)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
-  } break;
-  default:
-    os << "unknown enumerator";
-    return UR_RESULT_ERROR_INVALID_ENUMERATION;
-  }
-  return UR_RESULT_SUCCESS;
-}
-} // namespace ur::details
-
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_exp_enqueue_ext_flag_t type
 /// @returns
@@ -12308,19 +13199,24 @@ inline std::ostream &operator<<(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_platform_get_params_t type
+/// @brief Print operator for the ur_adapter_get_params_t type
 /// @returns
 ///     std::ostream &
 inline std::ostream &
 operator<<(std::ostream &os,
-           [[maybe_unused]] const struct ur_platform_get_params_t *params) {
+           [[maybe_unused]] const struct ur_adapter_get_params_t *params) {
 
+  os << ".NumEntries = ";
+
+  os << *(params->pNumEntries);
+
+  os << ", ";
   os << ".phAdapters = ";
   ur::details::printPtr(os,
                         reinterpret_cast<const void *>(*(params->pphAdapters)));
   if (*(params->pphAdapters) != NULL) {
     os << " {";
-    for (size_t i = 0; i < *params->pNumAdapters; ++i) {
+    for (size_t i = 0; i < *params->pNumEntries; ++i) {
       if (i != 0) {
         os << ", ";
       }
@@ -12331,9 +13227,167 @@ operator<<(std::ostream &os,
   }
 
   os << ", ";
-  os << ".NumAdapters = ";
+  os << ".pNumAdapters = ";
 
-  os << *(params->pNumAdapters);
+  ur::details::printPtr(os, *(params->ppNumAdapters));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_adapter_release_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_adapter_release_params_t *params) {
+
+  os << ".hAdapter = ";
+
+  ur::details::printPtr(os, *(params->phAdapter));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_adapter_retain_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_adapter_retain_params_t *params) {
+
+  os << ".hAdapter = ";
+
+  ur::details::printPtr(os, *(params->phAdapter));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_adapter_get_last_error_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_adapter_get_last_error_params_t *params) {
+
+  os << ".hAdapter = ";
+
+  ur::details::printPtr(os, *(params->phAdapter));
+
+  os << ", ";
+  os << ".ppMessage = ";
+
+  ur::details::printPtr(os, *(params->pppMessage));
+
+  os << ", ";
+  os << ".pError = ";
+
+  ur::details::printPtr(os, *(params->ppError));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_adapter_get_info_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_adapter_get_info_params_t *params) {
+
+  os << ".hAdapter = ";
+
+  ur::details::printPtr(os, *(params->phAdapter));
+
+  os << ", ";
+  os << ".propName = ";
+
+  os << *(params->ppropName);
+
+  os << ", ";
+  os << ".propSize = ";
+
+  os << *(params->ppropSize);
+
+  os << ", ";
+  os << ".pPropValue = ";
+  ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName),
+                           *(params->ppropSize));
+
+  os << ", ";
+  os << ".pPropSizeRet = ";
+
+  ur::details::printPtr(os, *(params->ppPropSizeRet));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_adapter_set_logger_callback_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_adapter_set_logger_callback_params_t
+               *params) {
+
+  os << ".hAdapter = ";
+
+  ur::details::printPtr(os, *(params->phAdapter));
+
+  os << ", ";
+  os << ".pfnLoggerCallback = ";
+
+  os << reinterpret_cast<void *>(*(params->ppfnLoggerCallback));
+
+  os << ", ";
+  os << ".pUserData = ";
+
+  ur::details::printPtr(os, *(params->ppUserData));
+
+  os << ", ";
+  os << ".level = ";
+
+  os << *(params->plevel);
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_adapter_set_logger_callback_level_params_t
+/// type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_adapter_set_logger_callback_level_params_t
+        *params) {
+
+  os << ".hAdapter = ";
+
+  ur::details::printPtr(os, *(params->phAdapter));
+
+  os << ", ";
+  os << ".level = ";
+
+  os << *(params->plevel);
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_platform_get_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_platform_get_params_t *params) {
+
+  os << ".hAdapter = ";
+
+  ur::details::printPtr(os, *(params->phAdapter));
 
   os << ", ";
   os << ".NumEntries = ";
@@ -13061,6 +14115,43 @@ operator<<(std::ostream &os,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_program_dynamic_link_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_program_dynamic_link_exp_params_t
+               *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".count = ";
+
+  os << *(params->pcount);
+
+  os << ", ";
+  os << ".phPrograms = ";
+  ur::details::printPtr(os,
+                        reinterpret_cast<const void *>(*(params->pphPrograms)));
+  if (*(params->pphPrograms) != NULL) {
+    os << " {";
+    for (size_t i = 0; i < *params->pcount; ++i) {
+      if (i != 0) {
+        os << ", ";
+      }
+
+      ur::details::printPtr(os, (*(params->pphPrograms))[i]);
+    }
+    os << "}";
+  }
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_program_build_exp_params_t type
 /// @returns
 ///     std::ostream &
@@ -13092,6 +14183,11 @@ inline std::ostream &operator<<(
     }
     os << "}";
   }
+
+  os << ", ";
+  os << ".flags = ";
+
+  ur::details::printFlag<ur_exp_program_flag_t>(os, *(params->pflags));
 
   os << ", ";
   os << ".pOptions = ";
@@ -13158,6 +14254,11 @@ inline std::ostream &operator<<(
     }
     os << "}";
   }
+
+  os << ", ";
+  os << ".flags = ";
+
+  ur::details::printFlag<ur_exp_program_flag_t>(os, *(params->pflags));
 
   os << ", ";
   os << ".pOptions = ";
@@ -13245,6 +14346,11 @@ operator<<(std::ostream &os,
     }
     os << "}";
   }
+
+  os << ", ";
+  os << ".flags = ";
+
+  ur::details::printFlag<ur_exp_program_flag_t>(os, *(params->pflags));
 
   os << ", ";
   os << ".count = ";
@@ -14032,12 +15138,12 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the
-/// ur_kernel_suggest_max_cooperative_group_count_exp_params_t type
+/// ur_kernel_suggest_max_cooperative_group_count_params_t type
 /// @returns
 ///     std::ostream &
 inline std::ostream &
 operator<<(std::ostream &os, [[maybe_unused]] const struct
-           ur_kernel_suggest_max_cooperative_group_count_exp_params_t *params) {
+           ur_kernel_suggest_max_cooperative_group_count_params_t *params) {
 
   os << ".hKernel = ";
 
@@ -14254,6 +15360,87 @@ operator<<(std::ostream &os,
   os << ".hQueue = ";
 
   ur::details::printPtr(os, *(params->phQueue));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_begin_graph_capture_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_queue_begin_graph_capture_exp_params_t
+        *params) {
+
+  os << ".hQueue = ";
+
+  ur::details::printPtr(os, *(params->phQueue));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_begin_capture_into_graph_exp_params_t
+/// type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_queue_begin_capture_into_graph_exp_params_t
+        *params) {
+
+  os << ".hQueue = ";
+
+  ur::details::printPtr(os, *(params->phQueue));
+
+  os << ", ";
+  os << ".hGraph = ";
+
+  ur::details::printPtr(os, *(params->phGraph));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_end_graph_capture_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_queue_end_graph_capture_exp_params_t
+               *params) {
+
+  os << ".hQueue = ";
+
+  ur::details::printPtr(os, *(params->phQueue));
+
+  os << ", ";
+  os << ".phGraph = ";
+
+  ur::details::printPtr(os, *(params->pphGraph));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_is_graph_capture_enabled_exp_params_t
+/// type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_queue_is_graph_capture_enabled_exp_params_t
+        *params) {
+
+  os << ".hQueue = ";
+
+  ur::details::printPtr(os, *(params->phQueue));
+
+  os << ", ";
+  os << ".pResult = ";
+
+  ur::details::printPtr(os, *(params->ppResult));
 
   return os;
 }
@@ -14810,132 +15997,6 @@ inline std::ostream &operator<<(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_adapter_get_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &
-operator<<(std::ostream &os,
-           [[maybe_unused]] const struct ur_adapter_get_params_t *params) {
-
-  os << ".NumEntries = ";
-
-  os << *(params->pNumEntries);
-
-  os << ", ";
-  os << ".phAdapters = ";
-  ur::details::printPtr(os,
-                        reinterpret_cast<const void *>(*(params->pphAdapters)));
-  if (*(params->pphAdapters) != NULL) {
-    os << " {";
-    for (size_t i = 0; i < *params->pNumEntries; ++i) {
-      if (i != 0) {
-        os << ", ";
-      }
-
-      ur::details::printPtr(os, (*(params->pphAdapters))[i]);
-    }
-    os << "}";
-  }
-
-  os << ", ";
-  os << ".pNumAdapters = ";
-
-  ur::details::printPtr(os, *(params->ppNumAdapters));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_adapter_release_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &
-operator<<(std::ostream &os,
-           [[maybe_unused]] const struct ur_adapter_release_params_t *params) {
-
-  os << ".hAdapter = ";
-
-  ur::details::printPtr(os, *(params->phAdapter));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_adapter_retain_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &
-operator<<(std::ostream &os,
-           [[maybe_unused]] const struct ur_adapter_retain_params_t *params) {
-
-  os << ".hAdapter = ";
-
-  ur::details::printPtr(os, *(params->phAdapter));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_adapter_get_last_error_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(
-    std::ostream &os,
-    [[maybe_unused]] const struct ur_adapter_get_last_error_params_t *params) {
-
-  os << ".hAdapter = ";
-
-  ur::details::printPtr(os, *(params->phAdapter));
-
-  os << ", ";
-  os << ".ppMessage = ";
-
-  ur::details::printPtr(os, *(params->pppMessage));
-
-  os << ", ";
-  os << ".pError = ";
-
-  ur::details::printPtr(os, *(params->ppError));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_adapter_get_info_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &
-operator<<(std::ostream &os,
-           [[maybe_unused]] const struct ur_adapter_get_info_params_t *params) {
-
-  os << ".hAdapter = ";
-
-  ur::details::printPtr(os, *(params->phAdapter));
-
-  os << ", ";
-  os << ".propName = ";
-
-  os << *(params->ppropName);
-
-  os << ", ";
-  os << ".propSize = ";
-
-  os << *(params->ppropSize);
-
-  os << ", ";
-  os << ".pPropValue = ";
-  ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName),
-                           *(params->ppropSize));
-
-  os << ", ";
-  os << ".pPropSizeRet = ";
-
-  ur::details::printPtr(os, *(params->ppPropSizeRet));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_enqueue_kernel_launch_params_t type
 /// @returns
 ///     std::ostream &
@@ -14971,6 +16032,11 @@ inline std::ostream &operator<<(
   os << ".pLocalWorkSize = ";
 
   ur::details::printPtr(os, *(params->ppLocalWorkSize));
+
+  os << ", ";
+  os << ".launchPropList = ";
+
+  ur::details::printPtr(os, *(params->plaunchPropList));
 
   os << ", ";
   os << ".numEventsInWaitList = ";
@@ -16598,14 +17664,13 @@ inline std::ostream &operator<<(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_enqueue_kernel_launch_custom_exp_params_t
-/// type
+/// @brief Print operator for the
+/// ur_enqueue_kernel_launch_with_args_exp_params_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(
-    std::ostream &os,
-    [[maybe_unused]] const struct ur_enqueue_kernel_launch_custom_exp_params_t
-        *params) {
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_enqueue_kernel_launch_with_args_exp_params_t *params) {
 
   os << ".hQueue = ";
 
@@ -16637,25 +17702,29 @@ inline std::ostream &operator<<(
   ur::details::printPtr(os, *(params->ppLocalWorkSize));
 
   os << ", ";
-  os << ".numPropsInLaunchPropList = ";
+  os << ".numArgs = ";
 
-  os << *(params->pnumPropsInLaunchPropList);
+  os << *(params->pnumArgs);
 
   os << ", ";
-  os << ".launchPropList = ";
-  ur::details::printPtr(
-      os, reinterpret_cast<const void *>(*(params->plaunchPropList)));
-  if (*(params->plaunchPropList) != NULL) {
+  os << ".pArgs = ";
+  ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->ppArgs)));
+  if (*(params->ppArgs) != NULL) {
     os << " {";
-    for (size_t i = 0; i < *params->pnumPropsInLaunchPropList; ++i) {
+    for (size_t i = 0; i < *params->pnumArgs; ++i) {
       if (i != 0) {
         os << ", ";
       }
 
-      os << (*(params->plaunchPropList))[i];
+      os << (*(params->ppArgs))[i];
     }
     os << "}";
   }
+
+  os << ", ";
+  os << ".launchPropList = ";
+
+  ur::details::printPtr(os, *(params->plaunchPropList));
 
   os << ", ";
   os << ".numEventsInWaitList = ";
@@ -16971,6 +18040,54 @@ inline std::ostream &operator<<(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_enqueue_timestamp_recording_exp_params_t
+/// type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_enqueue_timestamp_recording_exp_params_t
+        *params) {
+
+  os << ".hQueue = ";
+
+  ur::details::printPtr(os, *(params->phQueue));
+
+  os << ", ";
+  os << ".blocking = ";
+
+  os << *(params->pblocking);
+
+  os << ", ";
+  os << ".numEventsInWaitList = ";
+
+  os << *(params->pnumEventsInWaitList);
+
+  os << ", ";
+  os << ".phEventWaitList = ";
+  ur::details::printPtr(
+      os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+  if (*(params->pphEventWaitList) != NULL) {
+    os << " {";
+    for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+      if (i != 0) {
+        os << ", ";
+      }
+
+      ur::details::printPtr(os, (*(params->pphEventWaitList))[i]);
+    }
+    os << "}";
+  }
+
+  os << ", ";
+  os << ".phEvent = ";
+
+  ur::details::printPtr(os, *(params->pphEvent));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_enqueue_command_buffer_exp_params_t type
 /// @returns
 ///     std::ostream &
@@ -17018,90 +18135,31 @@ operator<<(std::ostream &os,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the
-/// ur_enqueue_cooperative_kernel_launch_exp_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &
-operator<<(std::ostream &os, [[maybe_unused]] const struct
-           ur_enqueue_cooperative_kernel_launch_exp_params_t *params) {
-
-  os << ".hQueue = ";
-
-  ur::details::printPtr(os, *(params->phQueue));
-
-  os << ", ";
-  os << ".hKernel = ";
-
-  ur::details::printPtr(os, *(params->phKernel));
-
-  os << ", ";
-  os << ".workDim = ";
-
-  os << *(params->pworkDim);
-
-  os << ", ";
-  os << ".pGlobalWorkOffset = ";
-
-  ur::details::printPtr(os, *(params->ppGlobalWorkOffset));
-
-  os << ", ";
-  os << ".pGlobalWorkSize = ";
-
-  ur::details::printPtr(os, *(params->ppGlobalWorkSize));
-
-  os << ", ";
-  os << ".pLocalWorkSize = ";
-
-  ur::details::printPtr(os, *(params->ppLocalWorkSize));
-
-  os << ", ";
-  os << ".numEventsInWaitList = ";
-
-  os << *(params->pnumEventsInWaitList);
-
-  os << ", ";
-  os << ".phEventWaitList = ";
-  ur::details::printPtr(
-      os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
-  if (*(params->pphEventWaitList) != NULL) {
-    os << " {";
-    for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
-      if (i != 0) {
-        os << ", ";
-      }
-
-      ur::details::printPtr(os, (*(params->pphEventWaitList))[i]);
-    }
-    os << "}";
-  }
-
-  os << ", ";
-  os << ".phEvent = ";
-
-  ur::details::printPtr(os, *(params->pphEvent));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_enqueue_timestamp_recording_exp_params_t
-/// type
+/// @brief Print operator for the ur_enqueue_host_task_exp_params_t type
 /// @returns
 ///     std::ostream &
 inline std::ostream &operator<<(
     std::ostream &os,
-    [[maybe_unused]] const struct ur_enqueue_timestamp_recording_exp_params_t
-        *params) {
+    [[maybe_unused]] const struct ur_enqueue_host_task_exp_params_t *params) {
 
   os << ".hQueue = ";
 
   ur::details::printPtr(os, *(params->phQueue));
 
   os << ", ";
-  os << ".blocking = ";
+  os << ".pfnHostTask = ";
 
-  os << *(params->pblocking);
+  os << reinterpret_cast<void *>(*(params->ppfnHostTask));
+
+  os << ", ";
+  os << ".data = ";
+
+  ur::details::printPtr(os, *(params->pdata));
+
+  os << ", ";
+  os << ".pProperties = ";
+
+  ur::details::printPtr(os, *(params->ppProperties));
 
   os << ", ";
   os << ".numEventsInWaitList = ";
@@ -17180,6 +18238,52 @@ operator<<(std::ostream &os,
   os << ".pProperties = ";
 
   ur::details::printPtr(os, *(params->ppProperties));
+
+  os << ", ";
+  os << ".numEventsInWaitList = ";
+
+  os << *(params->pnumEventsInWaitList);
+
+  os << ", ";
+  os << ".phEventWaitList = ";
+  ur::details::printPtr(
+      os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+  if (*(params->pphEventWaitList) != NULL) {
+    os << " {";
+    for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+      if (i != 0) {
+        os << ", ";
+      }
+
+      ur::details::printPtr(os, (*(params->pphEventWaitList))[i]);
+    }
+    os << "}";
+  }
+
+  os << ", ";
+  os << ".phEvent = ";
+
+  ur::details::printPtr(os, *(params->pphEvent));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_enqueue_graph_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_enqueue_graph_exp_params_t *params) {
+
+  os << ".hQueue = ";
+
+  ur::details::printPtr(os, *(params->phQueue));
+
+  os << ", ";
+  os << ".hGraph = ";
+
+  ur::details::printPtr(os, *(params->phGraph));
 
   os << ", ";
   os << ".numEventsInWaitList = ";
@@ -17754,6 +18858,36 @@ inline std::ostream &operator<<(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_usm_context_memcpy_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_usm_context_memcpy_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".pDst = ";
+
+  ur::details::printPtr(os, *(params->ppDst));
+
+  os << ", ";
+  os << ".pSrc = ";
+
+  ur::details::printPtr(os, *(params->ppSrc));
+
+  os << ", ";
+  os << ".size = ";
+
+  os << *(params->psize);
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_usm_import_exp_params_t type
 /// @returns
 ///     std::ostream &
@@ -17989,9 +19123,9 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
   ur::details::printPtr(os, *(params->ppImageDesc));
 
   os << ", ";
-  os << ".hSampler = ";
+  os << ".pSamplerDesc = ";
 
-  ur::details::printPtr(os, *(params->phSampler));
+  ur::details::printPtr(os, *(params->ppSamplerDesc));
 
   os << ", ";
   os << ".phImage = ";
@@ -18057,6 +19191,11 @@ inline std::ostream &operator<<(
                                                    *(params->pimageCopyFlags));
 
   os << ", ";
+  os << ".imageCopyInputTypes = ";
+
+  os << *(params->pimageCopyInputTypes);
+
+  os << ", ";
   os << ".numEventsInWaitList = ";
 
   os << *(params->pnumEventsInWaitList);
@@ -18118,6 +19257,131 @@ inline std::ostream &operator<<(
   os << ".pPropSizeRet = ";
 
   ur::details::printPtr(os, *(params->ppPropSizeRet));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the
+/// ur_bindless_images_get_image_memory_handle_type_support_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_bindless_images_get_image_memory_handle_type_support_exp_params_t
+               *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".pImageDesc = ";
+
+  ur::details::printPtr(os, *(params->ppImageDesc));
+
+  os << ", ";
+  os << ".pImageFormat = ";
+
+  ur::details::printPtr(os, *(params->ppImageFormat));
+
+  os << ", ";
+  os << ".imageMemHandleType = ";
+
+  os << *(params->pimageMemHandleType);
+
+  os << ", ";
+  os << ".pSupportedRet = ";
+
+  ur::details::printPtr(os, *(params->ppSupportedRet));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the
+/// ur_bindless_images_get_image_unsampled_handle_support_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_bindless_images_get_image_unsampled_handle_support_exp_params_t
+               *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".pImageDesc = ";
+
+  ur::details::printPtr(os, *(params->ppImageDesc));
+
+  os << ", ";
+  os << ".pImageFormat = ";
+
+  ur::details::printPtr(os, *(params->ppImageFormat));
+
+  os << ", ";
+  os << ".imageMemHandleType = ";
+
+  os << *(params->pimageMemHandleType);
+
+  os << ", ";
+  os << ".pSupportedRet = ";
+
+  ur::details::printPtr(os, *(params->ppSupportedRet));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the
+/// ur_bindless_images_get_image_sampled_handle_support_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os, [[maybe_unused]] const struct
+    ur_bindless_images_get_image_sampled_handle_support_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".pImageDesc = ";
+
+  ur::details::printPtr(os, *(params->ppImageDesc));
+
+  os << ", ";
+  os << ".pImageFormat = ";
+
+  ur::details::printPtr(os, *(params->ppImageFormat));
+
+  os << ", ";
+  os << ".imageMemHandleType = ";
+
+  os << *(params->pimageMemHandleType);
+
+  os << ", ";
+  os << ".pSupportedRet = ";
+
+  ur::details::printPtr(os, *(params->ppSupportedRet));
 
   return os;
 }
@@ -18330,6 +19594,58 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
   os << ".hExternalMem = ";
 
   ur::details::printPtr(os, *(params->phExternalMem));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the
+/// ur_bindless_images_free_mapped_linear_memory_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_bindless_images_free_mapped_linear_memory_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".pMem = ";
+
+  os << *(params->ppMem);
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the
+/// ur_bindless_images_supports_importing_handle_type_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os, [[maybe_unused]] const struct
+    ur_bindless_images_supports_importing_handle_type_exp_params_t *params) {
+
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".memHandleType = ";
+
+  os << *(params->pmemHandleType);
+
+  os << ", ";
+  os << ".pSupportedRet = ";
+
+  ur::details::printPtr(os, *(params->ppSupportedRet));
 
   return os;
 }
@@ -19869,6 +21185,328 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_graph_create_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_graph_create_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".phGraph = ";
+
+  ur::details::printPtr(os, *(params->pphGraph));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_graph_instantiate_graph_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_graph_instantiate_graph_exp_params_t
+               *params) {
+
+  os << ".hGraph = ";
+
+  ur::details::printPtr(os, *(params->phGraph));
+
+  os << ", ";
+  os << ".phExecGraph = ";
+
+  ur::details::printPtr(os, *(params->pphExecGraph));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_graph_destroy_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_graph_destroy_exp_params_t *params) {
+
+  os << ".hGraph = ";
+
+  ur::details::printPtr(os, *(params->phGraph));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_graph_executable_graph_destroy_exp_params_t
+/// type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_graph_executable_graph_destroy_exp_params_t
+        *params) {
+
+  os << ".hExecutableGraph = ";
+
+  ur::details::printPtr(os, *(params->phExecutableGraph));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_graph_is_empty_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_graph_is_empty_exp_params_t *params) {
+
+  os << ".hGraph = ";
+
+  ur::details::printPtr(os, *(params->phGraph));
+
+  os << ", ";
+  os << ".pResult = ";
+
+  ur::details::printPtr(os, *(params->ppResult));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_graph_dump_contents_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_graph_dump_contents_exp_params_t *params) {
+
+  os << ".hGraph = ";
+
+  ur::details::printPtr(os, *(params->phGraph));
+
+  os << ", ";
+  os << ".filePath = ";
+
+  ur::details::printPtr(os, *(params->pfilePath));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_ipc_get_mem_handle_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_ipc_get_mem_handle_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".pMem = ";
+
+  os << *(params->ppMem);
+
+  os << ", ";
+  os << ".ppIPCMemHandleData = ";
+
+  ur::details::printPtr(os, *(params->pppIPCMemHandleData));
+
+  os << ", ";
+  os << ".pIPCMemHandleDataSizeRet = ";
+
+  ur::details::printPtr(os, *(params->ppIPCMemHandleDataSizeRet));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_ipc_put_mem_handle_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_ipc_put_mem_handle_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".pIPCMemHandleData = ";
+
+  ur::details::printPtr(os, *(params->ppIPCMemHandleData));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_ipc_open_mem_handle_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_ipc_open_mem_handle_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".pIPCMemHandleData = ";
+
+  os << *(params->ppIPCMemHandleData);
+
+  os << ", ";
+  os << ".ipcMemHandleDataSize = ";
+
+  os << *(params->pipcMemHandleDataSize);
+
+  os << ", ";
+  os << ".ppMem = ";
+
+  os << *(params->pppMem);
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_ipc_close_mem_handle_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_ipc_close_mem_handle_exp_params_t
+               *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".pMem = ";
+
+  os << *(params->ppMem);
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the
+/// ur_memory_export_alloc_exportable_memory_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_memory_export_alloc_exportable_memory_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".alignment = ";
+
+  os << *(params->palignment);
+
+  os << ", ";
+  os << ".size = ";
+
+  os << *(params->psize);
+
+  os << ", ";
+  os << ".handleTypeToExport = ";
+
+  os << *(params->phandleTypeToExport);
+
+  os << ", ";
+  os << ".ppMem = ";
+
+  os << *(params->pppMem);
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the
+/// ur_memory_export_free_exportable_memory_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_memory_export_free_exportable_memory_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".pMem = ";
+
+  os << *(params->ppMem);
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the
+/// ur_memory_export_export_memory_handle_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_memory_export_export_memory_handle_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".handleTypeToExport = ";
+
+  os << *(params->phandleTypeToExport);
+
+  os << ", ";
+  os << ".pMem = ";
+
+  os << *(params->ppMem);
+
+  os << ", ";
+  os << ".pMemHandleRet = ";
+
+  os << *(params->ppMemHandleRet);
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_usm_p2p_enable_peer_access_exp_params_t
 /// type
 /// @returns
@@ -20003,6 +21641,11 @@ inline std::ostream &operator<<(
   os << ".hDevice = ";
 
   ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".allocationSize = ";
+
+  os << *(params->pallocationSize);
 
   os << ", ";
   os << ".propName = ";
@@ -20535,6 +22178,21 @@ inline std::ostream &operator<<(
   return os;
 }
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_device_wait_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_device_wait_exp_params_t *params) {
+
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  return os;
+}
+
 inline std::ostream &operator<<(std::ostream &os,
                                 [[maybe_unused]] const ur_bool_t value) {
   os << (value ? "true" : "false");
@@ -20562,6 +22220,25 @@ inline ur_result_t printPtr(std::ostream &os, const T *ptr) {
     os << (const void *)(ptr) << " (";
     os << *ptr;
     os << ")";
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// @brief Print array of literals
+template <size_t size, typename T>
+inline ur_result_t printArray(std::ostream &os, const T *ptr) {
+  if (ptr == NULL) {
+    return printPtr(os, ptr);
+  }
+
+  for (size_t i = 0; i < size; i++) {
+    if (i != 0) {
+      os << ", ";
+    }
+
+    os << ptr[i];
   }
 
   return UR_RESULT_SUCCESS;
@@ -20605,6 +22282,27 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_LOADER_CONFIG_SET_MOCKING_ENABLED: {
     os << (const struct ur_loader_config_set_mocking_enabled_params_t *)params;
+  } break;
+  case UR_FUNCTION_ADAPTER_GET: {
+    os << (const struct ur_adapter_get_params_t *)params;
+  } break;
+  case UR_FUNCTION_ADAPTER_RELEASE: {
+    os << (const struct ur_adapter_release_params_t *)params;
+  } break;
+  case UR_FUNCTION_ADAPTER_RETAIN: {
+    os << (const struct ur_adapter_retain_params_t *)params;
+  } break;
+  case UR_FUNCTION_ADAPTER_GET_LAST_ERROR: {
+    os << (const struct ur_adapter_get_last_error_params_t *)params;
+  } break;
+  case UR_FUNCTION_ADAPTER_GET_INFO: {
+    os << (const struct ur_adapter_get_info_params_t *)params;
+  } break;
+  case UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK: {
+    os << (const struct ur_adapter_set_logger_callback_params_t *)params;
+  } break;
+  case UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK_LEVEL: {
+    os << (const struct ur_adapter_set_logger_callback_level_params_t *)params;
   } break;
   case UR_FUNCTION_PLATFORM_GET: {
     os << (const struct ur_platform_get_params_t *)params;
@@ -20677,6 +22375,9 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_PROGRAM_BUILD: {
     os << (const struct ur_program_build_params_t *)params;
+  } break;
+  case UR_FUNCTION_PROGRAM_DYNAMIC_LINK_EXP: {
+    os << (const struct ur_program_dynamic_link_exp_params_t *)params;
   } break;
   case UR_FUNCTION_PROGRAM_BUILD_EXP: {
     os << (const struct ur_program_build_exp_params_t *)params;
@@ -20772,9 +22473,9 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
     os << (const struct ur_kernel_set_specialization_constants_params_t *)
             params;
   } break;
-  case UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP: {
-    os << (const struct
-           ur_kernel_suggest_max_cooperative_group_count_exp_params_t *)params;
+  case UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT: {
+    os << (const struct ur_kernel_suggest_max_cooperative_group_count_params_t
+               *)params;
   } break;
   case UR_FUNCTION_QUEUE_GET_INFO: {
     os << (const struct ur_queue_get_info_params_t *)params;
@@ -20799,6 +22500,18 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_QUEUE_FLUSH: {
     os << (const struct ur_queue_flush_params_t *)params;
+  } break;
+  case UR_FUNCTION_QUEUE_BEGIN_GRAPH_CAPTURE_EXP: {
+    os << (const struct ur_queue_begin_graph_capture_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_QUEUE_BEGIN_CAPTURE_INTO_GRAPH_EXP: {
+    os << (const struct ur_queue_begin_capture_into_graph_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_QUEUE_END_GRAPH_CAPTURE_EXP: {
+    os << (const struct ur_queue_end_graph_capture_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_QUEUE_IS_GRAPH_CAPTURE_ENABLED_EXP: {
+    os << (const struct ur_queue_is_graph_capture_enabled_exp_params_t *)params;
   } break;
   case UR_FUNCTION_SAMPLER_CREATE: {
     os << (const struct ur_sampler_create_params_t *)params;
@@ -20861,21 +22574,6 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_PHYSICAL_MEM_GET_INFO: {
     os << (const struct ur_physical_mem_get_info_params_t *)params;
-  } break;
-  case UR_FUNCTION_ADAPTER_GET: {
-    os << (const struct ur_adapter_get_params_t *)params;
-  } break;
-  case UR_FUNCTION_ADAPTER_RELEASE: {
-    os << (const struct ur_adapter_release_params_t *)params;
-  } break;
-  case UR_FUNCTION_ADAPTER_RETAIN: {
-    os << (const struct ur_adapter_retain_params_t *)params;
-  } break;
-  case UR_FUNCTION_ADAPTER_GET_LAST_ERROR: {
-    os << (const struct ur_adapter_get_last_error_params_t *)params;
-  } break;
-  case UR_FUNCTION_ADAPTER_GET_INFO: {
-    os << (const struct ur_adapter_get_info_params_t *)params;
   } break;
   case UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH: {
     os << (const struct ur_enqueue_kernel_launch_params_t *)params;
@@ -20954,8 +22652,9 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   case UR_FUNCTION_ENQUEUE_WRITE_HOST_PIPE: {
     os << (const struct ur_enqueue_write_host_pipe_params_t *)params;
   } break;
-  case UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP: {
-    os << (const struct ur_enqueue_kernel_launch_custom_exp_params_t *)params;
+  case UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP: {
+    os << (const struct ur_enqueue_kernel_launch_with_args_exp_params_t *)
+            params;
   } break;
   case UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT: {
     os << (const struct ur_enqueue_events_wait_with_barrier_ext_params_t *)
@@ -20973,18 +22672,20 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   case UR_FUNCTION_ENQUEUE_USM_FREE_EXP: {
     os << (const struct ur_enqueue_usm_free_exp_params_t *)params;
   } break;
-  case UR_FUNCTION_ENQUEUE_COMMAND_BUFFER_EXP: {
-    os << (const struct ur_enqueue_command_buffer_exp_params_t *)params;
-  } break;
-  case UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP: {
-    os << (const struct ur_enqueue_cooperative_kernel_launch_exp_params_t *)
-            params;
-  } break;
   case UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP: {
     os << (const struct ur_enqueue_timestamp_recording_exp_params_t *)params;
   } break;
+  case UR_FUNCTION_ENQUEUE_COMMAND_BUFFER_EXP: {
+    os << (const struct ur_enqueue_command_buffer_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_ENQUEUE_HOST_TASK_EXP: {
+    os << (const struct ur_enqueue_host_task_exp_params_t *)params;
+  } break;
   case UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP: {
     os << (const struct ur_enqueue_native_command_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_ENQUEUE_GRAPH_EXP: {
+    os << (const struct ur_enqueue_graph_exp_params_t *)params;
   } break;
   case UR_FUNCTION_USM_HOST_ALLOC: {
     os << (const struct ur_usm_host_alloc_params_t *)params;
@@ -21041,6 +22742,9 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   case UR_FUNCTION_USM_PITCHED_ALLOC_EXP: {
     os << (const struct ur_usm_pitched_alloc_exp_params_t *)params;
   } break;
+  case UR_FUNCTION_USM_CONTEXT_MEMCPY_EXP: {
+    os << (const struct ur_usm_context_memcpy_exp_params_t *)params;
+  } break;
   case UR_FUNCTION_USM_IMPORT_EXP: {
     os << (const struct ur_usm_import_exp_params_t *)params;
   } break;
@@ -21077,6 +22781,21 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   case UR_FUNCTION_BINDLESS_IMAGES_IMAGE_GET_INFO_EXP: {
     os << (const struct ur_bindless_images_image_get_info_exp_params_t *)params;
   } break;
+  case UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_MEMORY_HANDLE_TYPE_SUPPORT_EXP: {
+    os << (const struct
+           ur_bindless_images_get_image_memory_handle_type_support_exp_params_t
+               *)params;
+  } break;
+  case UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_UNSAMPLED_HANDLE_SUPPORT_EXP: {
+    os << (const struct
+           ur_bindless_images_get_image_unsampled_handle_support_exp_params_t *)
+            params;
+  } break;
+  case UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_SAMPLED_HANDLE_SUPPORT_EXP: {
+    os << (const struct
+           ur_bindless_images_get_image_sampled_handle_support_exp_params_t *)
+            params;
+  } break;
   case UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_GET_LEVEL_EXP: {
     os << (const struct ur_bindless_images_mipmap_get_level_exp_params_t *)
             params;
@@ -21099,6 +22818,15 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   case UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP: {
     os << (const struct ur_bindless_images_release_external_memory_exp_params_t
                *)params;
+  } break;
+  case UR_FUNCTION_BINDLESS_IMAGES_FREE_MAPPED_LINEAR_MEMORY_EXP: {
+    os << (const struct
+           ur_bindless_images_free_mapped_linear_memory_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_BINDLESS_IMAGES_SUPPORTS_IMPORTING_HANDLE_TYPE_EXP: {
+    os << (const struct
+           ur_bindless_images_supports_importing_handle_type_exp_params_t *)
+            params;
   } break;
   case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP: {
     os << (const struct
@@ -21198,6 +22926,48 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
     os << (const struct ur_command_buffer_get_native_handle_exp_params_t *)
             params;
   } break;
+  case UR_FUNCTION_GRAPH_CREATE_EXP: {
+    os << (const struct ur_graph_create_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_GRAPH_INSTANTIATE_GRAPH_EXP: {
+    os << (const struct ur_graph_instantiate_graph_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_GRAPH_DESTROY_EXP: {
+    os << (const struct ur_graph_destroy_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_DESTROY_EXP: {
+    os << (const struct ur_graph_executable_graph_destroy_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_GRAPH_IS_EMPTY_EXP: {
+    os << (const struct ur_graph_is_empty_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_GRAPH_DUMP_CONTENTS_EXP: {
+    os << (const struct ur_graph_dump_contents_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP: {
+    os << (const struct ur_ipc_get_mem_handle_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_IPC_PUT_MEM_HANDLE_EXP: {
+    os << (const struct ur_ipc_put_mem_handle_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_IPC_OPEN_MEM_HANDLE_EXP: {
+    os << (const struct ur_ipc_open_mem_handle_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_IPC_CLOSE_MEM_HANDLE_EXP: {
+    os << (const struct ur_ipc_close_mem_handle_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_MEMORY_EXPORT_ALLOC_EXPORTABLE_MEMORY_EXP: {
+    os << (const struct ur_memory_export_alloc_exportable_memory_exp_params_t *)
+            params;
+  } break;
+  case UR_FUNCTION_MEMORY_EXPORT_FREE_EXPORTABLE_MEMORY_EXP: {
+    os << (const struct ur_memory_export_free_exportable_memory_exp_params_t *)
+            params;
+  } break;
+  case UR_FUNCTION_MEMORY_EXPORT_EXPORT_MEMORY_HANDLE_EXP: {
+    os << (const struct ur_memory_export_export_memory_handle_exp_params_t *)
+            params;
+  } break;
   case UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP: {
     os << (const struct ur_usm_p2p_enable_peer_access_exp_params_t *)params;
   } break;
@@ -21263,6 +23033,9 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_DEVICE_GET_GLOBAL_TIMESTAMPS: {
     os << (const struct ur_device_get_global_timestamps_params_t *)params;
+  } break;
+  case UR_FUNCTION_DEVICE_WAIT_EXP: {
+    os << (const struct ur_device_wait_exp_params_t *)params;
   } break;
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;

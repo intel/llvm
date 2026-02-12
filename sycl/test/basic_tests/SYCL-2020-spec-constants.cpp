@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -c -o %t.bc %s
-// RUN: %if asserts %{sycl-post-link -properties -debug-only=SpecConst %t.bc -spec-const=native -o %t-split1.txt 2>&1 | FileCheck %s -check-prefixes=CHECK-LOG %} %else %{sycl-post-link -properties %t.bc -spec-const=native -o %t-split1.txt 2>&1 %}
+// RUN: %if asserts %{sycl-post-link -split=none -properties -debug-only=SpecConst %t.bc -spec-const=native -o %t-split1.txt 2>&1 | FileCheck %s -check-prefixes=CHECK-LOG %} %else %{sycl-post-link -split=none -properties %t.bc -spec-const=native -o %t-split1.txt 2>&1 %}
 // RUN: cat %t-split1_0.prop | FileCheck %s -check-prefixes=CHECK,CHECK-RT
-// RUN: sycl-post-link -properties %t.bc -spec-const=emulation -o %t-split2.txt
+// RUN: sycl-post-link -split=none -properties %t.bc -spec-const=emulation -o %t-split2.txt
 // RUN: cat %t-split2_0.prop | FileCheck %s -check-prefixes=CHECK,CHECK-DEF
 // RUN: llvm-spirv -o %t-split1_0.spv -spirv-max-version=1.1 -spirv-ext=+all %t-split1_0.bc
 // RUN: llvm-spirv -o - --to-text %t-split1_0.spv | FileCheck %s -check-prefixes=CHECK-SPV
@@ -37,7 +37,7 @@ constexpr sycl::specialization_id<uint64_t> uint64_id(81);
 // constexpr sycl::specialization_id<half> half_id(9.0);
 constexpr sycl::specialization_id<float> float_id(710.0);
 constexpr sycl::specialization_id<double> double_id(11.0);
-constexpr sycl::marray<double, 5> ma;
+constexpr sycl::marray<double, 5> ma(33.0);
 constexpr sycl::specialization_id<sycl::marray<double, 5>> marray_id5(151.0);
 constexpr sycl::specialization_id<sycl::marray<double, 1>> marray_id1(116.0);
 constexpr sycl::specialization_id<sycl::marray<double, 5>> marray_id_def(ma);

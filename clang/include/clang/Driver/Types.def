@@ -88,8 +88,8 @@ TYPE("assembler-with-cpp",       Asm,          PP_Asm,          "S",      phases
 // modules when Flang needs to emit pre-processed files. Therefore, the
 // `PP_TYPE` is set to `PP_Fortran` so that the driver is fine with
 // "pre-processing a pre-processed file".
-TYPE("f95",                      PP_Fortran,   PP_Fortran,      "i",      phases::Preprocess, phases::Compile, phases::Backend, phases::Assemble, phases::Link)
-TYPE("f95-cpp-input",            Fortran,      PP_Fortran,      nullptr,  phases::Preprocess, phases::Compile, phases::Backend, phases::Assemble, phases::Link)
+TYPE("f95",                      Fortran,      PP_Fortran,      nullptr,  phases::Preprocess, phases::Compile, phases::Backend, phases::Assemble, phases::Link)
+TYPE("f95-cpp-input",            PP_Fortran,   PP_Fortran,      "i",      phases::Preprocess, phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("java",                     Java,         INVALID,         nullptr,  phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 
 // LLVM IR/LTO types. We define separate types for IR and LTO because LTO
@@ -125,12 +125,6 @@ TYPE("tempfiletable",            Tempfiletable,INVALID,         "table",  phases
 TYPE("tempAOCOfilelist",         TempAOCOfilelist, INVALID,     "txt",    phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("archive",                  Archive,      INVALID,         "a",      phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("wholearchive",             WholeArchive, INVALID,         "a",      phases::Compile, phases::Backend, phases::Assemble, phases::Link)
-TYPE("fpga_aocx",                FPGA_AOCX,    INVALID,         "aocx",   phases::Compile, phases::Backend, phases::Assemble, phases::Link)
-TYPE("fpga_aocr",                FPGA_AOCR,    INVALID,         "aocr",   phases::Compile, phases::Backend, phases::Assemble, phases::Link)
-TYPE("fpga_aocr_emu",            FPGA_AOCR_EMU, INVALID,        "aocr",   phases::Compile, phases::Backend, phases::Assemble, phases::Link)
-TYPE("fpga_aoco",                FPGA_AOCO,    INVALID,         "aoco",   phases::Compile, phases::Backend, phases::Assemble, phases::Link)
-TYPE("fpga_dep",                 FPGA_Dependencies, INVALID,    "d",      phases::Compile, phases::Backend, phases::Assemble, phases::Link)
-TYPE("fpga_dep_list",            FPGA_Dependencies_List, INVALID, "txt",  phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("host_dep_image",           Host_Dependencies_Image, INVALID, "out", phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("api-information",          API_INFO,     INVALID,         "json",   phases::Precompile)
 TYPE("dx-container",             DX_CONTAINER, INVALID,         "dxo",    phases::Compile, phases::Backend)

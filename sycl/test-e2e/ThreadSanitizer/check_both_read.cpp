@@ -1,8 +1,6 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
 // RUN: %{build} %device_tsan_flags -O0 -g -o %t1.out
 // RUN: %{run} %t1.out 2>&1 | FileCheck %s
-// UNSUPPORTED: true
-// UNSUPPORTED-TRACKER: CMPLRLLVM-66203
 #include "sycl/detail/core.hpp"
 #include "sycl/usm.hpp"
 

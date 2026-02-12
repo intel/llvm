@@ -15,11 +15,11 @@
 #include "clang/Driver/Action.h"
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/InputInfo.h"
-#include "clang/Driver/Options.h"
 #include "clang/Driver/Phases.h"
 #include "clang/Driver/ToolChain.h"
 #include "clang/Driver/Types.h"
 #include "clang/Driver/Util.h"
+#include "clang/Options/Options.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/StringMap.h"
@@ -101,7 +101,7 @@ class Driver {
 
   IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS;
 
-  bool DumpDeviceCode;
+  bool SaveOffloadCode;
 
   enum DriverMode {
     GCCMode,
@@ -339,6 +339,10 @@ private:
   /// "clang" as it's first argument.
   const char *PrependArg;
 
+  /// The default value of -fuse-ld= option. An empty string means the default
+  /// system linker.
+  std::string PreferredLinker;
+
   /// Whether to check that input files exist when constructing compilation
   /// jobs.
   LLVM_PREFERRED_TYPE(bool)
@@ -356,6 +360,8 @@ public:
   //       handleArguments.
   phases::ID getFinalPhase(const llvm::opt::DerivedArgList &DAL,
                            llvm::opt::Arg **FinalPhaseArg = nullptr) const;
+  llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>>
+  executeProgram(llvm::ArrayRef<llvm::StringRef> Args) const;
 
 private:
   /// Certain options suppress the 'no input files' warning.
@@ -369,10 +375,9 @@ private:
   /// stored in it, and will clean them up when torn down.
   mutable llvm::StringMap<std::unique_ptr<ToolChain>> ToolChains;
 
-  /// Cache of known offloading architectures for the ToolChain already derived.
-  /// This should only be modified when we first initialize the offloading
-  /// toolchains.
-  llvm::DenseMap<const ToolChain *, llvm::DenseSet<llvm::StringRef>> KnownArchs;
+  /// The associated offloading architectures with each toolchain.
+  llvm::DenseMap<const ToolChain *, llvm::SmallVector<llvm::StringRef>>
+      OffloadArchs;
 
 private:
   /// TranslateInputArgs - Create a new derived argument list from the input
@@ -406,11 +411,6 @@ private:
                               SmallString<128> &CrashDiagDir);
 
 public:
-
-  /// Takes the path to a binary that's either in bin/ or lib/ and returns
-  /// the path to clang's resource directory.
-  static std::string GetResourcesPath(StringRef BinaryPath);
-
   Driver(StringRef ClangExecutable, StringRef TargetTriple,
          DiagnosticsEngine &Diags, std::string Title = "clang LLVM compiler",
          IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS = nullptr);
@@ -453,8 +453,12 @@ public:
     return ClangExecutable.c_str();
   }
 
-  bool isDumpDeviceCodeEnabled() const { return DumpDeviceCode; }
+  StringRef getPreferredLinker() const { return PreferredLinker; }
+  void setPreferredLinker(std::string Value) {
+    PreferredLinker = std::move(Value);
+  }
 
+  bool isSaveOffloadCodeEnabled() const { return SaveOffloadCode; }
   bool isSaveTempsEnabled() const { return SaveTemps != SaveTempsNone; }
   bool isSaveTempsObj() const { return SaveTemps == SaveTempsObj; }
 
@@ -539,11 +543,10 @@ public:
 
   /// Returns the set of bound architectures active for this offload kind.
   /// If there are no bound architctures we return a set containing only the
-  /// empty string. The \p SuppressError option is used to suppress errors.
-  llvm::DenseSet<StringRef>
+  /// empty string.
+  llvm::SmallVector<StringRef>
   getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
-                  Action::OffloadKind Kind, const ToolChain *TC,
-                  bool SuppressError = false) const;
+                  Action::OffloadKind Kind, const ToolChain &TC) const;
 
   /// Check that the file referenced by Value exists. If it doesn't,
   /// issue a diagnostic and return false.
@@ -775,25 +778,6 @@ public:
   /// Get the specific kind of offload LTO being performed.
   LTOKind getOffloadLTOMode() const { return OffloadLTOMode; }
 
-  // FPGA Offload Modes.
-  enum DeviceMode {
-    UnsetDeviceMode,
-    FPGAHWMode,
-    FPGAEmulationMode
-  } OffloadCompileMode = UnsetDeviceMode;
-
-  bool IsFPGAHWMode() const { return OffloadCompileMode == FPGAHWMode; }
-
-  bool IsFPGAEmulationMode() const {
-    return OffloadCompileMode == FPGAEmulationMode;
-  }
-
-  void setOffloadCompileMode(DeviceMode ModeValue) {
-    OffloadCompileMode = ModeValue;
-  }
-
-  DeviceMode getOffloadCompileMode() { return OffloadCompileMode; }
-
   /// Get the CUID option.
   const CUIDOptions &getCUIDOpts() const { return CUIDOpts; }
 
@@ -837,22 +821,14 @@ private:
   const ToolChain &getToolChain(const llvm::opt::ArgList &Args,
                                 const llvm::Triple &Target) const;
 
-  /// @}
-
-  /// Retrieves a ToolChain for a particular device \p Target triple
-  ///
-  /// \param[in] HostTC is the host ToolChain paired with the device
-  ///
-  /// \param[in] TargetDeviceOffloadKind (e.g. OFK_Cuda/OFK_OpenMP/OFK_SYCL) is
-  /// an Offloading action that is optionally passed to a ToolChain (used by
-  /// CUDA, to specify if it's used in conjunction with OpenMP)
+  /// Retrieves a ToolChain for a particular \p Target triple for offloading.
   ///
   /// Will cache ToolChains for the life of the driver object, and create them
   /// on-demand.
-  const ToolChain &getOffloadingDeviceToolChain(
-      const llvm::opt::ArgList &Args, const llvm::Triple &Target,
-      const ToolChain &HostTC,
-      const Action::OffloadKind &TargetDeviceOffloadKind) const;
+  const ToolChain &getOffloadToolChain(const llvm::opt::ArgList &Args,
+                                       const Action::OffloadKind Kind,
+                                       const llvm::Triple &Target,
+                                       const llvm::Triple &AuxTarget) const;
 
   /// Get bitmasks for which option flags to include and exclude based on
   /// the driver mode.
@@ -900,9 +876,6 @@ private:
   /// Checks for any mismatch of targets and provided input binaries.
   void checkForOffloadMismatch(Compilation &C,
                                llvm::opt::DerivedArgList &Args) const;
-
-  /// Track filename used for the FPGA dependency info.
-  mutable llvm::StringMap<const std::string> FPGATempDepFiles;
 
   /// A list of inputs and their corresponding integration headers. These
   /// files are generated during the device compilation and are consumed
@@ -955,18 +928,6 @@ public:
 
   /// getUseNewOffloadingDriver - use the new offload driver for OpenMP.
   bool getUseNewOffloadingDriver() const { return UseNewOffloadingDriver; };
-
-  /// addFPGATempDepFile - Add a file to be added to the bundling step of
-  /// an FPGA object.
-  void addFPGATempDepFile(const std::string &DepName,
-                          const std::string &FileName) const {
-    FPGATempDepFiles.insert({FileName, DepName});
-  }
-  /// getFPGATempDepFile - Get a file to be added to the bundling step of
-  /// an FPGA object.
-  const std::string getFPGATempDepFile(const std::string &FileName) const {
-    return FPGATempDepFiles[FileName];
-  }
 
   /// isSYCLDefaultTripleImplied - The default SYCL triple (spir64) has been
   /// added or should be added given proper criteria.
@@ -1033,6 +994,9 @@ bool isObjectFile(std::string FileName);
 /// \return True if the filename has a static archive/lib extension.
 bool isStaticArchiveFile(const StringRef &FileName);
 
+/// \return True if the filename is an Offload Binary file.
+bool isOffloadBinaryFile(const StringRef &FileName);
+
 /// \return True if the argument combination will end up generating remarks.
 bool willEmitRemarks(const llvm::opt::ArgList &Args);
 
@@ -1060,7 +1024,7 @@ llvm::Error expandResponseFiles(SmallVectorImpl<const char *> &Args,
 /// See applyOneOverrideOption.
 void applyOverrideOptions(SmallVectorImpl<const char *> &Args,
                           const char *OverrideOpts,
-                          llvm::StringSet<> &SavedStrings,
+                          llvm::StringSet<> &SavedStrings, StringRef EnvVar,
                           raw_ostream *OS = nullptr);
 
 } // end namespace driver

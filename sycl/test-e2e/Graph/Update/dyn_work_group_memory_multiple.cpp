@@ -1,9 +1,7 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
-// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
-// Extra run to check for immediate-command-list in Level Zero
-// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
 // Tests using more than one dynamic_work_group_memory object in the same node.
 
@@ -22,8 +20,8 @@ int main() {
   int *PtrA = malloc_device<T>(Size, Queue);
   std::vector<T> HostDataA(Size);
 
-  exp_ext::dynamic_work_group_memory<T[]> DynLocalMemA{Graph, LocalSize};
-  exp_ext::dynamic_work_group_memory<T[]> DynLocalMemB{Graph, LocalSize};
+  exp_ext::dynamic_work_group_memory<T[]> DynLocalMemA{LocalSize};
+  exp_ext::dynamic_work_group_memory<T[]> DynLocalMemB{LocalSize};
 
   Queue.memset(PtrA, 0, Size * sizeof(T)).wait();
 

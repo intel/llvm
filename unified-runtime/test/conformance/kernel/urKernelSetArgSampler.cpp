@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -9,7 +9,7 @@
 
 struct urKernelSetArgSamplerTestWithParam
     : uur::urBaseKernelTestWithParam<uur::SamplerCreateParamT> {
-  void SetUp() {
+  void SetUp() override {
     const auto param = getParam();
     const auto normalized = std::get<0>(param);
     const auto addr_mode = std::get<1>(param);
@@ -23,15 +23,20 @@ struct urKernelSetArgSamplerTestWithParam
         filter_mode                     /* filterMode */
     };
 
-    program_name = "image_copy";
-    UUR_RETURN_ON_FATAL_FAILURE(
-        uur::urBaseKernelTestWithParam<uur::SamplerCreateParamT>::SetUp());
-
+    // Check for image support first, otherwise the offload backend (which doesn't support images yet) will try to load
+    // the non-existant image_copy kernel)
     bool image_support = false;
+    // NOTE: GetParam and getParam are different functions
+    auto &device_tuple = std::get<0>(GetParam());
+    ur_device_handle_t device = device_tuple.device;
     ASSERT_SUCCESS(uur::GetDeviceImageSupport(device, image_support));
     if (!image_support) {
       GTEST_SKIP() << "Device doesn't support images";
     }
+
+    program_name = "image_copy";
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::urBaseKernelTestWithParam<uur::SamplerCreateParamT>::SetUp());
 
     auto ret = urSamplerCreate(context, &sampler_desc, &sampler);
     if (ret == UR_RESULT_ERROR_UNSUPPORTED_FEATURE ||
@@ -45,7 +50,7 @@ struct urKernelSetArgSamplerTestWithParam
         uur::urBaseKernelTestWithParam<uur::SamplerCreateParamT>::Build());
   }
 
-  void TearDown() {
+  void TearDown() override {
     if (sampler) {
       ASSERT_SUCCESS(urSamplerRelease(sampler));
     }
@@ -56,7 +61,7 @@ struct urKernelSetArgSamplerTestWithParam
   ur_sampler_handle_t sampler = nullptr;
 };
 
-UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+UUR_MULTI_QUEUE_TYPE_TEST_SUITE_WITH_PARAM(
     urKernelSetArgSamplerTestWithParam,
     ::testing::Combine(
         ::testing::Values(true, false),
@@ -67,23 +72,27 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
                           UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT),
         ::testing::Values(UR_SAMPLER_FILTER_MODE_NEAREST,
                           UR_SAMPLER_FILTER_MODE_LINEAR)),
-    uur::deviceTestWithParamPrinter<uur::SamplerCreateParamT>);
+    uur::deviceTestWithParamPrinterMulti<uur::SamplerCreateParamT>);
 
 TEST_P(urKernelSetArgSamplerTestWithParam, Success) {
   uint32_t arg_index = 2;
-  ASSERT_SUCCESS(urKernelSetArgSampler(kernel, arg_index, nullptr, sampler));
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urKernelSetArgSampler(kernel, arg_index, nullptr, sampler));
 }
 
 struct urKernelSetArgSamplerTest : uur::urBaseKernelTest {
-  void SetUp() {
-    program_name = "image_copy";
-    UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTest::SetUp());
-
+  void SetUp() override {
+    // Check for image support first, otherwise the offload backend (which doesn't support images yet) will try to load
+    // the non-existant image_copy kernel)
     bool image_support = false;
-    ASSERT_SUCCESS(uur::GetDeviceImageSupport(device, image_support));
+    ASSERT_SUCCESS(
+        uur::GetDeviceImageSupport(getParam().device, image_support));
     if (!image_support) {
       GTEST_SKIP() << "Device doesn't support images";
     }
+
+    program_name = "image_copy";
+    UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTest::SetUp());
 
     ur_sampler_desc_t sampler_desc = {
         UR_STRUCTURE_TYPE_SAMPLER_DESC,   /* sType */
@@ -104,7 +113,7 @@ struct urKernelSetArgSamplerTest : uur::urBaseKernelTest {
     Build();
   }
 
-  void TearDown() {
+  void TearDown() override {
     if (sampler) {
       ASSERT_SUCCESS(urSamplerRelease(sampler));
     }
@@ -114,7 +123,7 @@ struct urKernelSetArgSamplerTest : uur::urBaseKernelTest {
   ur_sampler_handle_t sampler = nullptr;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelSetArgSamplerTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urKernelSetArgSamplerTest);
 
 TEST_P(urKernelSetArgSamplerTest, SuccessWithProps) {
   ur_kernel_arg_sampler_properties_t props{

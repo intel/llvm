@@ -1,6 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR=":" %{run-unfiltered-devices} %t.out
 #include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 #include <vector>
 
 // Check that the application does not hang when we attempt

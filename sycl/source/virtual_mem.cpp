@@ -9,7 +9,7 @@
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/physical_mem_impl.hpp>
-#include <sycl/ext/oneapi/virtual_mem/virtual_mem.hpp>
+#include <detail/virtual_mem.hpp>
 
 // System headers for querying page-size.
 #ifdef _WIN32
@@ -22,9 +22,11 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-__SYCL_EXPORT size_t get_mem_granularity(const device &SyclDevice,
-                                         const context &SyclContext,
-                                         granularity_mode Mode) {
+size_t
+get_mem_granularity_for_allocation_size(const detail::device_impl &SyclDevice,
+                                        const detail::context_impl &SyclContext,
+                                        granularity_mode Mode,
+                                        const size_t AllocationSize) {
   if (!SyclDevice.has(aspect::ext_oneapi_virtual_mem))
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
@@ -41,28 +43,32 @@ __SYCL_EXPORT size_t get_mem_granularity(const device &SyclDevice,
                           "Unrecognized granularity mode.");
   }();
 
-  std::shared_ptr<sycl::detail::device_impl> DeviceImpl =
-      sycl::detail::getSyclObjImpl(SyclDevice);
-  std::shared_ptr<sycl::detail::context_impl> ContextImpl =
-      sycl::detail::getSyclObjImpl(SyclContext);
-  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
+  auto [urDevice, urCtx, Adapter] = get_ur_handles(SyclDevice, SyclContext);
 #ifndef NDEBUG
   size_t InfoOutputSize = 0;
   Adapter->call<sycl::detail::UrApiKind::urVirtualMemGranularityGetInfo>(
-      ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(), GranularityQuery,
-      0, nullptr, &InfoOutputSize);
+      urCtx, urDevice, AllocationSize, GranularityQuery, 0u, nullptr,
+      &InfoOutputSize);
   assert(InfoOutputSize == sizeof(size_t) &&
          "Unexpected output size of granularity info query.");
 #endif // NDEBUG
   size_t Granularity = 0;
   Adapter->call<sycl::detail::UrApiKind::urVirtualMemGranularityGetInfo>(
-      ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(), GranularityQuery,
-      sizeof(size_t), &Granularity, nullptr);
+      urCtx, urDevice, AllocationSize, GranularityQuery, sizeof(size_t),
+      &Granularity, nullptr);
   if (Granularity == 0)
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::invalid),
         "Unexpected granularity result: memory granularity shouldn't be 0.");
   return Granularity;
+}
+
+__SYCL_EXPORT size_t get_mem_granularity(const device &SyclDevice,
+                                         const context &SyclContext,
+                                         granularity_mode Mode) {
+  return get_mem_granularity_for_allocation_size(
+      *detail::getSyclObjImpl(SyclDevice), *detail::getSyclObjImpl(SyclContext),
+      Mode, 1);
 }
 
 __SYCL_EXPORT size_t get_mem_granularity(const context &SyclContext,
@@ -115,55 +121,45 @@ __SYCL_EXPORT uintptr_t reserve_virtual_mem(uintptr_t Start, size_t NumBytes,
         "One or more devices in the supplied context does not support "
         "aspect::ext_oneapi_virtual_mem.");
 
-  std::shared_ptr<sycl::detail::context_impl> ContextImpl =
-      sycl::detail::getSyclObjImpl(SyclContext);
-  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
+  auto [urCtx, Adapter] = get_ur_handles(SyclContext);
   void *OutPtr = nullptr;
   Adapter->call<sycl::detail::UrApiKind::urVirtualMemReserve>(
-      ContextImpl->getHandleRef(), reinterpret_cast<void *>(Start), NumBytes,
-      &OutPtr);
+      urCtx, reinterpret_cast<void *>(Start), NumBytes, &OutPtr);
   return reinterpret_cast<uintptr_t>(OutPtr);
 }
 
 __SYCL_EXPORT void free_virtual_mem(uintptr_t Ptr, size_t NumBytes,
                                     const context &SyclContext) {
-  std::shared_ptr<sycl::detail::context_impl> ContextImpl =
-      sycl::detail::getSyclObjImpl(SyclContext);
-  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
+  auto [urCtx, Adapter] = get_ur_handles(SyclContext);
   Adapter->call<sycl::detail::UrApiKind::urVirtualMemFree>(
-      ContextImpl->getHandleRef(), reinterpret_cast<void *>(Ptr), NumBytes);
+      urCtx, reinterpret_cast<void *>(Ptr), NumBytes);
 }
 
 __SYCL_EXPORT void set_access_mode(const void *Ptr, size_t NumBytes,
                                    address_access_mode Mode,
                                    const context &SyclContext) {
   auto AccessFlags = sycl::detail::AccessModeToVirtualAccessFlags(Mode);
-  std::shared_ptr<sycl::detail::context_impl> ContextImpl =
-      sycl::detail::getSyclObjImpl(SyclContext);
-  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
+  auto [urCtx, Adapter] = get_ur_handles(SyclContext);
   Adapter->call<sycl::detail::UrApiKind::urVirtualMemSetAccess>(
-      ContextImpl->getHandleRef(), Ptr, NumBytes, AccessFlags);
+      urCtx, Ptr, NumBytes, AccessFlags);
 }
 
 __SYCL_EXPORT address_access_mode get_access_mode(const void *Ptr,
                                                   size_t NumBytes,
                                                   const context &SyclContext) {
-  std::shared_ptr<sycl::detail::context_impl> ContextImpl =
-      sycl::detail::getSyclObjImpl(SyclContext);
-  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
+  auto [urCtx, Adapter] = get_ur_handles(SyclContext);
 #ifndef NDEBUG
   size_t InfoOutputSize = 0;
   Adapter->call<sycl::detail::UrApiKind::urVirtualMemGetInfo>(
-      ContextImpl->getHandleRef(), Ptr, NumBytes,
-      UR_VIRTUAL_MEM_INFO_ACCESS_MODE, 0, nullptr, &InfoOutputSize);
+      urCtx, Ptr, NumBytes, UR_VIRTUAL_MEM_INFO_ACCESS_MODE, 0u, nullptr,
+      &InfoOutputSize);
   assert(InfoOutputSize == sizeof(ur_virtual_mem_access_flags_t) &&
          "Unexpected output size of access mode info query.");
 #endif // NDEBUG
   ur_virtual_mem_access_flags_t AccessFlags;
   Adapter->call<sycl::detail::UrApiKind::urVirtualMemGetInfo>(
-      ContextImpl->getHandleRef(), Ptr, NumBytes,
-      UR_VIRTUAL_MEM_INFO_ACCESS_MODE, sizeof(ur_virtual_mem_access_flags_t),
-      &AccessFlags, nullptr);
+      urCtx, Ptr, NumBytes, UR_VIRTUAL_MEM_INFO_ACCESS_MODE,
+      sizeof(ur_virtual_mem_access_flags_t), &AccessFlags, nullptr);
 
   if (AccessFlags & UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE)
     return address_access_mode::read_write;
@@ -174,11 +170,9 @@ __SYCL_EXPORT address_access_mode get_access_mode(const void *Ptr,
 
 __SYCL_EXPORT void unmap(const void *Ptr, size_t NumBytes,
                          const context &SyclContext) {
-  std::shared_ptr<sycl::detail::context_impl> ContextImpl =
-      sycl::detail::getSyclObjImpl(SyclContext);
-  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
-  Adapter->call<sycl::detail::UrApiKind::urVirtualMemUnmap>(
-      ContextImpl->getHandleRef(), Ptr, NumBytes);
+  auto [urCtx, Adapter] = get_ur_handles(SyclContext);
+  Adapter->call<sycl::detail::UrApiKind::urVirtualMemUnmap>(urCtx, Ptr,
+                                                            NumBytes);
 }
 
 } // Namespace ext::oneapi::experimental

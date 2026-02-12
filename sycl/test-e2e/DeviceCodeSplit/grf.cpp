@@ -5,8 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// This test verifies effect of the register_alloc_mode kernel property
-// API call in device code:
+// This test verifies effect of the "grf_size<num>" and "grf_size_automatic"
+// kernel properties API call in device code:
 // - ESIMD/SYCL splitting happens as usual
 // - SYCL module is further split into callgraphs for entry points for
 //   each value
@@ -21,26 +21,16 @@
 // UNSUPPORTED: spirv-backend
 // UNSUPPORTED-TRACKER: CMPLRLLVM-64705
 
-// RUN: %{build} -Wno-error=deprecated-declarations -o %t1.out
-// RUN: env SYCL_UR_TRACE=2 %{run} %t1.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t1.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
-// RUN: %{build} -DUSE_NEW_API=1 -o %t2.out
+// RUN: %{build} -o %t2.out
 // RUN: env SYCL_UR_TRACE=2 %{run} %t2.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
 // RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t2.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
-// RUN: %{build} -DUSE_AUTO_GRF=1 -Wno-error=deprecated-declarations -o %t3.out
-// RUN: env SYCL_UR_TRACE=2 %{run} %t3.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-NO-VAR
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t3.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
-// RUN: %{build} -DUSE_NEW_API=1 -DUSE_AUTO_GRF=1 -o %t4.out
+// RUN: %{build} -DUSE_AUTO_GRF=1 -o %t4.out
 // RUN: env SYCL_UR_TRACE=2 %{run} %t4.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-NO-VAR
 // RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t4.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
 #include "../helpers.hpp"
 #include <iostream>
 #include <sycl/detail/core.hpp>
-#ifdef USE_NEW_API
 #include <sycl/ext/intel/experimental/grf_size_properties.hpp>
-#else
-#include <sycl/detail/kernel_properties.hpp>
-#endif
 
 using namespace sycl;
 using namespace sycl::detail;
@@ -114,14 +104,10 @@ int main(void) {
 
   try {
     buffer<float, 1> bufa(A.data(), range<1>(Size));
-#if defined(USE_NEW_API) && defined(USE_AUTO_GRF)
+#if defined(USE_AUTO_GRF)
     properties prop{grf_size_automatic};
-#elif defined(USE_NEW_API)
-    properties prop{grf_size<256>};
-#elif USE_AUTO_GRF
-    properties prop{register_alloc_mode<register_alloc_mode_enum::automatic>};
 #else
-    properties prop{register_alloc_mode<register_alloc_mode_enum::large>};
+    properties prop{grf_size<256>};
 #endif
     queue q(sycl::gpu_selector_v, exceptionHandlerHelper);
 

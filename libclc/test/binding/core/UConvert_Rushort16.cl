@@ -16,27 +16,12 @@
 // CHECK-NOT: declare {{.*}} @_Z
 // CHECK-NOT: call {{[^ ]*}} bitcast
 __attribute__((overloadable)) __clc_vec16_uint16_t
-test___spirv_UConvert_Rushort16(__clc_vec16_int8_t args_0) {
-  return __spirv_UConvert_Rushort16(args_0);
-}
-
-__attribute__((overloadable)) __clc_vec16_uint16_t
 test___spirv_UConvert_Rushort16(__clc_vec16_uint8_t args_0) {
   return __spirv_UConvert_Rushort16(args_0);
 }
 
 __attribute__((overloadable)) __clc_vec16_uint16_t
-test___spirv_UConvert_Rushort16(__clc_vec16_int32_t args_0) {
-  return __spirv_UConvert_Rushort16(args_0);
-}
-
-__attribute__((overloadable)) __clc_vec16_uint16_t
 test___spirv_UConvert_Rushort16(__clc_vec16_uint32_t args_0) {
-  return __spirv_UConvert_Rushort16(args_0);
-}
-
-__attribute__((overloadable)) __clc_vec16_uint16_t
-test___spirv_UConvert_Rushort16(__clc_vec16_int64_t args_0) {
   return __spirv_UConvert_Rushort16(args_0);
 }
 

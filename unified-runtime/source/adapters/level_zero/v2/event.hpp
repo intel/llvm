@@ -17,7 +17,10 @@
 
 #include "adapters/level_zero/v2/queue_api.hpp"
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include "event_provider.hpp"
+
+using ur_event_generation_t = int64_t;
 
 namespace v2 {
 class event_pool;
@@ -33,7 +36,10 @@ struct event_profiling_data_t {
   uint64_t *eventEndTimestampAddr();
 
   bool recordingStarted() const;
-  bool recordingEnded() const;
+
+  // clear the profiling data, allowing the event to be reused
+  // for a new command
+  void reset();
 
 private:
   ze_event_handle_t hZeEvent;
@@ -44,9 +50,11 @@ private:
 
   uint64_t zeTimerResolution = 0;
   uint64_t timestampMaxValue = 0;
+
+  bool timestampRecorded = false;
 };
 
-struct ur_event_handle_t_ : _ur_object {
+struct ur_event_handle_t_ : ur_object {
 public:
   // cache_borrowed_event is used for pooled events, whilst ze_event_handle_t is
   // used for native events
@@ -62,10 +70,15 @@ public:
                      const ur_event_native_properties_t *pProperties);
 
   // Set the queue and command that this event is associated with
-  void resetQueueAndCommand(ur_queue_t_ *hQueue, ur_command_t commandType);
+  void setQueue(ur_queue_t_ *hQueue);
+  void setCommandType(ur_command_t commandType);
 
-  // releases event immediately
-  ur_result_t forceRelease();
+  // For batched queues
+  // Set the batch that this event is associated with
+  void setBatch(ur_event_generation_t batch_generation);
+  // Ensure that the batch associated with this event is submitted for
+  // execution, otherwise the event will never be signalled
+  void onWaitListUse();
 
   void reset();
   ze_event_handle_t getZeEvent() const;
@@ -95,8 +108,13 @@ public:
   // Get the type of the command that this event is associated with
   ur_command_t getCommandType() const;
 
+  std::optional<ur_event_generation_t> getBatch() const;
+
+  // Get the device associated with this event
+  ur_device_handle_t getDevice() const;
+
   // Record the start timestamp of the event, to be obtained by
-  // urEventGetProfilingInfo. resetQueueAndCommand should be
+  // urEventGetProfilingInfo. setQueue should be
   // called before this.
   void recordStartTimestamp();
 
@@ -106,6 +124,8 @@ public:
 
   uint64_t getEventStartTimestmap() const;
   uint64_t getEventEndTimestamp();
+
+  ur::RefCount RefCount;
 
 private:
   ur_event_handle_t_(ur_context_handle_t hContext, event_variant hZeEvent,
@@ -121,7 +141,10 @@ protected:
   // queue and commandType that this event is associated with, set by enqueue
   // commands
   ur_queue_t_ *hQueue = nullptr;
+  // std::optional holds a value for events created by batched queues
+  std::optional<ur_event_generation_t> batchGeneration;
   ur_command_t commandType = UR_COMMAND_FORCE_UINT32;
+  ur_device_handle_t hDevice = nullptr;
 
   v2::event_flags_t flags;
   event_profiling_data_t profilingData;

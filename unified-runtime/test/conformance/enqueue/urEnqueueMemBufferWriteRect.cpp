@@ -1,9 +1,10 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include "helpers.h"
+#include "uur/fixtures.h"
 #include <numeric>
 #include <uur/known_failure.h>
 
@@ -70,23 +71,15 @@ static std::vector<uur::test_parameters_t> generateParameterizations() {
 }
 
 struct urEnqueueMemBufferWriteRectTestWithParam
-    : public uur::urQueueTestWithParam<uur::test_parameters_t> {};
+    : public uur::urMultiQueueTypeTestWithParam<uur::test_parameters_t> {};
 
-UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+UUR_MULTI_QUEUE_TYPE_TEST_SUITE_WITH_PARAM(
     urEnqueueMemBufferWriteRectTestWithParam,
     testing::ValuesIn(generateParameterizations()),
-    uur::printRectTestString<urEnqueueMemBufferWriteRectTestWithParam>);
+    uur::printRectTestStringMultiQueue<
+        urEnqueueMemBufferWriteRectTestWithParam>);
 
 TEST_P(urEnqueueMemBufferWriteRectTestWithParam, Success) {
-  const auto name = getParam().name;
-  if (name.find("write_row_2D") != std::string::npos) {
-    UUR_KNOWN_FAILURE_ON(uur::HIP{});
-  }
-
-  if (name.find("write_3D_2D") != std::string::npos) {
-    UUR_KNOWN_FAILURE_ON(uur::HIP{});
-  }
-
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
   // Unpack the parameters.
@@ -115,13 +108,13 @@ TEST_P(urEnqueueMemBufferWriteRectTestWithParam, Success) {
   std::iota(std::begin(input), std::end(input), 0x0);
 
   // Enqueue the rectangular write from that host buffer.
-  EXPECT_SUCCESS(urEnqueueMemBufferWriteRect(
+  ASSERT_SUCCESS(urEnqueueMemBufferWriteRect(
       queue, buffer, /* isBlocking */ true, buffer_origin, host_origin, region,
       buffer_row_pitch, buffer_slice_pitch, host_row_pitch, host_slice_pitch,
       input.data(), 0, nullptr, nullptr));
 
   std::vector<uint8_t> output(buffer_size, 0x0);
-  EXPECT_SUCCESS(urEnqueueMemBufferRead(queue, buffer, /* is_blocking */ true,
+  ASSERT_SUCCESS(urEnqueueMemBufferRead(queue, buffer, /* is_blocking */ true,
                                         0, buffer_size, output.data(), 0,
                                         nullptr, nullptr));
 
@@ -135,7 +128,7 @@ TEST_P(urEnqueueMemBufferWriteRectTestWithParam, Success) {
   EXPECT_EQ(expected, output);
 
   // Cleanup.
-  EXPECT_SUCCESS(urMemRelease(buffer));
+  ASSERT_SUCCESS(urMemRelease(buffer));
 }
 
 struct urEnqueueMemBufferWriteRectTest : public uur::urMemBufferQueueTest {
@@ -148,7 +141,7 @@ struct urEnqueueMemBufferWriteRectTest : public uur::urMemBufferQueueTest {
   size_t host_slice_pitch = size;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueMemBufferWriteRectTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(urEnqueueMemBufferWriteRectTest);
 
 TEST_P(urEnqueueMemBufferWriteRectTest, InvalidNullHandleQueue) {
   std::vector<uint32_t> src(count);
@@ -210,7 +203,7 @@ TEST_P(urEnqueueMemBufferWriteRectTest, InvalidSize) {
   std::vector<uint32_t> src(count);
   std::fill(src.begin(), src.end(), 1);
 
-  // region.width == 0 || region.height == 0 || region.width == 0
+  // region.width == 0 || region.height == 0 || region.depth == 0
   region.width = 0;
   ASSERT_EQ_RESULT(urEnqueueMemBufferWriteRect(
                        queue, buffer, true, buffer_offset, host_offset, region,

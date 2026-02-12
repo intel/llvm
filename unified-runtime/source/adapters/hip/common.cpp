@@ -62,10 +62,6 @@ void checkErrorUR(amd_comgr_status_t Result, const char *Function, int Line,
   const char *ErrorString = nullptr;
   const char *ErrorName = nullptr;
   switch (Result) {
-  case AMD_COMGR_STATUS_ERROR:
-    ErrorName = "AMD_COMGR_STATUS_ERROR";
-    ErrorString = "Generic error";
-    break;
   case AMD_COMGR_STATUS_ERROR_INVALID_ARGUMENT:
     ErrorName = "AMD_COMGR_STATUS_ERROR_INVALID_ARGUMENT";
     ErrorString =
@@ -76,7 +72,11 @@ void checkErrorUR(amd_comgr_status_t Result, const char *Function, int Line,
     ErrorName = "AMD_COMGR_STATUS_ERROR_OUT_OF_RESOURCES";
     ErrorString = "Failed to allocate the necessary resources";
     break;
+  case AMD_COMGR_STATUS_ERROR:
+    [[fallthrough]];
   default:
+    ErrorName = "AMD_COMGR_STATUS_ERROR";
+    ErrorString = "Generic error";
     break;
   }
   std::stringstream SS;
@@ -86,7 +86,7 @@ void checkErrorUR(amd_comgr_status_t Result, const char *Function, int Line,
      << "\n\tDescription:     " << ErrorString
      << "\n\tFunction:        " << Function << "\n\tSource Location: " << File
      << ":" << Line << "\n";
-  logger::error("{}", SS.str());
+  UR_LOG(ERR, "{}", SS.str());
 
   if (std::getenv("PI_HIP_ABORT") != nullptr ||
       std::getenv("UR_HIP_ABORT") != nullptr) {
@@ -113,7 +113,7 @@ void checkErrorUR(hipError_t Result, const char *Function, int Line,
      << "\n\tDescription:     " << ErrorString
      << "\n\tFunction:        " << Function << "\n\tSource Location: " << File
      << ":" << Line << "\n";
-  logger::error("{}", SS.str());
+  UR_LOG(ERR, "{}", SS.str());
 
   if (std::getenv("PI_HIP_ABORT") != nullptr ||
       std::getenv("UR_HIP_ABORT") != nullptr) {
@@ -133,7 +133,7 @@ void checkErrorUR(ur_result_t Result, const char *Function, int Line,
   SS << "\nUR HIP ERROR:"
      << "\n\tValue:           " << Result << "\n\tFunction:        " << Function
      << "\n\tSource Location: " << File << ":" << Line << "\n";
-  logger::error("{}", SS.str());
+  UR_LOG(ERR, "{}", SS.str());
 
   if (std::getenv("PI_HIP_ABORT") != nullptr ||
       std::getenv("UR_HIP_ABORT") != nullptr) {
@@ -156,28 +156,15 @@ hipError_t getHipVersionString(std::string &Version) {
   return Result;
 }
 
-void detail::ur::assertion(bool Condition, const char *pMessage) {
-  if (!Condition)
-    die(pMessage);
-}
-
 // Global variables for UR_RESULT_ADAPTER_SPECIFIC_ERROR
-thread_local ur_result_t ErrorMessageCode = UR_RESULT_SUCCESS;
+thread_local int32_t ErrorMessageCode = 0;
 thread_local char ErrorMessage[MaxMessageSize]{};
 
 // Utility function for setting a message and warning
-[[maybe_unused]] void setErrorMessage(const char *pMessage,
-                                      ur_result_t ErrorCode) {
+[[maybe_unused]] void setErrorMessage(const char *pMessage, int32_t ErrorCode) {
   assert(strlen(pMessage) < MaxMessageSize);
   // Copy at most MaxMessageSize - 1 bytes to ensure the resultant string is
   // always null terminated.
   strncpy(ErrorMessage, pMessage, MaxMessageSize - 1);
   ErrorMessageCode = ErrorCode;
-}
-
-// Returns plugin specific error and warning messages; common implementation
-// that can be shared between adapters
-ur_result_t urGetLastResult(ur_platform_handle_t, const char **ppMessage) {
-  *ppMessage = &ErrorMessage[0];
-  return ErrorMessageCode;
 }

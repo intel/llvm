@@ -1,6 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: windows && run-mode
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19680
+
 #include <sycl/detail/core.hpp>
 
 #include <sycl/reduction.hpp>

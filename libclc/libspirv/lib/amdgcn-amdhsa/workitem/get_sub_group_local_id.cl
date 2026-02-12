@@ -8,6 +8,6 @@
 
 #include <libspirv/spirv.h>
 
-_CLC_DEF _CLC_OVERLOAD uint __spirv_SubgroupLocalInvocationId() {
+_CLC_DEF _CLC_OVERLOAD uint __spirv_BuiltInSubgroupLocalInvocationId() {
   return __builtin_amdgcn_mbcnt_hi(-1, __builtin_amdgcn_mbcnt_lo(-1, 0));
 }

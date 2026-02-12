@@ -327,6 +327,7 @@ ImageKind object::getImageKind(StringRef Name) {
       .Case("cubin", IMG_Cubin)
       .Case("fatbin", IMG_Fatbinary)
       .Case("s", IMG_PTX)
+      .Case("syclbin", IMG_SYCLBIN)
       .Default(IMG_None);
 }
 
@@ -342,6 +343,8 @@ StringRef object::getImageKindName(ImageKind Kind) {
     return "fatbin";
   case IMG_PTX:
     return "s";
+  case IMG_SYCLBIN:
+    return "syclbin";
   default:
     return "";
   }

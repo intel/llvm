@@ -104,12 +104,12 @@
 // RUN: | FileCheck -check-prefixes ARCH-SM52,NOARCH-SM60,NOARCH-SM70 %s
 
 // c) if --no-cuda-gpu-arch=X negates all preceding --cuda-gpu-arch=X
-//    we default to sm_52 -- same as if no --cuda-gpu-arch were passed.
+//    we default to sm_75 -- same as if no --cuda-gpu-arch were passed.
 // RUN: %clang -### --target=x86_64-linux-gnu --cuda-device-only \
 // RUN:   -nogpulib -nogpuinc --cuda-gpu-arch=sm_70 --cuda-gpu-arch=sm_60 \
 // RUN:   --no-cuda-gpu-arch=sm_70 --no-cuda-gpu-arch=sm_60 \
 // RUN:   -c %s 2>&1 \
-// RUN: | FileCheck -check-prefixes ARCH-SM52,NOARCH-SM60,NOARCH-SM70 %s
+// RUN: | FileCheck -check-prefixes ARCH-SM75,NOARCH-SM60,NOARCH-SM70 %s
 
 // d) --no-cuda-gpu-arch=X is a no-op if there's no preceding --cuda-gpu-arch=X
 // RUN: %clang -### --target=x86_64-linux-gnu --cuda-device-only \
@@ -193,6 +193,8 @@
 // NOARCH-SM60-NOT: "-cc1"{{.*}}"-target-cpu" "sm_60"
 // ARCH-SM70: "-cc1"{{.*}}"-target-cpu" "sm_70"
 // NOARCH-SM70-NOT: "-cc1"{{.*}}"-target-cpu" "sm_70"
+// ARCH-SM75: "-cc1"{{.*}}"-target-cpu" "sm_75"
+// NOARCH-SM75-NOT: "-cc1"{{.*}}"-target-cpu" "sm_75"
 // ARCHALLERROR: error: unsupported CUDA gpu architecture: all
 
 // Match device-side preprocessor and compiler phases with -save-temps.
@@ -243,10 +245,10 @@
 
 // INCLUDES-DEVICE:fatbinary
 // INCLUDES-DEVICE-DAG: "--create" "[[FATBINARY:[^"]*]]"
-// INCLUDES-DEVICE-DAG: "--image=profile=sm_{{[0-9]+}},file=[[CUBINFILE]]"
-// INCLUDES-DEVICE-DAG: "--image=profile=compute_{{[0-9]+}},file=[[PTXFILE]]"
-// INCLUDES-DEVICE2-DAG: "--image=profile=sm_{{[0-9]+}},file=[[CUBINFILE2]]"
-// INCLUDES-DEVICE2-DAG: "--image=profile=compute_{{[0-9]+}},file=[[PTXFILE2]]"
+// INCLUDES-DEVICE-DAG: "--image3=kind=elf,sm={{[0-9]+}},file=[[CUBINFILE]]"
+// INCLUDES-DEVICE-DAG: "--image3=kind=ptx,sm={{[0-9]+}},file=[[PTXFILE]]"
+// INCLUDES-DEVICE2-DAG: "--image3=kind=elf,sm={{[0-9]+}},file=[[CUBINFILE2]]"
+// INCLUDES-DEVICE2-DAG: "--image3=kind=ptx,sm={{[0-9]+}},file=[[PTXFILE2]]"
 
 // Match host-side preprocessor job with -save-temps.
 // HOST-SAVE: "-cc1" "-triple" "x86_64-unknown-linux-gnu"
@@ -288,9 +290,9 @@
 
 // FATBIN-COMMON:fatbinary
 // FATBIN-COMMON: "--create" "[[FATBINARY:[^"]*]]"
-// FATBIN-COMMON: "--image=profile=sm_52,file=
-// PTX-SM52: "--image=profile=compute_52,file=
-// NOPTX-SM52-NOT: "--image=profile=compute_52,file=
-// FATBIN-COMMON: "--image=profile=sm_60,file=
-// PTX-SM60: "--image=profile=compute_60,file=
-// NOPTX-SM60-NOT: "--image=profile=compute_60,file=
+// FATBIN-COMMON: "--image3=kind=elf,sm=52,file=
+// PTX-SM52: "--image3=kind=ptx,sm=52,file=
+// NOPTX-SM52-NOT: "--image3=kind=ptx,sm=52,file=
+// FATBIN-COMMON: "--image3=kind=elf,sm=60,file=
+// PTX-SM60: "--image3=kind=ptx,sm=60,file=
+// NOPTX-SM60-NOT: "--image3=kind=ptx,sm=60,file=

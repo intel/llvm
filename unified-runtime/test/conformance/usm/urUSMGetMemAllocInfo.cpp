@@ -25,8 +25,6 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     uur::deviceTestWithParamPrinter<ur_usm_alloc_info_t>);
 
 TEST_P(urUSMGetMemAllocInfoPoolTest, SuccessPool) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
-
   size_t property_size = 0;
   const ur_usm_alloc_info_t property_name = UR_USM_ALLOC_INFO_POOL;
 

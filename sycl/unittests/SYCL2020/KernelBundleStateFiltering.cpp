@@ -77,7 +77,7 @@ sycl::unittest::MockDeviceImage Imgs[] = {
     generateDefaultImage({"KernelC"}, SYCL_DEVICE_BINARY_TYPE_SPIRV,
                          __SYCL_DEVICE_BINARY_TARGET_SPIRV64),
     generateDefaultImage({"KernelC"}, SYCL_DEVICE_BINARY_TYPE_NATIVE,
-                         __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA),
+                         __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN),
     generateDefaultImage({"KernelD"}, SYCL_DEVICE_BINARY_TYPE_SPIRV,
                          __SYCL_DEVICE_BINARY_TARGET_SPIRV64),
     generateDefaultImage({"KernelE"}, SYCL_DEVICE_BINARY_TYPE_SPIRV,
@@ -132,7 +132,7 @@ ur_result_t redefinedDeviceSelectBinary(void *pParams) {
   // actual binary, not just the metadata.. not sure how we're going to support
   // this
   std::string BinarySpec = (*params.ppBinaries)[0].pDeviceTargetSpec;
-  if (BinarySpec.find("spir64_fpga") != std::string::npos &&
+  if (BinarySpec.find("spir64_gen") != std::string::npos &&
       *params.phDevice == reinterpret_cast<ur_device_handle_t>(2)) {
     return UR_RESULT_ERROR_INVALID_BINARY;
   }

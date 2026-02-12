@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -10,7 +10,7 @@
 using urEnqueueMemBufferMapTestWithParam =
     uur::urMemBufferQueueTestWithParam<uur::mem_buffer_test_parameters_t>;
 
-UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+UUR_MULTI_QUEUE_TYPE_TEST_SUITE_WITH_PARAM(
     urEnqueueMemBufferMapTestWithParam,
     ::testing::ValuesIn(uur::mem_buffer_test_parameters),
     uur::printMemBufferTestString<urEnqueueMemBufferMapTestWithParam>);
@@ -41,7 +41,7 @@ using urEnqueueMemBufferMapTestWithWriteFlagParam =
     uur::urMemBufferQueueTestWithParam<
         uur::mem_buffer_map_write_test_parameters_t>;
 
-UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+UUR_MULTI_QUEUE_TYPE_TEST_SUITE_WITH_PARAM(
     urEnqueueMemBufferMapTestWithWriteFlagParam,
     ::testing::ValuesIn(map_write_test_parameters),
     uur::printMemBufferMapWriteTestString<
@@ -49,10 +49,6 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
 
 TEST_P(urEnqueueMemBufferMapTestWithWriteFlagParam, SuccessWrite) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
-
-  if (getParam().map_flag == UR_MAP_FLAG_WRITE_INVALIDATE_REGION) {
-    UUR_KNOWN_FAILURE_ON(uur::CUDA{});
-  }
 
   const std::vector<uint32_t> input(count, 0);
   ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue, buffer, true, 0, size,

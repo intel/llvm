@@ -14,15 +14,16 @@
 #include <atomic>
 #include <unordered_map>
 
+#include "common/ur_ref_count.hpp"
 #include "context.hpp"
 
 /// Implementation of UR Program on HIP Module object
-struct ur_program_handle_t_ {
+struct ur_program_handle_t_ : ur::hip::handle_base {
   using native_type = hipModule_t;
   native_type Module;
   const char *Binary;
   size_t BinarySizeInBytes;
-  std::atomic_uint32_t RefCount;
+  ur::RefCount RefCount;
   ur_context_handle_t Context;
   ur_device_handle_t Device;
   std::string ExecutableCache;
@@ -48,17 +49,17 @@ struct ur_program_handle_t_ {
   ur_program_build_status_t BuildStatus = UR_PROGRAM_BUILD_STATUS_NONE;
 
   ur_program_handle_t_(ur_context_handle_t Ctxt, ur_device_handle_t Device)
-      : Module{nullptr}, Binary{}, BinarySizeInBytes{0}, RefCount{1},
+      : handle_base(), Module{nullptr}, Binary{}, BinarySizeInBytes{0},
         Context{Ctxt}, Device{Device}, KernelReqdWorkGroupSizeMD{},
         KernelReqdSubGroupSizeMD{} {
     urContextRetain(Context);
-    urDeviceRetain(Device);
+
+    // When the log is queried we use strnlen(InfoLog), so it needs to be
+    // initialized like this when it's empty to correctly return 0.
+    InfoLog[0] = '\0';
   }
 
-  ~ur_program_handle_t_() {
-    urContextRelease(Context);
-    urDeviceRelease(Device);
-  }
+  ~ur_program_handle_t_() { urContextRelease(Context); }
 
   ur_result_t setMetadata(const ur_program_metadata_t *Metadata, size_t Length);
 
@@ -70,12 +71,6 @@ struct ur_program_handle_t_ {
   ur_device_handle_t getDevice() const { return Device; };
 
   native_type get() const noexcept { return Module; };
-
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
 
   ur_result_t getGlobalVariablePointer(const char *name,
                                        hipDeviceptr_t *DeviceGlobal,

@@ -169,8 +169,11 @@ std::string GetAdapterBackendName(ur_adapter_handle_t hAdapter);
 inline std::string GetPlatformName(ur_platform_handle_t hPlatform) {
   std::string platform_name;
   GetPlatformInfo<std::string>(hPlatform, UR_PLATFORM_INFO_NAME, platform_name);
-  return GTestSanitizeString(
-      std::string(platform_name.data(), platform_name.size()));
+  ur_adapter_handle_t adapter = nullptr;
+  GetPlatformInfo<ur_adapter_handle_t>(hPlatform, UR_PLATFORM_INFO_ADAPTER,
+                                       adapter);
+  std::string full_name = GetAdapterBackendName(adapter) + "__" + platform_name;
+  return GTestSanitizeString(std::string(full_name.data(), full_name.size()));
 }
 
 inline std::string GetPlatformNameWithID(ur_platform_handle_t hPlatform) {
@@ -411,6 +414,10 @@ ur_result_t GetDeviceHostPipeRWSupported(ur_device_handle_t device,
                                          bool &support);
 ur_result_t GetTimestampRecordingSupport(ur_device_handle_t device,
                                          bool &support);
+ur_result_t GetUSMContextMemcpyExpSupport(ur_device_handle_t device,
+                                          bool &support);
+ur_result_t GetPlatformTriple(ur_platform_handle_t platform,
+                              std::string &Triple);
 
 ur_device_partition_property_t makePartitionByCountsDesc(uint32_t count);
 
@@ -481,6 +488,30 @@ getDriverVersion(ur_device_handle_t hDevice) {
       }                                                                        \
     }                                                                          \
   } while (0)
+
+#define SKIP_IF_BATCHED_QUEUE(queue)                                           \
+  do {                                                                         \
+    ur_queue_flags_t queueFlags{};                                             \
+    ASSERT_EQ(urQueueGetInfo(queue, UR_QUEUE_INFO_FLAGS,                       \
+                             sizeof(ur_queue_flags_t), &queueFlags, nullptr),  \
+              UR_RESULT_SUCCESS);                                              \
+                                                                               \
+    if (queueFlags & UR_QUEUE_FLAG_SUBMISSION_BATCHED) {                       \
+      UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});                                \
+    }                                                                          \
+  } while (0)
+
+inline void isQueueBatched(ur_queue_handle_t queue, bool *info) {
+  ur_queue_flags_t queueFlags{};
+  ASSERT_EQ(urQueueGetInfo(queue, UR_QUEUE_INFO_FLAGS, sizeof(ur_queue_flags_t),
+                           &queueFlags, nullptr),
+            UR_RESULT_SUCCESS);
+  if (queueFlags & UR_QUEUE_FLAG_SUBMISSION_BATCHED) {
+    *info = true;
+  } else {
+    *info = false;
+  }
+}
 
 // Is this a Data Center GPU Max series (aka PVC)?
 // TODO: change to use

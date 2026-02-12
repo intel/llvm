@@ -7,6 +7,8 @@
 #include <sycl/properties/all_properties.hpp>
 
 int main() {
+  const uint64_t timeout =
+      60ul * 1e9; // 60 second, large enough for executing an empty host_task
   sycl::queue q{{sycl::property::queue::enable_profiling()}};
 
   auto e = q.submit([&](sycl::handler &cgh) { cgh.host_task([=]() {}); });
@@ -29,8 +31,20 @@ int main() {
     return EXIT_FAILURE;
   }
 
+  if (start > submitted + timeout) {
+    std::cerr << "Invalid latency between command_submit and command_start: "
+              << (start - submitted) << " ns" << std::endl;
+    return EXIT_FAILURE;
+  }
+
   if (end < start) {
     std::cerr << "Invalid command_end time" << std::endl;
+    return EXIT_FAILURE;
+  }
+
+  if (end > start + timeout) {
+    std::cerr << "Invalid latency between command_start and command_end: "
+              << (end - start) << " ns" << std::endl;
     return EXIT_FAILURE;
   }
 

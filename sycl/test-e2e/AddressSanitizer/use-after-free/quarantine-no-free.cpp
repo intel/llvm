@@ -1,6 +1,6 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
 // RUN: %{build} %device_asan_flags -O0 -g -o %t
-// RUN: env UR_LAYER_ASAN_OPTIONS="quarantine_size_mb:5;detect_kernel_arguments:0" UR_LOG_SANITIZER=level:info %{run} not %t 2>&1 | FileCheck %s
+// RUN: env UR_LAYER_ASAN_OPTIONS="quarantine_size_mb:5;detect_kernel_arguments:0" UR_LOG_SANITIZER=level:info %{run} not --crash %t 2>&1 | FileCheck %s
 #include <sycl/usm.hpp>
 
 /// Quarantine Cache Test
@@ -34,7 +34,7 @@ int main() {
   temp =
       sycl::malloc_device<char>(N, Q); // allocated size: 1052672*4 <= 5242880
   sycl::free(temp, Q);
-  // Make sure the first allocated buffer is not freed
+  // Make sure the first allocated buffer is not --crash freed
   // CHECK-NOT: <SANITIZER>[INFO]: Quarantine Free
 
   Q.submit([&](sycl::handler &h) {

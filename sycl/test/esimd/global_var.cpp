@@ -42,7 +42,7 @@ void kernel_call() {
 
   q.submit([&](sycl::handler &cgh) {
     cgh.parallel_for<class Test>(nd_range<1>(1, 1), [=](nd_item<1> ndi) {
-      //expected-note@sycl/handler.hpp:* 2{{called by 'kernel_parallel_for}}
+      //expected-note@sycl/detail/kernel_launch_helper.hpp:* 2{{called by 'kernel_parallel_for}}
       //expected-error@+1{{ESIMD globals cannot be used in a SYCL context}}
       vc = 0;
       //expected-note@+1{{called by}}

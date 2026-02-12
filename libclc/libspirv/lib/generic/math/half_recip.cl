@@ -6,10 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/math/clc_half_recip.h>
 #include <libspirv/spirv.h>
 
-#define recip(x) (1.0f / x)
-
-#define __CLC_BUILTIN recip
+#define __CLC_FLOAT_ONLY
 #define __CLC_FUNCTION __spirv_ocl_half_recip
-#include <clc/math/unary_builtin_scalarize.inc>
+#define __CLC_IMPL_FUNCTION(x) __clc_half_recip
+#define __CLC_BODY <clc/shared/unary_def.inc>
+
+#include <clc/math/gentype.inc>

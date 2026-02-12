@@ -6,28 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/clc_as_type.h>
+#include <clc/math/clc_ldexp.h>
 #include <libspirv/spirv.h>
 
-#include <clc/clcmacro.h>
-#include <clc/math/clc_subnormal_config.h>
-#include <clc/math/math.h>
-#include <math/clc_ldexp.h>
+#define __CLC_FUNCTION __spirv_ocl_ldexp
+#define __CLC_IMPL_FUNCTION(x) __clc_ldexp
 
-_CLC_DEFINE_BINARY_BUILTIN(float, __spirv_ocl_ldexp, __clc_ldexp, float, int)
-_CLC_DEFINE_BINARY_BUILTIN(float, __spirv_ocl_ldexp, __clc_ldexp, float, uint)
+#define __CLC_BODY <clc/shared/binary_def_with_int_second_arg.inc>
+#include <clc/math/gentype.inc>
 
-#ifdef cl_khr_fp64
-
-#pragma OPENCL EXTENSION cl_khr_fp64 : enable
-
-_CLC_DEFINE_BINARY_BUILTIN(double, __spirv_ocl_ldexp, __clc_ldexp, double, int)
-_CLC_DEFINE_BINARY_BUILTIN(double, __spirv_ocl_ldexp, __clc_ldexp, double, uint)
-#endif
-
-#ifdef cl_khr_fp16
-
-#pragma OPENCL EXTENSION cl_khr_fp16 : enable
-
-_CLC_DEFINE_BINARY_BUILTIN(half, __spirv_ocl_ldexp, __clc_ldexp, half, int)
-_CLC_DEFINE_BINARY_BUILTIN(half, __spirv_ocl_ldexp, __clc_ldexp, half, uint)
-#endif
+#define __CLC_BODY <binary_def_with_uint_second_arg.inc>
+#include <clc/math/gentype.inc>

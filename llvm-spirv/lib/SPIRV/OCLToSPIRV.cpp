@@ -42,15 +42,21 @@
 #include "SPIRVInternal.h"
 #include "libSPIRV/SPIRVDebug.h"
 
+#include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Analysis/ValueTracking.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/Operator.h"
 #include "llvm/IR/PatternMatch.h"
+#include "llvm/IR/TypedPointerType.h"
 #include "llvm/Support/Debug.h"
 
 #include <algorithm>
+#include <optional>
 #include <regex>
 #include <set>
 
@@ -62,10 +68,92 @@ using namespace SPIRV;
 using namespace OCLUtil;
 
 namespace SPIRV {
+
+static unsigned getAddressSpaceFromType(const Type *Ty) {
+  assert(Ty && "Can't deduce pointer AS");
+  if (auto *TypedPtr = dyn_cast<TypedPointerType>(Ty))
+    return TypedPtr->getAddressSpace();
+  if (auto *Ptr = dyn_cast<PointerType>(Ty))
+    return Ptr->getAddressSpace();
+  llvm_unreachable("Can't deduce pointer AS");
+}
+
+// Performs an address space inference analysis.
+static unsigned getAddressSpaceFromValue(const Value *Ptr) {
+  assert(Ptr && "Can't deduce pointer AS");
+
+  SmallPtrSet<const Value *, 8> Visited;
+  SmallVector<const Value *, 8> Worklist;
+  Worklist.push_back(Ptr);
+  unsigned AS = SPIRAS_Generic;
+
+  while (!Worklist.empty()) {
+    const Value *Current = Worklist.pop_back_val();
+    if (!Visited.insert(Current).second)
+      continue;
+
+    unsigned DeducedAS = getAddressSpaceFromType(Current->getType());
+    if (DeducedAS != SPIRAS_Generic)
+      return DeducedAS;
+    AS = DeducedAS;
+
+    // Find origins of the pointer and add to the worklist.
+    if (auto *Op = dyn_cast<Operator>(Current)) {
+      switch (Op->getOpcode()) {
+      case Instruction::AddrSpaceCast:
+      case Instruction::BitCast:
+      case Instruction::GetElementPtr:
+        Worklist.push_back(Op->getOperand(0));
+        break;
+      case Instruction::Select:
+        Worklist.push_back(Op->getOperand(1));
+        Worklist.push_back(Op->getOperand(2));
+        break;
+      case Instruction::PHI: {
+        auto *Phi = cast<PHINode>(Op);
+        for (Value *Incoming : Phi->incoming_values())
+          Worklist.push_back(Incoming);
+        break;
+      }
+      default:
+        break;
+      }
+    }
+  }
+
+  return AS;
+}
+
+// Sets memory semantic mask of an atomic depending on a pointer argument
+// address space.
+static unsigned
+getAtomicPointerMemorySemanticsMemoryMask(const Value *Ptr,
+                                          const Type *RecordedType) {
+  assert((Ptr && RecordedType) &&
+         "Can't evaluate atomic builtin's memory semantic");
+  unsigned AddrSpace = getAddressSpaceFromType(RecordedType);
+  if (AddrSpace == SPIRAS_Generic)
+    AddrSpace = getAddressSpaceFromValue(Ptr);
+
+  switch (AddrSpace) {
+  case SPIRAS_Global:
+  case SPIRAS_GlobalDevice:
+  case SPIRAS_GlobalHost:
+    return MemorySemanticsCrossWorkgroupMemoryMask;
+  case SPIRAS_Local:
+    return MemorySemanticsWorkgroupMemoryMask;
+  case SPIRAS_Generic:
+    return MemorySemanticsCrossWorkgroupMemoryMask |
+           MemorySemanticsWorkgroupMemoryMask;
+  default:
+    return MemorySemanticsMaskNone;
+  }
+}
+
 static size_t getOCLCpp11AtomicMaxNumOps(StringRef Name) {
   return StringSwitch<size_t>(Name)
-      .Cases("load", "flag_test_and_set", "flag_clear", 3)
-      .Cases("store", "exchange", 4)
+      .Cases({"load", "flag_test_and_set", "flag_clear"}, 3)
+      .Cases({"store", "exchange"}, 4)
       .StartsWith("compare_exchange", 6)
       .StartsWith("fetch", 4)
       .Default(0);
@@ -700,6 +788,11 @@ void OCLToSPIRVBase::transAtomicBuiltin(CallInst *CI,
   const size_t ScopeIdx = ArgsCount - 1;
   const size_t OrderIdx = ScopeIdx - NumOrder;
 
+  unsigned PtrMemSemantics = MemorySemanticsMaskNone;
+  if (Mutator.arg_size() > 0)
+    PtrMemSemantics = getAtomicPointerMemorySemanticsMemoryMask(
+        Mutator.getArg(0), Mutator.getType(0));
+
   if (NeedsNegate) {
     Mutator.mapArg(1, [=](Value *V) {
       IRBuilder<> IRB(CI);
@@ -710,9 +803,20 @@ void OCLToSPIRVBase::transAtomicBuiltin(CallInst *CI,
     return transOCLMemScopeIntoSPIRVScope(V, OCLMS_device, CI);
   });
   for (size_t I = 0; I < NumOrder; ++I) {
-    Mutator.mapArg(OrderIdx + I, [=](Value *V) {
-      return transOCLMemOrderIntoSPIRVMemorySemantics(V, OCLMO_seq_cst, CI);
-    });
+    Mutator.mapArg(
+        OrderIdx + I, [=](IRBuilder<> &Builder, Value *V) -> Value * {
+          Value *MemSem =
+              transOCLMemOrderIntoSPIRVMemorySemantics(V, OCLMO_seq_cst, CI);
+          if (PtrMemSemantics == MemorySemanticsMaskNone)
+            return MemSem;
+
+          auto *MemSemTy = cast<IntegerType>(MemSem->getType());
+          auto *Mask = ConstantInt::get(MemSemTy, PtrMemSemantics);
+          if (auto *Const = dyn_cast<ConstantInt>(MemSem))
+            return static_cast<Value *>(ConstantInt::get(
+                MemSemTy, Const->getZExtValue() | PtrMemSemantics));
+          return Builder.CreateOr(MemSem, Mask);
+        });
   }
 
   // Order of args in SPIR-V:
@@ -799,9 +903,6 @@ void OCLToSPIRVBase::visitCallConvert(CallInst *CI, StringRef MangledName,
     } else
       OC = OpFConvert;
   }
-
-  if (!Rounding.empty() && (isa<IntegerType>(SrcTy) && IsTargetInt))
-    return;
 
   assert(CI->getCalledFunction() && "Unexpected indirect call");
   mutateCallInst(
@@ -1491,8 +1592,8 @@ void OCLToSPIRVBase::visitCallEnqueueKernel(CallInst *CI,
   // If no event arguments in original call, add dummy ones
   if (!HasEvents) {
     Args.push_back(getInt32(M, 0)); // dummy num events
-    Value *Null = Constant::getNullValue(PointerType::get(
-        getSPIRVType(OpTypeDeviceEvent, true), SPIRAS_Generic));
+    Value *Null = Constant::getNullValue(
+        PointerType::get(CI->getContext(), SPIRAS_Generic));
     Args.push_back(Null); // dummy wait events
     Args.push_back(Null); // dummy ret event
   }
@@ -1504,14 +1605,54 @@ void OCLToSPIRVBase::visitCallEnqueueKernel(CallInst *CI,
   // Param: Pointer to block literal
   Value *BlockLiteral = CI->getArgOperand(BlockFIdx + 1);
   Args.push_back(BlockLiteral);
+  BlockLiteral = BlockLiteral->stripPointerCasts();
+  if (auto *GV = dyn_cast<GlobalVariable>(BlockLiteral)) {
+    assert(GV->hasInitializer() && "Block literal should have an initializer");
+    Constant *Init = GV->getInitializer();
+    if (auto *Struct = dyn_cast<ConstantStruct>(Init)) {
+      Constant *SizeConst = Struct->getOperand(0);
+      Constant *AlignConst = Struct->getOperand(1);
+      auto *SizeVal = dyn_cast<ConstantInt>(SizeConst);
+      auto *AlignVal = dyn_cast<ConstantInt>(AlignConst);
+      Args.push_back(SizeVal);
+      Args.push_back(AlignVal);
+    }
+  } else {
 
-  // Param Size: Size of block literal structure
-  // Param Aligment: Aligment of block literal structure
-  // TODO: these numbers should be obtained from block literal structure
-  Type *ParamType = getBlockStructType(BlockLiteral);
-  Args.push_back(getInt32(M, DL.getTypeStoreSize(ParamType)));
-  Args.push_back(getInt32(M, DL.getPrefTypeAlign(ParamType).value()));
+    Value *Base = getUnderlyingObject(BlockLiteral);
+    Value *ParamSizeVal = nullptr;
+    Value *ParamAlignVal = nullptr;
 
+    for (User *U : Base->users()) {
+      if (auto *GEP = dyn_cast<GetElementPtrInst>(U)) {
+        if (GEP->getNumIndices() < 2)
+          continue;
+        auto *CI1 = dyn_cast<ConstantInt>(GEP->getOperand(2));
+        if (!CI1)
+          continue;
+        uint64_t FieldIndex = CI1->getZExtValue();
+        for (User *GEPUser : GEP->users()) {
+          if (auto *Store = dyn_cast<StoreInst>(GEPUser)) {
+            if (FieldIndex == 0)
+              ParamSizeVal = dyn_cast<ConstantInt>(Store->getValueOperand());
+            else if (FieldIndex == 1)
+              ParamAlignVal = dyn_cast<ConstantInt>(Store->getValueOperand());
+          }
+        }
+      }
+      if (ParamSizeVal && ParamAlignVal)
+        break;
+    }
+    Type *ParamType = getBlockStructType(BlockLiteral);
+    // Fallback to default if not found
+    if (!ParamSizeVal)
+      ParamSizeVal = getInt32(M, DL.getTypeStoreSize(ParamType));
+    if (!ParamAlignVal)
+      ParamAlignVal = getInt32(M, DL.getPrefTypeAlign(ParamType).value());
+
+    Args.push_back(ParamSizeVal);
+    Args.push_back(ParamAlignVal);
+  }
   // Local sizes arguments: Sizes of block invoke arguments
   // Clang 6.0 and higher generates local size operands as an array,
   // so we need to unpack them
