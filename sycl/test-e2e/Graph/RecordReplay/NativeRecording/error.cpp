@@ -8,7 +8,7 @@
 // Test that native recording properly fails when used with non-immediate
 // command lists
 
-#include "../graph_common.hpp"
+#include "../../graph_common.hpp"
 
 #include <sycl/properties/all_properties.hpp>
 

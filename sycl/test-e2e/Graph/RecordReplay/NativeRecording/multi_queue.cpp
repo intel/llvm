@@ -8,7 +8,7 @@
 // Test for SYCL_GRAPH_ENABLE_NATIVE_RECORDING with multi-queue dot product
 // Assesses event dependencies to, from, and within a native recording graph
 
-#include "../graph_common.hpp"
+#include "../../graph_common.hpp"
 
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 #include <sycl/properties/all_properties.hpp>

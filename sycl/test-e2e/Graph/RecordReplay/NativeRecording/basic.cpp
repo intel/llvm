@@ -8,7 +8,7 @@
 // Test for SYCL_GRAPH_ENABLE_NATIVE_RECORDING environment variable using queue
 // recording mode
 
-#include "../graph_common.hpp"
+#include "../../graph_common.hpp"
 
 #include <sycl/properties/all_properties.hpp>
 
