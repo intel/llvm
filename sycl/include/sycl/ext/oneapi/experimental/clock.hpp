@@ -26,8 +26,14 @@ enum class clock_scope : int {
 namespace detail {
 template <clock_scope Scope> inline uint64_t clock_impl() {
 #ifdef __SYCL_DEVICE_ONLY__
-#if defined(__NVPTX__) || defined(__AMDGCN__)
-  // Currently clock() is not supported on NVPTX and AMDGCN.
+#if defined(__NVPTX__)
+  if constexpr (Scope == work_group || Scope == sub_group) {
+    return __nvvm_read_ptx_sreg_clock64();
+  } else {
+    return 0;
+  }
+#else if defined(__AMDGCN__)
+  // Currently clock() is not supported on AMDGCN.
   return 0;
 #else
   return __spirv_ReadClockKHR(static_cast<int>(Scope));
