@@ -6870,8 +6870,8 @@ class EnumValueTemplateArgPrinter
   void printEnumValue(QualType EnumTy, const llvm::APSInt &Val) {
     OS << "static_cast<";
     if (const auto *ET = EnumTy->getAs<EnumType>()) {
-      ET->getOriginalDecl()->printQualifiedName(
-          OS, Policy, /*WithGlobalNsPrefix=*/Policy.FullyQualifiedName);
+      ET->getOriginalDecl()->printQualifiedName(OS, Policy,
+                                                /*WithGlobalNsPrefix=*/false);
     } else {
       EnumTy.print(OS, Policy);
     }
@@ -6899,9 +6899,8 @@ class EnumValueTemplateArgPrinter
             dyn_cast_or_null<ClassTemplateSpecializationDecl>(RD)) {
       if (!Policy.SuppressTagKeyword)
         OS << CTSD->getKindName() << " ";
-      CTSD->printQualifiedName(
-          OS, Policy,
-          /*WithGlobalNsPrefix=*/Policy.FullyQualifiedName);
+      CTSD->printQualifiedName(OS, Policy,
+                               /*WithGlobalNsPrefix=*/false);
       OS << "<";
       printTemplateArgs(CTSD->getTemplateArgs().asArray());
       OS << ">";
@@ -6917,9 +6916,8 @@ class EnumValueTemplateArgPrinter
 
       TemplateDecl *TD = TST->getTemplateName().getAsTemplateDecl();
       if (TD)
-        TD->printQualifiedName(
-            OS, Policy,
-            /*WithGlobalNsPrefix=*/Policy.FullyQualifiedName);
+        TD->printQualifiedName(OS, Policy,
+                               /*WithGlobalNsPrefix=*/false);
       else
         TST->getTemplateName().print(OS, Policy);
 
