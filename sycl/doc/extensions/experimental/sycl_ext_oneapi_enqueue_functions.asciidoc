@@ -683,8 +683,8 @@ void barrier(sycl::handler &h);
 _Effects_: Enqueues a command barrier to the `sycl::queue` or `sycl::handler`.
 Any commands submitted after this barrier cannot begin execution until all
 commands previously submitted to the `sycl::queue`
-have completed or any commands associated with other dependent events of
-the `sycl::handler`.
+have completed and all commands associated with other dependent events of
+the `sycl::handler` have completed.
 
 a|
 [frame=all,grid=none]
