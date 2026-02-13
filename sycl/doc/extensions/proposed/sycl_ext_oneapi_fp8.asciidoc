@@ -737,7 +737,7 @@ class fp8_e5m2_x {
                       saturation s = saturation::finite);
   explicit fp8_e5m2_x(bfloat16 const (&vals)[N], const stochastic_seed& seed,
                       saturation s = saturation::finite);
-  explicit fp8_e5m2_x(double const (&vals)[N], const stochastic_seed& seed,
+  explicit fp8_e5m2_x(float const (&vals)[N], const stochastic_seed& seed,
                       saturation s = saturation::finite);
 
   // Construct with stochastic rounding with user provided seed from an marray
@@ -747,7 +747,7 @@ class fp8_e5m2_x {
                       saturation s = saturation::finite);
   explicit fp8_e5m2_x(const marray<bfloat16,N>& vals, const stochastic_seed& seed,
                       saturation s = saturation::finite);
-  explicit fp8_e5m2_x(const marray<double,N>& vals, const stochastic_seed& seed,
+  explicit fp8_e5m2_x(const marray<float,N>& vals, const stochastic_seed& seed,
                       saturation s = saturation::finite);
 
   // Construct from integer types.
@@ -937,7 +937,7 @@ explicit fp8_e5m2_x(half const (&vals)[N], const stochastic_seed& seed,
                     saturation s = saturation::finite);
 explicit fp8_e5m2_x(bfloat16 const (&vals)[N], const stochastic_seed& seed,
                     saturation s = saturation::finite);
-explicit fp8_e5m2_x(double const (&vals)[N], const stochastic_seed& seed,
+explicit fp8_e5m2_x(float const (&vals)[N], const stochastic_seed& seed,
                     saturation s = saturation::finite);
 ----
 
@@ -966,7 +966,7 @@ explicit fp8_e5m2_x(const marray<half,N>& vals, const stochastic_seed& seed,
                     saturation s = saturation::finite);
 explicit fp8_e5m2_x(const marray<bfloat16,N>& vals, const stochastic_seed& seed,
                     saturation s = saturation::finite);
-explicit fp8_e5m2_x(const marray<double,N>& vals, const stochastic_seed& seed,
+explicit fp8_e5m2_x(const marray<float,N>& vals, const stochastic_seed& seed,
                     saturation s = saturation::finite);
 ----
 
