@@ -173,6 +173,7 @@ public:
   HostKernelRefBase() = default;
   HostKernelRefBase(const HostKernelRefBase &) = delete;
   HostKernelRefBase &operator=(const HostKernelRefBase &) = delete;
+  ~HostKernelRefBase() = default;
 
   virtual std::unique_ptr<HostKernelBase> takeOrCopyOwnership() const = 0;
 };

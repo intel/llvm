@@ -675,17 +675,6 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
   // make sure we don't pass -properties.
   PostLinkArgs.push_back("-properties");
 
-  // See if device code splitting is already requested. If not requested, then
-  // set -split=auto for non-FPGA targets.
-  bool NoSplit = true;
-  for (auto Arg : PostLinkArgs)
-    if (Arg.contains("-split=")) {
-      NoSplit = false;
-      break;
-    }
-  if (NoSplit && (Triple.getSubArch() != llvm::Triple::SPIRSubArch_fpga))
-    PostLinkArgs.push_back("-split=auto");
-
   // On Intel targets we don't need non-kernel functions as entry points,
   // because it only increases amount of code for device compiler to handle,
   // without any actual benefits.
