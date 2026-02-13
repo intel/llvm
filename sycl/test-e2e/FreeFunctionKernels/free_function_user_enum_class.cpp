@@ -7,9 +7,9 @@
 #include "free_function_user_enum_class.hpp"
 #include "helpers.hpp"
 #include <cassert>
+#include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/ext/oneapi/work_group_static.hpp>
-#include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 #include <sycl/usm.hpp>
 
 namespace syclext = sycl::ext::oneapi;
