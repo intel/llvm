@@ -8886,8 +8886,17 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
     } else {
       Path = Result.getFilename();
     }
+
+    if (JA->isDeviceOffloading(Action::OFK_SYCL)) {
+      llvm::StringRef OrginalFileName = llvm::sys::path::stem(Path);
+      llvm::SmallString<128> NewFileName(OrginalFileName);
+      NewFileName += "-sycl";
+      llvm::sys::path::remove_filename(Path);
+      llvm::sys::path::append(Path, NewFileName);
+    }
     llvm::sys::path::replace_extension(Path, "json");
   }
+
   const char *ResultFile = C.getArgs().MakeArgString(Path);
   C.addTimeTraceFile(ResultFile, JA);
   C.addResultFile(ResultFile, JA);
@@ -9290,8 +9299,8 @@ InputInfoList Driver::BuildJobsForActionNoCache(
                                              OffloadingPrefix),
                        BaseInput);
     // Enable time tracing capability for SYCL applications as well.
-    if (T->canEmitIR() && (OffloadingPrefix.empty() ||
-                           TargetDeviceOffloadKind == Action::OFK_SYCL))
+    if (T->canEmitIR() &&
+        (OffloadingPrefix.empty() || A->isOffloading(Action::OFK_SYCL)))
       handleTimeTrace(C, Args, JA, BaseInput, Result);
   }
 
