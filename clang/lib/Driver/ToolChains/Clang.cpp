@@ -5993,33 +5993,29 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                        options::OPT_no_offload_new_driver, false);
       Arg *SYCLSplitMode =
           Args.getLastArg(options::OPT_fsycl_device_code_split_EQ);
+      Arg *OffloadLTO = Args.getLastArg(options::OPT_foffload_lto,
+                                        options::OPT_foffload_lto_EQ);
       bool IsDeviceCodeSplitDisabled =
           SYCLSplitMode && StringRef(SYCLSplitMode->getValue()) == "off";
       bool IsSYCLLTOSupported =
           JA.isDeviceOffloading(Action::OFK_SYCL) && IsUsingOffloadNewDriver;
-      if ((IsDeviceOffloadAction &&
-           !JA.isDeviceOffloading(Action::OFK_OpenMP) && !Triple.isAMDGPU() &&
-           !IsUsingOffloadNewDriver) ||
-          (JA.isDeviceOffloading(Action::OFK_SYCL) && !IsSYCLLTOSupported)) {
+      if (((IsDeviceOffloadAction &&
+            !JA.isDeviceOffloading(Action::OFK_OpenMP) && !Triple.isAMDGPU() &&
+            !IsUsingOffloadNewDriver) ||
+           (JA.isDeviceOffloading(Action::OFK_SYCL) && !IsSYCLLTOSupported)) &&
+          OffloadLTO) {
         D.Diag(diag::err_drv_unsupported_opt_for_target)
-            << Args.getLastArg(options::OPT_foffload_lto,
-                               options::OPT_foffload_lto_EQ)
-                   ->getAsString(Args)
-            << Triple.getTriple();
+            << OffloadLTO->getAsString(Args) << Triple.getTriple();
       } else if (Triple.isNVPTX() && !IsRDCMode &&
-                 JA.isDeviceOffloading(Action::OFK_Cuda)) {
+                 JA.isDeviceOffloading(Action::OFK_Cuda) && OffloadLTO) {
         D.Diag(diag::err_drv_unsupported_opt_for_language_mode)
-            << Args.getLastArg(options::OPT_foffload_lto,
-                               options::OPT_foffload_lto_EQ)
-                   ->getAsString(Args)
-            << "-fno-gpu-rdc";
+            << OffloadLTO->getAsString(Args) << "-fno-gpu-rdc";
       } else if (JA.isDeviceOffloading(Action::OFK_SYCL) &&
-                 IsDeviceCodeSplitDisabled && LTOMode == LTOK_Thin) {
+                 IsDeviceCodeSplitDisabled && LTOMode == LTOK_Thin &&
+                 OffloadLTO) {
         D.Diag(diag::err_drv_sycl_thinlto_split_off)
             << SYCLSplitMode->getAsString(Args)
-            << Args.getLastArg(options::OPT_foffload_lto,
-                               options::OPT_foffload_lto_EQ)
-                   ->getAsString(Args);
+            << OffloadLTO->getAsString(Args);
       } else {
         assert(LTOMode == LTOK_Full || LTOMode == LTOK_Thin);
         CmdArgs.push_back(Args.MakeArgString(
