@@ -2,7 +2,7 @@
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl -### \
 // RUN:          --no-offload-new-driver -Xdevice-post-link -O0 %s --sysroot=%S/Inputs/SYCL 2>&1 \
 // RUN:   | FileCheck -check-prefix OPTIONS_POSTLINK_JIT_OLD %s
-// OPTIONS_POSTLINK_JIT_OLD: sycl-post-link{{.*}} "-O2" "-device-globals" "--device-lib-dir={{.*}}" "-properties" "-spec-const=native" "-split=auto" "-emit-only-kernels-as-entry-points" "-emit-param-info" "-symbols" "-emit-exported-symbols" "-emit-imported-symbols" "-split-esimd" "-lower-esimd" "-O0"
+// OPTIONS_POSTLINK_JIT_OLD: sycl-post-link{{.*}} "-O2" "-device-globals" "--device-lib-dir={{.*}}" "-properties" "-spec-const=native" "-emit-only-kernels-as-entry-points" "-emit-param-info" "-symbols" "-emit-exported-symbols" "-emit-imported-symbols" "-split-esimd" "-lower-esimd" "-O0"
 //
 // Generate .o file as linker wrapper input.
 //
@@ -19,7 +19,7 @@
 // RUN:   -sycl-device-libraries=%t.devicelib.o \
 // RUN:   --sycl-post-link-options="-O2 -device-globals -O0" \
 // RUN:   --linker-path=/usr/bin/ld %t.o -o a.out 2>&1 | FileCheck --check-prefix OPTIONS_POSTLINK_JIT_NEW %s
-// OPTIONS_POSTLINK_JIT_NEW: sycl-post-link{{.*}} -spec-const=native -properties -split=auto -emit-only-kernels-as-entry-points -emit-param-info -symbols -emit-exported-symbols -emit-imported-symbols -split-esimd -lower-esimd -O2 -device-globals -O0
+// OPTIONS_POSTLINK_JIT_NEW: sycl-post-link{{.*}} -spec-const=native -properties -emit-only-kernels-as-entry-points -emit-param-info -symbols -emit-exported-symbols -emit-imported-symbols -split-esimd -lower-esimd -O2 -device-globals -O0
 //
 // Run clang-linker-wrapper test for generating SYCLBIN files.
 //
@@ -27,7 +27,7 @@
 // RUN:   -syclbin=executable -sycl-device-libraries=%t.devicelib.o \
 // RUN:   --sycl-post-link-options="-O2 -device-globals -O0" \
 // RUN:   --linker-path=/usr/bin/ld %t.o -o a.out 2>&1 | FileCheck --check-prefix OPTIONS_POSTLINK_JIT_NEW_SYCLBIN %s
-// OPTIONS_POSTLINK_JIT_NEW_SYCLBIN: sycl-post-link{{.*}} -spec-const=native -properties -split=auto -emit-only-kernels-as-entry-points -emit-param-info -symbols -emit-kernel-names -emit-exported-symbols -emit-imported-symbols -split-esimd -lower-esimd -O2 -device-globals -O0
+// OPTIONS_POSTLINK_JIT_NEW_SYCLBIN: sycl-post-link{{.*}} -spec-const=native -properties -emit-only-kernels-as-entry-points -emit-param-info -symbols -emit-kernel-names -emit-exported-symbols -emit-imported-symbols -split-esimd -lower-esimd -O2 -device-globals -O0
 //
 // Ensure driver forwards these triple based options to clang-linker-wrapper.
 // 
@@ -61,7 +61,7 @@
 // RUN:   -sycl-device-libraries=%t.devicelib.o \
 // RUN:   -no-sycl-remove-unused-external-funcs \
 // RUN:   --linker-path=/usr/bin/ld %t.o -o a.out 2>&1 | FileCheck --check-prefix OPTIONS_NO_EMIT_ONLY_KERNELS %s
-// OPTIONS_NO_EMIT_ONLY_KERNELS: sycl-post-link{{.*}} -spec-const=native -properties -split=auto -emit-param-info -symbols -emit-exported-symbols -emit-imported-symbols -split-esimd -lower-esimd
+// OPTIONS_NO_EMIT_ONLY_KERNELS: sycl-post-link{{.*}} -spec-const=native -properties -emit-param-info -symbols -emit-exported-symbols -emit-imported-symbols -split-esimd -lower-esimd
 //
 // Check -no-sycl-device-code-split-esimd option disables emitting
 // -split-esimd in sycl-post-link.
@@ -69,7 +69,7 @@
 // RUN:   -sycl-device-libraries=%t.devicelib.o \
 // RUN:   -no-sycl-device-code-split-esimd \
 // RUN:   --linker-path=/usr/bin/ld %t.o -o a.out 2>&1 | FileCheck --check-prefix OPTIONS_NO_SPLIT_ESIMD %s
-// OPTIONS_NO_SPLIT_ESIMD: sycl-post-link{{.*}} -spec-const=native -properties -split=auto -emit-only-kernels-as-entry-points -emit-param-info -symbols -emit-exported-symbols -emit-imported-symbols -lower-esimd
+// OPTIONS_NO_SPLIT_ESIMD: sycl-post-link{{.*}} -spec-const=native -properties -emit-only-kernels-as-entry-points -emit-param-info -symbols -emit-exported-symbols -emit-imported-symbols -lower-esimd
 // 
 // Generate AOT .o file as linker wrapper input.
 //
@@ -86,4 +86,4 @@
 // RUN:   -sycl-device-libraries=%t.devicelib_aot.o \
 // RUN:   -sycl-add-default-spec-consts-image \
 // RUN:   --linker-path=/usr/bin/ld %t_aot.o -o a.out 2>&1 | FileCheck --check-prefix OPTIONS_DEFAULT_SPEC_CONSTS %s
-// OPTIONS_DEFAULT_SPEC_CONSTS: sycl-post-link{{.*}} -spec-const=emulation -properties -split=auto -emit-only-kernels-as-entry-points -emit-param-info -symbols -emit-exported-symbols -emit-imported-symbols -split-esimd -lower-esimd -generate-device-image-default-spec-consts
+// OPTIONS_DEFAULT_SPEC_CONSTS: sycl-post-link{{.*}} -spec-const=emulation -properties -emit-only-kernels-as-entry-points -emit-param-info -symbols -emit-exported-symbols -emit-imported-symbols -split-esimd -lower-esimd -generate-device-image-default-spec-consts
