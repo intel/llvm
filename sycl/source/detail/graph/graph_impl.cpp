@@ -629,7 +629,11 @@ void graph_impl::clearQueues(bool NeedsLock) {
         // End native UR graph capture
         auto UrQueue = ValidQueue->getHandleRef();
         ur_exp_graph_handle_t CapturedGraph = nullptr;
-        ur_result_t Result = urQueueEndGraphCaptureExp(UrQueue, &CapturedGraph);
+        context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
+        sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
+        ur_result_t Result = Adapter.call_nocheck<
+            sycl::detail::UrApiKind::urQueueEndGraphCaptureExp>(UrQueue,
+                                                                &CapturedGraph);
         if (Result != UR_RESULT_SUCCESS) {
           throw sycl::exception(sycl::make_error_code(errc::runtime),
                                 "Failed to end native graph capture");
@@ -769,16 +773,16 @@ void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
       ur_queue_flags_t queueFlags = 0;
       size_t retSize = 0;
       auto UrQueue = Queue.getHandleRef();
+      context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
+      sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
       ur_result_t Result =
-          urQueueGetInfo(UrQueue, UR_QUEUE_INFO_FLAGS, sizeof(queueFlags),
-                         &queueFlags, &retSize);
+          Adapter.call_nocheck<sycl::detail::UrApiKind::urQueueGetInfo>(
+              UrQueue, UR_QUEUE_INFO_FLAGS, sizeof(queueFlags), &queueFlags,
+              &retSize);
       if (Result != UR_RESULT_SUCCESS) {
         throw sycl::exception(sycl::make_error_code(errc::runtime),
                               "Failed to query queue flags");
       }
-
-      context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
-      sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
 
       Result = Adapter.call_nocheck<
           sycl::detail::UrApiKind::urQueueBeginCaptureIntoGraphExp>(
@@ -2152,7 +2156,12 @@ void modifiable_command_graph::end_recording(queue &RecordingQueue) {
       if (impl->getNativeGraphHandle()) {
         auto UrQueue = QueueImpl.getHandleRef();
         ur_exp_graph_handle_t CapturedGraph = nullptr;
-        ur_result_t Result = urQueueEndGraphCaptureExp(UrQueue, &CapturedGraph);
+        context_impl &ContextImpl =
+            *sycl::detail::getSyclObjImpl(impl->getContext());
+        sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
+        ur_result_t Result = Adapter.call_nocheck<
+            sycl::detail::UrApiKind::urQueueEndGraphCaptureExp>(UrQueue,
+                                                                &CapturedGraph);
         if (Result != UR_RESULT_SUCCESS) {
           throw sycl::exception(sycl::make_error_code(errc::runtime),
                                 "Failed to end native UR graph capture");
