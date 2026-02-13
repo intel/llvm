@@ -6874,20 +6874,18 @@ class EnumValueTemplateArgPrinter
                                                 /*WithGlobalNsPrefix=*/false);
     else
       EnumTy.print(OS, Policy);
-    llvm::SmallString<32> Num;
+    llvm::SmallString<8> Num;
     Val.toString(Num, /*Radix=*/10, /*Signed=*/Val.isSigned());
     OS << ">(" << Num << ")";
   }
 
   void printTemplateArgs(ArrayRef<TemplateArgument> Args) {
-    bool First = true;
+    llvm::ListSeparator LS(", ");
     for (const auto &A : Args) {
       // Skip empty packs without emitting separators.
       if (A.getKind() == TemplateArgument::ArgKind::Pack && !A.pack_size())
         continue;
-      if (!First)
-        OS << ", ";
-      First = false;
+      OS << LS;
       Visit(A);
     }
   }
