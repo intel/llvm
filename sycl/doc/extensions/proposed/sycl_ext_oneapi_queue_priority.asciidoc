@@ -96,10 +96,12 @@ namespace sycl::ext::oneapi::property::queue {
 } // namespace sycl::ext::oneapi::property::queue
 ----
 
-Specifies that the queue should be constructed with the specified `priority`.
-Commands executed by this queue may take priority over commands with lower
-priority on this queue's device. If the user specifies `priority` outside the range returned by `sycl::ext::oneapi::queue::priority_range`, `priority` will be clamped down
-or up to the least or greatest priority in the range.
+_Effects:_ Specifies that the queue should be constructed with the specified
+`priority`. Commands executed by this queue may take priority over commands
+with lower priority on this queue's device. If the user specifies `priority`
+outside the range returned by `sycl::ext::oneapi::queue::priority_range`,
+`priority` will be clamped down or up to the least or greatest priority in the
+range.
 
 === New query - priority_range
 
@@ -109,13 +111,18 @@ or up to the least or greatest priority in the range.
 ----
 namespace sycl::ext::oneapi::info::queue {
 
-struct priority_range;
+struct priority_range {
+	using return_type = std::array<int,2>;
+};
 
-}
+} // namespace sycl::ext::oneapi::info::queue
 ----
 
-Returns a `std::array<int,2>` that represents the `{leastPriority,
+_Remarks:_ Template parameter to `queue::get_info`.
+
+_Returns:_ `std::array<int,2>` that represents the `{leastPriority,
 greatestPriority}` for this queue. Lower numbers imply greater priorities.
-The default priority has value `0`. Specifying priorities outside of this
-range when creating a queue will result in the specified priority being
-clamped down or up to the least priority or greatest priority, respectively.
+
+{note}Specifying priorities outside of this range when creating a queue will
+result in the specified priority being clamped down or up to the least priority
+or greatest priority, respectively.{endnote}
